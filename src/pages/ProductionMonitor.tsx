@@ -125,8 +125,9 @@ export default function ProductionMonitor() {
     { id: "A-3", name: lang === "ko" ? "티셔츠 제작기 A-3" : "T恤制作机 A-3", status: "running", speed: "92", uptime: "94.8%", total: 21560, error: "-", lastComm: "14:37:03", stopReason: "", stoppedAt: "" },
     { id: "B-1", name: lang === "ko" ? "카드 포장기 B-1" : "卡片包装机 B-1", status: "running", speed: "120", uptime: "96.1%", total: 42150, error: "-", lastComm: "14:37:01", stopReason: "", stoppedAt: "" },
     { id: "B-2", name: lang === "ko" ? "세트 포장기 B-2" : "套装包装机 B-2", status: "autoStopped", speed: "-", uptime: "93.4%", total: 31200, error: "QR-ERR", lastComm: "14:36:58", stopReason: lang === "ko" ? "QR 매칭 실패 — 홀로그램 QR ↔ 카드 바코드 불일치 (SET-0313)" : "QR匹配失败 — 全息QR ↔ 卡片条码不匹配 (SET-0313)", stoppedAt: "14:36:58" },
-    { id: "B-3", name: lang === "ko" ? "택배 포장기 B-3" : "快递包装机 B-3", status: "running", speed: "78", uptime: "88.5%", total: 18300, error: "-", lastComm: "14:36:55", stopReason: "", stoppedAt: "" },
-    { id: "B-4", name: lang === "ko" ? "송장 부착기 B-4" : "运单贴附机 B-4", status: "running", speed: "110", uptime: "95.7%", total: 35680, error: "-", lastComm: "14:37:04", stopReason: "", stoppedAt: "" },
+    { id: "B-3", name: lang === "ko" ? "중량검사기 B-3" : "重量检测机 B-3", status: "running", speed: "150", uptime: "99.1%", total: 31000, error: "-", lastComm: "14:36:56", stopReason: "", stoppedAt: "" },
+    { id: "B-4", name: lang === "ko" ? "택배 포장기 B-4" : "快递包装机 B-4", status: "running", speed: "78", uptime: "88.5%", total: 18300, error: "-", lastComm: "14:36:55", stopReason: "", stoppedAt: "" },
+    { id: "B-5", name: lang === "ko" ? "송장 부착기 B-5" : "运单贴附机 B-5", status: "running", speed: "110", uptime: "95.7%", total: 35680, error: "-", lastComm: "14:37:04", stopReason: "", stoppedAt: "" },
   ]);
   const [actionMemos, setActionMemos] = useState<Record<string, string>>({});
 

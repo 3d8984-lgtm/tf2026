@@ -17,8 +17,9 @@ const mockEquipment = [
   { id: 3, name: "티셔츠 제작기 A-3", code: "A-3", line: "LINE-1", plcIp: "192.168.1.12", protocol: "OPC-UA", connected: false },
   { id: 4, name: "카드 포장기 B-1", code: "B-1", line: "LINE-2", plcIp: "192.168.1.20", protocol: "Modbus TCP", connected: true },
   { id: 5, name: "티셔츠+카드 포장기 B-2", code: "B-2", line: "LINE-2", plcIp: "192.168.1.21", protocol: "OPC-UA", connected: true },
-  { id: 6, name: "택배 포장기 B-3", code: "B-3", line: "LINE-3", plcIp: "192.168.1.30", protocol: "Modbus TCP", connected: true },
-  { id: 7, name: "송장 부착기 B-4", code: "B-4", line: "LINE-3", plcIp: "192.168.1.31", protocol: "OPC-UA", connected: false },
+  { id: 6, name: "중량검사기 B-3", code: "B-3", line: "LINE-3", plcIp: "192.168.1.25", protocol: "Modbus TCP", connected: true },
+  { id: 7, name: "택배 포장기 B-4", code: "B-4", line: "LINE-3", plcIp: "192.168.1.30", protocol: "Modbus TCP", connected: true },
+  { id: 8, name: "송장 부착기 B-5", code: "B-5", line: "LINE-3", plcIp: "192.168.1.31", protocol: "OPC-UA", connected: false },
 ];
 
 const mockPlcTags = [
@@ -62,6 +63,7 @@ const mockEquipmentZh = mockEquipment.map(e => ({
     .replace("티셔츠 제작기", "T恤制作机")
     .replace("카드 포장기", "卡片包装机")
     .replace("티셔츠+카드 포장기", "T恤+卡片包装机")
+    .replace("중량검사기", "重量检测机")
     .replace("택배 포장기", "快递包装机")
     .replace("송장 부착기", "运单贴附机"),
 }));

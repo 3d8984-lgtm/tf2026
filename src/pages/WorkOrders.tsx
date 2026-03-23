@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 
-type RestartStage = "tshirt" | "card" | "set" | "courier" | "invoice";
+type RestartStage = "tshirt" | "card" | "set" | "weight" | "courier" | "invoice";
 
 interface ReworkItem {
   defectId: string;
@@ -30,8 +30,8 @@ interface WorkOrder {
   reworks: ReworkItem[];
 }
 
-const stageOrder: RestartStage[] = ["tshirt", "card", "set", "courier", "invoice"];
-const stageIcons: Record<RestartStage, typeof Shirt> = { tshirt: Shirt, card: Sticker, set: Box, courier: Package, invoice: Truck };
+const stageOrder: RestartStage[] = ["tshirt", "card", "set", "weight", "courier", "invoice"];
+const stageIcons: Record<RestartStage, typeof Shirt> = { tshirt: Shirt, card: Sticker, set: Box, weight: Package, courier: Package, invoice: Truck };
 
 export default function WorkOrders() {
   const { t, lang } = useLang();
@@ -39,7 +39,7 @@ export default function WorkOrders() {
 
   const stageLabel: Record<RestartStage, string> = {
     tshirt: t("process.tshirt"), card: t("process.card"), set: t("process.set"),
-    courier: t("process.courier"), invoice: t("process.invoice"),
+    weight: t("process.weight"), courier: t("process.courier"), invoice: t("process.invoice"),
   };
 
   const [workOrders] = useState<WorkOrder[]>([

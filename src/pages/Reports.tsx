@@ -126,8 +126,9 @@ const machineUptimeData = [
   { name: "A-3", uptime: 92, downtime: 8 },
   { name: "B-1", uptime: 97, downtime: 3 },
   { name: "B-2", uptime: 90, downtime: 10 },
-  { name: "B-3", uptime: 85, downtime: 15 },
-  { name: "B-4", uptime: 93, downtime: 7 },
+  { name: "B-3", uptime: 99, downtime: 1 },
+  { name: "B-4", uptime: 85, downtime: 15 },
+  { name: "B-5", uptime: 93, downtime: 7 },
 ];
 
 const defectRateData = [

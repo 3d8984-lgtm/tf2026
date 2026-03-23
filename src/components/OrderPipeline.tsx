@@ -1,11 +1,12 @@
-import { Shirt, CreditCard, Package, Mail, Truck, CheckCircle2 } from "lucide-react";
+import { Shirt, CreditCard, Package, Mail, Truck, CheckCircle2, Scale } from "lucide-react";
 
 const stages = [
   { key: "tshirt", label: "티셔츠 제작", icon: Shirt, machines: ["A-1", "A-2", "A-3"] },
   { key: "card", label: "카드 포장", icon: CreditCard, machines: ["B-1"] },
   { key: "set", label: "세트 포장", icon: Package, machines: ["B-2"] },
-  { key: "courier", label: "택배 포장", icon: Mail, machines: ["B-3"] },
-  { key: "invoice", label: "송장 부착", icon: Truck, machines: ["B-4"] },
+  { key: "weight", label: "중량 검사", icon: Scale, machines: ["B-3"] },
+  { key: "courier", label: "택배 포장", icon: Mail, machines: ["B-4"] },
+  { key: "invoice", label: "송장 부착", icon: Truck, machines: ["B-5"] },
   { key: "done", label: "완료", icon: CheckCircle2, machines: [] },
 ] as const;
 
@@ -29,41 +30,41 @@ interface Order {
 const orders: Order[] = [
   {
     id: "ORD-24831", product: "BT-2024-A", design: "DSN-047", qty: 200, currentStage: "set",
-    stageCounts: { tshirt: 200, card: 185, set: 142, courier: 0, invoice: 0, done: 0 },
+    stageCounts: { tshirt: 200, card: 185, set: 142, weight: 142, courier: 0, invoice: 0, done: 0 },
     activeMachines: {
       tshirt: [{ id: "A-1", status: "가동중" }, { id: "A-2", status: "가동중" }],
       card: [{ id: "B-1", status: "가동중" }], set: [{ id: "B-2", status: "가동중" }],
-      courier: [], invoice: [], done: [],
+      weight: [{ id: "B-3", status: "가동중" }], courier: [], invoice: [], done: [],
     },
   },
   {
     id: "ORD-24832", product: "BT-2024-B", design: "DSN-012", qty: 150, currentStage: "courier",
-    stageCounts: { tshirt: 150, card: 150, set: 150, courier: 98, invoice: 72, done: 72 },
+    stageCounts: { tshirt: 150, card: 150, set: 150, weight: 150, courier: 98, invoice: 72, done: 72 },
     activeMachines: {
-      tshirt: [], card: [], set: [],
-      courier: [{ id: "B-3", status: "가동중" }], invoice: [{ id: "B-4", status: "가동중" }], done: [],
+      tshirt: [], card: [], set: [], weight: [],
+      courier: [{ id: "B-4", status: "가동중" }], invoice: [{ id: "B-5", status: "가동중" }], done: [],
     },
   },
   {
     id: "ORD-24833", product: "BT-2024-C", design: "DSN-089", qty: 300, currentStage: "tshirt",
-    stageCounts: { tshirt: 87, card: 0, set: 0, courier: 0, invoice: 0, done: 0 },
+    stageCounts: { tshirt: 87, card: 0, set: 0, weight: 0, courier: 0, invoice: 0, done: 0 },
     activeMachines: {
       tshirt: [{ id: "A-1", status: "가동중" }, { id: "A-2", status: "일시정지" }, { id: "A-3", status: "가동중" }],
-      card: [], set: [], courier: [], invoice: [], done: [],
+      card: [], set: [], weight: [], courier: [], invoice: [], done: [],
     },
   },
   {
     id: "ORD-24834", product: "BT-2024-A", design: "DSN-047", qty: 120, currentStage: "invoice",
-    stageCounts: { tshirt: 120, card: 120, set: 120, courier: 120, invoice: 108, done: 95 },
+    stageCounts: { tshirt: 120, card: 120, set: 120, weight: 120, courier: 120, invoice: 108, done: 95 },
     activeMachines: {
-      tshirt: [], card: [], set: [], courier: [],
-      invoice: [{ id: "B-4", status: "가동중" }], done: [],
+      tshirt: [], card: [], set: [], weight: [], courier: [],
+      invoice: [{ id: "B-5", status: "가동중" }], done: [],
     },
   },
   {
     id: "ORD-24835", product: "BT-2024-D", design: "DSN-103", qty: 80, currentStage: "done",
-    stageCounts: { tshirt: 80, card: 80, set: 80, courier: 80, invoice: 80, done: 80 },
-    activeMachines: { tshirt: [], card: [], set: [], courier: [], invoice: [], done: [] },
+    stageCounts: { tshirt: 80, card: 80, set: 80, weight: 80, courier: 80, invoice: 80, done: 80 },
+    activeMachines: { tshirt: [], card: [], set: [], weight: [], courier: [], invoice: [], done: [] },
   },
 ];
 
@@ -78,6 +79,7 @@ const stageColors: Record<StageKey, string> = {
   tshirt: "hsl(205 75% 42%)",
   card: "hsl(152 60% 42%)",
   set: "hsl(38 92% 50%)",
+  weight: "hsl(320 55% 50%)",
   courier: "hsl(280 55% 52%)",
   invoice: "hsl(205 75% 55%)",
   done: "hsl(152 60% 36%)",
@@ -87,6 +89,7 @@ const stageBgColors: Record<StageKey, string> = {
   tshirt: "hsl(205 75% 42% / 0.1)",
   card: "hsl(152 60% 42% / 0.1)",
   set: "hsl(38 92% 50% / 0.1)",
+  weight: "hsl(320 55% 50% / 0.1)",
   courier: "hsl(280 55% 52% / 0.1)",
   invoice: "hsl(205 75% 55% / 0.1)",
   done: "hsl(152 60% 36% / 0.1)",
