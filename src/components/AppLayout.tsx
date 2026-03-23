@@ -3,7 +3,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import {
   LayoutDashboard, Upload, Database, ClipboardList, Shirt, CreditCard,
   Package, Truck, Monitor, AlertTriangle, FileBarChart, Settings,
-  ChevronLeft, ChevronRight, Box
+  ChevronLeft, ChevronRight, Box, ScanLine
 } from "lucide-react";
 
 const menuItems = [
@@ -12,6 +12,7 @@ const menuItems = [
   { path: "/master", icon: Database, label: "기준정보 관리" },
   { path: "/work-orders", icon: ClipboardList, label: "작업지시 관리" },
   { path: "/tshirt", icon: Shirt, label: "티셔츠 제작 관리" },
+  { path: "/tshirt-work", icon: ScanLine, label: "티셔츠 부착 작업" },
   { path: "/card-packing", icon: CreditCard, label: "카드 포장 관리" },
   { path: "/set-packing", icon: Package, label: "세트 포장 관리" },
   { path: "/shipping", icon: Truck, label: "택배 출고 관리" },
