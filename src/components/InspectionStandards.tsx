@@ -124,8 +124,6 @@ export default function InspectionStandards() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{t("settings.insp.allProcess")}</SelectItem>
-                <SelectItem value="tshirt">{pLabels.tshirt}</SelectItem>
-                <SelectItem value="card">{pLabels.card}</SelectItem>
                 <SelectItem value="setpacking">{pLabels.setpacking}</SelectItem>
                 <SelectItem value="shipping">{pLabels.shipping}</SelectItem>
               </SelectContent>
