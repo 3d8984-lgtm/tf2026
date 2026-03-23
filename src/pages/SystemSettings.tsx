@@ -118,6 +118,7 @@ export default function SystemSettings() {
     { value: "sensors", icon: Radio, label: t("settings.sensors") },
     { value: "commands", icon: Play, label: t("settings.commands") },
     { value: "alarms", icon: AlertTriangle, label: t("settings.alarms") },
+    { value: "inspection", icon: ShieldCheck, label: t("settings.inspection") },
   ];
 
   return (
