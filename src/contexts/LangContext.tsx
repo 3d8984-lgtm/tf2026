@@ -31,6 +31,9 @@ const translations: Record<Lang, Record<string, string>> = {
     // Dashboard
     "dashboard.title": "대시보드",
     "dashboard.desc": "전체 생산·포장·출고 현황을 한눈에 확인합니다",
+    "dashboard.daily": "일일",
+    "dashboard.weekly": "주간",
+    "dashboard.monthly": "월간",
     "dashboard.todayOrders": "오늘 작업지시",
     "dashboard.prodDone": "제작 완료",
     "dashboard.setDone": "세트 완료",
