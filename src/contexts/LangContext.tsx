@@ -246,6 +246,14 @@ const translations: Record<Lang, Record<string, string>> = {
     "machines.totalWork": "누적 작업량",
     "machines.errorCode": "오류코드",
     "machines.lastComm": "최근 통신",
+    "machines.autoStopped": "자동 정지됨",
+    "machines.stopReason": "정지 원인",
+    "machines.stoppedAt": "정지 시각",
+    "machines.actionMemo": "조치 내용을 입력하세요",
+    "machines.restart": "재가동",
+    "machines.restartConfirm": "조치 완료 후 재가동하시겠습니까?",
+    "machines.restarted": "재가동 완료",
+    "machines.stoppedMachines": "자동 정지 알림",
 
     // Production Monitor
     "monitor.title": "생산/포장 모니터링",
@@ -620,6 +628,14 @@ const translations: Record<Lang, Record<string, string>> = {
     "machines.totalWork": "累计产量",
     "machines.errorCode": "异常代码",
     "machines.lastComm": "最近通信",
+    "machines.autoStopped": "自动停机",
+    "machines.stopReason": "停机原因",
+    "machines.stoppedAt": "停机时间",
+    "machines.actionMemo": "请输入处理内容",
+    "machines.restart": "重新启动",
+    "machines.restartConfirm": "处理完成后是否重新启动？",
+    "machines.restarted": "已重新启动",
+    "machines.stoppedMachines": "自动停机警报",
 
     // Production Monitor
     "monitor.title": "生产/包装监控",

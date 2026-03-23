@@ -5,9 +5,11 @@ import { useLang } from "@/contexts/LangContext";
 import OrderPipeline from "@/components/OrderPipeline";
 import {
   Wifi, WifiOff, Gauge, AlertTriangle, ScanLine, Package,
-  CheckCircle2, XCircle, Printer, Search, Activity, ChevronDown, ChevronRight
+  CheckCircle2, XCircle, Printer, Search, Activity, ChevronDown, ChevronRight,
+  PlayCircle, OctagonX
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 /* ── Types ── */
 interface CardLog { time: string; barcode: string; serial: string; printedQR: string; status: string }
@@ -117,21 +119,36 @@ export default function ProductionMonitor() {
   const { t, lang } = useLang();
   const [tab, setTab] = useState("pipeline");
 
-  const machines = [
-    { id: "A-1", name: lang === "ko" ? "티셔츠 제작기 A-1" : "T恤制作机 A-1", status: "running", speed: "95", uptime: "97.2%", total: 38420, error: "-", lastComm: "14:37:05" },
-    { id: "A-2", name: lang === "ko" ? "티셔츠 제작기 A-2" : "T恤制作机 A-2", status: "paused", speed: "-", uptime: "91.5%", total: 28150, error: "-", lastComm: "14:35:22" },
-    { id: "A-3", name: lang === "ko" ? "티셔츠 제작기 A-3" : "T恤制作机 A-3", status: "running", speed: "92", uptime: "94.8%", total: 21560, error: "-", lastComm: "14:37:03" },
-    { id: "B-1", name: lang === "ko" ? "카드 포장기 B-1" : "卡片包装机 B-1", status: "running", speed: "120", uptime: "96.1%", total: 42150, error: "-", lastComm: "14:37:01" },
-    { id: "B-2", name: lang === "ko" ? "세트 포장기 B-2" : "套装包装机 B-2", status: "running", speed: "85", uptime: "93.4%", total: 31200, error: "-", lastComm: "14:36:58" },
-    { id: "B-3", name: lang === "ko" ? "택배 포장기 B-3" : "快递包装机 B-3", status: "running", speed: "78", uptime: "88.5%", total: 18300, error: "-", lastComm: "14:36:55" },
-    { id: "B-4", name: lang === "ko" ? "송장 부착기 B-4" : "运单贴附机 B-4", status: "running", speed: "110", uptime: "95.7%", total: 35680, error: "-", lastComm: "14:37:04" },
-  ];
+  const [machines, setMachines] = useState([
+    { id: "A-1", name: lang === "ko" ? "티셔츠 제작기 A-1" : "T恤制作机 A-1", status: "running", speed: "95", uptime: "97.2%", total: 38420, error: "-", lastComm: "14:37:05", stopReason: "", stoppedAt: "" },
+    { id: "A-2", name: lang === "ko" ? "티셔츠 제작기 A-2" : "T恤制作机 A-2", status: "paused", speed: "-", uptime: "91.5%", total: 28150, error: "-", lastComm: "14:35:22", stopReason: "", stoppedAt: "" },
+    { id: "A-3", name: lang === "ko" ? "티셔츠 제작기 A-3" : "T恤制作机 A-3", status: "running", speed: "92", uptime: "94.8%", total: 21560, error: "-", lastComm: "14:37:03", stopReason: "", stoppedAt: "" },
+    { id: "B-1", name: lang === "ko" ? "카드 포장기 B-1" : "卡片包装机 B-1", status: "running", speed: "120", uptime: "96.1%", total: 42150, error: "-", lastComm: "14:37:01", stopReason: "", stoppedAt: "" },
+    { id: "B-2", name: lang === "ko" ? "세트 포장기 B-2" : "套装包装机 B-2", status: "autoStopped", speed: "-", uptime: "93.4%", total: 31200, error: "QR-ERR", lastComm: "14:36:58", stopReason: lang === "ko" ? "QR 매칭 실패 — 홀로그램 QR ↔ 카드 바코드 불일치 (SET-0313)" : "QR匹配失败 — 全息QR ↔ 卡片条码不匹配 (SET-0313)", stoppedAt: "14:36:58" },
+    { id: "B-3", name: lang === "ko" ? "택배 포장기 B-3" : "快递包装机 B-3", status: "running", speed: "78", uptime: "88.5%", total: 18300, error: "-", lastComm: "14:36:55", stopReason: "", stoppedAt: "" },
+    { id: "B-4", name: lang === "ko" ? "송장 부착기 B-4" : "运单贴附机 B-4", status: "running", speed: "110", uptime: "95.7%", total: 35680, error: "-", lastComm: "14:37:04", stopReason: "", stoppedAt: "" },
+  ]);
+  const [actionMemos, setActionMemos] = useState<Record<string, string>>({});
+
+  const stoppedMachines = machines.filter(m => m.status === "autoStopped");
+
+  const handleRestart = (machineId: string) => {
+    const memo = actionMemos[machineId]?.trim();
+    if (!memo) {
+      toast.error(t("machines.actionMemo"));
+      return;
+    }
+    setMachines(prev => prev.map(m => m.id === machineId ? { ...m, status: "running", speed: "0", error: "-", stopReason: "", stoppedAt: "" } : m));
+    setActionMemos(prev => ({ ...prev, [machineId]: "" }));
+    toast.success(t("machines.restarted") + ` — ${machineId}`);
+  };
 
   const statusMap: Record<string, { badge: string; icon: typeof Wifi; label: string }> = {
     running: { badge: "status-running", icon: Wifi, label: t("status.running") },
     stopped: { badge: "status-stopped", icon: WifiOff, label: t("status.stopped") },
     paused: { badge: "status-warning", icon: Gauge, label: t("status.paused") },
     error: { badge: "status-stopped", icon: AlertTriangle, label: t("status.error") },
+    autoStopped: { badge: "status-stopped", icon: OctagonX, label: t("machines.autoStopped") },
     disconnected: { badge: "status-stopped", icon: WifiOff, label: t("status.disconnected") },
   };
 
@@ -313,12 +330,53 @@ export default function ProductionMonitor() {
 
           {/* ═══ Machine status ═══ */}
           <TabsContent value="machines" className="space-y-6">
+            {/* Auto-stop alert banner */}
+            {stoppedMachines.length > 0 && (
+              <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4 space-y-4 section-enter">
+                <div className="flex items-center gap-2">
+                  <OctagonX className="w-5 h-5 text-destructive" />
+                  <h3 className="font-semibold text-destructive">{t("machines.stoppedMachines")} ({stoppedMachines.length})</h3>
+                </div>
+                {stoppedMachines.map((m) => (
+                  <div key={m.id} className="rounded-md border border-destructive/30 bg-background p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold">{m.name} <span className="text-xs text-muted-foreground">({m.id})</span></p>
+                        <p className="text-sm text-muted-foreground mt-0.5">{t("machines.stoppedAt")}: {m.stoppedAt}</p>
+                      </div>
+                      <span className="status-badge status-stopped"><OctagonX className="w-3 h-3" /> {t("machines.autoStopped")}</span>
+                    </div>
+                    <div className="rounded bg-destructive/5 border border-destructive/20 p-3">
+                      <p className="text-xs font-medium text-destructive mb-1">{t("machines.stopReason")}</p>
+                      <p className="text-sm">{m.stopReason}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <input
+                        className="flex-1 rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground"
+                        placeholder={t("machines.actionMemo")}
+                        value={actionMemos[m.id] || ""}
+                        onChange={(e) => setActionMemos(prev => ({ ...prev, [m.id]: e.target.value }))}
+                      />
+                      <Button
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={() => handleRestart(m.id)}
+                      >
+                        <PlayCircle className="w-4 h-4" />
+                        {t("machines.restart")}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {machines.map((m, i) => {
                 const st = statusMap[m.status] || statusMap.stopped;
                 const StIcon = st.icon;
                 return (
-                  <div key={m.id} className="kpi-card section-enter" style={{ animationDelay: `${i * 80}ms` }}>
+                  <div key={m.id} className={`kpi-card section-enter ${m.status === "autoStopped" ? "border-destructive/40 ring-1 ring-destructive/20" : ""}`} style={{ animationDelay: `${i * 80}ms` }}>
                     <div className="flex items-start justify-between mb-4">
                       <div><p className="font-medium">{m.name}</p><p className="text-xs text-muted-foreground">{m.id}</p></div>
                       <span className={`status-badge ${st.badge}`}><StIcon className="w-3 h-3" /> {st.label}</span>
