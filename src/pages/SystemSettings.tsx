@@ -1,7 +1,8 @@
 import PageHeader from "@/components/PageHeader";
 import { useLang } from "@/contexts/LangContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Bell, Shield, Cog, Server, Cpu, Radio, Play, AlertTriangle, Plus, Pencil, Trash2, Wifi, WifiOff } from "lucide-react";
+import { Users, Bell, Shield, Cog, Server, Cpu, Radio, Play, AlertTriangle, Plus, Pencil, Trash2, Wifi, WifiOff, ShieldCheck } from "lucide-react";
+import InspectionStandards from "@/components/InspectionStandards";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -117,6 +118,7 @@ export default function SystemSettings() {
     { value: "sensors", icon: Radio, label: t("settings.sensors") },
     { value: "commands", icon: Play, label: t("settings.commands") },
     { value: "alarms", icon: AlertTriangle, label: t("settings.alarms") },
+    { value: "inspection", icon: ShieldCheck, label: t("settings.inspection") },
   ];
 
   return (
@@ -124,7 +126,7 @@ export default function SystemSettings() {
       <PageHeader title={t("settings.title")} description={t("settings.desc")} />
       <div className="p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-3 md:grid-cols-6 mb-6 h-auto">
+          <TabsList className="grid grid-cols-4 md:grid-cols-7 mb-6 h-auto">
             {tabItems.map(tab => (
               <TabsTrigger key={tab.value} value={tab.value} className="flex items-center gap-1.5 text-xs py-2">
                 <tab.icon className="w-3.5 h-3.5" />
@@ -388,6 +390,11 @@ export default function SystemSettings() {
                 </Table>
               </div>
             </div>
+          </TabsContent>
+
+          {/* Inspection Standards */}
+          <TabsContent value="inspection">
+            <InspectionStandards />
           </TabsContent>
         </Tabs>
       </div>
