@@ -52,8 +52,8 @@ const defaultOrderOverridesZh = defaultOrderOverrides.map(o => ({
 }));
 
 const processLabels: Record<string, Record<string, string>> = {
-  ko: { tshirt: "티셔츠 부착", card: "카드 포장", setpacking: "세트 포장", shipping: "택배 출고" },
-  zh: { tshirt: "T恤贴附", card: "卡片包装", setpacking: "套装包装", shipping: "快递出库" },
+  ko: { setpacking: "세트 포장", shipping: "택배 출고" },
+  zh: { setpacking: "套装包装", shipping: "快递出库" },
 };
 
 export default function InspectionStandards() {
