@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { LangProvider } from "@/contexts/LangContext";
 import AppLayout from "@/components/AppLayout";
 import Dashboard from "@/pages/Dashboard";
 import FileUpload from "@/pages/FileUpload";
@@ -24,28 +25,30 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route element={<AppLayout />}>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/upload" element={<FileUpload />} />
-            <Route path="/master" element={<MasterData />} />
-            <Route path="/work-orders" element={<WorkOrders />} />
-            <Route path="/tshirt" element={<TshirtProduction />} />
-            <Route path="/tshirt-work" element={<TshirtWork />} />
-            <Route path="/card-packing" element={<CardPacking />} />
-            <Route path="/set-packing" element={<SetPacking />} />
-            <Route path="/shipping" element={<Shipping />} />
-            <Route path="/machines" element={<Machines />} />
-            <Route path="/defects" element={<Defects />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/settings" element={<SystemSettings />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <LangProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route element={<AppLayout />}>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/upload" element={<FileUpload />} />
+              <Route path="/master" element={<MasterData />} />
+              <Route path="/work-orders" element={<WorkOrders />} />
+              <Route path="/tshirt" element={<TshirtProduction />} />
+              <Route path="/tshirt-work" element={<TshirtWork />} />
+              <Route path="/card-packing" element={<CardPacking />} />
+              <Route path="/set-packing" element={<SetPacking />} />
+              <Route path="/shipping" element={<Shipping />} />
+              <Route path="/machines" element={<Machines />} />
+              <Route path="/defects" element={<Defects />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/settings" element={<SystemSettings />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </LangProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

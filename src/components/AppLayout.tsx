@@ -3,27 +3,34 @@ import { NavLink, Outlet } from "react-router-dom";
 import {
   LayoutDashboard, Upload, Database, ClipboardList, Shirt, CreditCard,
   Package, Truck, Monitor, AlertTriangle, FileBarChart, Settings,
-  ChevronLeft, ChevronRight, Box, ScanLine
+  ChevronLeft, ChevronRight, Box, ScanLine, Globe
 } from "lucide-react";
+import { useLang, type Lang } from "@/contexts/LangContext";
 
-const menuItems = [
-  { path: "/", icon: LayoutDashboard, label: "대시보드" },
-  { path: "/upload", icon: Upload, label: "파일 업로드" },
-  { path: "/master", icon: Database, label: "기준정보 관리" },
-  { path: "/work-orders", icon: ClipboardList, label: "작업지시 관리" },
-  { path: "/tshirt", icon: Shirt, label: "티셔츠 제작 관리" },
-  { path: "/tshirt-work", icon: ScanLine, label: "티셔츠 부착 작업" },
-  { path: "/card-packing", icon: CreditCard, label: "카드 포장 관리" },
-  { path: "/set-packing", icon: Package, label: "세트 포장 관리" },
-  { path: "/shipping", icon: Truck, label: "택배 출고 관리" },
-  { path: "/machines", icon: Monitor, label: "기계 모니터링" },
-  { path: "/defects", icon: AlertTriangle, label: "불량/예외 관리" },
-  { path: "/reports", icon: FileBarChart, label: "이력조회/리포트" },
-  { path: "/settings", icon: Settings, label: "시스템 설정" },
+const menuKeys = [
+  { path: "/", icon: LayoutDashboard, key: "menu.dashboard" },
+  { path: "/upload", icon: Upload, key: "menu.upload" },
+  { path: "/master", icon: Database, key: "menu.master" },
+  { path: "/work-orders", icon: ClipboardList, key: "menu.workOrders" },
+  { path: "/tshirt", icon: Shirt, key: "menu.tshirt" },
+  { path: "/tshirt-work", icon: ScanLine, key: "menu.tshirtWork" },
+  { path: "/card-packing", icon: CreditCard, key: "menu.cardPacking" },
+  { path: "/set-packing", icon: Package, key: "menu.setPacking" },
+  { path: "/shipping", icon: Truck, key: "menu.shipping" },
+  { path: "/machines", icon: Monitor, key: "menu.machines" },
+  { path: "/defects", icon: AlertTriangle, key: "menu.defects" },
+  { path: "/reports", icon: FileBarChart, key: "menu.reports" },
+  { path: "/settings", icon: Settings, key: "menu.settings" },
+];
+
+const langOptions: { value: Lang; label: string; flag: string }[] = [
+  { value: "ko", label: "한국어", flag: "🇰🇷" },
+  { value: "zh", label: "中文", flag: "🇨🇳" },
 ];
 
 export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
+  const { lang, setLang, t } = useLang();
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -41,36 +48,61 @@ export default function AppLayout() {
           <Box className="w-6 h-6 shrink-0" style={{ color: "hsl(var(--sidebar-primary))" }} />
           {!collapsed && (
             <span className="text-sm font-semibold truncate" style={{ color: "hsl(var(--sidebar-accent-foreground))" }}>
-              Smart Set Packing
+              {t("app.name")}
             </span>
           )}
         </div>
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
-          {menuItems.map(({ path, icon: Icon, label }) => (
+          {menuKeys.map(({ path, icon: Icon, key }) => (
             <NavLink
               key={path}
               to={path}
               end={path === "/"}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors duration-150 ${
-                  isActive
-                    ? "font-medium"
-                    : "hover:opacity-90"
+                  isActive ? "font-medium" : "hover:opacity-90"
                 }`
               }
               style={({ isActive }) => ({
                 background: isActive ? "hsl(var(--sidebar-accent))" : "transparent",
                 color: isActive ? "hsl(var(--sidebar-accent-foreground))" : "hsl(var(--sidebar-foreground))",
               })}
-              title={label}
+              title={t(key)}
             >
               <Icon className="w-[18px] h-[18px] shrink-0" />
-              {!collapsed && <span className="truncate">{label}</span>}
+              {!collapsed && <span className="truncate">{t(key)}</span>}
             </NavLink>
           ))}
         </nav>
+
+        {/* Language switcher */}
+        <div
+          className="flex items-center gap-1 px-2 py-2 border-t"
+          style={{ borderColor: "hsl(var(--sidebar-border))" }}
+        >
+          {!collapsed && <Globe className="w-4 h-4 shrink-0 ml-1" style={{ color: "hsl(var(--sidebar-foreground))" }} />}
+          {langOptions.map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => setLang(opt.value)}
+              className={`flex items-center gap-1 px-2 py-1.5 rounded text-xs transition-colors ${
+                lang === opt.value
+                  ? "font-semibold"
+                  : "opacity-60 hover:opacity-100"
+              }`}
+              style={{
+                background: lang === opt.value ? "hsl(var(--sidebar-accent))" : "transparent",
+                color: "hsl(var(--sidebar-foreground))",
+              }}
+              title={opt.label}
+            >
+              <span>{opt.flag}</span>
+              {!collapsed && <span>{opt.label}</span>}
+            </button>
+          ))}
+        </div>
 
         {/* Collapse toggle */}
         <button
