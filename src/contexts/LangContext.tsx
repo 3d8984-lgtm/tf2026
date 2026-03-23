@@ -242,6 +242,15 @@ const translations: Record<Lang, Record<string, string>> = {
     "machines.errorCode": "오류코드",
     "machines.lastComm": "최근 통신",
 
+    // Production Monitor
+    "monitor.title": "생산/포장 모니터링",
+    "monitor.desc": "주문별 공정 진행, 포장, 출고, 장비 상태를 통합 관리합니다",
+    "monitor.tab.pipeline": "주문 진행",
+    "monitor.tab.card": "카드 포장",
+    "monitor.tab.set": "세트 포장",
+    "monitor.tab.shipping": "택배 출고",
+    "monitor.tab.machines": "장비 상태",
+
     // Defects
     "defects.title": "불량/예외 관리",
     "defects.desc": "예외 상황 등록, 원인 분류, 재작업 관리",
