@@ -489,6 +489,11 @@ const translations: Record<Lang, Record<string, string>> = {
     "workOrders.line": "产线",
     "workOrders.assignee": "负责人",
     "workOrders.status": "状态",
+    "workOrders.reworkCol": "返工",
+    "workOrders.reworkAlert": "有待处理的返工项",
+    "workOrders.reworkAlertDesc": "从不良/异常添加到返工队列的 {n} 件正在等待处理",
+    "workOrders.reworkList": "返工列表",
+    "workOrders.reworkResolved": "已处理",
 
     // T-shirt Production
     "tshirtProd.title": "T恤制作管理",
