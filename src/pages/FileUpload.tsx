@@ -5,26 +5,25 @@ import { useState } from "react";
 import { useLang } from "@/contexts/LangContext";
 
 export default function FileUpload() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [selectedType, setSelectedType] = useState<string | null>(null);
+  const isKo = lang === "ko";
 
   const uploadTypes = [
-    { id: "silicon_qr", label: t("upload.siliconQR"), fields: lang("ko") ? "실리콘QR값, 상품코드, 디자인코드, 생산배치번호" : "硅胶QR值, 商品代码, 设计代码, 生产批号" },
-    { id: "design_qr", label: t("upload.designQR"), fields: lang("ko") ? "디자인QR값, 상품코드, 디자인코드, SKU, 사이즈" : "设计QR值, 商品代码, 设计代码, SKU, 尺码" },
-    { id: "hologram_qr", label: t("upload.hologramQR"), fields: lang("ko") ? "홀로그램QR값, 고유일련번호, 상품코드, 디자인코드" : "全息QR值, 唯一序列号, 商品代码, 设计代码" },
-    { id: "card_barcode", label: t("upload.cardBarcode"), fields: lang("ko") ? "카드바코드값, 상품코드, 디자인코드, 카드종류" : "卡片条码值, 商品代码, 设计代码, 卡片类型" },
-    { id: "card_serial", label: t("upload.cardSerial"), fields: lang("ko") ? "카드바코드값, 카드일련번호, 디자인코드" : "卡片条码值, 卡片序列号, 设计代码" },
-    { id: "logo", label: t("upload.logo"), fields: lang("ko") ? "상품코드, 디자인코드, 로고이미지파일" : "商品代码, 设计代码, Logo图片文件" },
-    { id: "shipping", label: t("upload.shippingLabel"), fields: lang("ko") ? "주문번호, 수취인명, 연락처, 주소, 상품코드" : "订单号, 收件人, 联系方式, 地址, 商品代码" },
+    { id: "silicon_qr", label: t("upload.siliconQR"), fields: isKo ? "실리콘QR값, 상품코드, 디자인코드, 생산배치번호" : "硅胶QR值, 商品代码, 设计代码, 生产批号" },
+    { id: "design_qr", label: t("upload.designQR"), fields: isKo ? "디자인QR값, 상품코드, 디자인코드, SKU, 사이즈" : "设计QR值, 商品代码, 设计代码, SKU, 尺码" },
+    { id: "hologram_qr", label: t("upload.hologramQR"), fields: isKo ? "홀로그램QR값, 고유일련번호, 상품코드, 디자인코드" : "全息QR值, 唯一序列号, 商品代码, 设计代码" },
+    { id: "card_barcode", label: t("upload.cardBarcode"), fields: isKo ? "카드바코드값, 상품코드, 디자인코드, 카드종류" : "卡片条码值, 商品代码, 设计代码, 卡片类型" },
+    { id: "card_serial", label: t("upload.cardSerial"), fields: isKo ? "카드바코드값, 카드일련번호, 디자인코드" : "卡片条码值, 卡片序列号, 设计代码" },
+    { id: "logo", label: t("upload.logo"), fields: isKo ? "상품코드, 디자인코드, 로고이미지파일" : "商品代码, 设计代码, Logo图片文件" },
+    { id: "shipping", label: t("upload.shippingLabel"), fields: isKo ? "주문번호, 수취인명, 연락처, 주소, 상품코드" : "订单号, 收件人, 联系方式, 地址, 商品代码" },
   ];
 
   const uploadHistory = [
-    { file: "silicon_qr_20240315.csv", type: t("upload.siliconQR"), total: 2400, success: 2398, error: 2, date: "2024-03-15 09:23", user: lang("ko") ? "김관리" : "金管理" },
-    { file: "design_qr_20240315.xlsx", type: t("upload.designQR"), total: 1800, success: 1800, error: 0, date: "2024-03-15 09:18", user: lang("ko") ? "김관리" : "金管理" },
-    { file: "card_barcode_20240314.csv", type: t("upload.cardBarcode"), total: 3200, success: 3195, error: 5, date: "2024-03-14 16:45", user: lang("ko") ? "박생산" : "朴生产" },
+    { file: "silicon_qr_20240315.csv", type: t("upload.siliconQR"), total: 2400, success: 2398, error: 2, date: "2024-03-15 09:23", user: isKo ? "김관리" : "金管理" },
+    { file: "design_qr_20240315.xlsx", type: t("upload.designQR"), total: 1800, success: 1800, error: 0, date: "2024-03-15 09:18", user: isKo ? "김관리" : "金管理" },
+    { file: "card_barcode_20240314.csv", type: t("upload.cardBarcode"), total: 3200, success: 3195, error: 5, date: "2024-03-14 16:45", user: isKo ? "박생산" : "朴生产" },
   ];
-
-  function lang(l: string) { return t("app.name") && l === "ko" ? !t("menu.dashboard").includes("仪") : t("menu.dashboard").includes("仪"); }
 
   return (
     <div>
