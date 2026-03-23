@@ -148,6 +148,7 @@ export default function ProductionMonitor() {
     stopped: { badge: "status-stopped", icon: WifiOff, label: t("status.stopped") },
     paused: { badge: "status-warning", icon: Gauge, label: t("status.paused") },
     error: { badge: "status-stopped", icon: AlertTriangle, label: t("status.error") },
+    autoStopped: { badge: "status-stopped", icon: OctagonX, label: t("machines.autoStopped") },
     disconnected: { badge: "status-stopped", icon: WifiOff, label: t("status.disconnected") },
   };
 
