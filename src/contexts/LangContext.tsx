@@ -132,6 +132,11 @@ const translations: Record<Lang, Record<string, string>> = {
     "workOrders.line": "라인",
     "workOrders.assignee": "담당자",
     "workOrders.status": "상태",
+    "workOrders.reworkCol": "재작업",
+    "workOrders.reworkAlert": "재작업 대기 건이 있습니다",
+    "workOrders.reworkAlertDesc": "불량/예외에서 재작업 큐에 추가된 {n}건이 처리 대기중입니다",
+    "workOrders.reworkList": "재작업 목록",
+    "workOrders.reworkResolved": "처리완료",
 
     // T-shirt Production
     "tshirtProd.title": "티셔츠 제작 관리",
@@ -484,6 +489,11 @@ const translations: Record<Lang, Record<string, string>> = {
     "workOrders.line": "产线",
     "workOrders.assignee": "负责人",
     "workOrders.status": "状态",
+    "workOrders.reworkCol": "返工",
+    "workOrders.reworkAlert": "有待处理的返工项",
+    "workOrders.reworkAlertDesc": "从不良/异常添加到返工队列的 {n} 件正在等待处理",
+    "workOrders.reworkList": "返工列表",
+    "workOrders.reworkResolved": "已处理",
 
     // T-shirt Production
     "tshirtProd.title": "T恤制作管理",
