@@ -1,4 +1,4 @@
-import { Shirt, CreditCard, Package, Mail, Truck, CheckCircle2 } from "lucide-react";
+import { Shirt, CreditCard, Package, Mail, Truck, CheckCircle2, Scale } from "lucide-react";
 
 const stages = [
   { key: "tshirt", label: "티셔츠 제작", icon: Shirt, machines: ["A-1", "A-2", "A-3"] },
