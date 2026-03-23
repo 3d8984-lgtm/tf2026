@@ -119,41 +119,46 @@ export default function FileUpload() {
                 : "工作表2: A列(Logo图片列表) / B列(Logo图片文件)"}
             </p>
 
-            {/* Group badges */}
+            {/* Category badges */}
             <div className="flex flex-wrap gap-2 mb-3">
-              {columnGroups.map((g) => (
-                <span key={g.cols} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium ${g.color}`}>
+              {categoryBadges.map((g) => (
+                <span key={g.cols} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border border-border bg-muted/30 text-foreground">
                   <span className="font-mono text-[10px] opacity-70">{g.cols}</span>
                   {g.label}
                 </span>
               ))}
             </div>
 
-            {/* Column table - matching template Row1(category) + Row2(field) */}
+            {/* Column table - field names only (no category column) */}
             <div className="rounded-lg border overflow-hidden">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-muted/40">
                     <th className="px-2.5 py-1.5 text-left font-medium text-muted-foreground w-10">{isKo ? "열" : "列"}</th>
-                    <th className="px-2.5 py-1.5 text-left font-medium text-muted-foreground">{isKo ? "카테고리" : "类别"}</th>
+                    <th className="px-2.5 py-1.5 text-left font-medium text-muted-foreground">{isKo ? "항목명" : "字段名"}</th>
+                    <th className="px-2.5 py-1.5 text-left font-medium text-muted-foreground w-10">{isKo ? "열" : "列"}</th>
                     <th className="px-2.5 py-1.5 text-left font-medium text-muted-foreground">{isKo ? "항목명" : "字段名"}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {columnSpec.map((spec, i) => {
-                    const showCategory = i === 0 || spec.category !== columnSpec[i - 1].category;
-                    const categorySpan = showCategory
-                      ? columnSpec.filter((s) => s.category === spec.category).length
-                      : 0;
+                  {Array.from({ length: Math.ceil(columnSpec.length / 2) }).map((_, i) => {
+                    const left = columnSpec[i * 2];
+                    const right = columnSpec[i * 2 + 1];
                     return (
-                      <tr key={spec.col} className="border-t border-border/40">
-                        <td className="px-2.5 py-1.5 font-mono font-semibold text-primary">{spec.col}</td>
-                        {showCategory && (
-                          <td className="px-2.5 py-1.5 font-medium text-muted-foreground" rowSpan={categorySpan}>
-                            {spec.category}
-                          </td>
+                      <tr key={i} className="border-t border-border/40">
+                        <td className="px-2.5 py-1.5 font-mono font-semibold text-primary">{left.col}</td>
+                        <td className="px-2.5 py-1.5">{left.label}</td>
+                        {right ? (
+                          <>
+                            <td className="px-2.5 py-1.5 font-mono font-semibold text-primary">{right.col}</td>
+                            <td className="px-2.5 py-1.5">{right.label}</td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-2.5 py-1.5" />
+                            <td className="px-2.5 py-1.5" />
+                          </>
                         )}
-                        <td className="px-2.5 py-1.5">{spec.label}</td>
                       </tr>
                     );
                   })}
