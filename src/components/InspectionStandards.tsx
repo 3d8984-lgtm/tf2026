@@ -23,7 +23,7 @@ interface InspectionStandard {
 }
 
 /* ── 공통 검수 기준 mock ── */
-const defaultStandards = [
+const defaultStandards: InspectionStandard[] = [
   { id: 1, process: "setpacking", item: "QR 매칭", method: "QR 이중 스캔", criteria: "티셔츠 QR ↔ 카드 QR 디자인코드 일치", autoStop: true, enabled: true },
   { id: 2, process: "setpacking", item: "중량 검사", method: "중량 센서", criteria: "270g ~ 300g", minVal: 270, maxVal: 300, unit: "g", autoStop: true, enabled: true },
   { id: 3, process: "shipping", item: "송장 매칭", method: "바코드 스캔", criteria: "세트 QR ↔ 송장 바코드 주문정보 일치", autoStop: true, enabled: true },
