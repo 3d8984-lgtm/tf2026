@@ -24,12 +24,9 @@ interface InspectionStandard {
 
 /* ── 공통 검수 기준 mock ── */
 const defaultStandards: InspectionStandard[] = [
-  { id: 1, process: "setpacking", item: "QR 매칭", method: "QR 이중 스캔", criteria: "티셔츠 QR ↔ 카드 QR 디자인코드 일치", autoStop: true, enabled: true },
+  { id: 1, process: "setpacking", item: "QR 매칭", method: "QR + 바코드 스캔", criteria: "홀로그램 QR값 ↔ 카드 바코드값 일치", autoStop: true, enabled: true },
   { id: 2, process: "setpacking", item: "중량 검사", method: "중량 센서", criteria: "270g ~ 300g", minVal: 270, maxVal: 300, unit: "g", autoStop: true, enabled: true },
   { id: 3, process: "shipping", item: "송장 매칭", method: "바코드 스캔", criteria: "세트 QR ↔ 송장 바코드 주문정보 일치", autoStop: true, enabled: true },
-  { id: 4, process: "shipping", item: "택배 중량", method: "중량 센서", criteria: "300g ~ 500g", minVal: 300, maxVal: 500, unit: "g", autoStop: false, enabled: true },
-  { id: 5, process: "tshirt", item: "QR 부착 확인", method: "QR 재스캔", criteria: "홀로그램 QR 정상 스캔", autoStop: false, enabled: true },
-  { id: 6, process: "card", item: "카드 중량", method: "중량 센서", criteria: "50g ~ 80g", minVal: 50, maxVal: 80, unit: "g", autoStop: true, enabled: true },
 ];
 
 /* ── 주문별 예외 기준 mock ── */
@@ -40,12 +37,11 @@ const defaultOrderOverrides = [
 
 const defaultStandardsZh = defaultStandards.map(s => ({
   ...s,
-  item: ({ "QR 매칭": "QR匹配", "중량 검사": "重量检查", "송장 매칭": "运单匹配", "택배 중량": "快递重量", "QR 부착 확인": "QR贴附确认", "카드 중량": "卡片重量" } as Record<string, string>)[s.item] ?? s.item,
-  method: ({ "QR 이중 스캔": "QR双重扫描", "중량 센서": "重量传感器", "바코드 스캔": "条码扫描", "QR 재스캔": "QR重新扫描" } as Record<string, string>)[s.method] ?? s.method,
+  item: ({ "QR 매칭": "QR匹配", "중량 검사": "重量检查", "송장 매칭": "运单匹配" } as Record<string, string>)[s.item] ?? s.item,
+  method: ({ "QR + 바코드 스캔": "QR+条码扫描", "중량 센서": "重量传感器", "바코드 스캔": "条码扫描" } as Record<string, string>)[s.method] ?? s.method,
   criteria: s.criteria
-    .replace("티셔츠 QR ↔ 카드 QR 디자인코드 일치", "T恤QR ↔ 卡片QR设计码匹配")
-    .replace("세트 QR ↔ 송장 바코드 주문정보 일치", "套装QR ↔ 运单条码订单信息匹配")
-    .replace("홀로그램 QR 정상 스캔", "全息QR正常扫描"),
+    .replace("홀로그램 QR값 ↔ 카드 바코드값 일치", "全息QR值 ↔ 卡片条码值匹配")
+    .replace("세트 QR ↔ 송장 바코드 주문정보 일치", "套装QR ↔ 运单条码订单信息匹配"),
 }));
 
 const defaultOrderOverridesZh = defaultOrderOverrides.map(o => ({
@@ -56,8 +52,8 @@ const defaultOrderOverridesZh = defaultOrderOverrides.map(o => ({
 }));
 
 const processLabels: Record<string, Record<string, string>> = {
-  ko: { tshirt: "티셔츠 부착", card: "카드 포장", setpacking: "세트 포장", shipping: "택배 출고" },
-  zh: { tshirt: "T恤贴附", card: "卡片包装", setpacking: "套装包装", shipping: "快递出库" },
+  ko: { setpacking: "세트 포장", shipping: "택배 출고" },
+  zh: { setpacking: "套装包装", shipping: "快递出库" },
 };
 
 export default function InspectionStandards() {
@@ -128,8 +124,6 @@ export default function InspectionStandards() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{t("settings.insp.allProcess")}</SelectItem>
-                <SelectItem value="tshirt">{pLabels.tshirt}</SelectItem>
-                <SelectItem value="card">{pLabels.card}</SelectItem>
                 <SelectItem value="setpacking">{pLabels.setpacking}</SelectItem>
                 <SelectItem value="shipping">{pLabels.shipping}</SelectItem>
               </SelectContent>
