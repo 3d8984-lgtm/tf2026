@@ -309,7 +309,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "reports.machineUptime": "기계별 가동률",
     "reports.defectRate": "불량률 분석",
     "reports.workerOutput": "작업자별 처리량",
-    "reports.designQty": "디자인별 생산 수량",
+    
 
     // Settings
     "settings.title": "시스템 설정",
