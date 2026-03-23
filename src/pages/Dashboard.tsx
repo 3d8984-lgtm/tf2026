@@ -1,6 +1,6 @@
 import {
-  Shirt, CreditCard, Package, Truck, AlertTriangle,
-  ClipboardList, Monitor, CheckCircle2, XCircle, Clock
+  Shirt, Package, Truck, AlertTriangle,
+  ClipboardList, XCircle, Clock, CalendarIcon
 } from "lucide-react";
 import KpiCard from "@/components/KpiCard";
 import PageHeader from "@/components/PageHeader";
@@ -8,20 +8,49 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { useLang } from "@/contexts/LangContext";
 import { useState } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from "date-fns";
+import { ko, zhCN } from "date-fns/locale";
 
-type Period = "daily" | "weekly" | "monthly";
+type Period = "daily" | "weekly" | "monthly" | "custom";
 
 export default function Dashboard() {
   const { t, lang } = useLang();
   const [period, setPeriod] = useState<Period>("daily");
-
   const isKo = lang === "ko";
+  const locale = isKo ? ko : zhCN;
+
+  // Date states
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [rangeFrom, setRangeFrom] = useState<Date>(addDays(new Date(), -7));
+  const [rangeTo, setRangeTo] = useState<Date>(new Date());
+
+  // Formatted display
+  const getDateDisplay = () => {
+    switch (period) {
+      case "daily":
+        return format(selectedDate, isKo ? "yyyy년 M월 d일 (EEE)" : "yyyy年M月d日 (EEE)", { locale });
+      case "weekly": {
+        const ws = startOfWeek(selectedDate, { weekStartsOn: 1 });
+        const we = endOfWeek(selectedDate, { weekStartsOn: 1 });
+        return `${format(ws, "M/d", { locale })} ~ ${format(we, "M/d", { locale })}`;
+      }
+      case "monthly":
+        return format(selectedDate, isKo ? "yyyy년 M월" : "yyyy年M月", { locale });
+      case "custom":
+        return `${format(rangeFrom, "M/d", { locale })} ~ ${format(rangeTo, "M/d", { locale })}`;
+    }
+  };
 
   /* ── Period-dependent data ── */
   const kpiByPeriod: Record<Period, { orders: string; prod: string; set: string; ship: string; errors: string; orderChange: string; prodPct: string; setPct: string; shipPct: string; errChange: string }> = {
     daily: { orders: "1,240", prod: "876", set: "654", ship: "512", errors: "7", orderChange: "+8.3%", prodPct: "70.6%", setPct: "52.7%", shipPct: "41.3%", errChange: "-3" },
     weekly: { orders: "8,430", prod: "6,218", set: "4,892", ship: "3,740", errors: "42", orderChange: "+5.1%", prodPct: "73.8%", setPct: "58.1%", shipPct: "44.4%", errChange: "-12" },
     monthly: { orders: "34,620", prod: "26,480", set: "21,350", ship: "18,200", errors: "156", orderChange: "+12.7%", prodPct: "76.5%", setPct: "61.7%", shipPct: "52.6%", errChange: "-28" },
+    custom: { orders: "5,820", prod: "4,130", set: "3,240", ship: "2,680", errors: "31", orderChange: "+6.4%", prodPct: "71.0%", setPct: "55.6%", shipPct: "46.1%", errChange: "-8" },
   };
   const kpi = kpiByPeriod[period];
 
@@ -37,19 +66,27 @@ export default function Dashboard() {
       { label: "15", tshirt: 72, card: 78, set: 60 },
     ],
     weekly: [
-      { label: isKo ? "월" : "周一", tshirt: 420, card: 480, set: 380 },
-      { label: isKo ? "화" : "周二", tshirt: 510, card: 560, set: 440 },
-      { label: isKo ? "수" : "周三", tshirt: 480, card: 530, set: 410 },
-      { label: isKo ? "목" : "周四", tshirt: 530, card: 590, set: 470 },
-      { label: isKo ? "금" : "周五", tshirt: 490, card: 540, set: 430 },
-      { label: isKo ? "토" : "周六", tshirt: 320, card: 360, set: 280 },
-      { label: isKo ? "일" : "周日", tshirt: 0, card: 0, set: 0 },
+      { label: isKo ? "월" : "一", tshirt: 420, card: 480, set: 380 },
+      { label: isKo ? "화" : "二", tshirt: 510, card: 560, set: 440 },
+      { label: isKo ? "수" : "三", tshirt: 480, card: 530, set: 410 },
+      { label: isKo ? "목" : "四", tshirt: 530, card: 590, set: 470 },
+      { label: isKo ? "금" : "五", tshirt: 490, card: 540, set: 430 },
+      { label: isKo ? "토" : "六", tshirt: 320, card: 360, set: 280 },
+      { label: isKo ? "일" : "日", tshirt: 0, card: 0, set: 0 },
     ],
     monthly: [
       { label: "1W", tshirt: 2400, card: 2800, set: 2100 },
       { label: "2W", tshirt: 2650, card: 3000, set: 2350 },
       { label: "3W", tshirt: 2500, card: 2900, set: 2200 },
       { label: "4W", tshirt: 2700, card: 3100, set: 2500 },
+    ],
+    custom: [
+      { label: format(rangeFrom, "M/d"), tshirt: 380, card: 420, set: 310 },
+      { label: format(addDays(rangeFrom, 1), "M/d"), tshirt: 450, card: 490, set: 370 },
+      { label: format(addDays(rangeFrom, 2), "M/d"), tshirt: 520, card: 560, set: 430 },
+      { label: format(addDays(rangeFrom, 3), "M/d"), tshirt: 410, card: 470, set: 340 },
+      { label: format(addDays(rangeFrom, 4), "M/d"), tshirt: 490, card: 530, set: 400 },
+      { label: format(addDays(rangeFrom, 5), "M/d"), tshirt: 460, card: 510, set: 380 },
     ],
   };
   const chartData = chartDataByPeriod[period].map(d => ({
@@ -63,18 +100,22 @@ export default function Dashboard() {
     daily: isKo ? "시간대별 생산량" : "每小时产量",
     weekly: isKo ? "요일별 생산량" : "每日产量",
     monthly: isKo ? "주차별 생산량" : "每周产量",
+    custom: isKo ? "일별 생산량" : "每日产量",
   };
 
   const changeLabel = period === "daily"
     ? t("dashboard.vsPrev")
     : period === "weekly"
       ? (isKo ? "전주 대비" : "与上周对比")
-      : (isKo ? "전월 대비" : "与上月对比");
+      : period === "monthly"
+        ? (isKo ? "전월 대비" : "与上月对比")
+        : (isKo ? "이전 기간 대비" : "与前期对比");
 
   const progressByPeriod: Record<Period, number[]> = {
     daily: [78, 85, 62, 45],
     weekly: [82, 88, 68, 52],
     monthly: [86, 91, 74, 60],
+    custom: [80, 86, 65, 49],
   };
   const progressValues = progressByPeriod[period];
 
@@ -86,9 +127,9 @@ export default function Dashboard() {
   ];
 
   const machineData = [
-    { name: isKo ? "카드 포장기 A" : "卡片包装机 A", status: t("status.running"), speed: "120" + t("common.perMin"), uptime: "97.2%", count: 3842 },
-    { name: isKo ? "세트 포장기 B" : "套装包装机 B", status: t("status.running"), speed: "85" + t("common.perMin"), uptime: "94.8%", count: 2156 },
-    { name: isKo ? "택배봉투기 C" : "快递包装机 C", status: t("status.paused"), speed: "-", uptime: "88.5%", count: 1830 },
+    { name: isKo ? "카드 포장기 A" : "卡片包装机 A", status: t("status.running"), uptime: "97.2%", count: 3842 },
+    { name: isKo ? "세트 포장기 B" : "套装包装机 B", status: t("status.running"), uptime: "94.8%", count: 2156 },
+    { name: isKo ? "택배봉투기 C" : "快递包装机 C", status: t("status.paused"), uptime: "88.5%", count: 1830 },
   ];
 
   const recentExceptions = [
@@ -106,20 +147,69 @@ export default function Dashboard() {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-6 pt-6 pb-2">
-        <PageHeader title={t("dashboard.title")} description={t("dashboard.desc")} />
-        <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
-          <TabsList className="h-9">
-            <TabsTrigger value="daily" className="text-xs px-3">{t("dashboard.daily")}</TabsTrigger>
-            <TabsTrigger value="weekly" className="text-xs px-3">{t("dashboard.weekly")}</TabsTrigger>
-            <TabsTrigger value="monthly" className="text-xs px-3">{t("dashboard.monthly")}</TabsTrigger>
-          </TabsList>
-        </Tabs>
+      {/* Header row */}
+      <div className="flex flex-col gap-3 px-6 pt-6 pb-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <PageHeader title={t("dashboard.title")} description={t("dashboard.desc")} />
+          <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
+            <TabsList className="h-9">
+              <TabsTrigger value="daily" className="text-xs px-3">{t("dashboard.daily")}</TabsTrigger>
+              <TabsTrigger value="weekly" className="text-xs px-3">{t("dashboard.weekly")}</TabsTrigger>
+              <TabsTrigger value="monthly" className="text-xs px-3">{t("dashboard.monthly")}</TabsTrigger>
+              <TabsTrigger value="custom" className="text-xs px-3">{t("dashboard.custom")}</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
+        {/* Date selector row */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <CalendarIcon className="w-4 h-4 text-muted-foreground" />
+          {period === "custom" ? (
+            <div className="flex items-center gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+                    <CalendarIcon className="w-3.5 h-3.5" />
+                    {format(rangeFrom, "yyyy-MM-dd")}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={rangeFrom} onSelect={(d) => d && setRangeFrom(d)} locale={locale} className={cn("p-3 pointer-events-auto")} />
+                </PopoverContent>
+              </Popover>
+              <span className="text-sm text-muted-foreground">~</span>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+                    <CalendarIcon className="w-3.5 h-3.5" />
+                    {format(rangeTo, "yyyy-MM-dd")}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={rangeTo} onSelect={(d) => d && setRangeTo(d)} locale={locale} className={cn("p-3 pointer-events-auto")} />
+                </PopoverContent>
+              </Popover>
+            </div>
+          ) : (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+                  <CalendarIcon className="w-3.5 h-3.5" />
+                  {getDateDisplay()}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={selectedDate} onSelect={(d) => d && setSelectedDate(d)} locale={locale} className={cn("p-3 pointer-events-auto")} />
+              </PopoverContent>
+            </Popover>
+          )}
+          <span className="text-xs text-muted-foreground ml-1">{getDateDisplay()}</span>
+        </div>
       </div>
 
       <div className="p-6 space-y-6">
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-          <KpiCard icon={ClipboardList} label={t("dashboard.todayOrders")} value={kpi.orders} change={`${changeLabel} ${kpi.orderChange}`} changeType="positive" delay={0} />
+          <KpiCard icon={ClipboardList} label={period === "daily" ? t("dashboard.todayOrders") : t("dashboard.periodOrders")} value={kpi.orders} change={`${changeLabel} ${kpi.orderChange}`} changeType="positive" delay={0} />
           <KpiCard icon={Shirt} label={t("dashboard.prodDone")} value={kpi.prod} change={`${t("dashboard.vsTarget")} ${kpi.prodPct}`} changeType="neutral" delay={60} />
           <KpiCard icon={Package} label={t("dashboard.setDone")} value={kpi.set} change={`${t("dashboard.vsTarget")} ${kpi.setPct}`} changeType="neutral" delay={120} />
           <KpiCard icon={Truck} label={t("dashboard.shipDone")} value={kpi.ship} change={`${t("dashboard.vsTarget")} ${kpi.shipPct}`} changeType="neutral" delay={180} />
