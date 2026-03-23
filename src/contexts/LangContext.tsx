@@ -309,7 +309,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "reports.machineUptime": "기계별 가동률",
     "reports.defectRate": "불량률 분석",
     "reports.workerOutput": "작업자별 처리량",
-    "reports.designQty": "디자인별 생산 수량",
+    
 
     // Settings
     "settings.title": "시스템 설정",
@@ -666,7 +666,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "reports.machineUptime": "设备运行率",
     "reports.defectRate": "不良率分析",
     "reports.workerOutput": "作业员产量",
-    "reports.designQty": "各设计产量",
+    
 
     // Settings
     "settings.title": "系统设置",
