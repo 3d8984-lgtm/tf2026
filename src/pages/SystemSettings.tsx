@@ -63,6 +63,7 @@ const mockEquipmentZh = mockEquipment.map(e => ({
     .replace("티셔츠 제작기", "T恤制作机")
     .replace("카드 포장기", "卡片包装机")
     .replace("티셔츠+카드 포장기", "T恤+卡片包装机")
+    .replace("중량검사기", "重量检测机")
     .replace("택배 포장기", "快递包装机")
     .replace("송장 부착기", "运单贴附机"),
 }));

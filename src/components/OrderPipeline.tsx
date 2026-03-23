@@ -4,8 +4,9 @@ const stages = [
   { key: "tshirt", label: "티셔츠 제작", icon: Shirt, machines: ["A-1", "A-2", "A-3"] },
   { key: "card", label: "카드 포장", icon: CreditCard, machines: ["B-1"] },
   { key: "set", label: "세트 포장", icon: Package, machines: ["B-2"] },
-  { key: "courier", label: "택배 포장", icon: Mail, machines: ["B-3"] },
-  { key: "invoice", label: "송장 부착", icon: Truck, machines: ["B-4"] },
+  { key: "weight", label: "중량 검사", icon: Mail, machines: ["B-3"] },
+  { key: "courier", label: "택배 포장", icon: Mail, machines: ["B-4"] },
+  { key: "invoice", label: "송장 부착", icon: Truck, machines: ["B-5"] },
   { key: "done", label: "완료", icon: CheckCircle2, machines: [] },
 ] as const;
 
