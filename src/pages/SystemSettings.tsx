@@ -391,6 +391,11 @@ export default function SystemSettings() {
               </div>
             </div>
           </TabsContent>
+
+          {/* Inspection Standards */}
+          <TabsContent value="inspection">
+            <InspectionStandards />
+          </TabsContent>
         </Tabs>
       </div>
     </div>
