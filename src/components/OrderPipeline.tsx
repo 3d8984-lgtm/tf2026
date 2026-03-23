@@ -1,15 +1,20 @@
 import { Shirt, CreditCard, Package, Mail, Truck, CheckCircle2 } from "lucide-react";
 
 const stages = [
-  { key: "tshirt", label: "티셔츠 제작", icon: Shirt },
-  { key: "card", label: "카드 포장", icon: CreditCard },
-  { key: "set", label: "세트 포장", icon: Package },
-  { key: "courier", label: "택배 포장", icon: Mail },
-  { key: "invoice", label: "송장 부착", icon: Truck },
-  { key: "done", label: "완료", icon: CheckCircle2 },
+  { key: "tshirt", label: "티셔츠 제작", icon: Shirt, machines: ["A-1", "A-2", "A-3"] },
+  { key: "card", label: "카드 포장", icon: CreditCard, machines: ["B-1"] },
+  { key: "set", label: "세트 포장", icon: Package, machines: ["B-2"] },
+  { key: "courier", label: "택배 포장", icon: Mail, machines: ["B-3"] },
+  { key: "invoice", label: "송장 부착", icon: Truck, machines: ["B-4"] },
+  { key: "done", label: "완료", icon: CheckCircle2, machines: [] },
 ] as const;
 
 type StageKey = (typeof stages)[number]["key"];
+
+interface MachineStatus {
+  id: string;
+  status: "가동중" | "일시정지" | "정지";
+}
 
 interface Order {
   id: string;
@@ -18,48 +23,47 @@ interface Order {
   qty: number;
   currentStage: StageKey;
   stageCounts: Record<StageKey, number>;
+  activeMachines: Record<StageKey, MachineStatus[]>;
 }
 
 const orders: Order[] = [
   {
-    id: "ORD-24831",
-    product: "BT-2024-A",
-    design: "DSN-047",
-    qty: 200,
-    currentStage: "set",
+    id: "ORD-24831", product: "BT-2024-A", design: "DSN-047", qty: 200, currentStage: "set",
     stageCounts: { tshirt: 200, card: 185, set: 142, courier: 0, invoice: 0, done: 0 },
+    activeMachines: {
+      tshirt: [{ id: "A-1", status: "가동중" }, { id: "A-2", status: "가동중" }],
+      card: [{ id: "B-1", status: "가동중" }], set: [{ id: "B-2", status: "가동중" }],
+      courier: [], invoice: [], done: [],
+    },
   },
   {
-    id: "ORD-24832",
-    product: "BT-2024-B",
-    design: "DSN-012",
-    qty: 150,
-    currentStage: "courier",
+    id: "ORD-24832", product: "BT-2024-B", design: "DSN-012", qty: 150, currentStage: "courier",
     stageCounts: { tshirt: 150, card: 150, set: 150, courier: 98, invoice: 72, done: 72 },
+    activeMachines: {
+      tshirt: [], card: [], set: [],
+      courier: [{ id: "B-3", status: "가동중" }], invoice: [{ id: "B-4", status: "가동중" }], done: [],
+    },
   },
   {
-    id: "ORD-24833",
-    product: "BT-2024-C",
-    design: "DSN-089",
-    qty: 300,
-    currentStage: "tshirt",
+    id: "ORD-24833", product: "BT-2024-C", design: "DSN-089", qty: 300, currentStage: "tshirt",
     stageCounts: { tshirt: 87, card: 0, set: 0, courier: 0, invoice: 0, done: 0 },
+    activeMachines: {
+      tshirt: [{ id: "A-1", status: "가동중" }, { id: "A-2", status: "일시정지" }, { id: "A-3", status: "가동중" }],
+      card: [], set: [], courier: [], invoice: [], done: [],
+    },
   },
   {
-    id: "ORD-24834",
-    product: "BT-2024-A",
-    design: "DSN-047",
-    qty: 120,
-    currentStage: "invoice",
+    id: "ORD-24834", product: "BT-2024-A", design: "DSN-047", qty: 120, currentStage: "invoice",
     stageCounts: { tshirt: 120, card: 120, set: 120, courier: 120, invoice: 108, done: 95 },
+    activeMachines: {
+      tshirt: [], card: [], set: [], courier: [],
+      invoice: [{ id: "B-4", status: "가동중" }], done: [],
+    },
   },
   {
-    id: "ORD-24835",
-    product: "BT-2024-D",
-    design: "DSN-103",
-    qty: 80,
-    currentStage: "done",
+    id: "ORD-24835", product: "BT-2024-D", design: "DSN-103", qty: 80, currentStage: "done",
     stageCounts: { tshirt: 80, card: 80, set: 80, courier: 80, invoice: 80, done: 80 },
+    activeMachines: { tshirt: [], card: [], set: [], courier: [], invoice: [], done: [] },
   },
 ];
 
@@ -88,10 +92,16 @@ const stageBgColors: Record<StageKey, string> = {
   done: "hsl(152 60% 36% / 0.1)",
 };
 
+const machineStatusColor: Record<string, string> = {
+  "가동중": "hsl(var(--success))",
+  "일시정지": "hsl(38 92% 50%)",
+  "정지": "hsl(var(--destructive))",
+};
+
 export default function OrderPipeline() {
   return (
     <div className="space-y-5">
-      {/* Stage header – horizontal legend */}
+      {/* Stage header with machine legend */}
       <div className="kpi-card section-enter">
         <div className="flex items-center gap-0 overflow-x-auto">
           {stages.map((s, i) => {
@@ -108,6 +118,11 @@ export default function OrderPipeline() {
                   <span className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">
                     {s.label}
                   </span>
+                  {s.machines.length > 0 && (
+                    <span className="text-[10px] text-muted-foreground/70 whitespace-nowrap">
+                      {s.machines.join(", ")}
+                    </span>
+                  )}
                 </div>
                 {i < stages.length - 1 && (
                   <div className="w-8 h-px shrink-0" style={{ background: "hsl(var(--border))" }} />
@@ -145,11 +160,7 @@ export default function OrderPipeline() {
                 </span>
                 <span
                   className={`status-badge ${
-                    isDone
-                      ? "status-running"
-                      : overallPct > 60
-                      ? "status-warning"
-                      : "status-idle"
+                    isDone ? "status-running" : overallPct > 60 ? "status-warning" : "status-idle"
                   }`}
                 >
                   {isDone ? "완료" : `${overallPct}%`}
@@ -177,15 +188,14 @@ export default function OrderPipeline() {
                 const isPast = si < currentIdx;
                 const isFuture = si > currentIdx;
                 const Icon = s.icon;
+                const machines = order.activeMachines[s.key];
 
                 return (
                   <div key={s.key} className="flex items-center flex-1 min-w-0">
                     <div
-                      className={`flex-1 rounded-lg p-2.5 transition-all duration-200`}
+                      className="flex-1 rounded-lg p-2.5 transition-all duration-200"
                       style={{
-                        background: isFuture
-                          ? "hsl(var(--surface-sunken))"
-                          : stageBgColors[s.key],
+                        background: isFuture ? "hsl(var(--surface-sunken))" : stageBgColors[s.key],
                         opacity: isFuture ? 0.5 : 1,
                         boxShadow: isActive ? `inset 0 0 0 1px ${stageColors[s.key]}` : "none",
                       }}
@@ -193,16 +203,45 @@ export default function OrderPipeline() {
                       <div className="flex items-center gap-1.5 mb-1.5">
                         <Icon
                           className="w-3.5 h-3.5 shrink-0"
-                          style={{
-                            color: isFuture
-                              ? "hsl(var(--muted-foreground))"
-                              : stageColors[s.key],
-                          }}
+                          style={{ color: isFuture ? "hsl(var(--muted-foreground))" : stageColors[s.key] }}
                         />
                         <span className="text-[10px] font-medium truncate text-muted-foreground">
                           {s.label}
                         </span>
                       </div>
+
+                      {/* Machine indicators */}
+                      {s.machines.length > 0 && (
+                        <div className="flex items-center gap-1 mb-1.5">
+                          {s.machines.map((mId) => {
+                            const active = machines.find((m) => m.id === mId);
+                            return (
+                              <div
+                                key={mId}
+                                className="flex items-center gap-0.5 px-1 py-px rounded text-[9px] font-medium"
+                                style={{
+                                  background: active
+                                    ? `${machineStatusColor[active.status]}18`
+                                    : "hsl(var(--muted))",
+                                  color: active
+                                    ? machineStatusColor[active.status]
+                                    : "hsl(var(--muted-foreground))",
+                                }}
+                              >
+                                <span
+                                  className="w-1.5 h-1.5 rounded-full shrink-0"
+                                  style={{
+                                    background: active
+                                      ? machineStatusColor[active.status]
+                                      : "hsl(var(--border))",
+                                  }}
+                                />
+                                {mId}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
 
                       {/* Mini progress */}
                       <div
@@ -221,11 +260,7 @@ export default function OrderPipeline() {
                       <div className="flex items-baseline justify-between">
                         <span
                           className="text-xs font-semibold tabular-nums"
-                          style={{
-                            color: isFuture
-                              ? "hsl(var(--muted-foreground))"
-                              : stageColors[s.key],
-                          }}
+                          style={{ color: isFuture ? "hsl(var(--muted-foreground))" : stageColors[s.key] }}
                         >
                           {count > 0 ? count : "-"}
                         </span>
@@ -240,10 +275,7 @@ export default function OrderPipeline() {
                         <div
                           className="w-3 h-px"
                           style={{
-                            background:
-                              isPast || isActive
-                                ? stageColors[s.key]
-                                : "hsl(var(--border))",
+                            background: isPast || isActive ? stageColors[s.key] : "hsl(var(--border))",
                             opacity: isPast || isActive ? 0.5 : 0.3,
                           }}
                         />

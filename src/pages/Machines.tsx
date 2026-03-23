@@ -3,11 +3,13 @@ import { Wifi, WifiOff, Gauge, AlertTriangle } from "lucide-react";
 import OrderPipeline from "@/components/OrderPipeline";
 
 const machines = [
-  { id: "MCH-001", name: "카드 포장기 A", status: "가동중", speed: "120개/분", uptime: "97.2%", total: 38420, error: "-", lastComm: "14:37:05" },
-  { id: "MCH-002", name: "카드 포장기 B", status: "정지", speed: "-", uptime: "91.5%", total: 28150, error: "E-042", lastComm: "14:35:22" },
-  { id: "MCH-003", name: "세트 포장기 A", status: "가동중", speed: "85개/분", uptime: "94.8%", total: 21560, error: "-", lastComm: "14:37:03" },
-  { id: "MCH-004", name: "택배봉투기 A", status: "일시정지", speed: "-", uptime: "88.5%", total: 18300, error: "-", lastComm: "14:36:58" },
-  { id: "MCH-005", name: "택배봉투기 B", status: "통신끊김", speed: "-", uptime: "72.1%", total: 12840, error: "COMM-ERR", lastComm: "14:20:11" },
+  { id: "A-1", name: "티셔츠 제작기 A-1", status: "가동중", speed: "95개/분", uptime: "97.2%", total: 38420, error: "-", lastComm: "14:37:05" },
+  { id: "A-2", name: "티셔츠 제작기 A-2", status: "일시정지", speed: "-", uptime: "91.5%", total: 28150, error: "-", lastComm: "14:35:22" },
+  { id: "A-3", name: "티셔츠 제작기 A-3", status: "가동중", speed: "92개/분", uptime: "94.8%", total: 21560, error: "-", lastComm: "14:37:03" },
+  { id: "B-1", name: "카드 포장기 B-1", status: "가동중", speed: "120개/분", uptime: "96.1%", total: 42150, error: "-", lastComm: "14:37:01" },
+  { id: "B-2", name: "세트 포장기 B-2", status: "가동중", speed: "85개/분", uptime: "93.4%", total: 31200, error: "-", lastComm: "14:36:58" },
+  { id: "B-3", name: "택배 포장기 B-3", status: "가동중", speed: "78개/분", uptime: "88.5%", total: 18300, error: "-", lastComm: "14:36:55" },
+  { id: "B-4", name: "송장 부착기 B-4", status: "가동중", speed: "110개/분", uptime: "95.7%", total: 35680, error: "-", lastComm: "14:37:04" },
 ];
 
 const statusMap: Record<string, { badge: string; icon: typeof Wifi }> = {
