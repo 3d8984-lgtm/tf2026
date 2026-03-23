@@ -9,6 +9,7 @@ import FileUpload from "@/pages/FileUpload";
 import MasterData from "@/pages/MasterData";
 import WorkOrders from "@/pages/WorkOrders";
 import TshirtProduction from "@/pages/TshirtProduction";
+import TshirtWork from "@/pages/TshirtWork";
 import CardPacking from "@/pages/CardPacking";
 import SetPacking from "@/pages/SetPacking";
 import Shipping from "@/pages/Shipping";
