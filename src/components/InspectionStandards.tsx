@@ -37,12 +37,11 @@ const defaultOrderOverrides = [
 
 const defaultStandardsZh = defaultStandards.map(s => ({
   ...s,
-  item: ({ "QR 매칭": "QR匹配", "중량 검사": "重量检查", "송장 매칭": "运单匹配", "택배 중량": "快递重量", "QR 부착 확인": "QR贴附确认", "카드 중량": "卡片重量" } as Record<string, string>)[s.item] ?? s.item,
-  method: ({ "QR 이중 스캔": "QR双重扫描", "중량 센서": "重量传感器", "바코드 스캔": "条码扫描", "QR 재스캔": "QR重新扫描" } as Record<string, string>)[s.method] ?? s.method,
+  item: ({ "QR 매칭": "QR匹配", "중량 검사": "重量检查", "송장 매칭": "运单匹配" } as Record<string, string>)[s.item] ?? s.item,
+  method: ({ "QR + 바코드 스캔": "QR+条码扫描", "중량 센서": "重量传感器", "바코드 스캔": "条码扫描" } as Record<string, string>)[s.method] ?? s.method,
   criteria: s.criteria
-    .replace("티셔츠 QR ↔ 카드 QR 디자인코드 일치", "T恤QR ↔ 卡片QR设计码匹配")
-    .replace("세트 QR ↔ 송장 바코드 주문정보 일치", "套装QR ↔ 运单条码订单信息匹配")
-    .replace("홀로그램 QR 정상 스캔", "全息QR正常扫描"),
+    .replace("홀로그램 QR값 ↔ 카드 바코드값 일치", "全息QR值 ↔ 卡片条码值匹配")
+    .replace("세트 QR ↔ 송장 바코드 주문정보 일치", "套装QR ↔ 运单条码订单信息匹配"),
 }));
 
 const defaultOrderOverridesZh = defaultOrderOverrides.map(o => ({
