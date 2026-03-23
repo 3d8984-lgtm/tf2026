@@ -348,6 +348,9 @@ const translations: Record<Lang, Record<string, string>> = {
     // Dashboard
     "dashboard.title": "仪表盘",
     "dashboard.desc": "一览所有生产·包装·出库现状",
+    "dashboard.daily": "日报",
+    "dashboard.weekly": "周报",
+    "dashboard.monthly": "月报",
     "dashboard.todayOrders": "今日工单",
     "dashboard.prodDone": "制作完成",
     "dashboard.setDone": "套装完成",

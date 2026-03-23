@@ -6,39 +6,96 @@ import KpiCard from "@/components/KpiCard";
 import PageHeader from "@/components/PageHeader";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useLang } from "@/contexts/LangContext";
+import { useState } from "react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+type Period = "daily" | "weekly" | "monthly";
 
 export default function Dashboard() {
   const { t, lang } = useLang();
+  const [period, setPeriod] = useState<Period>("daily");
 
-  const hourlyData = [
-    { hour: "08", [t("dashboard.tshirt")]: 45, [t("dashboard.card")]: 62, [t("dashboard.set")]: 38 },
-    { hour: "09", [t("dashboard.tshirt")]: 78, [t("dashboard.card")]: 85, [t("dashboard.set")]: 65 },
-    { hour: "10", [t("dashboard.tshirt")]: 92, [t("dashboard.card")]: 98, [t("dashboard.set")]: 80 },
-    { hour: "11", [t("dashboard.tshirt")]: 85, [t("dashboard.card")]: 90, [t("dashboard.set")]: 72 },
-    { hour: "12", [t("dashboard.tshirt")]: 30, [t("dashboard.card")]: 35, [t("dashboard.set")]: 25 },
-    { hour: "13", [t("dashboard.tshirt")]: 88, [t("dashboard.card")]: 95, [t("dashboard.set")]: 78 },
-    { hour: "14", [t("dashboard.tshirt")]: 95, [t("dashboard.card")]: 102, [t("dashboard.set")]: 85 },
-    { hour: "15", [t("dashboard.tshirt")]: 72, [t("dashboard.card")]: 78, [t("dashboard.set")]: 60 },
+  const isKo = lang === "ko";
+
+  /* ── Period-dependent data ── */
+  const kpiByPeriod: Record<Period, { orders: string; prod: string; set: string; ship: string; errors: string; orderChange: string; prodPct: string; setPct: string; shipPct: string; errChange: string }> = {
+    daily: { orders: "1,240", prod: "876", set: "654", ship: "512", errors: "7", orderChange: "+8.3%", prodPct: "70.6%", setPct: "52.7%", shipPct: "41.3%", errChange: "-3" },
+    weekly: { orders: "8,430", prod: "6,218", set: "4,892", ship: "3,740", errors: "42", orderChange: "+5.1%", prodPct: "73.8%", setPct: "58.1%", shipPct: "44.4%", errChange: "-12" },
+    monthly: { orders: "34,620", prod: "26,480", set: "21,350", ship: "18,200", errors: "156", orderChange: "+12.7%", prodPct: "76.5%", setPct: "61.7%", shipPct: "52.6%", errChange: "-28" },
+  };
+  const kpi = kpiByPeriod[period];
+
+  const chartDataByPeriod: Record<Period, { label: string; tshirt: number; card: number; set: number }[]> = {
+    daily: [
+      { label: "08", tshirt: 45, card: 62, set: 38 },
+      { label: "09", tshirt: 78, card: 85, set: 65 },
+      { label: "10", tshirt: 92, card: 98, set: 80 },
+      { label: "11", tshirt: 85, card: 90, set: 72 },
+      { label: "12", tshirt: 30, card: 35, set: 25 },
+      { label: "13", tshirt: 88, card: 95, set: 78 },
+      { label: "14", tshirt: 95, card: 102, set: 85 },
+      { label: "15", tshirt: 72, card: 78, set: 60 },
+    ],
+    weekly: [
+      { label: isKo ? "월" : "周一", tshirt: 420, card: 480, set: 380 },
+      { label: isKo ? "화" : "周二", tshirt: 510, card: 560, set: 440 },
+      { label: isKo ? "수" : "周三", tshirt: 480, card: 530, set: 410 },
+      { label: isKo ? "목" : "周四", tshirt: 530, card: 590, set: 470 },
+      { label: isKo ? "금" : "周五", tshirt: 490, card: 540, set: 430 },
+      { label: isKo ? "토" : "周六", tshirt: 320, card: 360, set: 280 },
+      { label: isKo ? "일" : "周日", tshirt: 0, card: 0, set: 0 },
+    ],
+    monthly: [
+      { label: "1W", tshirt: 2400, card: 2800, set: 2100 },
+      { label: "2W", tshirt: 2650, card: 3000, set: 2350 },
+      { label: "3W", tshirt: 2500, card: 2900, set: 2200 },
+      { label: "4W", tshirt: 2700, card: 3100, set: 2500 },
+    ],
+  };
+  const chartData = chartDataByPeriod[period].map(d => ({
+    label: d.label,
+    [t("dashboard.tshirt")]: d.tshirt,
+    [t("dashboard.card")]: d.card,
+    [t("dashboard.set")]: d.set,
+  }));
+
+  const chartTitle: Record<Period, string> = {
+    daily: isKo ? "시간대별 생산량" : "每小时产量",
+    weekly: isKo ? "요일별 생산량" : "每日产量",
+    monthly: isKo ? "주차별 생산량" : "每周产量",
+  };
+
+  const changeLabel = period === "daily"
+    ? t("dashboard.vsPrev")
+    : period === "weekly"
+      ? (isKo ? "전주 대비" : "与上周对比")
+      : (isKo ? "전월 대비" : "与上月对比");
+
+  const progressByPeriod: Record<Period, number[]> = {
+    daily: [78, 85, 62, 45],
+    weekly: [82, 88, 68, 52],
+    monthly: [86, 91, 74, 60],
+  };
+  const progressValues = progressByPeriod[period];
+
+  const processProgress = [
+    { name: t("process.tshirt"), value: progressValues[0], color: "hsl(205, 75%, 42%)" },
+    { name: t("process.card"), value: progressValues[1], color: "hsl(152, 60%, 42%)" },
+    { name: t("process.set"), value: progressValues[2], color: "hsl(38, 92%, 50%)" },
+    { name: t("process.shipping"), value: progressValues[3], color: "hsl(280, 55%, 52%)" },
   ];
 
   const machineData = [
-    { name: lang === "ko" ? "카드 포장기 A" : "卡片包装机 A", status: t("status.running"), speed: "120" + t("common.perMin"), uptime: "97.2%", count: 3842 },
-    { name: lang === "ko" ? "세트 포장기 B" : "套装包装机 B", status: t("status.running"), speed: "85" + t("common.perMin"), uptime: "94.8%", count: 2156 },
-    { name: lang === "ko" ? "택배봉투기 C" : "快递包装机 C", status: t("status.paused"), speed: "-", uptime: "88.5%", count: 1830 },
+    { name: isKo ? "카드 포장기 A" : "卡片包装机 A", status: t("status.running"), speed: "120" + t("common.perMin"), uptime: "97.2%", count: 3842 },
+    { name: isKo ? "세트 포장기 B" : "套装包装机 B", status: t("status.running"), speed: "85" + t("common.perMin"), uptime: "94.8%", count: 2156 },
+    { name: isKo ? "택배봉투기 C" : "快递包装机 C", status: t("status.paused"), speed: "-", uptime: "88.5%", count: 1830 },
   ];
 
   const recentExceptions = [
     { id: "EX-0231", type: t("defects.qrMismatch"), process: t("process.tshirt"), time: "14:32", severity: "high" },
     { id: "EX-0230", type: t("defects.duplicateQR"), process: t("process.card"), time: "14:15", severity: "high" },
-    { id: "EX-0229", type: t("defects.commError"), process: lang === "ko" ? "택배봉투기" : "快递包装机", time: "13:58", severity: "medium" },
+    { id: "EX-0229", type: t("defects.commError"), process: isKo ? "택배봉투기" : "快递包装机", time: "13:58", severity: "medium" },
     { id: "EX-0228", type: t("defects.printFail"), process: t("process.shipping"), time: "13:42", severity: "low" },
-  ];
-
-  const processProgress = [
-    { name: t("process.tshirt"), value: 78, color: "hsl(205, 75%, 42%)" },
-    { name: t("process.card"), value: 85, color: "hsl(152, 60%, 42%)" },
-    { name: t("process.set"), value: 62, color: "hsl(38, 92%, 50%)" },
-    { name: t("process.shipping"), value: 45, color: "hsl(280, 55%, 52%)" },
   ];
 
   const pendingShipments = [
@@ -49,24 +106,33 @@ export default function Dashboard() {
 
   return (
     <div>
-      <PageHeader title={t("dashboard.title")} description={t("dashboard.desc")} />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-6 pt-6 pb-2">
+        <PageHeader title={t("dashboard.title")} description={t("dashboard.desc")} />
+        <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
+          <TabsList className="h-9">
+            <TabsTrigger value="daily" className="text-xs px-3">{t("dashboard.daily")}</TabsTrigger>
+            <TabsTrigger value="weekly" className="text-xs px-3">{t("dashboard.weekly")}</TabsTrigger>
+            <TabsTrigger value="monthly" className="text-xs px-3">{t("dashboard.monthly")}</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
 
       <div className="p-6 space-y-6">
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-          <KpiCard icon={ClipboardList} label={t("dashboard.todayOrders")} value="1,240" change={`${t("dashboard.vsPrev")} +8.3%`} changeType="positive" delay={0} />
-          <KpiCard icon={Shirt} label={t("dashboard.prodDone")} value="876" change={`${t("dashboard.vsTarget")} 70.6%`} changeType="neutral" delay={60} />
-          <KpiCard icon={Package} label={t("dashboard.setDone")} value="654" change={`${t("dashboard.vsTarget")} 52.7%`} changeType="neutral" delay={120} />
-          <KpiCard icon={Truck} label={t("dashboard.shipDone")} value="512" change={`${t("dashboard.vsTarget")} 41.3%`} changeType="neutral" delay={180} />
-          <KpiCard icon={AlertTriangle} label={t("dashboard.errors")} value="7" change={`${t("dashboard.vsPrev")} -3`} changeType="positive" delay={240} />
+          <KpiCard icon={ClipboardList} label={t("dashboard.todayOrders")} value={kpi.orders} change={`${changeLabel} ${kpi.orderChange}`} changeType="positive" delay={0} />
+          <KpiCard icon={Shirt} label={t("dashboard.prodDone")} value={kpi.prod} change={`${t("dashboard.vsTarget")} ${kpi.prodPct}`} changeType="neutral" delay={60} />
+          <KpiCard icon={Package} label={t("dashboard.setDone")} value={kpi.set} change={`${t("dashboard.vsTarget")} ${kpi.setPct}`} changeType="neutral" delay={120} />
+          <KpiCard icon={Truck} label={t("dashboard.shipDone")} value={kpi.ship} change={`${t("dashboard.vsTarget")} ${kpi.shipPct}`} changeType="neutral" delay={180} />
+          <KpiCard icon={AlertTriangle} label={t("dashboard.errors")} value={kpi.errors} change={`${changeLabel} ${kpi.errChange}`} changeType="positive" delay={240} />
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 kpi-card section-enter" style={{ animationDelay: "300ms" }}>
-            <h3 className="text-sm font-medium mb-4">{t("dashboard.hourlyProd")}</h3>
+            <h3 className="text-sm font-medium mb-4">{chartTitle[period]}</h3>
             <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={hourlyData} barGap={2}>
+              <BarChart data={chartData} barGap={2}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(214, 20%, 88%)" />
-                <XAxis dataKey="hour" fontSize={12} tickLine={false} axisLine={false} />
+                <XAxis dataKey="label" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis fontSize={12} tickLine={false} axisLine={false} />
                 <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid hsl(214, 20%, 88%)", fontSize: 12, boxShadow: "0 4px 12px hsl(215, 25%, 15%, 0.08)" }} />
                 <Bar dataKey={t("dashboard.tshirt")} fill="hsl(205, 75%, 42%)" radius={[3, 3, 0, 0]} />
