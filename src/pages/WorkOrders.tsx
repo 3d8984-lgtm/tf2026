@@ -30,8 +30,8 @@ interface WorkOrder {
   reworks: ReworkItem[];
 }
 
-const stageOrder: RestartStage[] = ["tshirt", "card", "set", "courier", "invoice"];
-const stageIcons: Record<RestartStage, typeof Shirt> = { tshirt: Shirt, card: Sticker, set: Box, courier: Package, invoice: Truck };
+const stageOrder: RestartStage[] = ["tshirt", "card", "set", "weight", "courier", "invoice"];
+const stageIcons: Record<RestartStage, typeof Shirt> = { tshirt: Shirt, card: Sticker, set: Box, weight: Package, courier: Package, invoice: Truck };
 
 export default function WorkOrders() {
   const { t, lang } = useLang();
