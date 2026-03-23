@@ -7,7 +7,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Plus, Pencil, Trash2, Save, X, Search, ShieldCheck } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+interface InspectionStandard {
+  id: number;
+  process: string;
+  item: string;
+  method: string;
+  criteria: string;
+  autoStop: boolean;
+  enabled: boolean;
+  minVal?: number;
+  maxVal?: number;
+  unit?: string;
+}
 
 /* ── 공통 검수 기준 mock ── */
 const defaultStandards = [
