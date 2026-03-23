@@ -628,6 +628,14 @@ const translations: Record<Lang, Record<string, string>> = {
     "machines.totalWork": "累计产量",
     "machines.errorCode": "异常代码",
     "machines.lastComm": "最近通信",
+    "machines.autoStopped": "自动停机",
+    "machines.stopReason": "停机原因",
+    "machines.stoppedAt": "停机时间",
+    "machines.actionMemo": "请输入处理内容",
+    "machines.restart": "重新启动",
+    "machines.restartConfirm": "处理完成后是否重新启动？",
+    "machines.restarted": "已重新启动",
+    "machines.stoppedMachines": "自动停机警报",
 
     // Production Monitor
     "monitor.title": "生产/包装监控",
