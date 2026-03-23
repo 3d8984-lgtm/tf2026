@@ -567,6 +567,15 @@ const translations: Record<Lang, Record<string, string>> = {
     "machines.errorCode": "异常代码",
     "machines.lastComm": "最近通信",
 
+    // Production Monitor
+    "monitor.title": "生产/包装监控",
+    "monitor.desc": "订单工序进度、包装、出库、设备状态统一管理",
+    "monitor.tab.pipeline": "订单进度",
+    "monitor.tab.card": "卡片包装",
+    "monitor.tab.set": "套装包装",
+    "monitor.tab.shipping": "快递出库",
+    "monitor.tab.machines": "设备状态",
+
     // Defects
     "defects.title": "不良/异常管理",
     "defects.desc": "异常登记、原因分类、返工管理",
