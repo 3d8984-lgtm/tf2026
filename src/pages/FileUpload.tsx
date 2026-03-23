@@ -44,6 +44,14 @@ export default function FileUpload() {
     { label: isKo ? "택배송장정보" : "快递面单信息", cols: "M~Q", color: "bg-sky-500/10 text-sky-700" },
   ];
 
+  // Unique categories for group badges (from template Row 1)
+  const categoryBadges = [
+    { label: isKo ? "주문확인" : "订单确认", cols: "A~B" },
+    { label: isKo ? "티셔츠 작업용" : "T恤作业用", cols: "C~I" },
+    { label: isKo ? "카드 포장용" : "卡片包装用", cols: "J~L" },
+    { label: isKo ? "택배송장정보" : "快递面单信息", cols: "M~Q" },
+  ];
+
   const handleDownloadTemplate = () => {
     const link = document.createElement("a");
     link.href = "/template.xlsx";
