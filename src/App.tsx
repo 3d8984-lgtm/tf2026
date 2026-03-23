@@ -11,10 +11,7 @@ import MasterData from "@/pages/MasterData";
 import WorkOrders from "@/pages/WorkOrders";
 import TshirtProduction from "@/pages/TshirtProduction";
 import TshirtWork from "@/pages/TshirtWork";
-import CardPacking from "@/pages/CardPacking";
-import SetPacking from "@/pages/SetPacking";
-import Shipping from "@/pages/Shipping";
-import Machines from "@/pages/Machines";
+import ProductionMonitor from "@/pages/ProductionMonitor";
 import Defects from "@/pages/Defects";
 import Reports from "@/pages/Reports";
 import SystemSettings from "@/pages/SystemSettings";
@@ -37,10 +34,7 @@ const App = () => (
               <Route path="/work-orders" element={<WorkOrders />} />
               <Route path="/tshirt" element={<TshirtProduction />} />
               <Route path="/tshirt-work" element={<TshirtWork />} />
-              <Route path="/card-packing" element={<CardPacking />} />
-              <Route path="/set-packing" element={<SetPacking />} />
-              <Route path="/shipping" element={<Shipping />} />
-              <Route path="/machines" element={<Machines />} />
+              <Route path="/monitor" element={<ProductionMonitor />} />
               <Route path="/defects" element={<Defects />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/settings" element={<SystemSettings />} />

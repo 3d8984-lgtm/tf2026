@@ -20,10 +20,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "menu.workOrders": "작업지시 관리",
     "menu.tshirt": "티셔츠 제작 관리",
     "menu.tshirtWork": "티셔츠 부착 작업",
-    "menu.cardPacking": "카드 포장 관리",
-    "menu.setPacking": "세트 포장 관리",
-    "menu.shipping": "택배 출고 관리",
-    "menu.machines": "기계 모니터링",
+    "menu.monitor": "생산/포장 모니터링",
     "menu.defects": "불량/예외 관리",
     "menu.reports": "이력조회/리포트",
     "menu.settings": "시스템 설정",
@@ -245,6 +242,15 @@ const translations: Record<Lang, Record<string, string>> = {
     "machines.errorCode": "오류코드",
     "machines.lastComm": "최근 통신",
 
+    // Production Monitor
+    "monitor.title": "생산/포장 모니터링",
+    "monitor.desc": "주문별 공정 진행, 포장, 출고, 장비 상태를 통합 관리합니다",
+    "monitor.tab.pipeline": "주문 진행",
+    "monitor.tab.card": "카드 포장",
+    "monitor.tab.set": "세트 포장",
+    "monitor.tab.shipping": "택배 출고",
+    "monitor.tab.machines": "장비 상태",
+
     // Defects
     "defects.title": "불량/예외 관리",
     "defects.desc": "예외 상황 등록, 원인 분류, 재작업 관리",
@@ -339,10 +345,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "menu.workOrders": "工单管理",
     "menu.tshirt": "T恤制作管理",
     "menu.tshirtWork": "T恤贴附作业",
-    "menu.cardPacking": "卡片包装管理",
-    "menu.setPacking": "套装包装管理",
-    "menu.shipping": "快递出库管理",
-    "menu.machines": "设备监控",
+    "menu.monitor": "生产/包装监控",
     "menu.defects": "不良/异常管理",
     "menu.reports": "历史查询/报表",
     "menu.settings": "系统设置",
@@ -563,6 +566,15 @@ const translations: Record<Lang, Record<string, string>> = {
     "machines.totalWork": "累计产量",
     "machines.errorCode": "异常代码",
     "machines.lastComm": "最近通信",
+
+    // Production Monitor
+    "monitor.title": "生产/包装监控",
+    "monitor.desc": "订单工序进度、包装、出库、设备状态统一管理",
+    "monitor.tab.pipeline": "订单进度",
+    "monitor.tab.card": "卡片包装",
+    "monitor.tab.set": "套装包装",
+    "monitor.tab.shipping": "快递出库",
+    "monitor.tab.machines": "设备状态",
 
     // Defects
     "defects.title": "不良/异常管理",

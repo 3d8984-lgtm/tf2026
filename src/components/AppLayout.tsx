@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import {
-  LayoutDashboard, Upload, Database, ClipboardList, Shirt, CreditCard,
-  Package, Truck, Monitor, AlertTriangle, FileBarChart, Settings,
+  LayoutDashboard, Upload, Database, ClipboardList, Shirt,
+  Activity, AlertTriangle, FileBarChart, Settings,
   ChevronLeft, ChevronRight, Box, ScanLine, Globe
 } from "lucide-react";
 import { useLang, type Lang } from "@/contexts/LangContext";
@@ -14,10 +14,7 @@ const menuKeys = [
   { path: "/work-orders", icon: ClipboardList, key: "menu.workOrders" },
   { path: "/tshirt-work", icon: ScanLine, key: "menu.tshirtWork" },
   { path: "/tshirt", icon: Shirt, key: "menu.tshirt" },
-  { path: "/card-packing", icon: CreditCard, key: "menu.cardPacking" },
-  { path: "/set-packing", icon: Package, key: "menu.setPacking" },
-  { path: "/shipping", icon: Truck, key: "menu.shipping" },
-  { path: "/machines", icon: Monitor, key: "menu.machines" },
+  { path: "/monitor", icon: Activity, key: "menu.monitor" },
   { path: "/defects", icon: AlertTriangle, key: "menu.defects" },
   { path: "/reports", icon: FileBarChart, key: "menu.reports" },
   { path: "/settings", icon: Settings, key: "menu.settings" },
