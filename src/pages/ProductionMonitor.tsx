@@ -330,12 +330,53 @@ export default function ProductionMonitor() {
 
           {/* ═══ Machine status ═══ */}
           <TabsContent value="machines" className="space-y-6">
+            {/* Auto-stop alert banner */}
+            {stoppedMachines.length > 0 && (
+              <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4 space-y-4 section-enter">
+                <div className="flex items-center gap-2">
+                  <OctagonX className="w-5 h-5 text-destructive" />
+                  <h3 className="font-semibold text-destructive">{t("machines.stoppedMachines")} ({stoppedMachines.length})</h3>
+                </div>
+                {stoppedMachines.map((m) => (
+                  <div key={m.id} className="rounded-md border border-destructive/30 bg-background p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold">{m.name} <span className="text-xs text-muted-foreground">({m.id})</span></p>
+                        <p className="text-sm text-muted-foreground mt-0.5">{t("machines.stoppedAt")}: {m.stoppedAt}</p>
+                      </div>
+                      <span className="status-badge status-stopped"><OctagonX className="w-3 h-3" /> {t("machines.autoStopped")}</span>
+                    </div>
+                    <div className="rounded bg-destructive/5 border border-destructive/20 p-3">
+                      <p className="text-xs font-medium text-destructive mb-1">{t("machines.stopReason")}</p>
+                      <p className="text-sm">{m.stopReason}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <input
+                        className="flex-1 rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground"
+                        placeholder={t("machines.actionMemo")}
+                        value={actionMemos[m.id] || ""}
+                        onChange={(e) => setActionMemos(prev => ({ ...prev, [m.id]: e.target.value }))}
+                      />
+                      <Button
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={() => handleRestart(m.id)}
+                      >
+                        <PlayCircle className="w-4 h-4" />
+                        {t("machines.restart")}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {machines.map((m, i) => {
                 const st = statusMap[m.status] || statusMap.stopped;
                 const StIcon = st.icon;
                 return (
-                  <div key={m.id} className="kpi-card section-enter" style={{ animationDelay: `${i * 80}ms` }}>
+                  <div key={m.id} className={`kpi-card section-enter ${m.status === "autoStopped" ? "border-destructive/40 ring-1 ring-destructive/20" : ""}`} style={{ animationDelay: `${i * 80}ms` }}>
                     <div className="flex items-start justify-between mb-4">
                       <div><p className="font-medium">{m.name}</p><p className="text-xs text-muted-foreground">{m.id}</p></div>
                       <span className={`status-badge ${st.badge}`}><StIcon className="w-3 h-3" /> {st.label}</span>
