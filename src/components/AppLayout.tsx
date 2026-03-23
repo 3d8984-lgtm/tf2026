@@ -3,7 +3,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import {
   LayoutDashboard, Upload, Database, ClipboardList, Shirt, CreditCard,
   Package, Truck, Monitor, AlertTriangle, FileBarChart, Settings,
-  ChevronLeft, ChevronRight, Box
+  ChevronLeft, ChevronRight, Box, ScanLine
 } from "lucide-react";
 
 const menuItems = [
