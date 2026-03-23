@@ -750,6 +750,8 @@ const translations: Record<Lang, Record<string, string>> = {
     "settings.insp.noOverrides": "暂无例外标准",
     "settings.insp.orderHint": "可为特殊订单设置与通用标准不同的检验标准。设置了例外标准的订单将优先适用该标准。",
 
+    // Common
+    "common.search": "搜索",
     "common.time": "时间",
     "common.items": "个",
     "common.perMin": "个/分",
