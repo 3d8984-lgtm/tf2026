@@ -5,9 +5,11 @@ import { useLang } from "@/contexts/LangContext";
 import OrderPipeline from "@/components/OrderPipeline";
 import {
   Wifi, WifiOff, Gauge, AlertTriangle, ScanLine, Package,
-  CheckCircle2, XCircle, Printer, Search, Activity, ChevronDown, ChevronRight
+  CheckCircle2, XCircle, Printer, Search, Activity, ChevronDown, ChevronRight,
+  PlayCircle, OctagonX
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 /* ── Types ── */
 interface CardLog { time: string; barcode: string; serial: string; printedQR: string; status: string }
