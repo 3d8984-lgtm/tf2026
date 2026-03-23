@@ -39,7 +39,7 @@ export default function WorkOrders() {
 
   const stageLabel: Record<RestartStage, string> = {
     tshirt: t("process.tshirt"), card: t("process.card"), set: t("process.set"),
-    courier: t("process.courier"), invoice: t("process.invoice"),
+    weight: t("process.weight"), courier: t("process.courier"), invoice: t("process.invoice"),
   };
 
   const [workOrders] = useState<WorkOrder[]>([

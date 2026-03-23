@@ -437,6 +437,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "process.tshirt": "T恤制作",
     "process.card": "卡片包装",
     "process.set": "套装包装",
+    "process.weight": "重量检测",
     "process.shipping": "快递出库",
     "process.courier": "快递包装",
     "process.invoice": "运单贴附",
