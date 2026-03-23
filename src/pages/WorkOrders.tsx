@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 
-type RestartStage = "tshirt" | "card" | "set" | "courier" | "invoice";
+type RestartStage = "tshirt" | "card" | "set" | "weight" | "courier" | "invoice";
 
 interface ReworkItem {
   defectId: string;
