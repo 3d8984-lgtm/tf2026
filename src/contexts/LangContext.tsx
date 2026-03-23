@@ -353,6 +353,8 @@ const translations: Record<Lang, Record<string, string>> = {
     "dashboard.daily": "日报",
     "dashboard.weekly": "周报",
     "dashboard.monthly": "月报",
+    "dashboard.custom": "自定义",
+    "dashboard.periodOrders": "期间工单",
     "dashboard.todayOrders": "今日工单",
     "dashboard.prodDone": "制作完成",
     "dashboard.setDone": "套装完成",
