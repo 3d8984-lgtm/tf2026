@@ -181,15 +181,13 @@ export default function OrderPipeline() {
                 return (
                   <div key={s.key} className="flex items-center flex-1 min-w-0">
                     <div
-                      className={`flex-1 rounded-lg p-2.5 transition-all duration-200 ${
-                        isActive ? "ring-1" : ""
-                      }`}
+                      className={`flex-1 rounded-lg p-2.5 transition-all duration-200`}
                       style={{
                         background: isFuture
                           ? "hsl(var(--surface-sunken))"
                           : stageBgColors[s.key],
-                        ringColor: isActive ? stageColors[s.key] : "transparent",
                         opacity: isFuture ? 0.5 : 1,
+                        boxShadow: isActive ? `inset 0 0 0 1px ${stageColors[s.key]}` : "none",
                       }}
                     >
                       <div className="flex items-center gap-1.5 mb-1.5">
