@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      callback_settings: {
+        Row: {
+          auth_header: string
+          auth_value: string
+          auto_sync: boolean
+          callback_url: string
+          created_at: string
+          enabled: boolean
+          id: string
+          sync_delivered: boolean
+          sync_status_change: boolean
+          sync_tracking_number: boolean
+          updated_at: string
+        }
+        Insert: {
+          auth_header?: string
+          auth_value?: string
+          auto_sync?: boolean
+          callback_url?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          sync_delivered?: boolean
+          sync_status_change?: boolean
+          sync_tracking_number?: boolean
+          updated_at?: string
+        }
+        Update: {
+          auth_header?: string
+          auth_value?: string
+          auto_sync?: boolean
+          callback_url?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          sync_delivered?: boolean
+          sync_status_change?: boolean
+          sync_tracking_number?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       orders: {
         Row: {
           created_at: string
