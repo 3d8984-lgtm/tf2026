@@ -82,6 +82,7 @@ export function useShippingGrouped(filters: ShippingFilters) {
             recipientName: o.recipient_name,
             productCode: o.product_code,
             quantity: o.quantity,
+            createdDate: o.created_at,
             dueDate: o.project_completed_at,
             shippingCity: o.shipping_city,
             shippingState: o.shipping_state,
