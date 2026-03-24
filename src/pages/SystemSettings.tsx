@@ -409,6 +409,11 @@ export default function SystemSettings() {
           <TabsContent value="inspection">
             <InspectionStandards />
           </TabsContent>
+
+          {/* Webhook */}
+          <TabsContent value="webhook">
+            <WebhookSettings />
+          </TabsContent>
         </Tabs>
       </div>
     </div>
