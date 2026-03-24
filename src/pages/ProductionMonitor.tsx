@@ -351,7 +351,7 @@ export default function ProductionMonitor() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b text-left">
-                        {[t("workOrders.orderNo"), t("workOrders.productCode"), t("workOrders.designCode"), t("workOrders.qty"), isKo ? "수취인" : "收件人", isKo ? "배송지" : "配送地址", t("workOrders.status"), isKo ? "관리" : "管理"].map(h => (
+                        {[t("workOrders.orderNo"), isKo ? "접수 날짜" : "接单日期", t("workOrders.qty"), isKo ? "트윈커" : "Twinker", t("workOrders.status"), isKo ? "관리" : "管理"].map(h => (
                           <th key={h} className="pb-2 font-medium text-muted-foreground whitespace-nowrap pr-4">{h}</th>
                         ))}
                       </tr>
@@ -359,14 +359,13 @@ export default function ProductionMonitor() {
                     <tbody>
                       {filtered.map(wo => {
                         const sb = statusBadge(wo.status);
+                        const createdDate = new Date(wo.created_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN");
                         return (
                           <tr key={wo.id} className="border-b hover:bg-muted/30 transition-colors">
                             <td className="py-2.5 font-medium text-primary pr-4">{wo.external_order_id}</td>
-                            <td className="py-2.5 pr-4">{wo.product_code}</td>
-                            <td className="py-2.5 pr-4">{wo.design_code ?? "-"}</td>
+                            <td className="py-2.5 pr-4 text-muted-foreground">{createdDate}</td>
                             <td className="py-2.5 tabular-nums pr-4">{wo.quantity.toLocaleString()}</td>
                             <td className="py-2.5 pr-4">{wo.recipient_name}</td>
-                            <td className="py-2.5 pr-4 max-w-[200px] truncate text-muted-foreground">{[wo.shipping_city, wo.shipping_state, wo.shipping_country].filter(Boolean).join(", ")}</td>
                             <td className="py-2.5 pr-4"><span className={`status-badge ${sb.cls}`}>{sb.label}</span></td>
                             <td className="py-2.5">
                               <div className="flex gap-1">
@@ -377,7 +376,7 @@ export default function ProductionMonitor() {
                           </tr>
                         );
                       })}
-                      {filtered.length === 0 && <tr><td colSpan={8} className="py-8 text-center text-muted-foreground">{isKo ? "주문이 없습니다" : "暂无订单"}</td></tr>}
+                      {filtered.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-muted-foreground">{isKo ? "주문이 없습니다" : "暂无订单"}</td></tr>}
                     </tbody>
                   </table>
                 </div>
