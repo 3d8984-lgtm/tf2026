@@ -15,7 +15,7 @@ const ROLE_PERMISSIONS: Record<UserRole, {
   };
 }> = {
   worker: {
-    menuAccess: ["/", "/tshirt-work", "/tshirt", "/monitor", "/shipping", "/defects"],
+    menuAccess: ["/", "/tshirt-work", "/tshirt", "/monitor", "/shipping", "/defects", "/manual"],
     settingsTabs: [],
     canEdit: {
       orders: false,
