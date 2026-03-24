@@ -188,9 +188,11 @@ interface OrderGroupProps {
   shipmentStatusCls: Record<string, string>;
   queryClient: ReturnType<typeof useQueryClient>;
   toast: ReturnType<typeof useToast>["toast"];
+  canEdit: boolean;
+  canSync: boolean;
 }
 
-function OrderGroup({ group, isKo, shipmentStatusLabel, shipmentStatusCls, queryClient, toast }: OrderGroupProps) {
+function OrderGroup({ group, isKo, shipmentStatusLabel, shipmentStatusCls, queryClient, toast, canEdit, canSync }: OrderGroupProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTrackingNumber, setEditTrackingNumber] = useState("");
