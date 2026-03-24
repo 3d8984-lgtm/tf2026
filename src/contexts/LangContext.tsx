@@ -625,6 +625,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "tshirtWork.product": "商品",
     "tshirtWork.design": "设计",
     "tshirtWork.size": "尺码",
+    "tshirtWork.orderDate": "下单日",
     "tshirtWork.dueDate": "交期",
     "tshirtWork.progressRate": "进度",
     "tshirtWork.todayTarget": "今日目标",
