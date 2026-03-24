@@ -403,6 +403,8 @@ const translations: Record<Lang, Record<string, string>> = {
     "auth.email": "이메일",
     "auth.name": "이름",
     "auth.namePlaceholder": "이름을 입력하세요",
+    "auth.phone": "전화번호",
+    "auth.phonePlaceholder": "010-1234-5678",
     "auth.password": "비밀번호",
     "auth.loginDesc": "계정에 로그인하세요",
     "auth.signupDesc": "새 계정을 만드세요",
