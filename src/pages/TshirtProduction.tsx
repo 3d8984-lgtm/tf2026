@@ -12,7 +12,7 @@ interface OrderData {
 
 const ordersData: OrderData[] = [
   {
-    order: "20260324-1", product: "BT-2024-A", designCode: "DSN-047", qty: 200,
+    order: "20260324-1", product: "BT-2024-A", designCode: "DSN-047", qty: 200, twinker: "김민지", dueDate: "2026-03-25",
     summary: { waiting: 15, done: 182, fail: 3 },
     logs: [
       { time: "14:35:22", color: "Black", size: "L", silicon: "SQR-00482", design: "DQR-00482", hologram: "HQR-A0931", result: "pass", logo: "✓" },
