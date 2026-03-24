@@ -3,9 +3,10 @@ import { NavLink, Outlet } from "react-router-dom";
 import {
   LayoutDashboard, Upload, Database, ClipboardList, Shirt,
   Activity, AlertTriangle, FileBarChart, Settings,
-  ChevronLeft, ChevronRight, Box, ScanLine, Globe
+  ChevronLeft, ChevronRight, ScanLine, Globe
 } from "lucide-react";
 import { useLang, type Lang } from "@/contexts/LangContext";
+import twinmetaLogo from "@/assets/twinmeta-logo.png";
 
 const menuKeys = [
   { path: "/", icon: LayoutDashboard, key: "menu.dashboard" },
