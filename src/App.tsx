@@ -14,6 +14,7 @@ import WorkOrders from "@/pages/WorkOrders";
 import TshirtProduction from "@/pages/TshirtProduction";
 import TshirtWork from "@/pages/TshirtWork";
 import ProductionMonitor from "@/pages/ProductionMonitor";
+import Shipping from "@/pages/Shipping";
 import Defects from "@/pages/Defects";
 import Reports from "@/pages/Reports";
 import SystemSettings from "@/pages/SystemSettings";
@@ -66,6 +67,7 @@ function ProtectedRoutes() {
         <Route path="/tshirt" element={<TshirtProduction />} />
         <Route path="/tshirt-work" element={<TshirtWork />} />
         <Route path="/monitor" element={<ProductionMonitor />} />
+        <Route path="/shipping" element={<Shipping />} />
         <Route path="/defects" element={<Defects />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/settings" element={<SystemSettings />} />
