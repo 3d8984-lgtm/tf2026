@@ -401,6 +401,8 @@ const translations: Record<Lang, Record<string, string>> = {
     "auth.login": "로그인",
     "auth.signup": "회원가입",
     "auth.email": "이메일",
+    "auth.name": "이름",
+    "auth.namePlaceholder": "이름을 입력하세요",
     "auth.password": "비밀번호",
     "auth.loginDesc": "계정에 로그인하세요",
     "auth.signupDesc": "새 계정을 만드세요",
