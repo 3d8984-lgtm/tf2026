@@ -89,8 +89,8 @@ export default function TshirtWork() {
 
   const [selectedOrder, setSelectedOrder] = useState<OrderItem | null>(null);
   const [scanValue, setScanValue] = useState("");
-  const [stepStatuses, setStepStatuses] = useState<StepStatus[]>(["waiting", "waiting", "waiting"]);
-  const [scannedValues, setScannedValues] = useState<string[]>(["", "", ""]);
+  const [stepStatuses, setStepStatuses] = useState<StepStatus[]>(["waiting", "waiting", "waiting", "waiting"]);
+  const [scannedValues, setScannedValues] = useState<string[]>(["", "", "", ""]);
   const [currentStep, setCurrentStep] = useState(0);
   const [matchedProduct, setMatchedProduct] = useState<{ product: string; design: string } | null>(null);
   const [logoVerified, setLogoVerified] = useState(false);
