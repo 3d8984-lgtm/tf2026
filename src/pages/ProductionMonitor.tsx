@@ -79,7 +79,7 @@ const ordersData: OrderData[] = [
     shipItems: [],
   },
   {
-    order: "ORD-24834", product: "BT-2024-A", design: "DSN-047", qty: 120,
+    order: "20260324-4", product: "BT-2024-A", design: "DSN-047", qty: 120, dueDate: "2026-03-28",
     cardSummary: { scanDone: 120, packing: 0, ejected: 120, error: 0 },
     cardLogs: [
       { time: "13:50:10", barcode: "CRD-0350", serial: "CS-A08200", printedQR: "CPQ-0350", status: "ejected" },
