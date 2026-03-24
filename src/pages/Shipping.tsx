@@ -177,6 +177,7 @@ interface OrderGroupProps {
     recipientName: string;
     productCode: string;
     quantity: number;
+    createdDate: string;
     dueDate: string | null;
     shippingCity: string | null;
     shippingState: string | null;
