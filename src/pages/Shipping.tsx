@@ -306,6 +306,7 @@ function OrderGroup({ group, isKo, shipmentStatusLabel, shipmentStatusCls, query
                     isKo ? "QR매칭" : "QR匹配",
                     isKo ? "중량" : "重量",
                     isKo ? "검수" : "检验",
+                    isKo ? "A사이트" : "A站点",
                     isKo ? "관리" : "管理",
                   ].map(h => (
                     <th key={h} className="pb-2 font-medium text-muted-foreground whitespace-nowrap pr-3">{h}</th>
