@@ -124,6 +124,7 @@ export default function SystemSettings() {
     { value: "commands", icon: Play, label: t("settings.commands") },
     { value: "alarms", icon: AlertTriangle, label: t("settings.alarms") },
     { value: "inspection", icon: ShieldCheck, label: t("settings.inspection") },
+    { value: "webhook", icon: Webhook, label: t("settings.webhook") },
   ];
 
   return (
