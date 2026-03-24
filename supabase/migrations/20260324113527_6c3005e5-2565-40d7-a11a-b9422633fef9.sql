@@ -1,0 +1,1 @@
+UPDATE public.orders SET project_completed_at = (created_at::timestamp + interval '7 days')::timestamptz WHERE project_completed_at IS NULL;
