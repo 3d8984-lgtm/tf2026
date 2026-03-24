@@ -41,6 +41,7 @@ const menuKeys: MenuItem[] = [
     { label: { ko: "불량 분석", zh: "不良分析" }, tab: "defect" },
     { label: { ko: "배송 현황", zh: "配送现况" }, tab: "shipping" },
   ]},
+  { path: "/manual", icon: BookOpen, key: "menu.manual" },
   { path: "/settings", icon: Settings, key: "menu.settings", children: [
     { label: { ko: "일반", zh: "常规" }, tab: "general" },
     { label: { ko: "사용자 관리", zh: "用户管理" }, tab: "users" },

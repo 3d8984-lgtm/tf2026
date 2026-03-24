@@ -71,6 +71,7 @@ function ProtectedRoutes() {
         <Route path="/shipping" element={<Shipping />} />
         <Route path="/defects" element={<Defects />} />
         <Route path="/reports" element={<Reports />} />
+        <Route path="/manual" element={<Manual />} />
         <Route path="/settings" element={<SystemSettings />} />
       </Route>
       <Route path="*" element={<NotFound />} />

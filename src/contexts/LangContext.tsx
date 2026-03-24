@@ -865,6 +865,17 @@ const translations: Record<Lang, Record<string, string>> = {
     "webhook.noLogs": "暂无接收日志",
     "webhook.secretHeader": "认证头 (可选)",
     "webhook.secretDesc": "可以通过 x-webhook-secret 头进行认证",
+
+    // Manual
+    "menu.manual": "使用手册",
+    "manual.title": "使用手册",
+    "manual.desc": "查看系统运营所需的主要指南",
+    "manual.section1": "用户注册/审批方法",
+    "manual.section2": "添加新T恤种类",
+    "manual.section3": "TWINMETA 订单/运单号数据对接",
+    "manual.section4": "快递公司API对接方法",
+    "manual.section5": "PLC、网关对接方法",
+    "manual.section6": "站点修改及重新开发方法",
   },
 };
 

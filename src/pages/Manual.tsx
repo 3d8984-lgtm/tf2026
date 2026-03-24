@@ -1,5 +1,5 @@
 import { useLang } from "@/contexts/LangContext";
-import { PageHeader } from "@/components/PageHeader";
+import PageHeader from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { UserPlus, Shirt, RefreshCw, Truck, Cpu, Wrench } from "lucide-react";
