@@ -26,7 +26,7 @@ const ROLE_PERMISSIONS: Record<UserRole, {
     },
   },
   manager: {
-    menuAccess: ["/", "/upload", "/master", "/tshirt-work", "/tshirt", "/monitor", "/shipping", "/defects", "/reports", "/settings"],
+    menuAccess: ["/", "/upload", "/master", "/tshirt-work", "/tshirt", "/monitor", "/shipping", "/defects", "/reports", "/manual", "/settings"],
     settingsTabs: ["general", "equipment", "plcTags", "sensors", "commands", "alarms", "inspection"],
     canEdit: {
       orders: true,
