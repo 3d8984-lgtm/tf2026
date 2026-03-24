@@ -2,8 +2,9 @@ import { useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import { CheckCircle2, XCircle, Clock, ScanLine, ChevronDown, ChevronRight } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
-interface ScanLog { time: string; color: string; size: string; silicon: string; design: string; hologram: string; result: "pass" | "fail"; logo: string }
+interface ScanLog { time: string; color: string; size: string; silicon: string; design: string; hologram: string; result: "pass" | "fail"; logo: string; failReason?: string }
 interface OrderData {
   order: string; product: string; designCode: string; qty: number; twinker: string; dueDate: string;
   summary: { waiting: number; done: number; fail: number };
