@@ -131,6 +131,41 @@ function OrderRow({ o, t, lang }: { o: OrderData; t: (k: string) => string; lang
           </div>
         </div>
       )}
+
+      <Dialog open={!!failLog} onOpenChange={(open) => !open && setFailLog(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <XCircle className="w-5 h-5 text-destructive" />
+              {lang === "ko" ? "검증실패 상세" : "验证失败详情"}
+            </DialogTitle>
+            <DialogDescription>
+              {failLog && (
+                <div className="space-y-3 mt-2 text-left">
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <span className="text-muted-foreground">{t("tshirtProd.time")}</span>
+                    <span className="font-mono">{failLog.time}</span>
+                    <span className="text-muted-foreground">{lang === "ko" ? "색상" : "颜色"}</span>
+                    <span>{failLog.color}</span>
+                    <span className="text-muted-foreground">{lang === "ko" ? "사이즈" : "尺码"}</span>
+                    <span>{failLog.size}</span>
+                    <span className="text-muted-foreground">{t("tshirtProd.siliconQR")}</span>
+                    <span className="font-mono text-xs">{failLog.silicon}</span>
+                    <span className="text-muted-foreground">{t("tshirtProd.designQR")}</span>
+                    <span className="font-mono text-xs">{failLog.design}</span>
+                    <span className="text-muted-foreground">{t("tshirtProd.hologramQR")}</span>
+                    <span className="font-mono text-xs">{failLog.hologram}</span>
+                  </div>
+                  <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                    <p className="text-sm font-medium text-destructive">{lang === "ko" ? "실패 사유" : "失败原因"}</p>
+                    <p className="text-sm mt-1">{failLog.failReason || (lang === "ko" ? "상세 사유 없음" : "无详细原因")}</p>
+                  </div>
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
