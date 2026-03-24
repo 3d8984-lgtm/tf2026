@@ -196,6 +196,9 @@ const translations: Record<Lang, Record<string, string>> = {
     "tshirtWork.verifying": "검증중…",
     "tshirtWork.startVerify": "검증 시작",
     "tshirtWork.attachPossible": "부착 진행 가능",
+    "tshirtWork.workItems": "작업건 목록",
+    "tshirtWork.pending": "대기",
+    "tshirtWork.status": "상태",
 
     // Card Packing
     "cardPacking.title": "카드 포장 관리",
@@ -616,6 +619,9 @@ const translations: Record<Lang, Record<string, string>> = {
     "tshirtWork.verifying": "验证中…",
     "tshirtWork.startVerify": "开始验证",
     "tshirtWork.attachPossible": "可以贴附",
+    "tshirtWork.workItems": "作业项列表",
+    "tshirtWork.pending": "待处理",
+    "tshirtWork.status": "状态",
 
     // Card Packing
     "cardPacking.title": "卡片包装管理",
