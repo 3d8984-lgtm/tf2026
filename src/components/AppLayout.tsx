@@ -48,7 +48,7 @@ const menuKeys: MenuItem[] = [
     { label: { ko: "센서", zh: "传感器" }, tab: "sensors" },
     { label: { ko: "명령어", zh: "指令" }, tab: "commands" },
     { label: { ko: "알람", zh: "报警" }, tab: "alarms" },
-    { label: { ko: "검사 기준", zh: "检查标准" }, tab: "inspection" },
+    { label: { ko: "검수 기준", zh: "检验标准" }, tab: "inspection" },
     { label: { ko: "Webhook", zh: "Webhook" }, tab: "webhook" },
     { label: { ko: "택배사 연동", zh: "快递对接" }, tab: "courier" },
     { label: { ko: "A사이트 회신", zh: "A站点回调" }, tab: "callback" },
