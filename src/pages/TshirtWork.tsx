@@ -26,6 +26,7 @@ interface OrderData {
   twinker: string;
   product: string;
   design: string;
+  orderDate: string;
   dueDate: string;
   items: WorkItem[];
 }
@@ -33,7 +34,7 @@ interface OrderData {
 // Mock: each order contains multiple work items with individual color/size/QR
 const mockOrders: OrderData[] = [
   {
-    id: "WO-001", orderNo: "20260324-1", twinker: "김민지", product: "BT-2024-A", design: "DSN-047", dueDate: "2024-03-25",
+    id: "WO-001", orderNo: "20260324-1", twinker: "김민지", product: "BT-2024-A", design: "DSN-047", orderDate: "2024-03-18", dueDate: "2024-03-25",
     items: [
       { seq: 1, color: "Black", size: "L", siliconQR: "SQR-00482", designQR: "DQR-00482", hologramQR: "HQR-A0931", status: "done" },
       { seq: 2, color: "Black", size: "L", siliconQR: "SQR-00481", designQR: "DQR-00481", hologramQR: "HQR-A0930", status: "done" },
@@ -43,7 +44,7 @@ const mockOrders: OrderData[] = [
     ],
   },
   {
-    id: "WO-002", orderNo: "20260324-2", twinker: "박서연", product: "BT-2024-B", design: "DSN-012", dueDate: "2024-03-26",
+    id: "WO-002", orderNo: "20260324-2", twinker: "박서연", product: "BT-2024-B", design: "DSN-012", orderDate: "2024-03-19", dueDate: "2024-03-26",
     items: [
       { seq: 1, color: "White", size: "M", siliconQR: "SQR-00479", designQR: "DQR-00490", hologramQR: "HQR-A0928", status: "done" },
       { seq: 2, color: "White", size: "S", siliconQR: "SQR-00491", designQR: "DQR-00491", hologramQR: "HQR-A0934", status: "done" },
@@ -51,7 +52,7 @@ const mockOrders: OrderData[] = [
     ],
   },
   {
-    id: "WO-003", orderNo: "20260324-3", twinker: "이하윤", product: "BT-2024-C", design: "DSN-091", dueDate: "2024-03-27",
+    id: "WO-003", orderNo: "20260324-3", twinker: "이하윤", product: "BT-2024-C", design: "DSN-091", orderDate: "2024-03-20", dueDate: "2024-03-27",
     items: [
       { seq: 1, color: "Gray", size: "M", siliconQR: "SQR-00500", designQR: "DQR-00500", hologramQR: "HQR-A0940", status: "pending" },
       { seq: 2, color: "Gray", size: "L", siliconQR: "SQR-00501", designQR: "DQR-00501", hologramQR: "HQR-A0941", status: "pending" },
@@ -295,6 +296,7 @@ export default function TshirtWork() {
                         </div>
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <span>{isKo ? "트윈커" : "Twinker"}: <strong className="text-foreground">{order.twinker}</strong></span>
+                          <span>{t("tshirtWork.orderDate")}: {order.orderDate}</span>
                           <span>{t("tshirtWork.dueDate")}: {order.dueDate}</span>
                           <span>{t("tshirtWork.workItems")}: <strong className="text-foreground">{total}{isKo ? "건" : "件"}</strong></span>
                         </div>
