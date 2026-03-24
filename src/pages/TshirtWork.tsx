@@ -446,6 +446,34 @@ export default function TshirtWork() {
           </div>
         </div>
 
+        {/* Large O/X result indicator - always visible */}
+        {(allPass || hasFail) && (
+          <div className={`section-enter rounded-xl border-2 p-6 flex items-center justify-between ${allPass ? "border-[hsl(var(--success))] bg-[hsl(var(--success)/0.06)]" : "border-destructive bg-destructive/5"}`}>
+            <div className="flex items-center gap-5">
+              <div className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl font-black ${allPass ? "bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]" : "bg-destructive/10 text-destructive"}`}>
+                {allPass ? "O" : "X"}
+              </div>
+              <div>
+                <p className={`text-xl font-bold ${allPass ? "text-[hsl(var(--success))]" : "text-destructive"}`}>
+                  {allPass ? t("tshirtWork.allPass") : t("tshirtWork.verifyFail")}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {allPass ? `${activeWorkItem.color} / ${activeWorkItem.size} · ${matchedProduct?.product}` : failReason}
+                </p>
+              </div>
+            </div>
+            {allPass ? (
+              <Button size="lg" onClick={handleConfirmAttach} className="bg-[hsl(var(--success))] hover:bg-[hsl(var(--success)/0.9)] text-white">
+                <CheckCircle2 className="w-5 h-5 mr-2" /> {t("tshirtWork.attachDone")}
+              </Button>
+            ) : (
+              <Button size="lg" variant="outline" onClick={resetScan}>
+                <RotateCcw className="w-4 h-4 mr-2" /> {t("tshirtWork.restart")}
+              </Button>
+            )}
+          </div>
+        )}
+
         <div className="grid lg:grid-cols-3 gap-5 section-enter" style={{ animationDelay: "100ms" }}>
           <div className="lg:col-span-2 space-y-4">
             <div className={`kpi-card border-2 transition-colors duration-300 ${hasFail ? "border-destructive" : allPass ? "border-[hsl(var(--success))]" : "border-border"}`}>
@@ -474,31 +502,6 @@ export default function TshirtWork() {
                     placeholder={steps[currentStep]?.placeholder ?? ""} disabled={processing}
                     className="flex-1 h-10 rounded-md border border-input bg-background px-3 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50" autoFocus />
                   <Button onClick={handleScan} disabled={!scanValue.trim() || processing}>{t("tshirtWork.scan")}</Button>
-                </div>
-              )}
-
-              {allPass && (
-                <div className="mt-4 p-3 rounded-lg bg-[hsl(var(--success)/0.06)] border border-[hsl(var(--success)/0.2)] flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-[hsl(var(--success))]" />
-                    <div>
-                      <p className="text-sm font-semibold text-[hsl(var(--success))]">{t("tshirtWork.allPass")}</p>
-                      <p className="text-xs text-muted-foreground">{activeWorkItem.color} / {activeWorkItem.size} · {matchedProduct?.product}</p>
-                    </div>
-                  </div>
-                  <Button size="sm" onClick={handleConfirmAttach} className="bg-[hsl(var(--success))] hover:bg-[hsl(var(--success)/0.9)] text-white">
-                    <CheckCircle2 className="w-4 h-4 mr-1" /> {t("tshirtWork.attachDone")}
-                  </Button>
-                </div>
-              )}
-              {hasFail && (
-                <div className="mt-4 p-3 rounded-lg bg-destructive/5 border border-destructive/20 flex items-start gap-2">
-                  <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-semibold text-destructive">{t("tshirtWork.verifyFail")}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{failReason}</p>
-                    <Button variant="outline" size="sm" className="mt-2" onClick={resetScan}><RotateCcw className="w-3.5 h-3.5 mr-1" /> {t("tshirtWork.restart")}</Button>
-                  </div>
                 </div>
               )}
             </div>
