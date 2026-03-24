@@ -488,10 +488,7 @@ export default function ProductionMonitor() {
         </Tabs>
       </div>
 
-      {/* Create Dialog */}
-      <OrderFormDialog open={createOpen} onOpenChange={setCreateOpen} title={isKo ? "주문 등록" : "创建订单"} />
-      {/* Edit Dialog */}
-      <OrderFormDialog open={!!editId} onOpenChange={(v) => { if (!v) setEditId(null); }} title={isKo ? "주문 수정" : "编辑订单"} />
+      {/* Detail Dialog */}
       {/* Detail Dialog */}
       <Dialog open={!!detailId} onOpenChange={(v) => { if (!v) setDetailId(null); }}>
         <DialogContent className="sm:max-w-md">
