@@ -824,6 +824,24 @@ const translations: Record<Lang, Record<string, string>> = {
     "auth.logout": "退出登录",
     "auth.pendingTitle": "等待审核",
     "auth.pendingDesc": "请等待管理员批准您的注册。批准后即可登录使用系统。",
+
+    // Webhook
+    "settings.webhook": "Webhook",
+    "webhook.title": "Webhook 接收设置",
+    "webhook.url": "Webhook URL",
+    "webhook.urlDesc": "在A站点中将订单数据发送到此URL",
+    "webhook.copied": "已复制",
+    "webhook.copy": "复制",
+    "webhook.payloadExample": "请求示例 (JSON)",
+    "webhook.logs": "接收日志",
+    "webhook.eventType": "事件",
+    "webhook.status": "状态",
+    "webhook.source": "来源",
+    "webhook.time": "接收时间",
+    "webhook.error": "错误",
+    "webhook.noLogs": "暂无接收日志",
+    "webhook.secretHeader": "认证头 (可选)",
+    "webhook.secretDesc": "可以通过 x-webhook-secret 头进行认证",
   },
 };
 
