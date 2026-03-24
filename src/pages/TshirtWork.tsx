@@ -23,9 +23,9 @@ interface WorkItem {
 interface OrderData {
   id: string;
   orderNo: string;
+  twinker: string;
   product: string;
   design: string;
-  priority: "high" | "medium" | "low";
   dueDate: string;
   items: WorkItem[];
 }
@@ -33,7 +33,7 @@ interface OrderData {
 // Mock: each order contains multiple work items with individual color/size/QR
 const mockOrders: OrderData[] = [
   {
-    id: "WO-001", orderNo: "ORD-2024-1582", product: "BT-2024-A", design: "DSN-047", priority: "high", dueDate: "2024-03-25",
+    id: "WO-001", orderNo: "20260324-1", twinker: "김민지", product: "BT-2024-A", design: "DSN-047", dueDate: "2024-03-25",
     items: [
       { seq: 1, color: "Black", size: "L", siliconQR: "SQR-00482", designQR: "DQR-00482", hologramQR: "HQR-A0931", status: "done" },
       { seq: 2, color: "Black", size: "L", siliconQR: "SQR-00481", designQR: "DQR-00481", hologramQR: "HQR-A0930", status: "done" },
@@ -43,7 +43,7 @@ const mockOrders: OrderData[] = [
     ],
   },
   {
-    id: "WO-002", orderNo: "ORD-2024-1583", product: "BT-2024-B", design: "DSN-012", priority: "medium", dueDate: "2024-03-26",
+    id: "WO-002", orderNo: "20260324-2", twinker: "박서연", product: "BT-2024-B", design: "DSN-012", dueDate: "2024-03-26",
     items: [
       { seq: 1, color: "White", size: "M", siliconQR: "SQR-00479", designQR: "DQR-00490", hologramQR: "HQR-A0928", status: "done" },
       { seq: 2, color: "White", size: "S", siliconQR: "SQR-00491", designQR: "DQR-00491", hologramQR: "HQR-A0934", status: "done" },
@@ -51,7 +51,7 @@ const mockOrders: OrderData[] = [
     ],
   },
   {
-    id: "WO-003", orderNo: "ORD-2024-1584", product: "BT-2024-C", design: "DSN-091", priority: "medium", dueDate: "2024-03-27",
+    id: "WO-003", orderNo: "20260324-3", twinker: "이하윤", product: "BT-2024-C", design: "DSN-091", dueDate: "2024-03-27",
     items: [
       { seq: 1, color: "Gray", size: "M", siliconQR: "SQR-00500", designQR: "DQR-00500", hologramQR: "HQR-A0940", status: "pending" },
       { seq: 2, color: "Gray", size: "L", siliconQR: "SQR-00501", designQR: "DQR-00501", hologramQR: "HQR-A0941", status: "pending" },
@@ -291,13 +291,10 @@ export default function TshirtWork() {
                       className="w-full kpi-card flex items-center gap-4 text-left hover:ring-2 hover:ring-primary/30 transition-all duration-150 active:scale-[0.99] cursor-pointer">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-semibold">{order.id}</span>
-                          <span className="text-xs text-muted-foreground">{order.orderNo}</span>
-                          <PriorityBadge priority={order.priority} t={t} />
+                          <span className="text-sm font-semibold">{order.orderNo}</span>
                         </div>
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span>{t("tshirtWork.product")}: <strong className="text-foreground">{order.product}</strong></span>
-                          <span>{t("tshirtWork.design")}: <strong className="text-foreground">{order.design}</strong></span>
+                          <span>{isKo ? "트윈커" : "Twinker"}: <strong className="text-foreground">{order.twinker}</strong></span>
                           <span>{t("tshirtWork.dueDate")}: {order.dueDate}</span>
                           <span>{t("tshirtWork.workItems")}: <strong className="text-foreground">{total}{isKo ? "건" : "件"}</strong></span>
                         </div>
@@ -323,11 +320,10 @@ export default function TshirtWork() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success))]" />
-                          <span className="text-sm font-semibold">{order.id}</span>
-                          <span className="text-xs text-muted-foreground">{order.orderNo}</span>
+                          <span className="text-sm font-semibold">{order.orderNo}</span>
                         </div>
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span>{order.product}</span><span>{order.design}</span>
+                          <span>{isKo ? "트윈커" : "Twinker"}: {order.twinker}</span>
                         </div>
                       </div>
                       <ProgressBar done={total} total={total} fail={fail} defectLabel={defectLabel} />
@@ -361,12 +357,10 @@ export default function TshirtWork() {
           <div className="kpi-card section-enter flex items-center gap-6 flex-wrap">
             <div className="flex items-center gap-2">
               <Package className="w-5 h-5 text-primary" />
-              <div><p className="text-xs text-muted-foreground">{t("tshirtWork.order")}</p><p className="text-sm font-semibold">{selectedOrder.id}</p></div>
+              <div><p className="text-xs text-muted-foreground">{t("tshirtWork.order")}</p><p className="text-sm font-semibold">{selectedOrder.orderNo}</p></div>
             </div>
-            <div><p className="text-xs text-muted-foreground">{t("tshirtWork.product")}</p><p className="text-sm font-semibold">{selectedOrder.product}</p></div>
-            <div><p className="text-xs text-muted-foreground">{t("tshirtWork.design")}</p><p className="text-sm font-semibold">{selectedOrder.design}</p></div>
+            <div><p className="text-xs text-muted-foreground">{isKo ? "트윈커" : "Twinker"}</p><p className="text-sm font-semibold">{selectedOrder.twinker}</p></div>
             <div><p className="text-xs text-muted-foreground">{t("tshirtWork.dueDate")}</p><p className="text-sm font-semibold">{selectedOrder.dueDate}</p></div>
-            <PriorityBadge priority={selectedOrder.priority} t={t} />
             <div className="ml-auto flex items-center gap-3">
               <div><p className="text-xs text-muted-foreground text-right">{t("tshirtWork.progressRate")}</p><p className="text-lg font-bold tabular-nums text-right">{pct}%</p></div>
               <div className="w-32 h-3 rounded-full bg-muted overflow-hidden"><div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${pct}%` }} /></div>
