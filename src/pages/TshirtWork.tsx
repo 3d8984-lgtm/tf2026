@@ -23,9 +23,9 @@ interface WorkItem {
 interface OrderData {
   id: string;
   orderNo: string;
+  twinker: string;
   product: string;
   design: string;
-  priority: "high" | "medium" | "low";
   dueDate: string;
   items: WorkItem[];
 }
