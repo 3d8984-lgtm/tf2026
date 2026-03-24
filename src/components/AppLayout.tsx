@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import AiChatbot from "@/components/AiChatbot";
 import { NavLink, Link, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Upload, Database,
@@ -313,6 +314,9 @@ export default function AppLayout() {
       <main className="flex-1 overflow-y-auto bg-background">
         <Outlet />
       </main>
+
+      {/* AI Chatbot */}
+      <AiChatbot />
     </div>
   );
 }
