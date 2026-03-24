@@ -3,7 +3,7 @@ import PageHeader from "@/components/PageHeader";
 import { CheckCircle2, XCircle, Clock, ScanLine, ChevronDown, ChevronRight } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 
-interface ScanLog { time: string; silicon: string; design: string; hologram: string; result: "pass" | "fail"; logo: string }
+interface ScanLog { time: string; color: string; size: string; silicon: string; design: string; hologram: string; result: "pass" | "fail"; logo: string }
 interface OrderData {
   order: string; product: string; designCode: string; qty: number;
   summary: { waiting: number; done: number; fail: number };
