@@ -406,6 +406,24 @@ const translations: Record<Lang, Record<string, string>> = {
     "auth.logout": "로그아웃",
     "auth.pendingTitle": "승인 대기중",
     "auth.pendingDesc": "관리자가 가입을 승인할 때까지 기다려주세요. 승인 후 로그인하면 시스템을 사용할 수 있습니다.",
+
+    // Webhook
+    "settings.webhook": "Webhook",
+    "webhook.title": "Webhook 수신 설정",
+    "webhook.url": "Webhook URL",
+    "webhook.urlDesc": "A 사이트에서 이 URL로 주문 데이터를 전송하세요",
+    "webhook.copied": "복사됨",
+    "webhook.copy": "복사",
+    "webhook.payloadExample": "요청 예시 (JSON)",
+    "webhook.logs": "수신 로그",
+    "webhook.eventType": "이벤트",
+    "webhook.status": "상태",
+    "webhook.source": "소스",
+    "webhook.time": "수신 시간",
+    "webhook.error": "오류",
+    "webhook.noLogs": "수신 로그가 없습니다",
+    "webhook.secretHeader": "인증 헤더 (선택)",
+    "webhook.secretDesc": "x-webhook-secret 헤더로 인증할 수 있습니다",
   },
 
   zh: {
