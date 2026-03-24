@@ -35,6 +35,7 @@ export default function Shipping() {
   const [page, setPage] = useState(1);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { canEditShipping, canTwinmetaSync } = usePermissions();
 
   const { data: kpis } = useShippingKpis();
   const { data, isLoading } = useShippingGrouped({ status: statusFilter, search, page, pageSize: PAGE_SIZE });
