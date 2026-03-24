@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useLang, type Lang } from "@/contexts/LangContext";
 import { useAuth } from "@/hooks/useAuth";
+import { usePermissions } from "@/hooks/usePermissions";
 import twinmetaLogo from "@/assets/twinmeta-logo.png";
 
 interface MenuItem {
