@@ -244,7 +244,7 @@ export default function ProductionMonitor() {
                   <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <input className="w-full pl-9 pr-3 py-2 rounded-md border bg-background text-sm" placeholder={t("workOrders.search")} value={search} onChange={e => setSearch(e.target.value)} />
                 </div>
-                <Button size="sm" className="gap-1.5" onClick={openCreate}><Plus className="w-4 h-4" /> {t("workOrders.create")}</Button>
+                <p className="text-xs text-muted-foreground">{isKo ? "※ 주문은 '주문 데이터 가져오기'에서 접수됩니다" : "※ 订单通过'订单数据导入'接收"}</p>
               </div>
 
               {ordersLoading ? (
