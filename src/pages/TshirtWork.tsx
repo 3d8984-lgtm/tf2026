@@ -34,7 +34,7 @@ interface OrderData {
 // Mock: each order contains multiple work items with individual color/size/QR
 const mockOrders: OrderData[] = [
   {
-    id: "WO-001", orderNo: "20260324-1", twinker: "김민지", product: "BT-2024-A", design: "DSN-047", dueDate: "2024-03-25",
+    id: "WO-001", orderNo: "20260324-1", twinker: "김민지", product: "BT-2024-A", design: "DSN-047", orderDate: "2024-03-18", dueDate: "2024-03-25",
     items: [
       { seq: 1, color: "Black", size: "L", siliconQR: "SQR-00482", designQR: "DQR-00482", hologramQR: "HQR-A0931", status: "done" },
       { seq: 2, color: "Black", size: "L", siliconQR: "SQR-00481", designQR: "DQR-00481", hologramQR: "HQR-A0930", status: "done" },
