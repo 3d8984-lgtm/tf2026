@@ -94,7 +94,9 @@ function useCrudState<T extends { id: number }>(initial: T[]) {
 
 export default function SystemSettings() {
   const { t, lang } = useLang();
-  const [activeTab, setActiveTab] = useState("general");
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "general");
+  useEffect(() => { const t = searchParams.get("tab"); if (t) setActiveTab(t); }, [searchParams]);
   const { toast } = useToast();
   const isKo = lang === "ko";
 

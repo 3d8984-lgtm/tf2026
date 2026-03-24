@@ -122,8 +122,10 @@ function OrderRow({ o, children, summaryBadges, lang }: { o: OrderData; children
 
 export default function ProductionMonitor() {
   const { t, lang } = useLang();
-  const isKo = lang === "ko";
-  const [tab, setTab] = useState("orders");
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState(searchParams.get("tab") || "orders");
+  useEffect(() => { const t = searchParams.get("tab"); if (t) setTab(t); }, [searchParams]);
+
 
   // ── Order management state ──
   const { data: orders, isLoading: ordersLoading } = useOrders();

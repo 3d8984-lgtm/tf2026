@@ -12,7 +12,9 @@ import { useLang } from "@/contexts/LangContext";
 export default function FileUpload() {
   const { t, lang } = useLang();
   const isKo = lang === "ko";
-  const [tab, setTab] = useState("api");
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState(searchParams.get("tab") || "api");
+  useEffect(() => { const t = searchParams.get("tab"); if (t) setTab(t); }, [searchParams]);
   const [isDragging, setIsDragging] = useState(false);
   const [apiSyncing, setApiSyncing] = useState(false);
   const [uploadResult, setUploadResult] = useState<null | {
