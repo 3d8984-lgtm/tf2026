@@ -3,6 +3,7 @@ import { useLang } from "@/contexts/LangContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Users, Bell, Shield, Cog, Server, Cpu, Radio, Play, AlertTriangle, Plus, Pencil, Trash2, Wifi, WifiOff, ShieldCheck } from "lucide-react";
 import InspectionStandards from "@/components/InspectionStandards";
+import UserManagement from "@/components/UserManagement";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
