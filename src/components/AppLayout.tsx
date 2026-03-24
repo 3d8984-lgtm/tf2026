@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Link, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Upload, Database,
   Shirt, Activity, AlertTriangle, FileBarChart, Settings,
@@ -140,14 +140,14 @@ export default function AppLayout() {
         }}
       >
         {/* Logo */}
-        <div className="flex items-center gap-2 px-4 h-14 border-b" style={{ borderColor: "hsl(var(--sidebar-border))" }}>
+        <Link to="/" className="flex items-center gap-2 px-4 h-14 border-b hover:opacity-80 transition-opacity" style={{ borderColor: "hsl(var(--sidebar-border))" }}>
           <img src={twinmetaLogo} alt="TWINMETA" className="h-6 shrink-0" style={{ aspectRatio: '1/1', objectFit: 'contain' }} />
           {!collapsed && (
             <span className="text-sm font-semibold truncate" style={{ color: "hsl(var(--sidebar-accent-foreground))" }}>
               {t("app.name")}
             </span>
           )}
-        </div>
+        </Link>
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
