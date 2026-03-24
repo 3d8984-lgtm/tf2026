@@ -31,7 +31,7 @@ interface OrderData {
 /* ── Sample data grouped by order ── */
 const ordersData: OrderData[] = [
   {
-    order: "20260324-1", product: "BT-2024-A", design: "DSN-047", qty: 200, dueDate: "2026-03-25",
+    order: "20260324-1", product: "BT-2024-A", design: "DSN-047", qty: 200, dueDate: "2026-03-25", createdDate: "2026-03-24",
     cardSummary: { scanDone: 200, packing: 0, ejected: 185, error: 1 },
     cardLogs: [
       { time: "14:36:01", barcode: "CRD-0482", serial: "CS-A09312", printedQR: "CPQ-0482", status: "ejected" },
