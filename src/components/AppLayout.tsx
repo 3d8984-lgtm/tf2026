@@ -103,7 +103,7 @@ export default function AppLayout() {
     const q = menuSearch.trim();
     if (!q) return [];
     const results: SearchResult[] = [];
-    for (const item of menuKeys) {
+    for (const item of visibleMenuKeys) {
       const parentLabel = t(item.key);
       const parentMatch = matchSearch(parentLabel, q);
       if (parentMatch) {
