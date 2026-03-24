@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLang } from "@/contexts/LangContext";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,31 +7,28 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { ArrowUpRight, TestTube, CheckCircle2, XCircle, Loader2, Copy, Check, Globe, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface CallbackConfig {
   enabled: boolean;
-  callbackUrl: string;
-  authHeader: string;
-  authValue: string;
-  autoSync: boolean;
-  syncEvents: {
-    trackingNumber: boolean;
-    statusChange: boolean;
-    delivered: boolean;
-  };
+  callback_url: string;
+  auth_header: string;
+  auth_value: string;
+  auto_sync: boolean;
+  sync_tracking_number: boolean;
+  sync_status_change: boolean;
+  sync_delivered: boolean;
 }
 
 const defaultConfig: CallbackConfig = {
   enabled: false,
-  callbackUrl: "",
-  authHeader: "x-api-key",
-  authValue: "",
-  autoSync: false,
-  syncEvents: {
-    trackingNumber: true,
-    statusChange: true,
-    delivered: true,
-  },
+  callback_url: "",
+  auth_header: "x-api-key",
+  auth_value: "",
+  auto_sync: false,
+  sync_tracking_number: true,
+  sync_status_change: true,
+  sync_delivered: true,
 };
 
 export default function SiteCallbackSettings() {
@@ -39,26 +36,87 @@ export default function SiteCallbackSettings() {
   const isKo = lang === "ko";
   const { toast } = useToast();
   const [config, setConfig] = useState<CallbackConfig>(defaultConfig);
+  const [settingsId, setSettingsId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [testStatus, setTestStatus] = useState<"idle" | "testing" | "success" | "fail">("idle");
   const [copied, setCopied] = useState(false);
 
-  const update = (partial: Partial<CallbackConfig>) => setConfig(prev => ({ ...prev, ...partial }));
-  const updateEvents = (partial: Partial<CallbackConfig["syncEvents"]>) =>
-    setConfig(prev => ({ ...prev, syncEvents: { ...prev.syncEvents, ...partial } }));
+  // Load settings from DB
+  useEffect(() => {
+    (async () => {
+      const { data, error } = await supabase
+        .from("callback_settings")
+        .select("*")
+        .limit(1)
+        .single();
+      if (!error && data) {
+        setSettingsId(data.id);
+        setConfig({
+          enabled: data.enabled,
+          callback_url: data.callback_url,
+          auth_header: data.auth_header,
+          auth_value: data.auth_value,
+          auto_sync: data.auto_sync,
+          sync_tracking_number: data.sync_tracking_number,
+          sync_status_change: data.sync_status_change,
+          sync_delivered: data.sync_delivered,
+        });
+      }
+      setLoading(false);
+    })();
+  }, []);
 
-  const handleTest = () => {
-    if (!config.callbackUrl) {
+  const update = (partial: Partial<CallbackConfig>) => setConfig(prev => ({ ...prev, ...partial }));
+
+  const handleTest = async () => {
+    if (!config.callback_url) {
       toast({ title: isKo ? "오류" : "错误", description: isKo ? "콜백 URL을 입력해주세요" : "请输入回调URL", variant: "destructive" });
       return;
     }
     setTestStatus("testing");
-    setTimeout(() => {
-      setTestStatus(config.callbackUrl.startsWith("http") ? "success" : "fail");
-    }, 1500);
+    try {
+      const { data, error } = await supabase.functions.invoke("site-a-callback", {
+        body: {
+          event: "test",
+          shipment_id: null,
+          callback_url: config.callback_url,
+          auth_header: config.auth_header,
+          auth_value: config.auth_value,
+          external_order_id: "TEST-001",
+          tracking_number: "TEST-TRACK-001",
+          carrier: "test",
+          status: "shipped",
+          order_id: "00000000-0000-0000-0000-000000000000",
+        },
+      });
+      if (error) throw error;
+      setTestStatus(data?.success ? "success" : "fail");
+    } catch {
+      setTestStatus("fail");
+    }
   };
 
-  const handleSave = () => {
-    toast({ title: isKo ? "저장됨" : "已保存", description: isKo ? "A 사이트 회신 설정이 저장되었습니다" : "A站点回调设置已保存" });
+  const handleSave = async () => {
+    if (!settingsId) return;
+    const { error } = await supabase
+      .from("callback_settings")
+      .update({
+        enabled: config.enabled,
+        callback_url: config.callback_url,
+        auth_header: config.auth_header,
+        auth_value: config.auth_value,
+        auto_sync: config.auto_sync,
+        sync_tracking_number: config.sync_tracking_number,
+        sync_status_change: config.sync_status_change,
+        sync_delivered: config.sync_delivered,
+      })
+      .eq("id", settingsId);
+
+    if (error) {
+      toast({ title: isKo ? "오류" : "错误", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: isKo ? "저장됨" : "已保存", description: isKo ? "A 사이트 회신 설정이 저장되었습니다" : "A站点回调设置已保存" });
+    }
   };
 
   const payloadExample = JSON.stringify({
@@ -68,7 +126,7 @@ export default function SiteCallbackSettings() {
     tracking_number: "4PX1234567890",
     carrier: "4px",
     status: "shipped",
-    shipped_at: "2024-01-15T10:30:00Z",
+    timestamp: "2024-01-15T10:30:00Z",
   }, null, 2);
 
   const copyPayload = () => {
@@ -76,6 +134,10 @@ export default function SiteCallbackSettings() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  if (loading) {
+    return <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>;
+  }
 
   return (
     <div className="section-enter space-y-6">
@@ -87,8 +149,8 @@ export default function SiteCallbackSettings() {
         </h3>
         <p className="text-sm text-muted-foreground mt-1">
           {isKo
-            ? "배송 정보가 변경되면 A 사이트로 자동 회신합니다. 송장 번호 발급, 배송 상태 변경, 배달 완료 시 알림을 전송합니다."
-            : "配送信息变更时自动回调A站点。在运单号生成、配送状态变更、送达完成时发送通知。"}
+            ? "송장번호가 입력되면 자동으로 A 사이트로 전송합니다. DB 트리거에 의해 실시간 동기화됩니다."
+            : "运单号输入后自动发送到A站点。通过DB触发器实时同步。"}
         </p>
       </div>
 
@@ -100,7 +162,7 @@ export default function SiteCallbackSettings() {
           </div>
           <div>
             <p className="font-medium text-sm">{isKo ? "회신 기능 활성화" : "启用回调功能"}</p>
-            <p className="text-xs text-muted-foreground">{isKo ? "활성화하면 이벤트 발생 시 A 사이트로 자동 전송됩니다" : "启用后事件发生时将自动发送到A站点"}</p>
+            <p className="text-xs text-muted-foreground">{isKo ? "활성화하면 송장번호 입력 시 자동으로 A 사이트로 전송됩니다" : "启用后输入运单号时将自动发送到A站点"}</p>
           </div>
         </div>
         <Switch checked={config.enabled} onCheckedChange={v => update({ enabled: v })} />
@@ -111,8 +173,8 @@ export default function SiteCallbackSettings() {
         <div className="space-y-2">
           <Label>{isKo ? "콜백 URL" : "回调URL"}</Label>
           <Input
-            value={config.callbackUrl}
-            onChange={e => update({ callbackUrl: e.target.value })}
+            value={config.callback_url}
+            onChange={e => update({ callback_url: e.target.value })}
             placeholder="https://site-a.example.com/api/callback"
           />
           <p className="text-xs text-muted-foreground">{isKo ? "A 사이트에서 데이터를 수신할 엔드포인트 URL" : "A站点接收数据的端点URL"}</p>
@@ -121,8 +183,8 @@ export default function SiteCallbackSettings() {
           <div className="space-y-2">
             <Label>{isKo ? "인증 헤더명" : "认证头名称"}</Label>
             <Input
-              value={config.authHeader}
-              onChange={e => update({ authHeader: e.target.value })}
+              value={config.auth_header}
+              onChange={e => update({ auth_header: e.target.value })}
               placeholder="x-api-key"
             />
           </div>
@@ -130,8 +192,8 @@ export default function SiteCallbackSettings() {
             <Label>{isKo ? "인증 값" : "认证值"}</Label>
             <Input
               type="password"
-              value={config.authValue}
-              onChange={e => update({ authValue: e.target.value })}
+              value={config.auth_value}
+              onChange={e => update({ auth_value: e.target.value })}
               placeholder={isKo ? "A 사이트에서 발급받은 키" : "A站点提供的密钥"}
             />
           </div>
@@ -142,20 +204,20 @@ export default function SiteCallbackSettings() {
       <div className="rounded-lg border p-4 space-y-3">
         <h4 className="text-sm font-medium flex items-center gap-2">
           <Send className="w-4 h-4 text-primary" />
-          {isKo ? "회신 이벤트 설정" : "回调事件设置"}
+          {isKo ? "자동 전송 이벤트 설정" : "自动发送事件设置"}
         </h4>
         <div className="space-y-3">
           {[
-            { key: "trackingNumber" as const, label: isKo ? "운송장 번호 발급 시" : "运单号生成时", desc: isKo ? "택배사에서 송장번호를 받으면 A 사이트로 전송" : "从快递公司获取运单号后发送到A站点" },
-            { key: "statusChange" as const, label: isKo ? "배송 상태 변경 시" : "配送状态变更时", desc: isKo ? "배송 상태가 변경될 때마다 A 사이트로 전송" : "每次配送状态变更时发送到A站点" },
-            { key: "delivered" as const, label: isKo ? "배달 완료 시" : "送达完成时", desc: isKo ? "최종 배달 완료 확인 시 A 사이트로 전송" : "最终确认送达时发送到A站点" },
+            { key: "sync_tracking_number" as const, label: isKo ? "운송장 번호 입력 시" : "运单号输入时", desc: isKo ? "송장번호가 입력/변경되면 자동으로 A 사이트로 전송 (DB 트리거)" : "运单号输入/变更时自动发送到A站点（DB触发器）" },
+            { key: "sync_status_change" as const, label: isKo ? "배송 상태 변경 시" : "配送状态变更时", desc: isKo ? "배송 상태가 변경될 때마다 A 사이트로 전송" : "每次配送状态变更时发送到A站点" },
+            { key: "sync_delivered" as const, label: isKo ? "배달 완료 시" : "送达完成时", desc: isKo ? "최종 배달 완료 확인 시 A 사이트로 전송" : "最终确认送达时发送到A站点" },
           ].map(evt => (
             <div key={evt.key} className="flex items-center justify-between py-2 px-3 rounded-md border bg-muted/30">
               <div>
                 <p className="text-sm font-medium">{evt.label}</p>
                 <p className="text-xs text-muted-foreground">{evt.desc}</p>
               </div>
-              <Switch checked={config.syncEvents[evt.key]} onCheckedChange={v => updateEvents({ [evt.key]: v })} />
+              <Switch checked={config[evt.key]} onCheckedChange={v => update({ [evt.key]: v })} />
             </div>
           ))}
         </div>
