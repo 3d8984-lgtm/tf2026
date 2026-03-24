@@ -6,7 +6,7 @@ import {
   FileSpreadsheet, CheckCircle2, XCircle, Download, FileUp, Info, Image,
   Globe, RefreshCw, ArrowDownToLine, Clock, AlertCircle
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLang } from "@/contexts/LangContext";
 
 export default function FileUpload() {
