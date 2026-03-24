@@ -1,15 +1,40 @@
 import PageHeader from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
-import { Printer, Search, ShieldCheck, AlertTriangle, Scale, ScanLine, CheckCircle2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Printer, Search, ShieldCheck, AlertTriangle, Scale, ScanLine,
+  CheckCircle2, Edit, Package, Truck
+} from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { Badge } from "@/components/ui/badge";
 import { useShipments } from "@/hooks/useDbData";
 import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import type { Database } from "@/integrations/supabase/types";
+
+type ShipmentStatus = Database["public"]["Enums"]["shipment_status"];
+
+const SHIPMENT_STATUSES: ShipmentStatus[] = [
+  "pending", "label_requested", "label_received", "packed",
+  "shipped", "in_transit", "delivered", "hold",
+];
 
 export default function Shipping() {
   const { t, lang } = useLang();
   const isKo = lang === "ko";
   const [search, setSearch] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTrackingNumber, setEditTrackingNumber] = useState("");
+  const [editCarrier, setEditCarrier] = useState("");
+  const [editStatus, setEditStatus] = useState<ShipmentStatus>("pending");
+  const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const { data: shipments, isLoading } = useShipments();
 
@@ -53,6 +78,50 @@ export default function Shipping() {
   const failCount = shipments?.filter(s => ["mismatch", "weight_fail"].includes(s.inspect_result)).length ?? 0;
   const shippedCount = shipments?.filter(s => ["shipped", "in_transit", "delivered"].includes(s.status)).length ?? 0;
   const pendingCount = shipments?.filter(s => s.status === "pending").length ?? 0;
+
+  const openEdit = (shipment: NonNullable<typeof shipments>[number]) => {
+    setEditingId(shipment.id);
+    setEditTrackingNumber(shipment.tracking_number ?? "");
+    setEditCarrier(shipment.carrier ?? "");
+    setEditStatus(shipment.status);
+  };
+
+  const handleSave = async () => {
+    if (!editingId) return;
+    setSaving(true);
+    try {
+      const updateData: Record<string, unknown> = {
+        tracking_number: editTrackingNumber.trim() || null,
+        carrier: editCarrier.trim() || "manual",
+        status: editStatus,
+      };
+      if (editStatus === "shipped" && !filtered.find(s => s.id === editingId && s.shipped_at)) {
+        updateData.shipped_at = new Date().toISOString();
+      }
+      if (editStatus === "delivered") {
+        updateData.delivered_at = new Date().toISOString();
+      }
+
+      const { error } = await supabase
+        .from("shipments")
+        .update(updateData)
+        .eq("id", editingId);
+
+      if (error) throw error;
+
+      toast({
+        title: isKo ? "저장 완료" : "保存成功",
+        description: isKo ? "배송 정보가 업데이트되었습니다" : "配送信息已更新",
+      });
+      setEditingId(null);
+      queryClient.invalidateQueries({ queryKey: ["shipments"] });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      toast({ title: isKo ? "오류" : "错误", description: msg, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div>
@@ -133,6 +202,7 @@ export default function Shipping() {
                       isKo ? "배송지" : "配送地址", t("shipping.product"),
                       isKo ? "택배사" : "快递公司", t("shipping.invoiceNo"), t("shipping.status"),
                       isKo ? "QR매칭" : "QR匹配", isKo ? "중량" : "重量", isKo ? "검수" : "检验",
+                      isKo ? "관리" : "管理",
                     ].map(h => <th key={h} className="pb-2 font-medium text-muted-foreground whitespace-nowrap pr-3">{h}</th>)}
                   </tr>
                 </thead>
@@ -147,7 +217,7 @@ export default function Shipping() {
                       </td>
                       <td className="py-2.5 pr-3">{s.orders?.product_code ?? "-"}</td>
                       <td className="py-2.5 pr-3 uppercase text-xs font-medium">{s.carrier}</td>
-                      <td className="py-2.5 font-mono text-xs pr-3">{s.tracking_number ?? "-"}</td>
+                      <td className="py-2.5 font-mono text-xs pr-3">{s.tracking_number ?? <span className="text-muted-foreground italic">{isKo ? "미입력" : "未输入"}</span>}</td>
                       <td className="py-2.5 pr-3">
                         <span className={`status-badge ${shipmentStatusCls[s.status] ?? "status-idle"}`}>
                           {shipmentStatusLabel[s.status] ?? s.status}
@@ -163,15 +233,83 @@ export default function Shipping() {
                           s.inspect_weight ? <CheckCircle2 className="w-4 h-4 text-success" /> : <AlertTriangle className="w-4 h-4 text-destructive" />
                         ) : <span className="text-xs text-muted-foreground">-</span>}
                       </td>
-                      <td className="py-2.5">
+                      <td className="py-2.5 pr-3">
                         <Badge variant={inspectLabels[s.inspect_result]?.variant ?? "secondary"} className="text-xs">
                           {inspectLabels[s.inspect_result]?.label ?? s.inspect_result}
                         </Badge>
                       </td>
+                      <td className="py-2.5">
+                        <Dialog open={editingId === s.id} onOpenChange={(open) => { if (!open) setEditingId(null); }}>
+                          <DialogTrigger asChild>
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEdit(s)}>
+                              <Edit className="w-3.5 h-3.5" />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="sm:max-w-md">
+                            <DialogHeader>
+                              <DialogTitle className="flex items-center gap-2">
+                                <Truck className="w-4 h-4" />
+                                {isKo ? "배송 정보 수정" : "修改配送信息"}
+                              </DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-4 pt-2">
+                              <div className="rounded-lg bg-muted/50 p-3 text-sm space-y-1">
+                                <p><span className="text-muted-foreground">{isKo ? "주문번호:" : "订单号:"}</span> <span className="font-medium">{s.orders?.external_order_id}</span></p>
+                                <p><span className="text-muted-foreground">{isKo ? "수취인:" : "收件人:"}</span> <span className="font-medium">{s.orders?.recipient_name}</span></p>
+                                <p><span className="text-muted-foreground">{isKo ? "상품:" : "商品:"}</span> <span className="font-medium">{s.orders?.product_code}</span></p>
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label>{isKo ? "택배사" : "快递公司"}</Label>
+                                <Input
+                                  value={editCarrier}
+                                  onChange={e => setEditCarrier(e.target.value)}
+                                  placeholder={isKo ? "예: CJ대한통운, 4PX, UPS" : "例: 顺丰, 4PX, UPS"}
+                                />
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label>{isKo ? "운송장 번호" : "运单号"}</Label>
+                                <Input
+                                  value={editTrackingNumber}
+                                  onChange={e => setEditTrackingNumber(e.target.value)}
+                                  placeholder={isKo ? "운송장 번호 입력" : "输入运单号"}
+                                />
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label>{isKo ? "배송 상태" : "配送状态"}</Label>
+                                <Select value={editStatus} onValueChange={(v) => setEditStatus(v as ShipmentStatus)}>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {SHIPMENT_STATUSES.map(st => (
+                                      <SelectItem key={st} value={st}>
+                                        {shipmentStatusLabel[st] ?? st}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              <div className="flex justify-end gap-2 pt-2">
+                                <Button variant="outline" onClick={() => setEditingId(null)} disabled={saving}>
+                                  {isKo ? "취소" : "取消"}
+                                </Button>
+                                <Button onClick={handleSave} disabled={saving} className="gap-1.5">
+                                  <Package className="w-4 h-4" />
+                                  {saving ? (isKo ? "저장중..." : "保存中...") : (isKo ? "저장" : "保存")}
+                                </Button>
+                              </div>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </td>
                     </tr>
                   ))}
                   {filtered.length === 0 && (
-                    <tr><td colSpan={11} className="py-8 text-center text-muted-foreground">{isKo ? "출고 데이터가 없습니다" : "暂无出库数据"}</td></tr>
+                    <tr><td colSpan={12} className="py-8 text-center text-muted-foreground">{isKo ? "출고 데이터가 없습니다" : "暂无出库数据"}</td></tr>
                   )}
                 </tbody>
               </table>
