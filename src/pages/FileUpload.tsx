@@ -213,6 +213,7 @@ export default function FileUpload() {
                         <td className="py-2.5 text-right tabular-nums">
                           {h.errors > 0 ? <span className="text-destructive">{h.errors}</span> : "-"}
                         </td>
+                        <td className="py-2.5 text-muted-foreground">{h.deadline}</td>
                         <td className="py-2.5 text-center">
                           {h.status === "success"
                             ? <CheckCircle2 className="w-4 h-4 text-emerald-500 mx-auto" />
