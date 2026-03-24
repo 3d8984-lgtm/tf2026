@@ -41,6 +41,20 @@ export default function OrderPipeline() {
     );
   }
 
+  // Generate date-based sequential work order numbers
+  const sortedOrders = [...(orders ?? [])].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  const workOrderNumbers = (() => {
+    const dateCounters: Record<string, number> = {};
+    const map = new Map<string, string>();
+    for (const o of sortedOrders) {
+      const d = new Date(o.created_at);
+      const dateKey = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+      dateCounters[dateKey] = (dateCounters[dateKey] || 0) + 1;
+      map.set(o.id, `${dateKey}-${dateCounters[dateKey]}`);
+    }
+    return map;
+  })();
+
   // Build pipeline data from DB
   const pipelineOrders = (orders ?? []).map(order => {
     const orderTracking = (tracking ?? []).filter(t => t.order_id === order.id);
@@ -52,7 +66,6 @@ export default function OrderPipeline() {
       }
     });
 
-    // Determine current stage (last stage with count > 0 that hasn't completed)
     const stageKeys: StageKey[] = ["tshirt", "card", "set", "weight", "courier", "invoice", "done"];
     let currentStage: StageKey = "tshirt";
     for (let i = stageKeys.length - 1; i >= 0; i--) {
@@ -62,13 +75,19 @@ export default function OrderPipeline() {
       }
     }
 
+    const createdDate = new Date(order.created_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN");
+    const dueDate = order.project_completed_at
+      ? new Date(order.project_completed_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN")
+      : "-";
+
     return {
-      id: order.external_order_id,
-      product: order.product_code,
-      design: order.design_code ?? "-",
+      id: order.id,
+      woNumber: workOrderNumbers.get(order.id) ?? "-",
       qty: order.quantity,
       currentStage,
       stageCounts,
+      createdDate,
+      dueDate,
     };
   });
 
@@ -108,8 +127,9 @@ export default function OrderPipeline() {
           <div key={order.id} className="kpi-card section-enter" style={{ animationDelay: `${(oi + 1) * 80}ms` }}>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <span className="text-sm font-semibold">{order.id}</span>
-                <span className="text-xs text-muted-foreground">{order.product} · {order.design}</span>
+                <span className="text-sm font-semibold">{order.woNumber}</span>
+                <span className="text-xs text-muted-foreground">{isKo ? "접수" : "接单"}: {order.createdDate}</span>
+                <span className="text-xs text-muted-foreground">{isKo ? "납기" : "交期"}: {order.dueDate}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground tabular-nums">{overallDone} / {order.qty}</span>
