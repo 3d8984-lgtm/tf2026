@@ -167,7 +167,7 @@ export default function SystemSettings() {
           {/* General */}
           <TabsContent value="general">
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {generalGroups.map((g, i) => (
+              {visibleGeneralGroups.map((g, i) => (
                 <div key={i} onClick={() => setActiveTab(g.tab)} className="kpi-card section-enter cursor-pointer hover:border-primary/30 flex items-center gap-4" style={{ animationDelay: `${i * 60}ms` }}>
                   <div className="p-3 rounded-lg shrink-0" style={{ background: "hsl(var(--primary) / 0.08)" }}>
                     <g.icon className="w-6 h-6 text-primary" />
