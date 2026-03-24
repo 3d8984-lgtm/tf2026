@@ -93,7 +93,7 @@ function OrderRow({ o, t, lang }: { o: OrderData; t: (k: string) => string; lang
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="border-b text-left">
-                {[t("tshirtProd.time"), t("tshirtProd.siliconQR"), t("tshirtProd.designQR"), t("tshirtProd.hologramQR"), t("tshirtProd.logoCol"), t("tshirtProd.result")].map(h => (
+                {[t("tshirtProd.time"), lang === "ko" ? "색상" : "颜色", lang === "ko" ? "사이즈" : "尺码", t("tshirtProd.siliconQR"), t("tshirtProd.designQR"), t("tshirtProd.hologramQR"), t("tshirtProd.logoCol"), t("tshirtProd.result")].map(h => (
                   <th key={h} className="pb-2 font-medium text-muted-foreground whitespace-nowrap pr-4">{h}</th>
                 ))}
               </tr></thead>
@@ -101,6 +101,8 @@ function OrderRow({ o, t, lang }: { o: OrderData; t: (k: string) => string; lang
                 {o.logs.map((log, i) => (
                   <tr key={i} className={`border-b last:border-0 transition-colors ${log.result === "fail" ? "bg-destructive/5" : "hover:bg-muted/30"}`}>
                     <td className="py-2 tabular-nums text-muted-foreground pr-4">{log.time}</td>
+                    <td className="py-2 pr-4">{log.color}</td>
+                    <td className="py-2 pr-4">{log.size}</td>
                     <td className="py-2 font-mono text-xs pr-4">{log.silicon}</td>
                     <td className="py-2 font-mono text-xs pr-4">{log.design}</td>
                     <td className="py-2 font-mono text-xs pr-4">{log.hologram}</td>
