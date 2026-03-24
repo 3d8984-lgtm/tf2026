@@ -12,7 +12,7 @@ interface OrderData {
 
 const ordersData: OrderData[] = [
   {
-    order: "ORD-24831", product: "BT-2024-A", designCode: "DSN-047", qty: 200,
+    order: "20260324-1", product: "BT-2024-A", designCode: "DSN-047", qty: 200,
     summary: { waiting: 15, done: 182, fail: 3 },
     logs: [
       { time: "14:35:22", silicon: "SQR-00482", design: "DQR-00482", hologram: "HQR-A0931", result: "pass", logo: "✓" },
@@ -21,7 +21,7 @@ const ordersData: OrderData[] = [
     ],
   },
   {
-    order: "ORD-24832", product: "BT-2024-B", designCode: "DSN-012", qty: 150,
+    order: "20260324-2", product: "BT-2024-B", designCode: "DSN-012", qty: 150,
     summary: { waiting: 0, done: 150, fail: 0 },
     logs: [
       { time: "14:34:02", silicon: "SQR-00479", design: "DQR-00479", hologram: "HQR-A0928", result: "pass", logo: "✓" },
@@ -29,7 +29,7 @@ const ordersData: OrderData[] = [
     ],
   },
   {
-    order: "ORD-24833", product: "BT-2024-C", designCode: "DSN-089", qty: 300,
+    order: "20260324-3", product: "BT-2024-C", designCode: "DSN-089", qty: 300,
     summary: { waiting: 213, done: 83, fail: 4 },
     logs: [
       { time: "14:38:10", silicon: "SQR-00550", design: "DQR-00550", hologram: "HQR-C0083", result: "pass", logo: "✓" },
@@ -37,7 +37,7 @@ const ordersData: OrderData[] = [
     ],
   },
   {
-    order: "ORD-24834", product: "BT-2024-A", designCode: "DSN-047", qty: 120,
+    order: "20260324-4", product: "BT-2024-A", designCode: "DSN-047", qty: 120,
     summary: { waiting: 0, done: 120, fail: 0 },
     logs: [
       { time: "13:45:20", silicon: "SQR-00320", design: "DQR-00320", hologram: "HQR-A0800", result: "pass", logo: "✓" },
