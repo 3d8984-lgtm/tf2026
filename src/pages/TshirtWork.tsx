@@ -161,7 +161,7 @@ export default function TshirtWork() {
   const handleConfirmAttach = () => {
     const now = new Date();
     const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
-    setWorkLog(prev => [{ time, result: t("status.attachDone"), silicon: scannedValues[0], hologram: scannedValues[2] }, ...prev]);
+    setWorkLog(prev => [{ time, result: t("status.attachDone"), silicon: scannedValues[1], hologram: scannedValues[3] }, ...prev]);
     resetScan();
   };
 
