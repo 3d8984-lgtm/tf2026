@@ -151,11 +151,29 @@ export default function ProductionMonitor() {
     }
   };
 
-  const filtered = orders?.filter(wo =>
-    !search ||
-    wo.external_order_id.toLowerCase().includes(search.toLowerCase()) ||
-    wo.recipient_name.toLowerCase().includes(search.toLowerCase())
-  ) ?? [];
+  // Generate date-based sequential work order numbers (20260324-1, 20260324-2, ...)
+  const workOrderNumbers = React.useMemo(() => {
+    if (!orders) return new Map<string, string>();
+    const sorted = [...orders].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    const dateCounters: Record<string, number> = {};
+    const map = new Map<string, string>();
+    for (const o of sorted) {
+      const d = new Date(o.created_at);
+      const dateKey = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+      dateCounters[dateKey] = (dateCounters[dateKey] || 0) + 1;
+      map.set(o.id, `${dateKey}-${dateCounters[dateKey]}`);
+    }
+    return map;
+  }, [orders]);
+
+  const filtered = orders?.filter(wo => {
+    if (!search) return true;
+    const s = search.toLowerCase();
+    const woNum = workOrderNumbers.get(wo.id) ?? "";
+    return wo.external_order_id.toLowerCase().includes(s) ||
+      wo.recipient_name.toLowerCase().includes(s) ||
+      woNum.toLowerCase().includes(s);
+  }) ?? [];
 
   const detailOrder = detailId ? orders?.find(o => o.id === detailId) : null;
 
