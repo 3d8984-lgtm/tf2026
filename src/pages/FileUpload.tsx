@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router-dom";
 import PageHeader from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -5,13 +6,15 @@ import {
   FileSpreadsheet, CheckCircle2, XCircle, Download, FileUp, Info, Image,
   Globe, RefreshCw, ArrowDownToLine, Clock, AlertCircle
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLang } from "@/contexts/LangContext";
 
 export default function FileUpload() {
   const { t, lang } = useLang();
   const isKo = lang === "ko";
-  const [tab, setTab] = useState("api");
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState(searchParams.get("tab") || "api");
+  useEffect(() => { const t = searchParams.get("tab"); if (t) setTab(t); }, [searchParams]);
   const [isDragging, setIsDragging] = useState(false);
   const [apiSyncing, setApiSyncing] = useState(false);
   const [uploadResult, setUploadResult] = useState<null | {

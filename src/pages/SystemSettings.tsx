@@ -7,7 +7,8 @@ import UserManagement from "@/components/UserManagement";
 import WebhookSettings from "@/components/WebhookSettings";
 import CourierSettings from "@/components/CourierSettings";
 import SiteCallbackSettings from "@/components/SiteCallbackSettings";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -93,7 +94,9 @@ function useCrudState<T extends { id: number }>(initial: T[]) {
 
 export default function SystemSettings() {
   const { t, lang } = useLang();
-  const [activeTab, setActiveTab] = useState("general");
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "general");
+  useEffect(() => { const t = searchParams.get("tab"); if (t) setActiveTab(t); }, [searchParams]);
   const { toast } = useToast();
   const isKo = lang === "ko";
 
