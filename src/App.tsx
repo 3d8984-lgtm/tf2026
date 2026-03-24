@@ -14,6 +14,7 @@ import WorkOrders from "@/pages/WorkOrders";
 import TshirtProduction from "@/pages/TshirtProduction";
 import TshirtWork from "@/pages/TshirtWork";
 import ProductionMonitor from "@/pages/ProductionMonitor";
+import Shipping from "@/pages/Shipping";
 import Defects from "@/pages/Defects";
 import Reports from "@/pages/Reports";
 import SystemSettings from "@/pages/SystemSettings";
