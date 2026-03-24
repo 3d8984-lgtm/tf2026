@@ -81,6 +81,7 @@ export default function TshirtWork() {
   const isKo = lang === "ko";
 
   const steps = [
+    { key: "tshirt", label: t("tshirtWork.tshirtScan"), icon: Shirt, placeholder: isKo ? "티셔츠 QR을 스캔하세요" : "请扫描T恤QR" },
     { key: "silicon", label: t("tshirtWork.siliconQR"), icon: Sticker, placeholder: isKo ? "실리콘 마크 QR을 스캔하세요" : "请扫描硅胶标QR" },
     { key: "design", label: t("tshirtWork.designQR"), icon: QrCode, placeholder: isKo ? "디자인 QR을 스캔하세요" : "请扫描设计QR" },
     { key: "hologram", label: t("tshirtWork.hologramQR"), icon: Hash, placeholder: isKo ? "홀로그램 QR을 스캔하세요" : "请扫描全息QR" },
