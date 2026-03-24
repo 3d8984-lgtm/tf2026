@@ -430,6 +430,17 @@ const translations: Record<Lang, Record<string, string>> = {
     "webhook.noLogs": "수신 로그가 없습니다",
     "webhook.secretHeader": "인증 헤더 (선택)",
     "webhook.secretDesc": "x-webhook-secret 헤더로 인증할 수 있습니다",
+
+    // Manual
+    "menu.manual": "매뉴얼",
+    "manual.title": "사용 매뉴얼",
+    "manual.desc": "시스템 운영에 필요한 주요 가이드를 확인합니다",
+    "manual.section1": "사용자 등록/승인 방법",
+    "manual.section2": "새로운 티셔츠 종류 추가",
+    "manual.section3": "TWINMETA 주문/송장번호 데이터 연동",
+    "manual.section4": "택배회사 API 연동 방법",
+    "manual.section5": "PLC, 게이트웨이 연동 방법",
+    "manual.section6": "사이트 수정 및 재개발 방법",
   },
 
   zh: {
