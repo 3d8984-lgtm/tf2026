@@ -22,7 +22,7 @@ interface SetLog { time: string; setId: string; tshirtQR: string; cardQR: string
 interface ShipItem { setId: string; recipientKo: string; recipientZh: string; phone: string; addressKo: string; addressZh: string; invoice: string; status: string }
 
 interface OrderData {
-  order: string; product: string; design: string; qty: number;
+  order: string; product: string; design: string; qty: number; dueDate: string;
   cardLogs: CardLog[]; cardSummary: { scanDone: number; packing: number; ejected: number; error: number };
   setLogs: SetLog[]; setSummary: { matchWait: number; packDone: number; matchFail: number };
   shipItems: ShipItem[]; shipSummary: { invoiceWait: number; shipDone: number; shipHold: number };
@@ -31,7 +31,7 @@ interface OrderData {
 /* ── Sample data grouped by order ── */
 const ordersData: OrderData[] = [
   {
-    order: "ORD-24831", product: "BT-2024-A", design: "DSN-047", qty: 200,
+    order: "20260324-1", product: "BT-2024-A", design: "DSN-047", qty: 200, dueDate: "2026-03-25",
     cardSummary: { scanDone: 200, packing: 0, ejected: 185, error: 1 },
     cardLogs: [
       { time: "14:36:01", barcode: "CRD-0482", serial: "CS-A09312", printedQR: "CPQ-0482", status: "ejected" },
@@ -51,7 +51,7 @@ const ordersData: OrderData[] = [
     ],
   },
   {
-    order: "ORD-24832", product: "BT-2024-B", design: "DSN-012", qty: 150,
+    order: "20260324-2", product: "BT-2024-B", design: "DSN-012", qty: 150, dueDate: "2026-03-26",
     cardSummary: { scanDone: 150, packing: 0, ejected: 150, error: 0 },
     cardLogs: [
       { time: "14:30:15", barcode: "CRD-0390", serial: "CS-B04210", printedQR: "CPQ-0390", status: "ejected" },
@@ -67,7 +67,7 @@ const ordersData: OrderData[] = [
     ],
   },
   {
-    order: "ORD-24833", product: "BT-2024-C", design: "DSN-089", qty: 300,
+    order: "20260324-3", product: "BT-2024-C", design: "DSN-089", qty: 300, dueDate: "2026-03-27",
     cardSummary: { scanDone: 42, packing: 2, ejected: 38, error: 2 },
     cardLogs: [
       { time: "14:38:22", barcode: "CRD-0510", serial: "CS-C00142", printedQR: "CPQ-0510", status: "qrPrinted" },
@@ -79,7 +79,7 @@ const ordersData: OrderData[] = [
     shipItems: [],
   },
   {
-    order: "ORD-24834", product: "BT-2024-A", design: "DSN-047", qty: 120,
+    order: "20260324-4", product: "BT-2024-A", design: "DSN-047", qty: 120, dueDate: "2026-03-28",
     cardSummary: { scanDone: 120, packing: 0, ejected: 120, error: 0 },
     cardLogs: [
       { time: "13:50:10", barcode: "CRD-0350", serial: "CS-A08200", printedQR: "CPQ-0350", status: "ejected" },
@@ -110,7 +110,7 @@ function OrderRow({ o, children, summaryBadges, lang }: { o: OrderData; children
         <div className="flex items-center gap-3 min-w-0">
           {isOpen ? <ChevronDown className="w-4 h-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 shrink-0 text-muted-foreground" />}
           <span className="font-semibold text-sm">{o.order}</span>
-          <span className="text-xs text-muted-foreground">{o.product} · {o.design}</span>
+          <span className="text-xs text-muted-foreground">{lang === "ko" ? "납기" : "交期"}: {o.dueDate}</span>
           <span className="text-xs text-muted-foreground tabular-nums">{lang === "ko" ? "수량" : "数量"}: {o.qty}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">{summaryBadges}</div>
