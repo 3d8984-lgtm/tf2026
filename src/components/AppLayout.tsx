@@ -30,6 +30,7 @@ const langOptions: { value: Lang; label: string; flag: string }[] = [
 export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const { lang, setLang, t } = useLang();
+  const { signOut, user } = useAuth();
 
   return (
     <div className="flex h-screen overflow-hidden">
