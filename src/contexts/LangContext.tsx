@@ -788,6 +788,20 @@ const translations: Record<Lang, Record<string, string>> = {
     "common.items": "个",
     "common.perMin": "个/分",
     "common.language": "语言",
+
+    // Auth
+    "auth.login": "登录",
+    "auth.signup": "注册",
+    "auth.email": "邮箱",
+    "auth.password": "密码",
+    "auth.loginDesc": "登录您的账号",
+    "auth.signupDesc": "创建新账号",
+    "auth.noAccount": "没有账号？",
+    "auth.hasAccount": "已有账号？",
+    "auth.error": "错误",
+    "auth.signupSuccess": "注册成功",
+    "auth.signupSuccessDesc": "请登录",
+    "auth.logout": "退出登录",
   },
 };
 
