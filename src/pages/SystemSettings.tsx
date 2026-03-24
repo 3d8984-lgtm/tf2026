@@ -116,6 +116,7 @@ export default function SystemSettings() {
 
   const tabItems = [
     { value: "general", icon: Cog, label: t("settings.general") },
+    { value: "users", icon: Users, label: t("settings.userMgmt") },
     { value: "equipment", icon: Server, label: t("settings.equipment") },
     { value: "plcTags", icon: Cpu, label: t("settings.plcTags") },
     { value: "sensors", icon: Radio, label: t("settings.sensors") },
