@@ -38,7 +38,7 @@ const ordersData: OrderData[] = [
     ],
   },
   {
-    order: "20260324-4", product: "BT-2024-A", designCode: "DSN-047", qty: 120, twinker: "최유진", dueDate: "2026-03-28",
+    order: "20260324-4", product: "BT-2024-A", designCode: "DSN-047", qty: 120, twinker: "최유진", orderDate: "2026-03-23", dueDate: "2026-03-28",
     summary: { waiting: 0, done: 120, fail: 0 },
     logs: [
       { time: "13:45:20", color: "Black", size: "L", silicon: "SQR-00320", design: "DQR-00320", hologram: "HQR-A0800", result: "pass", logo: "✓" },
