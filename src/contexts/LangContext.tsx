@@ -11,7 +11,7 @@ interface LangContextValue {
 const translations: Record<Lang, Record<string, string>> = {
   ko: {
     // App name
-    "app.name": "Smart Set Packing",
+    "app.name": "TWINMETA FACTORY",
 
     // Menu
     "menu.dashboard": "대시보드",
