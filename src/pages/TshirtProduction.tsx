@@ -24,8 +24,8 @@ const ordersData: OrderData[] = [
     order: "20260324-2", product: "BT-2024-B", designCode: "DSN-012", qty: 150,
     summary: { waiting: 0, done: 150, fail: 0 },
     logs: [
-      { time: "14:34:02", silicon: "SQR-00479", design: "DQR-00479", hologram: "HQR-A0928", result: "pass", logo: "✓" },
-      { time: "14:33:40", silicon: "SQR-00478", design: "DQR-00478", hologram: "HQR-A0927", result: "pass", logo: "✓" },
+      { time: "14:34:02", color: "White", size: "M", silicon: "SQR-00479", design: "DQR-00479", hologram: "HQR-A0928", result: "pass", logo: "✓" },
+      { time: "14:33:40", color: "White", size: "S", silicon: "SQR-00478", design: "DQR-00478", hologram: "HQR-A0927", result: "pass", logo: "✓" },
     ],
   },
   {
