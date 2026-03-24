@@ -296,6 +296,7 @@ export default function TshirtWork() {
                         </div>
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <span>{isKo ? "트윈커" : "Twinker"}: <strong className="text-foreground">{order.twinker}</strong></span>
+                          <span>{t("tshirtWork.orderDate")}: {order.orderDate}</span>
                           <span>{t("tshirtWork.dueDate")}: {order.dueDate}</span>
                           <span>{t("tshirtWork.workItems")}: <strong className="text-foreground">{total}{isKo ? "건" : "件"}</strong></span>
                         </div>
