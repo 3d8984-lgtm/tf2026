@@ -7,6 +7,7 @@ import {
   Package, Shirt, Box, Truck, Sticker
 } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
+import { usePermissions } from "@/hooks/usePermissions";
 
 type DefectType = "qr_mismatch" | "duplicate_qr" | "attach_fail" | "pack_fail" | "machine_error" | "material_short" | "print_fail";
 type DefectStatus = "unprocessed" | "rework_queued" | "rework_in_progress" | "rework_done" | "disposed";
@@ -32,6 +33,7 @@ const stageOrder: RestartStage[] = ["tshirt", "card", "set", "courier", "invoice
 export default function Defects() {
   const { t, lang } = useLang();
   const isKo = lang === "ko";
+  const { canEditDefects } = usePermissions();
 
   const defectTypeLabel: Record<DefectType, string> = {
     qr_mismatch: t("defects.qrMismatch"),
@@ -270,6 +272,7 @@ export default function Defects() {
                     )}
 
                     {/* Action buttons */}
+                    {canEditDefects && (
                     <div className="flex gap-2">
                       {d.status === "unprocessed" && (
                         <>
@@ -292,6 +295,7 @@ export default function Defects() {
                         </Button>
                       )}
                     </div>
+                    )}
                   </div>
                 )}
               </div>

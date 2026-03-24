@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useLang, type Lang } from "@/contexts/LangContext";
 import { useAuth } from "@/hooks/useAuth";
+import { usePermissions } from "@/hooks/usePermissions";
 import twinmetaLogo from "@/assets/twinmeta-logo.png";
 
 interface MenuItem {
@@ -74,7 +75,11 @@ export default function AppLayout() {
   const [searchOpen, setSearchOpen] = useState(false);
   const { lang, setLang, t } = useLang();
   const { signOut, user } = useAuth();
+  const { canAccessMenu } = usePermissions();
   const navigate = useNavigate();
+
+  // Filter menu items based on role permissions
+  const visibleMenuKeys = menuKeys.filter(item => canAccessMenu(item.path));
 
   // Korean chosung (초성) search support
   const CHOSUNG = ["ㄱ","ㄲ","ㄴ","ㄷ","ㄸ","ㄹ","ㅁ","ㅂ","ㅃ","ㅅ","ㅆ","ㅇ","ㅈ","ㅉ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
@@ -98,7 +103,7 @@ export default function AppLayout() {
     const q = menuSearch.trim();
     if (!q) return [];
     const results: SearchResult[] = [];
-    for (const item of menuKeys) {
+    for (const item of visibleMenuKeys) {
       const parentLabel = t(item.key);
       const parentMatch = matchSearch(parentLabel, q);
       if (parentMatch) {
@@ -176,7 +181,7 @@ export default function AppLayout() {
               )}
             </>
           ) : (
-            menuKeys.map(({ path, icon: Icon, key }) => (
+            visibleMenuKeys.map(({ path, icon: Icon, key }) => (
               <NavLink
                 key={path}
                 to={path}

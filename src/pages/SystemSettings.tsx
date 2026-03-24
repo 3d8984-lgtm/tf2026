@@ -2,6 +2,7 @@ import PageHeader from "@/components/PageHeader";
 import { useLang } from "@/contexts/LangContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Users, Bell, Shield, Cog, Server, Cpu, Radio, Play, AlertTriangle, Plus, Pencil, Trash2, Wifi, WifiOff, ShieldCheck, Webhook, Truck, ArrowUpRight } from "lucide-react";
+import { usePermissions } from "@/hooks/usePermissions";
 import InspectionStandards from "@/components/InspectionStandards";
 import UserManagement from "@/components/UserManagement";
 import WebhookSettings from "@/components/WebhookSettings";
@@ -99,6 +100,7 @@ export default function SystemSettings() {
   useEffect(() => { const t = searchParams.get("tab"); if (t) setActiveTab(t); }, [searchParams]);
   const { toast } = useToast();
   const isKo = lang === "ko";
+  const { canAccessSettingsTab } = usePermissions();
 
   const eq = useCrudState<Equipment>(initEquipment);
   const plc = useCrudState<PlcTag>(initPlcTags);
@@ -145,13 +147,16 @@ export default function SystemSettings() {
     { value: "callback", icon: ArrowUpRight, label: isKo ? "TWINMETA 회신" : "TWINMETA回调" },
   ];
 
+  const visibleTabs = tabItems.filter(tab => tab.value === "general" || canAccessSettingsTab(tab.value));
+  const visibleGeneralGroups = generalGroups.filter(g => canAccessSettingsTab(g.tab));
+
   return (
     <div>
       <PageHeader title={t("settings.title")} description={t("settings.desc")} />
       <div className="p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-4 md:grid-cols-11 mb-6 h-auto">
-            {tabItems.map(tab => (
+          <TabsList className={`grid grid-cols-4 md:grid-cols-${Math.min(visibleTabs.length, 11)} mb-6 h-auto`}>
+            {visibleTabs.map(tab => (
               <TabsTrigger key={tab.value} value={tab.value} className="flex items-center gap-1.5 text-xs py-2">
                 <tab.icon className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">{tab.label}</span>
@@ -162,7 +167,7 @@ export default function SystemSettings() {
           {/* General */}
           <TabsContent value="general">
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {generalGroups.map((g, i) => (
+              {visibleGeneralGroups.map((g, i) => (
                 <div key={i} onClick={() => setActiveTab(g.tab)} className="kpi-card section-enter cursor-pointer hover:border-primary/30 flex items-center gap-4" style={{ animationDelay: `${i * 60}ms` }}>
                   <div className="p-3 rounded-lg shrink-0" style={{ background: "hsl(var(--primary) / 0.08)" }}>
                     <g.icon className="w-6 h-6 text-primary" />
