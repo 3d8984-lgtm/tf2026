@@ -1,9 +1,9 @@
-import { useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { useState, useMemo } from "react";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Upload, Database,
   Shirt, Activity, AlertTriangle, FileBarChart, Settings,
-  ChevronLeft, ChevronRight, ScanLine, Globe, LogOut, Truck
+  ChevronLeft, ChevronRight, ScanLine, Globe, LogOut, Truck, Search
 } from "lucide-react";
 import { useLang, type Lang } from "@/contexts/LangContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -29,8 +29,17 @@ const langOptions: { value: Lang; label: string; flag: string }[] = [
 
 export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
+  const [menuSearch, setMenuSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const { lang, setLang, t } = useLang();
   const { signOut, user } = useAuth();
+  const navigate = useNavigate();
+
+  const filteredMenu = useMemo(() => {
+    if (!menuSearch.trim()) return menuKeys;
+    const q = menuSearch.toLowerCase();
+    return menuKeys.filter(({ key }) => t(key).toLowerCase().includes(q));
+  }, [menuSearch, lang]);
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -55,7 +64,7 @@ export default function AppLayout() {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
-          {menuKeys.map(({ path, icon: Icon, key }) => (
+          {filteredMenu.map(({ path, icon: Icon, key }) => (
             <NavLink
               key={path}
               to={path}
@@ -70,12 +79,64 @@ export default function AppLayout() {
                 color: isActive ? "hsl(var(--sidebar-accent-foreground))" : "hsl(var(--sidebar-foreground))",
               })}
               title={t(key)}
+              onClick={() => { setMenuSearch(""); setSearchOpen(false); }}
             >
               <Icon className="w-[18px] h-[18px] shrink-0" />
               {!collapsed && <span className="truncate">{t(key)}</span>}
             </NavLink>
           ))}
+          {filteredMenu.length === 0 && (
+            <p className="text-xs text-center py-4 opacity-50" style={{ color: "hsl(var(--sidebar-foreground))" }}>
+              {lang === "ko" ? "결과 없음" : "无结果"}
+            </p>
+          )}
         </nav>
+
+        {/* Menu search */}
+        <div className="px-2 py-2 border-t" style={{ borderColor: "hsl(var(--sidebar-border))" }}>
+          {collapsed ? (
+            <button
+              onClick={() => { setCollapsed(false); setSearchOpen(true); }}
+              className="flex items-center justify-center w-full py-2 rounded-md transition-colors hover:opacity-90"
+              style={{ color: "hsl(var(--sidebar-foreground))" }}
+              title={lang === "ko" ? "메뉴 검색" : "搜索菜单"}
+            >
+              <Search className="w-4 h-4" />
+            </button>
+          ) : searchOpen ? (
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 opacity-50" style={{ color: "hsl(var(--sidebar-foreground))" }} />
+              <input
+                autoFocus
+                value={menuSearch}
+                onChange={e => setMenuSearch(e.target.value)}
+                onBlur={() => { if (!menuSearch) setSearchOpen(false); }}
+                onKeyDown={e => {
+                  if (e.key === "Escape") { setMenuSearch(""); setSearchOpen(false); }
+                  if (e.key === "Enter" && filteredMenu.length === 1) {
+                    navigate(filteredMenu[0].path);
+                    setMenuSearch(""); setSearchOpen(false);
+                  }
+                }}
+                placeholder={lang === "ko" ? "메뉴 검색..." : "搜索菜单..."}
+                className="w-full pl-8 pr-3 py-1.5 rounded-md text-xs border bg-transparent outline-none"
+                style={{
+                  color: "hsl(var(--sidebar-foreground))",
+                  borderColor: "hsl(var(--sidebar-border))",
+                }}
+              />
+            </div>
+          ) : (
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="flex items-center gap-2 w-full px-3 py-1.5 rounded-md text-xs transition-colors hover:opacity-90"
+              style={{ color: "hsl(var(--sidebar-foreground))" }}
+            >
+              <Search className="w-3.5 h-3.5 shrink-0" />
+              <span>{lang === "ko" ? "메뉴 검색" : "搜索菜单"}</span>
+            </button>
+          )}
+        </div>
 
         {/* Language switcher */}
         <div
