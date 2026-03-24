@@ -156,6 +156,13 @@ export default function SystemSettings() {
             </div>
           </TabsContent>
 
+          {/* User Management */}
+          <TabsContent value="users">
+            <div className="section-enter">
+              <UserManagement />
+            </div>
+          </TabsContent>
+
           {/* Equipment Management */}
           <TabsContent value="equipment">
             <div className="section-enter">
