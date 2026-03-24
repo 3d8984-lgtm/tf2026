@@ -104,6 +104,24 @@ export default function AppLayout() {
           ))}
         </div>
 
+        {/* User & Logout */}
+        <div className="px-2 py-2 border-t" style={{ borderColor: "hsl(var(--sidebar-border))" }}>
+          {!collapsed && user && (
+            <p className="text-xs truncate px-2 mb-1 opacity-60" style={{ color: "hsl(var(--sidebar-foreground))" }}>
+              {user.email}
+            </p>
+          )}
+          <button
+            onClick={signOut}
+            className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm transition-colors hover:opacity-90"
+            style={{ color: "hsl(var(--sidebar-foreground))" }}
+            title={t("auth.logout")}
+          >
+            <LogOut className="w-4 h-4 shrink-0" />
+            {!collapsed && <span>{t("auth.logout")}</span>}
+          </button>
+        </div>
+
         {/* Collapse toggle */}
         <button
           onClick={() => setCollapsed(!collapsed)}
