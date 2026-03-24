@@ -357,12 +357,10 @@ export default function TshirtWork() {
           <div className="kpi-card section-enter flex items-center gap-6 flex-wrap">
             <div className="flex items-center gap-2">
               <Package className="w-5 h-5 text-primary" />
-              <div><p className="text-xs text-muted-foreground">{t("tshirtWork.order")}</p><p className="text-sm font-semibold">{selectedOrder.id}</p></div>
+              <div><p className="text-xs text-muted-foreground">{t("tshirtWork.order")}</p><p className="text-sm font-semibold">{selectedOrder.orderNo}</p></div>
             </div>
-            <div><p className="text-xs text-muted-foreground">{t("tshirtWork.product")}</p><p className="text-sm font-semibold">{selectedOrder.product}</p></div>
-            <div><p className="text-xs text-muted-foreground">{t("tshirtWork.design")}</p><p className="text-sm font-semibold">{selectedOrder.design}</p></div>
+            <div><p className="text-xs text-muted-foreground">{isKo ? "트윈커" : "Twinker"}</p><p className="text-sm font-semibold">{selectedOrder.twinker}</p></div>
             <div><p className="text-xs text-muted-foreground">{t("tshirtWork.dueDate")}</p><p className="text-sm font-semibold">{selectedOrder.dueDate}</p></div>
-            <PriorityBadge priority={selectedOrder.priority} t={t} />
             <div className="ml-auto flex items-center gap-3">
               <div><p className="text-xs text-muted-foreground text-right">{t("tshirtWork.progressRate")}</p><p className="text-lg font-bold tabular-nums text-right">{pct}%</p></div>
               <div className="w-32 h-3 rounded-full bg-muted overflow-hidden"><div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${pct}%` }} /></div>
