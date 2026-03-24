@@ -842,6 +842,8 @@ const translations: Record<Lang, Record<string, string>> = {
     "auth.email": "邮箱",
     "auth.name": "姓名",
     "auth.namePlaceholder": "请输入姓名",
+    "auth.phone": "电话号码",
+    "auth.phonePlaceholder": "138-0000-0000",
     "auth.password": "密码",
     "auth.loginDesc": "登录您的账号",
     "auth.signupDesc": "创建新账号",
