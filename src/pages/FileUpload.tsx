@@ -95,10 +95,10 @@ export default function FileUpload() {
 
   // Mock API sync history
   const apiSyncHistory = [
-    { time: "2024-03-15 09:00", orders: 45, new: 12, updated: 33, errors: 0, status: "success" },
-    { time: "2024-03-15 06:00", orders: 38, new: 8, updated: 30, errors: 0, status: "success" },
-    { time: "2024-03-14 21:00", orders: 52, new: 15, updated: 35, errors: 2, status: "partial" },
-    { time: "2024-03-14 18:00", orders: 41, new: 10, updated: 31, errors: 0, status: "success" },
+    { time: "2024-03-15 09:00", orders: 45, new: 12, updated: 33, errors: 0, deadline: "2024-04-15", status: "success" },
+    { time: "2024-03-15 06:00", orders: 38, new: 8, updated: 30, errors: 0, deadline: "2024-04-10", status: "success" },
+    { time: "2024-03-14 21:00", orders: 52, new: 15, updated: 35, errors: 2, deadline: "2024-04-12", status: "partial" },
+    { time: "2024-03-14 18:00", orders: 41, new: 10, updated: 31, errors: 0, deadline: "2024-04-08", status: "success" },
   ];
 
   const uploadHistory = [
