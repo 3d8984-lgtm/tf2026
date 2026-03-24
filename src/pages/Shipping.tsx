@@ -130,6 +130,8 @@ export default function Shipping() {
                 shipmentStatusCls={shipmentStatusCls}
                 queryClient={queryClient}
                 toast={toast}
+                canEdit={canEditShipping}
+                canSync={canTwinmetaSync}
               />
             ))}
             {(data?.groups.length ?? 0) === 0 && (
