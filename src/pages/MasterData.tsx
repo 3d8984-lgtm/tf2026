@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
-type MasterCategory = "product" | "design" | "logo" | "card" | "qr" | "shipper";
+type MasterCategory = "product" | "card" | "qr" | "shipper";
 
 interface MasterItem {
   id: string;
