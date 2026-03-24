@@ -40,7 +40,7 @@ const ordersData: OrderData[] = [
     order: "20260324-4", product: "BT-2024-A", designCode: "DSN-047", qty: 120,
     summary: { waiting: 0, done: 120, fail: 0 },
     logs: [
-      { time: "13:45:20", silicon: "SQR-00320", design: "DQR-00320", hologram: "HQR-A0800", result: "pass", logo: "✓" },
+      { time: "13:45:20", color: "Black", size: "L", silicon: "SQR-00320", design: "DQR-00320", hologram: "HQR-A0800", result: "pass", logo: "✓" },
     ],
   },
 ];
