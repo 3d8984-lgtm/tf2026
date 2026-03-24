@@ -254,32 +254,30 @@ export default function ProductionMonitor() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b text-left">
-                        {[t("workOrders.orderNo"), isKo ? "접수 날짜" : "接单日期", t("workOrders.qty"), isKo ? "트윈커" : "Twinker", t("workOrders.status"), isKo ? "관리" : "管理"].map(h => (
+                        {[isKo ? "순번" : "序号", t("workOrders.orderNo"), isKo ? "접수 날짜" : "接单日期", t("workOrders.qty"), isKo ? "트윈커" : "Twinker", t("workOrders.status"), isKo ? "상세" : "详情"].map(h => (
                           <th key={h} className="pb-2 font-medium text-muted-foreground whitespace-nowrap pr-4">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {filtered.map(wo => {
+                      {filtered.map((wo, idx) => {
                         const sb = statusBadge(wo.status);
                         const createdDate = new Date(wo.created_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN");
                         return (
                           <tr key={wo.id} className="border-b hover:bg-muted/30 transition-colors">
+                            <td className="py-2.5 pr-4 text-muted-foreground tabular-nums">{idx + 1}</td>
                             <td className="py-2.5 font-medium text-primary pr-4">{wo.external_order_id}</td>
                             <td className="py-2.5 pr-4 text-muted-foreground">{createdDate}</td>
                             <td className="py-2.5 tabular-nums pr-4">{wo.quantity.toLocaleString()}</td>
                             <td className="py-2.5 pr-4">{wo.recipient_name}</td>
                             <td className="py-2.5 pr-4"><span className={`status-badge ${sb.cls}`}>{sb.label}</span></td>
                             <td className="py-2.5">
-                              <div className="flex gap-1">
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDetailId(wo.id)} title={isKo ? "상세" : "详情"}><Eye className="w-3.5 h-3.5" /></Button>
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(wo)} title={isKo ? "수정" : "编辑"}><Edit className="w-3.5 h-3.5" /></Button>
-                              </div>
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDetailId(wo.id)} title={isKo ? "상세" : "详情"}><Eye className="w-3.5 h-3.5" /></Button>
                             </td>
                           </tr>
                         );
                       })}
-                      {filtered.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-muted-foreground">{isKo ? "주문이 없습니다" : "暂无订单"}</td></tr>}
+                      {filtered.length === 0 && <tr><td colSpan={7} className="py-8 text-center text-muted-foreground">{isKo ? "주문이 없습니다" : "暂无订单"}</td></tr>}
                     </tbody>
                   </table>
                 </div>
