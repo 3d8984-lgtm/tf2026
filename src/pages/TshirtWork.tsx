@@ -52,7 +52,7 @@ const mockOrders: OrderData[] = [
     ],
   },
   {
-    id: "WO-003", orderNo: "20260324-3", twinker: "이하윤", product: "BT-2024-C", design: "DSN-091", dueDate: "2024-03-27",
+    id: "WO-003", orderNo: "20260324-3", twinker: "이하윤", product: "BT-2024-C", design: "DSN-091", orderDate: "2024-03-20", dueDate: "2024-03-27",
     items: [
       { seq: 1, color: "Gray", size: "M", siliconQR: "SQR-00500", designQR: "DQR-00500", hologramQR: "HQR-A0940", status: "pending" },
       { seq: 2, color: "Gray", size: "L", siliconQR: "SQR-00501", designQR: "DQR-00501", hologramQR: "HQR-A0941", status: "pending" },
