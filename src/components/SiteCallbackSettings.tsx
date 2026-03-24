@@ -115,7 +115,7 @@ export default function SiteCallbackSettings() {
     if (error) {
       toast({ title: isKo ? "오류" : "错误", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: isKo ? "저장됨" : "已保存", description: isKo ? "A 사이트 회신 설정이 저장되었습니다" : "A站点回调设置已保存" });
+      toast({ title: isKo ? "저장됨" : "已保存", description: isKo ? "TWINMETA 사이트 회신 설정이 저장되었습니다" : "TWINMETA站点回调设置已保存" });
     }
   };
 
