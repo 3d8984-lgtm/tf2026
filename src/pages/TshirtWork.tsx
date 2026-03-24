@@ -16,6 +16,7 @@ interface OrderItem {
   product: string;
   design: string;
   size: string;
+  color: string;
   total: number;
   done: number;
   fail: number;
