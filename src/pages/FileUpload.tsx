@@ -49,6 +49,7 @@ export default function FileUpload() {
     { label: isKo ? "티셔츠 작업용" : "T恤作业用", cols: "C~I" },
     { label: isKo ? "카드 포장용" : "卡片包装用", cols: "J~L" },
     { label: isKo ? "택배송장정보" : "快递面单信息", cols: "M~Q" },
+    { label: isKo ? "프로젝트 관리" : "项目管理", cols: "R" },
   ];
 
   const handleDownloadTemplate = () => {
