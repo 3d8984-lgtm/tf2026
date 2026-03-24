@@ -127,8 +127,9 @@ export default function OrderPipeline() {
           <div key={order.id} className="kpi-card section-enter" style={{ animationDelay: `${(oi + 1) * 80}ms` }}>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <span className="text-sm font-semibold">{order.id}</span>
-                <span className="text-xs text-muted-foreground">{order.product} · {order.design}</span>
+                <span className="text-sm font-semibold">{order.woNumber}</span>
+                <span className="text-xs text-muted-foreground">{isKo ? "접수" : "接单"}: {order.createdDate}</span>
+                <span className="text-xs text-muted-foreground">{isKo ? "납기" : "交期"}: {order.dueDate}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground tabular-nums">{overallDone} / {order.qty}</span>
