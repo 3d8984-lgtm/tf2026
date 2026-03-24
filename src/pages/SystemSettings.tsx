@@ -418,6 +418,16 @@ export default function SystemSettings() {
           <TabsContent value="webhook">
             <WebhookSettings />
           </TabsContent>
+
+          {/* Courier Integration */}
+          <TabsContent value="courier">
+            <CourierSettings />
+          </TabsContent>
+
+          {/* Site A Callback */}
+          <TabsContent value="callback">
+            <SiteCallbackSettings />
+          </TabsContent>
         </Tabs>
       </div>
     </div>
