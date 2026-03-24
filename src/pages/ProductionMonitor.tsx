@@ -51,7 +51,7 @@ const ordersData: OrderData[] = [
     ],
   },
   {
-    order: "20260324-2", product: "BT-2024-B", design: "DSN-012", qty: 150, dueDate: "2026-03-26",
+    order: "20260324-2", product: "BT-2024-B", design: "DSN-012", qty: 150, dueDate: "2026-03-26", createdDate: "2026-03-24",
     cardSummary: { scanDone: 150, packing: 0, ejected: 150, error: 0 },
     cardLogs: [
       { time: "14:30:15", barcode: "CRD-0390", serial: "CS-B04210", printedQR: "CPQ-0390", status: "ejected" },
