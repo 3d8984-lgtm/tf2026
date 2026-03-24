@@ -1,10 +1,12 @@
 import PageHeader from "@/components/PageHeader";
 import { useLang } from "@/contexts/LangContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Bell, Shield, Cog, Server, Cpu, Radio, Play, AlertTriangle, Plus, Pencil, Trash2, Wifi, WifiOff, ShieldCheck, Webhook, Copy, Check } from "lucide-react";
+import { Users, Bell, Shield, Cog, Server, Cpu, Radio, Play, AlertTriangle, Plus, Pencil, Trash2, Wifi, WifiOff, ShieldCheck, Webhook, Copy, Check, Truck, ArrowUpRight } from "lucide-react";
 import InspectionStandards from "@/components/InspectionStandards";
 import UserManagement from "@/components/UserManagement";
 import WebhookSettings from "@/components/WebhookSettings";
+import CourierSettings from "@/components/CourierSettings";
+import SiteCallbackSettings from "@/components/SiteCallbackSettings";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -125,6 +127,8 @@ export default function SystemSettings() {
     { value: "alarms", icon: AlertTriangle, label: t("settings.alarms") },
     { value: "inspection", icon: ShieldCheck, label: t("settings.inspection") },
     { value: "webhook", icon: Webhook, label: t("settings.webhook") },
+    { value: "courier", icon: Truck, label: isKo ? "택배사 연동" : "快递对接" },
+    { value: "callback", icon: ArrowUpRight, label: isKo ? "A사이트 회신" : "A站点回调" },
   ];
 
   return (
@@ -132,7 +136,7 @@ export default function SystemSettings() {
       <PageHeader title={t("settings.title")} description={t("settings.desc")} />
       <div className="p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-4 md:grid-cols-9 mb-6 h-auto">
+          <TabsList className="grid grid-cols-4 md:grid-cols-11 mb-6 h-auto">
             {tabItems.map(tab => (
               <TabsTrigger key={tab.value} value={tab.value} className="flex items-center gap-1.5 text-xs py-2">
                 <tab.icon className="w-3.5 h-3.5" />
@@ -413,6 +417,16 @@ export default function SystemSettings() {
           {/* Webhook */}
           <TabsContent value="webhook">
             <WebhookSettings />
+          </TabsContent>
+
+          {/* Courier Integration */}
+          <TabsContent value="courier">
+            <CourierSettings />
+          </TabsContent>
+
+          {/* Site A Callback */}
+          <TabsContent value="callback">
+            <SiteCallbackSettings />
           </TabsContent>
         </Tabs>
       </div>
