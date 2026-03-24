@@ -41,6 +41,7 @@ export default function FileUpload() {
     { col: "O", category: isKo ? "택배송장정보" : "快递面单信息", key: "phone", label: isKo ? "연락처" : "联系方式" },
     { col: "P", category: isKo ? "택배송장정보" : "快递面单信息", key: "address", label: isKo ? "주소" : "地址" },
     { col: "Q", category: isKo ? "택배송장정보" : "快递面单信息", key: "zipcode", label: isKo ? "우편번호" : "邮编" },
+    { col: "R", category: isKo ? "프로젝트 관리" : "项目管理", key: "project_deadline", label: isKo ? "프로젝트 완료일" : "项目完成日" },
   ];
 
   const categoryBadges = [
