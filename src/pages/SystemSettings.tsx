@@ -119,10 +119,16 @@ export default function SystemSettings() {
   };
 
   const generalGroups = [
-    { icon: Users, label: t("settings.userMgmt"), desc: t("settings.userMgmtDesc"), tab: "users" },
-    { icon: Shield, label: t("settings.permissions"), desc: t("settings.permissionsDesc"), tab: "users" },
-    { icon: Bell, label: t("settings.notifications"), desc: t("settings.notificationsDesc"), tab: "alarms" },
-    { icon: Cog, label: t("settings.system"), desc: t("settings.systemDesc"), tab: "equipment" },
+    { icon: Users, label: t("settings.userMgmt"), desc: isKo ? "사용자 승인, 역할 및 권한 관리" : "用户审批、角色及权限管理", tab: "users" },
+    { icon: Server, label: t("settings.equipment"), desc: isKo ? "장비 정보, PLC IP, 프로토콜 설정" : "设备信息、PLC IP、协议设置", tab: "equipment" },
+    { icon: Cpu, label: t("settings.plcTags"), desc: isKo ? "PLC 태그 주소, 데이터 타입 맵핑" : "PLC标签地址、数据类型映射", tab: "plcTags" },
+    { icon: Radio, label: t("settings.sensors"), desc: isKo ? "센서 신호 정의, 정상/알람 조건 설정" : "传感器信号定义、正常/报警条件设置", tab: "sensors" },
+    { icon: Play, label: t("settings.commands"), desc: isKo ? "장비 제어 명령 및 권한 설정" : "设备控制命令及权限设置", tab: "commands" },
+    { icon: AlertTriangle, label: t("settings.alarms"), desc: isKo ? "알람 조건, 알림 대상, 라인 정지 규칙" : "报警条件、通知对象、停线规则", tab: "alarms" },
+    { icon: ShieldCheck, label: t("settings.inspection"), desc: isKo ? "검수 기준 및 주문별 예외 기준 관리" : "检验标准及订单例外标准管理", tab: "inspection" },
+    { icon: Webhook, label: t("settings.webhook"), desc: isKo ? "수신 웹훅 로그 확인 및 관리" : "接收Webhook日志查看及管理", tab: "webhook" },
+    { icon: Truck, label: isKo ? "택배사 연동" : "快递对接", desc: isKo ? "4PX, YunExpress 등 택배사 API 설정" : "4PX、云途等快递公司API设置", tab: "courier" },
+    { icon: ArrowUpRight, label: isKo ? "A사이트 회신" : "A站点回调", desc: isKo ? "A 사이트 콜백 URL 및 자동 전송 설정" : "A站点回调URL及自动发送设置", tab: "callback" },
   ];
 
   const tabItems = [
@@ -155,13 +161,13 @@ export default function SystemSettings() {
 
           {/* General */}
           <TabsContent value="general">
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {generalGroups.map((g, i) => (
                 <div key={i} onClick={() => setActiveTab(g.tab)} className="kpi-card section-enter cursor-pointer hover:border-primary/30 flex items-center gap-4" style={{ animationDelay: `${i * 60}ms` }}>
-                  <div className="p-3 rounded-lg" style={{ background: "hsl(var(--primary) / 0.08)" }}>
+                  <div className="p-3 rounded-lg shrink-0" style={{ background: "hsl(var(--primary) / 0.08)" }}>
                     <g.icon className="w-6 h-6 text-primary" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="font-medium">{g.label}</p>
                     <p className="text-sm text-muted-foreground">{g.desc}</p>
                   </div>
