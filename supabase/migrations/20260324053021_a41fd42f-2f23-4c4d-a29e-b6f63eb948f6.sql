@@ -1,0 +1,1 @@
+ALTER TABLE public.orders ADD COLUMN project_completed_at date NULL;
