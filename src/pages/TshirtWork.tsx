@@ -16,6 +16,7 @@ interface OrderItem {
   product: string;
   design: string;
   size: string;
+  color: string;
   total: number;
   done: number;
   fail: number;
@@ -24,11 +25,11 @@ interface OrderItem {
 }
 
 const mockOrders: OrderItem[] = [
-  { id: "WO-001", orderNo: "ORD-2024-1582", product: "BT-2024-A", design: "DSN-047", size: "L", total: 200, done: 142, fail: 3, priority: "high", dueDate: "2024-03-25" },
-  { id: "WO-002", orderNo: "ORD-2024-1583", product: "BT-2024-B", design: "DSN-012", size: "M", total: 150, done: 150, fail: 0, priority: "medium", dueDate: "2024-03-26" },
-  { id: "WO-003", orderNo: "ORD-2024-1584", product: "BT-2024-A", design: "DSN-047", size: "XL", total: 100, done: 37, fail: 1, priority: "high", dueDate: "2024-03-25" },
-  { id: "WO-004", orderNo: "ORD-2024-1585", product: "BT-2024-C", design: "DSN-091", size: "M", total: 300, done: 0, fail: 0, priority: "medium", dueDate: "2024-03-27" },
-  { id: "WO-005", orderNo: "ORD-2024-1586", product: "BT-2024-A", design: "DSN-047", size: "S", total: 80, done: 80, fail: 2, priority: "low", dueDate: "2024-03-28" },
+  { id: "WO-001", orderNo: "ORD-2024-1582", product: "BT-2024-A", design: "DSN-047", size: "L", color: "Black", total: 200, done: 142, fail: 3, priority: "high", dueDate: "2024-03-25" },
+  { id: "WO-002", orderNo: "ORD-2024-1583", product: "BT-2024-B", design: "DSN-012", size: "M", color: "White", total: 150, done: 150, fail: 0, priority: "medium", dueDate: "2024-03-26" },
+  { id: "WO-003", orderNo: "ORD-2024-1584", product: "BT-2024-A", design: "DSN-047", size: "XL", color: "Navy", total: 100, done: 37, fail: 1, priority: "high", dueDate: "2024-03-25" },
+  { id: "WO-004", orderNo: "ORD-2024-1585", product: "BT-2024-C", design: "DSN-091", size: "M", color: "Gray", total: 300, done: 0, fail: 0, priority: "medium", dueDate: "2024-03-27" },
+  { id: "WO-005", orderNo: "ORD-2024-1586", product: "BT-2024-A", design: "DSN-047", size: "S", color: "Black", total: 80, done: 80, fail: 2, priority: "low", dueDate: "2024-03-28" },
 ];
 
 const mockLookup: Record<string, { product: string; design: string }> = {
@@ -47,6 +48,12 @@ const mockHoloQR: Record<string, { product: string; design: string; used: boolea
   "HQR-A0930": { product: "BT-2024-A", design: "DSN-047", used: false },
   "HQR-A0929": { product: "BT-2024-A", design: "DSN-047", used: true },
   "HQR-A0928": { product: "BT-2024-B", design: "DSN-012", used: false },
+};
+const mockTshirtQR: Record<string, { product: string; color: string; size: string }> = {
+  "TSH-001": { product: "BT-2024-A", color: "Black", size: "L" },
+  "TSH-002": { product: "BT-2024-A", color: "Black", size: "XL" },
+  "TSH-003": { product: "BT-2024-B", color: "White", size: "M" },
+  "TSH-004": { product: "BT-2024-A", color: "Navy", size: "L" },
 };
 
 function ProgressBar({ done, total, fail, defectLabel }: { done: number; total: number; fail: number; defectLabel: string }) {
@@ -74,6 +81,7 @@ export default function TshirtWork() {
   const isKo = lang === "ko";
 
   const steps = [
+    { key: "tshirt", label: t("tshirtWork.tshirtScan"), icon: Shirt, placeholder: isKo ? "티셔츠 QR을 스캔하세요" : "请扫描T恤QR" },
     { key: "silicon", label: t("tshirtWork.siliconQR"), icon: Sticker, placeholder: isKo ? "실리콘 마크 QR을 스캔하세요" : "请扫描硅胶标QR" },
     { key: "design", label: t("tshirtWork.designQR"), icon: QrCode, placeholder: isKo ? "디자인 QR을 스캔하세요" : "请扫描设计QR" },
     { key: "hologram", label: t("tshirtWork.hologramQR"), icon: Hash, placeholder: isKo ? "홀로그램 QR을 스캔하세요" : "请扫描全息QR" },
@@ -81,8 +89,8 @@ export default function TshirtWork() {
 
   const [selectedOrder, setSelectedOrder] = useState<OrderItem | null>(null);
   const [scanValue, setScanValue] = useState("");
-  const [stepStatuses, setStepStatuses] = useState<StepStatus[]>(["waiting", "waiting", "waiting"]);
-  const [scannedValues, setScannedValues] = useState<string[]>(["", "", ""]);
+  const [stepStatuses, setStepStatuses] = useState<StepStatus[]>(["waiting", "waiting", "waiting", "waiting"]);
+  const [scannedValues, setScannedValues] = useState<string[]>(["", "", "", ""]);
   const [currentStep, setCurrentStep] = useState(0);
   const [matchedProduct, setMatchedProduct] = useState<{ product: string; design: string } | null>(null);
   const [logoVerified, setLogoVerified] = useState(false);
@@ -100,27 +108,33 @@ export default function TshirtWork() {
   }, [currentStep, selectedOrder, allDone]);
 
   const resetScan = useCallback(() => {
-    setScanValue(""); setStepStatuses(["waiting", "waiting", "waiting"]); setScannedValues(["", "", ""]);
+    setScanValue(""); setStepStatuses(["waiting", "waiting", "waiting", "waiting"]); setScannedValues(["", "", "", ""]);
     setCurrentStep(0); setMatchedProduct(null); setLogoVerified(false); setFailReason(""); setProcessing(false);
     setTimeout(() => inputRef.current?.focus(), 50);
   }, []);
 
-  const processStep = useCallback((step: number, value: string, baseProduct: { product: string; design: string } | null) => {
+  const processStep = useCallback((step: number, value: string, baseProduct: { product: string; design: string } | null, order: OrderItem) => {
     setProcessing(true);
     setStepStatuses(prev => { const n = [...prev]; n[step] = "scanning"; return n; });
     setScannedValues(prev => { const n = [...prev]; n[step] = value; return n; });
     setTimeout(() => {
       let pass = false; let reason = "";
       if (step === 0) {
+        // T-shirt (color/size) verification
+        const found = mockTshirtQR[value];
+        if (found && found.product === order.product && found.color === order.color && found.size === order.size) { pass = true; }
+        else if (!found) reason = isKo ? `티셔츠 QR [${value}] 기준 데이터에 없음` : `T恤QR [${value}] 基准数据中不存在`;
+        else reason = isKo ? `티셔츠 색상/사이즈 불일치 (${found.color}/${found.size} ≠ ${order.color}/${order.size})` : `T恤颜色/尺码不匹配 (${found.color}/${found.size} ≠ ${order.color}/${order.size})`;
+      } else if (step === 1) {
         const found = mockLookup[value];
         if (found) { pass = true; setMatchedProduct(found); }
         else reason = isKo ? `실리콘 QR [${value}] 기준 데이터에 없음` : `硅胶QR [${value}] 基准数据中不存在`;
-      } else if (step === 1) {
+      } else if (step === 2) {
         const found = mockDesignQR[value];
         if (found && baseProduct && found.product === baseProduct.product && found.design === baseProduct.design) pass = true;
         else if (!found) reason = isKo ? `디자인 QR [${value}] 기준 데이터에 없음` : `设计QR [${value}] 基准数据中不存在`;
         else reason = isKo ? "디자인 QR 상품/디자인코드 불일치" : "设计QR 商品/设计代码不匹配";
-      } else if (step === 2) {
+      } else if (step === 3) {
         const found = mockHoloQR[value];
         if (found && baseProduct && found.product === baseProduct.product && found.design === baseProduct.design && !found.used) { pass = true; setLogoVerified(true); }
         else if (!found) reason = isKo ? `홀로그램 QR [${value}] 기준 데이터에 없음` : `全息QR [${value}] 基准数据中不存在`;
@@ -129,7 +143,7 @@ export default function TshirtWork() {
       }
       setStepStatuses(prev => { const n = [...prev]; n[step] = pass ? "pass" : "fail"; return n; });
       if (!pass) { setFailReason(reason); setProcessing(false); }
-      else if (step < 2) { setCurrentStep(step + 1); setProcessing(false); }
+      else if (step < 3) { setCurrentStep(step + 1); setProcessing(false); }
       else { setProcessing(false); }
     }, 400);
   }, [isKo]);
@@ -139,15 +153,15 @@ export default function TshirtWork() {
     if (!value || processing) return;
     setScanValue("");
     if (hasFail || allDone) { resetScan(); return; }
-    processStep(currentStep, value, matchedProduct);
-  }, [scanValue, processing, currentStep, matchedProduct, hasFail, allDone, processStep, resetScan]);
+    processStep(currentStep, value, matchedProduct, selectedOrder!);
+  }, [scanValue, processing, currentStep, matchedProduct, selectedOrder, hasFail, allDone, processStep, resetScan]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === "Enter") { e.preventDefault(); handleScan(); } };
 
   const handleConfirmAttach = () => {
     const now = new Date();
     const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
-    setWorkLog(prev => [{ time, result: t("status.attachDone"), silicon: scannedValues[0], hologram: scannedValues[2] }, ...prev]);
+    setWorkLog(prev => [{ time, result: t("status.attachDone"), silicon: scannedValues[1], hologram: scannedValues[3] }, ...prev]);
     resetScan();
   };
 
@@ -201,6 +215,7 @@ export default function TshirtWork() {
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
                         <span>{t("tshirtWork.product")}: <strong className="text-foreground">{order.product}</strong></span>
                         <span>{t("tshirtWork.design")}: <strong className="text-foreground">{order.design}</strong></span>
+                        <span>{t("tshirtWork.color")}: <strong className="text-foreground">{order.color}</strong></span>
                         <span>{t("tshirtWork.size")}: {order.size}</span>
                         <span>{t("tshirtWork.dueDate")}: {order.dueDate}</span>
                       </div>
@@ -258,6 +273,7 @@ export default function TshirtWork() {
           </div>
           <div><p className="text-xs text-muted-foreground">{t("tshirtWork.product")}</p><p className="text-sm font-semibold">{selectedOrder.product}</p></div>
           <div><p className="text-xs text-muted-foreground">{t("tshirtWork.design")}</p><p className="text-sm font-semibold">{selectedOrder.design}</p></div>
+          <div><p className="text-xs text-muted-foreground">{t("tshirtWork.color")}</p><p className="text-sm font-semibold">{selectedOrder.color}</p></div>
           <div><p className="text-xs text-muted-foreground">{t("tshirtWork.size")}</p><p className="text-sm font-semibold">{selectedOrder.size}</p></div>
           <div><p className="text-xs text-muted-foreground">{t("tshirtWork.dueDate")}</p><p className="text-sm font-semibold">{selectedOrder.dueDate}</p></div>
           <PriorityBadge priority={selectedOrder.priority} t={t} />
