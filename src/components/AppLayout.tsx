@@ -181,7 +181,7 @@ export default function AppLayout() {
               )}
             </>
           ) : (
-            menuKeys.map(({ path, icon: Icon, key }) => (
+            visibleMenuKeys.map(({ path, icon: Icon, key }) => (
               <NavLink
                 key={path}
                 to={path}
