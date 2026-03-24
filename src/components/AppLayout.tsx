@@ -1,9 +1,9 @@
-import { useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { useState, useMemo } from "react";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Upload, Database,
   Shirt, Activity, AlertTriangle, FileBarChart, Settings,
-  ChevronLeft, ChevronRight, ScanLine, Globe, LogOut, Truck
+  ChevronLeft, ChevronRight, ScanLine, Globe, LogOut, Truck, Search
 } from "lucide-react";
 import { useLang, type Lang } from "@/contexts/LangContext";
 import { useAuth } from "@/hooks/useAuth";
