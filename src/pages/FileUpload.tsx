@@ -41,6 +41,7 @@ export default function FileUpload() {
     { col: "O", category: isKo ? "택배송장정보" : "快递面单信息", key: "phone", label: isKo ? "연락처" : "联系方式" },
     { col: "P", category: isKo ? "택배송장정보" : "快递面单信息", key: "address", label: isKo ? "주소" : "地址" },
     { col: "Q", category: isKo ? "택배송장정보" : "快递面单信息", key: "zipcode", label: isKo ? "우편번호" : "邮编" },
+    { col: "R", category: isKo ? "프로젝트 관리" : "项目管理", key: "project_deadline", label: isKo ? "프로젝트 완료일" : "项目完成日" },
   ];
 
   const categoryBadges = [
@@ -48,6 +49,7 @@ export default function FileUpload() {
     { label: isKo ? "티셔츠 작업용" : "T恤作业用", cols: "C~I" },
     { label: isKo ? "카드 포장용" : "卡片包装用", cols: "J~L" },
     { label: isKo ? "택배송장정보" : "快递面单信息", cols: "M~Q" },
+    { label: isKo ? "프로젝트 관리" : "项目管理", cols: "R" },
   ];
 
   const handleDownloadTemplate = () => {
@@ -81,6 +83,7 @@ export default function FileUpload() {
         { col: "O", category: isKo ? "택배송장정보" : "快递面单信息", label: isKo ? "연락처" : "联系方式", filled: 860, empty: 1540, error: 0 },
         { col: "P", category: isKo ? "택배송장정보" : "快递面单信息", label: isKo ? "주소" : "地址", filled: 860, empty: 1540, error: 0 },
         { col: "Q", category: isKo ? "택배송장정보" : "快递面单信息", label: isKo ? "우편번호" : "邮编", filled: 858, empty: 1542, error: 0 },
+        { col: "R", category: isKo ? "프로젝트 관리" : "项目管理", label: isKo ? "프로젝트 완료일" : "项目完成日", filled: 2400, empty: 0, error: 0 },
       ],
     });
   };
@@ -92,10 +95,10 @@ export default function FileUpload() {
 
   // Mock API sync history
   const apiSyncHistory = [
-    { time: "2024-03-15 09:00", orders: 45, new: 12, updated: 33, errors: 0, status: "success" },
-    { time: "2024-03-15 06:00", orders: 38, new: 8, updated: 30, errors: 0, status: "success" },
-    { time: "2024-03-14 21:00", orders: 52, new: 15, updated: 35, errors: 2, status: "partial" },
-    { time: "2024-03-14 18:00", orders: 41, new: 10, updated: 31, errors: 0, status: "success" },
+    { time: "2024-03-15 09:00", orders: 45, new: 12, updated: 33, errors: 0, deadline: "2024-04-15", status: "success" },
+    { time: "2024-03-15 06:00", orders: 38, new: 8, updated: 30, errors: 0, deadline: "2024-04-10", status: "success" },
+    { time: "2024-03-14 21:00", orders: 52, new: 15, updated: 35, errors: 2, deadline: "2024-04-12", status: "partial" },
+    { time: "2024-03-14 18:00", orders: 41, new: 10, updated: 31, errors: 0, deadline: "2024-04-08", status: "success" },
   ];
 
   const uploadHistory = [
@@ -193,6 +196,7 @@ export default function FileUpload() {
                       <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "신규" : "新增"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "업데이트" : "更新"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "오류" : "异常"}</th>
+                      <th className="pb-2 font-medium text-muted-foreground">{isKo ? "프로젝트 완료일" : "项目完成日"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "결과" : "结果"}</th>
                     </tr>
                   </thead>
@@ -209,6 +213,7 @@ export default function FileUpload() {
                         <td className="py-2.5 text-right tabular-nums">
                           {h.errors > 0 ? <span className="text-destructive">{h.errors}</span> : "-"}
                         </td>
+                        <td className="py-2.5 text-muted-foreground">{h.deadline}</td>
                         <td className="py-2.5 text-center">
                           {h.status === "success"
                             ? <CheckCircle2 className="w-4 h-4 text-emerald-500 mx-auto" />
