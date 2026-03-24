@@ -10,7 +10,7 @@ import Auth from "@/pages/Auth";
 import Dashboard from "@/pages/Dashboard";
 import FileUpload from "@/pages/FileUpload";
 import MasterData from "@/pages/MasterData";
-import WorkOrders from "@/pages/WorkOrders";
+
 import TshirtProduction from "@/pages/TshirtProduction";
 import TshirtWork from "@/pages/TshirtWork";
 import ProductionMonitor from "@/pages/ProductionMonitor";
