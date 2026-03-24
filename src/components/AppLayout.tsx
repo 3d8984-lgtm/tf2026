@@ -29,8 +29,17 @@ const langOptions: { value: Lang; label: string; flag: string }[] = [
 
 export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
+  const [menuSearch, setMenuSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const { lang, setLang, t } = useLang();
   const { signOut, user } = useAuth();
+  const navigate = useNavigate();
+
+  const filteredMenu = useMemo(() => {
+    if (!menuSearch.trim()) return menuKeys;
+    const q = menuSearch.toLowerCase();
+    return menuKeys.filter(({ key }) => t(key).toLowerCase().includes(q));
+  }, [menuSearch, lang]);
 
   return (
     <div className="flex h-screen overflow-hidden">
