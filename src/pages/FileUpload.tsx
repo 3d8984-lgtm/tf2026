@@ -196,6 +196,7 @@ export default function FileUpload() {
                       <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "신규" : "新增"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "업데이트" : "更新"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "오류" : "异常"}</th>
+                      <th className="pb-2 font-medium text-muted-foreground">{isKo ? "프로젝트 완료일" : "项目完成日"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "결과" : "结果"}</th>
                     </tr>
                   </thead>
