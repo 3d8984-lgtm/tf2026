@@ -76,21 +76,39 @@ export default function AppLayout() {
   const { signOut, user } = useAuth();
   const navigate = useNavigate();
 
+  // Korean chosung (초성) search support
+  const CHOSUNG = ["ㄱ","ㄲ","ㄴ","ㄷ","ㄸ","ㄹ","ㅁ","ㅂ","ㅃ","ㅅ","ㅆ","ㅇ","ㅈ","ㅉ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
+  const getChosung = (str: string) => str.split("").map(ch => {
+    const code = ch.charCodeAt(0) - 0xAC00;
+    if (code < 0 || code > 11171) return ch;
+    return CHOSUNG[Math.floor(code / 588)];
+  }).join("");
+  const isAllChosung = (str: string) => str.split("").every(ch => CHOSUNG.includes(ch));
+
+  const matchSearch = (label: string, query: string) => {
+    const lower = label.toLowerCase();
+    const q = query.toLowerCase();
+    if (lower.includes(q)) return true;
+    // chosung matching: if query is all chosung chars, match against chosung of label
+    if (isAllChosung(q) && getChosung(label).includes(q)) return true;
+    return false;
+  };
+
   const searchResults = useMemo((): SearchResult[] => {
-    const q = menuSearch.trim().toLowerCase();
+    const q = menuSearch.trim();
     if (!q) return [];
     const results: SearchResult[] = [];
     for (const item of menuKeys) {
       const parentLabel = t(item.key);
-      const parentMatch = parentLabel.toLowerCase().includes(q);
+      const parentMatch = matchSearch(parentLabel, q);
       if (parentMatch) {
         results.push({ path: item.path, icon: item.icon, label: parentLabel });
       }
       if (item.children) {
         for (const child of item.children) {
           const childLabel = child.label[lang];
-          if (childLabel.toLowerCase().includes(q) || parentMatch) {
-            if (!parentMatch || childLabel.toLowerCase().includes(q)) {
+          if (matchSearch(childLabel, q) || parentMatch) {
+            if (!parentMatch || matchSearch(childLabel, q)) {
               results.push({ path: item.path, icon: item.icon, label: childLabel, parentLabel, tab: child.tab });
             }
           }
