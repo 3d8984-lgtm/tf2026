@@ -128,7 +128,7 @@ export default function SystemSettings() {
     { icon: ShieldCheck, label: t("settings.inspection"), desc: isKo ? "검수 기준 및 주문별 예외 기준 관리" : "检验标准及订单例外标准管理", tab: "inspection" },
     { icon: Webhook, label: t("settings.webhook"), desc: isKo ? "수신 웹훅 로그 확인 및 관리" : "接收Webhook日志查看及管理", tab: "webhook" },
     { icon: Truck, label: isKo ? "택배사 연동" : "快递对接", desc: isKo ? "4PX, YunExpress 등 택배사 API 설정" : "4PX、云途等快递公司API设置", tab: "courier" },
-    { icon: ArrowUpRight, label: isKo ? "A사이트 회신" : "A站点回调", desc: isKo ? "A 사이트 콜백 URL 및 자동 전송 설정" : "A站点回调URL及自动发送设置", tab: "callback" },
+    { icon: ArrowUpRight, label: isKo ? "TWINMETA 회신" : "TWINMETA回调", desc: isKo ? "TWINMETA 사이트 콜백 URL 및 자동 전송 설정" : "TWINMETA站点回调URL及自动发送设置", tab: "callback" },
   ];
 
   const tabItems = [
