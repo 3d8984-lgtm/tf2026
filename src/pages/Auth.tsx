@@ -12,6 +12,7 @@ export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const { t } = useLang();
@@ -25,7 +26,7 @@ export default function Auth() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       } else {
-        const { error } = await supabase.auth.signUp({ email, password, options: { data: { name } } });
+        const { error } = await supabase.auth.signUp({ email, password, options: { data: { name, phone } } });
         if (error) throw error;
         toast({
           title: t("auth.signupSuccess"),
@@ -58,18 +59,31 @@ export default function Auth() {
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border bg-card p-6 shadow-sm">
           {!isLogin && (
-            <div className="space-y-2">
-              <Label htmlFor="name">{t("auth.name")}</Label>
-              <Input
-                id="name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t("auth.namePlaceholder")}
-                required={!isLogin}
-                maxLength={50}
-              />
-            </div>
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="name">{t("auth.name")}</Label>
+                <Input
+                  id="name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={t("auth.namePlaceholder")}
+                  required={!isLogin}
+                  maxLength={50}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">{t("auth.phone")}</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder={t("auth.phonePlaceholder")}
+                  maxLength={20}
+                />
+              </div>
+            </>
           )}
           <div className="space-y-2">
             <Label htmlFor="email">{t("auth.email")}</Label>
