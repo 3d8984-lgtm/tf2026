@@ -417,7 +417,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "settings.webhook": "Webhook",
     "webhook.title": "Webhook 수신 설정",
     "webhook.url": "Webhook URL",
-    "webhook.urlDesc": "A 사이트에서 이 URL로 주문 데이터를 전송하세요",
+    "webhook.urlDesc": "TWINMETA 사이트에서 이 URL로 주문 데이터를 전송하세요",
     "webhook.copied": "복사됨",
     "webhook.copy": "복사",
     "webhook.payloadExample": "요청 예시 (JSON)",
