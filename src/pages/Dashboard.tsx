@@ -12,8 +12,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from "date-fns";
+import { format, startOfWeek, endOfWeek, addDays } from "date-fns";
 import { ko, zhCN } from "date-fns/locale";
+import { useOrderStats, useOrders, useShipments } from "@/hooks/useDbData";
 
 type Period = "daily" | "weekly" | "monthly" | "custom";
 
@@ -23,12 +24,15 @@ export default function Dashboard() {
   const isKo = lang === "ko";
   const locale = isKo ? ko : zhCN;
 
-  // Date states
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [rangeFrom, setRangeFrom] = useState<Date>(addDays(new Date(), -7));
   const [rangeTo, setRangeTo] = useState<Date>(new Date());
 
-  // Formatted display
+  // DB data
+  const { data: stats, isLoading: statsLoading } = useOrderStats();
+  const { data: orders } = useOrders();
+  const { data: shipments } = useShipments();
+
   const getDateDisplay = () => {
     switch (period) {
       case "daily":
@@ -45,64 +49,6 @@ export default function Dashboard() {
     }
   };
 
-  /* ── Period-dependent data ── */
-  const kpiByPeriod: Record<Period, { orders: string; prod: string; set: string; ship: string; errors: string; orderChange: string; prodPct: string; setPct: string; shipPct: string; errChange: string }> = {
-    daily: { orders: "1,240", prod: "876", set: "654", ship: "512", errors: "7", orderChange: "+8.3%", prodPct: "70.6%", setPct: "52.7%", shipPct: "41.3%", errChange: "-3" },
-    weekly: { orders: "8,430", prod: "6,218", set: "4,892", ship: "3,740", errors: "42", orderChange: "+5.1%", prodPct: "73.8%", setPct: "58.1%", shipPct: "44.4%", errChange: "-12" },
-    monthly: { orders: "34,620", prod: "26,480", set: "21,350", ship: "18,200", errors: "156", orderChange: "+12.7%", prodPct: "76.5%", setPct: "61.7%", shipPct: "52.6%", errChange: "-28" },
-    custom: { orders: "5,820", prod: "4,130", set: "3,240", ship: "2,680", errors: "31", orderChange: "+6.4%", prodPct: "71.0%", setPct: "55.6%", shipPct: "46.1%", errChange: "-8" },
-  };
-  const kpi = kpiByPeriod[period];
-
-  const chartDataByPeriod: Record<Period, { label: string; tshirt: number; card: number; set: number }[]> = {
-    daily: [
-      { label: "08", tshirt: 45, card: 62, set: 38 },
-      { label: "09", tshirt: 78, card: 85, set: 65 },
-      { label: "10", tshirt: 92, card: 98, set: 80 },
-      { label: "11", tshirt: 85, card: 90, set: 72 },
-      { label: "12", tshirt: 30, card: 35, set: 25 },
-      { label: "13", tshirt: 88, card: 95, set: 78 },
-      { label: "14", tshirt: 95, card: 102, set: 85 },
-      { label: "15", tshirt: 72, card: 78, set: 60 },
-    ],
-    weekly: [
-      { label: isKo ? "월" : "一", tshirt: 420, card: 480, set: 380 },
-      { label: isKo ? "화" : "二", tshirt: 510, card: 560, set: 440 },
-      { label: isKo ? "수" : "三", tshirt: 480, card: 530, set: 410 },
-      { label: isKo ? "목" : "四", tshirt: 530, card: 590, set: 470 },
-      { label: isKo ? "금" : "五", tshirt: 490, card: 540, set: 430 },
-      { label: isKo ? "토" : "六", tshirt: 320, card: 360, set: 280 },
-      { label: isKo ? "일" : "日", tshirt: 0, card: 0, set: 0 },
-    ],
-    monthly: [
-      { label: "1W", tshirt: 2400, card: 2800, set: 2100 },
-      { label: "2W", tshirt: 2650, card: 3000, set: 2350 },
-      { label: "3W", tshirt: 2500, card: 2900, set: 2200 },
-      { label: "4W", tshirt: 2700, card: 3100, set: 2500 },
-    ],
-    custom: [
-      { label: format(rangeFrom, "M/d"), tshirt: 380, card: 420, set: 310 },
-      { label: format(addDays(rangeFrom, 1), "M/d"), tshirt: 450, card: 490, set: 370 },
-      { label: format(addDays(rangeFrom, 2), "M/d"), tshirt: 520, card: 560, set: 430 },
-      { label: format(addDays(rangeFrom, 3), "M/d"), tshirt: 410, card: 470, set: 340 },
-      { label: format(addDays(rangeFrom, 4), "M/d"), tshirt: 490, card: 530, set: 400 },
-      { label: format(addDays(rangeFrom, 5), "M/d"), tshirt: 460, card: 510, set: 380 },
-    ],
-  };
-  const chartData = chartDataByPeriod[period].map(d => ({
-    label: d.label,
-    [t("dashboard.tshirt")]: d.tshirt,
-    [t("dashboard.card")]: d.card,
-    [t("dashboard.set")]: d.set,
-  }));
-
-  const chartTitle: Record<Period, string> = {
-    daily: isKo ? "시간대별 생산량" : "每小时产量",
-    weekly: isKo ? "요일별 생산량" : "每日产量",
-    monthly: isKo ? "주차별 생산량" : "每周产量",
-    custom: isKo ? "일별 생산량" : "每日产量",
-  };
-
   const changeLabel = period === "daily"
     ? t("dashboard.vsPrev")
     : period === "weekly"
@@ -111,43 +57,40 @@ export default function Dashboard() {
         ? (isKo ? "전월 대비" : "与上月对比")
         : (isKo ? "이전 기간 대비" : "与前期对比");
 
-  const progressByPeriod: Record<Period, number[]> = {
-    daily: [78, 85, 62, 45],
-    weekly: [82, 88, 68, 52],
-    monthly: [86, 91, 74, 60],
-    custom: [80, 86, 65, 49],
-  };
-  const progressValues = progressByPeriod[period];
+  // Chart data (still mock for now as time-series aggregation needs more complex queries)
+  const chartData = [
+    { label: "08", [t("dashboard.tshirt")]: 45, [t("dashboard.card")]: 62, [t("dashboard.set")]: 38 },
+    { label: "09", [t("dashboard.tshirt")]: 78, [t("dashboard.card")]: 85, [t("dashboard.set")]: 65 },
+    { label: "10", [t("dashboard.tshirt")]: 92, [t("dashboard.card")]: 98, [t("dashboard.set")]: 80 },
+    { label: "11", [t("dashboard.tshirt")]: 85, [t("dashboard.card")]: 90, [t("dashboard.set")]: 72 },
+    { label: "12", [t("dashboard.tshirt")]: 30, [t("dashboard.card")]: 35, [t("dashboard.set")]: 25 },
+    { label: "13", [t("dashboard.tshirt")]: 88, [t("dashboard.card")]: 95, [t("dashboard.set")]: 78 },
+    { label: "14", [t("dashboard.tshirt")]: 95, [t("dashboard.card")]: 102, [t("dashboard.set")]: 85 },
+    { label: "15", [t("dashboard.tshirt")]: 72, [t("dashboard.card")]: 78, [t("dashboard.set")]: 60 },
+  ];
 
+  // Process progress from DB stats
+  const totalQty = stats?.totalQty || 1;
   const processProgress = [
-    { name: t("process.tshirt"), value: progressValues[0], color: "hsl(205, 75%, 42%)" },
-    { name: t("process.card"), value: progressValues[1], color: "hsl(152, 60%, 42%)" },
-    { name: t("process.set"), value: progressValues[2], color: "hsl(38, 92%, 50%)" },
-    { name: t("process.shipping"), value: progressValues[3], color: "hsl(280, 55%, 52%)" },
+    { name: t("process.tshirt"), value: Math.round(((stats?.prodDone ?? 0) / totalQty) * 100), color: "hsl(205, 75%, 42%)" },
+    { name: t("process.card"), value: Math.round(((stats?.prodDone ?? 0) / totalQty) * 100), color: "hsl(152, 60%, 42%)" },
+    { name: t("process.set"), value: Math.round(((stats?.setDone ?? 0) / totalQty) * 100), color: "hsl(38, 92%, 50%)" },
+    { name: t("process.shipping"), value: Math.round(((stats?.shipDone ?? 0) / Math.max(stats?.totalOrders ?? 1, 1)) * 100), color: "hsl(280, 55%, 52%)" },
   ];
 
-  const machineData = [
-    { name: isKo ? "카드 포장기 A" : "卡片包装机 A", status: t("status.running"), uptime: "97.2%", count: 3842 },
-    { name: isKo ? "세트 포장기 B" : "套装包装机 B", status: t("status.running"), uptime: "94.8%", count: 2156 },
-    { name: isKo ? "택배봉투기 C" : "快递包装机 C", status: t("status.paused"), uptime: "88.5%", count: 1830 },
-  ];
-
-  const recentExceptions = [
-    { id: "EX-0231", type: t("defects.qrMismatch"), process: t("process.tshirt"), time: "14:32", severity: "high" },
-    { id: "EX-0230", type: t("defects.duplicateQR"), process: t("process.card"), time: "14:15", severity: "high" },
-    { id: "EX-0229", type: t("defects.commError"), process: isKo ? "택배봉투기" : "快递包装机", time: "13:58", severity: "medium" },
-    { id: "EX-0228", type: t("defects.printFail"), process: t("process.shipping"), time: "13:42", severity: "low" },
-  ];
-
-  const pendingShipments = [
-    { order: "ORD-24831", product: "BT-2024-A", design: "DSN-047", status: t("status.invoiceWait") },
-    { order: "ORD-24832", product: "BT-2024-B", design: "DSN-012", status: t("status.invoiceWait") },
-    { order: "ORD-24833", product: "BT-2024-C", design: "DSN-089", status: t("status.shipHold") },
-  ];
+  // Pending shipments from DB
+  const pendingShipmentsList = shipments
+    ?.filter(s => s.status === "pending")
+    .slice(0, 5)
+    .map(s => ({
+      order: s.orders?.external_order_id ?? "-",
+      product: s.orders?.product_code ?? "-",
+      design: s.orders?.design_code ?? "-",
+      status: t("status.invoiceWait"),
+    })) ?? [];
 
   return (
     <div>
-      {/* Header row */}
       <div className="flex flex-col gap-3 px-6 pt-6 pb-2">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <PageHeader title={t("dashboard.title")} description={t("dashboard.desc")} />
@@ -161,7 +104,6 @@ export default function Dashboard() {
           </Tabs>
         </div>
 
-        {/* Date selector row */}
         <div className="flex items-center gap-2 flex-wrap">
           <CalendarIcon className="w-4 h-4 text-muted-foreground" />
           {period === "custom" ? (
@@ -208,17 +150,18 @@ export default function Dashboard() {
       </div>
 
       <div className="p-6 space-y-6">
+        {/* KPI Cards - from DB */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-          <KpiCard icon={ClipboardList} label={period === "daily" ? t("dashboard.todayOrders") : t("dashboard.periodOrders")} value={kpi.orders} change={`${changeLabel} ${kpi.orderChange}`} changeType="positive" delay={0} />
-          <KpiCard icon={Shirt} label={t("dashboard.prodDone")} value={kpi.prod} change={`${t("dashboard.vsTarget")} ${kpi.prodPct}`} changeType="neutral" delay={60} />
-          <KpiCard icon={Package} label={t("dashboard.setDone")} value={kpi.set} change={`${t("dashboard.vsTarget")} ${kpi.setPct}`} changeType="neutral" delay={120} />
-          <KpiCard icon={Truck} label={t("dashboard.shipDone")} value={kpi.ship} change={`${t("dashboard.vsTarget")} ${kpi.shipPct}`} changeType="neutral" delay={180} />
-          <KpiCard icon={AlertTriangle} label={t("dashboard.errors")} value={kpi.errors} change={`${changeLabel} ${kpi.errChange}`} changeType="positive" delay={240} />
+          <KpiCard icon={ClipboardList} label={t("dashboard.todayOrders")} value={statsLoading ? "..." : String(stats?.totalOrders ?? 0)} change={`${changeLabel}`} changeType="neutral" delay={0} />
+          <KpiCard icon={Shirt} label={t("dashboard.prodDone")} value={statsLoading ? "..." : String(stats?.prodDone ?? 0)} change={`${t("dashboard.vsTarget")}`} changeType="neutral" delay={60} />
+          <KpiCard icon={Package} label={t("dashboard.setDone")} value={statsLoading ? "..." : String(stats?.setDone ?? 0)} change={`${t("dashboard.vsTarget")}`} changeType="neutral" delay={120} />
+          <KpiCard icon={Truck} label={t("dashboard.shipDone")} value={statsLoading ? "..." : String(stats?.shipDone ?? 0)} change={`${t("dashboard.vsTarget")}`} changeType="neutral" delay={180} />
+          <KpiCard icon={AlertTriangle} label={t("dashboard.errors")} value={statsLoading ? "..." : String(stats?.errors ?? 0)} change={changeLabel} changeType={stats?.errors ? "negative" : "positive"} delay={240} />
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 kpi-card section-enter" style={{ animationDelay: "300ms" }}>
-            <h3 className="text-sm font-medium mb-4">{chartTitle[period]}</h3>
+            <h3 className="text-sm font-medium mb-4">{isKo ? "시간대별 생산량" : "每小时产量"}</h3>
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={chartData} barGap={2}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(214, 20%, 88%)" />
@@ -251,10 +194,15 @@ export default function Dashboard() {
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
+          {/* Machine status - still mock (needs separate machine table) */}
           <div className="kpi-card section-enter" style={{ animationDelay: "420ms" }}>
             <h3 className="text-sm font-medium mb-4">{t("dashboard.machineStatus")}</h3>
             <div className="space-y-3">
-              {machineData.map((m) => (
+              {[
+                { name: isKo ? "카드 포장기 A" : "卡片包装机 A", status: t("status.running"), uptime: "97.2%", count: 3842 },
+                { name: isKo ? "세트 포장기 B" : "套装包装机 B", status: t("status.running"), uptime: "94.8%", count: 2156 },
+                { name: isKo ? "택배봉투기 C" : "快递包装机 C", status: t("status.paused"), uptime: "88.5%", count: 1830 },
+              ].map((m) => (
                 <div key={m.name} className="flex items-center justify-between p-3 rounded-lg" style={{ background: "hsl(var(--surface-sunken))" }}>
                   <div>
                     <p className="text-sm font-medium">{m.name}</p>
@@ -269,36 +217,43 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {/* Recent exceptions - mock (needs defects table) */}
           <div className="kpi-card section-enter" style={{ animationDelay: "480ms" }}>
             <h3 className="text-sm font-medium mb-4">{t("dashboard.exceptions")}</h3>
             <div className="space-y-2">
-              {recentExceptions.map((e) => (
-                <div key={e.id} className="flex items-start gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer">
-                  {e.severity === "high" ? <XCircle className="w-4 h-4 mt-0.5 text-destructive shrink-0" /> :
-                   e.severity === "medium" ? <AlertTriangle className="w-4 h-4 mt-0.5 text-warning shrink-0" /> :
-                   <Clock className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />}
+              {(shipments?.filter(s => ["mismatch", "weight_fail"].includes(s.inspect_result)).slice(0, 4) ?? []).map((s, i) => (
+                <div key={s.id} className="flex items-start gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer">
+                  <XCircle className="w-4 h-4 mt-0.5 text-destructive shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{e.type}</p>
-                    <p className="text-xs text-muted-foreground">{e.process} · {e.time}</p>
+                    <p className="text-sm font-medium truncate">
+                      {s.inspect_result === "mismatch" ? (isKo ? "QR 매칭 불일치" : "QR匹配不一致") : (isKo ? "중량 이상" : "重量异常")}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{s.orders?.external_order_id} · {s.set_id}</p>
                   </div>
-                  <span className="text-xs text-muted-foreground tabular-nums">{e.id}</span>
                 </div>
               ))}
+              {(!shipments || shipments.filter(s => ["mismatch", "weight_fail"].includes(s.inspect_result)).length === 0) && (
+                <p className="text-sm text-muted-foreground text-center py-4">{isKo ? "예외 없음" : "无异常"}</p>
+              )}
             </div>
           </div>
 
+          {/* Pending shipments from DB */}
           <div className="kpi-card section-enter" style={{ animationDelay: "540ms" }}>
             <h3 className="text-sm font-medium mb-4">{t("dashboard.pendingInvoices")}</h3>
             <div className="space-y-2">
-              {pendingShipments.map((s) => (
-                <div key={s.order} className="flex items-center justify-between p-3 rounded-lg" style={{ background: "hsl(var(--surface-sunken))" }}>
+              {pendingShipmentsList.map((s, i) => (
+                <div key={i} className="flex items-center justify-between p-3 rounded-lg" style={{ background: "hsl(var(--surface-sunken))" }}>
                   <div>
                     <p className="text-sm font-medium">{s.order}</p>
                     <p className="text-xs text-muted-foreground">{s.product} · {s.design}</p>
                   </div>
-                  <span className={`status-badge ${s.status === t("status.shipHold") ? "status-warning" : "status-idle"}`}>{s.status}</span>
+                  <span className="status-badge status-idle">{s.status}</span>
                 </div>
               ))}
+              {pendingShipmentsList.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">{isKo ? "대기중인 송장 없음" : "无待处理运单"}</p>
+              )}
             </div>
           </div>
         </div>
