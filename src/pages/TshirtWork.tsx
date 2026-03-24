@@ -215,6 +215,7 @@ export default function TshirtWork() {
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
                         <span>{t("tshirtWork.product")}: <strong className="text-foreground">{order.product}</strong></span>
                         <span>{t("tshirtWork.design")}: <strong className="text-foreground">{order.design}</strong></span>
+                        <span>{t("tshirtWork.color")}: <strong className="text-foreground">{order.color}</strong></span>
                         <span>{t("tshirtWork.size")}: {order.size}</span>
                         <span>{t("tshirtWork.dueDate")}: {order.dueDate}</span>
                       </div>
