@@ -113,22 +113,28 @@ export default function TshirtWork() {
     setTimeout(() => inputRef.current?.focus(), 50);
   }, []);
 
-  const processStep = useCallback((step: number, value: string, baseProduct: { product: string; design: string } | null) => {
+  const processStep = useCallback((step: number, value: string, baseProduct: { product: string; design: string } | null, order: OrderItem) => {
     setProcessing(true);
     setStepStatuses(prev => { const n = [...prev]; n[step] = "scanning"; return n; });
     setScannedValues(prev => { const n = [...prev]; n[step] = value; return n; });
     setTimeout(() => {
       let pass = false; let reason = "";
       if (step === 0) {
+        // T-shirt (color/size) verification
+        const found = mockTshirtQR[value];
+        if (found && found.product === order.product && found.color === order.color && found.size === order.size) { pass = true; }
+        else if (!found) reason = isKo ? `티셔츠 QR [${value}] 기준 데이터에 없음` : `T恤QR [${value}] 基准数据中不存在`;
+        else reason = isKo ? `티셔츠 색상/사이즈 불일치 (${found.color}/${found.size} ≠ ${order.color}/${order.size})` : `T恤颜色/尺码不匹配 (${found.color}/${found.size} ≠ ${order.color}/${order.size})`;
+      } else if (step === 1) {
         const found = mockLookup[value];
         if (found) { pass = true; setMatchedProduct(found); }
         else reason = isKo ? `실리콘 QR [${value}] 기준 데이터에 없음` : `硅胶QR [${value}] 基准数据中不存在`;
-      } else if (step === 1) {
+      } else if (step === 2) {
         const found = mockDesignQR[value];
         if (found && baseProduct && found.product === baseProduct.product && found.design === baseProduct.design) pass = true;
         else if (!found) reason = isKo ? `디자인 QR [${value}] 기준 데이터에 없음` : `设计QR [${value}] 基准数据中不存在`;
         else reason = isKo ? "디자인 QR 상품/디자인코드 불일치" : "设计QR 商品/设计代码不匹配";
-      } else if (step === 2) {
+      } else if (step === 3) {
         const found = mockHoloQR[value];
         if (found && baseProduct && found.product === baseProduct.product && found.design === baseProduct.design && !found.used) { pass = true; setLogoVerified(true); }
         else if (!found) reason = isKo ? `홀로그램 QR [${value}] 기준 데이터에 없음` : `全息QR [${value}] 基准数据中不存在`;
@@ -137,7 +143,7 @@ export default function TshirtWork() {
       }
       setStepStatuses(prev => { const n = [...prev]; n[step] = pass ? "pass" : "fail"; return n; });
       if (!pass) { setFailReason(reason); setProcessing(false); }
-      else if (step < 2) { setCurrentStep(step + 1); setProcessing(false); }
+      else if (step < 3) { setCurrentStep(step + 1); setProcessing(false); }
       else { setProcessing(false); }
     }, 400);
   }, [isKo]);
