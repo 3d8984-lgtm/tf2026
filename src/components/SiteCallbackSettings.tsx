@@ -208,9 +208,9 @@ export default function SiteCallbackSettings() {
         </h4>
         <div className="space-y-3">
           {[
-            { key: "sync_tracking_number" as const, label: isKo ? "운송장 번호 입력 시" : "运单号输入时", desc: isKo ? "송장번호가 입력/변경되면 자동으로 A 사이트로 전송 (DB 트리거)" : "运单号输入/变更时自动发送到A站点（DB触发器）" },
-            { key: "sync_status_change" as const, label: isKo ? "배송 상태 변경 시" : "配送状态变更时", desc: isKo ? "배송 상태가 변경될 때마다 A 사이트로 전송" : "每次配送状态变更时发送到A站点" },
-            { key: "sync_delivered" as const, label: isKo ? "배달 완료 시" : "送达完成时", desc: isKo ? "최종 배달 완료 확인 시 A 사이트로 전송" : "最终确认送达时发送到A站点" },
+            { key: "sync_tracking_number" as const, label: isKo ? "운송장 번호 입력 시" : "运单号输入时", desc: isKo ? "송장번호가 입력/변경되면 자동으로 TWINMETA 사이트로 전송 (DB 트리거)" : "运单号输入/变更时自动发送到TWINMETA站点（DB触发器）" },
+            { key: "sync_status_change" as const, label: isKo ? "배송 상태 변경 시" : "配送状态变更时", desc: isKo ? "배송 상태가 변경될 때마다 TWINMETA 사이트로 전송" : "每次配送状态变更时发送到TWINMETA站点" },
+            { key: "sync_delivered" as const, label: isKo ? "배달 완료 시" : "送达完成时", desc: isKo ? "최종 배달 완료 확인 시 TWINMETA 사이트로 전송" : "最终确认送达时发送到TWINMETA站点" },
           ].map(evt => (
             <div key={evt.key} className="flex items-center justify-between py-2 px-3 rounded-md border bg-muted/30">
               <div>
