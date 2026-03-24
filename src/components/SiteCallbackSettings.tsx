@@ -194,7 +194,7 @@ export default function SiteCallbackSettings() {
               type="password"
               value={config.auth_value}
               onChange={e => update({ auth_value: e.target.value })}
-              placeholder={isKo ? "A 사이트에서 발급받은 키" : "A站点提供的密钥"}
+              placeholder={isKo ? "TWINMETA 사이트에서 발급받은 키" : "TWINMETA站点提供的密钥"}
             />
           </div>
         </div>

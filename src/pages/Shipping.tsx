@@ -448,7 +448,7 @@ function SyncStatusCell({
       });
       if (error) throw error;
       if (data?.success) {
-        toast({ title: isKo ? "전송 완료" : "发送成功", description: isKo ? "A 사이트로 송장번호가 전송되었습니다" : "运单号已发送到A站点" });
+        toast({ title: isKo ? "전송 완료" : "发送成功", description: isKo ? "TWINMETA 사이트로 송장번호가 전송되었습니다" : "运单号已发送到TWINMETA站点" });
       } else {
         toast({ title: isKo ? "전송 실패" : "发送失败", description: data?.error || "Unknown error", variant: "destructive" });
       }

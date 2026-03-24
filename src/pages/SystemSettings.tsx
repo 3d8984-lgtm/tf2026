@@ -142,7 +142,7 @@ export default function SystemSettings() {
     { value: "inspection", icon: ShieldCheck, label: t("settings.inspection") },
     { value: "webhook", icon: Webhook, label: t("settings.webhook") },
     { value: "courier", icon: Truck, label: isKo ? "택배사 연동" : "快递对接" },
-    { value: "callback", icon: ArrowUpRight, label: isKo ? "A사이트 회신" : "A站点回调" },
+    { value: "callback", icon: ArrowUpRight, label: isKo ? "TWINMETA 회신" : "TWINMETA回调" },
   ];
 
   return (
