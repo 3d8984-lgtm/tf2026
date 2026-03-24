@@ -47,6 +47,7 @@ const demoData: Record<MasterCategory, { columns: { key: string; ko: string; zh:
       { id: "C005", code: "CRD-S-002", name: "스페셜 에디션", grade: "S", series: "시즌2" },
     ],
   },
+  shipper: {
     columns: [
       { key: "name", ko: "택배사/출고처명", zh: "快递公司/出库方" },
       { key: "code", ko: "코드", zh: "代码" },
