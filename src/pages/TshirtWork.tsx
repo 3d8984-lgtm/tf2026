@@ -26,6 +26,7 @@ interface OrderData {
   twinker: string;
   product: string;
   design: string;
+  orderDate: string;
   dueDate: string;
   items: WorkItem[];
 }
