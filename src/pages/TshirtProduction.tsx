@@ -5,7 +5,7 @@ import { useLang } from "@/contexts/LangContext";
 
 interface ScanLog { time: string; color: string; size: string; silicon: string; design: string; hologram: string; result: "pass" | "fail"; logo: string }
 interface OrderData {
-  order: string; product: string; designCode: string; qty: number;
+  order: string; product: string; designCode: string; qty: number; twinker: string; dueDate: string;
   summary: { waiting: number; done: number; fail: number };
   logs: ScanLog[];
 }
