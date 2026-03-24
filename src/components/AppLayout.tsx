@@ -13,7 +13,6 @@ const menuKeys = [
   { path: "/", icon: LayoutDashboard, key: "menu.dashboard" },
   { path: "/upload", icon: Upload, key: "menu.upload" },
   { path: "/master", icon: Database, key: "menu.master" },
-  { path: "/work-orders", icon: ClipboardList, key: "menu.workOrders" },
   { path: "/tshirt-work", icon: ScanLine, key: "menu.tshirtWork" },
   { path: "/tshirt", icon: Shirt, key: "menu.tshirt" },
   { path: "/monitor", icon: Activity, key: "menu.monitor" },

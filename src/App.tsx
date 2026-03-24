@@ -63,7 +63,7 @@ function ProtectedRoutes() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/upload" element={<FileUpload />} />
         <Route path="/master" element={<MasterData />} />
-        <Route path="/work-orders" element={<WorkOrders />} />
+        
         <Route path="/tshirt" element={<TshirtProduction />} />
         <Route path="/tshirt-work" element={<TshirtWork />} />
         <Route path="/monitor" element={<ProductionMonitor />} />
