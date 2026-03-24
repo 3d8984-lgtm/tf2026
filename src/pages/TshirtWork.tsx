@@ -273,6 +273,7 @@ export default function TshirtWork() {
           </div>
           <div><p className="text-xs text-muted-foreground">{t("tshirtWork.product")}</p><p className="text-sm font-semibold">{selectedOrder.product}</p></div>
           <div><p className="text-xs text-muted-foreground">{t("tshirtWork.design")}</p><p className="text-sm font-semibold">{selectedOrder.design}</p></div>
+          <div><p className="text-xs text-muted-foreground">{t("tshirtWork.color")}</p><p className="text-sm font-semibold">{selectedOrder.color}</p></div>
           <div><p className="text-xs text-muted-foreground">{t("tshirtWork.size")}</p><p className="text-sm font-semibold">{selectedOrder.size}</p></div>
           <div><p className="text-xs text-muted-foreground">{t("tshirtWork.dueDate")}</p><p className="text-sm font-semibold">{selectedOrder.dueDate}</p></div>
           <PriorityBadge priority={selectedOrder.priority} t={t} />
