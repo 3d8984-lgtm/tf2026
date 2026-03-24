@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
-type MasterCategory = "product" | "design" | "logo" | "card" | "qr" | "shipper";
+type MasterCategory = "product" | "card" | "qr" | "shipper";
 
 interface MasterItem {
   id: string;
@@ -30,34 +30,6 @@ const demoData: Record<MasterCategory, { columns: { key: string; ko: string; zh:
       { id: "P003", code: "TS-NV-S", name: "오버핏 티셔츠", size: "S", color: "Navy", type: "반팔" },
       { id: "P004", code: "TS-GR-XL", name: "스탠다드 티셔츠", size: "XL", color: "Gray", type: "긴팔" },
       { id: "P005", code: "TS-RD-M", name: "컬러 에디션", size: "M", color: "Red", type: "반팔" },
-    ],
-  },
-  design: {
-    columns: [
-      { key: "code", ko: "디자인코드", zh: "设计代码" },
-      { key: "name", ko: "디자인명", zh: "设计名" },
-      { key: "artist", ko: "아티스트", zh: "艺术家" },
-      { key: "season", ko: "시즌", zh: "季节" },
-    ],
-    rows: [
-      { id: "D001", code: "DES-2024-001", name: "스프링 블룸", artist: "Kim Studio", season: "2024 S/S" },
-      { id: "D002", code: "DES-2024-002", name: "어반 스트릿", artist: "Park Design", season: "2024 S/S" },
-      { id: "D003", code: "DES-2024-003", name: "네이처 라인", artist: "Lee Creative", season: "2024 F/W" },
-      { id: "D004", code: "DES-2024-004", name: "모던 클래식", artist: "Kim Studio", season: "2024 F/W" },
-    ],
-  },
-  logo: {
-    columns: [
-      { key: "code", ko: "로고코드", zh: "Logo代码" },
-      { key: "name", ko: "로고명", zh: "Logo名" },
-      { key: "format", ko: "포맷", zh: "格式" },
-      { key: "size", ko: "파일크기", zh: "文件大小" },
-    ],
-    rows: [
-      { id: "L001", code: "LOGO-001", name: "메인 로고", format: "PNG", size: "245KB" },
-      { id: "L002", code: "LOGO-002", name: "서브 로고", format: "SVG", size: "12KB" },
-      { id: "L003", code: "LOGO-003", name: "콜라보 로고 A", format: "PNG", size: "380KB" },
-      { id: "L004", code: "LOGO-004", name: "한정판 마크", format: "PNG", size: "156KB" },
     ],
   },
   card: {
@@ -119,8 +91,6 @@ export default function MasterData() {
 
   const masters: { key: MasterCategory; label: string; count: number; lastUpdate: string }[] = [
     { key: "product", label: t("master.product"), count: data.product.rows.length, lastUpdate: "2024-03-15" },
-    { key: "design", label: t("master.design"), count: data.design.rows.length, lastUpdate: "2024-03-14" },
-    { key: "logo", label: t("master.logo"), count: data.logo.rows.length, lastUpdate: "2024-03-14" },
     { key: "card", label: t("master.cardMaster"), count: data.card.rows.length, lastUpdate: "2024-03-15" },
     { key: "qr", label: t("master.qrBarcode"), count: data.qr.rows.length, lastUpdate: "2024-03-15" },
     { key: "shipper", label: t("master.shipper"), count: data.shipper.rows.length, lastUpdate: "2024-02-28" },
