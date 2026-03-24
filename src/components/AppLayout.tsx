@@ -43,7 +43,7 @@ export default function AppLayout() {
       >
         {/* Logo */}
         <div className="flex items-center gap-2 px-4 h-14 border-b" style={{ borderColor: "hsl(var(--sidebar-border))" }}>
-          <img src={twinmetaLogo} alt="TWINMETA" className="w-8 h-8 shrink-0" />
+          <img src={twinmetaLogo} alt="TWINMETA" className="h-6 shrink-0" style={{ aspectRatio: '1/1', objectFit: 'contain' }} />
           {!collapsed && (
             <span className="text-sm font-semibold truncate" style={{ color: "hsl(var(--sidebar-accent-foreground))" }}>
               {t("app.name")}
