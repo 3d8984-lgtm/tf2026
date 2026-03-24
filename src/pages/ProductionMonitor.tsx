@@ -22,7 +22,7 @@ interface SetLog { time: string; setId: string; tshirtQR: string; cardQR: string
 interface ShipItem { setId: string; recipientKo: string; recipientZh: string; phone: string; addressKo: string; addressZh: string; invoice: string; status: string }
 
 interface OrderData {
-  order: string; product: string; design: string; qty: number;
+  order: string; product: string; design: string; qty: number; dueDate: string;
   cardLogs: CardLog[]; cardSummary: { scanDone: number; packing: number; ejected: number; error: number };
   setLogs: SetLog[]; setSummary: { matchWait: number; packDone: number; matchFail: number };
   shipItems: ShipItem[]; shipSummary: { invoiceWait: number; shipDone: number; shipHold: number };
