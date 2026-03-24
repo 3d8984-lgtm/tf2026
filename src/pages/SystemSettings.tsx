@@ -136,7 +136,7 @@ export default function SystemSettings() {
       <PageHeader title={t("settings.title")} description={t("settings.desc")} />
       <div className="p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-4 md:grid-cols-9 mb-6 h-auto">
+          <TabsList className="grid grid-cols-4 md:grid-cols-11 mb-6 h-auto">
             {tabItems.map(tab => (
               <TabsTrigger key={tab.value} value={tab.value} className="flex items-center gap-1.5 text-xs py-2">
                 <tab.icon className="w-3.5 h-3.5" />
