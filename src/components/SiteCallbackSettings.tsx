@@ -145,12 +145,12 @@ export default function SiteCallbackSettings() {
       <div>
         <h3 className="font-semibold text-lg flex items-center gap-2">
           <ArrowUpRight className="w-5 h-5 text-primary" />
-          {isKo ? "A 사이트 회신 설정" : "A站点回调设置"}
+          {isKo ? "TWINMETA 사이트 회신 설정" : "TWINMETA站点回调设置"}
         </h3>
         <p className="text-sm text-muted-foreground mt-1">
           {isKo
-            ? "송장번호가 입력되면 자동으로 A 사이트로 전송합니다. DB 트리거에 의해 실시간 동기화됩니다."
-            : "运单号输入后自动发送到A站点。通过DB触发器实时同步。"}
+            ? "송장번호가 입력되면 자동으로 TWINMETA 사이트로 전송합니다. DB 트리거에 의해 실시간 동기화됩니다."
+            : "运单号输入后自动发送到TWINMETA站点。通过DB触发器实时同步。"}
         </p>
       </div>
 
