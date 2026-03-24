@@ -18,6 +18,7 @@ import Shipping from "@/pages/Shipping";
 import Defects from "@/pages/Defects";
 import Reports from "@/pages/Reports";
 import SystemSettings from "@/pages/SystemSettings";
+import Manual from "@/pages/Manual";
 import NotFound from "@/pages/NotFound";
 import { useLang } from "@/contexts/LangContext";
 import { Button } from "@/components/ui/button";
@@ -70,6 +71,7 @@ function ProtectedRoutes() {
         <Route path="/shipping" element={<Shipping />} />
         <Route path="/defects" element={<Defects />} />
         <Route path="/reports" element={<Reports />} />
+        <Route path="/manual" element={<Manual />} />
         <Route path="/settings" element={<SystemSettings />} />
       </Route>
       <Route path="*" element={<NotFound />} />
