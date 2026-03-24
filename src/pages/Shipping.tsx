@@ -344,6 +344,9 @@ function OrderGroup({ group, isKo, shipmentStatusLabel, shipmentStatusCls, query
                         {inspectLabels[s.inspect_result]?.label ?? s.inspect_result}
                       </Badge>
                     </td>
+                    <td className="py-2.5 pr-3">
+                      <SyncStatusCell shipment={s} isKo={isKo} queryClient={queryClient} toast={toast} />
+                    </td>
                     <td className="py-2.5">
                       <Dialog open={editingId === s.id} onOpenChange={(open) => { if (!open) setEditingId(null); }}>
                         <DialogTrigger asChild>
