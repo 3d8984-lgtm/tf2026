@@ -320,11 +320,10 @@ export default function TshirtWork() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success))]" />
-                          <span className="text-sm font-semibold">{order.id}</span>
-                          <span className="text-xs text-muted-foreground">{order.orderNo}</span>
+                          <span className="text-sm font-semibold">{order.orderNo}</span>
                         </div>
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span>{order.product}</span><span>{order.design}</span>
+                          <span>{isKo ? "트윈커" : "Twinker"}: {order.twinker}</span>
                         </div>
                       </div>
                       <ProgressBar done={total} total={total} fail={fail} defectLabel={defectLabel} />
