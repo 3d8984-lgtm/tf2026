@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import {
-  LayoutDashboard, Upload, Database, ClipboardList, Shirt,
+  LayoutDashboard, Upload, Database,
   Activity, AlertTriangle, FileBarChart, Settings,
   ChevronLeft, ChevronRight, ScanLine, Globe, LogOut, Truck
 } from "lucide-react";
