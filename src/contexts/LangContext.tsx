@@ -589,6 +589,8 @@ const translations: Record<Lang, Record<string, string>> = {
     "tshirtWork.siliconQR": "硅胶标QR",
     "tshirtWork.designQR": "设计QR",
     "tshirtWork.hologramQR": "全息QR",
+    "tshirtWork.tshirtScan": "T恤（颜色/尺码）",
+    "tshirtWork.color": "颜色",
     "tshirtWork.scanWaiting": "← 等待扫描",
     "tshirtWork.scan": "扫描",
     "tshirtWork.allPass": "全部验证通过",

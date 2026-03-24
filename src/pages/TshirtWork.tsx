@@ -25,11 +25,11 @@ interface OrderItem {
 }
 
 const mockOrders: OrderItem[] = [
-  { id: "WO-001", orderNo: "ORD-2024-1582", product: "BT-2024-A", design: "DSN-047", size: "L", total: 200, done: 142, fail: 3, priority: "high", dueDate: "2024-03-25" },
-  { id: "WO-002", orderNo: "ORD-2024-1583", product: "BT-2024-B", design: "DSN-012", size: "M", total: 150, done: 150, fail: 0, priority: "medium", dueDate: "2024-03-26" },
-  { id: "WO-003", orderNo: "ORD-2024-1584", product: "BT-2024-A", design: "DSN-047", size: "XL", total: 100, done: 37, fail: 1, priority: "high", dueDate: "2024-03-25" },
-  { id: "WO-004", orderNo: "ORD-2024-1585", product: "BT-2024-C", design: "DSN-091", size: "M", total: 300, done: 0, fail: 0, priority: "medium", dueDate: "2024-03-27" },
-  { id: "WO-005", orderNo: "ORD-2024-1586", product: "BT-2024-A", design: "DSN-047", size: "S", total: 80, done: 80, fail: 2, priority: "low", dueDate: "2024-03-28" },
+  { id: "WO-001", orderNo: "ORD-2024-1582", product: "BT-2024-A", design: "DSN-047", size: "L", color: "Black", total: 200, done: 142, fail: 3, priority: "high", dueDate: "2024-03-25" },
+  { id: "WO-002", orderNo: "ORD-2024-1583", product: "BT-2024-B", design: "DSN-012", size: "M", color: "White", total: 150, done: 150, fail: 0, priority: "medium", dueDate: "2024-03-26" },
+  { id: "WO-003", orderNo: "ORD-2024-1584", product: "BT-2024-A", design: "DSN-047", size: "XL", color: "Navy", total: 100, done: 37, fail: 1, priority: "high", dueDate: "2024-03-25" },
+  { id: "WO-004", orderNo: "ORD-2024-1585", product: "BT-2024-C", design: "DSN-091", size: "M", color: "Gray", total: 300, done: 0, fail: 0, priority: "medium", dueDate: "2024-03-27" },
+  { id: "WO-005", orderNo: "ORD-2024-1586", product: "BT-2024-A", design: "DSN-047", size: "S", color: "Black", total: 80, done: 80, fail: 2, priority: "low", dueDate: "2024-03-28" },
 ];
 
 const mockLookup: Record<string, { product: string; design: string }> = {
