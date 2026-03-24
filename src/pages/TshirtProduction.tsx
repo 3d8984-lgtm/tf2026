@@ -50,6 +50,7 @@ function pct(a: number, b: number) { return b === 0 ? 0 : Math.round((a / b) * 1
 
 function OrderRow({ o, t, lang }: { o: OrderData; t: (k: string) => string; lang: string }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [failLog, setFailLog] = useState<ScanLog | null>(null);
   const donePct = pct(o.summary.done, o.qty);
   const isDone = o.summary.waiting === 0 && o.summary.fail === 0;
 
