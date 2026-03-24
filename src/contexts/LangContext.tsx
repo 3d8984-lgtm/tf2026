@@ -802,8 +802,10 @@ const translations: Record<Lang, Record<string, string>> = {
     "auth.hasAccount": "已有账号？",
     "auth.error": "错误",
     "auth.signupSuccess": "注册成功",
-    "auth.signupSuccessDesc": "请登录",
+    "auth.signupSuccessDesc": "管理员批准后方可登录",
     "auth.logout": "退出登录",
+    "auth.pendingTitle": "等待审核",
+    "auth.pendingDesc": "请等待管理员批准您的注册。批准后即可登录使用系统。",
   },
 };
 
