@@ -291,13 +291,10 @@ export default function TshirtWork() {
                       className="w-full kpi-card flex items-center gap-4 text-left hover:ring-2 hover:ring-primary/30 transition-all duration-150 active:scale-[0.99] cursor-pointer">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-semibold">{order.id}</span>
-                          <span className="text-xs text-muted-foreground">{order.orderNo}</span>
-                          <PriorityBadge priority={order.priority} t={t} />
+                          <span className="text-sm font-semibold">{order.orderNo}</span>
                         </div>
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span>{t("tshirtWork.product")}: <strong className="text-foreground">{order.product}</strong></span>
-                          <span>{t("tshirtWork.design")}: <strong className="text-foreground">{order.design}</strong></span>
+                          <span>{isKo ? "트윈커" : "Twinker"}: <strong className="text-foreground">{order.twinker}</strong></span>
                           <span>{t("tshirtWork.dueDate")}: {order.dueDate}</span>
                           <span>{t("tshirtWork.workItems")}: <strong className="text-foreground">{total}{isKo ? "건" : "件"}</strong></span>
                         </div>
