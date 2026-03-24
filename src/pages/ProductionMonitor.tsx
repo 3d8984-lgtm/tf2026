@@ -151,11 +151,29 @@ export default function ProductionMonitor() {
     }
   };
 
-  const filtered = orders?.filter(wo =>
-    !search ||
-    wo.external_order_id.toLowerCase().includes(search.toLowerCase()) ||
-    wo.recipient_name.toLowerCase().includes(search.toLowerCase())
-  ) ?? [];
+  // Generate date-based sequential work order numbers (20260324-1, 20260324-2, ...)
+  const workOrderNumbers = React.useMemo(() => {
+    if (!orders) return new Map<string, string>();
+    const sorted = [...orders].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    const dateCounters: Record<string, number> = {};
+    const map = new Map<string, string>();
+    for (const o of sorted) {
+      const d = new Date(o.created_at);
+      const dateKey = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+      dateCounters[dateKey] = (dateCounters[dateKey] || 0) + 1;
+      map.set(o.id, `${dateKey}-${dateCounters[dateKey]}`);
+    }
+    return map;
+  }, [orders]);
+
+  const filtered = orders?.filter(wo => {
+    if (!search) return true;
+    const s = search.toLowerCase();
+    const woNum = workOrderNumbers.get(wo.id) ?? "";
+    return wo.external_order_id.toLowerCase().includes(s) ||
+      wo.recipient_name.toLowerCase().includes(s) ||
+      woNum.toLowerCase().includes(s);
+  }) ?? [];
 
   const detailOrder = detailId ? orders?.find(o => o.id === detailId) : null;
 
@@ -249,19 +267,20 @@ export default function ProductionMonitor() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b text-left">
-                        {[isKo ? "순번" : "序号", t("workOrders.orderNo"), isKo ? "접수 날짜" : "接单日期", t("workOrders.qty"), isKo ? "트윈커" : "Twinker", t("workOrders.status"), isKo ? "상세" : "详情"].map(h => (
-                          <th key={h} className="pb-2 font-medium text-muted-foreground whitespace-nowrap pr-4">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filtered.map((wo, idx) => {
-                        const sb = statusBadge(wo.status);
-                        const createdDate = new Date(wo.created_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN");
-                        return (
-                          <tr key={wo.id} className="border-b hover:bg-muted/30 transition-colors">
-                            <td className="py-2.5 pr-4 text-muted-foreground tabular-nums">{idx + 1}</td>
-                            <td className="py-2.5 font-medium text-primary pr-4">{wo.external_order_id}</td>
+                         {[isKo ? "작업지시번호" : "工单编号", t("workOrders.orderNo"), isKo ? "접수 날짜" : "接单日期", t("workOrders.qty"), isKo ? "트윈커" : "Twinker", t("workOrders.status"), isKo ? "상세" : "详情"].map(h => (
+                           <th key={h} className="pb-2 font-medium text-muted-foreground whitespace-nowrap pr-4">{h}</th>
+                         ))}
+                       </tr>
+                     </thead>
+                     <tbody>
+                       {filtered.map((wo, idx) => {
+                         const sb = statusBadge(wo.status);
+                         const createdDate = new Date(wo.created_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN");
+                         const woNumber = workOrderNumbers.get(wo.id) ?? "-";
+                         return (
+                           <tr key={wo.id} className="border-b hover:bg-muted/30 transition-colors">
+                             <td className="py-2.5 pr-4 font-medium tabular-nums">{woNumber}</td>
+                             <td className="py-2.5 pr-4 text-primary">{wo.external_order_id}</td>
                             <td className="py-2.5 pr-4 text-muted-foreground">{createdDate}</td>
                             <td className="py-2.5 tabular-nums pr-4">{wo.quantity.toLocaleString()}</td>
                             <td className="py-2.5 pr-4">{wo.recipient_name}</td>
