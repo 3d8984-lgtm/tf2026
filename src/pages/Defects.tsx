@@ -33,6 +33,7 @@ const stageOrder: RestartStage[] = ["tshirt", "card", "set", "courier", "invoice
 export default function Defects() {
   const { t, lang } = useLang();
   const isKo = lang === "ko";
+  const { canEditDefects } = usePermissions();
 
   const defectTypeLabel: Record<DefectType, string> = {
     qr_mismatch: t("defects.qrMismatch"),
