@@ -2,8 +2,9 @@ import { useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import { CheckCircle2, XCircle, Clock, ScanLine, ChevronDown, ChevronRight } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
-interface ScanLog { time: string; color: string; size: string; silicon: string; design: string; hologram: string; result: "pass" | "fail"; logo: string }
+interface ScanLog { time: string; color: string; size: string; silicon: string; design: string; hologram: string; result: "pass" | "fail"; logo: string; failReason?: string }
 interface OrderData {
   order: string; product: string; designCode: string; qty: number; twinker: string; dueDate: string;
   summary: { waiting: number; done: number; fail: number };
@@ -17,7 +18,7 @@ const ordersData: OrderData[] = [
     logs: [
       { time: "14:35:22", color: "Black", size: "L", silicon: "SQR-00482", design: "DQR-00482", hologram: "HQR-A0931", result: "pass", logo: "✓" },
       { time: "14:34:58", color: "Black", size: "L", silicon: "SQR-00481", design: "DQR-00481", hologram: "HQR-A0930", result: "pass", logo: "✓" },
-      { time: "14:34:31", color: "Navy", size: "XL", silicon: "SQR-00480", design: "DQR-00479", hologram: "HQR-A0929", result: "fail", logo: "-" },
+      { time: "14:34:31", color: "Navy", size: "XL", silicon: "SQR-00480", design: "DQR-00479", hologram: "HQR-A0929", result: "fail", logo: "-", failReason: "디자인 QR 불일치 — 스캔값 DQR-00479, 기준값 DQR-00480" },
     ],
   },
   {
@@ -33,7 +34,7 @@ const ordersData: OrderData[] = [
     summary: { waiting: 213, done: 83, fail: 4 },
     logs: [
       { time: "14:38:10", color: "Gray", size: "M", silicon: "SQR-00550", design: "DQR-00550", hologram: "HQR-C0083", result: "pass", logo: "✓" },
-      { time: "14:37:48", color: "Gray", size: "L", silicon: "SQR-00549", design: "DQR-00548", hologram: "HQR-C0082", result: "fail", logo: "-" },
+      { time: "14:37:48", color: "Gray", size: "L", silicon: "SQR-00549", design: "DQR-00548", hologram: "HQR-C0082", result: "fail", logo: "-", failReason: "실리콘 마크 QR 불일치 — 스캔값 SQR-00549, 기준값 SQR-00550" },
     ],
   },
   {
@@ -49,6 +50,7 @@ function pct(a: number, b: number) { return b === 0 ? 0 : Math.round((a / b) * 1
 
 function OrderRow({ o, t, lang }: { o: OrderData; t: (k: string) => string; lang: string }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [failLog, setFailLog] = useState<ScanLog | null>(null);
   const donePct = pct(o.summary.done, o.qty);
   const isDone = o.summary.waiting === 0 && o.summary.fail === 0;
 
@@ -110,9 +112,16 @@ function OrderRow({ o, t, lang }: { o: OrderData; t: (k: string) => string; lang
                     <td className="py-2 font-mono text-xs pr-4">{log.hologram}</td>
                     <td className="py-2 pr-4">{log.logo}</td>
                     <td className="py-2">
-                      <span className={`status-badge ${log.result === "pass" ? "status-running" : "status-stopped"}`}>
-                        {log.result === "pass" ? t("status.attachDone") : t("status.verifyFail")}
-                      </span>
+                      {log.result === "fail" ? (
+                        <button
+                          onClick={() => setFailLog(log)}
+                          className="status-badge status-stopped cursor-pointer hover:opacity-80 transition-opacity"
+                        >
+                          {t("status.verifyFail")}
+                        </button>
+                      ) : (
+                        <span className="status-badge status-running">{t("status.attachDone")}</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -122,6 +131,41 @@ function OrderRow({ o, t, lang }: { o: OrderData; t: (k: string) => string; lang
           </div>
         </div>
       )}
+
+      <Dialog open={!!failLog} onOpenChange={(open) => !open && setFailLog(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <XCircle className="w-5 h-5 text-destructive" />
+              {lang === "ko" ? "검증실패 상세" : "验证失败详情"}
+            </DialogTitle>
+            <DialogDescription>
+              {failLog && (
+                <div className="space-y-3 mt-2 text-left">
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <span className="text-muted-foreground">{t("tshirtProd.time")}</span>
+                    <span className="font-mono">{failLog.time}</span>
+                    <span className="text-muted-foreground">{lang === "ko" ? "색상" : "颜色"}</span>
+                    <span>{failLog.color}</span>
+                    <span className="text-muted-foreground">{lang === "ko" ? "사이즈" : "尺码"}</span>
+                    <span>{failLog.size}</span>
+                    <span className="text-muted-foreground">{t("tshirtProd.siliconQR")}</span>
+                    <span className="font-mono text-xs">{failLog.silicon}</span>
+                    <span className="text-muted-foreground">{t("tshirtProd.designQR")}</span>
+                    <span className="font-mono text-xs">{failLog.design}</span>
+                    <span className="text-muted-foreground">{t("tshirtProd.hologramQR")}</span>
+                    <span className="font-mono text-xs">{failLog.hologram}</span>
+                  </div>
+                  <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                    <p className="text-sm font-medium text-destructive">{lang === "ko" ? "실패 사유" : "失败原因"}</p>
+                    <p className="text-sm mt-1">{failLog.failReason || (lang === "ko" ? "상세 사유 없음" : "无详细原因")}</p>
+                  </div>
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
