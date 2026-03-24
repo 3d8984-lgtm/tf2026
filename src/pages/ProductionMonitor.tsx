@@ -159,54 +159,8 @@ export default function ProductionMonitor() {
   const filtered = orders?.filter(wo =>
     !search ||
     wo.external_order_id.toLowerCase().includes(search.toLowerCase()) ||
-    wo.product_code.toLowerCase().includes(search.toLowerCase()) ||
     wo.recipient_name.toLowerCase().includes(search.toLowerCase())
   ) ?? [];
-
-  const openCreate = () => { resetForm(); setCreateOpen(true); };
-
-  const openEdit = (order: NonNullable<typeof orders>[number]) => {
-    setForm({
-      external_order_id: order.external_order_id, product_code: order.product_code,
-      design_code: order.design_code ?? "", quantity: String(order.quantity),
-      recipient_name: order.recipient_name, recipient_phone: order.recipient_phone ?? "",
-      shipping_address: order.shipping_address, shipping_city: order.shipping_city ?? "",
-      shipping_state: order.shipping_state ?? "", shipping_zip: order.shipping_zip ?? "",
-      shipping_country: order.shipping_country, status: order.status,
-    });
-    setEditId(order.id);
-  };
-
-  const handleSave = async () => {
-    if (!form.external_order_id || !form.product_code || !form.recipient_name || !form.quantity) {
-      toastHook({ title: isKo ? "오류" : "错误", description: isKo ? "필수 항목을 입력해주세요" : "请填写必填项", variant: "destructive" });
-      return;
-    }
-    setSaving(true);
-    try {
-      const payload = {
-        external_order_id: form.external_order_id, product_code: form.product_code,
-        design_code: form.design_code || null, quantity: parseInt(form.quantity) || 1,
-        recipient_name: form.recipient_name, recipient_phone: form.recipient_phone || null,
-        shipping_address: form.shipping_address, shipping_city: form.shipping_city || null,
-        shipping_state: form.shipping_state || null, shipping_zip: form.shipping_zip || null,
-        shipping_country: form.shipping_country || "US", status: form.status,
-      };
-      if (editId) {
-        const { error } = await supabase.from("orders").update(payload).eq("id", editId);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("orders").insert(payload);
-        if (error) throw error;
-      }
-      toastHook({ title: isKo ? "저장 완료" : "保存成功" });
-      setCreateOpen(false); setEditId(null); resetForm();
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Error";
-      toastHook({ title: isKo ? "오류" : "错误", description: msg, variant: "destructive" });
-    } finally { setSaving(false); }
-  };
 
   const detailOrder = detailId ? orders?.find(o => o.id === detailId) : null;
 
