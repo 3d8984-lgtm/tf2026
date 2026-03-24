@@ -206,39 +206,6 @@ export default function ProductionMonitor() {
     invoiceWait: "status-idle", invoiceDone: "status-warning", shipDone: "status-running", shipHold: "status-stopped",
   };
 
-  const OrderFormDialog = ({ open, onOpenChange, title }: { open: boolean; onOpenChange: (v: boolean) => void; title: string }) => (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
-        <div className="grid grid-cols-2 gap-3 pt-2">
-          <div className="space-y-1.5"><Label>{isKo ? "주문번호 *" : "订单号 *"}</Label><Input value={form.external_order_id} onChange={e => setForm(f => ({ ...f, external_order_id: e.target.value }))} /></div>
-          <div className="space-y-1.5"><Label>{isKo ? "상품코드 *" : "商品代码 *"}</Label><Input value={form.product_code} onChange={e => setForm(f => ({ ...f, product_code: e.target.value }))} /></div>
-          <div className="space-y-1.5"><Label>{isKo ? "디자인코드" : "设计代码"}</Label><Input value={form.design_code} onChange={e => setForm(f => ({ ...f, design_code: e.target.value }))} /></div>
-          <div className="space-y-1.5"><Label>{isKo ? "수량 *" : "数量 *"}</Label><Input type="number" value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} /></div>
-          <div className="space-y-1.5"><Label>{isKo ? "수취인 *" : "收件人 *"}</Label><Input value={form.recipient_name} onChange={e => setForm(f => ({ ...f, recipient_name: e.target.value }))} /></div>
-          <div className="space-y-1.5"><Label>{isKo ? "연락처" : "联系方式"}</Label><Input value={form.recipient_phone} onChange={e => setForm(f => ({ ...f, recipient_phone: e.target.value }))} /></div>
-          <div className="col-span-2 space-y-1.5"><Label>{isKo ? "배송 주소" : "配送地址"}</Label><Input value={form.shipping_address} onChange={e => setForm(f => ({ ...f, shipping_address: e.target.value }))} /></div>
-          <div className="space-y-1.5"><Label>{isKo ? "도시" : "城市"}</Label><Input value={form.shipping_city} onChange={e => setForm(f => ({ ...f, shipping_city: e.target.value }))} /></div>
-          <div className="space-y-1.5"><Label>{isKo ? "주/지역" : "省/州"}</Label><Input value={form.shipping_state} onChange={e => setForm(f => ({ ...f, shipping_state: e.target.value }))} /></div>
-          <div className="space-y-1.5"><Label>{isKo ? "우편번호" : "邮编"}</Label><Input value={form.shipping_zip} onChange={e => setForm(f => ({ ...f, shipping_zip: e.target.value }))} /></div>
-          <div className="space-y-1.5"><Label>{isKo ? "국가" : "国家"}</Label><Input value={form.shipping_country} onChange={e => setForm(f => ({ ...f, shipping_country: e.target.value }))} /></div>
-          {editId && (
-            <div className="space-y-1.5">
-              <Label>{isKo ? "상태" : "状态"}</Label>
-              <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v as OrderStatus }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{ORDER_STATUSES.map(s => <SelectItem key={s} value={s}>{statusLabel[s]}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-          )}
-          <div className="col-span-2 flex justify-end gap-2 pt-3">
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>{isKo ? "취소" : "取消"}</Button>
-            <Button onClick={handleSave} disabled={saving}>{saving ? (isKo ? "저장중..." : "保存中...") : (isKo ? "저장" : "保存")}</Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
 
   return (
     <div>
