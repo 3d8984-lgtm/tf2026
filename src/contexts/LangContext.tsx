@@ -402,8 +402,10 @@ const translations: Record<Lang, Record<string, string>> = {
     "auth.hasAccount": "이미 계정이 있으신가요?",
     "auth.error": "오류",
     "auth.signupSuccess": "가입 완료",
-    "auth.signupSuccessDesc": "로그인해주세요",
+    "auth.signupSuccessDesc": "관리자 승인 후 로그인이 가능합니다",
     "auth.logout": "로그아웃",
+    "auth.pendingTitle": "승인 대기중",
+    "auth.pendingDesc": "관리자가 가입을 승인할 때까지 기다려주세요. 승인 후 로그인하면 시스템을 사용할 수 있습니다.",
   },
 
   zh: {
@@ -800,8 +802,10 @@ const translations: Record<Lang, Record<string, string>> = {
     "auth.hasAccount": "已有账号？",
     "auth.error": "错误",
     "auth.signupSuccess": "注册成功",
-    "auth.signupSuccessDesc": "请登录",
+    "auth.signupSuccessDesc": "管理员批准后方可登录",
     "auth.logout": "退出登录",
+    "auth.pendingTitle": "等待审核",
+    "auth.pendingDesc": "请等待管理员批准您的注册。批准后即可登录使用系统。",
   },
 };
 

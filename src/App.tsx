@@ -18,11 +18,32 @@ import Defects from "@/pages/Defects";
 import Reports from "@/pages/Reports";
 import SystemSettings from "@/pages/SystemSettings";
 import NotFound from "@/pages/NotFound";
+import { useLang } from "@/contexts/LangContext";
+import { Button } from "@/components/ui/button";
+import { Clock } from "lucide-react";
 
 const queryClient = new QueryClient();
 
+function PendingApproval() {
+  const { signOut } = useAuth();
+  const { t } = useLang();
+
+  return (
+    <div className="flex h-screen items-center justify-center bg-background px-4">
+      <div className="text-center space-y-4 max-w-sm">
+        <div className="mx-auto w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center">
+          <Clock className="w-6 h-6 text-warning" />
+        </div>
+        <h2 className="text-lg font-semibold text-foreground">{t("auth.pendingTitle")}</h2>
+        <p className="text-sm text-muted-foreground">{t("auth.pendingDesc")}</p>
+        <Button variant="outline" onClick={signOut}>{t("auth.logout")}</Button>
+      </div>
+    </div>
+  );
+}
+
 function ProtectedRoutes() {
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
 
   if (loading) {
     return (
@@ -33,6 +54,7 @@ function ProtectedRoutes() {
   }
 
   if (!user) return <Navigate to="/auth" replace />;
+  if (profile && !profile.approved) return <PendingApproval />;
 
   return (
     <Routes>

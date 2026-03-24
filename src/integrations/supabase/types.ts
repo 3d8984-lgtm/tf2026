@@ -118,6 +118,36 @@ export type Database = {
           },
         ]
       }
+      profiles: {
+        Row: {
+          approved: boolean
+          created_at: string
+          email: string | null
+          id: string
+          role: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          approved?: boolean
+          created_at?: string
+          email?: string | null
+          id?: string
+          role?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          approved?: boolean
+          created_at?: string
+          email?: string | null
+          id?: string
+          role?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       shipments: {
         Row: {
           carrier: string
