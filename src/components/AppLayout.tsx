@@ -313,6 +313,9 @@ export default function AppLayout() {
       <main className="flex-1 overflow-y-auto bg-background">
         <Outlet />
       </main>
+
+      {/* AI Chatbot */}
+      <AiChatbot />
     </div>
   );
 }
