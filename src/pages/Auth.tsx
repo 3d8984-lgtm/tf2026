@@ -26,7 +26,7 @@ export default function Auth() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       } else {
-        const { error } = await supabase.auth.signUp({ email, password, options: { data: { name } } });
+        const { error } = await supabase.auth.signUp({ email, password, options: { data: { name, phone } } });
         if (error) throw error;
         toast({
           title: t("auth.signupSuccess"),
