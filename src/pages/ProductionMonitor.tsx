@@ -489,18 +489,12 @@ export default function ProductionMonitor() {
             <div className="space-y-3 text-sm">
               {[
                 [isKo ? "주문번호" : "订单号", detailOrder.external_order_id],
-                [isKo ? "상품코드" : "商品代码", detailOrder.product_code],
-                [isKo ? "디자인코드" : "设计代码", detailOrder.design_code ?? "-"],
                 [isKo ? "수량" : "数量", String(detailOrder.quantity)],
-                [isKo ? "수취인" : "收件人", detailOrder.recipient_name],
-                [isKo ? "연락처" : "联系方式", detailOrder.recipient_phone ?? "-"],
-                [isKo ? "주소" : "地址", detailOrder.shipping_address],
-                [isKo ? "도시" : "城市", detailOrder.shipping_city ?? "-"],
-                [isKo ? "주/지역" : "省/州", detailOrder.shipping_state ?? "-"],
-                [isKo ? "우편번호" : "邮编", detailOrder.shipping_zip ?? "-"],
+                [isKo ? "트윈커" : "Twinker", detailOrder.recipient_name],
                 [isKo ? "국가" : "国家", detailOrder.shipping_country],
                 [isKo ? "상태" : "状态", statusLabel[detailOrder.status] ?? detailOrder.status],
-                [isKo ? "생성일" : "创建日期", new Date(detailOrder.created_at).toLocaleString()],
+                [isKo ? "접수일" : "接单日期", new Date(detailOrder.created_at).toLocaleString()],
+                [isKo ? "프로젝트 완료일" : "项目完成日", detailOrder.status === "completed" || detailOrder.status === "shipped" ? new Date(detailOrder.updated_at).toLocaleString() : "-"],
               ].map(([label, value]) => (
                 <div key={label} className="flex justify-between">
                   <span className="text-muted-foreground">{label}</span>
