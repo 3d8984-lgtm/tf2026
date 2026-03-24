@@ -619,6 +619,9 @@ const translations: Record<Lang, Record<string, string>> = {
     "tshirtWork.verifying": "验证中…",
     "tshirtWork.startVerify": "开始验证",
     "tshirtWork.attachPossible": "可以贴附",
+    "tshirtWork.workItems": "作业项列表",
+    "tshirtWork.pending": "待处理",
+    "tshirtWork.status": "状态",
 
     // Card Packing
     "cardPacking.title": "卡片包装管理",
