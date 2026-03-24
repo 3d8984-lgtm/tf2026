@@ -32,34 +32,6 @@ const demoData: Record<MasterCategory, { columns: { key: string; ko: string; zh:
       { id: "P005", code: "TS-RD-M", name: "컬러 에디션", size: "M", color: "Red", type: "반팔" },
     ],
   },
-  design: {
-    columns: [
-      { key: "code", ko: "디자인코드", zh: "设计代码" },
-      { key: "name", ko: "디자인명", zh: "设计名" },
-      { key: "artist", ko: "아티스트", zh: "艺术家" },
-      { key: "season", ko: "시즌", zh: "季节" },
-    ],
-    rows: [
-      { id: "D001", code: "DES-2024-001", name: "스프링 블룸", artist: "Kim Studio", season: "2024 S/S" },
-      { id: "D002", code: "DES-2024-002", name: "어반 스트릿", artist: "Park Design", season: "2024 S/S" },
-      { id: "D003", code: "DES-2024-003", name: "네이처 라인", artist: "Lee Creative", season: "2024 F/W" },
-      { id: "D004", code: "DES-2024-004", name: "모던 클래식", artist: "Kim Studio", season: "2024 F/W" },
-    ],
-  },
-  logo: {
-    columns: [
-      { key: "code", ko: "로고코드", zh: "Logo代码" },
-      { key: "name", ko: "로고명", zh: "Logo名" },
-      { key: "format", ko: "포맷", zh: "格式" },
-      { key: "size", ko: "파일크기", zh: "文件大小" },
-    ],
-    rows: [
-      { id: "L001", code: "LOGO-001", name: "메인 로고", format: "PNG", size: "245KB" },
-      { id: "L002", code: "LOGO-002", name: "서브 로고", format: "SVG", size: "12KB" },
-      { id: "L003", code: "LOGO-003", name: "콜라보 로고 A", format: "PNG", size: "380KB" },
-      { id: "L004", code: "LOGO-004", name: "한정판 마크", format: "PNG", size: "156KB" },
-    ],
-  },
   card: {
     columns: [
       { key: "code", ko: "카드코드", zh: "卡片代码" },
