@@ -162,7 +162,7 @@ export default function SiteCallbackSettings() {
           </div>
           <div>
             <p className="font-medium text-sm">{isKo ? "회신 기능 활성화" : "启用回调功能"}</p>
-            <p className="text-xs text-muted-foreground">{isKo ? "활성화하면 송장번호 입력 시 자동으로 A 사이트로 전송됩니다" : "启用后输入运单号时将自动发送到A站点"}</p>
+            <p className="text-xs text-muted-foreground">{isKo ? "활성화하면 송장번호 입력 시 자동으로 TWINMETA 사이트로 전송됩니다" : "启用后输入运单号时将自动发送到TWINMETA站点"}</p>
           </div>
         </div>
         <Switch checked={config.enabled} onCheckedChange={v => update({ enabled: v })} />
