@@ -58,7 +58,6 @@ function OrderRow({ o, t, lang }: { o: OrderData; t: (k: string) => string; lang
         <div className="flex items-center gap-3 min-w-0">
           {isOpen ? <ChevronDown className="w-4 h-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 shrink-0 text-muted-foreground" />}
           <span className="font-semibold text-sm">{o.order}</span>
-          <span className="text-xs text-muted-foreground">{o.product} · {o.designCode}</span>
           <span className="text-xs text-muted-foreground tabular-nums">{lang === "ko" ? "수량" : "数量"}: {o.qty}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
