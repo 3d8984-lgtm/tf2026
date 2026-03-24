@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 
 interface ScanLog { time: string; color: string; size: string; silicon: string; design: string; hologram: string; result: "pass" | "fail"; logo: string; failReason?: string }
 interface OrderData {
-  order: string; product: string; designCode: string; qty: number; twinker: string; dueDate: string;
+  order: string; product: string; designCode: string; qty: number; twinker: string; orderDate: string; dueDate: string;
   summary: { waiting: number; done: number; fail: number };
   logs: ScanLog[];
 }
