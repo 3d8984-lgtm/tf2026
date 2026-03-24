@@ -133,31 +133,52 @@ export default function AppLayout() {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
-          {filteredMenu.map(({ path, icon: Icon, key }) => (
-            <NavLink
-              key={path}
-              to={path}
-              end={path === "/"}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors duration-150 ${
-                  isActive ? "font-medium" : "hover:opacity-90"
-                }`
-              }
-              style={({ isActive }) => ({
-                background: isActive ? "hsl(var(--sidebar-accent))" : "transparent",
-                color: isActive ? "hsl(var(--sidebar-accent-foreground))" : "hsl(var(--sidebar-foreground))",
-              })}
-              title={t(key)}
-              onClick={() => { setMenuSearch(""); setSearchOpen(false); }}
-            >
-              <Icon className="w-[18px] h-[18px] shrink-0" />
-              {!collapsed && <span className="truncate">{t(key)}</span>}
-            </NavLink>
-          ))}
-          {filteredMenu.length === 0 && (
-            <p className="text-xs text-center py-4 opacity-50" style={{ color: "hsl(var(--sidebar-foreground))" }}>
-              {lang === "ko" ? "결과 없음" : "无结果"}
-            </p>
+          {menuSearch.trim() ? (
+            <>
+              {searchResults.map((r, i) => (
+                <button
+                  key={`${r.path}-${r.tab ?? i}`}
+                  onClick={() => handleSearchNavigate(r)}
+                  className="flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors duration-150 hover:opacity-90 w-full text-left"
+                  style={{ color: "hsl(var(--sidebar-foreground))" }}
+                >
+                  <r.icon className="w-[18px] h-[18px] shrink-0" />
+                  <div className="min-w-0 truncate">
+                    {r.parentLabel && (
+                      <span className="opacity-50 text-xs">{r.parentLabel} &rsaquo; </span>
+                    )}
+                    <span>{r.label}</span>
+                  </div>
+                </button>
+              ))}
+              {searchResults.length === 0 && (
+                <p className="text-xs text-center py-4 opacity-50" style={{ color: "hsl(var(--sidebar-foreground))" }}>
+                  {lang === "ko" ? "결과 없음" : "无结果"}
+                </p>
+              )}
+            </>
+          ) : (
+            menuKeys.map(({ path, icon: Icon, key }) => (
+              <NavLink
+                key={path}
+                to={path}
+                end={path === "/"}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors duration-150 ${
+                    isActive ? "font-medium" : "hover:opacity-90"
+                  }`
+                }
+                style={({ isActive }) => ({
+                  background: isActive ? "hsl(var(--sidebar-accent))" : "transparent",
+                  color: isActive ? "hsl(var(--sidebar-accent-foreground))" : "hsl(var(--sidebar-foreground))",
+                })}
+                title={t(key)}
+                onClick={() => { setMenuSearch(""); setSearchOpen(false); }}
+              >
+                <Icon className="w-[18px] h-[18px] shrink-0" />
+                {!collapsed && <span className="truncate">{t(key)}</span>}
+              </NavLink>
+            ))
           )}
         </nav>
 
