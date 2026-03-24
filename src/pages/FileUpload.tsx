@@ -83,6 +83,7 @@ export default function FileUpload() {
         { col: "O", category: isKo ? "택배송장정보" : "快递面单信息", label: isKo ? "연락처" : "联系方式", filled: 860, empty: 1540, error: 0 },
         { col: "P", category: isKo ? "택배송장정보" : "快递面单信息", label: isKo ? "주소" : "地址", filled: 860, empty: 1540, error: 0 },
         { col: "Q", category: isKo ? "택배송장정보" : "快递面单信息", label: isKo ? "우편번호" : "邮编", filled: 858, empty: 1542, error: 0 },
+        { col: "R", category: isKo ? "프로젝트 관리" : "项目管理", label: isKo ? "프로젝트 완료일" : "项目完成日", filled: 2400, empty: 0, error: 0 },
       ],
     });
   };
