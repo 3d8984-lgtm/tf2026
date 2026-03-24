@@ -351,58 +351,66 @@ function OrderGroup({ group, isKo, shipmentStatusLabel, shipmentStatusCls, query
                       </Badge>
                     </td>
                     <td className="py-2.5 pr-3">
-                      <SyncStatusCell shipment={s} isKo={isKo} queryClient={queryClient} toast={toast} />
+                      {canSync ? (
+                        <SyncStatusCell shipment={s} isKo={isKo} queryClient={queryClient} toast={toast} />
+                      ) : (
+                        s.synced_to_source
+                          ? <Badge variant="outline" className="text-xs gap-1 border-emerald-200 text-emerald-700"><CheckCheck className="w-3 h-3" />{isKo ? "전송됨" : "已发送"}</Badge>
+                          : <span className="text-xs text-muted-foreground">-</span>
+                      )}
                     </td>
                     <td className="py-2.5">
-                      <Dialog open={editingId === s.id} onOpenChange={(open) => { if (!open) setEditingId(null); }}>
-                        <DialogTrigger asChild>
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEdit(s)}>
-                            <Edit className="w-3.5 h-3.5" />
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-md">
-                          <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2">
-                              <Truck className="w-4 h-4" />
-                              {isKo ? "배송 정보 수정" : "修改配送信息"}
-                            </DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-4 pt-2">
-                            <div className="rounded-lg bg-muted/50 p-3 text-sm space-y-1">
-                              <p><span className="text-muted-foreground">{isKo ? "주문번호:" : "订单号:"}</span> <span className="font-medium">{group.externalOrderId}</span></p>
-                              <p><span className="text-muted-foreground">{isKo ? "수취인:" : "收件人:"}</span> <span className="font-medium">{group.recipientName}</span></p>
+                      {canEdit && (
+                        <Dialog open={editingId === s.id} onOpenChange={(open) => { if (!open) setEditingId(null); }}>
+                          <DialogTrigger asChild>
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEdit(s)}>
+                              <Edit className="w-3.5 h-3.5" />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="sm:max-w-md">
+                            <DialogHeader>
+                              <DialogTitle className="flex items-center gap-2">
+                                <Truck className="w-4 h-4" />
+                                {isKo ? "배송 정보 수정" : "修改配送信息"}
+                              </DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-4 pt-2">
+                              <div className="rounded-lg bg-muted/50 p-3 text-sm space-y-1">
+                                <p><span className="text-muted-foreground">{isKo ? "주문번호:" : "订单号:"}</span> <span className="font-medium">{group.externalOrderId}</span></p>
+                                <p><span className="text-muted-foreground">{isKo ? "수취인:" : "收件人:"}</span> <span className="font-medium">{group.recipientName}</span></p>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>{isKo ? "택배사" : "快递公司"}</Label>
+                                <Input value={editCarrier} onChange={e => setEditCarrier(e.target.value)} placeholder={isKo ? "예: CJ대한통운, 4PX, UPS" : "例: 顺丰, 4PX, UPS"} />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>{isKo ? "운송장 번호" : "运单号"}</Label>
+                                <Input value={editTrackingNumber} onChange={e => setEditTrackingNumber(e.target.value)} placeholder={isKo ? "운송장 번호 입력" : "输入运单号"} />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>{isKo ? "배송 상태" : "配送状态"}</Label>
+                                <Select value={editStatus} onValueChange={(v) => setEditStatus(v as ShipmentStatus)}>
+                                  <SelectTrigger><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    {SHIPMENT_STATUSES.map(st => (
+                                      <SelectItem key={st} value={st}>{shipmentStatusLabel[st] ?? st}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="flex justify-end gap-2 pt-2">
+                                <Button variant="outline" onClick={() => setEditingId(null)} disabled={saving}>
+                                  {isKo ? "취소" : "取消"}
+                                </Button>
+                                <Button onClick={handleSave} disabled={saving} className="gap-1.5">
+                                  <Package className="w-4 h-4" />
+                                  {saving ? (isKo ? "저장중..." : "保存中...") : (isKo ? "저장" : "保存")}
+                                </Button>
+                              </div>
                             </div>
-                            <div className="space-y-2">
-                              <Label>{isKo ? "택배사" : "快递公司"}</Label>
-                              <Input value={editCarrier} onChange={e => setEditCarrier(e.target.value)} placeholder={isKo ? "예: CJ대한통운, 4PX, UPS" : "例: 顺丰, 4PX, UPS"} />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>{isKo ? "운송장 번호" : "运单号"}</Label>
-                              <Input value={editTrackingNumber} onChange={e => setEditTrackingNumber(e.target.value)} placeholder={isKo ? "운송장 번호 입력" : "输入运单号"} />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>{isKo ? "배송 상태" : "配送状态"}</Label>
-                              <Select value={editStatus} onValueChange={(v) => setEditStatus(v as ShipmentStatus)}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  {SHIPMENT_STATUSES.map(st => (
-                                    <SelectItem key={st} value={st}>{shipmentStatusLabel[st] ?? st}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="flex justify-end gap-2 pt-2">
-                              <Button variant="outline" onClick={() => setEditingId(null)} disabled={saving}>
-                                {isKo ? "취소" : "取消"}
-                              </Button>
-                              <Button onClick={handleSave} disabled={saving} className="gap-1.5">
-                                <Package className="w-4 h-4" />
-                                {saving ? (isKo ? "저장중..." : "保存中...") : (isKo ? "저장" : "保存")}
-                              </Button>
-                            </div>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
+                          </DialogContent>
+                        </Dialog>
+                      )}
                     </td>
                   </tr>
                 ))}
