@@ -61,6 +61,7 @@ function OrderRow({ o, t, lang }: { o: OrderData; t: (k: string) => string; lang
           {isOpen ? <ChevronDown className="w-4 h-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 shrink-0 text-muted-foreground" />}
           <span className="font-semibold text-sm">{o.order}</span>
           <span className="text-xs text-muted-foreground">{lang === "ko" ? "트윈커" : "Twinker"}: <strong className="text-foreground">{o.twinker}</strong></span>
+          <span className="text-xs text-muted-foreground">{lang === "ko" ? "주문일" : "下单日"}: {o.orderDate}</span>
           <span className="text-xs text-muted-foreground">{lang === "ko" ? "납기" : "交期"}: {o.dueDate}</span>
           <span className="text-xs text-muted-foreground tabular-nums">{lang === "ko" ? "수량" : "数量"}: {o.qty}</span>
         </div>
