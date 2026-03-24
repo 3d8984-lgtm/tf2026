@@ -147,13 +147,16 @@ export default function SystemSettings() {
     { value: "callback", icon: ArrowUpRight, label: isKo ? "TWINMETA 회신" : "TWINMETA回调" },
   ];
 
+  const visibleTabs = tabItems.filter(tab => tab.value === "general" || canAccessSettingsTab(tab.value));
+  const visibleGeneralGroups = generalGroups.filter(g => canAccessSettingsTab(g.tab));
+
   return (
     <div>
       <PageHeader title={t("settings.title")} description={t("settings.desc")} />
       <div className="p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-4 md:grid-cols-11 mb-6 h-auto">
-            {tabItems.map(tab => (
+          <TabsList className={`grid grid-cols-4 md:grid-cols-${Math.min(visibleTabs.length, 11)} mb-6 h-auto`}>
+            {visibleTabs.map(tab => (
               <TabsTrigger key={tab.value} value={tab.value} className="flex items-center gap-1.5 text-xs py-2">
                 <tab.icon className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">{tab.label}</span>
