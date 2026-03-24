@@ -75,7 +75,11 @@ export default function AppLayout() {
   const [searchOpen, setSearchOpen] = useState(false);
   const { lang, setLang, t } = useLang();
   const { signOut, user } = useAuth();
+  const { canAccessMenu } = usePermissions();
   const navigate = useNavigate();
+
+  // Filter menu items based on role permissions
+  const visibleMenuKeys = menuKeys.filter(item => canAccessMenu(item.path));
 
   // Korean chosung (초성) search support
   const CHOSUNG = ["ㄱ","ㄲ","ㄴ","ㄷ","ㄸ","ㄹ","ㅁ","ㅂ","ㅃ","ㅅ","ㅆ","ㅇ","ㅈ","ㅉ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
