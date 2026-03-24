@@ -108,7 +108,7 @@ export default function TshirtWork() {
   }, [currentStep, selectedOrder, allDone]);
 
   const resetScan = useCallback(() => {
-    setScanValue(""); setStepStatuses(["waiting", "waiting", "waiting"]); setScannedValues(["", "", ""]);
+    setScanValue(""); setStepStatuses(["waiting", "waiting", "waiting", "waiting"]); setScannedValues(["", "", "", ""]);
     setCurrentStep(0); setMatchedProduct(null); setLogoVerified(false); setFailReason(""); setProcessing(false);
     setTimeout(() => inputRef.current?.focus(), 50);
   }, []);
