@@ -122,7 +122,7 @@ export default function SiteCallbackSettings() {
   const payloadExample = JSON.stringify({
     event: "tracking_update",
     order_id: "ORD-2024-001",
-    external_order_id: "SITE-A-12345",
+    external_order_id: "TWINMETA-12345",
     tracking_number: "4PX1234567890",
     carrier: "4px",
     status: "shipped",
