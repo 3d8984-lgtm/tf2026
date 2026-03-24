@@ -135,25 +135,7 @@ export default function ProductionMonitor() {
   // ── Order management state ──
   const { data: orders, isLoading: ordersLoading } = useOrders();
   const [search, setSearch] = useState("");
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const queryClient = useQueryClient();
-  const { toast: toastHook } = useToast();
-
-  const [form, setForm] = useState({
-    external_order_id: "", product_code: "", design_code: "", quantity: "",
-    recipient_name: "", recipient_phone: "", shipping_address: "",
-    shipping_city: "", shipping_state: "", shipping_zip: "", shipping_country: "US",
-    status: "received" as OrderStatus,
-  });
-
-  const resetForm = () => setForm({
-    external_order_id: "", product_code: "", design_code: "", quantity: "",
-    recipient_name: "", recipient_phone: "", shipping_address: "",
-    shipping_city: "", shipping_state: "", shipping_zip: "", shipping_country: "US", status: "received",
-  });
 
   const statusLabel: Record<string, string> = {
     received: isKo ? "접수" : "已接单",
