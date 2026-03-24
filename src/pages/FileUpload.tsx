@@ -140,7 +140,7 @@ export default function FileUpload() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-semibold">
-                      {isKo ? "A 사이트 API 연동" : "A站点 API连接"}
+                      {isKo ? "TWINMETA 사이트 API 연동" : "TWINMETA站点 API连接"}
                     </h3>
                     <span className="status-badge status-running">
                       {isKo ? "연결됨" : "已连接"}
