@@ -3,7 +3,7 @@ import PageHeader from "@/components/PageHeader";
 import { CheckCircle2, XCircle, Clock, ScanLine, ChevronDown, ChevronRight } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 
-interface ScanLog { time: string; silicon: string; design: string; hologram: string; result: "pass" | "fail"; logo: string }
+interface ScanLog { time: string; color: string; size: string; silicon: string; design: string; hologram: string; result: "pass" | "fail"; logo: string }
 interface OrderData {
   order: string; product: string; designCode: string; qty: number;
   summary: { waiting: number; done: number; fail: number };
@@ -15,32 +15,32 @@ const ordersData: OrderData[] = [
     order: "20260324-1", product: "BT-2024-A", designCode: "DSN-047", qty: 200,
     summary: { waiting: 15, done: 182, fail: 3 },
     logs: [
-      { time: "14:35:22", silicon: "SQR-00482", design: "DQR-00482", hologram: "HQR-A0931", result: "pass", logo: "✓" },
-      { time: "14:34:58", silicon: "SQR-00481", design: "DQR-00481", hologram: "HQR-A0930", result: "pass", logo: "✓" },
-      { time: "14:34:31", silicon: "SQR-00480", design: "DQR-00479", hologram: "HQR-A0929", result: "fail", logo: "-" },
+      { time: "14:35:22", color: "Black", size: "L", silicon: "SQR-00482", design: "DQR-00482", hologram: "HQR-A0931", result: "pass", logo: "✓" },
+      { time: "14:34:58", color: "Black", size: "L", silicon: "SQR-00481", design: "DQR-00481", hologram: "HQR-A0930", result: "pass", logo: "✓" },
+      { time: "14:34:31", color: "Navy", size: "XL", silicon: "SQR-00480", design: "DQR-00479", hologram: "HQR-A0929", result: "fail", logo: "-" },
     ],
   },
   {
     order: "20260324-2", product: "BT-2024-B", designCode: "DSN-012", qty: 150,
     summary: { waiting: 0, done: 150, fail: 0 },
     logs: [
-      { time: "14:34:02", silicon: "SQR-00479", design: "DQR-00479", hologram: "HQR-A0928", result: "pass", logo: "✓" },
-      { time: "14:33:40", silicon: "SQR-00478", design: "DQR-00478", hologram: "HQR-A0927", result: "pass", logo: "✓" },
+      { time: "14:34:02", color: "White", size: "M", silicon: "SQR-00479", design: "DQR-00479", hologram: "HQR-A0928", result: "pass", logo: "✓" },
+      { time: "14:33:40", color: "White", size: "S", silicon: "SQR-00478", design: "DQR-00478", hologram: "HQR-A0927", result: "pass", logo: "✓" },
     ],
   },
   {
     order: "20260324-3", product: "BT-2024-C", designCode: "DSN-089", qty: 300,
     summary: { waiting: 213, done: 83, fail: 4 },
     logs: [
-      { time: "14:38:10", silicon: "SQR-00550", design: "DQR-00550", hologram: "HQR-C0083", result: "pass", logo: "✓" },
-      { time: "14:37:48", silicon: "SQR-00549", design: "DQR-00548", hologram: "HQR-C0082", result: "fail", logo: "-" },
+      { time: "14:38:10", color: "Gray", size: "M", silicon: "SQR-00550", design: "DQR-00550", hologram: "HQR-C0083", result: "pass", logo: "✓" },
+      { time: "14:37:48", color: "Gray", size: "L", silicon: "SQR-00549", design: "DQR-00548", hologram: "HQR-C0082", result: "fail", logo: "-" },
     ],
   },
   {
     order: "20260324-4", product: "BT-2024-A", designCode: "DSN-047", qty: 120,
     summary: { waiting: 0, done: 120, fail: 0 },
     logs: [
-      { time: "13:45:20", silicon: "SQR-00320", design: "DQR-00320", hologram: "HQR-A0800", result: "pass", logo: "✓" },
+      { time: "13:45:20", color: "Black", size: "L", silicon: "SQR-00320", design: "DQR-00320", hologram: "HQR-A0800", result: "pass", logo: "✓" },
     ],
   },
 ];
@@ -58,7 +58,6 @@ function OrderRow({ o, t, lang }: { o: OrderData; t: (k: string) => string; lang
         <div className="flex items-center gap-3 min-w-0">
           {isOpen ? <ChevronDown className="w-4 h-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 shrink-0 text-muted-foreground" />}
           <span className="font-semibold text-sm">{o.order}</span>
-          <span className="text-xs text-muted-foreground">{o.product} · {o.designCode}</span>
           <span className="text-xs text-muted-foreground tabular-nums">{lang === "ko" ? "수량" : "数量"}: {o.qty}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -94,7 +93,7 @@ function OrderRow({ o, t, lang }: { o: OrderData; t: (k: string) => string; lang
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="border-b text-left">
-                {[t("tshirtProd.time"), t("tshirtProd.siliconQR"), t("tshirtProd.designQR"), t("tshirtProd.hologramQR"), t("tshirtProd.logoCol"), t("tshirtProd.result")].map(h => (
+                {[t("tshirtProd.time"), lang === "ko" ? "색상" : "颜色", lang === "ko" ? "사이즈" : "尺码", t("tshirtProd.siliconQR"), t("tshirtProd.designQR"), t("tshirtProd.hologramQR"), t("tshirtProd.logoCol"), t("tshirtProd.result")].map(h => (
                   <th key={h} className="pb-2 font-medium text-muted-foreground whitespace-nowrap pr-4">{h}</th>
                 ))}
               </tr></thead>
@@ -102,6 +101,8 @@ function OrderRow({ o, t, lang }: { o: OrderData; t: (k: string) => string; lang
                 {o.logs.map((log, i) => (
                   <tr key={i} className={`border-b last:border-0 transition-colors ${log.result === "fail" ? "bg-destructive/5" : "hover:bg-muted/30"}`}>
                     <td className="py-2 tabular-nums text-muted-foreground pr-4">{log.time}</td>
+                    <td className="py-2 pr-4">{log.color}</td>
+                    <td className="py-2 pr-4">{log.size}</td>
                     <td className="py-2 font-mono text-xs pr-4">{log.silicon}</td>
                     <td className="py-2 font-mono text-xs pr-4">{log.design}</td>
                     <td className="py-2 font-mono text-xs pr-4">{log.hologram}</td>
@@ -113,7 +114,7 @@ function OrderRow({ o, t, lang }: { o: OrderData; t: (k: string) => string; lang
                     </td>
                   </tr>
                 ))}
-                {o.logs.length === 0 && <tr><td colSpan={6} className="py-4 text-center text-muted-foreground text-sm">{lang === "ko" ? "아직 작업 기록이 없습니다" : "暂无作业记录"}</td></tr>}
+                {o.logs.length === 0 && <tr><td colSpan={8} className="py-4 text-center text-muted-foreground text-sm">{lang === "ko" ? "아직 작업 기록이 없습니다" : "暂无作业记录"}</td></tr>}
               </tbody>
             </table>
           </div>
