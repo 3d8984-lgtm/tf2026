@@ -433,7 +433,7 @@ const translations: Record<Lang, Record<string, string>> = {
 
     // Menu
     "menu.dashboard": "仪表盘",
-    "menu.upload": "文件上传",
+    "menu.upload": "订单数据导入",
     "menu.master": "基准信息管理",
     "menu.workOrders": "工单管理",
     "menu.tshirt": "T恤制作管理",
