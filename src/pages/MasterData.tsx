@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
-type MasterCategory = "product" | "card" | "qr" | "shipper";
+type MasterCategory = "product" | "card" | "shipper";
 
 interface MasterItem {
   id: string;
@@ -47,21 +47,6 @@ const demoData: Record<MasterCategory, { columns: { key: string; ko: string; zh:
       { id: "C005", code: "CRD-S-002", name: "스페셜 에디션", grade: "S", series: "시즌2" },
     ],
   },
-  qr: {
-    columns: [
-      { key: "type", ko: "유형", zh: "类型" },
-      { key: "value", ko: "값", zh: "值" },
-      { key: "linked", ko: "연결 상품", zh: "关联商品" },
-      { key: "status", ko: "상태", zh: "状态" },
-    ],
-    rows: [
-      { id: "Q001", type: "실리콘QR", value: "SIL-QR-00001", linked: "TS-BK-M", status: "사용됨" },
-      { id: "Q002", type: "디자인QR", value: "DES-QR-00001", linked: "TS-WH-L", status: "미사용" },
-      { id: "Q003", type: "홀로그램QR", value: "HOL-QR-00001", linked: "TS-NV-S", status: "사용됨" },
-      { id: "Q004", type: "카드바코드", value: "4912345678901", linked: "CRD-S-001", status: "사용됨" },
-      { id: "Q005", type: "실리콘QR", value: "SIL-QR-00002", linked: "-", status: "미사용" },
-    ],
-  },
   shipper: {
     columns: [
       { key: "name", ko: "택배사/출고처명", zh: "快递公司/出库方" },
@@ -92,7 +77,6 @@ export default function MasterData() {
   const masters: { key: MasterCategory; label: string; count: number; lastUpdate: string }[] = [
     { key: "product", label: t("master.product"), count: data.product.rows.length, lastUpdate: "2024-03-15" },
     { key: "card", label: t("master.cardMaster"), count: data.card.rows.length, lastUpdate: "2024-03-15" },
-    { key: "qr", label: t("master.qrBarcode"), count: data.qr.rows.length, lastUpdate: "2024-03-15" },
     { key: "shipper", label: t("master.shipper"), count: data.shipper.rows.length, lastUpdate: "2024-02-28" },
   ];
 
