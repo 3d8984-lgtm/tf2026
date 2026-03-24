@@ -169,6 +169,8 @@ const translations: Record<Lang, Record<string, string>> = {
     "tshirtWork.siliconQR": "실리콘 마크 QR",
     "tshirtWork.designQR": "디자인 QR",
     "tshirtWork.hologramQR": "홀로그램 QR",
+    "tshirtWork.tshirtScan": "티셔츠 (색상/사이즈)",
+    "tshirtWork.color": "색상",
     "tshirtWork.scanWaiting": "← 스캔 대기중",
     "tshirtWork.scan": "스캔",
     "tshirtWork.allPass": "전체 검증 통과",
