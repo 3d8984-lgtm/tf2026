@@ -114,7 +114,7 @@ function OrderRow({ o, t, lang }: { o: OrderData; t: (k: string) => string; lang
                     </td>
                   </tr>
                 ))}
-                {o.logs.length === 0 && <tr><td colSpan={6} className="py-4 text-center text-muted-foreground text-sm">{lang === "ko" ? "아직 작업 기록이 없습니다" : "暂无作业记录"}</td></tr>}
+                {o.logs.length === 0 && <tr><td colSpan={8} className="py-4 text-center text-muted-foreground text-sm">{lang === "ko" ? "아직 작업 기록이 없습니다" : "暂无作业记录"}</td></tr>}
               </tbody>
             </table>
           </div>
