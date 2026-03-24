@@ -15,6 +15,7 @@ import { useShippingGrouped, useShippingKpis } from "@/hooks/useShippingData";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { usePermissions } from "@/hooks/usePermissions";
 import type { Database } from "@/integrations/supabase/types";
 
 type ShipmentStatus = Database["public"]["Enums"]["shipment_status"];
