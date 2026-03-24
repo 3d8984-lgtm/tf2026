@@ -71,6 +71,17 @@ export default function Auth() {
                 maxLength={50}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">{t("auth.phone")}</Label>
+              <Input
+                id="phone"
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder={t("auth.phonePlaceholder")}
+                maxLength={20}
+              />
+            </div>
           )}
           <div className="space-y-2">
             <Label htmlFor="email">{t("auth.email")}</Label>
