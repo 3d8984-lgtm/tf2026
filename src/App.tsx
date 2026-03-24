@@ -18,6 +18,7 @@ import Shipping from "@/pages/Shipping";
 import Defects from "@/pages/Defects";
 import Reports from "@/pages/Reports";
 import SystemSettings from "@/pages/SystemSettings";
+import Manual from "@/pages/Manual";
 import NotFound from "@/pages/NotFound";
 import { useLang } from "@/contexts/LangContext";
 import { Button } from "@/components/ui/button";
