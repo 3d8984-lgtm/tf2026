@@ -6,22 +6,14 @@ import OrderPipeline from "@/components/OrderPipeline";
 import {
   Wifi, WifiOff, Gauge, AlertTriangle, ScanLine, Package,
   CheckCircle2, XCircle, Printer, Search, Activity, ChevronDown, ChevronRight,
-  PlayCircle, OctagonX, ClipboardList, Plus, Edit, Eye
+  PlayCircle, OctagonX, ClipboardList, Eye
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useOrders } from "@/hooks/useDbData";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
 import type { Database } from "@/integrations/supabase/types";
-
-type OrderStatus = Database["public"]["Enums"]["order_status"];
-const ORDER_STATUSES: OrderStatus[] = ["received", "in_production", "completed", "shipped", "cancelled"];
 
 /* ── Types ── */
 interface CardLog { time: string; barcode: string; serial: string; printedQR: string; status: string }
