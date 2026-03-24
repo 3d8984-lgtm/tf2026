@@ -15,7 +15,7 @@ const translations: Record<Lang, Record<string, string>> = {
 
     // Menu
     "menu.dashboard": "대시보드",
-    "menu.upload": "파일 업로드",
+    "menu.upload": "주문 데이터 가져오기",
     "menu.master": "기준정보 관리",
     "menu.workOrders": "작업지시 관리",
     "menu.tshirt": "티셔츠 제작 관리",
@@ -433,7 +433,7 @@ const translations: Record<Lang, Record<string, string>> = {
 
     // Menu
     "menu.dashboard": "仪表盘",
-    "menu.upload": "文件上传",
+    "menu.upload": "订单数据导入",
     "menu.master": "基准信息管理",
     "menu.workOrders": "工单管理",
     "menu.tshirt": "T恤制作管理",

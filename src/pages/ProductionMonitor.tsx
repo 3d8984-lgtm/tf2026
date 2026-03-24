@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLang } from "@/contexts/LangContext";
@@ -6,10 +6,22 @@ import OrderPipeline from "@/components/OrderPipeline";
 import {
   Wifi, WifiOff, Gauge, AlertTriangle, ScanLine, Package,
   CheckCircle2, XCircle, Printer, Search, Activity, ChevronDown, ChevronRight,
-  PlayCircle, OctagonX
+  PlayCircle, OctagonX, ClipboardList, Plus, Edit, Eye
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useOrders } from "@/hooks/useDbData";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import type { Database } from "@/integrations/supabase/types";
+
+type OrderStatus = Database["public"]["Enums"]["order_status"];
+const ORDER_STATUSES: OrderStatus[] = ["received", "in_production", "completed", "shipped", "cancelled"];
 
 /* ── Types ── */
 interface CardLog { time: string; barcode: string; serial: string; printedQR: string; status: string }
@@ -117,17 +129,115 @@ function OrderRow({ o, children, summaryBadges, lang }: { o: OrderData; children
 
 export default function ProductionMonitor() {
   const { t, lang } = useLang();
-  const [tab, setTab] = useState("pipeline");
+  const isKo = lang === "ko";
+  const [tab, setTab] = useState("orders");
 
+  // ── Order management state ──
+  const { data: orders, isLoading: ordersLoading } = useOrders();
+  const [search, setSearch] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
+  const { toast: toastHook } = useToast();
+
+  const [form, setForm] = useState({
+    external_order_id: "", product_code: "", design_code: "", quantity: "",
+    recipient_name: "", recipient_phone: "", shipping_address: "",
+    shipping_city: "", shipping_state: "", shipping_zip: "", shipping_country: "US",
+    status: "received" as OrderStatus,
+  });
+
+  const resetForm = () => setForm({
+    external_order_id: "", product_code: "", design_code: "", quantity: "",
+    recipient_name: "", recipient_phone: "", shipping_address: "",
+    shipping_city: "", shipping_state: "", shipping_zip: "", shipping_country: "US", status: "received",
+  });
+
+  const statusLabel: Record<string, string> = {
+    received: isKo ? "접수" : "已接单",
+    in_production: isKo ? "생산중" : "生产中",
+    completed: isKo ? "완료" : "已完成",
+    shipped: isKo ? "출고" : "已出库",
+    cancelled: isKo ? "취소" : "已取消",
+  };
+
+  const statusBadge = (status: string) => {
+    switch (status) {
+      case "received": return { label: t("status.waiting"), cls: "status-idle" };
+      case "in_production": return { label: t("status.inProgress"), cls: "status-running" };
+      case "completed": return { label: t("status.completed"), cls: "status-running" };
+      case "shipped": return { label: t("status.shipDone"), cls: "status-running" };
+      case "cancelled": return { label: isKo ? "취소" : "已取消", cls: "status-stopped" };
+      default: return { label: status, cls: "status-idle" };
+    }
+  };
+
+  const filtered = orders?.filter(wo =>
+    !search ||
+    wo.external_order_id.toLowerCase().includes(search.toLowerCase()) ||
+    wo.product_code.toLowerCase().includes(search.toLowerCase()) ||
+    wo.recipient_name.toLowerCase().includes(search.toLowerCase())
+  ) ?? [];
+
+  const openCreate = () => { resetForm(); setCreateOpen(true); };
+
+  const openEdit = (order: NonNullable<typeof orders>[number]) => {
+    setForm({
+      external_order_id: order.external_order_id, product_code: order.product_code,
+      design_code: order.design_code ?? "", quantity: String(order.quantity),
+      recipient_name: order.recipient_name, recipient_phone: order.recipient_phone ?? "",
+      shipping_address: order.shipping_address, shipping_city: order.shipping_city ?? "",
+      shipping_state: order.shipping_state ?? "", shipping_zip: order.shipping_zip ?? "",
+      shipping_country: order.shipping_country, status: order.status,
+    });
+    setEditId(order.id);
+  };
+
+  const handleSave = async () => {
+    if (!form.external_order_id || !form.product_code || !form.recipient_name || !form.quantity) {
+      toastHook({ title: isKo ? "오류" : "错误", description: isKo ? "필수 항목을 입력해주세요" : "请填写必填项", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = {
+        external_order_id: form.external_order_id, product_code: form.product_code,
+        design_code: form.design_code || null, quantity: parseInt(form.quantity) || 1,
+        recipient_name: form.recipient_name, recipient_phone: form.recipient_phone || null,
+        shipping_address: form.shipping_address, shipping_city: form.shipping_city || null,
+        shipping_state: form.shipping_state || null, shipping_zip: form.shipping_zip || null,
+        shipping_country: form.shipping_country || "US", status: form.status,
+      };
+      if (editId) {
+        const { error } = await supabase.from("orders").update(payload).eq("id", editId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("orders").insert(payload);
+        if (error) throw error;
+      }
+      toastHook({ title: isKo ? "저장 완료" : "保存成功" });
+      setCreateOpen(false); setEditId(null); resetForm();
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error";
+      toastHook({ title: isKo ? "오류" : "错误", description: msg, variant: "destructive" });
+    } finally { setSaving(false); }
+  };
+
+  const detailOrder = detailId ? orders?.find(o => o.id === detailId) : null;
+
+  // ── Machine state ──
   const [machines, setMachines] = useState([
-    { id: "A-1", name: lang === "ko" ? "티셔츠 제작기 A-1" : "T恤制作机 A-1", status: "running", speed: "95", uptime: "97.2%", total: 38420, error: "-", lastComm: "14:37:05", stopReason: "", stoppedAt: "" },
-    { id: "A-2", name: lang === "ko" ? "티셔츠 제작기 A-2" : "T恤制作机 A-2", status: "paused", speed: "-", uptime: "91.5%", total: 28150, error: "-", lastComm: "14:35:22", stopReason: "", stoppedAt: "" },
-    { id: "A-3", name: lang === "ko" ? "티셔츠 제작기 A-3" : "T恤制作机 A-3", status: "running", speed: "92", uptime: "94.8%", total: 21560, error: "-", lastComm: "14:37:03", stopReason: "", stoppedAt: "" },
-    { id: "B-1", name: lang === "ko" ? "카드 포장기 B-1" : "卡片包装机 B-1", status: "running", speed: "120", uptime: "96.1%", total: 42150, error: "-", lastComm: "14:37:01", stopReason: "", stoppedAt: "" },
-    { id: "B-2", name: lang === "ko" ? "세트 포장기 B-2" : "套装包装机 B-2", status: "autoStopped", speed: "-", uptime: "93.4%", total: 31200, error: "QR-ERR", lastComm: "14:36:58", stopReason: lang === "ko" ? "QR 매칭 실패 — 홀로그램 QR ↔ 카드 바코드 불일치 (SET-0313)" : "QR匹配失败 — 全息QR ↔ 卡片条码不匹配 (SET-0313)", stoppedAt: "14:36:58" },
-    { id: "B-3", name: lang === "ko" ? "중량검사기 B-3" : "重量检测机 B-3", status: "running", speed: "150", uptime: "99.1%", total: 31000, error: "-", lastComm: "14:36:56", stopReason: "", stoppedAt: "" },
-    { id: "B-4", name: lang === "ko" ? "택배 포장기 B-4" : "快递包装机 B-4", status: "running", speed: "78", uptime: "88.5%", total: 18300, error: "-", lastComm: "14:36:55", stopReason: "", stoppedAt: "" },
-    { id: "B-5", name: lang === "ko" ? "송장 부착기 B-5" : "运单贴附机 B-5", status: "running", speed: "110", uptime: "95.7%", total: 35680, error: "-", lastComm: "14:37:04", stopReason: "", stoppedAt: "" },
+    { id: "A-1", name: isKo ? "티셔츠 제작기 A-1" : "T恤制作机 A-1", status: "running", speed: "95", uptime: "97.2%", total: 38420, error: "-", lastComm: "14:37:05", stopReason: "", stoppedAt: "" },
+    { id: "A-2", name: isKo ? "티셔츠 제작기 A-2" : "T恤制作机 A-2", status: "paused", speed: "-", uptime: "91.5%", total: 28150, error: "-", lastComm: "14:35:22", stopReason: "", stoppedAt: "" },
+    { id: "A-3", name: isKo ? "티셔츠 제작기 A-3" : "T恤制作机 A-3", status: "running", speed: "92", uptime: "94.8%", total: 21560, error: "-", lastComm: "14:37:03", stopReason: "", stoppedAt: "" },
+    { id: "B-1", name: isKo ? "카드 포장기 B-1" : "卡片包装机 B-1", status: "running", speed: "120", uptime: "96.1%", total: 42150, error: "-", lastComm: "14:37:01", stopReason: "", stoppedAt: "" },
+    { id: "B-2", name: isKo ? "세트 포장기 B-2" : "套装包装机 B-2", status: "autoStopped", speed: "-", uptime: "93.4%", total: 31200, error: "QR-ERR", lastComm: "14:36:58", stopReason: isKo ? "QR 매칭 실패 — 홀로그램 QR ↔ 카드 바코드 불일치 (SET-0313)" : "QR匹配失败 — 全息QR ↔ 卡片条码不匹配 (SET-0313)", stoppedAt: "14:36:58" },
+    { id: "B-3", name: isKo ? "중량검사기 B-3" : "重量检测机 B-3", status: "running", speed: "150", uptime: "99.1%", total: 31000, error: "-", lastComm: "14:36:56", stopReason: "", stoppedAt: "" },
+    { id: "B-4", name: isKo ? "택배 포장기 B-4" : "快递包装机 B-4", status: "running", speed: "78", uptime: "88.5%", total: 18300, error: "-", lastComm: "14:36:55", stopReason: "", stoppedAt: "" },
+    { id: "B-5", name: isKo ? "송장 부착기 B-5" : "运单贴附机 B-5", status: "running", speed: "110", uptime: "95.7%", total: 35680, error: "-", lastComm: "14:37:04", stopReason: "", stoppedAt: "" },
   ]);
   const [actionMemos, setActionMemos] = useState<Record<string, string>>({});
 
@@ -135,10 +245,7 @@ export default function ProductionMonitor() {
 
   const handleRestart = (machineId: string) => {
     const memo = actionMemos[machineId]?.trim();
-    if (!memo) {
-      toast.error(t("machines.actionMemo"));
-      return;
-    }
+    if (!memo) { toast.error(t("machines.actionMemo")); return; }
     setMachines(prev => prev.map(m => m.id === machineId ? { ...m, status: "running", speed: "0", error: "-", stopReason: "", stoppedAt: "" } : m));
     setActionMemos(prev => ({ ...prev, [machineId]: "" }));
     toast.success(t("machines.restarted") + ` — ${machineId}`);
@@ -163,12 +270,47 @@ export default function ProductionMonitor() {
     invoiceWait: "status-idle", invoiceDone: "status-warning", shipDone: "status-running", shipHold: "status-stopped",
   };
 
+  const OrderFormDialog = ({ open, onOpenChange, title }: { open: boolean; onOpenChange: (v: boolean) => void; title: string }) => (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+        <div className="grid grid-cols-2 gap-3 pt-2">
+          <div className="space-y-1.5"><Label>{isKo ? "주문번호 *" : "订单号 *"}</Label><Input value={form.external_order_id} onChange={e => setForm(f => ({ ...f, external_order_id: e.target.value }))} /></div>
+          <div className="space-y-1.5"><Label>{isKo ? "상품코드 *" : "商品代码 *"}</Label><Input value={form.product_code} onChange={e => setForm(f => ({ ...f, product_code: e.target.value }))} /></div>
+          <div className="space-y-1.5"><Label>{isKo ? "디자인코드" : "设计代码"}</Label><Input value={form.design_code} onChange={e => setForm(f => ({ ...f, design_code: e.target.value }))} /></div>
+          <div className="space-y-1.5"><Label>{isKo ? "수량 *" : "数量 *"}</Label><Input type="number" value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} /></div>
+          <div className="space-y-1.5"><Label>{isKo ? "수취인 *" : "收件人 *"}</Label><Input value={form.recipient_name} onChange={e => setForm(f => ({ ...f, recipient_name: e.target.value }))} /></div>
+          <div className="space-y-1.5"><Label>{isKo ? "연락처" : "联系方式"}</Label><Input value={form.recipient_phone} onChange={e => setForm(f => ({ ...f, recipient_phone: e.target.value }))} /></div>
+          <div className="col-span-2 space-y-1.5"><Label>{isKo ? "배송 주소" : "配送地址"}</Label><Input value={form.shipping_address} onChange={e => setForm(f => ({ ...f, shipping_address: e.target.value }))} /></div>
+          <div className="space-y-1.5"><Label>{isKo ? "도시" : "城市"}</Label><Input value={form.shipping_city} onChange={e => setForm(f => ({ ...f, shipping_city: e.target.value }))} /></div>
+          <div className="space-y-1.5"><Label>{isKo ? "주/지역" : "省/州"}</Label><Input value={form.shipping_state} onChange={e => setForm(f => ({ ...f, shipping_state: e.target.value }))} /></div>
+          <div className="space-y-1.5"><Label>{isKo ? "우편번호" : "邮编"}</Label><Input value={form.shipping_zip} onChange={e => setForm(f => ({ ...f, shipping_zip: e.target.value }))} /></div>
+          <div className="space-y-1.5"><Label>{isKo ? "국가" : "国家"}</Label><Input value={form.shipping_country} onChange={e => setForm(f => ({ ...f, shipping_country: e.target.value }))} /></div>
+          {editId && (
+            <div className="space-y-1.5">
+              <Label>{isKo ? "상태" : "状态"}</Label>
+              <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v as OrderStatus }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{ORDER_STATUSES.map(s => <SelectItem key={s} value={s}>{statusLabel[s]}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className="col-span-2 flex justify-end gap-2 pt-3">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>{isKo ? "취소" : "取消"}</Button>
+            <Button onClick={handleSave} disabled={saving}>{saving ? (isKo ? "저장중..." : "保存中...") : (isKo ? "저장" : "保存")}</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+
   return (
     <div>
       <PageHeader title={t("monitor.title")} description={t("monitor.desc")} />
       <div className="p-6">
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="mb-6">
+            <TabsTrigger value="orders" className="gap-1.5"><ClipboardList className="w-3.5 h-3.5" />{isKo ? "주문 관리" : "订单管理"}</TabsTrigger>
             <TabsTrigger value="pipeline" className="gap-1.5"><Activity className="w-3.5 h-3.5" />{t("monitor.tab.pipeline")}</TabsTrigger>
             <TabsTrigger value="card" className="gap-1.5"><ScanLine className="w-3.5 h-3.5" />{t("monitor.tab.card")}</TabsTrigger>
             <TabsTrigger value="set" className="gap-1.5"><Package className="w-3.5 h-3.5" />{t("monitor.tab.set")}</TabsTrigger>
@@ -176,10 +318,77 @@ export default function ProductionMonitor() {
             <TabsTrigger value="machines" className="gap-1.5"><Gauge className="w-3.5 h-3.5" />{t("monitor.tab.machines")}</TabsTrigger>
           </TabsList>
 
+          {/* ═══ Orders Management ═══ */}
+          <TabsContent value="orders" className="space-y-5">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              {[
+                { label: isKo ? "전체" : "全部", value: orders?.length ?? 0 },
+                { label: t("status.waiting"), value: orders?.filter(o => o.status === "received").length ?? 0 },
+                { label: t("status.inProgress"), value: orders?.filter(o => o.status === "in_production").length ?? 0 },
+                { label: t("status.completed"), value: orders?.filter(o => o.status === "completed").length ?? 0 },
+                { label: t("status.shipDone"), value: orders?.filter(o => o.status === "shipped").length ?? 0 },
+              ].map((s, i) => (
+                <div key={s.label} className="kpi-card section-enter text-center" style={{ animationDelay: `${i * 60}ms` }}>
+                  <p className="text-2xl font-semibold tabular-nums">{s.value}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{s.label}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="kpi-card section-enter" style={{ animationDelay: "80ms" }}>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="relative flex-1 max-w-sm">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input className="w-full pl-9 pr-3 py-2 rounded-md border bg-background text-sm" placeholder={t("workOrders.search")} value={search} onChange={e => setSearch(e.target.value)} />
+                </div>
+                <Button size="sm" className="gap-1.5" onClick={openCreate}><Plus className="w-4 h-4" /> {t("workOrders.create")}</Button>
+              </div>
+
+              {ordersLoading ? (
+                <div className="flex justify-center py-12"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left">
+                        {[t("workOrders.orderNo"), t("workOrders.productCode"), t("workOrders.designCode"), t("workOrders.qty"), isKo ? "수취인" : "收件人", isKo ? "배송지" : "配送地址", t("workOrders.status"), isKo ? "관리" : "管理"].map(h => (
+                          <th key={h} className="pb-2 font-medium text-muted-foreground whitespace-nowrap pr-4">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtered.map(wo => {
+                        const sb = statusBadge(wo.status);
+                        return (
+                          <tr key={wo.id} className="border-b hover:bg-muted/30 transition-colors">
+                            <td className="py-2.5 font-medium text-primary pr-4">{wo.external_order_id}</td>
+                            <td className="py-2.5 pr-4">{wo.product_code}</td>
+                            <td className="py-2.5 pr-4">{wo.design_code ?? "-"}</td>
+                            <td className="py-2.5 tabular-nums pr-4">{wo.quantity.toLocaleString()}</td>
+                            <td className="py-2.5 pr-4">{wo.recipient_name}</td>
+                            <td className="py-2.5 pr-4 max-w-[200px] truncate text-muted-foreground">{[wo.shipping_city, wo.shipping_state, wo.shipping_country].filter(Boolean).join(", ")}</td>
+                            <td className="py-2.5 pr-4"><span className={`status-badge ${sb.cls}`}>{sb.label}</span></td>
+                            <td className="py-2.5">
+                              <div className="flex gap-1">
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDetailId(wo.id)} title={isKo ? "상세" : "详情"}><Eye className="w-3.5 h-3.5" /></Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(wo)} title={isKo ? "수정" : "编辑"}><Edit className="w-3.5 h-3.5" /></Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {filtered.length === 0 && <tr><td colSpan={8} className="py-8 text-center text-muted-foreground">{isKo ? "주문이 없습니다" : "暂无订单"}</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
           {/* ═══ Pipeline ═══ */}
           <TabsContent value="pipeline" className="space-y-6"><OrderPipeline /></TabsContent>
 
-          {/* ═══ Card packing — by order ═══ */}
+          {/* ═══ Card packing ═══ */}
           <TabsContent value="card" className="space-y-4">
             <div className="grid grid-cols-4 gap-4">
               {[
@@ -198,9 +407,7 @@ export default function ProductionMonitor() {
               <OrderRow key={o.order} o={o} lang={lang} summaryBadges={
                 <>
                   <span className="text-xs tabular-nums text-muted-foreground">{o.cardSummary.ejected}/{o.qty}</span>
-                  <div className="w-20 h-1.5 rounded-full bg-muted">
-                    <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct(o.cardSummary.ejected, o.qty)}%` }} />
-                  </div>
+                  <div className="w-20 h-1.5 rounded-full bg-muted"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct(o.cardSummary.ejected, o.qty)}%` }} /></div>
                   <span className="text-xs font-medium tabular-nums">{pct(o.cardSummary.ejected, o.qty)}%</span>
                   {o.cardSummary.error > 0 && <span className="status-badge status-stopped">{t("status.error")} {o.cardSummary.error}</span>}
                 </>
@@ -222,7 +429,7 @@ export default function ProductionMonitor() {
                           <td className="py-2"><span className={`status-badge ${cardStatusBadge[l.status]}`}>{cardStatusLabel[l.status]}</span></td>
                         </tr>
                       ))}
-                      {o.cardLogs.length === 0 && <tr><td colSpan={5} className="py-4 text-center text-muted-foreground text-sm">{lang === "ko" ? "아직 포장 기록이 없습니다" : "暂无包装记录"}</td></tr>}
+                      {o.cardLogs.length === 0 && <tr><td colSpan={5} className="py-4 text-center text-muted-foreground text-sm">{isKo ? "아직 포장 기록이 없습니다" : "暂无包装记录"}</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -230,7 +437,7 @@ export default function ProductionMonitor() {
             ))}
           </TabsContent>
 
-          {/* ═══ Set packing — by order ═══ */}
+          {/* ═══ Set packing ═══ */}
           <TabsContent value="set" className="space-y-4">
             <div className="grid grid-cols-3 gap-4">
               {[
@@ -248,9 +455,7 @@ export default function ProductionMonitor() {
               <OrderRow key={o.order} o={o} lang={lang} summaryBadges={
                 <>
                   <span className="text-xs tabular-nums text-muted-foreground">{o.setSummary.packDone}/{o.qty}</span>
-                  <div className="w-20 h-1.5 rounded-full bg-muted">
-                    <div className="h-full rounded-full transition-all" style={{ width: `${pct(o.setSummary.packDone, o.qty)}%`, background: "hsl(152 60% 42%)" }} />
-                  </div>
+                  <div className="w-20 h-1.5 rounded-full bg-muted"><div className="h-full rounded-full transition-all" style={{ width: `${pct(o.setSummary.packDone, o.qty)}%`, background: "hsl(152 60% 42%)" }} /></div>
                   <span className="text-xs font-medium tabular-nums">{pct(o.setSummary.packDone, o.qty)}%</span>
                   {o.setSummary.matchFail > 0 && <span className="status-badge status-stopped">{t("setPacking.matchFail")} {o.setSummary.matchFail}</span>}
                 </>
@@ -273,7 +478,7 @@ export default function ProductionMonitor() {
                           <td className="py-2"><span className={`status-badge ${l.match ? "status-running" : "status-stopped"}`}>{l.status === "packDone" ? t("status.packDone") : t("status.matchFail")}</span></td>
                         </tr>
                       ))}
-                      {o.setLogs.length === 0 && <tr><td colSpan={6} className="py-4 text-center text-muted-foreground text-sm">{lang === "ko" ? "아직 세트 포장 기록이 없습니다" : "暂无套装包装记录"}</td></tr>}
+                      {o.setLogs.length === 0 && <tr><td colSpan={6} className="py-4 text-center text-muted-foreground text-sm">{isKo ? "아직 세트 포장 기록이 없습니다" : "暂无套装包装记录"}</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -281,7 +486,7 @@ export default function ProductionMonitor() {
             ))}
           </TabsContent>
 
-          {/* ═══ Shipping — by order ═══ */}
+          {/* ═══ Shipping ═══ */}
           <TabsContent value="shipping" className="space-y-4">
             <div className="flex items-center gap-3 mb-2">
               <div className="relative flex-1 max-w-sm">
@@ -298,7 +503,7 @@ export default function ProductionMonitor() {
                     {o.shipSummary.shipDone > 0 && <span className="status-badge status-running">{t("status.shipDone")} {o.shipSummary.shipDone}</span>}
                     {o.shipSummary.invoiceWait > 0 && <span className="status-badge status-idle">{t("status.invoiceWait")} {o.shipSummary.invoiceWait}</span>}
                     {o.shipSummary.shipHold > 0 && <span className="status-badge status-stopped">{t("status.shipHold")} {o.shipSummary.shipHold}</span>}
-                    {totalShip === 0 && <span className="text-xs text-muted-foreground">{lang === "ko" ? "출고 대기" : "待出库"}</span>}
+                    {totalShip === 0 && <span className="text-xs text-muted-foreground">{isKo ? "출고 대기" : "待出库"}</span>}
                   </>
                 }>
                   <div className="overflow-x-auto">
@@ -320,7 +525,7 @@ export default function ProductionMonitor() {
                             <td className="py-2">{s.status === "invoiceWait" && <Button size="sm" variant="outline" className="h-7 text-xs gap-1"><Printer className="w-3 h-3" /> {t("shipping.print")}</Button>}</td>
                           </tr>
                         ))}
-                        {o.shipItems.length === 0 && <tr><td colSpan={7} className="py-4 text-center text-muted-foreground text-sm">{lang === "ko" ? "아직 출고 건이 없습니다" : "暂无出库记录"}</td></tr>}
+                        {o.shipItems.length === 0 && <tr><td colSpan={7} className="py-4 text-center text-muted-foreground text-sm">{isKo ? "아직 출고 건이 없습니다" : "暂无出库记录"}</td></tr>}
                       </tbody>
                     </table>
                   </div>
@@ -331,7 +536,6 @@ export default function ProductionMonitor() {
 
           {/* ═══ Machine status ═══ */}
           <TabsContent value="machines" className="space-y-6">
-            {/* Auto-stop alert banner */}
             {stoppedMachines.length > 0 && (
               <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4 space-y-4 section-enter">
                 <div className="flex items-center gap-2">
@@ -352,26 +556,13 @@ export default function ProductionMonitor() {
                       <p className="text-sm">{m.stopReason}</p>
                     </div>
                     <div className="flex items-center gap-3">
-                      <input
-                        className="flex-1 rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground"
-                        placeholder={t("machines.actionMemo")}
-                        value={actionMemos[m.id] || ""}
-                        onChange={(e) => setActionMemos(prev => ({ ...prev, [m.id]: e.target.value }))}
-                      />
-                      <Button
-                        size="sm"
-                        className="gap-1.5"
-                        onClick={() => handleRestart(m.id)}
-                      >
-                        <PlayCircle className="w-4 h-4" />
-                        {t("machines.restart")}
-                      </Button>
+                      <input className="flex-1 rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground" placeholder={t("machines.actionMemo")} value={actionMemos[m.id] || ""} onChange={(e) => setActionMemos(prev => ({ ...prev, [m.id]: e.target.value }))} />
+                      <Button size="sm" className="gap-1.5" onClick={() => handleRestart(m.id)}><PlayCircle className="w-4 h-4" />{t("machines.restart")}</Button>
                     </div>
                   </div>
                 ))}
               </div>
             )}
-
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {machines.map((m, i) => {
                 const st = statusMap[m.status] || statusMap.stopped;
@@ -396,6 +587,41 @@ export default function ProductionMonitor() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Create Dialog */}
+      <OrderFormDialog open={createOpen} onOpenChange={setCreateOpen} title={isKo ? "주문 등록" : "创建订单"} />
+      {/* Edit Dialog */}
+      <OrderFormDialog open={!!editId} onOpenChange={(v) => { if (!v) setEditId(null); }} title={isKo ? "주문 수정" : "编辑订单"} />
+      {/* Detail Dialog */}
+      <Dialog open={!!detailId} onOpenChange={(v) => { if (!v) setDetailId(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>{isKo ? "주문 상세" : "订单详情"}</DialogTitle></DialogHeader>
+          {detailOrder && (
+            <div className="space-y-3 text-sm">
+              {[
+                [isKo ? "주문번호" : "订单号", detailOrder.external_order_id],
+                [isKo ? "상품코드" : "商品代码", detailOrder.product_code],
+                [isKo ? "디자인코드" : "设计代码", detailOrder.design_code ?? "-"],
+                [isKo ? "수량" : "数量", String(detailOrder.quantity)],
+                [isKo ? "수취인" : "收件人", detailOrder.recipient_name],
+                [isKo ? "연락처" : "联系方式", detailOrder.recipient_phone ?? "-"],
+                [isKo ? "주소" : "地址", detailOrder.shipping_address],
+                [isKo ? "도시" : "城市", detailOrder.shipping_city ?? "-"],
+                [isKo ? "주/지역" : "省/州", detailOrder.shipping_state ?? "-"],
+                [isKo ? "우편번호" : "邮编", detailOrder.shipping_zip ?? "-"],
+                [isKo ? "국가" : "国家", detailOrder.shipping_country],
+                [isKo ? "상태" : "状态", statusLabel[detailOrder.status] ?? detailOrder.status],
+                [isKo ? "생성일" : "创建日期", new Date(detailOrder.created_at).toLocaleString()],
+              ].map(([label, value]) => (
+                <div key={label} className="flex justify-between">
+                  <span className="text-muted-foreground">{label}</span>
+                  <span className="font-medium">{value}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
