@@ -509,7 +509,7 @@ export default function ProductionMonitor() {
           {detailOrder && (
             <div className="space-y-3 text-sm">
               {[
-                [isKo ? "주문번호" : "订单号", detailOrder.external_order_id],
+                [isKo ? "작업지시번호" : "工单编号", workOrderNumbers.get(detailOrder.id) ?? "-"],
                 [isKo ? "수량" : "数量", String(detailOrder.quantity)],
                 [isKo ? "트윈커" : "Twinker", detailOrder.recipient_name],
                 [isKo ? "국가" : "国家", detailOrder.shipping_country],
