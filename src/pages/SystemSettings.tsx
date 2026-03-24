@@ -100,6 +100,7 @@ export default function SystemSettings() {
   useEffect(() => { const t = searchParams.get("tab"); if (t) setActiveTab(t); }, [searchParams]);
   const { toast } = useToast();
   const isKo = lang === "ko";
+  const { canAccessSettingsTab } = usePermissions();
 
   const eq = useCrudState<Equipment>(initEquipment);
   const plc = useCrudState<PlcTag>(initPlcTags);
