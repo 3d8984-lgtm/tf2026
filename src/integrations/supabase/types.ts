@@ -21,6 +21,7 @@ export type Database = {
           external_order_id: string
           id: string
           product_code: string
+          project_completed_at: string | null
           quantity: number
           recipient_name: string
           recipient_phone: string | null
@@ -39,6 +40,7 @@ export type Database = {
           external_order_id: string
           id?: string
           product_code: string
+          project_completed_at?: string | null
           quantity: number
           recipient_name: string
           recipient_phone?: string | null
@@ -57,6 +59,7 @@ export type Database = {
           external_order_id?: string
           id?: string
           product_code?: string
+          project_completed_at?: string | null
           quantity?: number
           recipient_name?: string
           recipient_phone?: string | null
