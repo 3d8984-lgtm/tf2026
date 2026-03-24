@@ -272,6 +272,7 @@ export default function Defects() {
                     )}
 
                     {/* Action buttons */}
+                    {canEditDefects && (
                     <div className="flex gap-2">
                       {d.status === "unprocessed" && (
                         <>
@@ -294,6 +295,7 @@ export default function Defects() {
                         </Button>
                       )}
                     </div>
+                    )}
                   </div>
                 )}
               </div>
