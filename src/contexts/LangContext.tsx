@@ -196,6 +196,9 @@ const translations: Record<Lang, Record<string, string>> = {
     "tshirtWork.verifying": "검증중…",
     "tshirtWork.startVerify": "검증 시작",
     "tshirtWork.attachPossible": "부착 진행 가능",
+    "tshirtWork.workItems": "작업건 목록",
+    "tshirtWork.pending": "대기",
+    "tshirtWork.status": "상태",
 
     // Card Packing
     "cardPacking.title": "카드 포장 관리",
