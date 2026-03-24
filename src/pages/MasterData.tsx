@@ -77,7 +77,6 @@ export default function MasterData() {
   const masters: { key: MasterCategory; label: string; count: number; lastUpdate: string }[] = [
     { key: "product", label: t("master.product"), count: data.product.rows.length, lastUpdate: "2024-03-15" },
     { key: "card", label: t("master.cardMaster"), count: data.card.rows.length, lastUpdate: "2024-03-15" },
-    { key: "qr", label: t("master.qrBarcode"), count: data.qr.rows.length, lastUpdate: "2024-03-15" },
     { key: "shipper", label: t("master.shipper"), count: data.shipper.rows.length, lastUpdate: "2024-02-28" },
   ];
 
