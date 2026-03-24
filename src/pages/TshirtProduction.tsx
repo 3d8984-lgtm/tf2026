@@ -6,14 +6,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 
 interface ScanLog { time: string; color: string; size: string; silicon: string; design: string; hologram: string; result: "pass" | "fail"; logo: string; failReason?: string }
 interface OrderData {
-  order: string; product: string; designCode: string; qty: number; twinker: string; dueDate: string;
+  order: string; product: string; designCode: string; qty: number; twinker: string; orderDate: string; dueDate: string;
   summary: { waiting: number; done: number; fail: number };
   logs: ScanLog[];
 }
 
 const ordersData: OrderData[] = [
   {
-    order: "20260324-1", product: "BT-2024-A", designCode: "DSN-047", qty: 200, twinker: "김민지", dueDate: "2026-03-25",
+    order: "20260324-1", product: "BT-2024-A", designCode: "DSN-047", qty: 200, twinker: "김민지", orderDate: "2026-03-20", dueDate: "2026-03-25",
     summary: { waiting: 15, done: 182, fail: 3 },
     logs: [
       { time: "14:35:22", color: "Black", size: "L", silicon: "SQR-00482", design: "DQR-00482", hologram: "HQR-A0931", result: "pass", logo: "✓" },
@@ -22,7 +22,7 @@ const ordersData: OrderData[] = [
     ],
   },
   {
-    order: "20260324-2", product: "BT-2024-B", designCode: "DSN-012", qty: 150, twinker: "박서연", dueDate: "2026-03-26",
+    order: "20260324-2", product: "BT-2024-B", designCode: "DSN-012", qty: 150, twinker: "박서연", orderDate: "2026-03-21", dueDate: "2026-03-26",
     summary: { waiting: 0, done: 150, fail: 0 },
     logs: [
       { time: "14:34:02", color: "White", size: "M", silicon: "SQR-00479", design: "DQR-00479", hologram: "HQR-A0928", result: "pass", logo: "✓" },
@@ -30,7 +30,7 @@ const ordersData: OrderData[] = [
     ],
   },
   {
-    order: "20260324-3", product: "BT-2024-C", designCode: "DSN-089", qty: 300, twinker: "이하윤", dueDate: "2026-03-27",
+    order: "20260324-3", product: "BT-2024-C", designCode: "DSN-089", qty: 300, twinker: "이하윤", orderDate: "2026-03-22", dueDate: "2026-03-27",
     summary: { waiting: 213, done: 83, fail: 4 },
     logs: [
       { time: "14:38:10", color: "Gray", size: "M", silicon: "SQR-00550", design: "DQR-00550", hologram: "HQR-C0083", result: "pass", logo: "✓" },
@@ -38,7 +38,7 @@ const ordersData: OrderData[] = [
     ],
   },
   {
-    order: "20260324-4", product: "BT-2024-A", designCode: "DSN-047", qty: 120, twinker: "최유진", dueDate: "2026-03-28",
+    order: "20260324-4", product: "BT-2024-A", designCode: "DSN-047", qty: 120, twinker: "최유진", orderDate: "2026-03-23", dueDate: "2026-03-28",
     summary: { waiting: 0, done: 120, fail: 0 },
     logs: [
       { time: "13:45:20", color: "Black", size: "L", silicon: "SQR-00320", design: "DQR-00320", hologram: "HQR-A0800", result: "pass", logo: "✓" },
@@ -61,6 +61,7 @@ function OrderRow({ o, t, lang }: { o: OrderData; t: (k: string) => string; lang
           {isOpen ? <ChevronDown className="w-4 h-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 shrink-0 text-muted-foreground" />}
           <span className="font-semibold text-sm">{o.order}</span>
           <span className="text-xs text-muted-foreground">{lang === "ko" ? "트윈커" : "Twinker"}: <strong className="text-foreground">{o.twinker}</strong></span>
+          <span className="text-xs text-muted-foreground">{lang === "ko" ? "주문일" : "下单日"}: {o.orderDate}</span>
           <span className="text-xs text-muted-foreground">{lang === "ko" ? "납기" : "交期"}: {o.dueDate}</span>
           <span className="text-xs text-muted-foreground tabular-nums">{lang === "ko" ? "수량" : "数量"}: {o.qty}</span>
         </div>
