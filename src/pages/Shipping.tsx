@@ -345,9 +345,11 @@ function OrderGroup({ group, isKo, shipmentStatusLabel, shipmentStatusCls, query
                     </td>
                     <td className="py-2.5">
                       <Dialog open={editingId === s.id} onOpenChange={(open) => { if (!open) setEditingId(null); }}>
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEdit(s)}>
-                          <Edit className="w-3.5 h-3.5" />
-                        </Button>
+                        <DialogTrigger asChild>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEdit(s)}>
+                            <Edit className="w-3.5 h-3.5" />
+                          </Button>
+                        </DialogTrigger>
                         <DialogContent className="sm:max-w-md">
                           <DialogHeader>
                             <DialogTitle className="flex items-center gap-2">
