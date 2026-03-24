@@ -115,14 +115,14 @@ export default function SiteCallbackSettings() {
     if (error) {
       toast({ title: isKo ? "오류" : "错误", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: isKo ? "저장됨" : "已保存", description: isKo ? "A 사이트 회신 설정이 저장되었습니다" : "A站点回调设置已保存" });
+      toast({ title: isKo ? "저장됨" : "已保存", description: isKo ? "TWINMETA 사이트 회신 설정이 저장되었습니다" : "TWINMETA站点回调设置已保存" });
     }
   };
 
   const payloadExample = JSON.stringify({
     event: "tracking_update",
     order_id: "ORD-2024-001",
-    external_order_id: "SITE-A-12345",
+    external_order_id: "TWINMETA-12345",
     tracking_number: "4PX1234567890",
     carrier: "4px",
     status: "shipped",
@@ -145,12 +145,12 @@ export default function SiteCallbackSettings() {
       <div>
         <h3 className="font-semibold text-lg flex items-center gap-2">
           <ArrowUpRight className="w-5 h-5 text-primary" />
-          {isKo ? "A 사이트 회신 설정" : "A站点回调设置"}
+          {isKo ? "TWINMETA 사이트 회신 설정" : "TWINMETA站点回调设置"}
         </h3>
         <p className="text-sm text-muted-foreground mt-1">
           {isKo
-            ? "송장번호가 입력되면 자동으로 A 사이트로 전송합니다. DB 트리거에 의해 실시간 동기화됩니다."
-            : "运单号输入后自动发送到A站点。通过DB触发器实时同步。"}
+            ? "송장번호가 입력되면 자동으로 TWINMETA 사이트로 전송합니다. DB 트리거에 의해 실시간 동기화됩니다."
+            : "运单号输入后自动发送到TWINMETA站点。通过DB触发器实时同步。"}
         </p>
       </div>
 
@@ -162,7 +162,7 @@ export default function SiteCallbackSettings() {
           </div>
           <div>
             <p className="font-medium text-sm">{isKo ? "회신 기능 활성화" : "启用回调功能"}</p>
-            <p className="text-xs text-muted-foreground">{isKo ? "활성화하면 송장번호 입력 시 자동으로 A 사이트로 전송됩니다" : "启用后输入运单号时将自动发送到A站点"}</p>
+            <p className="text-xs text-muted-foreground">{isKo ? "활성화하면 송장번호 입력 시 자동으로 TWINMETA 사이트로 전송됩니다" : "启用后输入运单号时将自动发送到TWINMETA站点"}</p>
           </div>
         </div>
         <Switch checked={config.enabled} onCheckedChange={v => update({ enabled: v })} />
@@ -175,9 +175,9 @@ export default function SiteCallbackSettings() {
           <Input
             value={config.callback_url}
             onChange={e => update({ callback_url: e.target.value })}
-            placeholder="https://site-a.example.com/api/callback"
+            placeholder="https://twinmeta.example.com/api/callback"
           />
-          <p className="text-xs text-muted-foreground">{isKo ? "A 사이트에서 데이터를 수신할 엔드포인트 URL" : "A站点接收数据的端点URL"}</p>
+          <p className="text-xs text-muted-foreground">{isKo ? "TWINMETA 사이트에서 데이터를 수신할 엔드포인트 URL" : "TWINMETA站点接收数据的端点URL"}</p>
         </div>
         <div className="space-y-4">
           <div className="space-y-2">
@@ -194,7 +194,7 @@ export default function SiteCallbackSettings() {
               type="password"
               value={config.auth_value}
               onChange={e => update({ auth_value: e.target.value })}
-              placeholder={isKo ? "A 사이트에서 발급받은 키" : "A站点提供的密钥"}
+              placeholder={isKo ? "TWINMETA 사이트에서 발급받은 키" : "TWINMETA站点提供的密钥"}
             />
           </div>
         </div>
@@ -208,9 +208,9 @@ export default function SiteCallbackSettings() {
         </h4>
         <div className="space-y-3">
           {[
-            { key: "sync_tracking_number" as const, label: isKo ? "운송장 번호 입력 시" : "运单号输入时", desc: isKo ? "송장번호가 입력/변경되면 자동으로 A 사이트로 전송 (DB 트리거)" : "运单号输入/变更时自动发送到A站点（DB触发器）" },
-            { key: "sync_status_change" as const, label: isKo ? "배송 상태 변경 시" : "配送状态变更时", desc: isKo ? "배송 상태가 변경될 때마다 A 사이트로 전송" : "每次配送状态变更时发送到A站点" },
-            { key: "sync_delivered" as const, label: isKo ? "배달 완료 시" : "送达完成时", desc: isKo ? "최종 배달 완료 확인 시 A 사이트로 전송" : "最终确认送达时发送到A站点" },
+            { key: "sync_tracking_number" as const, label: isKo ? "운송장 번호 입력 시" : "运单号输入时", desc: isKo ? "송장번호가 입력/변경되면 자동으로 TWINMETA 사이트로 전송 (DB 트리거)" : "运单号输入/变更时自动发送到TWINMETA站点（DB触发器）" },
+            { key: "sync_status_change" as const, label: isKo ? "배송 상태 변경 시" : "配送状态变更时", desc: isKo ? "배송 상태가 변경될 때마다 TWINMETA 사이트로 전송" : "每次配送状态变更时发送到TWINMETA站点" },
+            { key: "sync_delivered" as const, label: isKo ? "배달 완료 시" : "送达完成时", desc: isKo ? "최종 배달 완료 확인 시 TWINMETA 사이트로 전송" : "最终确认送达时发送到TWINMETA站点" },
           ].map(evt => (
             <div key={evt.key} className="flex items-center justify-between py-2 px-3 rounded-md border bg-muted/30">
               <div>

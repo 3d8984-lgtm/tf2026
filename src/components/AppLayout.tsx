@@ -51,7 +51,7 @@ const menuKeys: MenuItem[] = [
     { label: { ko: "검수 기준", zh: "检验标准" }, tab: "inspection" },
     { label: { ko: "Webhook", zh: "Webhook" }, tab: "webhook" },
     { label: { ko: "택배사 연동", zh: "快递对接" }, tab: "courier" },
-    { label: { ko: "A사이트 회신", zh: "A站点回调" }, tab: "callback" },
+    { label: { ko: "TWINMETA 회신", zh: "TWINMETA回调" }, tab: "callback" },
   ]},
 ];
 

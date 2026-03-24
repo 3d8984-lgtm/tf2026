@@ -140,7 +140,7 @@ export default function FileUpload() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-semibold">
-                      {isKo ? "A 사이트 API 연동" : "A站点 API连接"}
+                      {isKo ? "TWINMETA 사이트 API 연동" : "TWINMETA站点 API连接"}
                     </h3>
                     <span className="status-badge status-running">
                       {isKo ? "연결됨" : "已连接"}
@@ -148,8 +148,8 @@ export default function FileUpload() {
                   </div>
                   <p className="text-xs text-muted-foreground mb-3">
                     {isKo
-                      ? "Webhook을 통해 A 사이트에서 실시간으로 주문 데이터를 수신합니다. 수동 동기화 버튼으로 누락 건을 확인할 수 있습니다."
-                      : "通过Webhook从A站点实时接收订单数据。可通过手动同步按钮检查遗漏订单。"}
+                      ? "Webhook을 통해 TWINMETA 사이트에서 실시간으로 주문 데이터를 수신합니다. 수동 동기화 버튼으로 누락 건을 확인할 수 있습니다."
+                      : "通过Webhook从TWINMETA站点实时接收订单数据。可通过手动同步按钮检查遗漏订单。"}
                   </p>
                   <div className="flex items-center gap-3">
                     <Button size="sm" className="gap-1.5" onClick={handleApiSync} disabled={apiSyncing}>
