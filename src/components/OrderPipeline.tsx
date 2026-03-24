@@ -24,7 +24,7 @@ const stageBgColors: Record<StageKey, string> = {
 };
 
 function pct(count: number, total: number) {
-  return total === 0 ? 0 : Math.round((count / total) * 100);
+  return total === 0 ? 0 : Math.min(100, Math.round((count / total) * 100));
 }
 
 export default function OrderPipeline() {
