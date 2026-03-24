@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import AiChatbot from "@/components/AiChatbot";
 import { NavLink, Link, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Upload, Database,
