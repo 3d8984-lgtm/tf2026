@@ -251,8 +251,9 @@ function OrderGroup({ group, isKo, shipmentStatusLabel, shipmentStatusCls, query
           {isOpen ? <ChevronDown className="w-4 h-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 shrink-0 text-muted-foreground" />}
           <span className="font-semibold text-sm">{group.displayOrder}</span>
           <span className="text-xs text-muted-foreground">{group.recipientName}</span>
+          <span className="text-xs text-muted-foreground">{isKo ? "접수" : "接单"}: {new Date(group.createdDate).toLocaleDateString(isKo ? "ko-KR" : "zh-CN")}</span>
           {group.dueDate && (
-            <span className="text-xs text-muted-foreground">{isKo ? "납기" : "交期"}: {group.dueDate}</span>
+            <span className="text-xs text-muted-foreground">{isKo ? "납기" : "交期"}: {new Date(group.dueDate).toLocaleDateString(isKo ? "ko-KR" : "zh-CN")}</span>
           )}
           <span className="text-xs text-muted-foreground tabular-nums">{isKo ? "건수" : "件数"}: {group.summary.total}</span>
         </div>
