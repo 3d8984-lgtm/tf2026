@@ -19,62 +19,115 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+async function loadProfile(userId: string) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("approved, role")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const fetchProfile = async (userId: string) => {
-    try {
-      const { data } = await supabase
-        .from("profiles")
-        .select("approved, role")
-        .eq("user_id", userId)
-        .single();
-      setProfile(data);
-    } catch (e) {
-      console.error("Failed to fetch profile:", e);
-      setProfile(null);
-    }
-  };
+  const [authLoading, setAuthLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          await fetchProfile(session.user.id);
-        } else {
-          setProfile(null);
-        }
-        setLoading(false);
-      }
-    );
+    let mounted = true;
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchProfile(session.user.id);
-      }
-      setLoading(false);
-    }).catch(() => {
-      setLoading(false);
+    const applySession = (nextSession: Session | null) => {
+      if (!mounted) return;
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+      setAuthLoading(false);
+    };
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      applySession(nextSession);
     });
 
-    return () => subscription.unsubscribe();
+    supabase.auth
+      .getSession()
+      .then(({ data: { session: currentSession } }) => {
+        applySession(currentSession);
+      })
+      .catch((error) => {
+        console.error("Failed to restore session:", error);
+        if (mounted) setAuthLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchProfile = async () => {
+      if (!user) {
+        setProfile(null);
+        setProfileLoading(false);
+        return;
+      }
+
+      setProfileLoading(true);
+
+      try {
+        const data = await loadProfile(user.id);
+        if (!cancelled) {
+          setProfile(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch profile:", error);
+        if (!cancelled) {
+          setProfile(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setProfileLoading(false);
+        }
+      }
+    };
+
+    void fetchProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   const signOut = async () => {
     await supabase.auth.signOut();
   };
 
   const refreshProfile = async () => {
-    if (user) await fetchProfile(user.id);
+    if (!user) return;
+
+    setProfileLoading(true);
+    try {
+      const data = await loadProfile(user.id);
+      setProfile(data);
+    } catch (error) {
+      console.error("Failed to refresh profile:", error);
+      setProfile(null);
+    } finally {
+      setProfileLoading(false);
+    }
   };
 
+  const loading = authLoading || profileLoading;
   const isAdmin = profile?.role === "admin" && profile?.approved === true;
 
   return (
@@ -89,3 +142,4 @@ export function useAuth() {
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }
+
