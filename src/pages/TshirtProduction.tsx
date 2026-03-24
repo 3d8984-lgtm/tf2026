@@ -112,9 +112,16 @@ function OrderRow({ o, t, lang }: { o: OrderData; t: (k: string) => string; lang
                     <td className="py-2 font-mono text-xs pr-4">{log.hologram}</td>
                     <td className="py-2 pr-4">{log.logo}</td>
                     <td className="py-2">
-                      <span className={`status-badge ${log.result === "pass" ? "status-running" : "status-stopped"}`}>
-                        {log.result === "pass" ? t("status.attachDone") : t("status.verifyFail")}
-                      </span>
+                      {log.result === "fail" ? (
+                        <button
+                          onClick={() => setFailLog(log)}
+                          className="status-badge status-stopped cursor-pointer hover:opacity-80 transition-opacity"
+                        >
+                          {t("status.verifyFail")}
+                        </button>
+                      ) : (
+                        <span className="status-badge status-running">{t("status.attachDone")}</span>
+                      )}
                     </td>
                   </tr>
                 ))}
