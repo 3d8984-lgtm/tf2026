@@ -57,6 +57,20 @@ export default function Auth() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border bg-card p-6 shadow-sm">
+          {!isLogin && (
+            <div className="space-y-2">
+              <Label htmlFor="name">{t("auth.name")}</Label>
+              <Input
+                id="name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={t("auth.namePlaceholder")}
+                required={!isLogin}
+                maxLength={50}
+              />
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="email">{t("auth.email")}</Label>
             <Input
