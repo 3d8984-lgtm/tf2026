@@ -67,6 +67,7 @@ function ProtectedRoutes() {
         <Route path="/tshirt" element={<TshirtProduction />} />
         <Route path="/tshirt-work" element={<TshirtWork />} />
         <Route path="/monitor" element={<ProductionMonitor />} />
+        <Route path="/shipping" element={<Shipping />} />
         <Route path="/defects" element={<Defects />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/settings" element={<SystemSettings />} />

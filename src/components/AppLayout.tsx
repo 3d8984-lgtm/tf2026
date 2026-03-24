@@ -17,6 +17,7 @@ const menuKeys = [
   { path: "/tshirt-work", icon: ScanLine, key: "menu.tshirtWork" },
   { path: "/tshirt", icon: Shirt, key: "menu.tshirt" },
   { path: "/monitor", icon: Activity, key: "menu.monitor" },
+  { path: "/shipping", icon: Truck, key: "menu.shipping" },
   { path: "/defects", icon: AlertTriangle, key: "menu.defects" },
   { path: "/reports", icon: FileBarChart, key: "menu.reports" },
   { path: "/settings", icon: Settings, key: "menu.settings" },
