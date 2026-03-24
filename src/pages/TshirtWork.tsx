@@ -153,8 +153,8 @@ export default function TshirtWork() {
     if (!value || processing) return;
     setScanValue("");
     if (hasFail || allDone) { resetScan(); return; }
-    processStep(currentStep, value, matchedProduct);
-  }, [scanValue, processing, currentStep, matchedProduct, hasFail, allDone, processStep, resetScan]);
+    processStep(currentStep, value, matchedProduct, selectedOrder!);
+  }, [scanValue, processing, currentStep, matchedProduct, selectedOrder, hasFail, allDone, processStep, resetScan]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === "Enter") { e.preventDefault(); handleScan(); } };
 
