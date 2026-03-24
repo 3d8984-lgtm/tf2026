@@ -401,7 +401,7 @@ function OrderGroup({ group, isKo, shipmentStatusLabel, shipmentStatusCls, query
                   </tr>
                 ))}
                 {group.shipments.length === 0 && (
-                  <tr><td colSpan={8} className="py-4 text-center text-muted-foreground text-sm">{isKo ? "배송 데이터가 없습니다" : "暂无配送数据"}</td></tr>
+                  <tr><td colSpan={9} className="py-4 text-center text-muted-foreground text-sm">{isKo ? "배송 데이터가 없습니다" : "暂无配送数据"}</td></tr>
                 )}
               </tbody>
             </table>
@@ -409,5 +409,62 @@ function OrderGroup({ group, isKo, shipmentStatusLabel, shipmentStatusCls, query
         </div>
       )}
     </div>
+  );
+}
+
+/* ─── Sync Status Cell ─── */
+
+function SyncStatusCell({
+  shipment,
+  isKo,
+  queryClient,
+  toast,
+}: {
+  shipment: Database["public"]["Tables"]["shipments"]["Row"];
+  isKo: boolean;
+  queryClient: ReturnType<typeof useQueryClient>;
+  toast: ReturnType<typeof useToast>["toast"];
+}) {
+  const [syncing, setSyncing] = useState(false);
+
+  if (!shipment.tracking_number) {
+    return <span className="text-xs text-muted-foreground">-</span>;
+  }
+
+  if (shipment.synced_to_source) {
+    return (
+      <Badge variant="outline" className="text-xs gap-1 bg-emerald-50 text-emerald-700 border-emerald-200">
+        <CheckCheck className="w-3 h-3" />
+        {isKo ? "전송됨" : "已发送"}
+      </Badge>
+    );
+  }
+
+  const handleManualSync = async () => {
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("site-a-callback", {
+        body: { shipment_id: shipment.id, event: "tracking_update" },
+      });
+      if (error) throw error;
+      if (data?.success) {
+        toast({ title: isKo ? "전송 완료" : "发送成功", description: isKo ? "A 사이트로 송장번호가 전송되었습니다" : "运单号已发送到A站点" });
+      } else {
+        toast({ title: isKo ? "전송 실패" : "发送失败", description: data?.error || "Unknown error", variant: "destructive" });
+      }
+      queryClient.invalidateQueries({ queryKey: ["shipping_grouped"] });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      toast({ title: isKo ? "오류" : "错误", description: msg, variant: "destructive" });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  return (
+    <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={handleManualSync} disabled={syncing}>
+      {syncing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+      {isKo ? "전송" : "发送"}
+    </Button>
   );
 }
