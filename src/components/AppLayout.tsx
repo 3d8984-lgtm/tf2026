@@ -203,9 +203,8 @@ export default function AppLayout() {
                 onBlur={() => { if (!menuSearch) setSearchOpen(false); }}
                 onKeyDown={e => {
                   if (e.key === "Escape") { setMenuSearch(""); setSearchOpen(false); }
-                  if (e.key === "Enter" && filteredMenu.length === 1) {
-                    navigate(filteredMenu[0].path);
-                    setMenuSearch(""); setSearchOpen(false);
+                  if (e.key === "Enter" && searchResults.length === 1) {
+                    handleSearchNavigate(searchResults[0]);
                   }
                 }}
                 placeholder={lang === "ko" ? "메뉴 검색..." : "搜索菜单..."}
