@@ -49,6 +49,12 @@ const mockHoloQR: Record<string, { product: string; design: string; used: boolea
   "HQR-A0929": { product: "BT-2024-A", design: "DSN-047", used: true },
   "HQR-A0928": { product: "BT-2024-B", design: "DSN-012", used: false },
 };
+const mockTshirtQR: Record<string, { product: string; color: string; size: string }> = {
+  "TSH-001": { product: "BT-2024-A", color: "Black", size: "L" },
+  "TSH-002": { product: "BT-2024-A", color: "Black", size: "XL" },
+  "TSH-003": { product: "BT-2024-B", color: "White", size: "M" },
+  "TSH-004": { product: "BT-2024-A", color: "Navy", size: "L" },
+};
 
 function ProgressBar({ done, total, fail, defectLabel }: { done: number; total: number; fail: number; defectLabel: string }) {
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
