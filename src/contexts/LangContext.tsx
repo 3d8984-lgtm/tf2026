@@ -406,6 +406,24 @@ const translations: Record<Lang, Record<string, string>> = {
     "auth.logout": "로그아웃",
     "auth.pendingTitle": "승인 대기중",
     "auth.pendingDesc": "관리자가 가입을 승인할 때까지 기다려주세요. 승인 후 로그인하면 시스템을 사용할 수 있습니다.",
+
+    // Webhook
+    "settings.webhook": "Webhook",
+    "webhook.title": "Webhook 수신 설정",
+    "webhook.url": "Webhook URL",
+    "webhook.urlDesc": "A 사이트에서 이 URL로 주문 데이터를 전송하세요",
+    "webhook.copied": "복사됨",
+    "webhook.copy": "복사",
+    "webhook.payloadExample": "요청 예시 (JSON)",
+    "webhook.logs": "수신 로그",
+    "webhook.eventType": "이벤트",
+    "webhook.status": "상태",
+    "webhook.source": "소스",
+    "webhook.time": "수신 시간",
+    "webhook.error": "오류",
+    "webhook.noLogs": "수신 로그가 없습니다",
+    "webhook.secretHeader": "인증 헤더 (선택)",
+    "webhook.secretDesc": "x-webhook-secret 헤더로 인증할 수 있습니다",
   },
 
   zh: {
@@ -806,6 +824,24 @@ const translations: Record<Lang, Record<string, string>> = {
     "auth.logout": "退出登录",
     "auth.pendingTitle": "等待审核",
     "auth.pendingDesc": "请等待管理员批准您的注册。批准后即可登录使用系统。",
+
+    // Webhook
+    "settings.webhook": "Webhook",
+    "webhook.title": "Webhook 接收设置",
+    "webhook.url": "Webhook URL",
+    "webhook.urlDesc": "在A站点中将订单数据发送到此URL",
+    "webhook.copied": "已复制",
+    "webhook.copy": "复制",
+    "webhook.payloadExample": "请求示例 (JSON)",
+    "webhook.logs": "接收日志",
+    "webhook.eventType": "事件",
+    "webhook.status": "状态",
+    "webhook.source": "来源",
+    "webhook.time": "接收时间",
+    "webhook.error": "错误",
+    "webhook.noLogs": "暂无接收日志",
+    "webhook.secretHeader": "认证头 (可选)",
+    "webhook.secretDesc": "可以通过 x-webhook-secret 头进行认证",
   },
 };
 
