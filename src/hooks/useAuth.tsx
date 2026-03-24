@@ -26,12 +26,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("approved, role")
-      .eq("user_id", userId)
-      .single();
-    setProfile(data);
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("approved, role")
+        .eq("user_id", userId)
+        .single();
+      setProfile(data);
+    } catch (e) {
+      console.error("Failed to fetch profile:", e);
+      setProfile(null);
+    }
   };
 
   useEffect(() => {
