@@ -3,9 +3,10 @@ import { NavLink, Outlet } from "react-router-dom";
 import {
   LayoutDashboard, Upload, Database, ClipboardList, Shirt,
   Activity, AlertTriangle, FileBarChart, Settings,
-  ChevronLeft, ChevronRight, ScanLine, Globe
+  ChevronLeft, ChevronRight, ScanLine, Globe, LogOut
 } from "lucide-react";
 import { useLang, type Lang } from "@/contexts/LangContext";
+import { useAuth } from "@/hooks/useAuth";
 import twinmetaLogo from "@/assets/twinmeta-logo.png";
 
 const menuKeys = [
@@ -29,6 +30,7 @@ const langOptions: { value: Lang; label: string; flag: string }[] = [
 export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const { lang, setLang, t } = useLang();
+  const { signOut, user } = useAuth();
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -100,6 +102,24 @@ export default function AppLayout() {
               {!collapsed && <span>{opt.label}</span>}
             </button>
           ))}
+        </div>
+
+        {/* User & Logout */}
+        <div className="px-2 py-2 border-t" style={{ borderColor: "hsl(var(--sidebar-border))" }}>
+          {!collapsed && user && (
+            <p className="text-xs truncate px-2 mb-1 opacity-60" style={{ color: "hsl(var(--sidebar-foreground))" }}>
+              {user.email}
+            </p>
+          )}
+          <button
+            onClick={signOut}
+            className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm transition-colors hover:opacity-90"
+            style={{ color: "hsl(var(--sidebar-foreground))" }}
+            title={t("auth.logout")}
+          >
+            <LogOut className="w-4 h-4 shrink-0" />
+            {!collapsed && <span>{t("auth.logout")}</span>}
+          </button>
         </div>
 
         {/* Collapse toggle */}

@@ -390,6 +390,20 @@ const translations: Record<Lang, Record<string, string>> = {
     "common.items": "개",
     "common.perMin": "개/분",
     "common.language": "언어",
+
+    // Auth
+    "auth.login": "로그인",
+    "auth.signup": "회원가입",
+    "auth.email": "이메일",
+    "auth.password": "비밀번호",
+    "auth.loginDesc": "계정에 로그인하세요",
+    "auth.signupDesc": "새 계정을 만드세요",
+    "auth.noAccount": "계정이 없으신가요?",
+    "auth.hasAccount": "이미 계정이 있으신가요?",
+    "auth.error": "오류",
+    "auth.signupSuccess": "가입 완료",
+    "auth.signupSuccessDesc": "로그인해주세요",
+    "auth.logout": "로그아웃",
   },
 
   zh: {
@@ -774,6 +788,20 @@ const translations: Record<Lang, Record<string, string>> = {
     "common.items": "个",
     "common.perMin": "个/分",
     "common.language": "语言",
+
+    // Auth
+    "auth.login": "登录",
+    "auth.signup": "注册",
+    "auth.email": "邮箱",
+    "auth.password": "密码",
+    "auth.loginDesc": "登录您的账号",
+    "auth.signupDesc": "创建新账号",
+    "auth.noAccount": "没有账号？",
+    "auth.hasAccount": "已有账号？",
+    "auth.error": "错误",
+    "auth.signupSuccess": "注册成功",
+    "auth.signupSuccessDesc": "请登录",
+    "auth.logout": "退出登录",
   },
 };
 
