@@ -175,9 +175,9 @@ export default function SiteCallbackSettings() {
           <Input
             value={config.callback_url}
             onChange={e => update({ callback_url: e.target.value })}
-            placeholder="https://site-a.example.com/api/callback"
+            placeholder="https://twinmeta.example.com/api/callback"
           />
-          <p className="text-xs text-muted-foreground">{isKo ? "A 사이트에서 데이터를 수신할 엔드포인트 URL" : "A站点接收数据的端点URL"}</p>
+          <p className="text-xs text-muted-foreground">{isKo ? "TWINMETA 사이트에서 데이터를 수신할 엔드포인트 URL" : "TWINMETA站点接收数据的端点URL"}</p>
         </div>
         <div className="space-y-4">
           <div className="space-y-2">
