@@ -516,7 +516,7 @@ export default function ProductionMonitor() {
                 [isKo ? "국가" : "国家", detailOrder.shipping_country],
                 [isKo ? "상태" : "状态", statusLabel[detailOrder.status] ?? detailOrder.status],
                 [isKo ? "접수일" : "接单日期", new Date(detailOrder.created_at).toLocaleString()],
-                [isKo ? "프로젝트 완료일" : "项目完成日", (detailOrder as any).project_completed_at ? new Date((detailOrder as any).project_completed_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN") : "-"],
+                [isKo ? "납기일" : "交期", (detailOrder as any).project_completed_at ? new Date((detailOrder as any).project_completed_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN") : "-"],
               ].map(([label, value]) => (
                 <div key={label} className="flex justify-between">
                   <span className="text-muted-foreground">{label}</span>
