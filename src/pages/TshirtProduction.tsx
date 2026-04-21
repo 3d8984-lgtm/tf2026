@@ -3,98 +3,55 @@ import PageHeader from "@/components/PageHeader";
 import { CheckCircle2, XCircle, Clock, ScanLine, ChevronDown, ChevronRight } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-
-interface ScanLog { time: string; color: string; size: string; silicon: string; design: string; hologram: string; result: "pass" | "fail"; logo: string; failReason?: string }
-interface OrderData {
-  order: string; product: string; designCode: string; qty: number; twinker: string; orderDate: string; dueDate: string;
-  summary: { waiting: number; done: number; fail: number };
-  logs: ScanLog[];
-}
-
-const ordersData: OrderData[] = [
-  {
-    order: "20260324-1", product: "BT-2024-A", designCode: "DSN-047", qty: 200, twinker: "김민지", orderDate: "2026-03-20", dueDate: "2026-03-25",
-    summary: { waiting: 15, done: 182, fail: 3 },
-    logs: [
-      { time: "14:35:22", color: "Black", size: "L", silicon: "SQR-00482", design: "DQR-00482", hologram: "HQR-A0931", result: "pass", logo: "✓" },
-      { time: "14:34:58", color: "Black", size: "L", silicon: "SQR-00481", design: "DQR-00481", hologram: "HQR-A0930", result: "pass", logo: "✓" },
-      { time: "14:34:31", color: "Navy", size: "XL", silicon: "SQR-00480", design: "DQR-00479", hologram: "HQR-A0929", result: "fail", logo: "-", failReason: "디자인 QR 불일치 — 스캔값 DQR-00479, 기준값 DQR-00480" },
-    ],
-  },
-  {
-    order: "20260324-2", product: "BT-2024-B", designCode: "DSN-012", qty: 150, twinker: "박서연", orderDate: "2026-03-21", dueDate: "2026-03-26",
-    summary: { waiting: 0, done: 150, fail: 0 },
-    logs: [
-      { time: "14:34:02", color: "White", size: "M", silicon: "SQR-00479", design: "DQR-00479", hologram: "HQR-A0928", result: "pass", logo: "✓" },
-      { time: "14:33:40", color: "White", size: "S", silicon: "SQR-00478", design: "DQR-00478", hologram: "HQR-A0927", result: "pass", logo: "✓" },
-    ],
-  },
-  {
-    order: "20260324-3", product: "BT-2024-C", designCode: "DSN-089", qty: 300, twinker: "이하윤", orderDate: "2026-03-22", dueDate: "2026-03-27",
-    summary: { waiting: 213, done: 83, fail: 4 },
-    logs: [
-      { time: "14:38:10", color: "Gray", size: "M", silicon: "SQR-00550", design: "DQR-00550", hologram: "HQR-C0083", result: "pass", logo: "✓" },
-      { time: "14:37:48", color: "Gray", size: "L", silicon: "SQR-00549", design: "DQR-00548", hologram: "HQR-C0082", result: "fail", logo: "-", failReason: "실리콘 마크 QR 불일치 — 스캔값 SQR-00549, 기준값 SQR-00550" },
-    ],
-  },
-  {
-    order: "20260324-4", product: "BT-2024-A", designCode: "DSN-047", qty: 120, twinker: "최유진", orderDate: "2026-03-23", dueDate: "2026-03-28",
-    summary: { waiting: 0, done: 120, fail: 0 },
-    logs: [
-      { time: "13:45:20", color: "Black", size: "L", silicon: "SQR-00320", design: "DQR-00320", hologram: "HQR-A0800", result: "pass", logo: "✓" },
-    ],
-  },
-];
+import { useOrders, useProductionTracking } from "@/hooks/useDbData";
+import React from "react";
 
 function pct(a: number, b: number) { return b === 0 ? 0 : Math.round((a / b) * 100); }
 
-function OrderRow({ o, t, lang }: { o: OrderData; t: (k: string) => string; lang: string }) {
+function OrderRow({ order, woNumber, t, lang }: { order: { qty: number; twinker: string; dueDate: string; createdDate: string; summary: { waiting: number; done: number; fail: number } }; woNumber: string; t: (k: string) => string; lang: string }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [failLog, setFailLog] = useState<ScanLog | null>(null);
-  const donePct = pct(o.summary.done, o.qty);
-  const isDone = o.summary.waiting === 0 && o.summary.fail === 0;
+  const donePct = pct(order.summary.done, order.qty);
+  const isDone = order.summary.waiting === 0 && order.summary.fail === 0 && order.summary.done > 0;
 
   return (
     <div className="kpi-card section-enter">
       <button onClick={() => setIsOpen(!isOpen)} className="w-full flex items-center justify-between gap-3 text-left">
         <div className="flex items-center gap-3 min-w-0">
           {isOpen ? <ChevronDown className="w-4 h-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 shrink-0 text-muted-foreground" />}
-          <span className="font-semibold text-sm">{o.order}</span>
-          <span className="text-xs text-muted-foreground">{lang === "ko" ? "트윈커" : "Twinker"}: <strong className="text-foreground">{o.twinker}</strong></span>
-          <span className="text-xs text-muted-foreground">{lang === "ko" ? "주문일" : "下单日"}: {o.orderDate}</span>
-          <span className="text-xs text-muted-foreground">{lang === "ko" ? "납기" : "交期"}: {o.dueDate}</span>
-          <span className="text-xs text-muted-foreground tabular-nums">{lang === "ko" ? "수량" : "数量"}: {o.qty}</span>
+          <span className="font-semibold text-sm">{woNumber}</span>
+          <span className="text-xs text-muted-foreground">{lang === "ko" ? "트윈커" : "Twinker"}: <strong className="text-foreground">{order.twinker}</strong></span>
+          <span className="text-xs text-muted-foreground">{lang === "ko" ? "주문일" : "下单日"}: {order.createdDate}</span>
+          <span className="text-xs text-muted-foreground">{lang === "ko" ? "납기" : "交期"}: {order.dueDate}</span>
+          <span className="text-xs text-muted-foreground tabular-nums">{lang === "ko" ? "수량" : "数量"}: {order.qty}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-xs tabular-nums text-muted-foreground">{o.summary.done}/{o.qty}</span>
+          <span className="text-xs tabular-nums text-muted-foreground">{order.summary.done}/{order.qty}</span>
           <div className="w-20 h-1.5 rounded-full bg-muted">
             <div className="h-full rounded-full transition-all" style={{ width: `${donePct}%`, background: isDone ? "hsl(var(--success))" : "hsl(var(--primary))" }} />
           </div>
           <span className="text-xs font-medium tabular-nums">{donePct}%</span>
-          {o.summary.fail > 0 && <span className="status-badge status-stopped">{t("status.verifyFail")} {o.summary.fail}</span>}
+          {order.summary.fail > 0 && <span className="status-badge status-stopped">{t("status.verifyFail")} {order.summary.fail}</span>}
         </div>
       </button>
       {isOpen && (
         <div className="mt-4 pt-4 border-t">
-          {/* Mini stats */}
           <div className="flex items-center gap-4 mb-4">
             <div className="flex items-center gap-1.5 text-xs">
               <Clock className="w-3.5 h-3.5 text-muted-foreground" />
               <span className="text-muted-foreground">{t("status.waiting")}</span>
-              <span className="font-semibold tabular-nums">{o.summary.waiting}</span>
+              <span className="font-semibold tabular-nums">{order.summary.waiting}</span>
             </div>
             <div className="flex items-center gap-1.5 text-xs">
               <CheckCircle2 className="w-3.5 h-3.5 text-success" />
               <span className="text-muted-foreground">{t("status.attachDone")}</span>
-              <span className="font-semibold tabular-nums">{o.summary.done}</span>
+              <span className="font-semibold tabular-nums">{order.summary.done}</span>
             </div>
             <div className="flex items-center gap-1.5 text-xs">
               <XCircle className="w-3.5 h-3.5 text-destructive" />
               <span className="text-muted-foreground">{t("status.verifyFail")}</span>
-              <span className="font-semibold tabular-nums">{o.summary.fail}</span>
+              <span className="font-semibold tabular-nums">{order.summary.fail}</span>
             </div>
           </div>
-          {/* Log table */}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="border-b text-left">
@@ -103,78 +60,58 @@ function OrderRow({ o, t, lang }: { o: OrderData; t: (k: string) => string; lang
                 ))}
               </tr></thead>
               <tbody>
-                {o.logs.map((log, i) => (
-                  <tr key={i} className={`border-b last:border-0 transition-colors ${log.result === "fail" ? "bg-destructive/5" : "hover:bg-muted/30"}`}>
-                    <td className="py-2 tabular-nums text-muted-foreground pr-4">{log.time}</td>
-                    <td className="py-2 pr-4">{log.color}</td>
-                    <td className="py-2 pr-4">{log.size}</td>
-                    <td className="py-2 font-mono text-xs pr-4">{log.silicon}</td>
-                    <td className="py-2 font-mono text-xs pr-4">{log.design}</td>
-                    <td className="py-2 font-mono text-xs pr-4">{log.hologram}</td>
-                    <td className="py-2 pr-4">{log.logo}</td>
-                    <td className="py-2">
-                      {log.result === "fail" ? (
-                        <button
-                          onClick={() => setFailLog(log)}
-                          className="status-badge status-stopped cursor-pointer hover:opacity-80 transition-opacity"
-                        >
-                          {t("status.verifyFail")}
-                        </button>
-                      ) : (
-                        <span className="status-badge status-running">{t("status.attachDone")}</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {o.logs.length === 0 && <tr><td colSpan={8} className="py-4 text-center text-muted-foreground text-sm">{lang === "ko" ? "아직 작업 기록이 없습니다" : "暂无作业记录"}</td></tr>}
+                <tr><td colSpan={8} className="py-8 text-center text-muted-foreground text-sm">
+                  {lang === "ko" ? "스캔 작업이 진행되면 로그가 여기에 표시됩니다" : "扫描作业进行后日志将显示在此"}
+                </td></tr>
               </tbody>
             </table>
           </div>
         </div>
       )}
-
-      <Dialog open={!!failLog} onOpenChange={(open) => !open && setFailLog(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <XCircle className="w-5 h-5 text-destructive" />
-              {lang === "ko" ? "검증실패 상세" : "验证失败详情"}
-            </DialogTitle>
-            <DialogDescription>
-              {failLog && (
-                <div className="space-y-3 mt-2 text-left">
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <span className="text-muted-foreground">{t("tshirtProd.time")}</span>
-                    <span className="font-mono">{failLog.time}</span>
-                    <span className="text-muted-foreground">{lang === "ko" ? "색상" : "颜色"}</span>
-                    <span>{failLog.color}</span>
-                    <span className="text-muted-foreground">{lang === "ko" ? "사이즈" : "尺码"}</span>
-                    <span>{failLog.size}</span>
-                    <span className="text-muted-foreground">{t("tshirtProd.siliconQR")}</span>
-                    <span className="font-mono text-xs">{failLog.silicon}</span>
-                    <span className="text-muted-foreground">{t("tshirtProd.designQR")}</span>
-                    <span className="font-mono text-xs">{failLog.design}</span>
-                    <span className="text-muted-foreground">{t("tshirtProd.hologramQR")}</span>
-                    <span className="font-mono text-xs">{failLog.hologram}</span>
-                  </div>
-                  <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-                    <p className="text-sm font-medium text-destructive">{lang === "ko" ? "실패 사유" : "失败原因"}</p>
-                    <p className="text-sm mt-1">{failLog.failReason || (lang === "ko" ? "상세 사유 없음" : "无详细原因")}</p>
-                  </div>
-                </div>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
 
 export default function TshirtProduction() {
   const { t, lang } = useLang();
+  const isKo = lang === "ko";
+  const { data: orders, isLoading: ordersLoading } = useOrders();
+  const { data: tracking } = useProductionTracking();
 
-  const totalStats = ordersData.reduce((acc, o) => ({
+  // Generate work order numbers
+  const workOrderNumbers = React.useMemo(() => {
+    if (!orders) return new Map<string, string>();
+    const sorted = [...orders].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    const dateCounters: Record<string, number> = {};
+    const map = new Map<string, string>();
+    for (const o of sorted) {
+      const d = new Date(o.created_at);
+      const dateKey = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+      dateCounters[dateKey] = (dateCounters[dateKey] || 0) + 1;
+      map.set(o.id, `${dateKey}-${dateCounters[dateKey]}`);
+    }
+    return map;
+  }, [orders]);
+
+  // Build order list from DB
+  const orderRows = React.useMemo(() => {
+    if (!orders) return [];
+    return orders.map(o => {
+      const tshirtTracking = (tracking ?? []).filter(t => t.order_id === o.id && t.stage === "tshirt");
+      const done = tshirtTracking.reduce((s, t) => s + t.completed_count, 0);
+      const waiting = Math.max(0, o.quantity - done);
+      return {
+        id: o.id,
+        qty: o.quantity,
+        twinker: o.recipient_name,
+        createdDate: new Date(o.created_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN"),
+        dueDate: o.project_completed_at ? new Date(o.project_completed_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN") : "-",
+        summary: { waiting, done, fail: 0 },
+      };
+    });
+  }, [orders, tracking, isKo]);
+
+  const totalStats = orderRows.reduce((acc, o) => ({
     waiting: acc.waiting + o.summary.waiting,
     done: acc.done + o.summary.done,
     fail: acc.fail + o.summary.fail,
@@ -185,6 +122,15 @@ export default function TshirtProduction() {
     { label: t("status.attachDone"), count: totalStats.done, icon: CheckCircle2, cls: "status-running" },
     { label: t("status.verifyFail"), count: totalStats.fail, icon: XCircle, cls: "status-stopped" },
   ];
+
+  if (ordersLoading) {
+    return (
+      <div>
+        <PageHeader title={t("tshirtProd.title")} description={t("tshirtProd.desc")} />
+        <div className="flex justify-center py-12"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -202,9 +148,15 @@ export default function TshirtProduction() {
           ))}
         </div>
 
-        {ordersData.map((o) => (
-          <OrderRow key={o.order} o={o} t={t} lang={lang} />
-        ))}
+        {orderRows.length === 0 ? (
+          <div className="kpi-card py-12 text-center text-muted-foreground">
+            {isKo ? "주문 데이터가 없습니다. '주문 데이터 가져오기'에서 주문을 접수해주세요." : "暂无订单数据。请通过'订单数据导入'接收订单。"}
+          </div>
+        ) : (
+          orderRows.map((o) => (
+            <OrderRow key={o.id} order={o} woNumber={workOrderNumbers.get(o.id) ?? "-"} t={t} lang={lang} />
+          ))
+        )}
       </div>
     </div>
   );

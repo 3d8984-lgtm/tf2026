@@ -30,7 +30,6 @@ export default function Dashboard() {
 
   // DB data
   const { data: stats, isLoading: statsLoading } = useOrderStats();
-  const { data: orders } = useOrders();
   const { data: shipments } = useShipments();
 
   const getDateDisplay = () => {
@@ -56,18 +55,6 @@ export default function Dashboard() {
       : period === "monthly"
         ? (isKo ? "전월 대비" : "与上月对比")
         : (isKo ? "이전 기간 대비" : "与前期对比");
-
-  // Chart data (still mock for now as time-series aggregation needs more complex queries)
-  const chartData = [
-    { label: "08", [t("dashboard.tshirt")]: 45, [t("dashboard.card")]: 62, [t("dashboard.set")]: 38 },
-    { label: "09", [t("dashboard.tshirt")]: 78, [t("dashboard.card")]: 85, [t("dashboard.set")]: 65 },
-    { label: "10", [t("dashboard.tshirt")]: 92, [t("dashboard.card")]: 98, [t("dashboard.set")]: 80 },
-    { label: "11", [t("dashboard.tshirt")]: 85, [t("dashboard.card")]: 90, [t("dashboard.set")]: 72 },
-    { label: "12", [t("dashboard.tshirt")]: 30, [t("dashboard.card")]: 35, [t("dashboard.set")]: 25 },
-    { label: "13", [t("dashboard.tshirt")]: 88, [t("dashboard.card")]: 95, [t("dashboard.set")]: 78 },
-    { label: "14", [t("dashboard.tshirt")]: 95, [t("dashboard.card")]: 102, [t("dashboard.set")]: 85 },
-    { label: "15", [t("dashboard.tshirt")]: 72, [t("dashboard.card")]: 78, [t("dashboard.set")]: 60 },
-  ];
 
   // Process progress from DB stats
   const totalQty = stats?.totalQty || 1;
@@ -160,19 +147,12 @@ export default function Dashboard() {
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
+          {/* Chart - shows empty when no data */}
           <div className="lg:col-span-2 kpi-card section-enter" style={{ animationDelay: "300ms" }}>
             <h3 className="text-sm font-medium mb-4">{isKo ? "시간대별 생산량" : "每小时产量"}</h3>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={chartData} barGap={2}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(214, 20%, 88%)" />
-                <XAxis dataKey="label" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid hsl(214, 20%, 88%)", fontSize: 12, boxShadow: "0 4px 12px hsl(215, 25%, 15%, 0.08)" }} />
-                <Bar dataKey={t("dashboard.tshirt")} fill="hsl(205, 75%, 42%)" radius={[3, 3, 0, 0]} />
-                <Bar dataKey={t("dashboard.card")} fill="hsl(152, 60%, 42%)" radius={[3, 3, 0, 0]} />
-                <Bar dataKey={t("dashboard.set")} fill="hsl(38, 92%, 50%)" radius={[3, 3, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="flex items-center justify-center h-[260px] text-muted-foreground text-sm">
+              {isKo ? "생산 데이터가 쌓이면 차트가 표시됩니다" : "生产数据积累后将显示图表"}
+            </div>
           </div>
 
           <div className="kpi-card section-enter" style={{ animationDelay: "360ms" }}>
@@ -194,34 +174,19 @@ export default function Dashboard() {
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Machine status - still mock (needs separate machine table) */}
+          {/* Machine status - needs PLC integration */}
           <div className="kpi-card section-enter" style={{ animationDelay: "420ms" }}>
             <h3 className="text-sm font-medium mb-4">{t("dashboard.machineStatus")}</h3>
-            <div className="space-y-3">
-              {[
-                { name: isKo ? "카드 포장기 A" : "卡片包装机 A", status: t("status.running"), uptime: "97.2%", count: 3842 },
-                { name: isKo ? "세트 포장기 B" : "套装包装机 B", status: t("status.running"), uptime: "94.8%", count: 2156 },
-                { name: isKo ? "택배봉투기 C" : "快递包装机 C", status: t("status.paused"), uptime: "88.5%", count: 1830 },
-              ].map((m) => (
-                <div key={m.name} className="flex items-center justify-between p-3 rounded-lg" style={{ background: "hsl(var(--surface-sunken))" }}>
-                  <div>
-                    <p className="text-sm font-medium">{m.name}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{t("dashboard.uptime")} {m.uptime} · {m.count.toLocaleString()}{t("common.items")}</p>
-                  </div>
-                  <span className={`status-badge ${
-                    m.status === t("status.running") ? "status-running" :
-                    m.status === t("status.paused") ? "status-warning" : "status-stopped"
-                  }`}>{m.status}</span>
-                </div>
-              ))}
+            <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
+              {isKo ? "PLC 연동 후 기계 상태가 표시됩니다" : "PLC连接后将显示设备状态"}
             </div>
           </div>
 
-          {/* Recent exceptions - mock (needs defects table) */}
+          {/* Recent exceptions from DB */}
           <div className="kpi-card section-enter" style={{ animationDelay: "480ms" }}>
             <h3 className="text-sm font-medium mb-4">{t("dashboard.exceptions")}</h3>
             <div className="space-y-2">
-              {(shipments?.filter(s => ["mismatch", "weight_fail"].includes(s.inspect_result)).slice(0, 4) ?? []).map((s, i) => (
+              {(shipments?.filter(s => ["mismatch", "weight_fail"].includes(s.inspect_result)).slice(0, 4) ?? []).map((s) => (
                 <div key={s.id} className="flex items-start gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer">
                   <XCircle className="w-4 h-4 mt-0.5 text-destructive shrink-0" />
                   <div className="flex-1 min-w-0">
