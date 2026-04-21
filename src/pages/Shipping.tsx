@@ -221,7 +221,7 @@ function OrderGroup({ group, isKo, shipmentStatusLabel, shipmentStatusCls, query
     if (!editingId) return;
     setSaving(true);
     try {
-      const updateData: Record<string, unknown> = {
+      const updateData: Database["public"]["Tables"]["shipments"]["Update"] = {
         tracking_number: editTrackingNumber.trim() || null,
         carrier: editCarrier.trim() || "manual",
         status: editStatus,
