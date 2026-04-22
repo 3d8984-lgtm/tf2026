@@ -59,7 +59,9 @@ export default function FileUpload() {
     const link = document.createElement("a");
     link.href = "/template.xlsx";
     link.download = "템플릿.xlsx";
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
   };
 
   const handleApiSync = () => {
