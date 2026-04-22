@@ -56,14 +56,7 @@ export default function FileUpload() {
   ];
 
   const handleDownloadTemplate = () => {
-    const link = document.createElement("a");
-    link.href = `${window.location.origin}/template.xlsx`;
-    link.download = isKo ? "템플릿.xlsx" : "模板.xlsx";
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadEmbeddedTemplate(isKo ? "템플릿.xlsx" : "模板.xlsx");
   };
 
   const handleApiSync = () => {
@@ -261,7 +254,7 @@ export default function FileUpload() {
                   </table>
                 </div>
                 <div className="mt-3">
-                  <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={handleDownloadTemplate}>
+                  <Button type="button" variant="outline" size="sm" className="gap-1.5 text-xs" onClick={handleDownloadTemplate}>
                     <Download className="w-3.5 h-3.5" />
                     {isKo ? "템플릿 다운로드" : "下载模板"}
                   </Button>
