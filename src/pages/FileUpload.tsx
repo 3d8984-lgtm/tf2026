@@ -55,13 +55,23 @@ export default function FileUpload() {
     { label: isKo ? "프로젝트 관리" : "项目管理", cols: "R" },
   ];
 
-  const handleDownloadTemplate = () => {
-    const link = document.createElement("a");
-    link.href = "/template.xlsx";
-    link.download = "템플릿.xlsx";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownloadTemplate = async () => {
+    try {
+      const response = await fetch("/template.xlsx", { credentials: "include" });
+      if (!response.ok) throw new Error(`Template download failed: ${response.status}`);
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = isKo ? "템플릿.xlsx" : "模板.xlsx";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Failed to download template", error);
+    }
   };
 
   const handleApiSync = () => {
