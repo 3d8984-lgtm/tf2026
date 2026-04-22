@@ -41,7 +41,7 @@ export default function FileUpload() {
     { col: "K", category: isKo ? "카드 포장용" : "卡片包装用", key: "card_barcode", label: isKo ? "카드 바코드값" : "卡片条码值" },
     { col: "L", category: isKo ? "카드 포장용" : "卡片包装用", key: "card_grade", label: isKo ? "카드 등급" : "卡片等级" },
     { col: "M", category: isKo ? "카드 포장용" : "卡片包装用", key: "card_serial", label: isKo ? "카드 일련번호" : "卡片序列号" },
-    { col: "N", category: isKo ? "택배송장정보" : "快递面单信息", key: "country_code", label: isKo ? "나라기호" : "国家代码" },
+    { col: "N", category: isKo ? "택배송장정보" : "快递面单信息", key: "country_code", label: isKo ? "국가기호" : "国家代码" },
     { col: "O", category: isKo ? "택배송장정보" : "快递面单信息", key: "recipient", label: isKo ? "수취인명" : "收件人" },
     { col: "P", category: isKo ? "택배송장정보" : "快递面单信息", key: "phone", label: isKo ? "연락처" : "联系方式" },
     { col: "Q", category: isKo ? "택배송장정보" : "快递面单信息", key: "address", label: isKo ? "주소" : "地址" },
