@@ -30,30 +30,29 @@ export default function FileUpload() {
   const columnSpec = [
     { col: "A", category: isKo ? "주문확인" : "订单确认", key: "work_order_no", label: isKo ? "작업지시번호" : "作业指示编号" },
     { col: "B", category: isKo ? "주문확인" : "订单确认", key: "order_no", label: isKo ? "주문번호" : "订单号" },
-    { col: "C", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_size", label: isKo ? "티셔츠 사이즈" : "T恤尺码" },
-    { col: "D", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_color", label: isKo ? "티셔츠 컬러" : "T恤颜色" },
-    { col: "E", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_type", label: isKo ? "티셔츠 종류" : "T恤种类" },
-    { col: "F", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_serial", label: isKo ? "티셔츠 일련번호" : "T恤序列号" },
-    { col: "G", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "silicon_qr", label: isKo ? "실리콘 마크QR값" : "硅胶标记QR值" },
-    { col: "H", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "design_qr", label: isKo ? "디자인QR값" : "设计QR值" },
-    { col: "I", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "hologram_qr", label: isKo ? "홀로그램QR값" : "全息QR值" },
-    { col: "J", category: isKo ? "카드 포장용" : "卡片包装用", key: "card_barcode", label: isKo ? "카드 바코드값" : "卡片条码值" },
-    { col: "K", category: isKo ? "카드 포장용" : "卡片包装用", key: "card_grade", label: isKo ? "카드 등급" : "卡片等级" },
-    { col: "L", category: isKo ? "카드 포장용" : "卡片包装用", key: "card_serial", label: isKo ? "카드 일련번호" : "卡片序列号" },
-    { col: "M", category: isKo ? "택배송장정보" : "快递面单信息", key: "country_code", label: isKo ? "나라기호" : "国家代码" },
-    { col: "N", category: isKo ? "택배송장정보" : "快递面单信息", key: "recipient", label: isKo ? "수취인명" : "收件人" },
-    { col: "O", category: isKo ? "택배송장정보" : "快递面单信息", key: "phone", label: isKo ? "연락처" : "联系方式" },
-    { col: "P", category: isKo ? "택배송장정보" : "快递面单信息", key: "address", label: isKo ? "주소" : "地址" },
-    { col: "Q", category: isKo ? "택배송장정보" : "快递面单信息", key: "zipcode", label: isKo ? "우편번호" : "邮编" },
-    { col: "R", category: isKo ? "프로젝트 관리" : "项目管理", key: "project_deadline", label: isKo ? "프로젝트 완료일" : "项目完成日" },
+    { col: "C", category: isKo ? "주문확인" : "订单确认", key: "project_deadline", label: isKo ? "납기 발송일" : "交期发货日" },
+    { col: "D", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_size", label: isKo ? "티셔츠 사이즈" : "T恤尺码" },
+    { col: "E", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_color", label: isKo ? "티셔츠 컬러" : "T恤颜色" },
+    { col: "F", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_type", label: isKo ? "티셔츠 종류" : "T恤种类" },
+    { col: "G", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_serial", label: isKo ? "티셔츠 일련번호" : "T恤序列号" },
+    { col: "H", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "silicon_qr", label: isKo ? "실리콘 마크QR값" : "硅胶标记QR值" },
+    { col: "I", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "design_qr", label: isKo ? "디자인QR값" : "设计QR值" },
+    { col: "J", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "hologram_qr", label: isKo ? "홀로그램QR값" : "全息QR值" },
+    { col: "K", category: isKo ? "카드 포장용" : "卡片包装用", key: "card_barcode", label: isKo ? "카드 바코드값" : "卡片条码值" },
+    { col: "L", category: isKo ? "카드 포장용" : "卡片包装用", key: "card_grade", label: isKo ? "카드 등급" : "卡片等级" },
+    { col: "M", category: isKo ? "카드 포장용" : "卡片包装用", key: "card_serial", label: isKo ? "카드 일련번호" : "卡片序列号" },
+    { col: "N", category: isKo ? "택배송장정보" : "快递面单信息", key: "country_code", label: isKo ? "나라기호" : "国家代码" },
+    { col: "O", category: isKo ? "택배송장정보" : "快递面单信息", key: "recipient", label: isKo ? "수취인명" : "收件人" },
+    { col: "P", category: isKo ? "택배송장정보" : "快递面单信息", key: "phone", label: isKo ? "연락처" : "联系方式" },
+    { col: "Q", category: isKo ? "택배송장정보" : "快递面单信息", key: "address", label: isKo ? "주소" : "地址" },
+    { col: "R", category: isKo ? "택배송장정보" : "快递面单信息", key: "zipcode", label: isKo ? "우편번호" : "邮编" },
   ];
 
   const categoryBadges = [
-    { label: isKo ? "주문확인" : "订单确认", cols: "A~B" },
-    { label: isKo ? "티셔츠 작업용" : "T恤作业用", cols: "C~I" },
-    { label: isKo ? "카드 포장용" : "卡片包装用", cols: "J~L" },
-    { label: isKo ? "택배송장정보" : "快递面单信息", cols: "M~Q" },
-    { label: isKo ? "프로젝트 관리" : "项目管理", cols: "R" },
+    { label: isKo ? "주문확인" : "订单确认", cols: "A~C" },
+    { label: isKo ? "티셔츠 작업용" : "T恤作业用", cols: "D~J" },
+    { label: isKo ? "카드 포장용" : "卡片包装用", cols: "K~M" },
+    { label: isKo ? "택배송장정보" : "快递面单信息", cols: "N~R" },
   ];
 
   const handleDownloadTemplate = () => {
@@ -158,7 +157,7 @@ export default function FileUpload() {
                       <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "신규" : "新增"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "업데이트" : "更新"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "오류" : "异常"}</th>
-                      <th className="pb-2 font-medium text-muted-foreground">{isKo ? "프로젝트 완료일" : "项目完成日"}</th>
+                      <th className="pb-2 font-medium text-muted-foreground">{isKo ? "납기 발송일" : "交期发货日"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "결과" : "结果"}</th>
                     </tr>
                   </thead>
