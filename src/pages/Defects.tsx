@@ -93,14 +93,7 @@ export default function Defects() {
     print_fail: "invoice",
   };
 
-  const [defects, setDefects] = useState<DefectItem[]>([
-    { id: "EX-0235", orderNo: "20260324-1", defectType: "qr_mismatch", severity: "high", occurredAt: "14:32", occurredProcess: isKo ? "티셔츠 부착" : "T恤贴附", detail: isKo ? "실리콘QR SQR-00480 ↔ 디자인QR DQR-00479 상품코드 불일치" : "硅胶QR SQR-00480 ↔ 设计QR DQR-00479 商品代码不匹配", status: "unprocessed", restartStage: null, assignee: isKo ? "김민수" : "金民秀", resolvedAt: null },
-    { id: "EX-0234", orderNo: "20260324-1", defectType: "duplicate_qr", severity: "high", occurredAt: "14:15", occurredProcess: isKo ? "티셔츠 부착" : "T恤贴附", detail: isKo ? "홀로그램QR HQR-A0929 이미 사용됨 (14:08 부착완료)" : "全息QR HQR-A0929 已使用（14:08贴附完成）", status: "rework_queued", restartStage: "tshirt", assignee: isKo ? "김민수" : "金民秀", resolvedAt: null },
-    { id: "EX-0233", orderNo: "20260324-2", defectType: "pack_fail", severity: "medium", occurredAt: "13:58", occurredProcess: isKo ? "카드 포장" : "卡片包装", detail: isKo ? "카드 포장기 B-1 봉투 열접착 불량 (온도 미달)" : "卡片包装机B-1 封口热封不良（温度不足）", status: "rework_in_progress", restartStage: "card", assignee: isKo ? "이진호" : "李振浩", resolvedAt: null },
-    { id: "EX-0232", orderNo: "20260324-3", defectType: "machine_error", severity: "medium", occurredAt: "13:42", occurredProcess: isKo ? "세트 포장" : "套装包装", detail: isKo ? "세트 포장기 B-2 통신 끊김 12분 경과" : "套装包装机B-2 通信中断已12分钟", status: "unprocessed", restartStage: null, assignee: isKo ? "박서윤" : "朴书允", resolvedAt: null },
-    { id: "EX-0231", orderNo: "20260324-1", defectType: "material_short", severity: "low", occurredAt: "12:30", occurredProcess: isKo ? "택배 포장" : "快递包装", detail: isKo ? "택배봉투 재고 부족 (잔여 12매)" : "快递袋库存不足（剩余12个）", status: "rework_done", restartStage: "courier", assignee: isKo ? "최유진" : "崔有珍", resolvedAt: "13:15" },
-    { id: "EX-0230", orderNo: "20260324-4", defectType: "print_fail", severity: "low", occurredAt: "11:50", occurredProcess: isKo ? "송장 부착" : "运单贴附", detail: isKo ? "프린터 용지 부족으로 송장 출력 실패" : "打印机缺纸导致运单打印失败", status: "disposed", restartStage: null, assignee: isKo ? "김민수" : "金民秀", resolvedAt: "12:10" },
-  ]);
+  const [defects, setDefects] = useState<DefectItem[]>([]);
 
   const [activeTab, setActiveTab] = useState<"all" | "queue" | "history">("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
