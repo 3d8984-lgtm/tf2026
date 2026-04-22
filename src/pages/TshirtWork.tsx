@@ -31,86 +31,11 @@ interface OrderData {
   items: WorkItem[];
 }
 
-// Mock: each order contains multiple work items with individual color/size/QR
-const mockOrders: OrderData[] = [
-  {
-    id: "WO-001", orderNo: "20260324-1", twinker: "김민지", product: "BT-2024-A", design: "DSN-047", orderDate: "2024-03-18", dueDate: "2024-03-25",
-    items: [
-      { seq: 1, color: "Black", size: "L", siliconQR: "SQR-00482", designQR: "DQR-00482", hologramQR: "HQR-A0931", status: "done" },
-      { seq: 2, color: "Black", size: "L", siliconQR: "SQR-00481", designQR: "DQR-00481", hologramQR: "HQR-A0930", status: "done" },
-      { seq: 3, color: "Navy", size: "XL", siliconQR: "SQR-00480", designQR: "DQR-00479", hologramQR: "HQR-A0929", status: "pending" },
-      { seq: 4, color: "Black", size: "L", siliconQR: "SQR-00483", designQR: "DQR-00483", hologramQR: "HQR-A0932", status: "pending" },
-      { seq: 5, color: "Navy", size: "M", siliconQR: "SQR-00484", designQR: "DQR-00484", hologramQR: "HQR-A0933", status: "pending" },
-    ],
-  },
-  {
-    id: "WO-002", orderNo: "20260324-2", twinker: "박서연", product: "BT-2024-B", design: "DSN-012", orderDate: "2024-03-19", dueDate: "2024-03-26",
-    items: [
-      { seq: 1, color: "White", size: "M", siliconQR: "SQR-00479", designQR: "DQR-00490", hologramQR: "HQR-A0928", status: "done" },
-      { seq: 2, color: "White", size: "S", siliconQR: "SQR-00491", designQR: "DQR-00491", hologramQR: "HQR-A0934", status: "done" },
-      { seq: 3, color: "White", size: "M", siliconQR: "SQR-00492", designQR: "DQR-00492", hologramQR: "HQR-A0935", status: "done" },
-    ],
-  },
-  {
-    id: "WO-003", orderNo: "20260324-3", twinker: "이하윤", product: "BT-2024-C", design: "DSN-091", orderDate: "2024-03-20", dueDate: "2024-03-27",
-    items: [
-      { seq: 1, color: "Gray", size: "M", siliconQR: "SQR-00500", designQR: "DQR-00500", hologramQR: "HQR-A0940", status: "pending" },
-      { seq: 2, color: "Gray", size: "L", siliconQR: "SQR-00501", designQR: "DQR-00501", hologramQR: "HQR-A0941", status: "pending" },
-      { seq: 3, color: "Black", size: "XL", siliconQR: "SQR-00502", designQR: "DQR-00502", hologramQR: "HQR-A0942", status: "pending" },
-    ],
-  },
-];
-
-// Mock QR lookup tables (simulating DB)
-const mockTshirtQR: Record<string, { product: string; color: string; size: string }> = {
-  "TSH-BK-L": { product: "BT-2024-A", color: "Black", size: "L" },
-  "TSH-NV-XL": { product: "BT-2024-A", color: "Navy", size: "XL" },
-  "TSH-NV-M": { product: "BT-2024-A", color: "Navy", size: "M" },
-  "TSH-WH-M": { product: "BT-2024-B", color: "White", size: "M" },
-  "TSH-WH-S": { product: "BT-2024-B", color: "White", size: "S" },
-  "TSH-GR-M": { product: "BT-2024-C", color: "Gray", size: "M" },
-  "TSH-GR-L": { product: "BT-2024-C", color: "Gray", size: "L" },
-  "TSH-BK-XL": { product: "BT-2024-C", color: "Black", size: "XL" },
-};
-const mockSiliconQR: Record<string, { product: string; design: string }> = {
-  "SQR-00479": { product: "BT-2024-B", design: "DSN-012" },
-  "SQR-00480": { product: "BT-2024-A", design: "DSN-047" },
-  "SQR-00481": { product: "BT-2024-A", design: "DSN-047" },
-  "SQR-00482": { product: "BT-2024-A", design: "DSN-047" },
-  "SQR-00483": { product: "BT-2024-A", design: "DSN-047" },
-  "SQR-00484": { product: "BT-2024-A", design: "DSN-047" },
-  "SQR-00491": { product: "BT-2024-B", design: "DSN-012" },
-  "SQR-00492": { product: "BT-2024-B", design: "DSN-012" },
-  "SQR-00500": { product: "BT-2024-C", design: "DSN-091" },
-  "SQR-00501": { product: "BT-2024-C", design: "DSN-091" },
-  "SQR-00502": { product: "BT-2024-C", design: "DSN-091" },
-};
-const mockDesignQR: Record<string, { product: string; design: string }> = {
-  "DQR-00479": { product: "BT-2024-A", design: "DSN-047" },
-  "DQR-00481": { product: "BT-2024-A", design: "DSN-047" },
-  "DQR-00482": { product: "BT-2024-A", design: "DSN-047" },
-  "DQR-00483": { product: "BT-2024-A", design: "DSN-047" },
-  "DQR-00484": { product: "BT-2024-A", design: "DSN-047" },
-  "DQR-00490": { product: "BT-2024-B", design: "DSN-012" },
-  "DQR-00491": { product: "BT-2024-B", design: "DSN-012" },
-  "DQR-00492": { product: "BT-2024-B", design: "DSN-012" },
-  "DQR-00500": { product: "BT-2024-C", design: "DSN-091" },
-  "DQR-00501": { product: "BT-2024-C", design: "DSN-091" },
-  "DQR-00502": { product: "BT-2024-C", design: "DSN-091" },
-};
-const mockHoloQR: Record<string, { product: string; design: string; used: boolean }> = {
-  "HQR-A0928": { product: "BT-2024-B", design: "DSN-012", used: false },
-  "HQR-A0929": { product: "BT-2024-A", design: "DSN-047", used: true },
-  "HQR-A0930": { product: "BT-2024-A", design: "DSN-047", used: false },
-  "HQR-A0931": { product: "BT-2024-A", design: "DSN-047", used: false },
-  "HQR-A0932": { product: "BT-2024-A", design: "DSN-047", used: false },
-  "HQR-A0933": { product: "BT-2024-A", design: "DSN-047", used: false },
-  "HQR-A0934": { product: "BT-2024-B", design: "DSN-012", used: false },
-  "HQR-A0935": { product: "BT-2024-B", design: "DSN-012", used: false },
-  "HQR-A0940": { product: "BT-2024-C", design: "DSN-091", used: false },
-  "HQR-A0941": { product: "BT-2024-C", design: "DSN-091", used: false },
-  "HQR-A0942": { product: "BT-2024-C", design: "DSN-091", used: false },
-};
+// QR lookup tables will be populated from DB in the future
+const mockTshirtQR: Record<string, { product: string; color: string; size: string }> = {};
+const mockSiliconQR: Record<string, { product: string; design: string }> = {};
+const mockDesignQR: Record<string, { product: string; design: string }> = {};
+const mockHoloQR: Record<string, { product: string; design: string; used: boolean }> = {};
 
 function ProgressBar({ done, total, fail, defectLabel }: { done: number; total: number; fail: number; defectLabel: string }) {
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
