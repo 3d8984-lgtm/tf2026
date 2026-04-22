@@ -62,53 +62,14 @@ export default function FileUpload() {
     link.click();
   };
 
-  const handleUploadDemo = () => {
-    setUploadResult({
-      fileName: "master_data_20240315.xlsx",
-      total: 2400,
-      success: 2391,
-      error: 9,
-      columnResults: [
-        { col: "A", category: isKo ? "주문확인" : "订单确认", label: isKo ? "작업지시번호" : "作业指示编号", filled: 2400, empty: 0, error: 0 },
-        { col: "B", category: isKo ? "주문확인" : "订单确认", label: isKo ? "주문번호" : "订单号", filled: 2400, empty: 0, error: 2 },
-        { col: "C", category: isKo ? "티셔츠 작업용" : "T恤作业用", label: isKo ? "티셔츠 사이즈" : "T恤尺码", filled: 2400, empty: 0, error: 0 },
-        { col: "D", category: isKo ? "티셔츠 작업용" : "T恤作业用", label: isKo ? "티셔츠 컬러" : "T恤颜色", filled: 2400, empty: 0, error: 0 },
-        { col: "E", category: isKo ? "티셔츠 작업용" : "T恤作业用", label: isKo ? "티셔츠 종류" : "T恤种类", filled: 2400, empty: 0, error: 0 },
-        { col: "F", category: isKo ? "티셔츠 작업용" : "T恤作业用", label: isKo ? "티셔츠 일련번호" : "T恤序列号", filled: 2400, empty: 0, error: 0 },
-        { col: "G", category: isKo ? "티셔츠 작업용" : "T恤作业用", label: isKo ? "실리콘 마크QR값" : "硅胶标记QR值", filled: 2400, empty: 0, error: 2 },
-        { col: "H", category: isKo ? "티셔츠 작업용" : "T恤作业用", label: isKo ? "디자인QR값" : "设计QR值", filled: 1800, empty: 600, error: 0 },
-        { col: "I", category: isKo ? "티셔츠 작업용" : "T恤作业用", label: isKo ? "홀로그램QR값" : "全息QR值", filled: 2400, empty: 0, error: 0 },
-        { col: "J", category: isKo ? "카드 포장용" : "卡片包装用", label: isKo ? "카드 바코드값" : "卡片条码值", filled: 2200, empty: 200, error: 5 },
-        { col: "K", category: isKo ? "카드 포장용" : "卡片包装用", label: isKo ? "카드 등급" : "卡片等级", filled: 2200, empty: 200, error: 0 },
-        { col: "L", category: isKo ? "카드 포장용" : "卡片包装用", label: isKo ? "카드 일련번호" : "卡片序列号", filled: 2200, empty: 200, error: 0 },
-        { col: "M", category: isKo ? "택배송장정보" : "快递面单信息", label: isKo ? "나라기호" : "国家代码", filled: 860, empty: 1540, error: 0 },
-        { col: "N", category: isKo ? "택배송장정보" : "快递面单信息", label: isKo ? "수취인명" : "收件人", filled: 860, empty: 1540, error: 0 },
-        { col: "O", category: isKo ? "택배송장정보" : "快递面单信息", label: isKo ? "연락처" : "联系方式", filled: 860, empty: 1540, error: 0 },
-        { col: "P", category: isKo ? "택배송장정보" : "快递面单信息", label: isKo ? "주소" : "地址", filled: 860, empty: 1540, error: 0 },
-        { col: "Q", category: isKo ? "택배송장정보" : "快递面单信息", label: isKo ? "우편번호" : "邮编", filled: 858, empty: 1542, error: 0 },
-        { col: "R", category: isKo ? "프로젝트 관리" : "项目管理", label: isKo ? "프로젝트 완료일" : "项目完成日", filled: 2400, empty: 0, error: 0 },
-      ],
-    });
-  };
-
   const handleApiSync = () => {
     setApiSyncing(true);
     setTimeout(() => setApiSyncing(false), 2000);
   };
 
-  // Mock API sync history
-  const apiSyncHistory = [
-    { time: "2024-03-15 09:00", orders: 45, new: 12, updated: 33, errors: 0, deadline: "2024-04-15", status: "success" },
-    { time: "2024-03-15 06:00", orders: 38, new: 8, updated: 30, errors: 0, deadline: "2024-04-10", status: "success" },
-    { time: "2024-03-14 21:00", orders: 52, new: 15, updated: 35, errors: 2, deadline: "2024-04-12", status: "partial" },
-    { time: "2024-03-14 18:00", orders: 41, new: 10, updated: 31, errors: 0, deadline: "2024-04-08", status: "success" },
-  ];
+  const apiSyncHistory: { time: string; orders: number; new: number; updated: number; errors: number; deadline: string; status: string }[] = [];
 
-  const uploadHistory = [
-    { file: "master_data_20240315.xlsx", rows: 2400, success: 2391, error: 9, date: "2024-03-15 09:23", user: isKo ? "김관리" : "金管理" },
-    { file: "master_data_20240314.xlsx", rows: 2100, success: 2100, error: 0, date: "2024-03-14 16:45", user: isKo ? "박생산" : "朴生产" },
-    { file: "master_data_20240313.xlsx", rows: 1950, success: 1942, error: 8, date: "2024-03-13 10:12", user: isKo ? "김관리" : "金管理" },
-  ];
+  const uploadHistory: { file: string; rows: number; success: number; error: number; date: string; user: string }[] = [];
 
   return (
     <div>
@@ -159,7 +120,7 @@ export default function FileUpload() {
                         : (isKo ? "수동 동기화" : "手动同步")}
                     </Button>
                     <span className="text-xs text-muted-foreground">
-                      {isKo ? "마지막 동기화: 2024-03-15 09:00" : "最后同步: 2024-03-15 09:00"}
+                      {isKo ? "마지막 동기화: -" : "最后同步: -"}
                     </span>
                   </div>
                 </div>
@@ -169,9 +130,9 @@ export default function FileUpload() {
             {/* API sync stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                { label: isKo ? "오늘 수신" : "今日接收", value: "45", icon: ArrowDownToLine, color: "text-primary" },
-                { label: isKo ? "신규 등록" : "新增注册", value: "12", icon: CheckCircle2, color: "text-emerald-500" },
-                { label: isKo ? "업데이트" : "已更新", value: "33", icon: RefreshCw, color: "text-blue-500" },
+                { label: isKo ? "오늘 수신" : "今日接收", value: "0", icon: ArrowDownToLine, color: "text-primary" },
+                { label: isKo ? "신규 등록" : "新增注册", value: "0", icon: CheckCircle2, color: "text-emerald-500" },
+                { label: isKo ? "업데이트" : "已更新", value: "0", icon: RefreshCw, color: "text-blue-500" },
                 { label: isKo ? "오류" : "异常", value: "0", icon: AlertCircle, color: "text-muted-foreground" },
               ].map((s, i) => {
                 const Icon = s.icon;
@@ -312,8 +273,8 @@ export default function FileUpload() {
                 }`}
                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                 onDragLeave={() => setIsDragging(false)}
-                onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleUploadDemo(); }}
-                onClick={handleUploadDemo}
+                onDrop={(e) => { e.preventDefault(); setIsDragging(false); }}
+                onClick={() => {}}
               >
                 <FileUp className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
                 <p className="text-sm font-medium">{isKo ? "엑셀 파일(.xlsx)을 드래그하거나 클릭하여 업로드" : "拖拽或点击上传Excel文件(.xlsx)"}</p>
