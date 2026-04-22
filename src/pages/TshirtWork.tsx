@@ -75,7 +75,7 @@ export default function TshirtWork() {
   ];
 
   // 3-level navigation: null → order list, order → work items list, order+workItem → scan view
-  const [orders, setOrders] = useState<OrderData[]>(mockOrders);
+  const [orders, setOrders] = useState<OrderData[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [activeWorkItemSeq, setActiveWorkItemSeq] = useState<number | null>(null);
 
