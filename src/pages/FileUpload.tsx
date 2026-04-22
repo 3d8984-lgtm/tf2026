@@ -56,7 +56,14 @@ export default function FileUpload() {
   ];
 
   const handleDownloadTemplate = () => {
-    downloadEmbeddedTemplate(isKo ? "템플릿.xlsx" : "模板.xlsx");
+    const link = document.createElement("a");
+    link.href = `${window.location.origin}/template.xlsx`;
+    link.download = isKo ? "템플릿.xlsx" : "模板.xlsx";
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleApiSync = () => {
