@@ -38,6 +38,8 @@ export default function FileUpload() {
   const [saved, setSaved] = useState(false);
   const queryClient = useQueryClient();
 
+  const isSafeStoragePath = (path: string | null | undefined) => !!path && /^[A-Za-z0-9._/-]+$/.test(path);
+
   // Fetch upload history from DB
   const { data: uploadHistory = [] } = useQuery({
     queryKey: ["upload_history"],
