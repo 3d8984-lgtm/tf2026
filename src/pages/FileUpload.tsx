@@ -4,11 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   FileSpreadsheet, CheckCircle2, XCircle, Download, FileUp, Info, Image,
-  Globe, RefreshCw, ArrowDownToLine, Clock, AlertCircle, CircleAlert
+  Globe, RefreshCw, ArrowDownToLine, Clock, AlertCircle, CircleAlert, Save, Loader2
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLang } from "@/contexts/LangContext";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 import * as XLSX from "xlsx";
 import { downloadEmbeddedTemplate } from "@/lib/file-upload-template";
 
@@ -28,6 +31,10 @@ export default function FileUpload() {
     error: number;
     columnResults: { col: string; category: string; label: string; filled: number; empty: number; error: number }[];
   }>(null);
+  const [parsedRows, setParsedRows] = useState<any[][]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const queryClient = useQueryClient();
 
   // Column spec for file upload
   const columnSpec = [
@@ -55,6 +62,7 @@ export default function FileUpload() {
     if (!file.name.endsWith(".xlsx") && !file.name.endsWith(".xls")) {
       return;
     }
+    setSaved(false);
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -78,6 +86,7 @@ export default function FileUpload() {
           return { col: spec.col, category: spec.category, label: spec.label, filled, empty, error: 0 };
         });
 
+        setParsedRows(dataRows);
         setUploadResult({
           fileName: file.name,
           total: totalRows,
@@ -92,6 +101,110 @@ export default function FileUpload() {
     reader.readAsArrayBuffer(file);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isKo]);
+
+  const handleSaveToDb = async () => {
+    if (!parsedRows.length) return;
+    setSaving(true);
+    try {
+      // Map Excel rows to orders table
+      // A(0): work_order_no → external_order_id
+      // B(1): order_no → product_code
+      // C(2): project_deadline → project_completed_at
+      // D(3): tshirt_serial, E(4): tshirt_type, F(5): tshirt_color, G(6): tshirt_size
+      // H(7): silicon_qr, I(8): design_qr, J(9): hologram_qr
+      // K(10): card_serial, L(11): card_grade, M(12): card_barcode
+      // N(13): country_code, O(14): recipient, P(15): phone, Q(16): address, R(17): zipcode
+
+      const orders = parsedRows
+        .filter(row => {
+          const extId = String(row[0] ?? "").trim();
+          return extId !== "";
+        })
+        .map(row => {
+          const str = (idx: number) => String(row[idx] ?? "").trim();
+          // Parse date from Excel serial number or string
+          let projectDate: string | null = null;
+          const rawDate = row[2];
+          if (rawDate) {
+            if (typeof rawDate === "number") {
+              // Excel serial date
+              const d = XLSX.SSF.parse_date_code(rawDate);
+              if (d) projectDate = `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}`;
+            } else {
+              projectDate = String(rawDate).trim() || null;
+            }
+          }
+
+          return {
+            external_order_id: str(0),
+            product_code: str(1) || str(0),
+            design_code: str(8) || null,
+            quantity: 1,
+            recipient_name: str(14) || "N/A",
+            recipient_phone: str(15) || null,
+            shipping_address: str(16) || "N/A",
+            shipping_city: null as string | null,
+            shipping_state: null as string | null,
+            shipping_zip: str(17) || null,
+            shipping_country: str(13) || "US",
+            project_completed_at: projectDate,
+            source_data: {
+              tshirt_serial: str(3),
+              tshirt_type: str(4),
+              tshirt_color: str(5),
+              tshirt_size: str(6),
+              silicon_qr: str(7),
+              design_qr: str(8),
+              hologram_qr: str(9),
+              card_serial: str(10),
+              card_grade: str(11),
+              card_barcode: str(12),
+            },
+          };
+        });
+
+      if (!orders.length) {
+        toast({ title: isKo ? "저장할 데이터가 없습니다" : "没有可保存的数据", variant: "destructive" });
+        setSaving(false);
+        return;
+      }
+
+      // Insert in batches of 50
+      let successCount = 0;
+      let errorCount = 0;
+      for (let i = 0; i < orders.length; i += 50) {
+        const batch = orders.slice(i, i + 50);
+        const { error } = await supabase.from("orders").insert(batch);
+        if (error) {
+          console.error("Insert error:", error);
+          errorCount += batch.length;
+        } else {
+          successCount += batch.length;
+        }
+      }
+
+      setSaved(true);
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["order_stats"] });
+
+      if (errorCount > 0) {
+        toast({
+          title: isKo ? `${successCount}건 저장, ${errorCount}건 오류` : `${successCount}条已保存, ${errorCount}条异常`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: isKo ? `${successCount}건 저장 완료` : `${successCount}条保存成功`,
+          description: isKo ? "주문 데이터가 시스템에 등록되었습니다" : "订单数据已注册到系统",
+        });
+      }
+    } catch (err) {
+      console.error("Save error:", err);
+      toast({ title: isKo ? "저장 중 오류 발생" : "保存时发生错误", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const categoryBadges = [
     { label: isKo ? "주문확인" : "订单确认", cols: "A~C" },
@@ -391,6 +504,25 @@ export default function FileUpload() {
                       <Download className="w-3.5 h-3.5" />
                       {isKo ? "오류 행 다운로드" : "下载异常行"}
                     </Button>
+                  )}
+                  {!saved && (
+                    <Button
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={handleSaveToDb}
+                      disabled={saving || !parsedRows.length}
+                    >
+                      {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                      {saving
+                        ? (isKo ? "저장 중..." : "保存中...")
+                        : (isKo ? `${parsedRows.length}건 저장` : `保存${parsedRows.length}条`)}
+                    </Button>
+                  )}
+                  {saved && (
+                    <span className="flex items-center gap-1.5 text-sm text-emerald-500 font-medium">
+                      <CheckCircle2 className="w-4 h-4" />
+                      {isKo ? "저장 완료" : "保存完成"}
+                    </span>
                   )}
                 </div>
                 <div className="rounded-lg border overflow-hidden">
