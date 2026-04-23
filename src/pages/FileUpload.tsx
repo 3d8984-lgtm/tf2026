@@ -7,8 +7,9 @@ import {
   Globe, RefreshCw, ArrowDownToLine, Clock, AlertCircle, CircleAlert
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useLang } from "@/contexts/LangContext";
+import * as XLSX from "xlsx";
 import { downloadEmbeddedTemplate } from "@/lib/file-upload-template";
 
 export default function FileUpload() {
@@ -19,6 +20,7 @@ export default function FileUpload() {
   useEffect(() => { const t = searchParams.get("tab"); if (t) setTab(t); }, [searchParams]);
   const [isDragging, setIsDragging] = useState(false);
   const [apiSyncing, setApiSyncing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadResult, setUploadResult] = useState<null | {
     fileName: string;
     total: number;
@@ -33,7 +35,7 @@ export default function FileUpload() {
     { col: "B", category: isKo ? "주문확인" : "订单确认", key: "order_no", label: isKo ? "주문번호" : "订单号", desc: isKo ? "TWINMETA 사이트에서 발급된 주문 번호" : "TWINMETA站点发放的订单号" },
     { col: "C", category: isKo ? "주문확인" : "订单确认", key: "project_deadline", label: isKo ? "납기 발송일" : "交期发货日", desc: isKo ? "주문 건의 발송 마감일 (YYYY-MM-DD)" : "订单的发货截止日期 (YYYY-MM-DD)" },
     { col: "D", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_serial", label: isKo ? "티셔츠 일련번호" : "T恤序列号", desc: isKo ? "개별 티셔츠 고유 일련번호" : "单件T恤唯一序列号" },
-    { col: "E", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_type", label: isKo ? "티셔츠 종류" : "T恤种类", desc: isKo ? "티셔츠 제품 유형 구분" : "T恤产品类型区分" },
+    { col: "E", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_type", label: isKo ? "티셔츠 종류" : "T恤种类", desc: isKo ? "티셔츠 제품 유형 구분" : "T恤产品类型区분" },
     { col: "F", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_color", label: isKo ? "티셔츠 컬러" : "T恤颜色", desc: isKo ? "티셔츠 색상 코드 또는 명칭" : "T恤颜色代码或名称" },
     { col: "G", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_size", label: isKo ? "티셔츠 사이즈" : "T恤尺码", desc: isKo ? "티셔츠 사이즈 (S/M/L/XL 등)" : "T恤尺码 (S/M/L/XL等)" },
     { col: "H", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "silicon_qr", label: isKo ? "실리콘 마크QR값" : "硅胶标记QR值", desc: isKo ? "실리콘 마크에 인쇄된 QR 코드 값" : "硅胶标记上印刷的QR码值" },
@@ -48,6 +50,48 @@ export default function FileUpload() {
     { col: "Q", category: isKo ? "택배송장정보" : "快递面单信息", key: "address", label: isKo ? "주소" : "地址", desc: isKo ? "배송지 상세 주소" : "配送地址详情" },
     { col: "R", category: isKo ? "택배송장정보" : "快递面单信息", key: "zipcode", label: isKo ? "우편번호" : "邮编", desc: isKo ? "배송지 우편번호 (ZIP Code)" : "配送地邮编 (ZIP Code)" },
   ];
+
+  const processFile = useCallback((file: File) => {
+    if (!file.name.endsWith(".xlsx") && !file.name.endsWith(".xls")) {
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+        const dataRows = rows.slice(2);
+        const totalRows = dataRows.length;
+
+        const colResults = columnSpec.map((spec, idx) => {
+          let filled = 0, empty = 0;
+          dataRows.forEach((row) => {
+            const val = row[idx];
+            if (val === undefined || val === null || String(val).trim() === "") {
+              empty++;
+            } else {
+              filled++;
+            }
+          });
+          return { col: spec.col, category: spec.category, label: spec.label, filled, empty, error: 0 };
+        });
+
+        setUploadResult({
+          fileName: file.name,
+          total: totalRows,
+          success: totalRows,
+          error: 0,
+          columnResults: colResults,
+        });
+      } catch (err) {
+        console.error("Failed to parse xlsx:", err);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isKo]);
 
   const categoryBadges = [
     { label: isKo ? "주문확인" : "订单确认", cols: "A~C" },
@@ -293,14 +337,30 @@ export default function FileUpload() {
 
             {/* Drop zone */}
             <div className="kpi-card section-enter" style={{ animationDelay: "60ms" }}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) processFile(file);
+                  e.target.value = "";
+                }}
+              />
               <div
                 className={`border-2 border-dashed rounded-lg p-10 text-center transition-all duration-200 cursor-pointer ${
                   isDragging ? "border-primary bg-primary/5 scale-[1.01]" : "border-border hover:border-primary/40"
                 }`}
                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                 onDragLeave={() => setIsDragging(false)}
-                onDrop={(e) => { e.preventDefault(); setIsDragging(false); }}
-                onClick={() => {}}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) processFile(file);
+                }}
+                onClick={() => fileInputRef.current?.click()}
               >
                 <FileUp className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
                 <p className="text-sm font-medium">{isKo ? "엑셀 파일(.xlsx)을 드래그하거나 클릭하여 업로드" : "拖拽或点击上传Excel文件(.xlsx)"}</p>
