@@ -234,7 +234,8 @@ export default function FileUpload() {
       let filePath: string | null = null;
       if (file) {
         const ts = Date.now();
-        const storagePath = `${ts}_${file.name}`;
+        const ext = file.name.split(".").pop() || "xlsx";
+        const storagePath = `${ts}.${ext}`;
         await supabase.storage.from("upload-files").upload(storagePath, file);
         filePath = storagePath;
       }
@@ -689,12 +690,19 @@ export default function FileUpload() {
                                       disabled={!h.file_path}
                                       onClick={async () => {
                                         if (!h.file_path) return;
-                                        const { data } = await supabase.storage
+                                        const { data, error } = await supabase.storage
                                           .from("upload-files")
-                                          .createSignedUrl(h.file_path, 60);
-                                        if (data?.signedUrl) {
-                                          window.open(data.signedUrl, "_blank");
+                                          .download(h.file_path);
+                                        if (error || !data) {
+                                          toast({ title: isKo ? "다운로드 실패" : "下载失败", variant: "destructive" });
+                                          return;
                                         }
+                                        const url = URL.createObjectURL(data);
+                                        const a = document.createElement("a");
+                                        a.href = url;
+                                        a.download = h.file_name;
+                                        a.click();
+                                        URL.revokeObjectURL(url);
                                       }}
                                     >
                                       <Download className="w-3.5 h-3.5" />
