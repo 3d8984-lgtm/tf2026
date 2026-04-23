@@ -40,6 +40,18 @@ export default function FileUpload() {
   type ImageFileEntry = { file: File; orderFolder?: string };
   const [designFiles, setDesignFiles] = useState<ImageFileEntry[]>([]);
   const [twincodeFiles, setTwincodeFiles] = useState<ImageFileEntry[]>([]);
+
+  // Helper: convert File[] to ImageFileEntry[] extracting folder name from webkitRelativePath
+  const filesToEntries = (files: File[]): ImageFileEntry[] =>
+    files.map(f => {
+      const relPath = (f as any).webkitRelativePath as string | undefined;
+      let orderFolder: string | undefined;
+      if (relPath) {
+        const parts = relPath.split("/");
+        if (parts.length >= 2) orderFolder = parts[parts.length - 2]; // immediate parent folder
+      }
+      return { file: f, orderFolder };
+    });
   const [uploadResult, setUploadResult] = useState<null | {
     fileName: string;
     total: number;
