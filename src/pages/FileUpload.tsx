@@ -25,12 +25,15 @@ export default function FileUpload() {
   useEffect(() => { const t = searchParams.get("tab"); if (t) setTab(t); }, [searchParams]);
   const [isDragging, setIsDragging] = useState(false);
   const [isDraggingDesign, setIsDraggingDesign] = useState(false);
+  const [isDraggingTwincode, setIsDraggingTwincode] = useState(false);
   const [apiSyncing, setApiSyncing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const designFileInputRef = useRef<HTMLInputElement>(null);
+  const twincodeFileInputRef = useRef<HTMLInputElement>(null);
   
   const currentFileRef = useRef<File | null>(null);
   const [designFiles, setDesignFiles] = useState<File[]>([]);
+  const [twincodeFiles, setTwincodeFiles] = useState<File[]>([]);
   const [uploadResult, setUploadResult] = useState<null | {
     fileName: string;
     total: number;
