@@ -636,9 +636,9 @@ export default function FileUpload() {
                   <thead>
                     <tr className="border-b text-left">
                       <th className="pb-2 font-medium text-muted-foreground">{t("upload.fileName")}</th>
-                      <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "행수" : "行数"}</th>
-                      <th className="pb-2 font-medium text-muted-foreground text-right">{t("upload.successCount")}</th>
-                      <th className="pb-2 font-medium text-muted-foreground text-right">{t("upload.errorCount")}</th>
+                      <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "데이터 행" : "数据行"}</th>
+                      <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "주문 건수" : "订单数"}</th>
+                      <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "결과" : "结果"}</th>
                       <th className="pb-2 font-medium text-muted-foreground">{t("upload.dateTime")}</th>
                       <th className="pb-2 font-medium text-muted-foreground">{t("upload.user")}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "관리" : "操作"}</th>
@@ -659,9 +659,20 @@ export default function FileUpload() {
                             {h.file_name}
                           </td>
                           <td className="py-2.5 text-right tabular-nums">{h.row_count.toLocaleString()}</td>
-                          <td className="py-2.5 text-right tabular-nums text-emerald-600">{h.success_count.toLocaleString()}</td>
                           <td className="py-2.5 text-right tabular-nums">
-                            {h.error_count > 0 ? <span className="text-destructive">{h.error_count}</span> : "-"}
+                            {h.error_count > 0 ? (
+                              <span>
+                                <span className="text-emerald-600">{h.success_count}</span>
+                                <span className="text-destructive ml-1">({isKo ? `오류 ${h.error_count}` : `异常${h.error_count}`})</span>
+                              </span>
+                            ) : (
+                              <span className="text-emerald-600">{h.success_count}</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 text-center">
+                            {h.error_count === 0
+                              ? <CheckCircle2 className="w-4 h-4 text-emerald-500 mx-auto" />
+                              : <XCircle className="w-4 h-4 text-destructive mx-auto" />}
                           </td>
                           <td className="py-2.5 text-muted-foreground">{new Date(h.created_at).toLocaleString()}</td>
                           <td className="py-2.5">{h.user_email || "-"}</td>
