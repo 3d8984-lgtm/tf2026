@@ -29,7 +29,9 @@ export default function FileUpload() {
   const [apiSyncing, setApiSyncing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const designFileInputRef = useRef<HTMLInputElement>(null);
+  const designFolderInputRef = useRef<HTMLInputElement>(null);
   const twincodeFileInputRef = useRef<HTMLInputElement>(null);
+  const twincodeFolderInputRef = useRef<HTMLInputElement>(null);
   
   const currentFileRef = useRef<File | null>(null);
   const [designFiles, setDesignFiles] = useState<File[]>([]);
