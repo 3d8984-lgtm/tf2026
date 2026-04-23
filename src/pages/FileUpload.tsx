@@ -225,7 +225,7 @@ export default function FileUpload() {
       return;
     }
     setSaved(false);
-    // reset on new file
+    setDesignFiles([]);
     currentFileRef.current = file;
     const reader = new FileReader();
     reader.onload = (e) => {
