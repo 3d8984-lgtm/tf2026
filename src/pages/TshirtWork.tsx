@@ -598,8 +598,7 @@ export default function TshirtWork() {
                 </div>
               )}
             </div>
-          </div>
-          </div>
+        </div>
         </div>
       </div>
     </div>
