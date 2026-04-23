@@ -229,6 +229,32 @@ export default function FileUpload() {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["order_stats"] });
 
+      // Save file to storage and record history
+      const file = currentFileRef.current;
+      let filePath: string | null = null;
+      if (file) {
+        const ts = Date.now();
+        const storagePath = `${ts}_${file.name}`;
+        await supabase.storage.from("upload-files").upload(storagePath, file);
+        filePath = storagePath;
+      }
+
+      const { data: sessionData } = await supabase.auth.getUser();
+      const userEmail = sessionData?.user?.email || null;
+      const userId = sessionData?.user?.id || null;
+
+      await supabase.from("upload_history").insert({
+        file_name: uploadResult?.fileName || file?.name || "unknown",
+        row_count: parsedRows.length,
+        success_count: successCount,
+        error_count: errorCount,
+        user_email: userEmail,
+        user_id: userId,
+        file_path: filePath,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["upload_history"] });
+
       if (errorCount > 0) {
         toast({
           title: isKo ? `${successCount}건 저장, ${errorCount}건 오류` : `${successCount}条已保存, ${errorCount}条异常`,
