@@ -40,6 +40,32 @@ export default function FileUpload() {
   const [saved, setSaved] = useState(false);
   const queryClient = useQueryClient();
 
+  // Logo upload handler for history entries
+  const handleHistoryLogoUpload = async (historyId: string, file: File, oldLogoPath: string | null) => {
+    setLogoUploadingId(historyId);
+    try {
+      // Delete old logo if exists
+      if (oldLogoPath) {
+        await supabase.storage.from("order-logos").remove([oldLogoPath]);
+      }
+      const ext = file.name.split(".").pop() || "png";
+      const logoPath = `history/${Date.now()}-${historyId}.${ext}`;
+      const { error: uploadErr } = await supabase.storage.from("order-logos").upload(logoPath, file);
+      if (uploadErr) {
+        toast({ title: isKo ? "로고 업로드 실패" : "Logo上传失败", variant: "destructive" });
+        return;
+      }
+      await supabase.from("upload_history").update({ logo_path: logoPath }).eq("id", historyId);
+      queryClient.invalidateQueries({ queryKey: ["upload_history"] });
+      toast({ title: isKo ? "로고 업로드 완료" : "Logo上传完成" });
+    } catch (err) {
+      console.error("Logo upload error:", err);
+      toast({ title: isKo ? "로고 업로드 실패" : "Logo上传失败", variant: "destructive" });
+    } finally {
+      setLogoUploadingId(null);
+    }
+  };
+
   const isSafeStoragePath = (path: string | null | undefined) => !!path && /^[A-Za-z0-9._/-]+$/.test(path);
 
   // Fetch upload history from DB
