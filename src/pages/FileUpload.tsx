@@ -556,7 +556,7 @@ export default function FileUpload() {
                   <tbody>
                     {!apiHistory.length ? (
                       <tr>
-                        <td colSpan={8} className="py-6 text-center text-muted-foreground text-sm">
+                        <td colSpan={7} className="py-6 text-center text-muted-foreground text-sm">
                           {isKo ? "API 연동 이력이 없습니다" : "暂无API联动记录"}
                         </td>
                       </tr>
@@ -926,7 +926,7 @@ export default function FileUpload() {
                   <tbody>
                     {!uploadHistory.length ? (
                       <tr>
-                        <td colSpan={9} className="py-6 text-center text-muted-foreground text-sm">
+                        <td colSpan={8} className="py-6 text-center text-muted-foreground text-sm">
                           {isKo ? "업로드 이력이 없습니다" : "暂无上传记录"}
                         </td>
                       </tr>
