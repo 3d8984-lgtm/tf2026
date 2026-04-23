@@ -828,7 +828,74 @@ export default function FileUpload() {
               </div>
             </div>
 
-            {/* Upload result */}
+            {/* Design image upload zone */}
+            {uploadResult && !saved && (
+              <div className="kpi-card section-enter" style={{ animationDelay: "80ms" }}>
+                <input
+                  ref={designFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    if (files.length) setDesignFiles(prev => [...prev, ...files]);
+                    e.target.value = "";
+                  }}
+                />
+                <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                  <Image className="w-4 h-4 text-primary" />
+                  {isKo ? "디자인 이미지 업로드 (선택)" : "设计图片上传 (可选)"}
+                </h3>
+                <p className="text-xs text-muted-foreground mb-3">
+                  {isKo
+                    ? "파일명을 디자인코드와 동일하게 설정하세요 (예: D001.jpg, D002.png). 엑셀의 디자인QR값(I열)과 자동 매칭됩니다."
+                    : "文件名需与设计代码一致 (如: D001.jpg, D002.png)。将自动与Excel的设计QR值(I列)匹配。"}
+                </p>
+                <div
+                  className={`border-2 border-dashed rounded-lg p-6 text-center transition-all duration-200 cursor-pointer ${
+                    isDraggingDesign ? "border-primary bg-primary/5 scale-[1.01]" : "border-border hover:border-primary/40"
+                  }`}
+                  onDragOver={(e) => { e.preventDefault(); setIsDraggingDesign(true); }}
+                  onDragLeave={() => setIsDraggingDesign(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDraggingDesign(false);
+                    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
+                    if (files.length) setDesignFiles(prev => [...prev, ...files]);
+                  }}
+                  onClick={() => designFileInputRef.current?.click()}
+                >
+                  <Image className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm font-medium">{isKo ? "디자인 이미지 파일을 드래그하거나 클릭하여 업로드" : "拖拽或点击上传设计图片文件"}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{isKo ? "여러 파일 선택 가능 (JPG, PNG)" : "可选择多个文件 (JPG, PNG)"}</p>
+                </div>
+                {designFiles.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs font-medium mb-2">
+                      {isKo ? `${designFiles.length}개 이미지 선택됨` : `已选择${designFiles.length}张图片`}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {designFiles.map((f, i) => {
+                        const nameWithoutExt = f.name.replace(/\.[^.]+$/, "");
+                        return (
+                          <div key={i} className="relative group">
+                            <div className="w-16 h-16 rounded border border-border overflow-hidden bg-muted/30">
+                              <img src={URL.createObjectURL(f)} alt={f.name} className="w-full h-full object-contain" />
+                            </div>
+                            <p className="text-[10px] text-center text-muted-foreground truncate w-16 mt-0.5">{nameWithoutExt}</p>
+                            <button
+                              className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-white text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={(e) => { e.stopPropagation(); setDesignFiles(prev => prev.filter((_, idx) => idx !== i)); }}
+                            >×</button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             {uploadResult && (
               <div className="kpi-card section-enter">
                 <div className="flex items-center justify-between mb-4">
