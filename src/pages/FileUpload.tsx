@@ -79,6 +79,7 @@ export default function FileUpload() {
       return;
     }
     setSaved(false);
+    currentFileRef.current = file;
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
