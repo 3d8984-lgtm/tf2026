@@ -29,7 +29,9 @@ export default function FileUpload() {
   const [apiSyncing, setApiSyncing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const designFileInputRef = useRef<HTMLInputElement>(null);
+  const designFolderInputRef = useRef<HTMLInputElement>(null);
   const twincodeFileInputRef = useRef<HTMLInputElement>(null);
+  const twincodeFolderInputRef = useRef<HTMLInputElement>(null);
   
   const currentFileRef = useRef<File | null>(null);
   const [designFiles, setDesignFiles] = useState<File[]>([]);
@@ -883,10 +885,22 @@ export default function FileUpload() {
                   multiple
                   className="hidden"
                   onChange={(e) => {
-                    const files = Array.from(e.target.files || []);
+                    const files = Array.from(e.target.files || []).filter(f => f.type.startsWith("image/"));
                     if (files.length) setDesignFiles(prev => [...prev, ...files]);
                     e.target.value = "";
                   }}
+                />
+                <input
+                  ref={designFolderInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []).filter(f => f.type.startsWith("image/"));
+                    if (files.length) setDesignFiles(prev => [...prev, ...files]);
+                    e.target.value = "";
+                  }}
+                  {...{ webkitdirectory: "", directory: "" } as any}
                 />
                 <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
                   <Image className="w-4 h-4 text-primary" />
@@ -913,6 +927,12 @@ export default function FileUpload() {
                   <Image className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
                   <p className="text-xs font-medium">{isKo ? "드래그 또는 클릭" : "拖拽或点击"}</p>
                   <p className="text-[10px] text-muted-foreground mt-1">{isKo ? "여러 파일 가능" : "可多选"}</p>
+                </div>
+                <div className="mt-2 text-center">
+                  <Button type="button" variant="outline" size="sm" className="text-[10px] h-6 px-2 gap-1" onClick={() => designFolderInputRef.current?.click()}>
+                    <FileUp className="w-3 h-3" />
+                    {isKo ? "폴더 업로드" : "文件夹上传"}
+                  </Button>
                 </div>
                 {designFiles.length > 0 && (
                   <div className="mt-3">
@@ -944,10 +964,22 @@ export default function FileUpload() {
                   multiple
                   className="hidden"
                   onChange={(e) => {
-                    const files = Array.from(e.target.files || []);
+                    const files = Array.from(e.target.files || []).filter(f => f.type.startsWith("image/"));
                     if (files.length) setTwincodeFiles(prev => [...prev, ...files]);
                     e.target.value = "";
                   }}
+                />
+                <input
+                  ref={twincodeFolderInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []).filter(f => f.type.startsWith("image/"));
+                    if (files.length) setTwincodeFiles(prev => [...prev, ...files]);
+                    e.target.value = "";
+                  }}
+                  {...{ webkitdirectory: "", directory: "" } as any}
                 />
                 <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
                   <QrCode className="w-4 h-4 text-primary" />
@@ -974,6 +1006,12 @@ export default function FileUpload() {
                   <QrCode className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
                   <p className="text-xs font-medium">{isKo ? "드래그 또는 클릭" : "拖拽或点击"}</p>
                   <p className="text-[10px] text-muted-foreground mt-1">{isKo ? "여러 파일 가능" : "可多选"}</p>
+                </div>
+                <div className="mt-2 text-center">
+                  <Button type="button" variant="outline" size="sm" className="text-[10px] h-6 px-2 gap-1" onClick={() => twincodeFolderInputRef.current?.click()}>
+                    <FileUp className="w-3 h-3" />
+                    {isKo ? "폴더 업로드" : "文件夹上传"}
+                  </Button>
                 </div>
                 {twincodeFiles.length > 0 && (
                   <div className="mt-3">
