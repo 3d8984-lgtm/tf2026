@@ -678,39 +678,60 @@ export default function FileUpload() {
                           <td className="py-2.5 text-muted-foreground">{new Date(h.created_at).toLocaleString()}</td>
                           <td className="py-2.5">{h.user_email || "-"}</td>
                           <td className="py-2.5 text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              {h.file_path && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 w-7 p-0"
-                                  onClick={async () => {
-                                    const { data } = await supabase.storage
-                                      .from("upload-files")
-                                      .createSignedUrl(h.file_path!, 60);
-                                    if (data?.signedUrl) {
-                                      window.open(data.signedUrl, "_blank");
-                                    }
-                                  }}
-                                >
-                                  <Download className="w-3.5 h-3.5" />
-                                </Button>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                                onClick={async () => {
-                                  if (h.file_path) {
-                                    await supabase.storage.from("upload-files").remove([h.file_path]);
-                                  }
-                                  await supabase.from("upload_history").delete().eq("id", h.id);
-                                  queryClient.invalidateQueries({ queryKey: ["upload_history"] });
-                                  toast({ title: isKo ? "삭제 완료" : "已删除" });
-                                }}
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </Button>
+                            <div className="flex items-center justify-center gap-2">
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8 px-2 gap-1.5 text-xs"
+                                      disabled={!h.file_path}
+                                      onClick={async () => {
+                                        if (!h.file_path) return;
+                                        const { data } = await supabase.storage
+                                          .from("upload-files")
+                                          .createSignedUrl(h.file_path, 60);
+                                        if (data?.signedUrl) {
+                                          window.open(data.signedUrl, "_blank");
+                                        }
+                                      }}
+                                    >
+                                      <Download className="w-3.5 h-3.5" />
+                                      {isKo ? "다운로드" : "下载"}
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>{isKo ? "원본 파일 다운로드" : "下载原始文件"}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8 px-2 gap-1.5 text-xs text-destructive border-destructive/30 hover:bg-destructive/5 hover:text-destructive"
+                                      onClick={async () => {
+                                        if (h.file_path) {
+                                          await supabase.storage.from("upload-files").remove([h.file_path]);
+                                        }
+                                        await supabase.from("upload_history").delete().eq("id", h.id);
+                                        queryClient.invalidateQueries({ queryKey: ["upload_history"] });
+                                        toast({ title: isKo ? "삭제 완료" : "已删除" });
+                                      }}
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                      {isKo ? "삭제" : "删除"}
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>{isKo ? "이력 및 파일 삭제" : "删除记录和文件"}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
                             </div>
                           </td>
                         </tr>
