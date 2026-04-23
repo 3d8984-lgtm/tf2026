@@ -634,7 +634,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "tshirtWork.priorityMedium": "中",
     "tshirtWork.priorityLow": "低",
     "tshirtWork.verifying": "验证中…",
-    "tshirtWork.startVerify": "开始验证",
+    "tshirtWork.startVerify": "开始作业",
     "tshirtWork.attachPossible": "可以贴附",
     "tshirtWork.workItems": "作业项列表",
     "tshirtWork.pending": "待处理",
