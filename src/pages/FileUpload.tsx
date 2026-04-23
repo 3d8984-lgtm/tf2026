@@ -115,53 +115,78 @@ export default function FileUpload() {
       // K(10): card_serial, L(11): card_grade, M(12): card_barcode
       // N(13): country_code, O(14): recipient, P(15): phone, Q(16): address, R(17): zipcode
 
-      const orders = parsedRows
-        .filter(row => {
-          const extId = String(row[0] ?? "").trim();
-          return extId !== "";
-        })
-        .map(row => {
-          const str = (idx: number) => String(row[idx] ?? "").trim();
-          // Parse date from Excel serial number or string
-          let projectDate: string | null = null;
-          const rawDate = row[2];
-          if (rawDate) {
-            if (typeof rawDate === "number") {
-              // Excel serial date
-              const d = XLSX.SSF.parse_date_code(rawDate);
-              if (d) projectDate = `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}`;
-            } else {
-              projectDate = String(rawDate).trim() || null;
-            }
-          }
+      // Group rows by external_order_id (work order no) since multiple rows can share the same order
+      const orderMap = new Map<string, {
+        external_order_id: string;
+        product_code: string;
+        design_code: string | null;
+        quantity: number;
+        recipient_name: string;
+        recipient_phone: string | null;
+        shipping_address: string;
+        shipping_city: string | null;
+        shipping_state: string | null;
+        shipping_zip: string | null;
+        shipping_country: string;
+        project_completed_at: string | null;
+        source_data: Record<string, unknown>;
+      }>();
 
-          return {
-            external_order_id: str(0),
-            product_code: str(1) || str(0),
+      for (const row of parsedRows) {
+        const str = (idx: number) => String(row[idx] ?? "").trim();
+        const extId = str(0);
+        if (!extId) continue;
+
+        // Parse date
+        let projectDate: string | null = null;
+        const rawDate = row[2];
+        if (rawDate) {
+          if (typeof rawDate === "number") {
+            const d = XLSX.SSF.parse_date_code(rawDate);
+            if (d) projectDate = `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}`;
+          } else {
+            projectDate = String(rawDate).trim() || null;
+          }
+        }
+
+        const itemData = {
+          tshirt_serial: str(3),
+          tshirt_type: str(4),
+          tshirt_color: str(5),
+          tshirt_size: str(6),
+          silicon_qr: str(7),
+          design_qr: str(8),
+          hologram_qr: str(9),
+          card_serial: str(10),
+          card_grade: str(11),
+          card_barcode: str(12),
+        };
+
+        if (orderMap.has(extId)) {
+          const existing = orderMap.get(extId)!;
+          existing.quantity += 1;
+          // Append item to items array in source_data
+          (existing.source_data.items as Record<string, unknown>[]).push(itemData);
+        } else {
+          orderMap.set(extId, {
+            external_order_id: extId,
+            product_code: str(1) || extId,
             design_code: str(8) || null,
             quantity: 1,
             recipient_name: str(14) || "N/A",
             recipient_phone: str(15) || null,
             shipping_address: str(16) || "N/A",
-            shipping_city: null as string | null,
-            shipping_state: null as string | null,
+            shipping_city: null,
+            shipping_state: null,
             shipping_zip: str(17) || null,
             shipping_country: str(13) || "US",
             project_completed_at: projectDate,
-            source_data: {
-              tshirt_serial: str(3),
-              tshirt_type: str(4),
-              tshirt_color: str(5),
-              tshirt_size: str(6),
-              silicon_qr: str(7),
-              design_qr: str(8),
-              hologram_qr: str(9),
-              card_serial: str(10),
-              card_grade: str(11),
-              card_barcode: str(12),
-            },
-          };
-        });
+            source_data: { items: [itemData] },
+          });
+        }
+      }
+
+      const orders = Array.from(orderMap.values());
 
       if (!orders.length) {
         toast({ title: isKo ? "저장할 데이터가 없습니다" : "没有可保存的数据", variant: "destructive" });
@@ -169,14 +194,14 @@ export default function FileUpload() {
         return;
       }
 
-      // Insert in batches of 50
+      // Upsert in batches of 50 (handles duplicate external_order_id)
       let successCount = 0;
       let errorCount = 0;
       for (let i = 0; i < orders.length; i += 50) {
         const batch = orders.slice(i, i + 50);
-        const { error } = await supabase.from("orders").insert(batch);
+        const { error } = await supabase.from("orders").upsert(batch, { onConflict: "external_order_id" });
         if (error) {
-          console.error("Insert error:", error);
+          console.error("Upsert error:", error);
           errorCount += batch.length;
         } else {
           successCount += batch.length;
