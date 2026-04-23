@@ -83,7 +83,7 @@ export default function FileUpload() {
       return;
     }
     setSaved(false);
-    setOrderLogos(new Map());
+    // reset on new file
     currentFileRef.current = file;
     const reader = new FileReader();
     reader.onload = (e) => {
