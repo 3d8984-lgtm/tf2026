@@ -65,19 +65,35 @@ Deno.serve(async (req) => {
         status: "received" as const,
       };
 
+      let orderSuccess = false;
+      let orderError: string | null = null;
+
       if (eventType === "order_create") {
-        const { error } = await supabase.from("orders").insert(orderData);
+        const { data: insertedOrder, error } = await supabase.from("orders").insert(orderData).select("id").single();
         if (error) {
+          orderError = error.message;
           await supabase.from("webhook_logs").insert({
             event_type: "order_create_error",
             payload: body,
             status: "error",
             error_message: error.message,
           });
-          return new Response(JSON.stringify({ error: error.message }), {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+        } else {
+          orderSuccess = true;
+
+          // Create upload_history record for API source
+          const { data: historyRow } = await supabase.from("upload_history").insert({
+            file_name: `API-${orderData.external_order_id}`,
+            row_count: orderData.quantity,
+            success_count: 1,
+            error_count: 0,
+            source: "api",
+          }).select("id").single();
+
+          // Link order to upload_history
+          if (historyRow?.id && insertedOrder?.id) {
+            await supabase.from("orders").update({ upload_history_id: historyRow.id }).eq("id", insertedOrder.id);
+          }
         }
       } else {
         // order_update: upsert by external_order_id
@@ -86,27 +102,35 @@ Deno.serve(async (req) => {
           .update(orderData)
           .eq("external_order_id", orderData.external_order_id);
         if (error) {
+          orderError = error.message;
           await supabase.from("webhook_logs").insert({
             event_type: "order_update_error",
             payload: body,
             status: "error",
             error_message: error.message,
           });
-          return new Response(JSON.stringify({ error: error.message }), {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+        } else {
+          orderSuccess = true;
         }
       }
 
+      if (orderError) {
+        return new Response(JSON.stringify({ error: orderError }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       // Update log status to processed
-      await supabase
-        .from("webhook_logs")
-        .update({ status: "processed" })
-        .eq("event_type", eventType)
-        .eq("status", "received")
-        .order("created_at", { ascending: false })
-        .limit(1);
+      if (orderSuccess) {
+        await supabase
+          .from("webhook_logs")
+          .update({ status: "processed" })
+          .eq("event_type", eventType)
+          .eq("status", "received")
+          .order("created_at", { ascending: false })
+          .limit(1);
+      }
     }
 
     return new Response(
