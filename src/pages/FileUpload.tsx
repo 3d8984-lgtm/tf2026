@@ -915,7 +915,7 @@ export default function FileUpload() {
                   className="hidden"
                   onChange={(e) => {
                     const files = Array.from(e.target.files || []).filter(f => f.type.startsWith("image/"));
-                    if (files.length) setDesignFiles(prev => [...prev, ...files]);
+                    if (files.length) setDesignFiles(prev => [...prev, ...filesToEntries(files)]);
                     e.target.value = "";
                   }}
                   {...{ webkitdirectory: "", directory: "" } as any}
@@ -938,7 +938,7 @@ export default function FileUpload() {
                     e.preventDefault();
                     setIsDraggingDesign(false);
                     const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
-                    if (files.length) setDesignFiles(prev => [...prev, ...files]);
+                    if (files.length) setDesignFiles(prev => [...prev, ...filesToEntries(files)]);
                   }}
                   onClick={() => designFileInputRef.current?.click()}
                 >
@@ -983,7 +983,7 @@ export default function FileUpload() {
                   className="hidden"
                   onChange={(e) => {
                     const files = Array.from(e.target.files || []).filter(f => f.type.startsWith("image/"));
-                    if (files.length) setTwincodeFiles(prev => [...prev, ...files]);
+                    if (files.length) setTwincodeFiles(prev => [...prev, ...filesToEntries(files)]);
                     e.target.value = "";
                   }}
                 />
@@ -994,7 +994,7 @@ export default function FileUpload() {
                   className="hidden"
                   onChange={(e) => {
                     const files = Array.from(e.target.files || []).filter(f => f.type.startsWith("image/"));
-                    if (files.length) setTwincodeFiles(prev => [...prev, ...files]);
+                    if (files.length) setTwincodeFiles(prev => [...prev, ...filesToEntries(files)]);
                     e.target.value = "";
                   }}
                   {...{ webkitdirectory: "", directory: "" } as any}
@@ -1017,7 +1017,7 @@ export default function FileUpload() {
                     e.preventDefault();
                     setIsDraggingTwincode(false);
                     const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
-                    if (files.length) setTwincodeFiles(prev => [...prev, ...files]);
+                    if (files.length) setTwincodeFiles(prev => [...prev, ...filesToEntries(files)]);
                   }}
                   onClick={() => twincodeFileInputRef.current?.click()}
                 >
