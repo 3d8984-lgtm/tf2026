@@ -149,6 +149,7 @@ export default function FileUpload() {
         .eq("upload_history_id", historyId);
       if (fetchErr) throw fetchErr;
       if (!linkedOrders || linkedOrders.length === 0) {
+        setUnlinkedIds(prev => new Set(prev).add(historyId));
         toast({ title: isKo ? "연동된 데이터가 없습니다" : "没有关联数据" });
         return;
       }
