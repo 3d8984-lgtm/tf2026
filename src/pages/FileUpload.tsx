@@ -178,7 +178,7 @@ export default function FileUpload() {
 
 
   // Fetch upload history from DB
-  const { data: uploadHistory = [] } = useQuery({
+  const { data: allUploadHistory = [] } = useQuery({
     queryKey: ["upload_history"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -190,6 +190,10 @@ export default function FileUpload() {
       return data;
     },
   });
+
+  // Split history by source
+  const uploadHistory = allUploadHistory.filter((h: any) => (h.source || 'file') === 'file');
+  const apiHistory = allUploadHistory.filter((h: any) => (h.source) === 'api');
 
   // Column spec for file upload
   const columnSpec = [
