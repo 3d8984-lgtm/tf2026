@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import PageHeader from "@/components/PageHeader";
+import { useOrders } from "@/hooks/useDbData";
 import { Button } from "@/components/ui/button";
 import {
   ScanLine, CheckCircle2, XCircle, Clock, AlertTriangle,
@@ -75,7 +76,52 @@ export default function TshirtWork() {
   ];
 
   // 3-level navigation: null → order list, order → work items list, order+workItem → scan view
-  const [orders, setOrders] = useState<OrderData[]>([]);
+  const { data: dbOrders } = useOrders();
+
+  // Convert DB orders to local OrderData format
+  const dbOrderData = useMemo<OrderData[]>(() => {
+    if (!dbOrders) return [];
+    const sorted = [...dbOrders].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    const dateCounters: Record<string, number> = {};
+    return sorted.map(o => {
+      const d = new Date(o.created_at);
+      const dateKey = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+      dateCounters[dateKey] = (dateCounters[dateKey] || 0) + 1;
+      const orderNo = `${dateKey}-${dateCounters[dateKey]}`;
+      const items: WorkItem[] = ((o.source_data as any)?.items ?? []).map((item: any, idx: number) => ({
+        seq: idx + 1,
+        color: item.tshirt_color ?? "",
+        size: item.tshirt_size ?? "",
+        siliconQR: item.silicon_qr ?? "",
+        designQR: item.design_qr ?? "",
+        hologramQR: item.hologram_qr ?? "",
+        status: "pending" as const,
+      }));
+      return {
+        id: o.id,
+        orderNo,
+        twinker: o.recipient_name,
+        product: o.product_code,
+        design: o.design_code ?? "",
+        orderDate: new Date(o.created_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN"),
+        dueDate: o.project_completed_at ? new Date(o.project_completed_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN") : "-",
+        items,
+      };
+    });
+  }, [dbOrders, isKo]);
+
+  // Merge DB data with local work item statuses
+  const [workItemStatuses, setWorkItemStatuses] = useState<Record<string, Record<number, "pending" | "done" | "fail">>>({});
+  const orders = useMemo<OrderData[]>(() => {
+    return dbOrderData.map(o => ({
+      ...o,
+      items: o.items.map(item => ({
+        ...item,
+        status: workItemStatuses[o.id]?.[item.seq] ?? item.status,
+      })),
+    }));
+  }, [dbOrderData, workItemStatuses]);
+
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [activeWorkItemSeq, setActiveWorkItemSeq] = useState<number | null>(null);
 
@@ -155,10 +201,13 @@ export default function TshirtWork() {
   const handleConfirmAttach = () => {
     if (!selectedOrder || !activeWorkItem) return;
     // Mark current work item as done
-    setOrders(prev => prev.map(o => o.id === selectedOrder.id ? {
-      ...o,
-      items: o.items.map(item => item.seq === activeWorkItem.seq ? { ...item, status: "done" as const } : item)
-    } : o));
+    setWorkItemStatuses(prev => ({
+      ...prev,
+      [selectedOrder.id]: {
+        ...(prev[selectedOrder.id] ?? {}),
+        [activeWorkItem.seq]: "done" as const,
+      },
+    }));
     // Auto-advance to next pending item
     const nextPending = selectedOrder.items.find(i => i.seq > activeWorkItem.seq && i.status === "pending");
     if (nextPending) {
