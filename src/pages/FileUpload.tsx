@@ -20,6 +20,7 @@ export default function FileUpload() {
   useEffect(() => { const t = searchParams.get("tab"); if (t) setTab(t); }, [searchParams]);
   const [isDragging, setIsDragging] = useState(false);
   const [apiSyncing, setApiSyncing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadResult, setUploadResult] = useState<null | {
     fileName: string;
     total: number;
@@ -27,6 +28,51 @@ export default function FileUpload() {
     error: number;
     columnResults: { col: string; category: string; label: string; filled: number; empty: number; error: number }[];
   }>(null);
+
+  const processFile = useCallback((file: File) => {
+    if (!file.name.endsWith(".xlsx") && !file.name.endsWith(".xls")) {
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+        // Data starts from row 3 (index 2)
+        const dataRows = rows.slice(2);
+        const totalRows = dataRows.length;
+        let totalErrors = 0;
+
+        const colResults = columnSpec.map((spec, idx) => {
+          let filled = 0, empty = 0, error = 0;
+          dataRows.forEach((row) => {
+            const val = row[idx];
+            if (val === undefined || val === null || String(val).trim() === "") {
+              empty++;
+            } else {
+              filled++;
+            }
+          });
+          return { col: spec.col, category: spec.category, label: spec.label, filled, empty, error };
+        });
+
+        totalErrors = colResults.reduce((sum, c) => sum + c.error, 0);
+
+        setUploadResult({
+          fileName: file.name,
+          total: totalRows,
+          success: totalRows - totalErrors,
+          error: totalErrors,
+          columnResults: colResults,
+        });
+      } catch (err) {
+        console.error("Failed to parse xlsx:", err);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }, [columnSpec]);
 
   // Column spec for file upload
   const columnSpec = [
