@@ -80,6 +80,32 @@ export default function TshirtWork() {
   // 3-level navigation: null → order list, order → work items list, order+workItem → scan view
   const { data: dbOrders } = useOrders();
 
+  // Fetch upload_history for logo paths
+  const { data: uploadHistoryData } = useQuery({
+    queryKey: ["upload_history_logos"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("upload_history")
+        .select("id, logo_path")
+        .not("logo_path", "is", null);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Map upload_history_id → logo public URL
+  const logoUrlMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    if (uploadHistoryData) {
+      for (const h of uploadHistoryData) {
+        if (h.logo_path) {
+          map[h.id] = supabase.storage.from("order-logos").getPublicUrl(h.logo_path).data.publicUrl;
+        }
+      }
+    }
+    return map;
+  }, [uploadHistoryData]);
+
   // Convert DB orders to local OrderData format
   const dbOrderData = useMemo<OrderData[]>(() => {
     if (!dbOrders) return [];
