@@ -76,6 +76,7 @@ export type Database = {
           source_data: Json | null
           status: Database["public"]["Enums"]["order_status"]
           updated_at: string
+          upload_history_id: string | null
         }
         Insert: {
           created_at?: string
@@ -96,6 +97,7 @@ export type Database = {
           source_data?: Json | null
           status?: Database["public"]["Enums"]["order_status"]
           updated_at?: string
+          upload_history_id?: string | null
         }
         Update: {
           created_at?: string
@@ -116,6 +118,7 @@ export type Database = {
           source_data?: Json | null
           status?: Database["public"]["Enums"]["order_status"]
           updated_at?: string
+          upload_history_id?: string | null
         }
         Relationships: []
       }
