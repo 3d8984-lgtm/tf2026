@@ -1,5 +1,5 @@
 import PageHeader from "@/components/PageHeader";
-import { Database, ChevronRight, Search, Plus, Pencil, Trash2, X } from "lucide-react";
+import { Database, ChevronRight, Search, Plus, Pencil, Trash2, X, QrCode } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import QrMasterManagement from "@/components/QrMasterManagement";
 
 type MasterCategory = "product" | "card" | "shipper";
 
