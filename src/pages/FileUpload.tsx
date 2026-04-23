@@ -910,7 +910,7 @@ export default function FileUpload() {
                                 variant="outline"
                                 size="sm"
                                 className="h-7 px-2 gap-1 text-xs text-destructive border-destructive/30 hover:bg-destructive/5 hover:text-destructive"
-                                disabled={unlinkingId === h.id}
+                                disabled={unlinkingId === h.id || unlinkedIds.has(h.id)}
                                 onClick={() => handleUnlinkWork(h.id)}
                               >
                                 {unlinkingId === h.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Unlink className="w-3 h-3" />}
