@@ -74,10 +74,10 @@ export default function FileUpload() {
     setLinkingId(historyId);
     try {
       // Check if orders already linked
-      const { data: linkedOrders } = await supabase
+      const { data: linkedOrders } = await (supabase
         .from("orders")
-        .select("id")
-        .eq("upload_history_id" as any, historyId);
+        .select("id") as any)
+        .eq("upload_history_id", historyId);
       if (linkedOrders && linkedOrders.length > 0) {
         toast({ title: isKo ? `이미 ${linkedOrders.length}건 연동됨` : `已关联${linkedOrders.length}条` });
         return;
