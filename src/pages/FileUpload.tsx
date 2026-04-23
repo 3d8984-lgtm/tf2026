@@ -153,6 +153,7 @@ export default function FileUpload() {
         shipping_country: string;
         project_completed_at: string | null;
         source_data: Json;
+        logo_url?: string | null;
       }>();
 
       for (const row of parsedRows) {
