@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import QrMasterManagement from "@/components/QrMasterManagement";
 
 type QrCategory = "tshirt" | "silicon" | "design" | "hologram";
+type MasterCategory = "product" | "card" | "shipper";
 
 interface MasterItem {
   id: string;
