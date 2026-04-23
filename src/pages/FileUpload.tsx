@@ -926,7 +926,7 @@ export default function FileUpload() {
                   <span className="text-[10px] text-muted-foreground font-normal">{isKo ? "(선택)" : "(可选)"}</span>
                 </h3>
                 <p className="text-xs text-muted-foreground mb-3">
-                  {isKo ? "파일명 = 디자인코드로 자동 매칭 (예: D001.jpg)" : "文件名 = 设计代码自动匹配 (如: D001.jpg)"}
+                  {isKo ? "폴더명 = 주문번호로 매칭 (우선), 파일명 = 디자인코드 (보조)" : "文件夹名 = 订单号匹配 (优先), 文件名 = 设计代码 (辅助)"}
                 </p>
                 <div
                   className={`border-2 border-dashed rounded-lg p-6 text-center transition-all duration-200 cursor-pointer ${
