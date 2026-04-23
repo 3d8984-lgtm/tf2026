@@ -757,6 +757,7 @@ export default function FileUpload() {
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "결과" : "结果"}</th>
                       <th className="pb-2 font-medium text-muted-foreground">{t("upload.dateTime")}</th>
                       <th className="pb-2 font-medium text-muted-foreground">{t("upload.user")}</th>
+                      <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "작업연동" : "作业关联"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "관리" : "操作"}</th>
                     </tr>
                   </thead>
