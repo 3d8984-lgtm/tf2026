@@ -40,6 +40,7 @@ export default function FileUpload() {
   const [logoUploadingId, setLogoUploadingId] = useState<string | null>(null);
   const [linkingId, setLinkingId] = useState<string | null>(null);
   const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
+  const [unlinkedIds, setUnlinkedIds] = useState<Set<string>>(new Set());
   const [saved, setSaved] = useState(false);
   const queryClient = useQueryClient();
 
