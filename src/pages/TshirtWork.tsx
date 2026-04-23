@@ -131,16 +131,26 @@ export default function TshirtWork() {
       }));
       const historyId = (o as any).upload_history_id;
       const logoUrl = historyId ? (logoUrlMap[historyId] ?? null) : null;
+      const designCode = o.design_code ?? "";
+      // Build design image URL: try to resolve from design-images bucket using historyId/designCode
+      let designImageUrl: string | null = null;
+      if (historyId && designCode) {
+        // We'll try common extensions - the actual resolution happens via public URL
+        designImageUrl = supabase.storage.from("design-images").getPublicUrl(`${historyId}/${designCode}.jpg`).data.publicUrl;
+      }
       return {
         id: o.id,
         orderNo,
         twinker: o.recipient_name,
         product: o.product_code,
-        design: o.design_code ?? "",
+        design: designCode,
         orderDate: new Date(o.created_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN"),
         dueDate: o.project_completed_at ? new Date(o.project_completed_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN") : "-",
         items,
         logoUrl,
+        designImageUrl,
+        uploadHistoryId: historyId,
+        designCode,
       };
     });
   }, [dbOrders, isKo, logoUrlMap]);
