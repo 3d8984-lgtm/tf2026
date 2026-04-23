@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import QrMasterManagement from "@/components/QrMasterManagement";
 
-type MasterCategory = "product" | "card" | "shipper";
+type QrCategory = "tshirt" | "silicon" | "design" | "hologram";
 
 interface MasterItem {
   id: string;
