@@ -34,6 +34,7 @@ interface OrderData {
   items: WorkItem[];
   logoUrl: string | null;
   designImageUrl: string | null;
+  twincodeImageUrl: string | null;
   uploadHistoryId: string | null;
   designCode: string;
 }
@@ -129,6 +130,26 @@ export default function TshirtWork() {
     },
   });
 
+  // Fetch twincode images from storage for all history IDs
+  const { data: twincodeImageFiles } = useQuery({
+    queryKey: ["twincode_images_list", allHistoryIds],
+    enabled: !!allHistoryIds && allHistoryIds.length > 0,
+    queryFn: async () => {
+      const fileMap: Record<string, Record<string, string>> = {};
+      for (const hid of (allHistoryIds || [])) {
+        const { data: files } = await supabase.storage.from("twincode-images").list(hid);
+        if (files && files.length > 0) {
+          fileMap[hid] = {};
+          for (const f of files) {
+            const nameWithoutExt = f.name.replace(/\.[^.]+$/, "");
+            fileMap[hid][nameWithoutExt] = supabase.storage.from("twincode-images").getPublicUrl(`${hid}/${f.name}`).data.publicUrl;
+          }
+        }
+      }
+      return fileMap;
+    },
+  });
+
   // Map upload_history_id → logo public URL
   const logoUrlMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -165,8 +186,14 @@ export default function TshirtWork() {
       const logoUrl = historyId ? (logoUrlMap[historyId] ?? null) : null;
       const designCode = o.design_code ?? "";
       let designImageUrl: string | null = null;
-      if (historyId && designCode && designImageFiles?.[historyId]) {
-        designImageUrl = designImageFiles[historyId][designCode] ?? null;
+      let twincodeImageUrl: string | null = null;
+      if (historyId && designCode) {
+        if (designImageFiles?.[historyId]) {
+          designImageUrl = designImageFiles[historyId][designCode] ?? null;
+        }
+        if (twincodeImageFiles?.[historyId]) {
+          twincodeImageUrl = twincodeImageFiles[historyId][designCode] ?? null;
+        }
       }
       return {
         id: o.id,
@@ -179,11 +206,12 @@ export default function TshirtWork() {
         items,
         logoUrl,
         designImageUrl,
+        twincodeImageUrl,
         uploadHistoryId: historyId,
         designCode,
       };
     });
-  }, [dbOrders, isKo, logoUrlMap, designImageFiles]);
+  }, [dbOrders, isKo, logoUrlMap, designImageFiles, twincodeImageFiles]);
 
   // Merge DB data with local work item statuses
   const [workItemStatuses, setWorkItemStatuses] = useState<Record<string, Record<number, "pending" | "done" | "fail">>>({});
@@ -598,7 +626,25 @@ export default function TshirtWork() {
                 </div>
               )}
             </div>
-        </div>
+
+            {/* Twincode image check */}
+            <div className="kpi-card flex flex-col items-center justify-center min-h-[180px]">
+              <h3 className="text-sm font-medium mb-3 flex items-center gap-2 self-start"><Hash className="w-4 h-4" /> {isKo ? "트윈코드 확인" : "TwinCode确认"}</h3>
+              {selectedOrder!.twincodeImageUrl ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-2">
+                  <div className="w-28 h-28 rounded-lg border-2 border-border bg-muted/40 flex items-center justify-center overflow-hidden">
+                    <img src={selectedOrder!.twincodeImageUrl} alt="TwinCode" className="max-w-full max-h-full object-contain" />
+                  </div>
+                  <span className="text-xs text-muted-foreground font-mono">{selectedOrder!.designCode}</span>
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
+                  <Hash className="w-8 h-8 opacity-30" />
+                  <p className="text-xs">{isKo ? "트윈코드 이미지 없음" : "无TwinCode图片"}</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

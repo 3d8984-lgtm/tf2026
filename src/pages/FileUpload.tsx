@@ -3,7 +3,7 @@ import PageHeader from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  FileSpreadsheet, CheckCircle2, XCircle, Download, FileUp, Info, Image,
+  FileSpreadsheet, CheckCircle2, XCircle, Download, FileUp, Info, Image, QrCode,
   Globe, RefreshCw, ArrowDownToLine, Clock, AlertCircle, CircleAlert, Save, Loader2, Trash2,
   Link, Unlink
 } from "lucide-react";
@@ -25,12 +25,15 @@ export default function FileUpload() {
   useEffect(() => { const t = searchParams.get("tab"); if (t) setTab(t); }, [searchParams]);
   const [isDragging, setIsDragging] = useState(false);
   const [isDraggingDesign, setIsDraggingDesign] = useState(false);
+  const [isDraggingTwincode, setIsDraggingTwincode] = useState(false);
   const [apiSyncing, setApiSyncing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const designFileInputRef = useRef<HTMLInputElement>(null);
+  const twincodeFileInputRef = useRef<HTMLInputElement>(null);
   
   const currentFileRef = useRef<File | null>(null);
   const [designFiles, setDesignFiles] = useState<File[]>([]);
+  const [twincodeFiles, setTwincodeFiles] = useState<File[]>([]);
   const [uploadResult, setUploadResult] = useState<null | {
     fileName: string;
     total: number;
@@ -226,6 +229,7 @@ export default function FileUpload() {
     }
     setSaved(false);
     setDesignFiles([]);
+    setTwincodeFiles([]);
     currentFileRef.current = file;
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -423,6 +427,16 @@ export default function FileUpload() {
             const ext = designFile.name.split(".").pop() || "png";
             const storagePath = `${historyId}/${nameWithoutExt}.${ext}`;
             await supabase.storage.from("design-images").upload(storagePath, designFile, { upsert: true });
+          }
+        }
+
+        // Upload twincode images to storage mapped to this upload_history_id
+        if (twincodeFiles.length > 0) {
+          for (const twincodeFile of twincodeFiles) {
+            const nameWithoutExt = twincodeFile.name.replace(/\.[^.]+$/, "");
+            const ext = twincodeFile.name.split(".").pop() || "png";
+            const storagePath = `${historyId}/${nameWithoutExt}.${ext}`;
+            await supabase.storage.from("twincode-images").upload(storagePath, twincodeFile, { upsert: true });
           }
         }
       }
@@ -805,42 +819,57 @@ export default function FileUpload() {
               </div>
             </div>
 
-            {/* Drop zone */}
-            <div className="kpi-card section-enter" style={{ animationDelay: "60ms" }}>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) processFile(file);
-                  e.target.value = "";
-                }}
-              />
-              <div
-                className={`border-2 border-dashed rounded-lg p-10 text-center transition-all duration-200 cursor-pointer ${
-                  isDragging ? "border-primary bg-primary/5 scale-[1.01]" : "border-border hover:border-primary/40"
-                }`}
-                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setIsDragging(false);
-                  const file = e.dataTransfer.files?.[0];
-                  if (file) processFile(file);
-                }}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <FileUp className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
-                <p className="text-sm font-medium">{isKo ? "엑셀 파일(.xlsx)을 드래그하거나 클릭하여 업로드" : "拖拽或点击上传Excel文件(.xlsx)"}</p>
-                <p className="text-xs text-muted-foreground mt-1">{t("upload.maxSize")}</p>
+            {/* Three upload zones in a grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 section-enter" style={{ animationDelay: "60ms" }}>
+              {/* 1. Excel upload */}
+              <div className="kpi-card">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) processFile(file);
+                    e.target.value = "";
+                  }}
+                />
+                <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4 text-primary" />
+                  {isKo ? "① 엑셀 파일" : "① Excel文件"}
+                </h3>
+                <p className="text-xs text-muted-foreground mb-3">
+                  {isKo ? "주문 데이터가 포함된 엑셀 파일 (.xlsx)" : "包含订单数据的Excel文件 (.xlsx)"}
+                </p>
+                <div
+                  className={`border-2 border-dashed rounded-lg p-6 text-center transition-all duration-200 cursor-pointer ${
+                    isDragging ? "border-primary bg-primary/5 scale-[1.01]" : "border-border hover:border-primary/40"
+                  }`}
+                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) processFile(file);
+                  }}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <FileUp className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-xs font-medium">{isKo ? "드래그 또는 클릭" : "拖拽或点击"}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">.xlsx, .xls</p>
+                </div>
+                {uploadResult && (
+                  <div className="mt-3 flex items-center gap-2 text-xs">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                    <span className="truncate font-medium">{uploadResult.fileName}</span>
+                    <span className="text-muted-foreground">({uploadResult.total}{isKo ? "행" : "行"})</span>
+                  </div>
+                )}
               </div>
-            </div>
 
-            {/* Design image upload zone */}
-            {uploadResult && !saved && (
-              <div className="kpi-card section-enter" style={{ animationDelay: "80ms" }}>
+              {/* 2. Design image upload */}
+              <div className="kpi-card">
                 <input
                   ref={designFileInputRef}
                   type="file"
@@ -855,12 +884,11 @@ export default function FileUpload() {
                 />
                 <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
                   <Image className="w-4 h-4 text-primary" />
-                  {isKo ? "디자인 이미지 업로드 (선택)" : "设计图片上传 (可选)"}
+                  {isKo ? "② 디자인 이미지" : "② 设计图片"}
+                  <span className="text-[10px] text-muted-foreground font-normal">{isKo ? "(선택)" : "(可选)"}</span>
                 </h3>
                 <p className="text-xs text-muted-foreground mb-3">
-                  {isKo
-                    ? "파일명을 디자인코드와 동일하게 설정하세요 (예: D001.jpg, D002.png). 엑셀의 디자인QR값(I열)과 자동 매칭됩니다."
-                    : "文件名需与设计代码一致 (如: D001.jpg, D002.png)。将自动与Excel的设计QR值(I列)匹配。"}
+                  {isKo ? "파일명 = 디자인코드 (예: D001.jpg)" : "文件名 = 设计代码 (如: D001.jpg)"}
                 </p>
                 <div
                   className={`border-2 border-dashed rounded-lg p-6 text-center transition-all duration-200 cursor-pointer ${
@@ -877,35 +905,91 @@ export default function FileUpload() {
                   onClick={() => designFileInputRef.current?.click()}
                 >
                   <Image className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-                  <p className="text-sm font-medium">{isKo ? "디자인 이미지 파일을 드래그하거나 클릭하여 업로드" : "拖拽或点击上传设计图片文件"}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{isKo ? "여러 파일 선택 가능 (JPG, PNG)" : "可选择多个文件 (JPG, PNG)"}</p>
+                  <p className="text-xs font-medium">{isKo ? "드래그 또는 클릭" : "拖拽或点击"}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">{isKo ? "여러 파일 가능" : "可多选"}</p>
                 </div>
                 {designFiles.length > 0 && (
                   <div className="mt-3">
-                    <p className="text-xs font-medium mb-2">
-                      {isKo ? `${designFiles.length}개 이미지 선택됨` : `已选择${designFiles.length}张图片`}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {designFiles.map((f, i) => {
-                        const nameWithoutExt = f.name.replace(/\.[^.]+$/, "");
-                        return (
-                          <div key={i} className="relative group">
-                            <div className="w-16 h-16 rounded border border-border overflow-hidden bg-muted/30">
-                              <img src={URL.createObjectURL(f)} alt={f.name} className="w-full h-full object-contain" />
-                            </div>
-                            <p className="text-[10px] text-center text-muted-foreground truncate w-16 mt-0.5">{nameWithoutExt}</p>
-                            <button
-                              className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-white text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={(e) => { e.stopPropagation(); setDesignFiles(prev => prev.filter((_, idx) => idx !== i)); }}
-                            >×</button>
+                    <p className="text-xs font-medium mb-2">{designFiles.length}{isKo ? "개 선택" : "张已选"}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {designFiles.map((f, i) => (
+                        <div key={i} className="relative group">
+                          <div className="w-12 h-12 rounded border border-border overflow-hidden bg-muted/30">
+                            <img src={URL.createObjectURL(f)} alt={f.name} className="w-full h-full object-contain" />
                           </div>
-                        );
-                      })}
+                          <p className="text-[9px] text-center text-muted-foreground truncate w-12">{f.name.replace(/\.[^.]+$/, "")}</p>
+                          <button
+                            className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-destructive text-white text-[9px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={(e) => { e.stopPropagation(); setDesignFiles(prev => prev.filter((_, idx) => idx !== i)); }}
+                          >×</button>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
               </div>
-            )}
+
+              {/* 3. Twincode image upload */}
+              <div className="kpi-card">
+                <input
+                  ref={twincodeFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    if (files.length) setTwincodeFiles(prev => [...prev, ...files]);
+                    e.target.value = "";
+                  }}
+                />
+                <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                  <QrCode className="w-4 h-4 text-primary" />
+                  {isKo ? "③ 트윈코드 이미지" : "③ TwinCode图片"}
+                  <span className="text-[10px] text-muted-foreground font-normal">{isKo ? "(선택)" : "(可选)"}</span>
+                </h3>
+                <p className="text-xs text-muted-foreground mb-3">
+                  {isKo ? "파일명 = 디자인코드 (예: D001.jpg)" : "文件名 = 设计代码 (如: D001.jpg)"}
+                </p>
+                <div
+                  className={`border-2 border-dashed rounded-lg p-6 text-center transition-all duration-200 cursor-pointer ${
+                    isDraggingTwincode ? "border-primary bg-primary/5 scale-[1.01]" : "border-border hover:border-primary/40"
+                  }`}
+                  onDragOver={(e) => { e.preventDefault(); setIsDraggingTwincode(true); }}
+                  onDragLeave={() => setIsDraggingTwincode(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDraggingTwincode(false);
+                    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
+                    if (files.length) setTwincodeFiles(prev => [...prev, ...files]);
+                  }}
+                  onClick={() => twincodeFileInputRef.current?.click()}
+                >
+                  <QrCode className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-xs font-medium">{isKo ? "드래그 또는 클릭" : "拖拽或点击"}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">{isKo ? "여러 파일 가능" : "可多选"}</p>
+                </div>
+                {twincodeFiles.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs font-medium mb-2">{twincodeFiles.length}{isKo ? "개 선택" : "张已选"}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {twincodeFiles.map((f, i) => (
+                        <div key={i} className="relative group">
+                          <div className="w-12 h-12 rounded border border-border overflow-hidden bg-muted/30">
+                            <img src={URL.createObjectURL(f)} alt={f.name} className="w-full h-full object-contain" />
+                          </div>
+                          <p className="text-[9px] text-center text-muted-foreground truncate w-12">{f.name.replace(/\.[^.]+$/, "")}</p>
+                          <button
+                            className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-destructive text-white text-[9px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={(e) => { e.stopPropagation(); setTwincodeFiles(prev => prev.filter((_, idx) => idx !== i)); }}
+                          >×</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
             {uploadResult && (
               <div className="kpi-card section-enter">
                 <div className="flex items-center justify-between mb-4">
