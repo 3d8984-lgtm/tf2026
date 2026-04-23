@@ -71,6 +71,7 @@ function StatusBadge({ status, t }: { status: WorkItem["status"]; t: (k: string)
 export default function TshirtWork() {
   const { t, lang } = useLang();
   const isKo = lang === "ko";
+  const { tshirtQR: mockTshirtQR, siliconQR: mockSiliconQR, designQR: mockDesignQR, holoQR: mockHoloQR } = useQrMasterData();
 
   const steps = [
     { key: "tshirt", label: t("tshirtWork.tshirtScan"), icon: Shirt, placeholder: isKo ? "티셔츠 QR을 스캔하세요" : "请扫描T恤QR" },
