@@ -73,18 +73,63 @@ export default function FileUpload() {
   const handleLinkWork = async (historyId: string) => {
     setLinkingId(historyId);
     try {
-      // Check if orders already linked
+      // Check if orders already linked to this history
       const { data: linkedOrders } = await (supabase
         .from("orders")
         .select("id") as any)
         .eq("upload_history_id", historyId);
+
       if (linkedOrders && linkedOrders.length > 0) {
-        toast({ title: isKo ? `이미 ${linkedOrders.length}건 연동됨` : `已关联${linkedOrders.length}条` });
-        return;
+        // Orders exist – ensure production_tracking & shipments exist for each
+        let createdTracking = 0;
+        let createdShipments = 0;
+        const stages = ["tshirt", "card", "set", "weight", "courier", "invoice", "done"];
+
+        for (const order of linkedOrders) {
+          // Check existing tracking
+          const { data: existingTracking } = await supabase
+            .from("production_tracking")
+            .select("stage")
+            .eq("order_id", order.id);
+          const existingStages = new Set((existingTracking || []).map((t: any) => t.stage));
+          const missingStages = stages.filter(s => !existingStages.has(s));
+          if (missingStages.length > 0) {
+            const rows = missingStages.map(stage => ({
+              order_id: order.id,
+              stage: stage as any,
+              completed_count: 0,
+            }));
+            await supabase.from("production_tracking").insert(rows);
+            createdTracking += missingStages.length;
+          }
+
+          // Check existing shipment
+          const { data: existingShipment } = await supabase
+            .from("shipments")
+            .select("id")
+            .eq("order_id", order.id);
+          if (!existingShipment || existingShipment.length === 0) {
+            await supabase.from("shipments").insert({
+              order_id: order.id,
+              carrier: "4px",
+              status: "pending" as any,
+              inspect_result: "pending" as any,
+            });
+            createdShipments++;
+          }
+        }
+
+        queryClient.invalidateQueries({ queryKey: ["production_tracking"] });
+        queryClient.invalidateQueries({ queryKey: ["shipments"] });
+        toast({
+          title: isKo ? `작업 연동 완료 (${linkedOrders.length}건)` : `作业关联完成 (${linkedOrders.length}条)`,
+          description: isKo
+            ? `생산추적 ${createdTracking}건, 배송 ${createdShipments}건 생성됨`
+            : `生产跟踪 ${createdTracking}条, 配送 ${createdShipments}条 已创建`,
+        });
+      } else {
+        toast({ title: isKo ? "연동할 주문이 없습니다. 먼저 데이터를 저장하세요." : "没有可关联的订单，请先保存数据", variant: "destructive" });
       }
-      // Re-parse stored file and re-create orders
-      // For now, orders are already created during save → just verify they exist
-      toast({ title: isKo ? "작업 연동 완료" : "作业关联完成", description: isKo ? "주문 데이터가 각 작업 모듈에 연동되었습니다" : "订单数据已关联到各作业模块" });
     } catch (err) {
       console.error("Link error:", err);
       toast({ title: isKo ? "연동 실패" : "关联失败", variant: "destructive" });
