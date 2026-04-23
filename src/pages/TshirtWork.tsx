@@ -33,6 +33,9 @@ interface OrderData {
   dueDate: string;
   items: WorkItem[];
   logoUrl: string | null;
+  designImageUrl: string | null;
+  uploadHistoryId: string | null;
+  designCode: string;
 }
 
 // QR lookup tables will be populated from DB in the future
@@ -94,6 +97,38 @@ export default function TshirtWork() {
     },
   });
 
+  // Fetch all upload_history IDs to list design images
+  const { data: allHistoryIds } = useQuery({
+    queryKey: ["upload_history_ids"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("upload_history")
+        .select("id");
+      if (error) throw error;
+      return data?.map(h => h.id) || [];
+    },
+  });
+
+  // Fetch design images from storage for all history IDs
+  const { data: designImageFiles } = useQuery({
+    queryKey: ["design_images_list", allHistoryIds],
+    enabled: !!allHistoryIds && allHistoryIds.length > 0,
+    queryFn: async () => {
+      const fileMap: Record<string, Record<string, string>> = {};
+      for (const hid of (allHistoryIds || [])) {
+        const { data: files } = await supabase.storage.from("design-images").list(hid);
+        if (files && files.length > 0) {
+          fileMap[hid] = {};
+          for (const f of files) {
+            const nameWithoutExt = f.name.replace(/\.[^.]+$/, "");
+            fileMap[hid][nameWithoutExt] = supabase.storage.from("design-images").getPublicUrl(`${hid}/${f.name}`).data.publicUrl;
+          }
+        }
+      }
+      return fileMap;
+    },
+  });
+
   // Map upload_history_id → logo public URL
   const logoUrlMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -128,19 +163,27 @@ export default function TshirtWork() {
       }));
       const historyId = (o as any).upload_history_id;
       const logoUrl = historyId ? (logoUrlMap[historyId] ?? null) : null;
+      const designCode = o.design_code ?? "";
+      let designImageUrl: string | null = null;
+      if (historyId && designCode && designImageFiles?.[historyId]) {
+        designImageUrl = designImageFiles[historyId][designCode] ?? null;
+      }
       return {
         id: o.id,
         orderNo,
         twinker: o.recipient_name,
         product: o.product_code,
-        design: o.design_code ?? "",
+        design: designCode,
         orderDate: new Date(o.created_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN"),
         dueDate: o.project_completed_at ? new Date(o.project_completed_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN") : "-",
         items,
         logoUrl,
+        designImageUrl,
+        uploadHistoryId: historyId,
+        designCode,
       };
     });
-  }, [dbOrders, isKo, logoUrlMap]);
+  }, [dbOrders, isKo, logoUrlMap, designImageFiles]);
 
   // Merge DB data with local work item statuses
   const [workItemStatuses, setWorkItemStatuses] = useState<Record<string, Record<number, "pending" | "done" | "fail">>>({});
@@ -515,26 +558,47 @@ export default function TshirtWork() {
             </div>
           </div>
 
-          <div className="kpi-card flex flex-col items-center justify-center min-h-[240px]">
-            <h3 className="text-sm font-medium mb-3 flex items-center gap-2 self-start"><Image className="w-4 h-4" /> {t("tshirtWork.logoCheck")}</h3>
-            {selectedOrder!.logoUrl ? (
-              <div className="flex-1 flex flex-col items-center justify-center gap-3">
-                <div className={`w-32 h-32 rounded-lg border-2 bg-muted/40 flex items-center justify-center overflow-hidden ${logoVerified ? "border-[hsl(var(--success)/0.3)]" : "border-border"}`}>
-                  <img src={selectedOrder!.logoUrl} alt="Logo" className="max-w-full max-h-full object-contain" />
+          <div className="space-y-4">
+            {/* Logo check */}
+            <div className="kpi-card flex flex-col items-center justify-center min-h-[180px]">
+              <h3 className="text-sm font-medium mb-3 flex items-center gap-2 self-start"><Image className="w-4 h-4" /> {t("tshirtWork.logoCheck")}</h3>
+              {selectedOrder!.logoUrl ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-2">
+                  <div className={`w-28 h-28 rounded-lg border-2 bg-muted/40 flex items-center justify-center overflow-hidden ${logoVerified ? "border-[hsl(var(--success)/0.3)]" : "border-border"}`}>
+                    <img src={selectedOrder!.logoUrl} alt="Logo" className="max-w-full max-h-full object-contain" />
+                  </div>
+                  {logoVerified ? (
+                    <span className="text-xs text-[hsl(var(--success))] font-medium flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> {t("tshirtWork.logoConfirmed")}</span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">{isKo ? "로고 이미지 확인" : "Logo图片确认"}</span>
+                  )}
                 </div>
-                {logoVerified ? (
-                  <span className="text-xs text-[hsl(var(--success))] font-medium flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> {t("tshirtWork.logoConfirmed")}</span>
-                ) : (
-                  <span className="text-xs text-muted-foreground">{isKo ? "로고 이미지 확인" : "Logo图片确认"}</span>
-                )}
-              </div>
-            ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
-                <Image className="w-10 h-10 opacity-30" />
-                <p className="text-xs text-center whitespace-pre-line">{isKo ? "로고가 업로드되지 않았습니다" : "未上传Logo"}</p>
-              </div>
-            )}
-          </div>
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
+                  <Image className="w-8 h-8 opacity-30" />
+                  <p className="text-xs">{isKo ? "로고 없음" : "无Logo"}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Design image check */}
+            <div className="kpi-card flex flex-col items-center justify-center min-h-[180px]">
+              <h3 className="text-sm font-medium mb-3 flex items-center gap-2 self-start"><QrCode className="w-4 h-4" /> {isKo ? "디자인 확인" : "设计确认"}</h3>
+              {selectedOrder!.designImageUrl ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-2">
+                  <div className="w-28 h-28 rounded-lg border-2 border-border bg-muted/40 flex items-center justify-center overflow-hidden">
+                    <img src={selectedOrder!.designImageUrl} alt="Design" className="max-w-full max-h-full object-contain" />
+                  </div>
+                  <span className="text-xs text-muted-foreground font-mono">{selectedOrder!.designCode}</span>
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
+                  <QrCode className="w-8 h-8 opacity-30" />
+                  <p className="text-xs">{isKo ? "디자인 이미지 없음" : "无设计图片"}</p>
+                </div>
+              )}
+            </div>
+        </div>
         </div>
       </div>
     </div>
