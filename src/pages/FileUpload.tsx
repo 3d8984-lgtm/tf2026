@@ -25,7 +25,7 @@ export default function FileUpload() {
   const [isDragging, setIsDragging] = useState(false);
   const [apiSyncing, setApiSyncing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const logoInputRef = useRef<HTMLInputElement>(null);
+  const historyLogoInputRef = useRef<HTMLInputElement>(null);
   const currentFileRef = useRef<File | null>(null);
   const [uploadResult, setUploadResult] = useState<null | {
     fileName: string;
@@ -36,9 +36,7 @@ export default function FileUpload() {
   }>(null);
   const [parsedRows, setParsedRows] = useState<any[][]>([]);
   const [saving, setSaving] = useState(false);
-  // Logo per order: Map<external_order_id, File>
-  const [orderLogos, setOrderLogos] = useState<Map<string, File>>(new Map());
-  const [logoTarget, setLogoTarget] = useState<string | null>(null);
+  const [logoUploadingId, setLogoUploadingId] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const queryClient = useQueryClient();
 
