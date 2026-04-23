@@ -270,6 +270,12 @@ export default function FileUpload() {
           description: isKo ? `총 ${parsedRows.length}행 처리` : `共处理${parsedRows.length}行`,
           variant: "destructive",
         });
+      } else if (fileUploadFailed) {
+        toast({
+          title: isKo ? `주문 ${successCount}건 저장 완료` : `${successCount}条订单保存成功`,
+          description: isKo ? "파일 원본 저장에는 실패했습니다. 이력 다운로드는 사용할 수 없습니다." : "原始文件保存失败，历史下载不可用。",
+          variant: "destructive",
+        });
       } else {
         toast({
           title: isKo ? `주문 ${successCount}건 저장 완료` : `${successCount}条订单保存成功`,
