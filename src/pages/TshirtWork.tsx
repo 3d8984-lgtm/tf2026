@@ -40,11 +40,7 @@ interface OrderData {
   designCode: string;
 }
 
-// QR lookup tables will be populated from DB in the future
-const mockTshirtQR: Record<string, { product: string; color: string; size: string }> = {};
-const mockSiliconQR: Record<string, { product: string; design: string }> = {};
-const mockDesignQR: Record<string, { product: string; design: string }> = {};
-const mockHoloQR: Record<string, { product: string; design: string; used: boolean }> = {};
+// QR lookup tables loaded from DB via hook (see below in component)
 
 function ProgressBar({ done, total, fail, defectLabel }: { done: number; total: number; fail: number; defectLabel: string }) {
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
