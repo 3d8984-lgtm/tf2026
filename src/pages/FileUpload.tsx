@@ -257,13 +257,14 @@ export default function FileUpload() {
 
       if (errorCount > 0) {
         toast({
-          title: isKo ? `${successCount}건 저장, ${errorCount}건 오류` : `${successCount}条已保存, ${errorCount}条异常`,
+          title: isKo ? `주문 ${successCount}건 저장, ${errorCount}건 오류` : `${successCount}条订单已保存, ${errorCount}条异常`,
+          description: isKo ? `총 ${parsedRows.length}행 처리` : `共处理${parsedRows.length}行`,
           variant: "destructive",
         });
       } else {
         toast({
-          title: isKo ? `${successCount}건 저장 완료` : `${successCount}条保存成功`,
-          description: isKo ? "주문 데이터가 시스템에 등록되었습니다" : "订单数据已注册到系统",
+          title: isKo ? `주문 ${successCount}건 저장 완료` : `${successCount}条订单保存成功`,
+          description: isKo ? `${parsedRows.length}행 → ${successCount}건 주문 등록` : `${parsedRows.length}行 → ${successCount}条订单注册`,
         });
       }
     } catch (err) {
