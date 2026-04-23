@@ -97,10 +97,10 @@ export default function FileUpload() {
   const handleUnlinkWork = async (historyId: string) => {
     setUnlinkingId(historyId);
     try {
-      const { data: linkedOrders, error: fetchErr } = await supabase
+      const { data: linkedOrders, error: fetchErr } = await (supabase
         .from("orders")
-        .select("id")
-        .eq("upload_history_id" as any, historyId);
+        .select("id") as any)
+        .eq("upload_history_id", historyId);
       if (fetchErr) throw fetchErr;
       if (!linkedOrders || linkedOrders.length === 0) {
         toast({ title: isKo ? "연동된 데이터가 없습니다" : "没有关联数据" });
