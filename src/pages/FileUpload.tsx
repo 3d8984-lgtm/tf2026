@@ -411,7 +411,9 @@ export default function FileUpload() {
         user_email: userEmail,
         user_id: userId,
         file_path: filePath,
-      }).select("id").single();
+        design_image_count: designFiles.length,
+        twincode_image_count: twincodeFiles.length,
+      } as any).select("id").single();
 
       const historyId = historyRow?.id || null;
 
@@ -574,6 +576,8 @@ export default function FileUpload() {
                       <th className="pb-2 font-medium text-muted-foreground">{isKo ? "주문번호" : "订单号"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "로고" : "Logo"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "데이터 행" : "数据行"}</th>
+                      <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "디자인" : "设计"}</th>
+                      <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "트윈코드" : "TwinCode"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "결과" : "结果"}</th>
                       <th className="pb-2 font-medium text-muted-foreground">{isKo ? "결과일시" : "结果时间"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "작업연동" : "作业关联"}</th>
@@ -583,7 +587,7 @@ export default function FileUpload() {
                   <tbody>
                     {!apiHistory.length ? (
                       <tr>
-                        <td colSpan={7} className="py-6 text-center text-muted-foreground text-sm">
+                        <td colSpan={9} className="py-6 text-center text-muted-foreground text-sm">
                           {isKo ? "API 연동 이력이 없습니다" : "暂无API联动记录"}
                         </td>
                       </tr>
@@ -650,6 +654,8 @@ export default function FileUpload() {
                               )}
                             </td>
                             <td className="py-2.5 text-right tabular-nums">{h.row_count.toLocaleString()}</td>
+                            <td className="py-2.5 text-center tabular-nums">{(h as any).design_image_count || 0}</td>
+                            <td className="py-2.5 text-center tabular-nums">{(h as any).twincode_image_count || 0}</td>
                             <td className="py-2.5 text-center">
                               {h.error_count === 0
                                 ? <CheckCircle2 className="w-4 h-4 text-emerald-500 mx-auto" />
@@ -1079,18 +1085,19 @@ export default function FileUpload() {
                       <th className="pb-2 font-medium text-muted-foreground">{t("upload.fileName")}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "로고" : "Logo"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "데이터 행" : "数据行"}</th>
-                      
+                      <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "디자인" : "设计"}</th>
+                      <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "트윈코드" : "TwinCode"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "결과" : "结果"}</th>
                       <th className="pb-2 font-medium text-muted-foreground">{t("upload.dateTime")}</th>
                       <th className="pb-2 font-medium text-muted-foreground">{t("upload.user")}</th>
-                      <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "작업연동" : "作业关联"}</th>
+                      <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "작업연동" : "작业관联"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "관리" : "操作"}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {!uploadHistory.length ? (
                       <tr>
-                        <td colSpan={8} className="py-6 text-center text-muted-foreground text-sm">
+                        <td colSpan={10} className="py-6 text-center text-muted-foreground text-sm">
                           {isKo ? "업로드 이력이 없습니다" : "暂无上传记录"}
                         </td>
                       </tr>
@@ -1155,6 +1162,8 @@ export default function FileUpload() {
                             )}
                           </td>
                           <td className="py-2.5 text-right tabular-nums">{h.row_count.toLocaleString()}</td>
+                          <td className="py-2.5 text-center tabular-nums">{(h as any).design_image_count || 0}</td>
+                          <td className="py-2.5 text-center tabular-nums">{(h as any).twincode_image_count || 0}</td>
                           <td className="py-2.5 text-center">
                             {h.error_count === 0
                               ? <CheckCircle2 className="w-4 h-4 text-emerald-500 mx-auto" />
