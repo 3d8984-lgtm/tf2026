@@ -38,6 +38,8 @@ export default function FileUpload() {
   const [saved, setSaved] = useState(false);
   const queryClient = useQueryClient();
 
+  const isSafeStoragePath = (path: string | null | undefined) => !!path && /^[A-Za-z0-9._/-]+$/.test(path);
+
   // Fetch upload history from DB
   const { data: uploadHistory = [] } = useQuery({
     queryKey: ["upload_history"],
@@ -232,12 +234,18 @@ export default function FileUpload() {
       // Save file to storage and record history
       const file = currentFileRef.current;
       let filePath: string | null = null;
+      let fileUploadFailed = false;
       if (file) {
         const ts = Date.now();
         const ext = file.name.split(".").pop() || "xlsx";
         const storagePath = `${ts}.${ext}`;
-        await supabase.storage.from("upload-files").upload(storagePath, file);
-        filePath = storagePath;
+        const { error: storageError } = await supabase.storage.from("upload-files").upload(storagePath, file);
+        if (storageError) {
+          console.error("Storage upload error:", storageError);
+          fileUploadFailed = true;
+        } else {
+          filePath = storagePath;
+        }
       }
 
       const { data: sessionData } = await supabase.auth.getUser();
@@ -260,6 +268,12 @@ export default function FileUpload() {
         toast({
           title: isKo ? `주문 ${successCount}건 저장, ${errorCount}건 오류` : `${successCount}条订单已保存, ${errorCount}条异常`,
           description: isKo ? `총 ${parsedRows.length}행 처리` : `共处理${parsedRows.length}行`,
+          variant: "destructive",
+        });
+      } else if (fileUploadFailed) {
+        toast({
+          title: isKo ? `주문 ${successCount}건 저장 완료` : `${successCount}条订单保存成功`,
+          description: isKo ? "파일 원본 저장에는 실패했습니다. 이력 다운로드는 사용할 수 없습니다." : "原始文件保存失败，历史下载不可用。",
           variant: "destructive",
         });
       } else {
@@ -683,34 +697,44 @@ export default function FileUpload() {
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-8 px-2 gap-1.5 text-xs"
-                                      disabled={!h.file_path}
-                                      onClick={async () => {
-                                        if (!h.file_path) return;
-                                        const { data, error } = await supabase.storage
-                                          .from("upload-files")
-                                          .download(h.file_path);
-                                        if (error || !data) {
-                                          toast({ title: isKo ? "다운로드 실패" : "下载失败", variant: "destructive" });
-                                          return;
-                                        }
-                                        const url = URL.createObjectURL(data);
-                                        const a = document.createElement("a");
-                                        a.href = url;
-                                        a.download = h.file_name;
-                                        a.click();
-                                        URL.revokeObjectURL(url);
-                                      }}
-                                    >
-                                      <Download className="w-3.5 h-3.5" />
-                                      {isKo ? "다운로드" : "下载"}
-                                    </Button>
+                                    <span>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 px-2 gap-1.5 text-xs"
+                                        disabled={!isSafeStoragePath(h.file_path)}
+                                        onClick={async () => {
+                                          if (!isSafeStoragePath(h.file_path)) {
+                                            toast({ title: isKo ? "다운로드할 원본 파일이 없습니다" : "没有可下载的原始文件", variant: "destructive" });
+                                            return;
+                                          }
+
+                                          const { data, error } = await supabase.storage
+                                            .from("upload-files")
+                                            .download(h.file_path);
+
+                                          if (error || !data) {
+                                            toast({ title: isKo ? "다운로드 실패" : "下载失败", variant: "destructive" });
+                                            return;
+                                          }
+
+                                          const url = URL.createObjectURL(data);
+                                          const a = document.createElement("a");
+                                          a.href = url;
+                                          a.download = h.file_name;
+                                          document.body.appendChild(a);
+                                          a.click();
+                                          a.remove();
+                                          setTimeout(() => URL.revokeObjectURL(url), 1000);
+                                        }}
+                                      >
+                                        <Download className="w-3.5 h-3.5" />
+                                        {isKo ? "다운로드" : "下载"}
+                                      </Button>
+                                    </span>
                                   </TooltipTrigger>
                                   <TooltipContent>
-                                    <p>{isKo ? "원본 파일 다운로드" : "下载原始文件"}</p>
+                                    <p>{isSafeStoragePath(h.file_path) ? (isKo ? "원본 파일 다운로드" : "下载原始文件") : (isKo ? "이 이력에는 다운로드 가능한 원본 파일이 없습니다" : "该记录没有可下载的原始文件")}</p>
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
