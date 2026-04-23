@@ -592,13 +592,16 @@ export default function TshirtWork() {
               <h3 className="text-sm font-medium mb-3 flex items-center gap-2 self-start"><Image className="w-4 h-4" /> {t("tshirtWork.logoCheck")}</h3>
               {selectedOrder!.logoUrl ? (
                 <div className="flex-1 flex flex-col items-center justify-center gap-2">
-                  <div className={`w-28 h-28 rounded-lg border-2 bg-muted/40 flex items-center justify-center overflow-hidden ${logoVerified ? "border-[hsl(var(--success)/0.3)]" : "border-border"}`}>
+                  <div
+                    className={`w-28 h-28 rounded-lg border-2 bg-muted/40 flex items-center justify-center overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/40 transition-shadow ${logoVerified ? "border-[hsl(var(--success)/0.3)]" : "border-border"}`}
+                    onClick={() => setZoomedImage({ src: selectedOrder!.logoUrl!, alt: "Logo" })}
+                  >
                     <img src={selectedOrder!.logoUrl} alt="Logo" className="max-w-full max-h-full object-contain" />
                   </div>
                   {logoVerified ? (
                     <span className="text-xs text-[hsl(var(--success))] font-medium flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> {t("tshirtWork.logoConfirmed")}</span>
                   ) : (
-                    <span className="text-xs text-muted-foreground">{isKo ? "로고 이미지 확인" : "Logo图片确认"}</span>
+                    <span className="text-xs text-muted-foreground">{isKo ? "클릭하여 확대" : "点击放大"}</span>
                   )}
                 </div>
               ) : (
@@ -614,10 +617,13 @@ export default function TshirtWork() {
               <h3 className="text-sm font-medium mb-3 flex items-center gap-2 self-start"><QrCode className="w-4 h-4" /> {isKo ? "디자인 확인" : "设计确认"}</h3>
               {selectedOrder!.designImageUrl ? (
                 <div className="flex-1 flex flex-col items-center justify-center gap-2">
-                  <div className="w-28 h-28 rounded-lg border-2 border-border bg-muted/40 flex items-center justify-center overflow-hidden">
+                  <div
+                    className="w-28 h-28 rounded-lg border-2 border-border bg-muted/40 flex items-center justify-center overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/40 transition-shadow"
+                    onClick={() => setZoomedImage({ src: selectedOrder!.designImageUrl!, alt: "Design" })}
+                  >
                     <img src={selectedOrder!.designImageUrl} alt="Design" className="max-w-full max-h-full object-contain" />
                   </div>
-                  <span className="text-xs text-muted-foreground font-mono">{selectedOrder!.designCode}</span>
+                  <span className="text-xs text-muted-foreground">{isKo ? "클릭하여 확대" : "点击放大"} · <span className="font-mono">{selectedOrder!.designCode}</span></span>
                 </div>
               ) : (
                 <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
@@ -632,10 +638,13 @@ export default function TshirtWork() {
               <h3 className="text-sm font-medium mb-3 flex items-center gap-2 self-start"><Hash className="w-4 h-4" /> {isKo ? "트윈코드 확인" : "TwinCode确认"}</h3>
               {selectedOrder!.twincodeImageUrl ? (
                 <div className="flex-1 flex flex-col items-center justify-center gap-2">
-                  <div className="w-28 h-28 rounded-lg border-2 border-border bg-muted/40 flex items-center justify-center overflow-hidden">
+                  <div
+                    className="w-28 h-28 rounded-lg border-2 border-border bg-muted/40 flex items-center justify-center overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/40 transition-shadow"
+                    onClick={() => setZoomedImage({ src: selectedOrder!.twincodeImageUrl!, alt: "TwinCode" })}
+                  >
                     <img src={selectedOrder!.twincodeImageUrl} alt="TwinCode" className="max-w-full max-h-full object-contain" />
                   </div>
-                  <span className="text-xs text-muted-foreground font-mono">{selectedOrder!.designCode}</span>
+                  <span className="text-xs text-muted-foreground">{isKo ? "클릭하여 확대" : "点击放大"} · <span className="font-mono">{selectedOrder!.designCode}</span></span>
                 </div>
               ) : (
                 <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
@@ -647,6 +656,17 @@ export default function TshirtWork() {
           </div>
         </div>
       </div>
+
+      {/* Zoomed image dialog */}
+      <Dialog open={!!zoomedImage} onOpenChange={() => setZoomedImage(null)}>
+        <DialogContent className="max-w-3xl p-2 bg-background">
+          {zoomedImage && (
+            <div className="flex items-center justify-center p-4">
+              <img src={zoomedImage.src} alt={zoomedImage.alt} className="max-w-full max-h-[80vh] object-contain rounded-lg" />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
