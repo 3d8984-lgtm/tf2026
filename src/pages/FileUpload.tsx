@@ -340,14 +340,30 @@ export default function FileUpload() {
 
             {/* Drop zone */}
             <div className="kpi-card section-enter" style={{ animationDelay: "60ms" }}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) processFile(file);
+                  e.target.value = "";
+                }}
+              />
               <div
                 className={`border-2 border-dashed rounded-lg p-10 text-center transition-all duration-200 cursor-pointer ${
                   isDragging ? "border-primary bg-primary/5 scale-[1.01]" : "border-border hover:border-primary/40"
                 }`}
                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                 onDragLeave={() => setIsDragging(false)}
-                onDrop={(e) => { e.preventDefault(); setIsDragging(false); }}
-                onClick={() => {}}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) processFile(file);
+                }}
+                onClick={() => fileInputRef.current?.click()}
               >
                 <FileUp className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
                 <p className="text-sm font-medium">{isKo ? "엑셀 파일(.xlsx)을 드래그하거나 클릭하여 업로드" : "拖拽或点击上传Excel文件(.xlsx)"}</p>
