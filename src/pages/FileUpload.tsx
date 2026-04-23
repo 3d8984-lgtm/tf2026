@@ -25,6 +25,7 @@ export default function FileUpload() {
   const [isDragging, setIsDragging] = useState(false);
   const [apiSyncing, setApiSyncing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const currentFileRef = useRef<File | null>(null);
   const [uploadResult, setUploadResult] = useState<null | {
     fileName: string;
     total: number;
@@ -36,6 +37,20 @@ export default function FileUpload() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const queryClient = useQueryClient();
+
+  // Fetch upload history from DB
+  const { data: uploadHistory = [] } = useQuery({
+    queryKey: ["upload_history"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("upload_history")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data;
+    },
+  });
 
   // Column spec for file upload
   const columnSpec = [
