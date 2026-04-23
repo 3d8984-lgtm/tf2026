@@ -904,7 +904,7 @@ export default function FileUpload() {
                   className="hidden"
                   onChange={(e) => {
                     const files = Array.from(e.target.files || []).filter(f => f.type.startsWith("image/"));
-                    if (files.length) setDesignFiles(prev => [...prev, ...files]);
+                    if (files.length) setDesignFiles(prev => [...prev, ...filesToEntries(files)]);
                     e.target.value = "";
                   }}
                 />
