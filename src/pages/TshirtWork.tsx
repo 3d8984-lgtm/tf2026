@@ -183,7 +183,7 @@ export default function TshirtWork() {
         designCode,
       };
     });
-  }, [dbOrders, isKo, logoUrlMap]);
+  }, [dbOrders, isKo, logoUrlMap, designImageFiles]);
 
   // Merge DB data with local work item statuses
   const [workItemStatuses, setWorkItemStatuses] = useState<Record<string, Record<number, "pending" | "done" | "fail">>>({});
