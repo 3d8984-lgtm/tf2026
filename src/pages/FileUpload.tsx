@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   FileSpreadsheet, CheckCircle2, XCircle, Download, FileUp, Info, Image,
-  Globe, RefreshCw, ArrowDownToLine, Clock, AlertCircle
+  Globe, RefreshCw, ArrowDownToLine, Clock, AlertCircle, CircleAlert
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useState, useEffect } from "react";
 import { useLang } from "@/contexts/LangContext";
 import { downloadEmbeddedTemplate } from "@/lib/file-upload-template";
@@ -235,11 +236,39 @@ export default function FileUpload() {
                         return (
                           <tr key={i} className="border-t border-border/40">
                             <td className="px-2.5 py-1.5 font-mono font-semibold text-primary">{left.col}</td>
-                            <td className="px-2.5 py-1.5">{left.label}</td>
+                            <td className="px-2.5 py-1.5">
+                              <span className="inline-flex items-center gap-1">
+                                {left.label}
+                                <TooltipProvider delayDuration={200}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <CircleAlert className="w-3.5 h-3.5 text-muted-foreground cursor-help shrink-0" />
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-[200px] text-xs">
+                                      {left.desc}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </span>
+                            </td>
                             {right ? (
                               <>
                                 <td className="px-2.5 py-1.5 font-mono font-semibold text-primary">{right.col}</td>
-                                <td className="px-2.5 py-1.5">{right.label}</td>
+                                <td className="px-2.5 py-1.5">
+                                  <span className="inline-flex items-center gap-1">
+                                    {right.label}
+                                    <TooltipProvider delayDuration={200}>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <CircleAlert className="w-3.5 h-3.5 text-muted-foreground cursor-help shrink-0" />
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top" className="max-w-[200px] text-xs">
+                                          {right.desc}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  </span>
+                                </td>
                               </>
                             ) : (
                               <>
