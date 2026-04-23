@@ -38,6 +38,8 @@ export default function FileUpload() {
   const [parsedRows, setParsedRows] = useState<any[][]>([]);
   const [saving, setSaving] = useState(false);
   const [logoUploadingId, setLogoUploadingId] = useState<string | null>(null);
+  const [linkingId, setLinkingId] = useState<string | null>(null);
+  const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const queryClient = useQueryClient();
 
