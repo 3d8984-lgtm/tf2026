@@ -112,7 +112,7 @@ const translations: Record<Lang, Record<string, string>> = {
     // Master Data
     "master.title": "기준정보 관리",
     "master.desc": "상품, 디자인, 로고, QR/바코드 기준 데이터 관리",
-    "master.product": "상품 마스터",
+    "master.product": "티셔츠 마스터",
     "master.design": "디자인 마스터",
     "master.logo": "로고 이미지",
     "master.cardMaster": "카드 마스터",
@@ -551,7 +551,7 @@ const translations: Record<Lang, Record<string, string>> = {
     // Master Data
     "master.title": "基准信息管理",
     "master.desc": "商品、设计、Logo、QR/条码基准数据管理",
-    "master.product": "商品主数据",
+    "master.product": "T恤主数据",
     "master.design": "设计主数据",
     "master.logo": "Logo图片",
     "master.cardMaster": "卡片主数据",
