@@ -273,6 +273,42 @@ export type Database = {
           },
         ]
       }
+      upload_history: {
+        Row: {
+          created_at: string
+          error_count: number
+          file_name: string
+          file_path: string | null
+          id: string
+          row_count: number
+          success_count: number
+          user_email: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_count?: number
+          file_name: string
+          file_path?: string | null
+          id?: string
+          row_count?: number
+          success_count?: number
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_count?: number
+          file_name?: string
+          file_path?: string | null
+          id?: string
+          row_count?: number
+          success_count?: number
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       webhook_logs: {
         Row: {
           created_at: string
