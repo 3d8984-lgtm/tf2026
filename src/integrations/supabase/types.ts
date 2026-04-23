@@ -205,6 +205,117 @@ export type Database = {
         }
         Relationships: []
       }
+      qr_design_master: {
+        Row: {
+          created_at: string
+          design_code: string
+          design_name: string | null
+          id: string
+          qr_value: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          design_code: string
+          design_name?: string | null
+          id?: string
+          qr_value: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          design_code?: string
+          design_name?: string | null
+          id?: string
+          qr_value?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      qr_hologram_master: {
+        Row: {
+          created_at: string
+          hologram_type: string | null
+          id: string
+          qr_value: string
+          serial_number: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          hologram_type?: string | null
+          id?: string
+          qr_value: string
+          serial_number: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          hologram_type?: string | null
+          id?: string
+          qr_value?: string
+          serial_number?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      qr_silicon_master: {
+        Row: {
+          created_at: string
+          id: string
+          product_code: string | null
+          qr_value: string
+          serial_number: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          product_code?: string | null
+          qr_value: string
+          serial_number: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          product_code?: string | null
+          qr_value?: string
+          serial_number?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      qr_tshirt_master: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          product_code: string | null
+          qr_value: string
+          size: string
+          updated_at: string
+        }
+        Insert: {
+          color: string
+          created_at?: string
+          id?: string
+          product_code?: string | null
+          qr_value: string
+          size: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          product_code?: string | null
+          qr_value?: string
+          size?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       shipments: {
         Row: {
           carrier: string
