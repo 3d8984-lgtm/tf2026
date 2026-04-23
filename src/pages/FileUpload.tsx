@@ -34,8 +34,10 @@ export default function FileUpload() {
   const twincodeFolderInputRef = useRef<HTMLInputElement>(null);
   
   const currentFileRef = useRef<File | null>(null);
-  const [designFiles, setDesignFiles] = useState<File[]>([]);
-  const [twincodeFiles, setTwincodeFiles] = useState<File[]>([]);
+  // Files with optional folder-based order matching
+  type ImageFileEntry = { file: File; orderFolder?: string };
+  const [designFiles, setDesignFiles] = useState<ImageFileEntry[]>([]);
+  const [twincodeFiles, setTwincodeFiles] = useState<ImageFileEntry[]>([]);
   const [uploadResult, setUploadResult] = useState<null | {
     fileName: string;
     total: number;
