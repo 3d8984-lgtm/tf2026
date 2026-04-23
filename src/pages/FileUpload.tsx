@@ -440,23 +440,25 @@ export default function FileUpload() {
         const extIds = orders.map(o => o.external_order_id);
         await supabase.from("orders").update({ upload_history_id: historyId } as any).in("external_order_id", extIds);
 
-        // Upload design images to storage mapped to this upload_history_id
+        // Upload design images to storage - use orderFolder if available, else historyId
         if (designFiles.length > 0) {
-          for (const designFile of designFiles) {
-            const nameWithoutExt = designFile.name.replace(/\.[^.]+$/, "");
-            const ext = designFile.name.split(".").pop() || "png";
-            const storagePath = `${historyId}/${nameWithoutExt}.${ext}`;
-            await supabase.storage.from("design-images").upload(storagePath, designFile, { upsert: true });
+          for (const entry of designFiles) {
+            const nameWithoutExt = entry.file.name.replace(/\.[^.]+$/, "");
+            const ext = entry.file.name.split(".").pop() || "png";
+            const folder = entry.orderFolder || historyId;
+            const storagePath = `${folder}/${nameWithoutExt}.${ext}`;
+            await supabase.storage.from("design-images").upload(storagePath, entry.file, { upsert: true });
           }
         }
 
-        // Upload twincode images to storage mapped to this upload_history_id
+        // Upload twincode images to storage - use orderFolder if available, else historyId
         if (twincodeFiles.length > 0) {
-          for (const twincodeFile of twincodeFiles) {
-            const nameWithoutExt = twincodeFile.name.replace(/\.[^.]+$/, "");
-            const ext = twincodeFile.name.split(".").pop() || "png";
-            const storagePath = `${historyId}/${nameWithoutExt}.${ext}`;
-            await supabase.storage.from("twincode-images").upload(storagePath, twincodeFile, { upsert: true });
+          for (const entry of twincodeFiles) {
+            const nameWithoutExt = entry.file.name.replace(/\.[^.]+$/, "");
+            const ext = entry.file.name.split(".").pop() || "png";
+            const folder = entry.orderFolder || historyId;
+            const storagePath = `${folder}/${nameWithoutExt}.${ext}`;
+            await supabase.storage.from("twincode-images").upload(storagePath, entry.file, { upsert: true });
           }
         }
       }
