@@ -704,7 +704,6 @@ export default function FileUpload() {
                         </tr>
                       ))
                     )}
-                    ))}
                   </tbody>
                 </table>
               </div>
