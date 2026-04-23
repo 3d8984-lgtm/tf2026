@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import PageHeader from "@/components/PageHeader";
 import { useOrders } from "@/hooks/useDbData";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   ScanLine, CheckCircle2, XCircle, Clock, AlertTriangle,
@@ -30,6 +32,7 @@ interface OrderData {
   orderDate: string;
   dueDate: string;
   items: WorkItem[];
+  logoUrl: string | null;
 }
 
 // QR lookup tables will be populated from DB in the future
@@ -78,6 +81,32 @@ export default function TshirtWork() {
   // 3-level navigation: null → order list, order → work items list, order+workItem → scan view
   const { data: dbOrders } = useOrders();
 
+  // Fetch upload_history for logo paths
+  const { data: uploadHistoryData } = useQuery({
+    queryKey: ["upload_history_logos"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("upload_history")
+        .select("id, logo_path")
+        .not("logo_path", "is", null);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Map upload_history_id → logo public URL
+  const logoUrlMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    if (uploadHistoryData) {
+      for (const h of uploadHistoryData) {
+        if (h.logo_path) {
+          map[h.id] = supabase.storage.from("order-logos").getPublicUrl(h.logo_path).data.publicUrl;
+        }
+      }
+    }
+    return map;
+  }, [uploadHistoryData]);
+
   // Convert DB orders to local OrderData format
   const dbOrderData = useMemo<OrderData[]>(() => {
     if (!dbOrders) return [];
@@ -97,6 +126,8 @@ export default function TshirtWork() {
         hologramQR: item.hologram_qr ?? "",
         status: "pending" as const,
       }));
+      const historyId = (o as any).upload_history_id;
+      const logoUrl = historyId ? (logoUrlMap[historyId] ?? null) : null;
       return {
         id: o.id,
         orderNo,
@@ -106,9 +137,10 @@ export default function TshirtWork() {
         orderDate: new Date(o.created_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN"),
         dueDate: o.project_completed_at ? new Date(o.project_completed_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN") : "-",
         items,
+        logoUrl,
       };
     });
-  }, [dbOrders, isKo]);
+  }, [dbOrders, isKo, logoUrlMap]);
 
   // Merge DB data with local work item statuses
   const [workItemStatuses, setWorkItemStatuses] = useState<Record<string, Record<number, "pending" | "done" | "fail">>>({});
@@ -485,17 +517,21 @@ export default function TshirtWork() {
 
           <div className="kpi-card flex flex-col items-center justify-center min-h-[240px]">
             <h3 className="text-sm font-medium mb-3 flex items-center gap-2 self-start"><Image className="w-4 h-4" /> {t("tshirtWork.logoCheck")}</h3>
-            {logoVerified && matchedProduct ? (
+            {selectedOrder!.logoUrl ? (
               <div className="flex-1 flex flex-col items-center justify-center gap-3">
-                <div className="w-32 h-32 rounded-lg border-2 border-[hsl(var(--success)/0.3)] bg-muted/40 flex items-center justify-center overflow-hidden">
-                  <img src="/placeholder.svg" alt="Logo" className="max-w-full max-h-full object-contain" />
+                <div className={`w-32 h-32 rounded-lg border-2 bg-muted/40 flex items-center justify-center overflow-hidden ${logoVerified ? "border-[hsl(var(--success)/0.3)]" : "border-border"}`}>
+                  <img src={selectedOrder!.logoUrl} alt="Logo" className="max-w-full max-h-full object-contain" />
                 </div>
-                <span className="text-xs text-[hsl(var(--success))] font-medium flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> {t("tshirtWork.logoConfirmed")}</span>
+                {logoVerified ? (
+                  <span className="text-xs text-[hsl(var(--success))] font-medium flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> {t("tshirtWork.logoConfirmed")}</span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">{isKo ? "로고 이미지 확인" : "Logo图片确认"}</span>
+                )}
               </div>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
                 <Image className="w-10 h-10 opacity-30" />
-                <p className="text-xs text-center whitespace-pre-line">{t("tshirtWork.logoWait")}</p>
+                <p className="text-xs text-center whitespace-pre-line">{isKo ? "로고가 업로드되지 않았습니다" : "未上传Logo"}</p>
               </div>
             )}
           </div>
