@@ -847,6 +847,30 @@ export default function FileUpload() {
                           <td className="py-2.5 text-muted-foreground">{new Date(h.created_at).toLocaleString()}</td>
                           <td className="py-2.5">{h.user_email || "-"}</td>
                           <td className="py-2.5 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2 gap-1 text-xs"
+                                disabled={linkingId === h.id}
+                                onClick={() => handleLinkWork(h.id)}
+                              >
+                                {linkingId === h.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Link className="w-3 h-3" />}
+                                {isKo ? "작업연동" : "关联"}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2 gap-1 text-xs text-destructive border-destructive/30 hover:bg-destructive/5 hover:text-destructive"
+                                disabled={unlinkingId === h.id}
+                                onClick={() => handleUnlinkWork(h.id)}
+                              >
+                                {unlinkingId === h.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Unlink className="w-3 h-3" />}
+                                {isKo ? "연동삭제" : "删除关联"}
+                              </Button>
+                            </div>
+                          </td>
+                          <td className="py-2.5 text-center">
                             <div className="flex items-center justify-center gap-2">
                               <TooltipProvider>
                                 <Tooltip>
