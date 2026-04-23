@@ -186,8 +186,14 @@ export default function TshirtWork() {
       const logoUrl = historyId ? (logoUrlMap[historyId] ?? null) : null;
       const designCode = o.design_code ?? "";
       let designImageUrl: string | null = null;
-      if (historyId && designCode && designImageFiles?.[historyId]) {
-        designImageUrl = designImageFiles[historyId][designCode] ?? null;
+      let twincodeImageUrl: string | null = null;
+      if (historyId && designCode) {
+        if (designImageFiles?.[historyId]) {
+          designImageUrl = designImageFiles[historyId][designCode] ?? null;
+        }
+        if (twincodeImageFiles?.[historyId]) {
+          twincodeImageUrl = twincodeImageFiles[historyId][designCode] ?? null;
+        }
       }
       return {
         id: o.id,
@@ -200,11 +206,12 @@ export default function TshirtWork() {
         items,
         logoUrl,
         designImageUrl,
+        twincodeImageUrl,
         uploadHistoryId: historyId,
         designCode,
       };
     });
-  }, [dbOrders, isKo, logoUrlMap, designImageFiles]);
+  }, [dbOrders, isKo, logoUrlMap, designImageFiles, twincodeImageFiles]);
 
   // Merge DB data with local work item statuses
   const [workItemStatuses, setWorkItemStatuses] = useState<Record<string, Record<number, "pending" | "done" | "fail">>>({});
