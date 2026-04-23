@@ -25,7 +25,7 @@ export default function FileUpload() {
   const [isDragging, setIsDragging] = useState(false);
   const [apiSyncing, setApiSyncing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const historyLogoInputRef = useRef<HTMLInputElement>(null);
+  
   const currentFileRef = useRef<File | null>(null);
   const [uploadResult, setUploadResult] = useState<null | {
     fileName: string;
