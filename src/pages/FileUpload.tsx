@@ -4,11 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   FileSpreadsheet, CheckCircle2, XCircle, Download, FileUp, Info, Image,
-  Globe, RefreshCw, ArrowDownToLine, Clock, AlertCircle, CircleAlert
+  Globe, RefreshCw, ArrowDownToLine, Clock, AlertCircle, CircleAlert, Save, Loader2
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLang } from "@/contexts/LangContext";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 import * as XLSX from "xlsx";
 import { downloadEmbeddedTemplate } from "@/lib/file-upload-template";
 
