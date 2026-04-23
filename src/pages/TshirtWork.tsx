@@ -32,6 +32,7 @@ interface OrderData {
   orderDate: string;
   dueDate: string;
   items: WorkItem[];
+  logoUrl: string | null;
 }
 
 // QR lookup tables will be populated from DB in the future
