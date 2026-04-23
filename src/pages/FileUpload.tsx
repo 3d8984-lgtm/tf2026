@@ -505,6 +505,25 @@ export default function FileUpload() {
                       {isKo ? "오류 행 다운로드" : "下载异常行"}
                     </Button>
                   )}
+                  {!saved && (
+                    <Button
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={handleSaveToDb}
+                      disabled={saving || !parsedRows.length}
+                    >
+                      {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                      {saving
+                        ? (isKo ? "저장 중..." : "保存中...")
+                        : (isKo ? `${parsedRows.length}건 저장` : `保存${parsedRows.length}条`)}
+                    </Button>
+                  )}
+                  {saved && (
+                    <span className="flex items-center gap-1.5 text-sm text-emerald-500 font-medium">
+                      <CheckCircle2 className="w-4 h-4" />
+                      {isKo ? "저장 완료" : "保存完成"}
+                    </span>
+                  )}
                 </div>
                 <div className="rounded-lg border overflow-hidden">
                   <table className="w-full text-sm">
