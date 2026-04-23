@@ -234,7 +234,8 @@ export default function FileUpload() {
       let filePath: string | null = null;
       if (file) {
         const ts = Date.now();
-        const storagePath = `${ts}_${file.name}`;
+        const ext = file.name.split(".").pop() || "xlsx";
+        const storagePath = `${ts}.${ext}`;
         await supabase.storage.from("upload-files").upload(storagePath, file);
         filePath = storagePath;
       }
