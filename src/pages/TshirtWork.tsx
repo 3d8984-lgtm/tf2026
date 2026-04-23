@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo, Fragment } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import PageHeader from "@/components/PageHeader";
 import { useOrders } from "@/hooks/useDbData";
 import { supabase } from "@/integrations/supabase/client";
