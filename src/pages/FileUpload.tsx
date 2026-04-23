@@ -7,8 +7,9 @@ import {
   Globe, RefreshCw, ArrowDownToLine, Clock, AlertCircle, CircleAlert
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useLang } from "@/contexts/LangContext";
+import * as XLSX from "xlsx";
 import { downloadEmbeddedTemplate } from "@/lib/file-upload-template";
 
 export default function FileUpload() {
