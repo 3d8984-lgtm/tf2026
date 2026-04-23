@@ -17,6 +17,8 @@ import type { Json } from "@/integrations/supabase/types";
 import * as XLSX from "xlsx";
 import { downloadEmbeddedTemplate } from "@/lib/file-upload-template";
 
+interface ImageFileEntry { file: File; orderFolder?: string; }
+
 export default function FileUpload() {
   const { t, lang } = useLang();
   const isKo = lang === "ko";
