@@ -161,6 +161,7 @@ export default function FileUpload() {
       queryClient.invalidateQueries({ queryKey: ["order_stats"] });
       queryClient.invalidateQueries({ queryKey: ["production_tracking"] });
       queryClient.invalidateQueries({ queryKey: ["shipments"] });
+      setUnlinkedIds(prev => new Set(prev).add(historyId));
       toast({
         title: isKo ? `${linkedOrders.length}건 연동 삭제 완료` : `已删除${linkedOrders.length}条关联数据`,
         description: isKo ? "주문, 생산 추적, 배송 데이터가 모두 삭제되었습니다" : "订单、生产跟踪、配送数据已全部删除",
@@ -898,7 +899,7 @@ export default function FileUpload() {
                                 variant="outline"
                                 size="sm"
                                 className="h-7 px-2 gap-1 text-xs"
-                                disabled={linkingId === h.id}
+                                disabled={linkingId === h.id || unlinkedIds.has(h.id)}
                                 onClick={() => handleLinkWork(h.id)}
                               >
                                 {linkingId === h.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Link className="w-3 h-3" />}
