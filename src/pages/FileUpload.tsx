@@ -415,6 +415,16 @@ export default function FileUpload() {
       if (historyId) {
         const extIds = orders.map(o => o.external_order_id);
         await supabase.from("orders").update({ upload_history_id: historyId } as any).in("external_order_id", extIds);
+
+        // Upload design images to storage mapped to this upload_history_id
+        if (designFiles.length > 0) {
+          for (const designFile of designFiles) {
+            const nameWithoutExt = designFile.name.replace(/\.[^.]+$/, "");
+            const ext = designFile.name.split(".").pop() || "png";
+            const storagePath = `${historyId}/${nameWithoutExt}.${ext}`;
+            await supabase.storage.from("design-images").upload(storagePath, designFile, { upsert: true });
+          }
+        }
       }
 
       queryClient.invalidateQueries({ queryKey: ["upload_history"] });
