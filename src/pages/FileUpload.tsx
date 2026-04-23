@@ -167,7 +167,7 @@ export default function FileUpload() {
           const existing = orderMap.get(extId)!;
           existing.quantity += 1;
           // Append item to items array in source_data
-          (existing.source_data.items as Record<string, unknown>[]).push(itemData);
+          ((existing.source_data as { items: Record<string, string>[] }).items).push(itemData);
         } else {
           orderMap.set(extId, {
             external_order_id: extId,
