@@ -885,10 +885,22 @@ export default function FileUpload() {
                   multiple
                   className="hidden"
                   onChange={(e) => {
-                    const files = Array.from(e.target.files || []);
+                    const files = Array.from(e.target.files || []).filter(f => f.type.startsWith("image/"));
                     if (files.length) setDesignFiles(prev => [...prev, ...files]);
                     e.target.value = "";
                   }}
+                />
+                <input
+                  ref={designFolderInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []).filter(f => f.type.startsWith("image/"));
+                    if (files.length) setDesignFiles(prev => [...prev, ...files]);
+                    e.target.value = "";
+                  }}
+                  {...{ webkitdirectory: "", directory: "" } as any}
                 />
                 <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
                   <Image className="w-4 h-4 text-primary" />
