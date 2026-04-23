@@ -282,6 +282,7 @@ export type Database = {
       upload_history: {
         Row: {
           created_at: string
+          design_image_count: number
           error_count: number
           file_name: string
           file_path: string | null
@@ -290,11 +291,13 @@ export type Database = {
           row_count: number
           source: string
           success_count: number
+          twincode_image_count: number
           user_email: string | null
           user_id: string | null
         }
         Insert: {
           created_at?: string
+          design_image_count?: number
           error_count?: number
           file_name: string
           file_path?: string | null
@@ -303,11 +306,13 @@ export type Database = {
           row_count?: number
           source?: string
           success_count?: number
+          twincode_image_count?: number
           user_email?: string | null
           user_id?: string | null
         }
         Update: {
           created_at?: string
+          design_image_count?: number
           error_count?: number
           file_name?: string
           file_path?: string | null
@@ -316,6 +321,7 @@ export type Database = {
           row_count?: number
           source?: string
           success_count?: number
+          twincode_image_count?: number
           user_email?: string | null
           user_id?: string | null
         }
