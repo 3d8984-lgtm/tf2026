@@ -146,7 +146,7 @@ export default function MasterData() {
           {masters.map((m, i) => (
             <div
               key={m.key}
-              onClick={() => { setSelected(selected === m.key ? null : m.key); setSearch(""); }}
+              onClick={() => { setSelected(selected === m.key ? null : m.key); setSelectedQr(null); setSearch(""); }}
               className={`kpi-card section-enter cursor-pointer transition-all ${
                 selected === m.key
                   ? "border-primary ring-1 ring-primary/30"
