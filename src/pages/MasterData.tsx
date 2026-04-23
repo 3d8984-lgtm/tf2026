@@ -71,10 +71,18 @@ export default function MasterData() {
   const isKo = lang === "ko";
 
   const [selected, setSelected] = useState<MasterCategory | null>(null);
+  const [selectedQr, setSelectedQr] = useState<QrCategory | null>(null);
   const [search, setSearch] = useState("");
   const [data, setData] = useState(demoData);
   const [editDialog, setEditDialog] = useState<{ mode: "add" | "edit"; item?: MasterItem } | null>(null);
   const [formValues, setFormValues] = useState<Record<string, string>>({});
+
+  const qrMasters: { key: QrCategory; label: string }[] = [
+    { key: "tshirt", label: isKo ? "티셔츠 QR" : "T恤QR" },
+    { key: "silicon", label: isKo ? "실리콘 QR" : "硅胶QR" },
+    { key: "design", label: isKo ? "디자인 QR" : "设计QR" },
+    { key: "hologram", label: isKo ? "홀로그램 QR" : "全息QR" },
+  ];
 
   const masters: { key: MasterCategory; label: string; count: number; lastUpdate: string }[] = [
     { key: "product", label: t("master.product"), count: data.product.rows.length, lastUpdate: "2024-03-15" },
