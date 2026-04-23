@@ -287,7 +287,7 @@ export default function TshirtWork() {
       else if (step < 3) { setCurrentStep(step + 1); setProcessing(false); }
       else { setProcessing(false); }
     }, 400);
-  }, [isKo]);
+  }, [isKo, mockTshirtQR, mockSiliconQR, mockDesignQR, mockHoloQR]);
 
   const handleScan = useCallback(() => {
     const value = scanValue.trim();
