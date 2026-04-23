@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import PageHeader from "@/components/PageHeader";
 import { useOrders } from "@/hooks/useDbData";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   ScanLine, CheckCircle2, XCircle, Clock, AlertTriangle,
