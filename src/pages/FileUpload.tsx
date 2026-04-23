@@ -25,6 +25,7 @@ export default function FileUpload() {
   const [isDragging, setIsDragging] = useState(false);
   const [apiSyncing, setApiSyncing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const currentFileRef = useRef<File | null>(null);
   const [uploadResult, setUploadResult] = useState<null | {
     fileName: string;
@@ -35,6 +36,9 @@ export default function FileUpload() {
   }>(null);
   const [parsedRows, setParsedRows] = useState<any[][]>([]);
   const [saving, setSaving] = useState(false);
+  // Logo per order: Map<external_order_id, File>
+  const [orderLogos, setOrderLogos] = useState<Map<string, File>>(new Map());
+  const [logoTarget, setLogoTarget] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const queryClient = useQueryClient();
 
@@ -81,6 +85,7 @@ export default function FileUpload() {
       return;
     }
     setSaved(false);
+    setOrderLogos(new Map());
     currentFileRef.current = file;
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -149,6 +154,7 @@ export default function FileUpload() {
         shipping_country: string;
         project_completed_at: string | null;
         source_data: Json;
+        logo_url?: string | null;
       }>();
 
       for (const row of parsedRows) {
@@ -213,12 +219,28 @@ export default function FileUpload() {
         return;
       }
 
+      // Upload logo files to storage and set logo_url on orders
+      for (const order of orders) {
+        const logoFile = orderLogos.get(order.external_order_id);
+        if (logoFile) {
+          const ext = logoFile.name.split(".").pop() || "png";
+          const logoPath = `${Date.now()}-${order.external_order_id}.${ext}`;
+          const { error: logoErr } = await supabase.storage.from("order-logos").upload(logoPath, logoFile);
+          if (!logoErr) {
+            const { data: urlData } = supabase.storage.from("order-logos").getPublicUrl(logoPath);
+            order.logo_url = urlData.publicUrl;
+          } else {
+            console.error("Logo upload error:", logoErr);
+          }
+        }
+      }
+
       // Upsert in batches of 50 (handles duplicate external_order_id)
       let successCount = 0;
       let errorCount = 0;
       for (let i = 0; i < orders.length; i += 50) {
         const batch = orders.slice(i, i + 50);
-        const { error } = await supabase.from("orders").upsert(batch, { onConflict: "external_order_id" });
+        const { error } = await supabase.from("orders").upsert(batch as any, { onConflict: "external_order_id" });
         if (error) {
           console.error("Upsert error:", error);
           errorCount += batch.length;
@@ -644,7 +666,88 @@ export default function FileUpload() {
               </div>
             )}
 
-            {/* Upload history */}
+            {/* Per-order logo upload */}
+            {uploadResult && !saved && (() => {
+              const orderIds = new Set<string>();
+              const orderInfo: { id: string; name: string; qty: number }[] = [];
+              for (const row of parsedRows) {
+                const extId = String(row[0] ?? "").trim();
+                if (!extId || orderIds.has(extId)) {
+                  if (extId) {
+                    const o = orderInfo.find(x => x.id === extId);
+                    if (o) o.qty += 1;
+                  }
+                  continue;
+                }
+                orderIds.add(extId);
+                orderInfo.push({ id: extId, name: String(row[14] ?? "").trim() || "N/A", qty: 1 });
+              }
+              return (
+                <div className="kpi-card section-enter" style={{ animationDelay: "80ms" }}>
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file && logoTarget) {
+                        setOrderLogos(prev => new Map(prev).set(logoTarget, file));
+                        setLogoTarget(null);
+                      }
+                      e.target.value = "";
+                    }}
+                  />
+                  <div className="flex items-center gap-2 mb-3">
+                    <Image className="w-4 h-4 text-primary" />
+                    <h3 className="text-sm font-semibold">{isKo ? "주문별 로고 첨부" : "订单Logo附件"}</h3>
+                    <span className="text-xs text-muted-foreground">({isKo ? "선택사항" : "可选"})</span>
+                  </div>
+                  <div className="space-y-2">
+                    {orderInfo.map(o => {
+                      const logo = orderLogos.get(o.id);
+                      return (
+                        <div key={o.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border/50 bg-muted/20">
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm font-medium font-mono">{o.id}</span>
+                            <span className="text-xs text-muted-foreground ml-2">{o.name}</span>
+                            <span className="text-xs text-muted-foreground ml-2">({o.qty}{isKo ? "건" : "条"})</span>
+                          </div>
+                          {logo ? (
+                            <div className="flex items-center gap-2">
+                              <img
+                                src={URL.createObjectURL(logo)}
+                                alt="logo"
+                                className="w-8 h-8 rounded object-contain border border-border"
+                              />
+                              <span className="text-xs text-muted-foreground max-w-[120px] truncate">{logo.name}</span>
+                              <Button variant="ghost" size="sm" className="h-7 px-1.5"
+                                onClick={() => {
+                                  setOrderLogos(prev => { const m = new Map(prev); m.delete(o.id); return m; });
+                                }}
+                              >
+                                <XCircle className="w-3.5 h-3.5 text-muted-foreground" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button variant="outline" size="sm" className="gap-1.5 text-xs h-7"
+                              onClick={() => {
+                                setLogoTarget(o.id);
+                                logoInputRef.current?.click();
+                              }}
+                            >
+                              <Image className="w-3.5 h-3.5" />
+                              {isKo ? "로고 첨부" : "附件Logo"}
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="kpi-card section-enter" style={{ animationDelay: "120ms" }}>
               <h3 className="text-sm font-medium mb-4">{t("upload.history")}</h3>
               <div className="overflow-x-auto">

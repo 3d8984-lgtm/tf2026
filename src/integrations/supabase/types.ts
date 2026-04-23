@@ -62,6 +62,7 @@ export type Database = {
           design_code: string | null
           external_order_id: string
           id: string
+          logo_url: string | null
           product_code: string
           project_completed_at: string | null
           quantity: number
@@ -81,6 +82,7 @@ export type Database = {
           design_code?: string | null
           external_order_id: string
           id?: string
+          logo_url?: string | null
           product_code: string
           project_completed_at?: string | null
           quantity: number
@@ -100,6 +102,7 @@ export type Database = {
           design_code?: string | null
           external_order_id?: string
           id?: string
+          logo_url?: string | null
           product_code?: string
           project_completed_at?: string | null
           quantity?: number
