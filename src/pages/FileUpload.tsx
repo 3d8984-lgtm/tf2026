@@ -264,7 +264,7 @@ export default function FileUpload() {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["order_stats"] });
 
-      // Save file to storage and record history
+      // Save file to storage
       const file = currentFileRef.current;
       let filePath: string | null = null;
       let fileUploadFailed = false;
@@ -285,7 +285,8 @@ export default function FileUpload() {
       const userEmail = sessionData?.user?.email || null;
       const userId = sessionData?.user?.id || null;
 
-      await supabase.from("upload_history").insert({
+      // Create upload_history record first to get its ID
+      const { data: historyRow, error: historyErr } = await supabase.from("upload_history").insert({
         file_name: uploadResult?.fileName || file?.name || "unknown",
         row_count: parsedRows.length,
         success_count: successCount,
@@ -293,7 +294,15 @@ export default function FileUpload() {
         user_email: userEmail,
         user_id: userId,
         file_path: filePath,
-      });
+      }).select("id").single();
+
+      const historyId = historyRow?.id || null;
+
+      // Update orders with upload_history_id
+      if (historyId) {
+        const extIds = orders.map(o => o.external_order_id);
+        await supabase.from("orders").update({ upload_history_id: historyId } as any).in("external_order_id", extIds);
+      }
 
       queryClient.invalidateQueries({ queryKey: ["upload_history"] });
 
