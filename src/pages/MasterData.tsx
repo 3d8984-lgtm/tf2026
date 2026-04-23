@@ -170,7 +170,34 @@ export default function MasterData() {
           ))}
         </div>
 
-        {/* Detail table */}
+        {/* QR Master cards */}
+        <div>
+          <h3 className="text-sm font-medium text-muted-foreground mb-3">{isKo ? "QR 기준정보" : "QR基准信息"}</h3>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {qrMasters.map((m, i) => (
+              <div
+                key={m.key}
+                onClick={() => { setSelectedQr(selectedQr === m.key ? null : m.key); setSelected(null); setSearch(""); }}
+                className={`kpi-card section-enter cursor-pointer transition-all ${
+                  selectedQr === m.key ? "border-primary ring-1 ring-primary/30" : "hover:border-primary/30"
+                }`}
+                style={{ animationDelay: `${(i + 3) * 60}ms` }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg" style={{ background: "hsl(var(--primary) / 0.08)" }}>
+                    <QrCode className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium">{m.label}</p>
+                  </div>
+                  <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${selectedQr === m.key ? "rotate-90" : ""}`} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Detail table for product/card/shipper */}
         {selected && currentCat && (
           <div className="kpi-card section-enter">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
@@ -239,6 +266,9 @@ export default function MasterData() {
             </div>
           </div>
         )}
+
+        {/* QR Master detail */}
+        {selectedQr && <QrMasterManagement category={selectedQr} />}
       </div>
 
       {/* Add/Edit Dialog */}
