@@ -833,6 +833,9 @@ export default function FileUpload() {
                                         if (h.file_path) {
                                           await supabase.storage.from("upload-files").remove([h.file_path]);
                                         }
+                                        if ((h as any).logo_path) {
+                                          await supabase.storage.from("order-logos").remove([(h as any).logo_path]);
+                                        }
                                         await supabase.from("upload_history").delete().eq("id", h.id);
                                         queryClient.invalidateQueries({ queryKey: ["upload_history"] });
                                         toast({ title: isKo ? "삭제 완료" : "已删除" });
