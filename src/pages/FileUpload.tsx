@@ -17,6 +17,8 @@ import type { Json } from "@/integrations/supabase/types";
 import * as XLSX from "xlsx";
 import { downloadEmbeddedTemplate } from "@/lib/file-upload-template";
 
+interface ImageFileEntry { file: File; orderFolder?: string; }
+
 export default function FileUpload() {
   const { t, lang } = useLang();
   const isKo = lang === "ko";
@@ -34,8 +36,22 @@ export default function FileUpload() {
   const twincodeFolderInputRef = useRef<HTMLInputElement>(null);
   
   const currentFileRef = useRef<File | null>(null);
-  const [designFiles, setDesignFiles] = useState<File[]>([]);
-  const [twincodeFiles, setTwincodeFiles] = useState<File[]>([]);
+  // Files with optional folder-based order matching
+  type ImageFileEntry = { file: File; orderFolder?: string };
+  const [designFiles, setDesignFiles] = useState<ImageFileEntry[]>([]);
+  const [twincodeFiles, setTwincodeFiles] = useState<ImageFileEntry[]>([]);
+
+  // Helper: convert File[] to ImageFileEntry[] extracting folder name from webkitRelativePath
+  const filesToEntries = (files: File[]): ImageFileEntry[] =>
+    files.map(f => {
+      const relPath = (f as any).webkitRelativePath as string | undefined;
+      let orderFolder: string | undefined;
+      if (relPath) {
+        const parts = relPath.split("/");
+        if (parts.length >= 2) orderFolder = parts[parts.length - 2]; // immediate parent folder
+      }
+      return { file: f, orderFolder };
+    });
   const [uploadResult, setUploadResult] = useState<null | {
     fileName: string;
     total: number;
@@ -424,23 +440,25 @@ export default function FileUpload() {
         const extIds = orders.map(o => o.external_order_id);
         await supabase.from("orders").update({ upload_history_id: historyId } as any).in("external_order_id", extIds);
 
-        // Upload design images to storage mapped to this upload_history_id
+        // Upload design images to storage - use orderFolder if available, else historyId
         if (designFiles.length > 0) {
-          for (const designFile of designFiles) {
-            const nameWithoutExt = designFile.name.replace(/\.[^.]+$/, "");
-            const ext = designFile.name.split(".").pop() || "png";
-            const storagePath = `${historyId}/${nameWithoutExt}.${ext}`;
-            await supabase.storage.from("design-images").upload(storagePath, designFile, { upsert: true });
+          for (const entry of designFiles) {
+            const nameWithoutExt = entry.file.name.replace(/\.[^.]+$/, "");
+            const ext = entry.file.name.split(".").pop() || "png";
+            const folder = entry.orderFolder || historyId;
+            const storagePath = `${folder}/${nameWithoutExt}.${ext}`;
+            await supabase.storage.from("design-images").upload(storagePath, entry.file, { upsert: true });
           }
         }
 
-        // Upload twincode images to storage mapped to this upload_history_id
+        // Upload twincode images to storage - use orderFolder if available, else historyId
         if (twincodeFiles.length > 0) {
-          for (const twincodeFile of twincodeFiles) {
-            const nameWithoutExt = twincodeFile.name.replace(/\.[^.]+$/, "");
-            const ext = twincodeFile.name.split(".").pop() || "png";
-            const storagePath = `${historyId}/${nameWithoutExt}.${ext}`;
-            await supabase.storage.from("twincode-images").upload(storagePath, twincodeFile, { upsert: true });
+          for (const entry of twincodeFiles) {
+            const nameWithoutExt = entry.file.name.replace(/\.[^.]+$/, "");
+            const ext = entry.file.name.split(".").pop() || "png";
+            const folder = entry.orderFolder || historyId;
+            const storagePath = `${folder}/${nameWithoutExt}.${ext}`;
+            await supabase.storage.from("twincode-images").upload(storagePath, entry.file, { upsert: true });
           }
         }
       }
@@ -886,7 +904,7 @@ export default function FileUpload() {
                   className="hidden"
                   onChange={(e) => {
                     const files = Array.from(e.target.files || []).filter(f => f.type.startsWith("image/"));
-                    if (files.length) setDesignFiles(prev => [...prev, ...files]);
+                    if (files.length) setDesignFiles(prev => [...prev, ...filesToEntries(files)]);
                     e.target.value = "";
                   }}
                 />
@@ -897,7 +915,7 @@ export default function FileUpload() {
                   className="hidden"
                   onChange={(e) => {
                     const files = Array.from(e.target.files || []).filter(f => f.type.startsWith("image/"));
-                    if (files.length) setDesignFiles(prev => [...prev, ...files]);
+                    if (files.length) setDesignFiles(prev => [...prev, ...filesToEntries(files)]);
                     e.target.value = "";
                   }}
                   {...{ webkitdirectory: "", directory: "" } as any}
@@ -908,7 +926,7 @@ export default function FileUpload() {
                   <span className="text-[10px] text-muted-foreground font-normal">{isKo ? "(선택)" : "(可选)"}</span>
                 </h3>
                 <p className="text-xs text-muted-foreground mb-3">
-                  {isKo ? "파일명 = 디자인코드로 자동 매칭 (예: D001.jpg)" : "文件名 = 设计代码自动匹配 (如: D001.jpg)"}
+                  {isKo ? "폴더명 = 주문번호로 매칭 (우선), 파일명 = 디자인코드 (보조)" : "文件夹名 = 订单号匹配 (优先), 文件名 = 设计代码 (辅助)"}
                 </p>
                 <div
                   className={`border-2 border-dashed rounded-lg p-6 text-center transition-all duration-200 cursor-pointer ${
@@ -920,7 +938,7 @@ export default function FileUpload() {
                     e.preventDefault();
                     setIsDraggingDesign(false);
                     const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
-                    if (files.length) setDesignFiles(prev => [...prev, ...files]);
+                    if (files.length) setDesignFiles(prev => [...prev, ...filesToEntries(files)]);
                   }}
                   onClick={() => designFileInputRef.current?.click()}
                 >
@@ -941,9 +959,12 @@ export default function FileUpload() {
                       {designFiles.map((f, i) => (
                         <div key={i} className="relative group">
                           <div className="w-12 h-12 rounded border border-border overflow-hidden bg-muted/30">
-                            <img src={URL.createObjectURL(f)} alt={f.name} className="w-full h-full object-contain" />
+                            <img src={URL.createObjectURL(f.file)} alt={f.file.name} className="w-full h-full object-contain" />
                           </div>
-                          <p className="text-[9px] text-center text-muted-foreground truncate w-12">{f.name.replace(/\.[^.]+$/, "")}</p>
+                          <p className="text-[9px] text-center text-muted-foreground truncate w-12">{f.file.name.replace(/\.[^.]+$/, "")}</p>
+                          {f.orderFolder && (
+                            <p className="text-[8px] text-center text-primary truncate w-12">📁{f.orderFolder}</p>
+                          )}
                           <button
                             className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-destructive text-white text-[9px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                             onClick={(e) => { e.stopPropagation(); setDesignFiles(prev => prev.filter((_, idx) => idx !== i)); }}
@@ -965,7 +986,7 @@ export default function FileUpload() {
                   className="hidden"
                   onChange={(e) => {
                     const files = Array.from(e.target.files || []).filter(f => f.type.startsWith("image/"));
-                    if (files.length) setTwincodeFiles(prev => [...prev, ...files]);
+                    if (files.length) setTwincodeFiles(prev => [...prev, ...filesToEntries(files)]);
                     e.target.value = "";
                   }}
                 />
@@ -976,7 +997,7 @@ export default function FileUpload() {
                   className="hidden"
                   onChange={(e) => {
                     const files = Array.from(e.target.files || []).filter(f => f.type.startsWith("image/"));
-                    if (files.length) setTwincodeFiles(prev => [...prev, ...files]);
+                    if (files.length) setTwincodeFiles(prev => [...prev, ...filesToEntries(files)]);
                     e.target.value = "";
                   }}
                   {...{ webkitdirectory: "", directory: "" } as any}
@@ -987,7 +1008,7 @@ export default function FileUpload() {
                   <span className="text-[10px] text-muted-foreground font-normal">{isKo ? "(선택)" : "(可选)"}</span>
                 </h3>
                 <p className="text-xs text-muted-foreground mb-3">
-                  {isKo ? "파일명 = 실리콘 마크 QR값으로 자동 매칭 (예: SM001.jpg)" : "文件名 = 硅胶标QR值自动匹配 (如: SM001.jpg)"}
+                  {isKo ? "폴더명 = 주문번호로 매칭 (우선), 파일명 = QR값 (보조)" : "文件夹名 = 订单号匹配 (优先), 文件名 = QR值 (辅助)"}
                 </p>
                 <div
                   className={`border-2 border-dashed rounded-lg p-6 text-center transition-all duration-200 cursor-pointer ${
@@ -999,7 +1020,7 @@ export default function FileUpload() {
                     e.preventDefault();
                     setIsDraggingTwincode(false);
                     const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
-                    if (files.length) setTwincodeFiles(prev => [...prev, ...files]);
+                    if (files.length) setTwincodeFiles(prev => [...prev, ...filesToEntries(files)]);
                   }}
                   onClick={() => twincodeFileInputRef.current?.click()}
                 >
@@ -1020,9 +1041,12 @@ export default function FileUpload() {
                       {twincodeFiles.map((f, i) => (
                         <div key={i} className="relative group">
                           <div className="w-12 h-12 rounded border border-border overflow-hidden bg-muted/30">
-                            <img src={URL.createObjectURL(f)} alt={f.name} className="w-full h-full object-contain" />
+                            <img src={URL.createObjectURL(f.file)} alt={f.file.name} className="w-full h-full object-contain" />
                           </div>
-                          <p className="text-[9px] text-center text-muted-foreground truncate w-12">{f.name.replace(/\.[^.]+$/, "")}</p>
+                          <p className="text-[9px] text-center text-muted-foreground truncate w-12">{f.file.name.replace(/\.[^.]+$/, "")}</p>
+                          {f.orderFolder && (
+                            <p className="text-[8px] text-center text-primary truncate w-12">📁{f.orderFolder}</p>
+                          )}
                           <button
                             className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-destructive text-white text-[9px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                             onClick={(e) => { e.stopPropagation(); setTwincodeFiles(prev => prev.filter((_, idx) => idx !== i)); }}
@@ -1034,6 +1058,86 @@ export default function FileUpload() {
                 )}
               </div>
             </div>
+
+            {/* Folder-Order Matching Summary */}
+            {(designFiles.some(f => f.orderFolder) || twincodeFiles.some(f => f.orderFolder)) && uploadResult && (
+              <div className="kpi-card section-enter" style={{ animationDelay: "80ms" }}>
+                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                  <FileUp className="w-4 h-4 text-primary" />
+                  {isKo ? "폴더-주문 매칭 결과" : "文件夹-订单匹配结果"}
+                </h3>
+                {(() => {
+                  // Collect unique order IDs from parsed data
+                  const orderIds = new Set<string>();
+                  parsedRows.forEach(row => {
+                    const extId = String(row[0] ?? "").trim();
+                    if (extId) orderIds.add(extId);
+                  });
+
+                  // Group images by folder
+                  const designByFolder = new Map<string, ImageFileEntry[]>();
+                  designFiles.filter(f => f.orderFolder).forEach(f => {
+                    const arr = designByFolder.get(f.orderFolder!) || [];
+                    arr.push(f);
+                    designByFolder.set(f.orderFolder!, arr);
+                  });
+                  const twincodeByFolder = new Map<string, ImageFileEntry[]>();
+                  twincodeFiles.filter(f => f.orderFolder).forEach(f => {
+                    const arr = twincodeByFolder.get(f.orderFolder!) || [];
+                    arr.push(f);
+                    twincodeByFolder.set(f.orderFolder!, arr);
+                  });
+
+                  const allFolders = new Set([...designByFolder.keys(), ...twincodeByFolder.keys()]);
+                  const matched = [...allFolders].filter(f => orderIds.has(f));
+                  const unmatched = [...allFolders].filter(f => !orderIds.has(f));
+
+                  return (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-4 text-xs">
+                        <span className="flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                          {isKo ? `매칭됨: ${matched.length}건` : `已匹配: ${matched.length}条`}
+                        </span>
+                        {unmatched.length > 0 && (
+                          <span className="flex items-center gap-1 text-destructive">
+                            <AlertCircle className="w-3.5 h-3.5" />
+                            {isKo ? `미매칭: ${unmatched.length}건` : `未匹配: ${unmatched.length}条`}
+                          </span>
+                        )}
+                      </div>
+                      <div className="rounded-lg border overflow-hidden">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="bg-muted/40">
+                              <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">{isKo ? "폴더명 (주문번호)" : "文件夹名 (订单号)"}</th>
+                              <th className="px-3 py-1.5 text-center font-medium text-muted-foreground">{isKo ? "디자인" : "设计"}</th>
+                              <th className="px-3 py-1.5 text-center font-medium text-muted-foreground">{isKo ? "트윈코드" : "TwinCode"}</th>
+                              <th className="px-3 py-1.5 text-center font-medium text-muted-foreground">{isKo ? "상태" : "状态"}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {[...matched, ...unmatched].map(folder => (
+                              <tr key={folder} className="border-t border-border/40">
+                                <td className="px-3 py-1.5 font-medium">{folder}</td>
+                                <td className="px-3 py-1.5 text-center tabular-nums">{designByFolder.get(folder)?.length || 0}</td>
+                                <td className="px-3 py-1.5 text-center tabular-nums">{twincodeByFolder.get(folder)?.length || 0}</td>
+                                <td className="px-3 py-1.5 text-center">
+                                  {orderIds.has(folder)
+                                    ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mx-auto" />
+                                    : <span className="text-destructive text-[10px]">{isKo ? "주문 없음" : "无订单"}</span>
+                                  }
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
             {uploadResult && (
               <div className="kpi-card section-enter">
                 <div className="flex items-center justify-between mb-4">
