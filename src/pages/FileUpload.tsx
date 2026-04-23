@@ -31,6 +31,10 @@ export default function FileUpload() {
     error: number;
     columnResults: { col: string; category: string; label: string; filled: number; empty: number; error: number }[];
   }>(null);
+  const [parsedRows, setParsedRows] = useState<any[][]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const queryClient = useQueryClient();
 
   // Column spec for file upload
   const columnSpec = [
