@@ -34,6 +34,7 @@ interface OrderData {
   items: WorkItem[];
   logoUrl: string | null;
   designImageUrl: string | null;
+  twincodeImageUrl: string | null;
   uploadHistoryId: string | null;
   designCode: string;
 }
