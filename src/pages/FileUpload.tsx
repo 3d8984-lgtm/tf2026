@@ -234,12 +234,18 @@ export default function FileUpload() {
       // Save file to storage and record history
       const file = currentFileRef.current;
       let filePath: string | null = null;
+      let fileUploadFailed = false;
       if (file) {
         const ts = Date.now();
         const ext = file.name.split(".").pop() || "xlsx";
         const storagePath = `${ts}.${ext}`;
-        await supabase.storage.from("upload-files").upload(storagePath, file);
-        filePath = storagePath;
+        const { error: storageError } = await supabase.storage.from("upload-files").upload(storagePath, file);
+        if (storageError) {
+          console.error("Storage upload error:", storageError);
+          fileUploadFailed = true;
+        } else {
+          filePath = storagePath;
+        }
       }
 
       const { data: sessionData } = await supabase.auth.getUser();
