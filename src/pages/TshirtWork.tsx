@@ -236,6 +236,7 @@ export default function TshirtWork() {
   const [logoVerified, setLogoVerified] = useState(false);
   const [failReason, setFailReason] = useState("");
   const [processing, setProcessing] = useState(false);
+  const [zoomedImage, setZoomedImage] = useState<{ src: string; alt: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const selectedOrder = orders.find(o => o.id === selectedOrderId) ?? null;
