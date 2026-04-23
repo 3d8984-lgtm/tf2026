@@ -888,7 +888,7 @@ export default function FileUpload() {
                   <span className="text-[10px] text-muted-foreground font-normal">{isKo ? "(선택)" : "(可选)"}</span>
                 </h3>
                 <p className="text-xs text-muted-foreground mb-3">
-                  {isKo ? "파일명 = 디자인코드 (예: D001.jpg)" : "文件名 = 设计代码 (如: D001.jpg)"}
+                  {isKo ? "파일명 = 디자인코드로 자동 매칭 (예: D001.jpg)" : "文件名 = 设计代码自动匹配 (如: D001.jpg)"}
                 </p>
                 <div
                   className={`border-2 border-dashed rounded-lg p-6 text-center transition-all duration-200 cursor-pointer ${
@@ -949,7 +949,7 @@ export default function FileUpload() {
                   <span className="text-[10px] text-muted-foreground font-normal">{isKo ? "(선택)" : "(可选)"}</span>
                 </h3>
                 <p className="text-xs text-muted-foreground mb-3">
-                  {isKo ? "파일명 = 디자인코드 (예: D001.jpg)" : "文件名 = 设计代码 (如: D001.jpg)"}
+                  {isKo ? "파일명 = 실리콘 마크 QR값으로 자동 매칭 (예: SM001.jpg)" : "文件名 = 硅胶标QR值自动匹配 (如: SM001.jpg)"}
                 </p>
                 <div
                   className={`border-2 border-dashed rounded-lg p-6 text-center transition-all duration-200 cursor-pointer ${
