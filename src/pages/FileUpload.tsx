@@ -458,7 +458,7 @@ export default function FileUpload() {
     setTimeout(() => setApiSyncing(false), 2000);
   };
 
-  const apiSyncHistory: { time: string; orders: number; new: number; updated: number; errors: number; deadline: string; status: string }[] = [];
+  
 
   return (
     <div>
