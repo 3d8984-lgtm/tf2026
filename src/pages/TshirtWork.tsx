@@ -626,7 +626,25 @@ export default function TshirtWork() {
                 </div>
               )}
             </div>
-        </div>
+
+            {/* Twincode image check */}
+            <div className="kpi-card flex flex-col items-center justify-center min-h-[180px]">
+              <h3 className="text-sm font-medium mb-3 flex items-center gap-2 self-start"><Hash className="w-4 h-4" /> {isKo ? "트윈코드 확인" : "TwinCode确认"}</h3>
+              {selectedOrder!.twincodeImageUrl ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-2">
+                  <div className="w-28 h-28 rounded-lg border-2 border-border bg-muted/40 flex items-center justify-center overflow-hidden">
+                    <img src={selectedOrder!.twincodeImageUrl} alt="TwinCode" className="max-w-full max-h-full object-contain" />
+                  </div>
+                  <span className="text-xs text-muted-foreground font-mono">{selectedOrder!.designCode}</span>
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
+                  <Hash className="w-8 h-8 opacity-30" />
+                  <p className="text-xs">{isKo ? "트윈코드 이미지 없음" : "无TwinCode图片"}</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
