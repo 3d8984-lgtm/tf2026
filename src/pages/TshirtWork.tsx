@@ -11,6 +11,7 @@ import {
   ChevronRight, Package, ChevronLeft, List
 } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 type StepStatus = "waiting" | "scanning" | "pass" | "fail";
 
