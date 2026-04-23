@@ -547,7 +547,6 @@ export default function FileUpload() {
                       <th className="pb-2 font-medium text-muted-foreground">{isKo ? "주문번호" : "订单号"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "로고" : "Logo"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "데이터 행" : "数据行"}</th>
-                      <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "주문 건수" : "订单数"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "결과" : "结果"}</th>
                       <th className="pb-2 font-medium text-muted-foreground">{isKo ? "결과일시" : "结果时间"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "작업연동" : "作业关联"}</th>
@@ -557,7 +556,7 @@ export default function FileUpload() {
                   <tbody>
                     {!apiHistory.length ? (
                       <tr>
-                        <td colSpan={8} className="py-6 text-center text-muted-foreground text-sm">
+                        <td colSpan={7} className="py-6 text-center text-muted-foreground text-sm">
                           {isKo ? "API 연동 이력이 없습니다" : "暂无API联动记录"}
                         </td>
                       </tr>
@@ -624,16 +623,6 @@ export default function FileUpload() {
                               )}
                             </td>
                             <td className="py-2.5 text-right tabular-nums">{h.row_count.toLocaleString()}</td>
-                            <td className="py-2.5 text-right tabular-nums">
-                              {h.error_count > 0 ? (
-                                <span>
-                                  <span className="text-emerald-600">{h.success_count}</span>
-                                  <span className="text-destructive ml-1">({isKo ? `오류 ${h.error_count}` : `异常${h.error_count}`})</span>
-                                </span>
-                              ) : (
-                                <span className="text-emerald-600">{h.success_count}</span>
-                              )}
-                            </td>
                             <td className="py-2.5 text-center">
                               {h.error_count === 0
                                 ? <CheckCircle2 className="w-4 h-4 text-emerald-500 mx-auto" />
@@ -926,7 +915,7 @@ export default function FileUpload() {
                       <th className="pb-2 font-medium text-muted-foreground">{t("upload.fileName")}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "로고" : "Logo"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "데이터 행" : "数据行"}</th>
-                      <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "주문 건수" : "订单数"}</th>
+                      
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "결과" : "结果"}</th>
                       <th className="pb-2 font-medium text-muted-foreground">{t("upload.dateTime")}</th>
                       <th className="pb-2 font-medium text-muted-foreground">{t("upload.user")}</th>
@@ -937,7 +926,7 @@ export default function FileUpload() {
                   <tbody>
                     {!uploadHistory.length ? (
                       <tr>
-                        <td colSpan={9} className="py-6 text-center text-muted-foreground text-sm">
+                        <td colSpan={8} className="py-6 text-center text-muted-foreground text-sm">
                           {isKo ? "업로드 이력이 없습니다" : "暂无上传记录"}
                         </td>
                       </tr>
@@ -1002,16 +991,6 @@ export default function FileUpload() {
                             )}
                           </td>
                           <td className="py-2.5 text-right tabular-nums">{h.row_count.toLocaleString()}</td>
-                          <td className="py-2.5 text-right tabular-nums">
-                            {h.error_count > 0 ? (
-                              <span>
-                                <span className="text-emerald-600">{h.success_count}</span>
-                                <span className="text-destructive ml-1">({isKo ? `오류 ${h.error_count}` : `异常${h.error_count}`})</span>
-                              </span>
-                            ) : (
-                              <span className="text-emerald-600">{h.success_count}</span>
-                            )}
-                          </td>
                           <td className="py-2.5 text-center">
                             {h.error_count === 0
                               ? <CheckCircle2 className="w-4 h-4 text-emerald-500 mx-auto" />
