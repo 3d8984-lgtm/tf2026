@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import PageHeader from "@/components/PageHeader";
+import { useOrders } from "@/hooks/useDbData";
 import { Button } from "@/components/ui/button";
 import {
   ScanLine, CheckCircle2, XCircle, Clock, AlertTriangle,
