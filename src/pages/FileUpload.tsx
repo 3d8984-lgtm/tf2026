@@ -4,12 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   FileSpreadsheet, CheckCircle2, XCircle, Download, FileUp, Info, Image,
-  Globe, RefreshCw, ArrowDownToLine, Clock, AlertCircle, CircleAlert, Save, Loader2
+  Globe, RefreshCw, ArrowDownToLine, Clock, AlertCircle, CircleAlert, Save, Loader2, Trash2
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLang } from "@/contexts/LangContext";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import type { Json } from "@/integrations/supabase/types";
@@ -25,6 +25,7 @@ export default function FileUpload() {
   const [isDragging, setIsDragging] = useState(false);
   const [apiSyncing, setApiSyncing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const currentFileRef = useRef<File | null>(null);
   const [uploadResult, setUploadResult] = useState<null | {
     fileName: string;
     total: number;
@@ -36,6 +37,20 @@ export default function FileUpload() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const queryClient = useQueryClient();
+
+  // Fetch upload history from DB
+  const { data: uploadHistory = [] } = useQuery({
+    queryKey: ["upload_history"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("upload_history")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data;
+    },
+  });
 
   // Column spec for file upload
   const columnSpec = [
@@ -64,6 +79,7 @@ export default function FileUpload() {
       return;
     }
     setSaved(false);
+    currentFileRef.current = file;
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -213,6 +229,32 @@ export default function FileUpload() {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["order_stats"] });
 
+      // Save file to storage and record history
+      const file = currentFileRef.current;
+      let filePath: string | null = null;
+      if (file) {
+        const ts = Date.now();
+        const storagePath = `${ts}_${file.name}`;
+        await supabase.storage.from("upload-files").upload(storagePath, file);
+        filePath = storagePath;
+      }
+
+      const { data: sessionData } = await supabase.auth.getUser();
+      const userEmail = sessionData?.user?.email || null;
+      const userId = sessionData?.user?.id || null;
+
+      await supabase.from("upload_history").insert({
+        file_name: uploadResult?.fileName || file?.name || "unknown",
+        row_count: parsedRows.length,
+        success_count: successCount,
+        error_count: errorCount,
+        user_email: userEmail,
+        user_id: userId,
+        file_path: filePath,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["upload_history"] });
+
       if (errorCount > 0) {
         toast({
           title: isKo ? `${successCount}건 저장, ${errorCount}건 오류` : `${successCount}条已保存, ${errorCount}条异常`,
@@ -249,8 +291,6 @@ export default function FileUpload() {
   };
 
   const apiSyncHistory: { time: string; orders: number; new: number; updated: number; errors: number; deadline: string; status: string }[] = [];
-
-  const uploadHistory: { file: string; rows: number; success: number; error: number; date: string; user: string }[] = [];
 
   return (
     <div>
@@ -601,19 +641,69 @@ export default function FileUpload() {
                       <th className="pb-2 font-medium text-muted-foreground text-right">{t("upload.errorCount")}</th>
                       <th className="pb-2 font-medium text-muted-foreground">{t("upload.dateTime")}</th>
                       <th className="pb-2 font-medium text-muted-foreground">{t("upload.user")}</th>
+                      <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "관리" : "操作"}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {uploadHistory.map((h, i) => (
-                      <tr key={i} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                        <td className="py-2.5 flex items-center gap-2"><FileSpreadsheet className="w-4 h-4 text-primary/70" />{h.file}</td>
-                        <td className="py-2.5 text-right tabular-nums">{h.rows.toLocaleString()}</td>
-                        <td className="py-2.5 text-right tabular-nums text-emerald-600">{h.success.toLocaleString()}</td>
-                        <td className="py-2.5 text-right tabular-nums">{h.error > 0 ? <span className="text-destructive">{h.error}</span> : "-"}</td>
-                        <td className="py-2.5 text-muted-foreground">{h.date}</td>
-                        <td className="py-2.5">{h.user}</td>
+                    {!uploadHistory.length ? (
+                      <tr>
+                        <td colSpan={7} className="py-6 text-center text-muted-foreground text-sm">
+                          {isKo ? "업로드 이력이 없습니다" : "暂无上传记录"}
+                        </td>
                       </tr>
-                    ))}
+                    ) : (
+                      uploadHistory.map((h) => (
+                        <tr key={h.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                          <td className="py-2.5 flex items-center gap-2">
+                            <FileSpreadsheet className="w-4 h-4 text-primary/70" />
+                            {h.file_name}
+                          </td>
+                          <td className="py-2.5 text-right tabular-nums">{h.row_count.toLocaleString()}</td>
+                          <td className="py-2.5 text-right tabular-nums text-emerald-600">{h.success_count.toLocaleString()}</td>
+                          <td className="py-2.5 text-right tabular-nums">
+                            {h.error_count > 0 ? <span className="text-destructive">{h.error_count}</span> : "-"}
+                          </td>
+                          <td className="py-2.5 text-muted-foreground">{new Date(h.created_at).toLocaleString()}</td>
+                          <td className="py-2.5">{h.user_email || "-"}</td>
+                          <td className="py-2.5 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              {h.file_path && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0"
+                                  onClick={async () => {
+                                    const { data } = await supabase.storage
+                                      .from("upload-files")
+                                      .createSignedUrl(h.file_path!, 60);
+                                    if (data?.signedUrl) {
+                                      window.open(data.signedUrl, "_blank");
+                                    }
+                                  }}
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                </Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                                onClick={async () => {
+                                  if (h.file_path) {
+                                    await supabase.storage.from("upload-files").remove([h.file_path]);
+                                  }
+                                  await supabase.from("upload_history").delete().eq("id", h.id);
+                                  queryClient.invalidateQueries({ queryKey: ["upload_history"] });
+                                  toast({ title: isKo ? "삭제 완료" : "已删除" });
+                                }}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
