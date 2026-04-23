@@ -130,7 +130,7 @@ export default function FileUpload() {
         shipping_zip: string | null;
         shipping_country: string;
         project_completed_at: string | null;
-        source_data: Record<string, unknown>;
+        source_data: Json;
       }>();
 
       for (const row of parsedRows) {
