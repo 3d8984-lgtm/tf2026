@@ -928,6 +928,12 @@ export default function FileUpload() {
                   <p className="text-xs font-medium">{isKo ? "드래그 또는 클릭" : "拖拽或点击"}</p>
                   <p className="text-[10px] text-muted-foreground mt-1">{isKo ? "여러 파일 가능" : "可多选"}</p>
                 </div>
+                <div className="mt-2 text-center">
+                  <Button type="button" variant="outline" size="sm" className="text-[10px] h-6 px-2 gap-1" onClick={() => designFolderInputRef.current?.click()}>
+                    <FileUp className="w-3 h-3" />
+                    {isKo ? "폴더 업로드" : "文件夹上传"}
+                  </Button>
+                </div>
                 {designFiles.length > 0 && (
                   <div className="mt-3">
                     <p className="text-xs font-medium mb-2">{designFiles.length}{isKo ? "개 선택" : "张已选"}</p>
