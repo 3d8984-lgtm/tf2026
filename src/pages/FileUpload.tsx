@@ -959,9 +959,9 @@ export default function FileUpload() {
                       {designFiles.map((f, i) => (
                         <div key={i} className="relative group">
                           <div className="w-12 h-12 rounded border border-border overflow-hidden bg-muted/30">
-                            <img src={URL.createObjectURL(f)} alt={f.name} className="w-full h-full object-contain" />
+                            <img src={URL.createObjectURL(f.file)} alt={f.file.name} className="w-full h-full object-contain" />
                           </div>
-                          <p className="text-[9px] text-center text-muted-foreground truncate w-12">{f.name.replace(/\.[^.]+$/, "")}</p>
+                          <p className="text-[9px] text-center text-muted-foreground truncate w-12">{f.file.name.replace(/\.[^.]+$/, "")}</p>
                           <button
                             className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-destructive text-white text-[9px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                             onClick={(e) => { e.stopPropagation(); setDesignFiles(prev => prev.filter((_, idx) => idx !== i)); }}
@@ -1038,9 +1038,9 @@ export default function FileUpload() {
                       {twincodeFiles.map((f, i) => (
                         <div key={i} className="relative group">
                           <div className="w-12 h-12 rounded border border-border overflow-hidden bg-muted/30">
-                            <img src={URL.createObjectURL(f)} alt={f.name} className="w-full h-full object-contain" />
+                            <img src={URL.createObjectURL(f.file)} alt={f.file.name} className="w-full h-full object-contain" />
                           </div>
-                          <p className="text-[9px] text-center text-muted-foreground truncate w-12">{f.name.replace(/\.[^.]+$/, "")}</p>
+                          <p className="text-[9px] text-center text-muted-foreground truncate w-12">{f.file.name.replace(/\.[^.]+$/, "")}</p>
                           <button
                             className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-destructive text-white text-[9px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                             onClick={(e) => { e.stopPropagation(); setTwincodeFiles(prev => prev.filter((_, idx) => idx !== i)); }}
