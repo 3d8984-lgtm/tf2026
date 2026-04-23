@@ -697,34 +697,44 @@ export default function FileUpload() {
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-8 px-2 gap-1.5 text-xs"
-                                      disabled={!h.file_path}
-                                      onClick={async () => {
-                                        if (!h.file_path) return;
-                                        const { data, error } = await supabase.storage
-                                          .from("upload-files")
-                                          .download(h.file_path);
-                                        if (error || !data) {
-                                          toast({ title: isKo ? "다운로드 실패" : "下载失败", variant: "destructive" });
-                                          return;
-                                        }
-                                        const url = URL.createObjectURL(data);
-                                        const a = document.createElement("a");
-                                        a.href = url;
-                                        a.download = h.file_name;
-                                        a.click();
-                                        URL.revokeObjectURL(url);
-                                      }}
-                                    >
-                                      <Download className="w-3.5 h-3.5" />
-                                      {isKo ? "다운로드" : "下载"}
-                                    </Button>
+                                    <span>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 px-2 gap-1.5 text-xs"
+                                        disabled={!isSafeStoragePath(h.file_path)}
+                                        onClick={async () => {
+                                          if (!isSafeStoragePath(h.file_path)) {
+                                            toast({ title: isKo ? "다운로드할 원본 파일이 없습니다" : "没有可下载的原始文件", variant: "destructive" });
+                                            return;
+                                          }
+
+                                          const { data, error } = await supabase.storage
+                                            .from("upload-files")
+                                            .download(h.file_path);
+
+                                          if (error || !data) {
+                                            toast({ title: isKo ? "다운로드 실패" : "下载失败", variant: "destructive" });
+                                            return;
+                                          }
+
+                                          const url = URL.createObjectURL(data);
+                                          const a = document.createElement("a");
+                                          a.href = url;
+                                          a.download = h.file_name;
+                                          document.body.appendChild(a);
+                                          a.click();
+                                          a.remove();
+                                          setTimeout(() => URL.revokeObjectURL(url), 1000);
+                                        }}
+                                      >
+                                        <Download className="w-3.5 h-3.5" />
+                                        {isKo ? "다운로드" : "下载"}
+                                      </Button>
+                                    </span>
                                   </TooltipTrigger>
                                   <TooltipContent>
-                                    <p>{isKo ? "원본 파일 다운로드" : "下载原始文件"}</p>
+                                    <p>{isSafeStoragePath(h.file_path) ? (isKo ? "원본 파일 다운로드" : "下载原始文件") : (isKo ? "이 이력에는 다운로드 가능한 원본 파일이 없습니다" : "该记录没有可下载的原始文件")}</p>
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
