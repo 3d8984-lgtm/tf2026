@@ -535,45 +535,166 @@ export default function FileUpload() {
               })}
             </div>
 
-            {/* API sync history */}
+            {/* API sync history - same format as file upload history */}
             <div className="kpi-card section-enter" style={{ animationDelay: "80ms" }}>
               <h3 className="text-sm font-medium mb-4">
-                {isKo ? "동기화 이력" : "同步记录"}
+                {isKo ? "연동 이력" : "联动记录"}
               </h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-left">
-                      <th className="pb-2 font-medium text-muted-foreground">{isKo ? "시간" : "时间"}</th>
-                      <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "총 건수" : "总数"}</th>
-                      <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "신규" : "新增"}</th>
-                      <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "업데이트" : "更新"}</th>
-                      <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "오류" : "异常"}</th>
-                      <th className="pb-2 font-medium text-muted-foreground">{isKo ? "납기 발송일" : "交期发货日"}</th>
+                      <th className="pb-2 font-medium text-muted-foreground">{isKo ? "주문번호" : "订单号"}</th>
+                      <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "로고" : "Logo"}</th>
+                      <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "데이터 행" : "数据行"}</th>
+                      <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "주문 건수" : "订单数"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "결과" : "结果"}</th>
+                      <th className="pb-2 font-medium text-muted-foreground">{isKo ? "결과일시" : "结果时间"}</th>
+                      <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "작업연동" : "作业关联"}</th>
+                      <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "관리" : "操作"}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {apiSyncHistory.map((h, i) => (
-                      <tr key={i} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                        <td className="py-2.5 flex items-center gap-2">
-                          <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-                          {h.time}
-                        </td>
-                        <td className="py-2.5 text-right tabular-nums">{h.orders}</td>
-                        <td className="py-2.5 text-right tabular-nums text-emerald-600">{h.new}</td>
-                        <td className="py-2.5 text-right tabular-nums text-blue-600">{h.updated}</td>
-                        <td className="py-2.5 text-right tabular-nums">
-                          {h.errors > 0 ? <span className="text-destructive">{h.errors}</span> : "-"}
-                        </td>
-                        <td className="py-2.5 text-muted-foreground">{h.deadline}</td>
-                        <td className="py-2.5 text-center">
-                          {h.status === "success"
-                            ? <CheckCircle2 className="w-4 h-4 text-emerald-500 mx-auto" />
-                            : <AlertCircle className="w-4 h-4 text-warning mx-auto" />}
+                    {!apiHistory.length ? (
+                      <tr>
+                        <td colSpan={8} className="py-6 text-center text-muted-foreground text-sm">
+                          {isKo ? "API 연동 이력이 없습니다" : "暂无API联动记录"}
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      apiHistory.map((h: any) => {
+                        const extOrderId = h.file_name?.replace("API-", "") || "-";
+                        return (
+                          <tr key={h.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                            <td className="py-2.5">
+                              <div className="flex items-center gap-2">
+                                <Globe className="w-4 h-4 text-primary/70 shrink-0" />
+                                {extOrderId}
+                              </div>
+                            </td>
+                            <td className="py-2.5 text-center">
+                              {h.logo_path ? (
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <img
+                                    src={supabase.storage.from("order-logos").getPublicUrl(h.logo_path).data.publicUrl}
+                                    alt="logo"
+                                    className="w-8 h-8 rounded object-contain border border-border"
+                                  />
+                                  <label className="cursor-pointer">
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      className="hidden"
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) handleHistoryLogoUpload(h.id, file, h.logo_path);
+                                        e.target.value = "";
+                                      }}
+                                    />
+                                    <span className="text-xs text-primary hover:underline">
+                                      {logoUploadingId === h.id ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
+                                      ) : (
+                                        isKo ? "변경" : "更换"
+                                      )}
+                                    </span>
+                                  </label>
+                                </div>
+                              ) : (
+                                <label className="cursor-pointer inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) handleHistoryLogoUpload(h.id, file, null);
+                                      e.target.value = "";
+                                    }}
+                                  />
+                                  {logoUploadingId === h.id ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <Image className="w-3.5 h-3.5" />
+                                      {isKo ? "로고 업로드" : "上传Logo"}
+                                    </>
+                                  )}
+                                </label>
+                              )}
+                            </td>
+                            <td className="py-2.5 text-right tabular-nums">{h.row_count.toLocaleString()}</td>
+                            <td className="py-2.5 text-right tabular-nums">
+                              {h.error_count > 0 ? (
+                                <span>
+                                  <span className="text-emerald-600">{h.success_count}</span>
+                                  <span className="text-destructive ml-1">({isKo ? `오류 ${h.error_count}` : `异常${h.error_count}`})</span>
+                                </span>
+                              ) : (
+                                <span className="text-emerald-600">{h.success_count}</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 text-center">
+                              {h.error_count === 0
+                                ? <CheckCircle2 className="w-4 h-4 text-emerald-500 mx-auto" />
+                                : <XCircle className="w-4 h-4 text-destructive mx-auto" />}
+                            </td>
+                            <td className="py-2.5 text-muted-foreground">{new Date(h.created_at).toLocaleString()}</td>
+                            <td className="py-2.5 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 px-2 gap-1 text-xs"
+                                  disabled={linkingId === h.id || unlinkedIds.has(h.id)}
+                                  onClick={() => handleLinkWork(h.id)}
+                                >
+                                  {linkingId === h.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Link className="w-3 h-3" />}
+                                  {isKo ? "작업연동" : "关联"}
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 px-2 gap-1 text-xs text-destructive border-destructive/30 hover:bg-destructive/5 hover:text-destructive"
+                                  disabled={unlinkingId === h.id || unlinkedIds.has(h.id)}
+                                  onClick={() => handleUnlinkWork(h.id)}
+                                >
+                                  {unlinkingId === h.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Unlink className="w-3 h-3" />}
+                                  {isKo ? "연동삭제" : "删除关联"}
+                                </Button>
+                              </div>
+                            </td>
+                            <td className="py-2.5 text-center">
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8 px-2 gap-1.5 text-xs text-destructive border-destructive/30 hover:bg-destructive/5 hover:text-destructive"
+                                      onClick={async () => {
+                                        if (h.logo_path) {
+                                          await supabase.storage.from("order-logos").remove([h.logo_path]);
+                                        }
+                                        await supabase.from("upload_history").delete().eq("id", h.id);
+                                        queryClient.invalidateQueries({ queryKey: ["upload_history"] });
+                                        toast({ title: isKo ? "삭제 완료" : "已删除" });
+                                      }}
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                      {isKo ? "삭제" : "删除"}
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>{isKo ? "이력 삭제" : "删除记录"}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
