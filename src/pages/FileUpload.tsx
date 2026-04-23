@@ -85,6 +85,7 @@ export default function FileUpload() {
       return;
     }
     setSaved(false);
+    setOrderLogos(new Map());
     currentFileRef.current = file;
     const reader = new FileReader();
     reader.onload = (e) => {
