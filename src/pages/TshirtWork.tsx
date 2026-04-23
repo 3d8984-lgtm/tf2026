@@ -517,17 +517,21 @@ export default function TshirtWork() {
 
           <div className="kpi-card flex flex-col items-center justify-center min-h-[240px]">
             <h3 className="text-sm font-medium mb-3 flex items-center gap-2 self-start"><Image className="w-4 h-4" /> {t("tshirtWork.logoCheck")}</h3>
-            {logoVerified && matchedProduct ? (
+            {selectedOrder!.logoUrl ? (
               <div className="flex-1 flex flex-col items-center justify-center gap-3">
-                <div className="w-32 h-32 rounded-lg border-2 border-[hsl(var(--success)/0.3)] bg-muted/40 flex items-center justify-center overflow-hidden">
-                  <img src="/placeholder.svg" alt="Logo" className="max-w-full max-h-full object-contain" />
+                <div className={`w-32 h-32 rounded-lg border-2 bg-muted/40 flex items-center justify-center overflow-hidden ${logoVerified ? "border-[hsl(var(--success)/0.3)]" : "border-border"}`}>
+                  <img src={selectedOrder!.logoUrl} alt="Logo" className="max-w-full max-h-full object-contain" />
                 </div>
-                <span className="text-xs text-[hsl(var(--success))] font-medium flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> {t("tshirtWork.logoConfirmed")}</span>
+                {logoVerified ? (
+                  <span className="text-xs text-[hsl(var(--success))] font-medium flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> {t("tshirtWork.logoConfirmed")}</span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">{isKo ? "로고 이미지 확인" : "Logo图片确认"}</span>
+                )}
               </div>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
                 <Image className="w-10 h-10 opacity-30" />
-                <p className="text-xs text-center whitespace-pre-line">{t("tshirtWork.logoWait")}</p>
+                <p className="text-xs text-center whitespace-pre-line">{isKo ? "로고가 업로드되지 않았습니다" : "未上传Logo"}</p>
               </div>
             )}
           </div>
