@@ -69,7 +69,7 @@ export default function FileUpload() {
     }
   };
 
-  // 작업연동: Check linked order count for a given upload
+  const isSafeStoragePath = (path: string | null | undefined) => !!path && /^[A-Za-z0-9._/-]+$/.test(path);
   const handleLinkWork = async (historyId: string) => {
     setLinkingId(historyId);
     try {
