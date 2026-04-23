@@ -33,6 +33,9 @@ interface OrderData {
   dueDate: string;
   items: WorkItem[];
   logoUrl: string | null;
+  designImageUrl: string | null;
+  uploadHistoryId: string | null;
+  designCode: string;
 }
 
 // QR lookup tables will be populated from DB in the future
