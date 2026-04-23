@@ -149,6 +149,7 @@ export default function FileUpload() {
         .eq("upload_history_id", historyId);
       if (fetchErr) throw fetchErr;
       if (!linkedOrders || linkedOrders.length === 0) {
+        setUnlinkedIds(prev => new Set(prev).add(historyId));
         toast({ title: isKo ? "연동된 데이터가 없습니다" : "没有关联数据" });
         return;
       }
@@ -909,7 +910,7 @@ export default function FileUpload() {
                                 variant="outline"
                                 size="sm"
                                 className="h-7 px-2 gap-1 text-xs text-destructive border-destructive/30 hover:bg-destructive/5 hover:text-destructive"
-                                disabled={unlinkingId === h.id}
+                                disabled={unlinkingId === h.id || unlinkedIds.has(h.id)}
                                 onClick={() => handleUnlinkWork(h.id)}
                               >
                                 {unlinkingId === h.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Unlink className="w-3 h-3" />}
