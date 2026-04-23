@@ -1044,6 +1044,9 @@ export default function FileUpload() {
                             <img src={URL.createObjectURL(f.file)} alt={f.file.name} className="w-full h-full object-contain" />
                           </div>
                           <p className="text-[9px] text-center text-muted-foreground truncate w-12">{f.file.name.replace(/\.[^.]+$/, "")}</p>
+                          {f.orderFolder && (
+                            <p className="text-[8px] text-center text-primary truncate w-12">📁{f.orderFolder}</p>
+                          )}
                           <button
                             className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-destructive text-white text-[9px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                             onClick={(e) => { e.stopPropagation(); setTwincodeFiles(prev => prev.filter((_, idx) => idx !== i)); }}
@@ -1055,6 +1058,86 @@ export default function FileUpload() {
                 )}
               </div>
             </div>
+
+            {/* Folder-Order Matching Summary */}
+            {(designFiles.some(f => f.orderFolder) || twincodeFiles.some(f => f.orderFolder)) && uploadResult && (
+              <div className="kpi-card section-enter" style={{ animationDelay: "80ms" }}>
+                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                  <FileUp className="w-4 h-4 text-primary" />
+                  {isKo ? "폴더-주문 매칭 결과" : "文件夹-订单匹配结果"}
+                </h3>
+                {(() => {
+                  // Collect unique order IDs from parsed data
+                  const orderIds = new Set<string>();
+                  parsedRows.forEach(row => {
+                    const extId = String(row[0] ?? "").trim();
+                    if (extId) orderIds.add(extId);
+                  });
+
+                  // Group images by folder
+                  const designByFolder = new Map<string, ImageFileEntry[]>();
+                  designFiles.filter(f => f.orderFolder).forEach(f => {
+                    const arr = designByFolder.get(f.orderFolder!) || [];
+                    arr.push(f);
+                    designByFolder.set(f.orderFolder!, arr);
+                  });
+                  const twincodeByFolder = new Map<string, ImageFileEntry[]>();
+                  twincodeFiles.filter(f => f.orderFolder).forEach(f => {
+                    const arr = twincodeByFolder.get(f.orderFolder!) || [];
+                    arr.push(f);
+                    twincodeByFolder.set(f.orderFolder!, arr);
+                  });
+
+                  const allFolders = new Set([...designByFolder.keys(), ...twincodeByFolder.keys()]);
+                  const matched = [...allFolders].filter(f => orderIds.has(f));
+                  const unmatched = [...allFolders].filter(f => !orderIds.has(f));
+
+                  return (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-4 text-xs">
+                        <span className="flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                          {isKo ? `매칭됨: ${matched.length}건` : `已匹配: ${matched.length}条`}
+                        </span>
+                        {unmatched.length > 0 && (
+                          <span className="flex items-center gap-1 text-destructive">
+                            <AlertCircle className="w-3.5 h-3.5" />
+                            {isKo ? `미매칭: ${unmatched.length}건` : `未匹配: ${unmatched.length}条`}
+                          </span>
+                        )}
+                      </div>
+                      <div className="rounded-lg border overflow-hidden">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="bg-muted/40">
+                              <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">{isKo ? "폴더명 (주문번호)" : "文件夹名 (订单号)"}</th>
+                              <th className="px-3 py-1.5 text-center font-medium text-muted-foreground">{isKo ? "디자인" : "设计"}</th>
+                              <th className="px-3 py-1.5 text-center font-medium text-muted-foreground">{isKo ? "트윈코드" : "TwinCode"}</th>
+                              <th className="px-3 py-1.5 text-center font-medium text-muted-foreground">{isKo ? "상태" : "状态"}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {[...matched, ...unmatched].map(folder => (
+                              <tr key={folder} className="border-t border-border/40">
+                                <td className="px-3 py-1.5 font-medium">{folder}</td>
+                                <td className="px-3 py-1.5 text-center tabular-nums">{designByFolder.get(folder)?.length || 0}</td>
+                                <td className="px-3 py-1.5 text-center tabular-nums">{twincodeByFolder.get(folder)?.length || 0}</td>
+                                <td className="px-3 py-1.5 text-center">
+                                  {orderIds.has(folder)
+                                    ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mx-auto" />
+                                    : <span className="text-destructive text-[10px]">{isKo ? "주문 없음" : "无订单"}</span>
+                                  }
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
             {uploadResult && (
               <div className="kpi-card section-enter">
                 <div className="flex items-center justify-between mb-4">
