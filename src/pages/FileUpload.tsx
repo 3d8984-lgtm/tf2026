@@ -265,8 +265,6 @@ export default function FileUpload() {
 
   const apiSyncHistory: { time: string; orders: number; new: number; updated: number; errors: number; deadline: string; status: string }[] = [];
 
-  const uploadHistory: { file: string; rows: number; success: number; error: number; date: string; user: string }[] = [];
-
   return (
     <div>
       <PageHeader
