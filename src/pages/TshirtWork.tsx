@@ -164,11 +164,9 @@ export default function TshirtWork() {
       const historyId = (o as any).upload_history_id;
       const logoUrl = historyId ? (logoUrlMap[historyId] ?? null) : null;
       const designCode = o.design_code ?? "";
-      // Build design image URL: try to resolve from design-images bucket using historyId/designCode
       let designImageUrl: string | null = null;
-      if (historyId && designCode) {
-        // We'll try common extensions - the actual resolution happens via public URL
-        designImageUrl = supabase.storage.from("design-images").getPublicUrl(`${historyId}/${designCode}.jpg`).data.publicUrl;
+      if (historyId && designCode && designImageFiles?.[historyId]) {
+        designImageUrl = designImageFiles[historyId][designCode] ?? null;
       }
       return {
         id: o.id,
