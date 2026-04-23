@@ -97,6 +97,38 @@ export default function TshirtWork() {
     },
   });
 
+  // Fetch all upload_history IDs to list design images
+  const { data: allHistoryIds } = useQuery({
+    queryKey: ["upload_history_ids"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("upload_history")
+        .select("id");
+      if (error) throw error;
+      return data?.map(h => h.id) || [];
+    },
+  });
+
+  // Fetch design images from storage for all history IDs
+  const { data: designImageFiles } = useQuery({
+    queryKey: ["design_images_list", allHistoryIds],
+    enabled: !!allHistoryIds && allHistoryIds.length > 0,
+    queryFn: async () => {
+      const fileMap: Record<string, Record<string, string>> = {};
+      for (const hid of (allHistoryIds || [])) {
+        const { data: files } = await supabase.storage.from("design-images").list(hid);
+        if (files && files.length > 0) {
+          fileMap[hid] = {};
+          for (const f of files) {
+            const nameWithoutExt = f.name.replace(/\.[^.]+$/, "");
+            fileMap[hid][nameWithoutExt] = supabase.storage.from("design-images").getPublicUrl(`${hid}/${f.name}`).data.publicUrl;
+          }
+        }
+      }
+      return fileMap;
+    },
+  });
+
   // Map upload_history_id → logo public URL
   const logoUrlMap = useMemo(() => {
     const map: Record<string, string> = {};
