@@ -1,0 +1,1 @@
+ALTER TABLE public.upload_history ADD COLUMN source text NOT NULL DEFAULT 'file';

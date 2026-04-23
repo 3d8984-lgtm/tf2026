@@ -288,6 +288,7 @@ export type Database = {
           id: string
           logo_path: string | null
           row_count: number
+          source: string
           success_count: number
           user_email: string | null
           user_id: string | null
@@ -300,6 +301,7 @@ export type Database = {
           id?: string
           logo_path?: string | null
           row_count?: number
+          source?: string
           success_count?: number
           user_email?: string | null
           user_id?: string | null
@@ -312,6 +314,7 @@ export type Database = {
           id?: string
           logo_path?: string | null
           row_count?: number
+          source?: string
           success_count?: number
           user_email?: string | null
           user_id?: string | null
