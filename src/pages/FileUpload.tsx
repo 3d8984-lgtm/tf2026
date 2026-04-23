@@ -229,6 +229,7 @@ export default function FileUpload() {
     }
     setSaved(false);
     setDesignFiles([]);
+    setTwincodeFiles([]);
     currentFileRef.current = file;
     const reader = new FileReader();
     reader.onload = (e) => {
