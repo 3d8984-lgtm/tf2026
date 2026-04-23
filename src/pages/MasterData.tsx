@@ -1,5 +1,5 @@
 import PageHeader from "@/components/PageHeader";
-import { Database, ChevronRight, Search, Plus, Pencil, Trash2, X } from "lucide-react";
+import { Database, ChevronRight, Search, Plus, Pencil, Trash2, X, QrCode } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import QrMasterManagement from "@/components/QrMasterManagement";
 
+type QrCategory = "tshirt" | "silicon" | "design" | "hologram";
 type MasterCategory = "product" | "card" | "shipper";
 
 interface MasterItem {
@@ -69,10 +71,18 @@ export default function MasterData() {
   const isKo = lang === "ko";
 
   const [selected, setSelected] = useState<MasterCategory | null>(null);
+  const [selectedQr, setSelectedQr] = useState<QrCategory | null>(null);
   const [search, setSearch] = useState("");
   const [data, setData] = useState(demoData);
   const [editDialog, setEditDialog] = useState<{ mode: "add" | "edit"; item?: MasterItem } | null>(null);
   const [formValues, setFormValues] = useState<Record<string, string>>({});
+
+  const qrMasters: { key: QrCategory; label: string }[] = [
+    { key: "tshirt", label: isKo ? "티셔츠 QR" : "T恤QR" },
+    { key: "silicon", label: isKo ? "실리콘 QR" : "硅胶QR" },
+    { key: "design", label: isKo ? "디자인 QR" : "设计QR" },
+    { key: "hologram", label: isKo ? "홀로그램 QR" : "全息QR" },
+  ];
 
   const masters: { key: MasterCategory; label: string; count: number; lastUpdate: string }[] = [
     { key: "product", label: t("master.product"), count: data.product.rows.length, lastUpdate: "2024-03-15" },
@@ -136,7 +146,7 @@ export default function MasterData() {
           {masters.map((m, i) => (
             <div
               key={m.key}
-              onClick={() => { setSelected(selected === m.key ? null : m.key); setSearch(""); }}
+              onClick={() => { setSelected(selected === m.key ? null : m.key); setSelectedQr(null); setSearch(""); }}
               className={`kpi-card section-enter cursor-pointer transition-all ${
                 selected === m.key
                   ? "border-primary ring-1 ring-primary/30"
@@ -160,7 +170,34 @@ export default function MasterData() {
           ))}
         </div>
 
-        {/* Detail table */}
+        {/* QR Master cards */}
+        <div>
+          <h3 className="text-sm font-medium text-muted-foreground mb-3">{isKo ? "QR 기준정보" : "QR基准信息"}</h3>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {qrMasters.map((m, i) => (
+              <div
+                key={m.key}
+                onClick={() => { setSelectedQr(selectedQr === m.key ? null : m.key); setSelected(null); setSearch(""); }}
+                className={`kpi-card section-enter cursor-pointer transition-all ${
+                  selectedQr === m.key ? "border-primary ring-1 ring-primary/30" : "hover:border-primary/30"
+                }`}
+                style={{ animationDelay: `${(i + 3) * 60}ms` }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg" style={{ background: "hsl(var(--primary) / 0.08)" }}>
+                    <QrCode className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium">{m.label}</p>
+                  </div>
+                  <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${selectedQr === m.key ? "rotate-90" : ""}`} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Detail table for product/card/shipper */}
         {selected && currentCat && (
           <div className="kpi-card section-enter">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
@@ -229,6 +266,9 @@ export default function MasterData() {
             </div>
           </div>
         )}
+
+        {/* QR Master detail */}
+        {selectedQr && <QrMasterManagement category={selectedQr} />}
       </div>
 
       {/* Add/Edit Dialog */}

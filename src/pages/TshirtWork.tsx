@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import PageHeader from "@/components/PageHeader";
 import { useOrders } from "@/hooks/useDbData";
 import { supabase } from "@/integrations/supabase/client";
+import { useQrMasterData } from "@/hooks/useQrMasterData";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,11 +40,7 @@ interface OrderData {
   designCode: string;
 }
 
-// QR lookup tables will be populated from DB in the future
-const mockTshirtQR: Record<string, { product: string; color: string; size: string }> = {};
-const mockSiliconQR: Record<string, { product: string; design: string }> = {};
-const mockDesignQR: Record<string, { product: string; design: string }> = {};
-const mockHoloQR: Record<string, { product: string; design: string; used: boolean }> = {};
+// QR lookup tables loaded from DB via hook (see below in component)
 
 function ProgressBar({ done, total, fail, defectLabel }: { done: number; total: number; fail: number; defectLabel: string }) {
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
@@ -74,6 +71,7 @@ function StatusBadge({ status, t }: { status: WorkItem["status"]; t: (k: string)
 export default function TshirtWork() {
   const { t, lang } = useLang();
   const isKo = lang === "ko";
+  const { tshirtQR: mockTshirtQR, siliconQR: mockSiliconQR, designQR: mockDesignQR, holoQR: mockHoloQR } = useQrMasterData();
 
   const steps = [
     { key: "tshirt", label: t("tshirtWork.tshirtScan"), icon: Shirt, placeholder: isKo ? "티셔츠 QR을 스캔하세요" : "请扫描T恤QR" },
@@ -289,7 +287,7 @@ export default function TshirtWork() {
       else if (step < 3) { setCurrentStep(step + 1); setProcessing(false); }
       else { setProcessing(false); }
     }, 400);
-  }, [isKo]);
+  }, [isKo, mockTshirtQR, mockSiliconQR, mockDesignQR, mockHoloQR]);
 
   const handleScan = useCallback(() => {
     const value = scanValue.trim();
