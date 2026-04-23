@@ -429,6 +429,16 @@ export default function FileUpload() {
             await supabase.storage.from("design-images").upload(storagePath, designFile, { upsert: true });
           }
         }
+
+        // Upload twincode images to storage mapped to this upload_history_id
+        if (twincodeFiles.length > 0) {
+          for (const twincodeFile of twincodeFiles) {
+            const nameWithoutExt = twincodeFile.name.replace(/\.[^.]+$/, "");
+            const ext = twincodeFile.name.split(".").pop() || "png";
+            const storagePath = `${historyId}/${nameWithoutExt}.${ext}`;
+            await supabase.storage.from("twincode-images").upload(storagePath, twincodeFile, { upsert: true });
+          }
+        }
       }
 
       queryClient.invalidateQueries({ queryKey: ["upload_history"] });
