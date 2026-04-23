@@ -3,7 +3,7 @@ import PageHeader from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  FileSpreadsheet, CheckCircle2, XCircle, Download, FileUp, Info, Image,
+  FileSpreadsheet, CheckCircle2, XCircle, Download, FileUp, Info, Image, QrCode,
   Globe, RefreshCw, ArrowDownToLine, Clock, AlertCircle, CircleAlert, Save, Loader2, Trash2,
   Link, Unlink
 } from "lucide-react";
