@@ -700,9 +700,62 @@ export default function FileUpload() {
                     ) : (
                       uploadHistory.map((h) => (
                         <tr key={h.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                          <td className="py-2.5 flex items-center gap-2">
-                            <FileSpreadsheet className="w-4 h-4 text-primary/70" />
-                            {h.file_name}
+                          <td className="py-2.5">
+                            <div className="flex items-center gap-2">
+                              <FileSpreadsheet className="w-4 h-4 text-primary/70 shrink-0" />
+                              {h.file_name}
+                            </div>
+                          </td>
+                          <td className="py-2.5 text-center">
+                            {(h as any).logo_path ? (
+                              <div className="flex items-center justify-center gap-1.5">
+                                <img
+                                  src={supabase.storage.from("order-logos").getPublicUrl((h as any).logo_path).data.publicUrl}
+                                  alt="logo"
+                                  className="w-8 h-8 rounded object-contain border border-border"
+                                />
+                                <label className="cursor-pointer">
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) handleHistoryLogoUpload(h.id, file, (h as any).logo_path);
+                                      e.target.value = "";
+                                    }}
+                                  />
+                                  <span className="text-xs text-primary hover:underline">
+                                    {logoUploadingId === h.id ? (
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
+                                    ) : (
+                                      isKo ? "변경" : "更换"
+                                    )}
+                                  </span>
+                                </label>
+                              </div>
+                            ) : (
+                              <label className="cursor-pointer inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) handleHistoryLogoUpload(h.id, file, null);
+                                    e.target.value = "";
+                                  }}
+                                />
+                                {logoUploadingId === h.id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <>
+                                    <Image className="w-3.5 h-3.5" />
+                                    {isKo ? "로고 업로드" : "上传Logo"}
+                                  </>
+                                )}
+                              </label>
+                            )}
                           </td>
                           <td className="py-2.5 text-right tabular-nums">{h.row_count.toLocaleString()}</td>
                           <td className="py-2.5 text-right tabular-nums">
