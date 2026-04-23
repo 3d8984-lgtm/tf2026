@@ -126,6 +126,8 @@ export default function TshirtWork() {
         hologramQR: item.hologram_qr ?? "",
         status: "pending" as const,
       }));
+      const historyId = (o as any).upload_history_id;
+      const logoUrl = historyId ? (logoUrlMap[historyId] ?? null) : null;
       return {
         id: o.id,
         orderNo,
@@ -135,9 +137,10 @@ export default function TshirtWork() {
         orderDate: new Date(o.created_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN"),
         dueDate: o.project_completed_at ? new Date(o.project_completed_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN") : "-",
         items,
+        logoUrl,
       };
     });
-  }, [dbOrders, isKo]);
+  }, [dbOrders, isKo, logoUrlMap]);
 
   // Merge DB data with local work item statuses
   const [workItemStatuses, setWorkItemStatuses] = useState<Record<string, Record<number, "pending" | "done" | "fail">>>({});
