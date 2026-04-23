@@ -218,12 +218,28 @@ export default function FileUpload() {
         return;
       }
 
+      // Upload logo files to storage and set logo_url on orders
+      for (const order of orders) {
+        const logoFile = orderLogos.get(order.external_order_id);
+        if (logoFile) {
+          const ext = logoFile.name.split(".").pop() || "png";
+          const logoPath = `${Date.now()}-${order.external_order_id}.${ext}`;
+          const { error: logoErr } = await supabase.storage.from("order-logos").upload(logoPath, logoFile);
+          if (!logoErr) {
+            const { data: urlData } = supabase.storage.from("order-logos").getPublicUrl(logoPath);
+            order.logo_url = urlData.publicUrl;
+          } else {
+            console.error("Logo upload error:", logoErr);
+          }
+        }
+      }
+
       // Upsert in batches of 50 (handles duplicate external_order_id)
       let successCount = 0;
       let errorCount = 0;
       for (let i = 0; i < orders.length; i += 50) {
         const batch = orders.slice(i, i + 50);
-        const { error } = await supabase.from("orders").upsert(batch, { onConflict: "external_order_id" });
+        const { error } = await supabase.from("orders").upsert(batch as any, { onConflict: "external_order_id" });
         if (error) {
           console.error("Upsert error:", error);
           errorCount += batch.length;
