@@ -130,6 +130,26 @@ export default function TshirtWork() {
     },
   });
 
+  // Fetch twincode images from storage for all history IDs
+  const { data: twincodeImageFiles } = useQuery({
+    queryKey: ["twincode_images_list", allHistoryIds],
+    enabled: !!allHistoryIds && allHistoryIds.length > 0,
+    queryFn: async () => {
+      const fileMap: Record<string, Record<string, string>> = {};
+      for (const hid of (allHistoryIds || [])) {
+        const { data: files } = await supabase.storage.from("twincode-images").list(hid);
+        if (files && files.length > 0) {
+          fileMap[hid] = {};
+          for (const f of files) {
+            const nameWithoutExt = f.name.replace(/\.[^.]+$/, "");
+            fileMap[hid][nameWithoutExt] = supabase.storage.from("twincode-images").getPublicUrl(`${hid}/${f.name}`).data.publicUrl;
+          }
+        }
+      }
+      return fileMap;
+    },
+  });
+
   // Map upload_history_id → logo public URL
   const logoUrlMap = useMemo(() => {
     const map: Record<string, string> = {};
