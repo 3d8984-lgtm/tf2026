@@ -1311,17 +1311,22 @@ export default function FileUpload() {
                             size="sm"
                             variant="outline"
                             className="gap-1.5 text-xs h-7"
-                            onClick={() => {
+                            disabled={applyingFolders}
+                            onClick={async () => {
                               const next = new Set(appliedFolders);
                               const allApplied = matched.every(f => next.has(f));
                               if (allApplied) {
                                 matched.forEach(f => next.delete(f));
+                                setAppliedFolders(next);
                                 toast({ title: isKo ? "전체 적용 해제됨" : "已取消全部应用" });
                               } else {
-                                matched.forEach(f => next.add(f));
-                                toast({ title: isKo ? `${matched.length}건 주문에 적용됨` : `已应用到${matched.length}条订单` });
+                                const toApply = matched.filter(f => !next.has(f));
+                                const ok = await applyFoldersToOrders(toApply, designByFolder, twincodeByFolder);
+                                if (ok) {
+                                  toApply.forEach(f => next.add(f));
+                                  setAppliedFolders(next);
+                                }
                               }
-                              setAppliedFolders(next);
                             }}
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" />
