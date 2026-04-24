@@ -249,6 +249,8 @@ export default function FileUpload() {
           .in("external_order_id", folders);
         orderRows = data || [];
       }
+      const matchedFolders = new Set(orderRows.map((o: any) => o.external_order_id));
+      const unmatchedFolders = folders.filter(f => !matchedFolders.has(f));
 
       // Build full upload task list
       type Task = { folder: string | null; entry: ImageFileEntry; storagePath: string };
@@ -339,14 +341,21 @@ export default function FileUpload() {
       if (category === "design") setDesignFiles([]);
       else setTwincodeFiles([]);
 
+      const matchedCount = orderRows.length > 0
+        ? [...byFolder.entries()].filter(([f]) => matchedFolders.has(f)).reduce((a, [, items]) => a + items.length, 0)
+        : 0;
+      const unmatchedFolderCount = [...byFolder.entries()].filter(([f]) => !matchedFolders.has(f)).reduce((a, [, items]) => a + items.length, 0);
+      const totalUnmatched = unmatchedFolderCount + noFolder.length;
+      const noOrdersHint = folders.length > 0 && orderRows.length === 0;
+
       toast({
         title: isKo
           ? `${uploaded}장 저장 완료${failed > 0 ? `, ${failed}장 실패` : ""}`
           : `${uploaded} 张已保存${failed > 0 ? `, ${failed} 张失败` : ""}`,
         description: isKo
-          ? `매칭 ${[...byFolder.values()].reduce((a, b) => a + b.length, 0)}장, 미매칭 ${noFolder.length}장`
-          : `匹配 ${[...byFolder.values()].reduce((a, b) => a + b.length, 0)} 张, 未匹配 ${noFolder.length} 张`,
-        variant: failed > 0 ? "destructive" : "default",
+          ? `매칭 ${matchedCount}장 · 미매칭 ${totalUnmatched}장${noOrdersHint ? " · ⚠️ 폴더명과 일치하는 주문이 없습니다. 먼저 주문 데이터를 가져오세요." : unmatchedFolders.length > 0 ? ` (미일치 폴더: ${unmatchedFolders.slice(0, 3).join(", ")}${unmatchedFolders.length > 3 ? "..." : ""})` : ""}`
+          : `匹配 ${matchedCount} 张 · 未匹配 ${totalUnmatched} 张${noOrdersHint ? " · ⚠️ 无匹配订单，请先导入订单数据" : unmatchedFolders.length > 0 ? ` (未匹配文件夹: ${unmatchedFolders.slice(0, 3).join(", ")}${unmatchedFolders.length > 3 ? "..." : ""})` : ""}`,
+        variant: failed > 0 || noOrdersHint ? "destructive" : "default",
       });
     } catch (err) {
       console.error("Save images error:", err);
