@@ -411,7 +411,7 @@ export default function TshirtWork() {
 
     return (
       <div>
-        <PageHeader title={t("tshirtWork.title")} description={`${selectedOrder.id} · ${selectedOrder.orderNo}`}>
+        <PageHeader title={t("tshirtWork.title")} description={`${selectedOrder.twinker} · ${selectedOrder.orderNo}`}>
           <Button variant="outline" size="sm" onClick={() => { setSelectedOrderId(null); }}><ChevronLeft className="w-4 h-4 mr-1" /> {t("tshirtWork.orderList")}</Button>
         </PageHeader>
         <div className="p-6 space-y-6">
@@ -484,17 +484,16 @@ export default function TshirtWork() {
   // ===== VIEW 3: SCAN VIEW =====
   return (
     <div>
-      <PageHeader title={t("tshirtWork.title")} description={`${selectedOrder!.id} · #${activeWorkItem.seq}`}>
+      <PageHeader title={t("tshirtWork.title")} description={`${selectedOrder!.twinker} · #${activeWorkItem.seq}`}>
         <Button variant="outline" size="sm" onClick={() => { setActiveWorkItemSeq(null); resetScan(); }}><ChevronLeft className="w-4 h-4 mr-1" /> {t("tshirtWork.workItems")}</Button>
         <Button variant="outline" size="sm" onClick={resetScan}><RotateCcw className="w-4 h-4 mr-1" /> {t("tshirtWork.reset")}</Button>
+        <Button variant="outline" size="sm" onClick={() => { setSelectedOrderId(null); setActiveWorkItemSeq(null); resetScan(); }}><ChevronLeft className="w-4 h-4 mr-1" /> {t("tshirtWork.orderList")}</Button>
       </PageHeader>
-
-      <div className="p-6 space-y-6">
-        {/* Current work item info */}
-        <div className="kpi-card section-enter flex items-center gap-6 flex-wrap">
+      <div className="p-6 space-y-4">
+        <div className="kpi-card grid grid-cols-2 md:grid-cols-7 gap-4 items-center">
           <div className="flex items-center gap-2">
             <Shirt className="w-5 h-5 text-primary" />
-            <div><p className="text-xs text-muted-foreground">#{activeWorkItem.seq}</p><p className="text-sm font-semibold">{selectedOrder!.id}</p></div>
+            <div><p className="text-xs text-muted-foreground">#{activeWorkItem.seq}</p><p className="text-sm font-semibold">{selectedOrder!.twinker}</p></div>
           </div>
           <div><p className="text-xs text-muted-foreground">{t("tshirtWork.product")}</p><p className="text-sm font-semibold">{selectedOrder!.product}</p></div>
           <div>
