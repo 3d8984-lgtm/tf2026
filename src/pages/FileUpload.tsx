@@ -1409,7 +1409,9 @@ export default function FileUpload() {
                           {savingCategory === "twincode"
                             ? <Loader2 className="w-3 h-3 animate-spin" />
                             : <Save className="w-3 h-3" />}
-                          {isKo ? "저장" : "保存"}
+                          {savingCategory === "twincode"
+                            ? (isKo ? `저장 중 ${saveProgress.done}/${saveProgress.total}` : `保存中 ${saveProgress.done}/${saveProgress.total}`)
+                            : (isKo ? "저장" : "保存")}
                         </Button>
                         <Button
                           type="button"
