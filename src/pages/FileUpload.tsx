@@ -491,13 +491,17 @@ export default function FileUpload() {
 
 
 
-  // Remove all design/twincode images stored under folders matching the orders linked to this history.
+  // Remove all design/twincode images stored under folders matching the orders linked to this history,
+  // and also delete the linked orders along with their production_tracking and shipments records.
   // Returns a summary of which folders existed and how many files were removed/failed per bucket.
   type ImageRemovalSummary = {
     foldersChecked: number;
     foldersExisting: number;
     design: { removed: number; failed: number };
     twincode: { removed: number; failed: number };
+    ordersDeleted: number;
+    trackingDeleted: number;
+    shipmentsDeleted: number;
     errors: string[];
   };
   const removeOrderImagesForHistory = async (historyId: string): Promise<ImageRemovalSummary> => {
@@ -506,18 +510,23 @@ export default function FileUpload() {
       foldersExisting: 0,
       design: { removed: 0, failed: 0 },
       twincode: { removed: 0, failed: 0 },
+      ordersDeleted: 0,
+      trackingDeleted: 0,
+      shipmentsDeleted: 0,
       errors: [],
     };
     try {
       const { data: linkedOrders } = await (supabase
         .from("orders")
-        .select("external_order_id") as any)
+        .select("id, external_order_id") as any)
         .eq("upload_history_id", historyId);
+      const orderIds = (linkedOrders || [])
+        .map((o: any) => o?.id)
+        .filter((id: any): id is string => typeof id === "string" && id.length > 0);
       const folders = (linkedOrders || [])
         .map((o: any) => o?.external_order_id)
         .filter((f: any): f is string => typeof f === "string" && f.length > 0);
       summary.foldersChecked = folders.length;
-      if (folders.length === 0) return summary;
 
       // Track which folders exist in at least one bucket
       const existingFolders = new Set<string>();
