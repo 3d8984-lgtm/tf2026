@@ -178,18 +178,11 @@ export default function FileUpload() {
         }
       }
 
-      // Update upload_history counts (read current → add → write)
+      // Overwrite upload_history counts with the latest values (no accumulation)
       for (const [historyId, add] of historyAdds.entries()) {
-        const { data: cur } = await (supabase
-          .from("upload_history")
-          .select("design_image_count,twincode_image_count") as any)
-          .eq("id", historyId)
-          .single();
-        const newDesign = (cur?.design_image_count || 0) + add.design;
-        const newTwincode = (cur?.twincode_image_count || 0) + add.twincode;
         await (supabase.from("upload_history").update({
-          design_image_count: newDesign,
-          twincode_image_count: newTwincode,
+          design_image_count: add.design,
+          twincode_image_count: add.twincode,
         } as any) as any).eq("id", historyId);
       }
 
