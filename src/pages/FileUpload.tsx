@@ -213,16 +213,25 @@ export default function FileUpload() {
   };
 
   // Save a single category (design or twincode) to storage and update history counts
-  const [savingCategory, setSavingCategory] = useState<"design" | "twincode" | null>(null);
-  const [saveProgress, setSaveProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
+  // Track per-category so design and twincode uploads can run independently in parallel
+  const [savingCategories, setSavingCategories] = useState<Set<"design" | "twincode">>(new Set());
+  const [saveProgressMap, setSaveProgressMap] = useState<Record<"design" | "twincode", { done: number; total: number }>>({
+    design: { done: 0, total: 0 },
+    twincode: { done: 0, total: 0 },
+  });
   const saveImagesByCategory = async (category: "design" | "twincode") => {
     const entries = category === "design" ? designFiles : twincodeFiles;
     if (entries.length === 0) {
       toast({ title: isKo ? "업로드할 이미지가 없습니다" : "没有可上传的图片", variant: "destructive" });
       return;
     }
-    setSavingCategory(category);
-    setSaveProgress({ done: 0, total: entries.length });
+    if (savingCategories.has(category)) return;
+    setSavingCategories(prev => {
+      const next = new Set(prev);
+      next.add(category);
+      return next;
+    });
+    setSaveProgressMap(prev => ({ ...prev, [category]: { done: 0, total: entries.length } }));
     try {
       const bucket = category === "design" ? "design-images" : "twincode-images";
 
@@ -289,7 +298,7 @@ export default function FileUpload() {
           }
         }
         completed++;
-        setSaveProgress({ done: completed, total: tasks.length });
+        setSaveProgressMap(prev => ({ ...prev, [category]: { done: completed, total: tasks.length } }));
       };
 
       // Worker pool
@@ -361,8 +370,12 @@ export default function FileUpload() {
       console.error("Save images error:", err);
       toast({ title: isKo ? "저장 실패" : "保存失败", variant: "destructive" });
     } finally {
-      setSavingCategory(null);
-      setSaveProgress({ done: 0, total: 0 });
+      setSavingCategories(prev => {
+        const next = new Set(prev);
+        next.delete(category);
+        return next;
+      });
+      setSaveProgressMap(prev => ({ ...prev, [category]: { done: 0, total: 0 } }));
     }
   };
 
@@ -1440,14 +1453,14 @@ export default function FileUpload() {
                           size="sm"
                           variant="default"
                           className="h-6 px-2 text-[10px] gap-1"
-                          disabled={savingCategory === "design"}
+                          disabled={savingCategories.has("design")}
                           onClick={() => saveImagesByCategory("design")}
                         >
-                          {savingCategory === "design"
+                          {savingCategories.has("design")
                             ? <Loader2 className="w-3 h-3 animate-spin" />
                             : <Save className="w-3 h-3" />}
-                          {savingCategory === "design"
-                            ? (isKo ? `저장 중 ${saveProgress.done}/${saveProgress.total}` : `保存中 ${saveProgress.done}/${saveProgress.total}`)
+                          {savingCategories.has("design")
+                            ? (isKo ? `저장 중 ${saveProgressMap.design.done}/${saveProgressMap.design.total}` : `保存中 ${saveProgressMap.design.done}/${saveProgressMap.design.total}`)
                             : (isKo ? "저장" : "保存")}
                         </Button>
                         <Button
@@ -1455,7 +1468,7 @@ export default function FileUpload() {
                           size="sm"
                           variant="outline"
                           className="h-6 px-2 text-[10px] gap-1 text-destructive hover:text-destructive"
-                          disabled={savingCategory === "design"}
+                          disabled={savingCategories.has("design")}
                           onClick={() => {
                             setDesignFiles([]);
                             toast({ title: isKo ? "디자인 이미지 전체 삭제됨" : "已清空设计图片" });
@@ -1567,14 +1580,14 @@ export default function FileUpload() {
                           size="sm"
                           variant="default"
                           className="h-6 px-2 text-[10px] gap-1"
-                          disabled={savingCategory === "twincode"}
+                          disabled={savingCategories.has("twincode")}
                           onClick={() => saveImagesByCategory("twincode")}
                         >
-                          {savingCategory === "twincode"
+                          {savingCategories.has("twincode")
                             ? <Loader2 className="w-3 h-3 animate-spin" />
                             : <Save className="w-3 h-3" />}
-                          {savingCategory === "twincode"
-                            ? (isKo ? `저장 중 ${saveProgress.done}/${saveProgress.total}` : `保存中 ${saveProgress.done}/${saveProgress.total}`)
+                          {savingCategories.has("twincode")
+                            ? (isKo ? `저장 중 ${saveProgressMap.twincode.done}/${saveProgressMap.twincode.total}` : `保存中 ${saveProgressMap.twincode.done}/${saveProgressMap.twincode.total}`)
                             : (isKo ? "저장" : "保存")}
                         </Button>
                         <Button
@@ -1582,7 +1595,7 @@ export default function FileUpload() {
                           size="sm"
                           variant="outline"
                           className="h-6 px-2 text-[10px] gap-1 text-destructive hover:text-destructive"
-                          disabled={savingCategory === "twincode"}
+                          disabled={savingCategories.has("twincode")}
                           onClick={() => {
                             setTwincodeFiles([]);
                             toast({ title: isKo ? "트윈코드 이미지 전체 삭제됨" : "已清空TwinCode图片" });
