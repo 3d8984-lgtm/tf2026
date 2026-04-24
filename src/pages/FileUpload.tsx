@@ -314,17 +314,11 @@ export default function FileUpload() {
         }
       }
 
-      // Update upload_history counts (parallel)
+      // Overwrite upload_history count with the latest value (no accumulation)
       const countCol = category === "design" ? "design_image_count" : "twincode_image_count";
       await Promise.all(
         [...historyAdds.entries()].map(async ([historyId, add]) => {
-          const { data: cur } = await (supabase
-            .from("upload_history")
-            .select(countCol) as any)
-            .eq("id", historyId)
-            .single();
-          const newCount = ((cur as any)?.[countCol] || 0) + add;
-          await (supabase.from("upload_history").update({ [countCol]: newCount } as any) as any).eq("id", historyId);
+          await (supabase.from("upload_history").update({ [countCol]: add } as any) as any).eq("id", historyId);
         })
       );
 
