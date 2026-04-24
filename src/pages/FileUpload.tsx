@@ -514,21 +514,22 @@ export default function FileUpload() {
     { col: "A", category: isKo ? "주문확인" : "订单确认", key: "work_order_no", label: isKo ? "작업지시번호" : "作业指示编号", desc: isKo ? "YYYYMMDD-N 형식의 고유 작업지시 번호" : "YYYYMMDD-N格式的唯一作业指示编号" },
     { col: "B", category: isKo ? "주문확인" : "订单确认", key: "order_no", label: isKo ? "주문번호" : "订单号", desc: isKo ? "TWINMETA 사이트에서 발급된 주문 번호" : "TWINMETA站点发放的订单号" },
     { col: "C", category: isKo ? "주문확인" : "订单确认", key: "project_deadline", label: isKo ? "납기 발송일" : "交期发货日", desc: isKo ? "주문 건의 발송 마감일 (YYYY-MM-DD)" : "订单的发货截止日期 (YYYY-MM-DD)" },
-    { col: "D", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_serial", label: isKo ? "티셔츠 일련번호" : "T恤序列号", desc: isKo ? "개별 티셔츠 고유 일련번호" : "单件T恤唯一序列号" },
-    { col: "E", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_type", label: isKo ? "티셔츠 종류" : "T恤种类", desc: isKo ? "티셔츠 제품 유형 구분" : "T恤产品类型区분" },
-    { col: "F", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_color", label: isKo ? "티셔츠 컬러" : "T恤颜色", desc: isKo ? "티셔츠 색상 코드 또는 명칭" : "T恤颜色代码或名称" },
-    { col: "G", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_size", label: isKo ? "티셔츠 사이즈" : "T恤尺码", desc: isKo ? "티셔츠 사이즈 (S/M/L/XL 등)" : "T恤尺码 (S/M/L/XL等)" },
-    { col: "H", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "silicon_qr", label: isKo ? "실리콘 마크QR값" : "硅胶标记QR值", desc: isKo ? "실리콘 마크에 인쇄된 QR 코드 값" : "硅胶标记上印刷的QR码值" },
-    { col: "I", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "design_qr", label: isKo ? "디자인QR값" : "设计QR值", desc: isKo ? "디자인 식별용 QR 코드 값" : "设计识别用QR码值" },
-    { col: "J", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "hologram_qr", label: isKo ? "홀로그램QR값" : "全息QR值", desc: isKo ? "홀로그램 스티커의 QR 코드 값" : "全息贴纸的QR码值" },
-    { col: "K", category: isKo ? "카드 포장용" : "卡片包装用", key: "card_serial", label: isKo ? "카드 일련번호" : "卡片序列号", desc: isKo ? "개별 카드 고유 일련번호" : "单张卡片唯一序列号" },
-    { col: "L", category: isKo ? "카드 포장용" : "卡片包装用", key: "card_grade", label: isKo ? "카드 등급" : "卡片等级", desc: isKo ? "카드 품질 등급 (S/A/B 등)" : "卡片品质等级 (S/A/B等)" },
-    { col: "M", category: isKo ? "카드 포장용" : "卡片包装用", key: "card_barcode", label: isKo ? "카드 바코드값" : "卡片条码值", desc: isKo ? "카드에 인쇄된 바코드 값" : "卡片上印刷的条码值" },
-    { col: "N", category: isKo ? "택배송장정보" : "快递面单信息", key: "country_code", label: isKo ? "국가기호" : "国家代码", desc: isKo ? "배송 국가 코드 (US, KR 등)" : "配送国家代码 (US, KR等)" },
-    { col: "O", category: isKo ? "택배송장정보" : "快递面单信息", key: "recipient", label: isKo ? "수취인명" : "收件人", desc: isKo ? "택배 수취인(트윈커) 이름" : "快递收件人(Twinker)姓名" },
-    { col: "P", category: isKo ? "택배송장정보" : "快递面单信息", key: "phone", label: isKo ? "연락처" : "联系方式", desc: isKo ? "수취인 연락처 전화번호" : "收件人联系电话" },
-    { col: "Q", category: isKo ? "택배송장정보" : "快递面单信息", key: "address", label: isKo ? "주소" : "地址", desc: isKo ? "배송지 상세 주소" : "配送地址详情" },
-    { col: "R", category: isKo ? "택배송장정보" : "快递面单信息", key: "zipcode", label: isKo ? "우편번호" : "邮编", desc: isKo ? "배송지 우편번호 (ZIP Code)" : "配送地邮编 (ZIP Code)" },
+    { col: "D", category: isKo ? "주문확인" : "订单确认", key: "twinker", label: isKo ? "트윈커" : "Twinker", desc: isKo ? "주문자(트윈커) 식별자 또는 닉네임" : "下单人(Twinker)标识或昵称" },
+    { col: "E", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_serial", label: isKo ? "티셔츠 일련번호" : "T恤序列号", desc: isKo ? "개별 티셔츠 고유 일련번호" : "单件T恤唯一序列号" },
+    { col: "F", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_type", label: isKo ? "티셔츠 종류" : "T恤种类", desc: isKo ? "티셔츠 제품 유형 구분" : "T恤产品类型区分" },
+    { col: "G", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_color", label: isKo ? "티셔츠 컬러" : "T恤颜色", desc: isKo ? "티셔츠 색상 코드 또는 명칭" : "T恤颜色代码或名称" },
+    { col: "H", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_size", label: isKo ? "티셔츠 사이즈" : "T恤尺码", desc: isKo ? "티셔츠 사이즈 (S/M/L/XL 등)" : "T恤尺码 (S/M/L/XL等)" },
+    { col: "I", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "silicon_qr", label: isKo ? "실리콘 마크QR값" : "硅胶标记QR值", desc: isKo ? "실리콘 마크에 인쇄된 QR 코드 값" : "硅胶标记上印刷的QR码值" },
+    { col: "J", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "design_qr", label: isKo ? "디자인QR값" : "设计QR值", desc: isKo ? "디자인 식별용 QR 코드 값" : "设计识别用QR码值" },
+    { col: "K", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "hologram_qr", label: isKo ? "홀로그램QR값" : "全息QR值", desc: isKo ? "홀로그램 스티커의 QR 코드 값" : "全息贴纸的QR码值" },
+    { col: "L", category: isKo ? "카드 포장용" : "卡片包装用", key: "card_serial", label: isKo ? "카드 일련번호" : "卡片序列号", desc: isKo ? "개별 카드 고유 일련번호" : "单张卡片唯一序列号" },
+    { col: "M", category: isKo ? "카드 포장용" : "卡片包装用", key: "card_grade", label: isKo ? "카드 등급" : "卡片等级", desc: isKo ? "카드 품질 등급 (S/A/B 등)" : "卡片品质等级 (S/A/B等)" },
+    { col: "N", category: isKo ? "카드 포장용" : "卡片包装用", key: "card_barcode", label: isKo ? "카드 바코드값" : "卡片条码值", desc: isKo ? "카드에 인쇄된 바코드 값" : "卡片上印刷的条码值" },
+    { col: "O", category: isKo ? "택배송장정보" : "快递面单信息", key: "country_code", label: isKo ? "국가기호" : "国家代码", desc: isKo ? "배송 국가 코드 (US, KR 등)" : "配送国家代码 (US, KR等)" },
+    { col: "P", category: isKo ? "택배송장정보" : "快递面单信息", key: "recipient", label: isKo ? "수취인명" : "收件人", desc: isKo ? "택배 수취인 이름 (없을 시 트윈커 사용)" : "快递收件人姓名 (若无则使用Twinker)" },
+    { col: "Q", category: isKo ? "택배송장정보" : "快递面单信息", key: "phone", label: isKo ? "연락처" : "联系方式", desc: isKo ? "수취인 연락처 전화번호" : "收件人联系电话" },
+    { col: "R", category: isKo ? "택배송장정보" : "快递面单信息", key: "address", label: isKo ? "주소" : "地址", desc: isKo ? "배송지 상세 주소" : "配送地址详情" },
+    { col: "S", category: isKo ? "택배송장정보" : "快递面单信息", key: "zipcode", label: isKo ? "우편번호" : "邮编", desc: isKo ? "배송지 우편번호 (ZIP Code)" : "配送地邮编 (ZIP Code)" },
   ];
 
   const processFile = useCallback((file: File) => {
@@ -586,10 +587,11 @@ export default function FileUpload() {
       // A(0): work_order_no → external_order_id
       // B(1): order_no → product_code
       // C(2): project_deadline → project_completed_at
-      // D(3): tshirt_serial, E(4): tshirt_type, F(5): tshirt_color, G(6): tshirt_size
-      // H(7): silicon_qr, I(8): design_qr, J(9): hologram_qr
-      // K(10): card_serial, L(11): card_grade, M(12): card_barcode
-      // N(13): country_code, O(14): recipient, P(15): phone, Q(16): address, R(17): zipcode
+      // D(3): twinker (recipient_name fallback)
+      // E(4): tshirt_serial, F(5): tshirt_type, G(6): tshirt_color, H(7): tshirt_size
+      // I(8): silicon_qr, J(9): design_qr, K(10): hologram_qr
+      // L(11): card_serial, M(12): card_grade, N(13): card_barcode
+      // O(14): country_code, P(15): recipient, Q(16): phone, R(17): address, S(18): zipcode
 
       // Group rows by external_order_id (work order no) since multiple rows can share the same order
       const orderMap = new Map<string, {
@@ -627,16 +629,17 @@ export default function FileUpload() {
         }
 
         const itemData = {
-          tshirt_serial: str(3),
-          tshirt_type: str(4),
-          tshirt_color: str(5),
-          tshirt_size: str(6),
-          silicon_qr: str(7),
-          design_qr: str(8),
-          hologram_qr: str(9),
-          card_serial: str(10),
-          card_grade: str(11),
-          card_barcode: str(12),
+          twinker: str(3),
+          tshirt_serial: str(4),
+          tshirt_type: str(5),
+          tshirt_color: str(6),
+          tshirt_size: str(7),
+          silicon_qr: str(8),
+          design_qr: str(9),
+          hologram_qr: str(10),
+          card_serial: str(11),
+          card_grade: str(12),
+          card_barcode: str(13),
         };
 
         if (orderMap.has(extId)) {
@@ -645,18 +648,21 @@ export default function FileUpload() {
           // Append item to items array in source_data
           ((existing.source_data as { items: Record<string, string>[] }).items).push(itemData);
         } else {
+          // Twinker (D, idx=3) preferred for recipient_name; fall back to recipient (P, idx=15)
+          const twinkerName = str(3);
+          const recipientName = str(15);
           orderMap.set(extId, {
             external_order_id: extId,
             product_code: str(1) || extId,
-            design_code: str(8) || null,
+            design_code: str(9) || null,
             quantity: 1,
-            recipient_name: str(14) || "N/A",
-            recipient_phone: str(15) || null,
-            shipping_address: str(16) || "N/A",
+            recipient_name: twinkerName || recipientName || "N/A",
+            recipient_phone: str(16) || null,
+            shipping_address: str(17) || "N/A",
             shipping_city: null,
             shipping_state: null,
-            shipping_zip: str(17) || null,
-            shipping_country: str(13) || "US",
+            shipping_zip: str(18) || null,
+            shipping_country: str(14) || "US",
             project_completed_at: projectDate,
             source_data: { items: [itemData] },
           });
