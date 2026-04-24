@@ -1989,7 +1989,7 @@ export default function FileUpload() {
                                       size="sm"
                                       className="h-8 px-2 gap-1.5 text-xs text-destructive border-destructive/30 hover:bg-destructive/5 hover:text-destructive"
                                       onClick={async () => {
-                                        await removeOrderImagesForHistory(h.id);
+                                        const summary = await removeOrderImagesForHistory(h.id);
                                         if (h.file_path) {
                                           await supabase.storage.from("upload-files").remove([h.file_path]);
                                         }
@@ -1998,7 +1998,12 @@ export default function FileUpload() {
                                         }
                                         await supabase.from("upload_history").delete().eq("id", h.id);
                                         queryClient.invalidateQueries({ queryKey: ["upload_history"] });
-                                        toast({ title: isKo ? "삭제 완료" : "已删除" });
+                                        const hasFailures = summary.design.failed + summary.twincode.failed + summary.errors.length > 0;
+                                        toast({
+                                          title: isKo ? "삭제 완료" : "已删除",
+                                          description: formatRemovalSummary(summary),
+                                          variant: hasFailures ? "destructive" : "default",
+                                        });
                                       }}
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
