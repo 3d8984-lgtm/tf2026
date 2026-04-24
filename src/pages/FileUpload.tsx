@@ -69,6 +69,7 @@ export default function FileUpload() {
   const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
   const [unlinkedIds, setUnlinkedIds] = useState<Set<string>>(new Set());
   const [saved, setSaved] = useState(false);
+  const [appliedFolders, setAppliedFolders] = useState<Set<string>>(new Set());
   const queryClient = useQueryClient();
 
   // Logo upload handler for history entries
@@ -1097,16 +1098,48 @@ export default function FileUpload() {
 
                   return (
                     <div className="space-y-3">
-                      <div className="flex items-center gap-4 text-xs">
-                        <span className="flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                          {isKo ? `매칭됨: ${matched.length}건` : `已匹配: ${matched.length}条`}
-                        </span>
-                        {unmatched.length > 0 && (
-                          <span className="flex items-center gap-1 text-destructive">
-                            <AlertCircle className="w-3.5 h-3.5" />
-                            {isKo ? `미매칭: ${unmatched.length}건` : `未匹配: ${unmatched.length}条`}
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-4 text-xs">
+                          <span className="flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                            {isKo ? `매칭됨: ${matched.length}건` : `已匹配: ${matched.length}条`}
                           </span>
+                          {unmatched.length > 0 && (
+                            <span className="flex items-center gap-1 text-destructive">
+                              <AlertCircle className="w-3.5 h-3.5" />
+                              {isKo ? `미매칭: ${unmatched.length}건` : `未匹配: ${unmatched.length}条`}
+                            </span>
+                          )}
+                          {appliedFolders.size > 0 && (
+                            <span className="flex items-center gap-1 text-primary">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              {isKo ? `적용됨: ${appliedFolders.size}건` : `已应用: ${appliedFolders.size}条`}
+                            </span>
+                          )}
+                        </div>
+                        {matched.length > 0 && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5 text-xs h-7"
+                            onClick={() => {
+                              const next = new Set(appliedFolders);
+                              const allApplied = matched.every(f => next.has(f));
+                              if (allApplied) {
+                                matched.forEach(f => next.delete(f));
+                                toast({ title: isKo ? "전체 적용 해제됨" : "已取消全部应用" });
+                              } else {
+                                matched.forEach(f => next.add(f));
+                                toast({ title: isKo ? `${matched.length}건 주문에 적용됨` : `已应用到${matched.length}条订单` });
+                              }
+                              setAppliedFolders(next);
+                            }}
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            {matched.every(f => appliedFolders.has(f))
+                              ? (isKo ? "전체 해제" : "全部取消")
+                              : (isKo ? "전체 주문에 적용" : "应用到全部订单")}
+                          </Button>
                         )}
                       </div>
                       <div className="rounded-lg border overflow-hidden">
@@ -1117,22 +1150,58 @@ export default function FileUpload() {
                               <th className="px-3 py-1.5 text-center font-medium text-muted-foreground">{isKo ? "디자인" : "设计"}</th>
                               <th className="px-3 py-1.5 text-center font-medium text-muted-foreground">{isKo ? "트윈코드" : "TwinCode"}</th>
                               <th className="px-3 py-1.5 text-center font-medium text-muted-foreground">{isKo ? "상태" : "状态"}</th>
+                              <th className="px-3 py-1.5 text-center font-medium text-muted-foreground">{isKo ? "적용" : "应用"}</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {[...matched, ...unmatched].map(folder => (
-                              <tr key={folder} className="border-t border-border/40">
-                                <td className="px-3 py-1.5 font-medium">{folder}</td>
-                                <td className="px-3 py-1.5 text-center tabular-nums">{designByFolder.get(folder)?.length || 0}</td>
-                                <td className="px-3 py-1.5 text-center tabular-nums">{twincodeByFolder.get(folder)?.length || 0}</td>
-                                <td className="px-3 py-1.5 text-center">
-                                  {orderIds.has(folder)
-                                    ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mx-auto" />
-                                    : <span className="text-destructive text-[10px]">{isKo ? "주문 없음" : "无订单"}</span>
-                                  }
-                                </td>
-                              </tr>
-                            ))}
+                            {[...matched, ...unmatched].map(folder => {
+                              const isMatched = orderIds.has(folder);
+                              const isApplied = appliedFolders.has(folder);
+                              return (
+                                <tr key={folder} className="border-t border-border/40">
+                                  <td className="px-3 py-1.5 font-medium">{folder}</td>
+                                  <td className="px-3 py-1.5 text-center tabular-nums">{designByFolder.get(folder)?.length || 0}</td>
+                                  <td className="px-3 py-1.5 text-center tabular-nums">{twincodeByFolder.get(folder)?.length || 0}</td>
+                                  <td className="px-3 py-1.5 text-center">
+                                    {isMatched
+                                      ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mx-auto" />
+                                      : <span className="text-destructive text-[10px]">{isKo ? "주문 없음" : "无订单"}</span>
+                                    }
+                                  </td>
+                                  <td className="px-3 py-1.5 text-center">
+                                    {isMatched ? (
+                                      <Button
+                                        size="sm"
+                                        variant={isApplied ? "default" : "outline"}
+                                        className="h-6 px-2 text-[10px] gap-1"
+                                        onClick={() => {
+                                          const next = new Set(appliedFolders);
+                                          if (isApplied) {
+                                            next.delete(folder);
+                                            toast({ title: isKo ? `${folder} 적용 해제됨` : `${folder} 已取消应用` });
+                                          } else {
+                                            next.add(folder);
+                                            toast({ title: isKo ? `${folder} 주문에 적용됨` : `已应用到 ${folder}` });
+                                          }
+                                          setAppliedFolders(next);
+                                        }}
+                                      >
+                                        {isApplied ? (
+                                          <>
+                                            <CheckCircle2 className="w-3 h-3" />
+                                            {isKo ? "적용됨" : "已应用"}
+                                          </>
+                                        ) : (
+                                          isKo ? "적용" : "应用"
+                                        )}
+                                      </Button>
+                                    ) : (
+                                      <span className="text-muted-foreground text-[10px]">—</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
