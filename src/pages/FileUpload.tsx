@@ -1368,16 +1368,20 @@ export default function FileUpload() {
                                         size="sm"
                                         variant={isApplied ? "default" : "outline"}
                                         className="h-6 px-2 text-[10px] gap-1"
-                                        onClick={() => {
+                                        disabled={applyingFolders}
+                                        onClick={async () => {
                                           const next = new Set(appliedFolders);
                                           if (isApplied) {
                                             next.delete(folder);
+                                            setAppliedFolders(next);
                                             toast({ title: isKo ? `${folder} 적용 해제됨` : `${folder} 已取消应用` });
                                           } else {
-                                            next.add(folder);
-                                            toast({ title: isKo ? `${folder} 주문에 적용됨` : `已应用到 ${folder}` });
+                                            const ok = await applyFoldersToOrders([folder], designByFolder, twincodeByFolder);
+                                            if (ok) {
+                                              next.add(folder);
+                                              setAppliedFolders(next);
+                                            }
                                           }
-                                          setAppliedFolders(next);
                                         }}
                                       >
                                         {isApplied ? (
