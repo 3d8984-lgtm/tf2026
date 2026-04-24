@@ -1453,14 +1453,14 @@ export default function FileUpload() {
                           size="sm"
                           variant="default"
                           className="h-6 px-2 text-[10px] gap-1"
-                          disabled={savingCategory === "design"}
+                          disabled={savingCategories.has("design")}
                           onClick={() => saveImagesByCategory("design")}
                         >
-                          {savingCategory === "design"
+                          {savingCategories.has("design")
                             ? <Loader2 className="w-3 h-3 animate-spin" />
                             : <Save className="w-3 h-3" />}
-                          {savingCategory === "design"
-                            ? (isKo ? `저장 중 ${saveProgress.done}/${saveProgress.total}` : `保存中 ${saveProgress.done}/${saveProgress.total}`)
+                          {savingCategories.has("design")
+                            ? (isKo ? `저장 중 ${saveProgressMap.design.done}/${saveProgressMap.design.total}` : `保存中 ${saveProgressMap.design.done}/${saveProgressMap.design.total}`)
                             : (isKo ? "저장" : "保存")}
                         </Button>
                         <Button
@@ -1468,7 +1468,7 @@ export default function FileUpload() {
                           size="sm"
                           variant="outline"
                           className="h-6 px-2 text-[10px] gap-1 text-destructive hover:text-destructive"
-                          disabled={savingCategory === "design"}
+                          disabled={savingCategories.has("design")}
                           onClick={() => {
                             setDesignFiles([]);
                             toast({ title: isKo ? "디자인 이미지 전체 삭제됨" : "已清空设计图片" });
