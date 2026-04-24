@@ -214,6 +214,7 @@ export default function FileUpload() {
 
   // Save a single category (design or twincode) to storage and update history counts
   const [savingCategory, setSavingCategory] = useState<"design" | "twincode" | null>(null);
+  const [saveProgress, setSaveProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
   const saveImagesByCategory = async (category: "design" | "twincode") => {
     const entries = category === "design" ? designFiles : twincodeFiles;
     if (entries.length === 0) {
@@ -221,6 +222,7 @@ export default function FileUpload() {
       return;
     }
     setSavingCategory(category);
+    setSaveProgress({ done: 0, total: entries.length });
     try {
       const bucket = category === "design" ? "design-images" : "twincode-images";
 
@@ -248,46 +250,79 @@ export default function FileUpload() {
         orderRows = data || [];
       }
 
-      let uploaded = 0;
-      let failed = 0;
-      const historyAdds = new Map<string, number>();
-
-      // Upload folder-grouped files into folder/ subpath
+      // Build full upload task list
+      type Task = { folder: string | null; entry: ImageFileEntry; storagePath: string };
+      const tasks: Task[] = [];
       for (const [folder, items] of byFolder.entries()) {
         for (const entry of items) {
           const nameWithoutExt = entry.file.name.replace(/\.[^.]+$/, "");
           const ext = entry.file.name.split(".").pop() || "png";
-          const storagePath = `${folder}/${nameWithoutExt}.${ext}`;
-          const { error: upErr } = await supabase.storage.from(bucket).upload(storagePath, entry.file, { upsert: true });
-          if (upErr) failed++; else uploaded++;
+          tasks.push({ folder, entry, storagePath: `${folder}/${nameWithoutExt}.${ext}` });
         }
+      }
+      const ts = Date.now();
+      noFolder.forEach((entry, idx) => {
+        const nameWithoutExt = entry.file.name.replace(/\.[^.]+$/, "");
+        const ext = entry.file.name.split(".").pop() || "png";
+        tasks.push({ folder: null, entry, storagePath: `_unassigned/${ts}-${idx}-${nameWithoutExt}.${ext}` });
+      });
+
+      // Parallel upload with concurrency limit
+      const CONCURRENCY = 8;
+      let uploaded = 0;
+      let failed = 0;
+      let completed = 0;
+      const folderSuccessCounts = new Map<string, number>();
+
+      const runTask = async (task: Task) => {
+        const { error: upErr } = await supabase.storage
+          .from(bucket)
+          .upload(task.storagePath, task.entry.file, { upsert: true });
+        if (upErr) {
+          failed++;
+        } else {
+          uploaded++;
+          if (task.folder) {
+            folderSuccessCounts.set(task.folder, (folderSuccessCounts.get(task.folder) || 0) + 1);
+          }
+        }
+        completed++;
+        setSaveProgress({ done: completed, total: tasks.length });
+      };
+
+      // Worker pool
+      let cursor = 0;
+      const workers = Array.from({ length: Math.min(CONCURRENCY, tasks.length) }, async () => {
+        while (cursor < tasks.length) {
+          const idx = cursor++;
+          await runTask(tasks[idx]);
+        }
+      });
+      await Promise.all(workers);
+
+      // Aggregate per upload_history
+      const historyAdds = new Map<string, number>();
+      for (const [folder, count] of folderSuccessCounts.entries()) {
         const order = orderRows.find(o => o.external_order_id === folder);
         const historyId = order?.upload_history_id;
         if (historyId) {
-          historyAdds.set(historyId, (historyAdds.get(historyId) || 0) + items.length);
+          historyAdds.set(historyId, (historyAdds.get(historyId) || 0) + count);
         }
       }
 
-      // Upload non-folder files into _unassigned/
-      for (const entry of noFolder) {
-        const nameWithoutExt = entry.file.name.replace(/\.[^.]+$/, "");
-        const ext = entry.file.name.split(".").pop() || "png";
-        const storagePath = `_unassigned/${Date.now()}-${nameWithoutExt}.${ext}`;
-        const { error: upErr } = await supabase.storage.from(bucket).upload(storagePath, entry.file, { upsert: true });
-        if (upErr) failed++; else uploaded++;
-      }
-
-      // Update upload_history counts
+      // Update upload_history counts (parallel)
       const countCol = category === "design" ? "design_image_count" : "twincode_image_count";
-      for (const [historyId, add] of historyAdds.entries()) {
-        const { data: cur } = await (supabase
-          .from("upload_history")
-          .select(countCol) as any)
-          .eq("id", historyId)
-          .single();
-        const newCount = ((cur as any)?.[countCol] || 0) + add;
-        await (supabase.from("upload_history").update({ [countCol]: newCount } as any) as any).eq("id", historyId);
-      }
+      await Promise.all(
+        [...historyAdds.entries()].map(async ([historyId, add]) => {
+          const { data: cur } = await (supabase
+            .from("upload_history")
+            .select(countCol) as any)
+            .eq("id", historyId)
+            .single();
+          const newCount = ((cur as any)?.[countCol] || 0) + add;
+          await (supabase.from("upload_history").update({ [countCol]: newCount } as any) as any).eq("id", historyId);
+        })
+      );
 
       queryClient.invalidateQueries({ queryKey: ["upload_history"] });
 
@@ -318,8 +353,10 @@ export default function FileUpload() {
       toast({ title: isKo ? "저장 실패" : "保存失败", variant: "destructive" });
     } finally {
       setSavingCategory(null);
+      setSaveProgress({ done: 0, total: 0 });
     }
   };
+
 
   // Logo upload handler for history entries
   const handleHistoryLogoUpload = async (historyId: string, file: File, oldLogoPath: string | null) => {
@@ -1245,7 +1282,9 @@ export default function FileUpload() {
                           {savingCategory === "design"
                             ? <Loader2 className="w-3 h-3 animate-spin" />
                             : <Save className="w-3 h-3" />}
-                          {isKo ? "저장" : "保存"}
+                          {savingCategory === "design"
+                            ? (isKo ? `저장 중 ${saveProgress.done}/${saveProgress.total}` : `保存中 ${saveProgress.done}/${saveProgress.total}`)
+                            : (isKo ? "저장" : "保存")}
                         </Button>
                         <Button
                           type="button"
@@ -1370,7 +1409,9 @@ export default function FileUpload() {
                           {savingCategory === "twincode"
                             ? <Loader2 className="w-3 h-3 animate-spin" />
                             : <Save className="w-3 h-3" />}
-                          {isKo ? "저장" : "保存"}
+                          {savingCategory === "twincode"
+                            ? (isKo ? `저장 중 ${saveProgress.done}/${saveProgress.total}` : `保存中 ${saveProgress.done}/${saveProgress.total}`)
+                            : (isKo ? "저장" : "保存")}
                         </Button>
                         <Button
                           type="button"
