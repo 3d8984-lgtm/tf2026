@@ -612,12 +612,20 @@ export default function FileUpload() {
   // Build a localized toast description from the removal summary
   const formatRemovalSummary = (s: ImageRemovalSummary) => {
     if (isKo) {
-      if (s.foldersChecked === 0) return "연결된 주문 폴더 없음";
-      const base = `폴더 ${s.foldersExisting}/${s.foldersChecked}개 확인 · 디자인 ${s.design.removed}건${s.design.failed ? `(실패 ${s.design.failed})` : ""} · 트윈코드 ${s.twincode.removed}건${s.twincode.failed ? `(실패 ${s.twincode.failed})` : ""}`;
+      const dataPart = `주문 ${s.ordersDeleted} · 공정 ${s.trackingDeleted} · 배송 ${s.shipmentsDeleted}`;
+      if (s.foldersChecked === 0) {
+        const base = `연결된 주문 폴더 없음 · ${dataPart}`;
+        return s.errors.length > 0 ? `${base} · 오류 ${s.errors.length}건` : base;
+      }
+      const base = `폴더 ${s.foldersExisting}/${s.foldersChecked}개 · 디자인 ${s.design.removed}${s.design.failed ? `(실패 ${s.design.failed})` : ""} · 트윈코드 ${s.twincode.removed}${s.twincode.failed ? `(실패 ${s.twincode.failed})` : ""} · ${dataPart}`;
       return s.errors.length > 0 ? `${base} · 오류 ${s.errors.length}건` : base;
     }
-    if (s.foldersChecked === 0) return "无关联订单文件夹";
-    const base = `文件夹 ${s.foldersExisting}/${s.foldersChecked} · 设计 ${s.design.removed}${s.design.failed ? `(失败 ${s.design.failed})` : ""} · 双码 ${s.twincode.removed}${s.twincode.failed ? `(失败 ${s.twincode.failed})` : ""}`;
+    const dataPart = `订单 ${s.ordersDeleted} · 工序 ${s.trackingDeleted} · 配送 ${s.shipmentsDeleted}`;
+    if (s.foldersChecked === 0) {
+      const base = `无关联订单文件夹 · ${dataPart}`;
+      return s.errors.length > 0 ? `${base} · 错误 ${s.errors.length}` : base;
+    }
+    const base = `文件夹 ${s.foldersExisting}/${s.foldersChecked} · 设计 ${s.design.removed}${s.design.failed ? `(失败 ${s.design.failed})` : ""} · 双码 ${s.twincode.removed}${s.twincode.failed ? `(失败 ${s.twincode.failed})` : ""} · ${dataPart}`;
     return s.errors.length > 0 ? `${base} · 错误 ${s.errors.length}` : base;
   };
 
