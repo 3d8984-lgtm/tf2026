@@ -536,33 +536,72 @@ export default function FileUpload() {
         { bucket: "twincode-images", key: "twincode" as const },
       ];
 
-      for (const { bucket, key } of bucketKeys) {
-        for (const folder of folders) {
-          const { data: files, error: listErr } = await supabase.storage
-            .from(bucket)
-            .list(folder, { limit: 1000 });
-          if (listErr) {
-            summary.errors.push(`${bucket}/${folder}: ${listErr.message}`);
-            continue;
-          }
-          if (files && files.length > 0) {
-            existingFolders.add(folder);
-            const paths = files.map((f) => `${folder}/${f.name}`);
-            const { data: removed, error: rmErr } = await supabase.storage
+      if (folders.length > 0) {
+        for (const { bucket, key } of bucketKeys) {
+          for (const folder of folders) {
+            const { data: files, error: listErr } = await supabase.storage
               .from(bucket)
-              .remove(paths);
-            if (rmErr) {
-              summary[key].failed += paths.length;
-              summary.errors.push(`${bucket}/${folder}: ${rmErr.message}`);
-            } else {
-              const removedCount = removed?.length ?? paths.length;
-              summary[key].removed += removedCount;
-              summary[key].failed += Math.max(0, paths.length - removedCount);
+              .list(folder, { limit: 1000 });
+            if (listErr) {
+              summary.errors.push(`${bucket}/${folder}: ${listErr.message}`);
+              continue;
+            }
+            if (files && files.length > 0) {
+              existingFolders.add(folder);
+              const paths = files.map((f) => `${folder}/${f.name}`);
+              const { data: removed, error: rmErr } = await supabase.storage
+                .from(bucket)
+                .remove(paths);
+              if (rmErr) {
+                summary[key].failed += paths.length;
+                summary.errors.push(`${bucket}/${folder}: ${rmErr.message}`);
+              } else {
+                const removedCount = removed?.length ?? paths.length;
+                summary[key].removed += removedCount;
+                summary[key].failed += Math.max(0, paths.length - removedCount);
+              }
             }
           }
         }
       }
       summary.foldersExisting = existingFolders.size;
+
+      // Cascade-delete linked DB records so other menus don't show stale data:
+      // production_tracking & shipments first (they reference orders), then orders.
+      if (orderIds.length > 0) {
+        const { data: trkDel, error: trkErr } = await supabase
+          .from("production_tracking")
+          .delete()
+          .in("order_id", orderIds)
+          .select("id");
+        if (trkErr) {
+          summary.errors.push(`production_tracking: ${trkErr.message}`);
+        } else {
+          summary.trackingDeleted = trkDel?.length ?? 0;
+        }
+
+        const { data: shpDel, error: shpErr } = await supabase
+          .from("shipments")
+          .delete()
+          .in("order_id", orderIds)
+          .select("id");
+        if (shpErr) {
+          summary.errors.push(`shipments: ${shpErr.message}`);
+        } else {
+          summary.shipmentsDeleted = shpDel?.length ?? 0;
+        }
+
+        const { data: ordDel, error: ordErr } = await supabase
+          .from("orders")
+          .delete()
+          .in("id", orderIds)
+          .select("id");
+        if (ordErr) {
+          summary.errors.push(`orders: ${ordErr.message}`);
+        } else {
+          summary.ordersDeleted = ordDel?.length ?? 0;
+        }
+      }
     } catch (err: any) {
       console.error("removeOrderImagesForHistory error:", err);
       summary.errors.push(err?.message || String(err));
