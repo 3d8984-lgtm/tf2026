@@ -1356,7 +1356,38 @@ export default function FileUpload() {
                 </div>
                 {twincodeFiles.length > 0 && (
                   <div className="mt-3">
-                    <p className="text-xs font-medium mb-2">{twincodeFiles.length}{isKo ? "개 선택" : "张已选"}</p>
+                    <div className="flex items-center justify-between mb-2 gap-2">
+                      <p className="text-xs font-medium">{twincodeFiles.length}{isKo ? "개 선택" : "张已选"}</p>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="default"
+                          className="h-6 px-2 text-[10px] gap-1"
+                          disabled={savingCategory === "twincode"}
+                          onClick={() => saveImagesByCategory("twincode")}
+                        >
+                          {savingCategory === "twincode"
+                            ? <Loader2 className="w-3 h-3 animate-spin" />
+                            : <Save className="w-3 h-3" />}
+                          {isKo ? "저장" : "保存"}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-6 px-2 text-[10px] gap-1 text-destructive hover:text-destructive"
+                          disabled={savingCategory === "twincode"}
+                          onClick={() => {
+                            setTwincodeFiles([]);
+                            toast({ title: isKo ? "트윈코드 이미지 전체 삭제됨" : "已清空TwinCode图片" });
+                          }}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          {isKo ? "전체 삭제" : "全部删除"}
+                        </Button>
+                      </div>
+                    </div>
                     <div className="flex flex-wrap gap-1.5 max-h-[304px] overflow-y-auto pr-1">
                       {twincodeFiles.map((f, i) => (
                         <div key={i} className="relative group">
