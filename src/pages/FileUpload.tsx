@@ -1603,17 +1603,37 @@ export default function FileUpload() {
                     </Button>
                   )}
                   {!saved && (
-                    <Button
-                      size="sm"
-                      className="gap-1.5"
-                      onClick={handleSaveToDb}
-                      disabled={saving || !parsedRows.length}
-                    >
-                      {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                      {saving
-                        ? (isKo ? "저장 중..." : "保存中...")
-                        : (isKo ? `${parsedRows.length}건 저장` : `保存${parsedRows.length}条`)}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={handleSaveToDb}
+                        disabled={saving || !parsedRows.length}
+                      >
+                        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        {saving
+                          ? (isKo ? "저장 중..." : "保存中...")
+                          : (isKo ? `${parsedRows.length}건 저장` : `保存${parsedRows.length}条`)}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/5"
+                        onClick={() => {
+                          setUploadResult(null);
+                          setParsedRows([]);
+                          setSaved(false);
+                          toast({
+                            title: isKo ? "취소되었습니다" : "已取消",
+                            description: isKo ? "업로드한 데이터를 삭제했습니다." : "已删除上传的数据。",
+                          });
+                        }}
+                        disabled={saving}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        {isKo ? "삭제" : "删除"}
+                      </Button>
+                    </div>
                   )}
                   {saved && (
                     <span className="flex items-center gap-1.5 text-sm text-emerald-500 font-medium">
