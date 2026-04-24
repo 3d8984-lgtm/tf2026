@@ -249,6 +249,8 @@ export default function FileUpload() {
           .in("external_order_id", folders);
         orderRows = data || [];
       }
+      const matchedFolders = new Set(orderRows.map((o: any) => o.external_order_id));
+      const unmatchedFolders = folders.filter(f => !matchedFolders.has(f));
 
       // Build full upload task list
       type Task = { folder: string | null; entry: ImageFileEntry; storagePath: string };
