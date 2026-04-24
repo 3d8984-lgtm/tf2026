@@ -122,7 +122,95 @@ export default function FileUpload() {
   const [unlinkedIds, setUnlinkedIds] = useState<Set<string>>(new Set());
   const [saved, setSaved] = useState(false);
   const [appliedFolders, setAppliedFolders] = useState<Set<string>>(new Set());
+  const [applyingFolders, setApplyingFolders] = useState(false);
   const queryClient = useQueryClient();
+
+  // Apply folders to orders: upload images to storage and update upload_history counts
+  const applyFoldersToOrders = async (
+    folders: string[],
+    designByFolder: Map<string, ImageFileEntry[]>,
+    twincodeByFolder: Map<string, ImageFileEntry[]>,
+  ): Promise<boolean> => {
+    if (folders.length === 0) return false;
+    setApplyingFolders(true);
+    try {
+      // Find orders matching these external_order_id and their upload_history_id
+      const { data: orderRows, error: ordErr } = await (supabase
+        .from("orders")
+        .select("external_order_id,upload_history_id") as any)
+        .in("external_order_id", folders);
+      if (ordErr) throw ordErr;
+
+      // Group additions per upload_history_id
+      const historyAdds = new Map<string, { design: number; twincode: number }>();
+      let designUploaded = 0;
+      let twincodeUploaded = 0;
+
+      for (const folder of folders) {
+        const designEntries = designByFolder.get(folder) || [];
+        const twincodeEntries = twincodeByFolder.get(folder) || [];
+
+        // Upload design images
+        for (const entry of designEntries) {
+          const nameWithoutExt = entry.file.name.replace(/\.[^.]+$/, "");
+          const ext = entry.file.name.split(".").pop() || "png";
+          const storagePath = `${folder}/${nameWithoutExt}.${ext}`;
+          const { error: upErr } = await supabase.storage.from("design-images").upload(storagePath, entry.file, { upsert: true });
+          if (!upErr) designUploaded++;
+        }
+        // Upload twincode images
+        for (const entry of twincodeEntries) {
+          const nameWithoutExt = entry.file.name.replace(/\.[^.]+$/, "");
+          const ext = entry.file.name.split(".").pop() || "png";
+          const storagePath = `${folder}/${nameWithoutExt}.${ext}`;
+          const { error: upErr } = await supabase.storage.from("twincode-images").upload(storagePath, entry.file, { upsert: true });
+          if (!upErr) twincodeUploaded++;
+        }
+
+        // Track per-history counts
+        const order = (orderRows || []).find((o: any) => o.external_order_id === folder);
+        const historyId = order?.upload_history_id;
+        if (historyId) {
+          const cur = historyAdds.get(historyId) || { design: 0, twincode: 0 };
+          cur.design += designEntries.length;
+          cur.twincode += twincodeEntries.length;
+          historyAdds.set(historyId, cur);
+        }
+      }
+
+      // Update upload_history counts (read current → add → write)
+      for (const [historyId, add] of historyAdds.entries()) {
+        const { data: cur } = await (supabase
+          .from("upload_history")
+          .select("design_image_count,twincode_image_count") as any)
+          .eq("id", historyId)
+          .single();
+        const newDesign = (cur?.design_image_count || 0) + add.design;
+        const newTwincode = (cur?.twincode_image_count || 0) + add.twincode;
+        await (supabase.from("upload_history").update({
+          design_image_count: newDesign,
+          twincode_image_count: newTwincode,
+        } as any) as any).eq("id", historyId);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["upload_history"] });
+      toast({
+        title: isKo
+          ? `${folders.length}건 적용 완료`
+          : `已应用 ${folders.length} 条`,
+        description: isKo
+          ? `디자인 ${designUploaded}장, 트윈코드 ${twincodeUploaded}장 업로드됨`
+          : `设计 ${designUploaded} 张, TwinCode ${twincodeUploaded} 张已上传`,
+      });
+      return true;
+    } catch (err) {
+      console.error("Apply folders error:", err);
+      toast({ title: isKo ? "적용 실패" : "应用失败", variant: "destructive" });
+      return false;
+    } finally {
+      setApplyingFolders(false);
+    }
+  };
 
   // Logo upload handler for history entries
   const handleHistoryLogoUpload = async (historyId: string, file: File, oldLogoPath: string | null) => {
@@ -1223,17 +1311,22 @@ export default function FileUpload() {
                             size="sm"
                             variant="outline"
                             className="gap-1.5 text-xs h-7"
-                            onClick={() => {
+                            disabled={applyingFolders}
+                            onClick={async () => {
                               const next = new Set(appliedFolders);
                               const allApplied = matched.every(f => next.has(f));
                               if (allApplied) {
                                 matched.forEach(f => next.delete(f));
+                                setAppliedFolders(next);
                                 toast({ title: isKo ? "전체 적용 해제됨" : "已取消全部应用" });
                               } else {
-                                matched.forEach(f => next.add(f));
-                                toast({ title: isKo ? `${matched.length}건 주문에 적용됨` : `已应用到${matched.length}条订单` });
+                                const toApply = matched.filter(f => !next.has(f));
+                                const ok = await applyFoldersToOrders(toApply, designByFolder, twincodeByFolder);
+                                if (ok) {
+                                  toApply.forEach(f => next.add(f));
+                                  setAppliedFolders(next);
+                                }
                               }
-                              setAppliedFolders(next);
                             }}
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" />
@@ -1275,16 +1368,20 @@ export default function FileUpload() {
                                         size="sm"
                                         variant={isApplied ? "default" : "outline"}
                                         className="h-6 px-2 text-[10px] gap-1"
-                                        onClick={() => {
+                                        disabled={applyingFolders}
+                                        onClick={async () => {
                                           const next = new Set(appliedFolders);
                                           if (isApplied) {
                                             next.delete(folder);
+                                            setAppliedFolders(next);
                                             toast({ title: isKo ? `${folder} 적용 해제됨` : `${folder} 已取消应用` });
                                           } else {
-                                            next.add(folder);
-                                            toast({ title: isKo ? `${folder} 주문에 적용됨` : `已应用到 ${folder}` });
+                                            const ok = await applyFoldersToOrders([folder], designByFolder, twincodeByFolder);
+                                            if (ok) {
+                                              next.add(folder);
+                                              setAppliedFolders(next);
+                                            }
                                           }
-                                          setAppliedFolders(next);
                                         }}
                                       >
                                         {isApplied ? (
