@@ -97,54 +97,47 @@ export default function TshirtWork() {
     },
   });
 
-  // Fetch all upload_history IDs to list design images
-  const { data: allHistoryIds } = useQuery({
-    queryKey: ["upload_history_ids"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("upload_history")
-        .select("id");
-      if (error) throw error;
-      return data?.map(h => h.id) || [];
-    },
-  });
+  // Collect all external_order_ids (folder names used by uploaded images)
+  const externalOrderIds = useMemo(() => {
+    return (dbOrders ?? []).map(o => o.external_order_id).filter(Boolean) as string[];
+  }, [dbOrders]);
 
-  // Fetch design images from storage for all history IDs
+  // Fetch design images from storage for each external_order_id folder
   const { data: designImageFiles } = useQuery({
-    queryKey: ["design_images_list", allHistoryIds],
-    enabled: !!allHistoryIds && allHistoryIds.length > 0,
+    queryKey: ["design_images_by_order", externalOrderIds],
+    enabled: externalOrderIds.length > 0,
     queryFn: async () => {
       const fileMap: Record<string, Record<string, string>> = {};
-      for (const hid of (allHistoryIds || [])) {
-        const { data: files } = await supabase.storage.from("design-images").list(hid);
+      await Promise.all(externalOrderIds.map(async (folder) => {
+        const { data: files } = await supabase.storage.from("design-images").list(folder);
         if (files && files.length > 0) {
-          fileMap[hid] = {};
+          fileMap[folder] = {};
           for (const f of files) {
             const nameWithoutExt = f.name.replace(/\.[^.]+$/, "");
-            fileMap[hid][nameWithoutExt] = supabase.storage.from("design-images").getPublicUrl(`${hid}/${f.name}`).data.publicUrl;
+            fileMap[folder][nameWithoutExt] = supabase.storage.from("design-images").getPublicUrl(`${folder}/${f.name}`).data.publicUrl;
           }
         }
-      }
+      }));
       return fileMap;
     },
   });
 
-  // Fetch twincode images from storage for all history IDs
+  // Fetch twincode images from storage for each external_order_id folder
   const { data: twincodeImageFiles } = useQuery({
-    queryKey: ["twincode_images_list", allHistoryIds],
-    enabled: !!allHistoryIds && allHistoryIds.length > 0,
+    queryKey: ["twincode_images_by_order", externalOrderIds],
+    enabled: externalOrderIds.length > 0,
     queryFn: async () => {
       const fileMap: Record<string, Record<string, string>> = {};
-      for (const hid of (allHistoryIds || [])) {
-        const { data: files } = await supabase.storage.from("twincode-images").list(hid);
+      await Promise.all(externalOrderIds.map(async (folder) => {
+        const { data: files } = await supabase.storage.from("twincode-images").list(folder);
         if (files && files.length > 0) {
-          fileMap[hid] = {};
+          fileMap[folder] = {};
           for (const f of files) {
             const nameWithoutExt = f.name.replace(/\.[^.]+$/, "");
-            fileMap[hid][nameWithoutExt] = supabase.storage.from("twincode-images").getPublicUrl(`${hid}/${f.name}`).data.publicUrl;
+            fileMap[folder][nameWithoutExt] = supabase.storage.from("twincode-images").getPublicUrl(`${folder}/${f.name}`).data.publicUrl;
           }
         }
-      }
+      }));
       return fileMap;
     },
   });
@@ -179,24 +172,16 @@ export default function TshirtWork() {
         siliconQR: item.silicon_qr ?? "",
         designQR: item.design_qr ?? "",
         hologramQR: item.hologram_qr ?? "",
+        tshirtSerial: item.tshirt_serial ?? "",
         status: "pending" as const,
       }));
       const historyId = (o as any).upload_history_id;
       const logoUrl = historyId ? (logoUrlMap[historyId] ?? null) : null;
       const designCode = o.design_code ?? "";
-      let designImageUrl: string | null = null;
-      let twincodeImageUrl: string | null = null;
-      if (historyId && designCode) {
-        if (designImageFiles?.[historyId]) {
-          designImageUrl = designImageFiles[historyId][designCode] ?? null;
-        }
-        if (twincodeImageFiles?.[historyId]) {
-          twincodeImageUrl = twincodeImageFiles[historyId][designCode] ?? null;
-        }
-      }
       return {
         id: o.id,
         orderNo,
+        externalOrderId: o.external_order_id,
         twinker: o.recipient_name,
         product: o.product_code,
         design: designCode,
@@ -204,13 +189,11 @@ export default function TshirtWork() {
         dueDate: o.project_completed_at ? new Date(o.project_completed_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN") : "-",
         items,
         logoUrl,
-        designImageUrl,
-        twincodeImageUrl,
         uploadHistoryId: historyId,
         designCode,
       };
     });
-  }, [dbOrders, isKo, logoUrlMap, designImageFiles, twincodeImageFiles]);
+  }, [dbOrders, isKo, logoUrlMap]);
 
   // Merge DB data with local work item statuses
   const [workItemStatuses, setWorkItemStatuses] = useState<Record<string, Record<number, "pending" | "done" | "fail">>>({});
