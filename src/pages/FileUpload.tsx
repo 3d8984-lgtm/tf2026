@@ -69,6 +69,7 @@ export default function FileUpload() {
   const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
   const [unlinkedIds, setUnlinkedIds] = useState<Set<string>>(new Set());
   const [saved, setSaved] = useState(false);
+  const [appliedFolders, setAppliedFolders] = useState<Set<string>>(new Set());
   const queryClient = useQueryClient();
 
   // Logo upload handler for history entries
