@@ -54,20 +54,59 @@ export default function FileUpload() {
   const [designFiles, setDesignFiles] = useState<ImageFileEntry[]>([]);
   const [twincodeFiles, setTwincodeFiles] = useState<ImageFileEntry[]>([]);
 
-  // Helper: convert File[] to ImageFileEntry[] extracting folder name from webkitRelativePath
-  const filesToEntries = (files: File[]): ImageFileEntry[] =>
-    files.map(f => {
-      const relPath = (f as any).webkitRelativePath as string | undefined;
-      let orderFolder: string | undefined;
-      if (relPath) {
-        const parts = relPath.split("/");
-        if (parts.length >= 2) {
-          // Normalize underscores to hyphens to match order number format (e.g., 20260324_1 → 20260324-1)
-          orderFolder = parts[parts.length - 2].replace(/_/g, "-");
-        }
+  const normalizeOrderFolder = (folderName: string) => folderName.replace(/_/g, "-");
+
+  const fileToEntry = (file: File, relativePath?: string): ImageFileEntry => {
+    const relPath = relativePath || ((file as any).webkitRelativePath as string | undefined);
+    let orderFolder: string | undefined;
+    if (relPath) {
+      const parts = relPath.split("/").filter(Boolean);
+      if (parts.length >= 2) {
+        orderFolder = normalizeOrderFolder(parts[parts.length - 2]);
       }
-      return { file: f, orderFolder };
-    });
+    }
+    return { file, orderFolder };
+  };
+
+  const filesToEntries = (files: File[]): ImageFileEntry[] => files.map((file) => fileToEntry(file));
+
+  const readDroppedEntry = async (entry: any, parentPath = ""): Promise<ImageFileEntry[]> => {
+    if (!entry) return [];
+
+    if (entry.isFile) {
+      const file = await new Promise<File | null>((resolve) => entry.file(resolve, () => resolve(null)));
+      if (!file || !file.type.startsWith("image/")) return [];
+      return [fileToEntry(file, `${parentPath}${file.name}`)];
+    }
+
+    if (!entry.isDirectory) return [];
+
+    const reader = entry.createReader();
+    const children: any[] = await new Promise((resolve) => reader.readEntries(resolve, () => resolve([])));
+    const nested = await Promise.all(children.map((child) => readDroppedEntry(child, `${parentPath}${entry.name}/`)));
+    return nested.flat();
+  };
+
+  const extractDroppedImageEntries = async (dataTransfer: DataTransfer): Promise<ImageFileEntry[]> => {
+    const items = Array.from(dataTransfer.items || []);
+
+    if (items.length) {
+      const nested = await Promise.all(
+        items.map(async (item) => {
+          const entry = (item as any).webkitGetAsEntry?.();
+          if (entry) return readDroppedEntry(entry);
+
+          const file = item.getAsFile();
+          return file && file.type.startsWith("image/") ? [fileToEntry(file)] : [];
+        })
+      );
+
+      const droppedEntries = nested.flat();
+      if (droppedEntries.length > 0) return droppedEntries;
+    }
+
+    return filesToEntries(Array.from(dataTransfer.files).filter((file) => file.type.startsWith("image/")));
+  };
   const [uploadResult, setUploadResult] = useState<null | {
     fileName: string;
     total: number;
@@ -974,12 +1013,12 @@ export default function FileUpload() {
                     if (e.currentTarget.contains(e.relatedTarget as Node)) return;
                     setIsDraggingDesign(false);
                   }}
-                  onDrop={(e) => {
+                  onDrop={async (e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     setIsDraggingDesign(false);
-                    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
-                    if (files.length) setDesignFiles(prev => [...prev, ...filesToEntries(files)]);
+                    const droppedEntries = await extractDroppedImageEntries(e.dataTransfer);
+                    if (droppedEntries.length) setDesignFiles(prev => [...prev, ...droppedEntries]);
                   }}
                   onClick={() => designFileInputRef.current?.click()}
                 >
@@ -1068,12 +1107,12 @@ export default function FileUpload() {
                     if (e.currentTarget.contains(e.relatedTarget as Node)) return;
                     setIsDraggingTwincode(false);
                   }}
-                  onDrop={(e) => {
+                  onDrop={async (e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     setIsDraggingTwincode(false);
-                    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
-                    if (files.length) setTwincodeFiles(prev => [...prev, ...filesToEntries(files)]);
+                    const droppedEntries = await extractDroppedImageEntries(e.dataTransfer);
+                    if (droppedEntries.length) setTwincodeFiles(prev => [...prev, ...droppedEntries]);
                   }}
                   onClick={() => twincodeFileInputRef.current?.click()}
                 >
