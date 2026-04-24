@@ -1152,12 +1152,25 @@ export default function FileUpload() {
             </div>
 
             {/* Folder-Order Matching Summary */}
-            {(designFiles.some(f => f.orderFolder) || twincodeFiles.some(f => f.orderFolder)) && uploadResult && (
+            {(designFiles.length > 0 || twincodeFiles.length > 0) && (
               <div className="kpi-card section-enter" style={{ animationDelay: "80ms" }}>
                 <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
                   <FileUp className="w-4 h-4 text-primary" />
                   {isKo ? "폴더-주문 매칭 결과" : "文件夹-订单匹配结果"}
                 </h3>
+                {!uploadResult && (
+                  <div className="mb-3 p-2.5 rounded-md bg-muted/40 border border-border/40 text-xs text-muted-foreground flex items-start gap-2">
+                    <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-primary" />
+                    <span>{isKo ? "엑셀 파일을 먼저 업로드하면 주문번호와 자동 매칭됩니다." : "请先上传Excel文件以自动匹配订单号。"}</span>
+                  </div>
+                )}
+                {(designFiles.length > 0 || twincodeFiles.length > 0) &&
+                  !designFiles.some(f => f.orderFolder) && !twincodeFiles.some(f => f.orderFolder) && (
+                  <div className="mb-3 p-2.5 rounded-md bg-muted/40 border border-border/40 text-xs text-muted-foreground flex items-start gap-2">
+                    <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-500" />
+                    <span>{isKo ? "폴더 정보가 없습니다. '폴더 업로드' 버튼을 사용하거나 폴더 자체를 드래그하세요. (폴더명 = 주문번호)" : "无文件夹信息。请使用'文件夹上传'按钮或直接拖拽文件夹。(文件夹名 = 订单号)"}</span>
+                  </div>
+                )}
                 {(() => {
                   // Collect unique order IDs from parsed data
                   const orderIds = new Set<string>();
