@@ -298,7 +298,7 @@ export default function FileUpload() {
           }
         }
         completed++;
-        setSaveProgress({ done: completed, total: tasks.length });
+        setSaveProgressMap(prev => ({ ...prev, [category]: { done: completed, total: tasks.length } }));
       };
 
       // Worker pool
