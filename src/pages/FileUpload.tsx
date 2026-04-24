@@ -587,10 +587,11 @@ export default function FileUpload() {
       // A(0): work_order_no → external_order_id
       // B(1): order_no → product_code
       // C(2): project_deadline → project_completed_at
-      // D(3): tshirt_serial, E(4): tshirt_type, F(5): tshirt_color, G(6): tshirt_size
-      // H(7): silicon_qr, I(8): design_qr, J(9): hologram_qr
-      // K(10): card_serial, L(11): card_grade, M(12): card_barcode
-      // N(13): country_code, O(14): recipient, P(15): phone, Q(16): address, R(17): zipcode
+      // D(3): twinker (recipient_name fallback)
+      // E(4): tshirt_serial, F(5): tshirt_type, G(6): tshirt_color, H(7): tshirt_size
+      // I(8): silicon_qr, J(9): design_qr, K(10): hologram_qr
+      // L(11): card_serial, M(12): card_grade, N(13): card_barcode
+      // O(14): country_code, P(15): recipient, Q(16): phone, R(17): address, S(18): zipcode
 
       // Group rows by external_order_id (work order no) since multiple rows can share the same order
       const orderMap = new Map<string, {
@@ -628,16 +629,17 @@ export default function FileUpload() {
         }
 
         const itemData = {
-          tshirt_serial: str(3),
-          tshirt_type: str(4),
-          tshirt_color: str(5),
-          tshirt_size: str(6),
-          silicon_qr: str(7),
-          design_qr: str(8),
-          hologram_qr: str(9),
-          card_serial: str(10),
-          card_grade: str(11),
-          card_barcode: str(12),
+          twinker: str(3),
+          tshirt_serial: str(4),
+          tshirt_type: str(5),
+          tshirt_color: str(6),
+          tshirt_size: str(7),
+          silicon_qr: str(8),
+          design_qr: str(9),
+          hologram_qr: str(10),
+          card_serial: str(11),
+          card_grade: str(12),
+          card_barcode: str(13),
         };
 
         if (orderMap.has(extId)) {
@@ -646,18 +648,21 @@ export default function FileUpload() {
           // Append item to items array in source_data
           ((existing.source_data as { items: Record<string, string>[] }).items).push(itemData);
         } else {
+          // Twinker (D, idx=3) preferred for recipient_name; fall back to recipient (P, idx=15)
+          const twinkerName = str(3);
+          const recipientName = str(15);
           orderMap.set(extId, {
             external_order_id: extId,
             product_code: str(1) || extId,
-            design_code: str(8) || null,
+            design_code: str(9) || null,
             quantity: 1,
-            recipient_name: str(14) || "N/A",
-            recipient_phone: str(15) || null,
-            shipping_address: str(16) || "N/A",
+            recipient_name: twinkerName || recipientName || "N/A",
+            recipient_phone: str(16) || null,
+            shipping_address: str(17) || "N/A",
             shipping_city: null,
             shipping_state: null,
-            shipping_zip: str(17) || null,
-            shipping_country: str(13) || "US",
+            shipping_zip: str(18) || null,
+            shipping_country: str(14) || "US",
             project_completed_at: projectDate,
             source_data: { items: [itemData] },
           });
