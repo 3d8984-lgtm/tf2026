@@ -411,7 +411,7 @@ export default function TshirtWork() {
 
     return (
       <div>
-        <PageHeader title={t("tshirtWork.title")} description={`${selectedOrder.id} · ${selectedOrder.orderNo}`}>
+        <PageHeader title={t("tshirtWork.title")} description={`${selectedOrder.twinker} · ${selectedOrder.orderNo}`}>
           <Button variant="outline" size="sm" onClick={() => { setSelectedOrderId(null); }}><ChevronLeft className="w-4 h-4 mr-1" /> {t("tshirtWork.orderList")}</Button>
         </PageHeader>
         <div className="p-6 space-y-6">
