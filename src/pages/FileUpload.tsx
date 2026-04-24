@@ -1013,12 +1013,12 @@ export default function FileUpload() {
                     if (e.currentTarget.contains(e.relatedTarget as Node)) return;
                     setIsDraggingDesign(false);
                   }}
-                  onDrop={(e) => {
+                  onDrop={async (e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     setIsDraggingDesign(false);
-                    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
-                    if (files.length) setDesignFiles(prev => [...prev, ...filesToEntries(files)]);
+                    const droppedEntries = await extractDroppedImageEntries(e.dataTransfer);
+                    if (droppedEntries.length) setDesignFiles(prev => [...prev, ...droppedEntries]);
                   }}
                   onClick={() => designFileInputRef.current?.click()}
                 >
@@ -1107,12 +1107,12 @@ export default function FileUpload() {
                     if (e.currentTarget.contains(e.relatedTarget as Node)) return;
                     setIsDraggingTwincode(false);
                   }}
-                  onDrop={(e) => {
+                  onDrop={async (e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     setIsDraggingTwincode(false);
-                    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
-                    if (files.length) setTwincodeFiles(prev => [...prev, ...filesToEntries(files)]);
+                    const droppedEntries = await extractDroppedImageEntries(e.dataTransfer);
+                    if (droppedEntries.length) setTwincodeFiles(prev => [...prev, ...droppedEntries]);
                   }}
                   onClick={() => twincodeFileInputRef.current?.click()}
                 >
