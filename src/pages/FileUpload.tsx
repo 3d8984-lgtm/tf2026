@@ -1927,6 +1927,7 @@ export default function FileUpload() {
                                       size="sm"
                                       className="h-8 px-2 gap-1.5 text-xs text-destructive border-destructive/30 hover:bg-destructive/5 hover:text-destructive"
                                       onClick={async () => {
+                                        await removeOrderImagesForHistory(h.id);
                                         if (h.file_path) {
                                           await supabase.storage.from("upload-files").remove([h.file_path]);
                                         }
