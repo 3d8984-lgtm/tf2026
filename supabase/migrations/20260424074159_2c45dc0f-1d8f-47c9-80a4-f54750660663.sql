@@ -1,0 +1,1 @@
+UPDATE public.upload_history SET design_image_count = 0, twincode_image_count = 0;
