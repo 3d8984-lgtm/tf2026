@@ -213,16 +213,25 @@ export default function FileUpload() {
   };
 
   // Save a single category (design or twincode) to storage and update history counts
-  const [savingCategory, setSavingCategory] = useState<"design" | "twincode" | null>(null);
-  const [saveProgress, setSaveProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
+  // Track per-category so design and twincode uploads can run independently in parallel
+  const [savingCategories, setSavingCategories] = useState<Set<"design" | "twincode">>(new Set());
+  const [saveProgressMap, setSaveProgressMap] = useState<Record<"design" | "twincode", { done: number; total: number }>>({
+    design: { done: 0, total: 0 },
+    twincode: { done: 0, total: 0 },
+  });
   const saveImagesByCategory = async (category: "design" | "twincode") => {
     const entries = category === "design" ? designFiles : twincodeFiles;
     if (entries.length === 0) {
       toast({ title: isKo ? "업로드할 이미지가 없습니다" : "没有可上传的图片", variant: "destructive" });
       return;
     }
-    setSavingCategory(category);
-    setSaveProgress({ done: 0, total: entries.length });
+    if (savingCategories.has(category)) return;
+    setSavingCategories(prev => {
+      const next = new Set(prev);
+      next.add(category);
+      return next;
+    });
+    setSaveProgressMap(prev => ({ ...prev, [category]: { done: 0, total: entries.length } }));
     try {
       const bucket = category === "design" ? "design-images" : "twincode-images";
 
