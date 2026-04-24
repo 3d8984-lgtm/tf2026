@@ -22,12 +22,14 @@ interface WorkItem {
   siliconQR: string;
   designQR: string;
   hologramQR: string;
+  tshirtSerial: string;
   status: "pending" | "done" | "fail";
 }
 
 interface OrderData {
   id: string;
   orderNo: string;
+  externalOrderId: string;
   twinker: string;
   product: string;
   design: string;
@@ -35,8 +37,6 @@ interface OrderData {
   dueDate: string;
   items: WorkItem[];
   logoUrl: string | null;
-  designImageUrl: string | null;
-  twincodeImageUrl: string | null;
   uploadHistoryId: string | null;
   designCode: string;
 }
