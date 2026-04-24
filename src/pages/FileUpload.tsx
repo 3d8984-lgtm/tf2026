@@ -25,6 +25,19 @@ export default function FileUpload() {
   const [searchParams] = useSearchParams();
   const [tab, setTab] = useState(searchParams.get("tab") || "api");
   useEffect(() => { const t = searchParams.get("tab"); if (t) setTab(t); }, [searchParams]);
+  // Prevent browser from navigating when file is dropped outside drop zones
+  useEffect(() => {
+    const prevent = (e: DragEvent) => {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "none";
+    };
+    window.addEventListener("dragover", prevent);
+    window.addEventListener("drop", prevent);
+    return () => {
+      window.removeEventListener("dragover", prevent);
+      window.removeEventListener("drop", prevent);
+    };
+  }, []);
   const [isDragging, setIsDragging] = useState(false);
   const [isDraggingDesign, setIsDraggingDesign] = useState(false);
   const [isDraggingTwincode, setIsDraggingTwincode] = useState(false);
