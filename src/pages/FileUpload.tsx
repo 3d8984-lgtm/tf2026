@@ -639,7 +639,7 @@ export default function FileUpload() {
   };
 
 
-  // Fetch upload history from DB
+  // Fetch upload history from DB and reconcile image counts with actual storage files
   const { data: allUploadHistory = [] } = useQuery({
     queryKey: ["upload_history"],
     queryFn: async () => {
@@ -649,7 +649,52 @@ export default function FileUpload() {
         .order("created_at", { ascending: false })
         .limit(50);
       if (error) throw error;
-      return data;
+      const rows = data || [];
+      if (rows.length === 0) return rows;
+
+      // For each upload_history row, look up its orders' folders and count files in storage
+      const historyIds = rows.map((r: any) => r.id);
+      const { data: orderRows } = await (supabase
+        .from("orders")
+        .select("external_order_id,upload_history_id") as any)
+        .in("upload_history_id", historyIds);
+
+      const foldersByHistory = new Map<string, string[]>();
+      (orderRows || []).forEach((o: any) => {
+        const arr = foldersByHistory.get(o.upload_history_id) || [];
+        arr.push(o.external_order_id);
+        foldersByHistory.set(o.upload_history_id, arr);
+      });
+
+      // Count files per history by listing each folder in both buckets
+      const reconciled = await Promise.all(rows.map(async (r: any) => {
+        const folders = foldersByHistory.get(r.id) || [];
+        if (folders.length === 0) return r;
+
+        const [designCounts, twincodeCounts] = await Promise.all([
+          Promise.all(folders.map(async (f) => {
+            const { data: files } = await supabase.storage.from("design-images").list(f, { limit: 1000 });
+            return files?.length || 0;
+          })),
+          Promise.all(folders.map(async (f) => {
+            const { data: files } = await supabase.storage.from("twincode-images").list(f, { limit: 1000 });
+            return files?.length || 0;
+          })),
+        ]);
+        const designTotal = designCounts.reduce((a, b) => a + b, 0);
+        const twincodeTotal = twincodeCounts.reduce((a, b) => a + b, 0);
+
+        // Persist back if different
+        if (designTotal !== r.design_image_count || twincodeTotal !== r.twincode_image_count) {
+          await (supabase.from("upload_history").update({
+            design_image_count: designTotal,
+            twincode_image_count: twincodeTotal,
+          } as any) as any).eq("id", r.id);
+        }
+        return { ...r, design_image_count: designTotal, twincode_image_count: twincodeTotal };
+      }));
+
+      return reconciled;
     },
   });
 
