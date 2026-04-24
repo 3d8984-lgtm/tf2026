@@ -1035,7 +1035,7 @@ export default function FileUpload() {
                 {designFiles.length > 0 && (
                   <div className="mt-3">
                     <p className="text-xs font-medium mb-2">{designFiles.length}{isKo ? "개 선택" : "张已选"}</p>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-1.5 max-h-[304px] overflow-y-auto pr-1">
                       {designFiles.map((f, i) => (
                         <div key={i} className="relative group">
                           <div className="w-12 h-12 rounded border border-border overflow-hidden bg-muted/30">
@@ -1129,7 +1129,7 @@ export default function FileUpload() {
                 {twincodeFiles.length > 0 && (
                   <div className="mt-3">
                     <p className="text-xs font-medium mb-2">{twincodeFiles.length}{isKo ? "개 선택" : "张已选"}</p>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-1.5 max-h-[304px] overflow-y-auto pr-1">
                       {twincodeFiles.map((f, i) => (
                         <div key={i} className="relative group">
                           <div className="w-12 h-12 rounded border border-border overflow-hidden bg-muted/30">
