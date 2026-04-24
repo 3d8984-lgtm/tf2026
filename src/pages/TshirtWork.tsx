@@ -497,7 +497,14 @@ export default function TshirtWork() {
             <div><p className="text-xs text-muted-foreground">#{activeWorkItem.seq}</p><p className="text-sm font-semibold">{selectedOrder!.id}</p></div>
           </div>
           <div><p className="text-xs text-muted-foreground">{t("tshirtWork.product")}</p><p className="text-sm font-semibold">{selectedOrder!.product}</p></div>
-          <div><p className="text-xs text-muted-foreground">{t("tshirtWork.design")}</p><p className="text-sm font-semibold">{selectedOrder!.design}</p></div>
+          <div>
+            <p className="text-xs text-muted-foreground">{t("tshirtWork.design")}</p>
+            <p className="text-sm font-semibold font-mono">{activeWorkItem.designQR || selectedOrder!.design || "-"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">{isKo ? "트윈코드" : "TwinCode"}</p>
+            <p className="text-sm font-semibold font-mono">{activeWorkItem.tshirtSerial || "-"}</p>
+          </div>
           <div><p className="text-xs text-muted-foreground">{t("tshirtWork.color")}</p><p className="text-sm font-semibold">{activeWorkItem.color}</p></div>
           <div><p className="text-xs text-muted-foreground">{t("tshirtWork.size")}</p><p className="text-sm font-semibold">{activeWorkItem.size}</p></div>
           <div className="ml-auto">
