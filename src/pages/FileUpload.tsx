@@ -1623,7 +1623,14 @@ export default function FileUpload() {
                           setUploadResult(null);
                           setParsedRows([]);
                           setSaved(false);
-                          setFile(null);
+                        }}
+                        disabled={saving}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        {isKo ? "삭제" : "删除"}
+                      </Button>
+                    </div>
+                  )}REMOVE_ME
                           toast({
                             title: isKo ? "취소되었습니다" : "已取消",
                             description: isKo ? "업로드한 데이터를 삭제했습니다." : "已删除上传的数据。",
