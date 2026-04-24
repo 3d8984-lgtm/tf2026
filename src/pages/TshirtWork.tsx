@@ -22,12 +22,14 @@ interface WorkItem {
   siliconQR: string;
   designQR: string;
   hologramQR: string;
+  tshirtSerial: string;
   status: "pending" | "done" | "fail";
 }
 
 interface OrderData {
   id: string;
   orderNo: string;
+  externalOrderId: string;
   twinker: string;
   product: string;
   design: string;
@@ -35,8 +37,6 @@ interface OrderData {
   dueDate: string;
   items: WorkItem[];
   logoUrl: string | null;
-  designImageUrl: string | null;
-  twincodeImageUrl: string | null;
   uploadHistoryId: string | null;
   designCode: string;
 }
@@ -97,54 +97,47 @@ export default function TshirtWork() {
     },
   });
 
-  // Fetch all upload_history IDs to list design images
-  const { data: allHistoryIds } = useQuery({
-    queryKey: ["upload_history_ids"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("upload_history")
-        .select("id");
-      if (error) throw error;
-      return data?.map(h => h.id) || [];
-    },
-  });
+  // Collect all external_order_ids (folder names used by uploaded images)
+  const externalOrderIds = useMemo(() => {
+    return (dbOrders ?? []).map(o => o.external_order_id).filter(Boolean) as string[];
+  }, [dbOrders]);
 
-  // Fetch design images from storage for all history IDs
+  // Fetch design images from storage for each external_order_id folder
   const { data: designImageFiles } = useQuery({
-    queryKey: ["design_images_list", allHistoryIds],
-    enabled: !!allHistoryIds && allHistoryIds.length > 0,
+    queryKey: ["design_images_by_order", externalOrderIds],
+    enabled: externalOrderIds.length > 0,
     queryFn: async () => {
       const fileMap: Record<string, Record<string, string>> = {};
-      for (const hid of (allHistoryIds || [])) {
-        const { data: files } = await supabase.storage.from("design-images").list(hid);
+      await Promise.all(externalOrderIds.map(async (folder) => {
+        const { data: files } = await supabase.storage.from("design-images").list(folder);
         if (files && files.length > 0) {
-          fileMap[hid] = {};
+          fileMap[folder] = {};
           for (const f of files) {
             const nameWithoutExt = f.name.replace(/\.[^.]+$/, "");
-            fileMap[hid][nameWithoutExt] = supabase.storage.from("design-images").getPublicUrl(`${hid}/${f.name}`).data.publicUrl;
+            fileMap[folder][nameWithoutExt] = supabase.storage.from("design-images").getPublicUrl(`${folder}/${f.name}`).data.publicUrl;
           }
         }
-      }
+      }));
       return fileMap;
     },
   });
 
-  // Fetch twincode images from storage for all history IDs
+  // Fetch twincode images from storage for each external_order_id folder
   const { data: twincodeImageFiles } = useQuery({
-    queryKey: ["twincode_images_list", allHistoryIds],
-    enabled: !!allHistoryIds && allHistoryIds.length > 0,
+    queryKey: ["twincode_images_by_order", externalOrderIds],
+    enabled: externalOrderIds.length > 0,
     queryFn: async () => {
       const fileMap: Record<string, Record<string, string>> = {};
-      for (const hid of (allHistoryIds || [])) {
-        const { data: files } = await supabase.storage.from("twincode-images").list(hid);
+      await Promise.all(externalOrderIds.map(async (folder) => {
+        const { data: files } = await supabase.storage.from("twincode-images").list(folder);
         if (files && files.length > 0) {
-          fileMap[hid] = {};
+          fileMap[folder] = {};
           for (const f of files) {
             const nameWithoutExt = f.name.replace(/\.[^.]+$/, "");
-            fileMap[hid][nameWithoutExt] = supabase.storage.from("twincode-images").getPublicUrl(`${hid}/${f.name}`).data.publicUrl;
+            fileMap[folder][nameWithoutExt] = supabase.storage.from("twincode-images").getPublicUrl(`${folder}/${f.name}`).data.publicUrl;
           }
         }
-      }
+      }));
       return fileMap;
     },
   });
@@ -179,24 +172,16 @@ export default function TshirtWork() {
         siliconQR: item.silicon_qr ?? "",
         designQR: item.design_qr ?? "",
         hologramQR: item.hologram_qr ?? "",
+        tshirtSerial: item.tshirt_serial ?? "",
         status: "pending" as const,
       }));
       const historyId = (o as any).upload_history_id;
       const logoUrl = historyId ? (logoUrlMap[historyId] ?? null) : null;
       const designCode = o.design_code ?? "";
-      let designImageUrl: string | null = null;
-      let twincodeImageUrl: string | null = null;
-      if (historyId && designCode) {
-        if (designImageFiles?.[historyId]) {
-          designImageUrl = designImageFiles[historyId][designCode] ?? null;
-        }
-        if (twincodeImageFiles?.[historyId]) {
-          twincodeImageUrl = twincodeImageFiles[historyId][designCode] ?? null;
-        }
-      }
       return {
         id: o.id,
         orderNo,
+        externalOrderId: o.external_order_id,
         twinker: o.recipient_name,
         product: o.product_code,
         design: designCode,
@@ -204,13 +189,11 @@ export default function TshirtWork() {
         dueDate: o.project_completed_at ? new Date(o.project_completed_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN") : "-",
         items,
         logoUrl,
-        designImageUrl,
-        twincodeImageUrl,
         uploadHistoryId: historyId,
         designCode,
       };
     });
-  }, [dbOrders, isKo, logoUrlMap, designImageFiles, twincodeImageFiles]);
+  }, [dbOrders, isKo, logoUrlMap]);
 
   // Merge DB data with local work item statuses
   const [workItemStatuses, setWorkItemStatuses] = useState<Record<string, Record<number, "pending" | "done" | "fail">>>({});
@@ -612,47 +595,63 @@ export default function TshirtWork() {
               )}
             </div>
 
-            {/* Design image check */}
-            <div className="kpi-card flex flex-col items-center justify-center min-h-[180px]">
-              <h3 className="text-sm font-medium mb-3 flex items-center gap-2 self-start"><QrCode className="w-4 h-4" /> {isKo ? "디자인 확인" : "设计确认"}</h3>
-              {selectedOrder!.designImageUrl ? (
-                <div className="flex-1 flex flex-col items-center justify-center gap-2">
-                  <div
-                    className="w-28 h-28 rounded-lg border-2 border-border bg-muted/40 flex items-center justify-center overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/40 transition-shadow"
-                    onClick={() => setZoomedImage({ src: selectedOrder!.designImageUrl!, alt: "Design" })}
-                  >
-                    <img src={selectedOrder!.designImageUrl} alt="Design" className="max-w-full max-h-full object-contain" />
-                  </div>
-                  <span className="text-xs text-muted-foreground">{isKo ? "클릭하여 확대" : "点击放大"} · <span className="font-mono">{selectedOrder!.designCode}</span></span>
+            {/* Design image check (per work item by tshirt_serial) */}
+            {(() => {
+              const folder = selectedOrder!.externalOrderId;
+              const key = activeWorkItem.tshirtSerial;
+              const url = (folder && key && designImageFiles?.[folder]?.[key]) || null;
+              return (
+                <div className="kpi-card flex flex-col items-center justify-center min-h-[180px]">
+                  <h3 className="text-sm font-medium mb-3 flex items-center gap-2 self-start"><QrCode className="w-4 h-4" /> {isKo ? "디자인 확인" : "设计确认"}</h3>
+                  {url ? (
+                    <div className="flex-1 flex flex-col items-center justify-center gap-2">
+                      <div
+                        className="w-28 h-28 rounded-lg border-2 border-border bg-muted/40 flex items-center justify-center overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/40 transition-shadow"
+                        onClick={() => setZoomedImage({ src: url, alt: "Design" })}
+                      >
+                        <img src={url} alt="Design" className="max-w-full max-h-full object-contain" />
+                      </div>
+                      <span className="text-xs text-muted-foreground">{isKo ? "클릭하여 확대" : "点击放大"} · <span className="font-mono">{key}</span></span>
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
+                      <QrCode className="w-8 h-8 opacity-30" />
+                      <p className="text-xs">{isKo ? "디자인 이미지 없음" : "无设计图片"}</p>
+                      {key && <p className="text-[10px] font-mono opacity-60">{key}</p>}
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
-                  <QrCode className="w-8 h-8 opacity-30" />
-                  <p className="text-xs">{isKo ? "디자인 이미지 없음" : "无设计图片"}</p>
-                </div>
-              )}
-            </div>
+              );
+            })()}
 
-            {/* Twincode image check */}
-            <div className="kpi-card flex flex-col items-center justify-center min-h-[180px]">
-              <h3 className="text-sm font-medium mb-3 flex items-center gap-2 self-start"><Hash className="w-4 h-4" /> {isKo ? "트윈코드 확인" : "TwinCode确认"}</h3>
-              {selectedOrder!.twincodeImageUrl ? (
-                <div className="flex-1 flex flex-col items-center justify-center gap-2">
-                  <div
-                    className="w-28 h-28 rounded-lg border-2 border-border bg-muted/40 flex items-center justify-center overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/40 transition-shadow"
-                    onClick={() => setZoomedImage({ src: selectedOrder!.twincodeImageUrl!, alt: "TwinCode" })}
-                  >
-                    <img src={selectedOrder!.twincodeImageUrl} alt="TwinCode" className="max-w-full max-h-full object-contain" />
-                  </div>
-                  <span className="text-xs text-muted-foreground">{isKo ? "클릭하여 확대" : "点击放大"} · <span className="font-mono">{selectedOrder!.designCode}</span></span>
+            {/* Twincode image check (per work item by tshirt_serial) */}
+            {(() => {
+              const folder = selectedOrder!.externalOrderId;
+              const key = activeWorkItem.tshirtSerial;
+              const url = (folder && key && twincodeImageFiles?.[folder]?.[key]) || null;
+              return (
+                <div className="kpi-card flex flex-col items-center justify-center min-h-[180px]">
+                  <h3 className="text-sm font-medium mb-3 flex items-center gap-2 self-start"><Hash className="w-4 h-4" /> {isKo ? "트윈코드 확인" : "TwinCode确认"}</h3>
+                  {url ? (
+                    <div className="flex-1 flex flex-col items-center justify-center gap-2">
+                      <div
+                        className="w-28 h-28 rounded-lg border-2 border-border bg-muted/40 flex items-center justify-center overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/40 transition-shadow"
+                        onClick={() => setZoomedImage({ src: url, alt: "TwinCode" })}
+                      >
+                        <img src={url} alt="TwinCode" className="max-w-full max-h-full object-contain" />
+                      </div>
+                      <span className="text-xs text-muted-foreground">{isKo ? "클릭하여 확대" : "点击放大"} · <span className="font-mono">{key}</span></span>
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
+                      <Hash className="w-8 h-8 opacity-30" />
+                      <p className="text-xs">{isKo ? "트윈코드 이미지 없음" : "无TwinCode图片"}</p>
+                      {key && <p className="text-[10px] font-mono opacity-60">{key}</p>}
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
-                  <Hash className="w-8 h-8 opacity-30" />
-                  <p className="text-xs">{isKo ? "트윈코드 이미지 없음" : "无TwinCode图片"}</p>
-                </div>
-              )}
-            </div>
+              );
+            })()}
           </div>
         </div>
       </div>
