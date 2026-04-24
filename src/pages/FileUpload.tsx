@@ -25,6 +25,19 @@ export default function FileUpload() {
   const [searchParams] = useSearchParams();
   const [tab, setTab] = useState(searchParams.get("tab") || "api");
   useEffect(() => { const t = searchParams.get("tab"); if (t) setTab(t); }, [searchParams]);
+  // Prevent browser from navigating when file is dropped outside drop zones
+  useEffect(() => {
+    const prevent = (e: DragEvent) => {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "none";
+    };
+    window.addEventListener("dragover", prevent);
+    window.addEventListener("drop", prevent);
+    return () => {
+      window.removeEventListener("dragover", prevent);
+      window.removeEventListener("drop", prevent);
+    };
+  }, []);
   const [isDragging, setIsDragging] = useState(false);
   const [isDraggingDesign, setIsDraggingDesign] = useState(false);
   const [isDraggingTwincode, setIsDraggingTwincode] = useState(false);
@@ -875,10 +888,22 @@ export default function FileUpload() {
                   className={`border-2 border-dashed rounded-lg p-6 text-center transition-all duration-200 cursor-pointer ${
                     isDragging ? "border-primary bg-primary/5 scale-[1.01]" : "border-border hover:border-primary/40"
                   }`}
-                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                  onDragLeave={() => setIsDragging(false)}
+                  onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+                    setIsDragging(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                    setIsDragging(false);
+                  }}
                   onDrop={(e) => {
                     e.preventDefault();
+                    e.stopPropagation();
                     setIsDragging(false);
                     const file = e.dataTransfer.files?.[0];
                     if (file) processFile(file);
@@ -936,10 +961,22 @@ export default function FileUpload() {
                   className={`border-2 border-dashed rounded-lg p-6 text-center transition-all duration-200 cursor-pointer ${
                     isDraggingDesign ? "border-primary bg-primary/5 scale-[1.01]" : "border-border hover:border-primary/40"
                   }`}
-                  onDragOver={(e) => { e.preventDefault(); setIsDraggingDesign(true); }}
-                  onDragLeave={() => setIsDraggingDesign(false)}
+                  onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingDesign(true); }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+                    setIsDraggingDesign(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                    setIsDraggingDesign(false);
+                  }}
                   onDrop={(e) => {
                     e.preventDefault();
+                    e.stopPropagation();
                     setIsDraggingDesign(false);
                     const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
                     if (files.length) setDesignFiles(prev => [...prev, ...filesToEntries(files)]);
@@ -1018,10 +1055,22 @@ export default function FileUpload() {
                   className={`border-2 border-dashed rounded-lg p-6 text-center transition-all duration-200 cursor-pointer ${
                     isDraggingTwincode ? "border-primary bg-primary/5 scale-[1.01]" : "border-border hover:border-primary/40"
                   }`}
-                  onDragOver={(e) => { e.preventDefault(); setIsDraggingTwincode(true); }}
-                  onDragLeave={() => setIsDraggingTwincode(false)}
+                  onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingTwincode(true); }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+                    setIsDraggingTwincode(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                    setIsDraggingTwincode(false);
+                  }}
                   onDrop={(e) => {
                     e.preventDefault();
+                    e.stopPropagation();
                     setIsDraggingTwincode(false);
                     const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
                     if (files.length) setTwincodeFiles(prev => [...prev, ...filesToEntries(files)]);
