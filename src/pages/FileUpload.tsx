@@ -48,7 +48,10 @@ export default function FileUpload() {
       let orderFolder: string | undefined;
       if (relPath) {
         const parts = relPath.split("/");
-        if (parts.length >= 2) orderFolder = parts[parts.length - 2]; // immediate parent folder
+        if (parts.length >= 2) {
+          // Normalize underscores to hyphens to match order number format (e.g., 20260324_1 → 20260324-1)
+          orderFolder = parts[parts.length - 2].replace(/_/g, "-");
+        }
       }
       return { file: f, orderFolder };
     });
