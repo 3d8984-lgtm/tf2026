@@ -2058,6 +2058,10 @@ export default function FileUpload() {
                                         }
                                         await supabase.from("upload_history").delete().eq("id", h.id);
                                         queryClient.invalidateQueries({ queryKey: ["upload_history"] });
+                                        queryClient.invalidateQueries({ queryKey: ["orders"] });
+                                        queryClient.invalidateQueries({ queryKey: ["production_tracking"] });
+                                        queryClient.invalidateQueries({ queryKey: ["shipments"] });
+                                        queryClient.invalidateQueries({ queryKey: ["order_stats"] });
                                         const hasFailures = summary.design.failed + summary.twincode.failed + summary.errors.length > 0;
                                         toast({
                                           title: isKo ? "삭제 완료" : "已删除",
