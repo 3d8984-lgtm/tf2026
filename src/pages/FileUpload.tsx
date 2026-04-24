@@ -948,10 +948,22 @@ export default function FileUpload() {
                   className={`border-2 border-dashed rounded-lg p-6 text-center transition-all duration-200 cursor-pointer ${
                     isDraggingDesign ? "border-primary bg-primary/5 scale-[1.01]" : "border-border hover:border-primary/40"
                   }`}
-                  onDragOver={(e) => { e.preventDefault(); setIsDraggingDesign(true); }}
-                  onDragLeave={() => setIsDraggingDesign(false)}
+                  onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingDesign(true); }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+                    setIsDraggingDesign(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                    setIsDraggingDesign(false);
+                  }}
                   onDrop={(e) => {
                     e.preventDefault();
+                    e.stopPropagation();
                     setIsDraggingDesign(false);
                     const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
                     if (files.length) setDesignFiles(prev => [...prev, ...filesToEntries(files)]);
