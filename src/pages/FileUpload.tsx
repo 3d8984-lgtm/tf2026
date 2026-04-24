@@ -491,6 +491,32 @@ export default function FileUpload() {
 
 
 
+  // Remove all design/twincode images stored under folders matching the orders linked to this history
+  const removeOrderImagesForHistory = async (historyId: string) => {
+    try {
+      const { data: linkedOrders } = await (supabase
+        .from("orders")
+        .select("external_order_id") as any)
+        .eq("upload_history_id", historyId);
+      const folders = (linkedOrders || [])
+        .map((o: any) => o?.external_order_id)
+        .filter((f: any): f is string => typeof f === "string" && f.length > 0);
+      if (folders.length === 0) return;
+
+      for (const bucket of ["design-images", "twincode-images"] as const) {
+        for (const folder of folders) {
+          const { data: files } = await supabase.storage.from(bucket).list(folder, { limit: 1000 });
+          if (files && files.length > 0) {
+            const paths = files.map((f) => `${folder}/${f.name}`);
+            await supabase.storage.from(bucket).remove(paths);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("removeOrderImagesForHistory error:", err);
+    }
+  };
+
   // Fetch upload history from DB
   const { data: allUploadHistory = [] } = useQuery({
     queryKey: ["upload_history"],
