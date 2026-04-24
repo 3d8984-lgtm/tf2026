@@ -1042,10 +1042,22 @@ export default function FileUpload() {
                   className={`border-2 border-dashed rounded-lg p-6 text-center transition-all duration-200 cursor-pointer ${
                     isDraggingTwincode ? "border-primary bg-primary/5 scale-[1.01]" : "border-border hover:border-primary/40"
                   }`}
-                  onDragOver={(e) => { e.preventDefault(); setIsDraggingTwincode(true); }}
-                  onDragLeave={() => setIsDraggingTwincode(false)}
+                  onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingTwincode(true); }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+                    setIsDraggingTwincode(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                    setIsDraggingTwincode(false);
+                  }}
                   onDrop={(e) => {
                     e.preventDefault();
+                    e.stopPropagation();
                     setIsDraggingTwincode(false);
                     const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
                     if (files.length) setTwincodeFiles(prev => [...prev, ...filesToEntries(files)]);
