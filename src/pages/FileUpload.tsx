@@ -212,6 +212,115 @@ export default function FileUpload() {
     }
   };
 
+  // Save a single category (design or twincode) to storage and update history counts
+  const [savingCategory, setSavingCategory] = useState<"design" | "twincode" | null>(null);
+  const saveImagesByCategory = async (category: "design" | "twincode") => {
+    const entries = category === "design" ? designFiles : twincodeFiles;
+    if (entries.length === 0) {
+      toast({ title: isKo ? "업로드할 이미지가 없습니다" : "没有可上传的图片", variant: "destructive" });
+      return;
+    }
+    setSavingCategory(category);
+    try {
+      const bucket = category === "design" ? "design-images" : "twincode-images";
+
+      // Group by folder
+      const byFolder = new Map<string, ImageFileEntry[]>();
+      const noFolder: ImageFileEntry[] = [];
+      entries.forEach(e => {
+        if (e.orderFolder) {
+          const arr = byFolder.get(e.orderFolder) || [];
+          arr.push(e);
+          byFolder.set(e.orderFolder, arr);
+        } else {
+          noFolder.push(e);
+        }
+      });
+
+      // Lookup upload_history_id for matched folders
+      const folders = [...byFolder.keys()];
+      let orderRows: any[] = [];
+      if (folders.length > 0) {
+        const { data } = await (supabase
+          .from("orders")
+          .select("external_order_id,upload_history_id") as any)
+          .in("external_order_id", folders);
+        orderRows = data || [];
+      }
+
+      let uploaded = 0;
+      let failed = 0;
+      const historyAdds = new Map<string, number>();
+
+      // Upload folder-grouped files into folder/ subpath
+      for (const [folder, items] of byFolder.entries()) {
+        for (const entry of items) {
+          const nameWithoutExt = entry.file.name.replace(/\.[^.]+$/, "");
+          const ext = entry.file.name.split(".").pop() || "png";
+          const storagePath = `${folder}/${nameWithoutExt}.${ext}`;
+          const { error: upErr } = await supabase.storage.from(bucket).upload(storagePath, entry.file, { upsert: true });
+          if (upErr) failed++; else uploaded++;
+        }
+        const order = orderRows.find(o => o.external_order_id === folder);
+        const historyId = order?.upload_history_id;
+        if (historyId) {
+          historyAdds.set(historyId, (historyAdds.get(historyId) || 0) + items.length);
+        }
+      }
+
+      // Upload non-folder files into _unassigned/
+      for (const entry of noFolder) {
+        const nameWithoutExt = entry.file.name.replace(/\.[^.]+$/, "");
+        const ext = entry.file.name.split(".").pop() || "png";
+        const storagePath = `_unassigned/${Date.now()}-${nameWithoutExt}.${ext}`;
+        const { error: upErr } = await supabase.storage.from(bucket).upload(storagePath, entry.file, { upsert: true });
+        if (upErr) failed++; else uploaded++;
+      }
+
+      // Update upload_history counts
+      const countCol = category === "design" ? "design_image_count" : "twincode_image_count";
+      for (const [historyId, add] of historyAdds.entries()) {
+        const { data: cur } = await (supabase
+          .from("upload_history")
+          .select(countCol) as any)
+          .eq("id", historyId)
+          .single();
+        const newCount = ((cur as any)?.[countCol] || 0) + add;
+        await (supabase.from("upload_history").update({ [countCol]: newCount } as any) as any).eq("id", historyId);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["upload_history"] });
+
+      // Mark applied folders as applied (so apply button reflects state)
+      if (folders.length > 0) {
+        setAppliedFolders(prev => {
+          const next = new Set(prev);
+          folders.forEach(f => next.add(f));
+          return next;
+        });
+      }
+
+      // Clear the saved files from the picker
+      if (category === "design") setDesignFiles([]);
+      else setTwincodeFiles([]);
+
+      toast({
+        title: isKo
+          ? `${uploaded}장 저장 완료${failed > 0 ? `, ${failed}장 실패` : ""}`
+          : `${uploaded} 张已保存${failed > 0 ? `, ${failed} 张失败` : ""}`,
+        description: isKo
+          ? `매칭 ${[...byFolder.values()].reduce((a, b) => a + b.length, 0)}장, 미매칭 ${noFolder.length}장`
+          : `匹配 ${[...byFolder.values()].reduce((a, b) => a + b.length, 0)} 张, 未匹配 ${noFolder.length} 张`,
+        variant: failed > 0 ? "destructive" : "default",
+      });
+    } catch (err) {
+      console.error("Save images error:", err);
+      toast({ title: isKo ? "저장 실패" : "保存失败", variant: "destructive" });
+    } finally {
+      setSavingCategory(null);
+    }
+  };
+
   // Logo upload handler for history entries
   const handleHistoryLogoUpload = async (historyId: string, file: File, oldLogoPath: string | null) => {
     setLogoUploadingId(historyId);
@@ -1122,7 +1231,38 @@ export default function FileUpload() {
                 </div>
                 {designFiles.length > 0 && (
                   <div className="mt-3">
-                    <p className="text-xs font-medium mb-2">{designFiles.length}{isKo ? "개 선택" : "张已选"}</p>
+                    <div className="flex items-center justify-between mb-2 gap-2">
+                      <p className="text-xs font-medium">{designFiles.length}{isKo ? "개 선택" : "张已选"}</p>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="default"
+                          className="h-6 px-2 text-[10px] gap-1"
+                          disabled={savingCategory === "design"}
+                          onClick={() => saveImagesByCategory("design")}
+                        >
+                          {savingCategory === "design"
+                            ? <Loader2 className="w-3 h-3 animate-spin" />
+                            : <Save className="w-3 h-3" />}
+                          {isKo ? "저장" : "保存"}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-6 px-2 text-[10px] gap-1 text-destructive hover:text-destructive"
+                          disabled={savingCategory === "design"}
+                          onClick={() => {
+                            setDesignFiles([]);
+                            toast({ title: isKo ? "디자인 이미지 전체 삭제됨" : "已清空设计图片" });
+                          }}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          {isKo ? "전체 삭제" : "全部删除"}
+                        </Button>
+                      </div>
+                    </div>
                     <div className="flex flex-wrap gap-1.5 max-h-[304px] overflow-y-auto pr-1">
                       {designFiles.map((f, i) => (
                         <div key={i} className="relative group">
@@ -1216,7 +1356,38 @@ export default function FileUpload() {
                 </div>
                 {twincodeFiles.length > 0 && (
                   <div className="mt-3">
-                    <p className="text-xs font-medium mb-2">{twincodeFiles.length}{isKo ? "개 선택" : "张已选"}</p>
+                    <div className="flex items-center justify-between mb-2 gap-2">
+                      <p className="text-xs font-medium">{twincodeFiles.length}{isKo ? "개 선택" : "张已选"}</p>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="default"
+                          className="h-6 px-2 text-[10px] gap-1"
+                          disabled={savingCategory === "twincode"}
+                          onClick={() => saveImagesByCategory("twincode")}
+                        >
+                          {savingCategory === "twincode"
+                            ? <Loader2 className="w-3 h-3 animate-spin" />
+                            : <Save className="w-3 h-3" />}
+                          {isKo ? "저장" : "保存"}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-6 px-2 text-[10px] gap-1 text-destructive hover:text-destructive"
+                          disabled={savingCategory === "twincode"}
+                          onClick={() => {
+                            setTwincodeFiles([]);
+                            toast({ title: isKo ? "트윈코드 이미지 전체 삭제됨" : "已清空TwinCode图片" });
+                          }}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          {isKo ? "전체 삭제" : "全部删除"}
+                        </Button>
+                      </div>
+                    </div>
                     <div className="flex flex-wrap gap-1.5 max-h-[304px] overflow-y-auto pr-1">
                       {twincodeFiles.map((f, i) => (
                         <div key={i} className="relative group">
