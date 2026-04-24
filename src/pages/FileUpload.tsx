@@ -370,8 +370,12 @@ export default function FileUpload() {
       console.error("Save images error:", err);
       toast({ title: isKo ? "저장 실패" : "保存失败", variant: "destructive" });
     } finally {
-      setSavingCategory(null);
-      setSaveProgress({ done: 0, total: 0 });
+      setSavingCategories(prev => {
+        const next = new Set(prev);
+        next.delete(category);
+        return next;
+      });
+      setSaveProgressMap(prev => ({ ...prev, [category]: { done: 0, total: 0 } }));
     }
   };
 
