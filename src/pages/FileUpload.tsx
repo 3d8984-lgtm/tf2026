@@ -491,8 +491,23 @@ export default function FileUpload() {
 
 
 
-  // Remove all design/twincode images stored under folders matching the orders linked to this history
-  const removeOrderImagesForHistory = async (historyId: string) => {
+  // Remove all design/twincode images stored under folders matching the orders linked to this history.
+  // Returns a summary of which folders existed and how many files were removed/failed per bucket.
+  type ImageRemovalSummary = {
+    foldersChecked: number;
+    foldersExisting: number;
+    design: { removed: number; failed: number };
+    twincode: { removed: number; failed: number };
+    errors: string[];
+  };
+  const removeOrderImagesForHistory = async (historyId: string): Promise<ImageRemovalSummary> => {
+    const summary: ImageRemovalSummary = {
+      foldersChecked: 0,
+      foldersExisting: 0,
+      design: { removed: 0, failed: 0 },
+      twincode: { removed: 0, failed: 0 },
+      errors: [],
+    };
     try {
       const { data: linkedOrders } = await (supabase
         .from("orders")
@@ -501,21 +516,63 @@ export default function FileUpload() {
       const folders = (linkedOrders || [])
         .map((o: any) => o?.external_order_id)
         .filter((f: any): f is string => typeof f === "string" && f.length > 0);
-      if (folders.length === 0) return;
+      summary.foldersChecked = folders.length;
+      if (folders.length === 0) return summary;
 
-      for (const bucket of ["design-images", "twincode-images"] as const) {
+      // Track which folders exist in at least one bucket
+      const existingFolders = new Set<string>();
+
+      const bucketKeys = [
+        { bucket: "design-images", key: "design" as const },
+        { bucket: "twincode-images", key: "twincode" as const },
+      ];
+
+      for (const { bucket, key } of bucketKeys) {
         for (const folder of folders) {
-          const { data: files } = await supabase.storage.from(bucket).list(folder, { limit: 1000 });
+          const { data: files, error: listErr } = await supabase.storage
+            .from(bucket)
+            .list(folder, { limit: 1000 });
+          if (listErr) {
+            summary.errors.push(`${bucket}/${folder}: ${listErr.message}`);
+            continue;
+          }
           if (files && files.length > 0) {
+            existingFolders.add(folder);
             const paths = files.map((f) => `${folder}/${f.name}`);
-            await supabase.storage.from(bucket).remove(paths);
+            const { data: removed, error: rmErr } = await supabase.storage
+              .from(bucket)
+              .remove(paths);
+            if (rmErr) {
+              summary[key].failed += paths.length;
+              summary.errors.push(`${bucket}/${folder}: ${rmErr.message}`);
+            } else {
+              const removedCount = removed?.length ?? paths.length;
+              summary[key].removed += removedCount;
+              summary[key].failed += Math.max(0, paths.length - removedCount);
+            }
           }
         }
       }
-    } catch (err) {
+      summary.foldersExisting = existingFolders.size;
+    } catch (err: any) {
       console.error("removeOrderImagesForHistory error:", err);
+      summary.errors.push(err?.message || String(err));
     }
+    return summary;
   };
+
+  // Build a localized toast description from the removal summary
+  const formatRemovalSummary = (s: ImageRemovalSummary) => {
+    if (isKo) {
+      if (s.foldersChecked === 0) return "연결된 주문 폴더 없음";
+      const base = `폴더 ${s.foldersExisting}/${s.foldersChecked}개 확인 · 디자인 ${s.design.removed}건${s.design.failed ? `(실패 ${s.design.failed})` : ""} · 트윈코드 ${s.twincode.removed}건${s.twincode.failed ? `(실패 ${s.twincode.failed})` : ""}`;
+      return s.errors.length > 0 ? `${base} · 오류 ${s.errors.length}건` : base;
+    }
+    if (s.foldersChecked === 0) return "无关联订单文件夹";
+    const base = `文件夹 ${s.foldersExisting}/${s.foldersChecked} · 设计 ${s.design.removed}${s.design.failed ? `(失败 ${s.design.failed})` : ""} · 双码 ${s.twincode.removed}${s.twincode.failed ? `(失败 ${s.twincode.failed})` : ""}`;
+    return s.errors.length > 0 ? `${base} · 错误 ${s.errors.length}` : base;
+  };
+
 
   // Fetch upload history from DB
   const { data: allUploadHistory = [] } = useQuery({
@@ -1037,13 +1094,18 @@ export default function FileUpload() {
                                       size="sm"
                                       className="h-8 px-2 gap-1.5 text-xs text-destructive border-destructive/30 hover:bg-destructive/5 hover:text-destructive"
                                       onClick={async () => {
-                                        await removeOrderImagesForHistory(h.id);
+                                        const summary = await removeOrderImagesForHistory(h.id);
                                         if (h.logo_path) {
                                           await supabase.storage.from("order-logos").remove([h.logo_path]);
                                         }
                                         await supabase.from("upload_history").delete().eq("id", h.id);
                                         queryClient.invalidateQueries({ queryKey: ["upload_history"] });
-                                        toast({ title: isKo ? "삭제 완료" : "已删除" });
+                                        const hasFailures = summary.design.failed + summary.twincode.failed + summary.errors.length > 0;
+                                        toast({
+                                          title: isKo ? "삭제 완료" : "已删除",
+                                          description: formatRemovalSummary(summary),
+                                          variant: hasFailures ? "destructive" : "default",
+                                        });
                                       }}
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
@@ -1927,7 +1989,7 @@ export default function FileUpload() {
                                       size="sm"
                                       className="h-8 px-2 gap-1.5 text-xs text-destructive border-destructive/30 hover:bg-destructive/5 hover:text-destructive"
                                       onClick={async () => {
-                                        await removeOrderImagesForHistory(h.id);
+                                        const summary = await removeOrderImagesForHistory(h.id);
                                         if (h.file_path) {
                                           await supabase.storage.from("upload-files").remove([h.file_path]);
                                         }
@@ -1936,7 +1998,12 @@ export default function FileUpload() {
                                         }
                                         await supabase.from("upload_history").delete().eq("id", h.id);
                                         queryClient.invalidateQueries({ queryKey: ["upload_history"] });
-                                        toast({ title: isKo ? "삭제 완료" : "已删除" });
+                                        const hasFailures = summary.design.failed + summary.twincode.failed + summary.errors.length > 0;
+                                        toast({
+                                          title: isKo ? "삭제 완료" : "已删除",
+                                          description: formatRemovalSummary(summary),
+                                          variant: hasFailures ? "destructive" : "default",
+                                        });
                                       }}
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
