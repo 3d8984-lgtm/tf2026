@@ -491,13 +491,17 @@ export default function FileUpload() {
 
 
 
-  // Remove all design/twincode images stored under folders matching the orders linked to this history.
+  // Remove all design/twincode images stored under folders matching the orders linked to this history,
+  // and also delete the linked orders along with their production_tracking and shipments records.
   // Returns a summary of which folders existed and how many files were removed/failed per bucket.
   type ImageRemovalSummary = {
     foldersChecked: number;
     foldersExisting: number;
     design: { removed: number; failed: number };
     twincode: { removed: number; failed: number };
+    ordersDeleted: number;
+    trackingDeleted: number;
+    shipmentsDeleted: number;
     errors: string[];
   };
   const removeOrderImagesForHistory = async (historyId: string): Promise<ImageRemovalSummary> => {
@@ -506,18 +510,23 @@ export default function FileUpload() {
       foldersExisting: 0,
       design: { removed: 0, failed: 0 },
       twincode: { removed: 0, failed: 0 },
+      ordersDeleted: 0,
+      trackingDeleted: 0,
+      shipmentsDeleted: 0,
       errors: [],
     };
     try {
       const { data: linkedOrders } = await (supabase
         .from("orders")
-        .select("external_order_id") as any)
+        .select("id, external_order_id") as any)
         .eq("upload_history_id", historyId);
+      const orderIds = (linkedOrders || [])
+        .map((o: any) => o?.id)
+        .filter((id: any): id is string => typeof id === "string" && id.length > 0);
       const folders = (linkedOrders || [])
         .map((o: any) => o?.external_order_id)
         .filter((f: any): f is string => typeof f === "string" && f.length > 0);
       summary.foldersChecked = folders.length;
-      if (folders.length === 0) return summary;
 
       // Track which folders exist in at least one bucket
       const existingFolders = new Set<string>();
@@ -527,33 +536,72 @@ export default function FileUpload() {
         { bucket: "twincode-images", key: "twincode" as const },
       ];
 
-      for (const { bucket, key } of bucketKeys) {
-        for (const folder of folders) {
-          const { data: files, error: listErr } = await supabase.storage
-            .from(bucket)
-            .list(folder, { limit: 1000 });
-          if (listErr) {
-            summary.errors.push(`${bucket}/${folder}: ${listErr.message}`);
-            continue;
-          }
-          if (files && files.length > 0) {
-            existingFolders.add(folder);
-            const paths = files.map((f) => `${folder}/${f.name}`);
-            const { data: removed, error: rmErr } = await supabase.storage
+      if (folders.length > 0) {
+        for (const { bucket, key } of bucketKeys) {
+          for (const folder of folders) {
+            const { data: files, error: listErr } = await supabase.storage
               .from(bucket)
-              .remove(paths);
-            if (rmErr) {
-              summary[key].failed += paths.length;
-              summary.errors.push(`${bucket}/${folder}: ${rmErr.message}`);
-            } else {
-              const removedCount = removed?.length ?? paths.length;
-              summary[key].removed += removedCount;
-              summary[key].failed += Math.max(0, paths.length - removedCount);
+              .list(folder, { limit: 1000 });
+            if (listErr) {
+              summary.errors.push(`${bucket}/${folder}: ${listErr.message}`);
+              continue;
+            }
+            if (files && files.length > 0) {
+              existingFolders.add(folder);
+              const paths = files.map((f) => `${folder}/${f.name}`);
+              const { data: removed, error: rmErr } = await supabase.storage
+                .from(bucket)
+                .remove(paths);
+              if (rmErr) {
+                summary[key].failed += paths.length;
+                summary.errors.push(`${bucket}/${folder}: ${rmErr.message}`);
+              } else {
+                const removedCount = removed?.length ?? paths.length;
+                summary[key].removed += removedCount;
+                summary[key].failed += Math.max(0, paths.length - removedCount);
+              }
             }
           }
         }
       }
       summary.foldersExisting = existingFolders.size;
+
+      // Cascade-delete linked DB records so other menus don't show stale data:
+      // production_tracking & shipments first (they reference orders), then orders.
+      if (orderIds.length > 0) {
+        const { data: trkDel, error: trkErr } = await supabase
+          .from("production_tracking")
+          .delete()
+          .in("order_id", orderIds)
+          .select("id");
+        if (trkErr) {
+          summary.errors.push(`production_tracking: ${trkErr.message}`);
+        } else {
+          summary.trackingDeleted = trkDel?.length ?? 0;
+        }
+
+        const { data: shpDel, error: shpErr } = await supabase
+          .from("shipments")
+          .delete()
+          .in("order_id", orderIds)
+          .select("id");
+        if (shpErr) {
+          summary.errors.push(`shipments: ${shpErr.message}`);
+        } else {
+          summary.shipmentsDeleted = shpDel?.length ?? 0;
+        }
+
+        const { data: ordDel, error: ordErr } = await supabase
+          .from("orders")
+          .delete()
+          .in("id", orderIds)
+          .select("id");
+        if (ordErr) {
+          summary.errors.push(`orders: ${ordErr.message}`);
+        } else {
+          summary.ordersDeleted = ordDel?.length ?? 0;
+        }
+      }
     } catch (err: any) {
       console.error("removeOrderImagesForHistory error:", err);
       summary.errors.push(err?.message || String(err));
@@ -564,12 +612,20 @@ export default function FileUpload() {
   // Build a localized toast description from the removal summary
   const formatRemovalSummary = (s: ImageRemovalSummary) => {
     if (isKo) {
-      if (s.foldersChecked === 0) return "연결된 주문 폴더 없음";
-      const base = `폴더 ${s.foldersExisting}/${s.foldersChecked}개 확인 · 디자인 ${s.design.removed}건${s.design.failed ? `(실패 ${s.design.failed})` : ""} · 트윈코드 ${s.twincode.removed}건${s.twincode.failed ? `(실패 ${s.twincode.failed})` : ""}`;
+      const dataPart = `주문 ${s.ordersDeleted} · 공정 ${s.trackingDeleted} · 배송 ${s.shipmentsDeleted}`;
+      if (s.foldersChecked === 0) {
+        const base = `연결된 주문 폴더 없음 · ${dataPart}`;
+        return s.errors.length > 0 ? `${base} · 오류 ${s.errors.length}건` : base;
+      }
+      const base = `폴더 ${s.foldersExisting}/${s.foldersChecked}개 · 디자인 ${s.design.removed}${s.design.failed ? `(실패 ${s.design.failed})` : ""} · 트윈코드 ${s.twincode.removed}${s.twincode.failed ? `(실패 ${s.twincode.failed})` : ""} · ${dataPart}`;
       return s.errors.length > 0 ? `${base} · 오류 ${s.errors.length}건` : base;
     }
-    if (s.foldersChecked === 0) return "无关联订单文件夹";
-    const base = `文件夹 ${s.foldersExisting}/${s.foldersChecked} · 设计 ${s.design.removed}${s.design.failed ? `(失败 ${s.design.failed})` : ""} · 双码 ${s.twincode.removed}${s.twincode.failed ? `(失败 ${s.twincode.failed})` : ""}`;
+    const dataPart = `订单 ${s.ordersDeleted} · 工序 ${s.trackingDeleted} · 配送 ${s.shipmentsDeleted}`;
+    if (s.foldersChecked === 0) {
+      const base = `无关联订单文件夹 · ${dataPart}`;
+      return s.errors.length > 0 ? `${base} · 错误 ${s.errors.length}` : base;
+    }
+    const base = `文件夹 ${s.foldersExisting}/${s.foldersChecked} · 设计 ${s.design.removed}${s.design.failed ? `(失败 ${s.design.failed})` : ""} · 双码 ${s.twincode.removed}${s.twincode.failed ? `(失败 ${s.twincode.failed})` : ""} · ${dataPart}`;
     return s.errors.length > 0 ? `${base} · 错误 ${s.errors.length}` : base;
   };
 
@@ -1100,6 +1156,10 @@ export default function FileUpload() {
                                         }
                                         await supabase.from("upload_history").delete().eq("id", h.id);
                                         queryClient.invalidateQueries({ queryKey: ["upload_history"] });
+                                        queryClient.invalidateQueries({ queryKey: ["orders"] });
+                                        queryClient.invalidateQueries({ queryKey: ["production_tracking"] });
+                                        queryClient.invalidateQueries({ queryKey: ["shipments"] });
+                                        queryClient.invalidateQueries({ queryKey: ["order_stats"] });
                                         const hasFailures = summary.design.failed + summary.twincode.failed + summary.errors.length > 0;
                                         toast({
                                           title: isKo ? "삭제 완료" : "已删除",
@@ -1998,6 +2058,10 @@ export default function FileUpload() {
                                         }
                                         await supabase.from("upload_history").delete().eq("id", h.id);
                                         queryClient.invalidateQueries({ queryKey: ["upload_history"] });
+                                        queryClient.invalidateQueries({ queryKey: ["orders"] });
+                                        queryClient.invalidateQueries({ queryKey: ["production_tracking"] });
+                                        queryClient.invalidateQueries({ queryKey: ["shipments"] });
+                                        queryClient.invalidateQueries({ queryKey: ["order_stats"] });
                                         const hasFailures = summary.design.failed + summary.twincode.failed + summary.errors.length > 0;
                                         toast({
                                           title: isKo ? "삭제 완료" : "已删除",
