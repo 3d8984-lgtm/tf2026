@@ -1103,6 +1103,7 @@ export default function FileUpload() {
                   <thead>
                     <tr className="border-b text-left">
                       <th className="pb-2 font-medium text-muted-foreground">{isKo ? "주문번호" : "订单号"}</th>
+                      <th className="pb-2 font-medium text-muted-foreground">{isKo ? "트윈커" : "Twinker"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "로고" : "Logo"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "데이터 행" : "数据行"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "디자인" : "设计"}</th>
