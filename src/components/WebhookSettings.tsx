@@ -24,7 +24,14 @@ const PAYLOAD_EXAMPLE = `{
     "shipping_state": "CA",
     "shipping_zip": "90001",
     "shipping_country": "US"
-  }
+  },
+  "design_images": [
+    { "filename": "D-LOGO-01.png", "url": "https://twinmeta.example.com/files/D-LOGO-01.png" },
+    { "filename": "D-LOGO-01-back.png", "base64": "iVBORw0KGgoAAAANS...", "content_type": "image/png" }
+  ],
+  "twincode_images": [
+    { "filename": "TC-001.png", "url": "https://twinmeta.example.com/files/TC-001.png" }
+  ]
 }`;
 
 export default function WebhookSettings() {
