@@ -335,15 +335,22 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Update log status to processed
+      // Update log status to processed (target the most recent matching row by id)
       if (orderSuccess) {
-        await supabase
+        const { data: latest } = await supabase
           .from("webhook_logs")
-          .update({ status: "processed" })
+          .select("id")
           .eq("event_type", eventType)
           .eq("status", "received")
           .order("created_at", { ascending: false })
-          .limit(1);
+          .limit(1)
+          .maybeSingle();
+        if (latest?.id) {
+          await supabase
+            .from("webhook_logs")
+            .update({ status: "processed" })
+            .eq("id", latest.id);
+        }
       }
     }
 
