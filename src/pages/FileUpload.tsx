@@ -2168,7 +2168,8 @@ export default function FileUpload() {
                             </div>
                           </td>
                         </tr>
-                      ))
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
