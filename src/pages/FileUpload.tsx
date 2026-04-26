@@ -639,10 +639,19 @@ export default function FileUpload() {
   };
 
 
-  // Detect API connection status: only real external order events from TWINMETA count.
-  // - event_type must be order_create / order_update (실제 주문 수신)
-  // - status must be 'processed' (정상 처리 완료)
-  // - within last 24 hours
+  // Detect API connection status: WEBHOOK_SECRET configured AND
+  // a real external order event (order_create/order_update, status=processed)
+  // received within the last 24 hours.
+  const { data: webhookSecretStatus } = useQuery({
+    queryKey: ["webhook_secret_status"],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("webhook-status");
+      if (error) return { secret_configured: false };
+      return data as { secret_configured: boolean };
+    },
+    refetchInterval: 60000,
+  });
+
   const { data: lastWebhook } = useQuery({
     queryKey: ["last_webhook_log_real"],
     queryFn: async () => {
@@ -659,7 +668,8 @@ export default function FileUpload() {
     refetchInterval: 30000,
   });
   const lastWebhookAt = lastWebhook?.created_at ? new Date(lastWebhook.created_at) : null;
-  const isApiConnected = !!lastWebhookAt && (Date.now() - lastWebhookAt.getTime() < 24 * 60 * 60 * 1000);
+  const hasRecentReceipt = !!lastWebhookAt && (Date.now() - lastWebhookAt.getTime() < 24 * 60 * 60 * 1000);
+  const isApiConnected = !!webhookSecretStatus?.secret_configured && hasRecentReceipt;
 
   // Fetch upload history from DB and reconcile image counts with actual storage files
   const { data: allUploadHistory = [] } = useQuery({
