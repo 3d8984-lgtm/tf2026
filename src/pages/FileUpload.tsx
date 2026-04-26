@@ -688,7 +688,8 @@ export default function FileUpload() {
       // Count files per history by listing each folder in both buckets
       const reconciled = await Promise.all(rows.map(async (r: any) => {
         const folders = foldersByHistory.get(r.id) || [];
-        if (folders.length === 0) return r;
+        const twinkers = twinkersByHistory.get(r.id) || [];
+        if (folders.length === 0) return { ...r, twinkers };
 
         const [designCounts, twincodeCounts] = await Promise.all([
           Promise.all(folders.map(async (f) => {
@@ -710,7 +711,7 @@ export default function FileUpload() {
             twincode_image_count: twincodeTotal,
           } as any) as any).eq("id", r.id);
         }
-        return { ...r, design_image_count: designTotal, twincode_image_count: twincodeTotal };
+        return { ...r, design_image_count: designTotal, twincode_image_count: twincodeTotal, twinkers };
       }));
 
       return reconciled;
