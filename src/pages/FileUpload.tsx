@@ -656,14 +656,33 @@ export default function FileUpload() {
       const historyIds = rows.map((r: any) => r.id);
       const { data: orderRows } = await (supabase
         .from("orders")
-        .select("external_order_id,upload_history_id") as any)
+        .select("external_order_id,upload_history_id,recipient_name,source_data") as any)
         .in("upload_history_id", historyIds);
 
       const foldersByHistory = new Map<string, string[]>();
+      const twinkersByHistory = new Map<string, string[]>();
       (orderRows || []).forEach((o: any) => {
         const arr = foldersByHistory.get(o.upload_history_id) || [];
         arr.push(o.external_order_id);
         foldersByHistory.set(o.upload_history_id, arr);
+
+        // Collect unique twinker names per history.
+        // File upload: source_data.items[*].twinker. Webhook: order.twinker / recipient_name.
+        const tArr = twinkersByHistory.get(o.upload_history_id) || [];
+        const items = (o.source_data && (o.source_data as any).items) || [];
+        if (Array.isArray(items) && items.length) {
+          items.forEach((it: any) => {
+            const t = (it?.twinker || "").toString().trim();
+            if (t && !tArr.includes(t)) tArr.push(t);
+          });
+        }
+        const fromOrder = (o.source_data?.order?.twinker || o.source_data?.twinker || "").toString().trim();
+        if (fromOrder && !tArr.includes(fromOrder)) tArr.push(fromOrder);
+        if (!tArr.length && o.recipient_name) {
+          const rn = String(o.recipient_name).trim();
+          if (rn && rn !== "N/A") tArr.push(rn);
+        }
+        twinkersByHistory.set(o.upload_history_id, tArr);
       });
 
       // Count files per history by listing each folder in both buckets
