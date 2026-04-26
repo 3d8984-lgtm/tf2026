@@ -1963,6 +1963,7 @@ export default function FileUpload() {
                   <thead>
                     <tr className="border-b text-left">
                       <th className="pb-2 font-medium text-muted-foreground">{t("upload.fileName")}</th>
+                      <th className="pb-2 font-medium text-muted-foreground">{isKo ? "트윈커" : "Twinker"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "로고" : "Logo"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "데이터 행" : "数据行"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "디자인" : "设计"}</th>
@@ -1977,12 +1978,15 @@ export default function FileUpload() {
                   <tbody>
                     {!uploadHistory.length ? (
                       <tr>
-                        <td colSpan={10} className="py-6 text-center text-muted-foreground text-sm">
+                        <td colSpan={11} className="py-6 text-center text-muted-foreground text-sm">
                           {isKo ? "업로드 이력이 없습니다" : "暂无上传记录"}
                         </td>
                       </tr>
                     ) : (
-                      uploadHistory.map((h) => (
+                      uploadHistory.map((h) => {
+                        const twinkers: string[] = (h as any).twinkers || [];
+                        const twinkerLabel = twinkers.length ? (twinkers.length > 2 ? `${twinkers.slice(0, 2).join(", ")} +${twinkers.length - 2}` : twinkers.join(", ")) : "-";
+                        return (
                         <tr key={h.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                           <td className="py-2.5">
                             <div className="flex items-center gap-2">
@@ -1990,6 +1994,7 @@ export default function FileUpload() {
                               {h.file_name}
                             </div>
                           </td>
+                          <td className="py-2.5 text-muted-foreground" title={twinkers.join(", ")}>{twinkerLabel}</td>
                           <td className="py-2.5 text-center">
                             {(h as any).logo_path ? (
                               <div className="flex items-center justify-center gap-1.5">
