@@ -132,10 +132,107 @@ Deno.serve(async (req) => {
         const designList: any[] = body.design_images || order.design_images || [];
         const twincodeList: any[] = body.twincode_images || order.twincode_images || [];
 
+        // ---- Validation helpers ----
+        const ALLOWED_EXT = new Set(["png", "jpg", "jpeg", "webp", "gif"]);
+        const ALLOWED_MIME = new Set([
+          "image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif",
+        ]);
+        const extOf = (name: string): string => {
+          const m = /\.([A-Za-z0-9]+)$/.exec(name || "");
+          return m ? m[1].toLowerCase() : "";
+        };
+        const isValidHttpUrl = (u: string): boolean => {
+          try {
+            const parsed = new URL(u);
+            return parsed.protocol === "http:" || parsed.protocol === "https:";
+          } catch { return false; }
+        };
+        const isValidBase64 = (s: string): boolean => {
+          const stripped = s.replace(/^data:[^;]+;base64,/, "").replace(/\s+/g, "");
+          if (!stripped.length) return false;
+          if (!/^[A-Za-z0-9+/]+={0,2}$/.test(stripped)) return false;
+          if (stripped.length % 4 !== 0) return false;
+          try { atob(stripped.slice(0, Math.min(stripped.length, 64))); return true; } catch { return false; }
+        };
+
+        type ValidationFailure = {
+          filename: string | null;
+          reason: string;
+          bucket: string;
+          index: number;
+        };
+        const failures: ValidationFailure[] = [];
+
+        const validateAndDedupe = (list: any[], bucket: string) => {
+          const seen = new Set<string>();
+          const valid: { entry: any; safeName: string }[] = [];
+          list.forEach((entry, idx) => {
+            const rawName: string | undefined = entry?.filename || entry?.name;
+            const reject = (reason: string) =>
+              failures.push({ filename: rawName ?? null, reason, bucket, index: idx });
+
+            // 1) filename required
+            if (!rawName || typeof rawName !== "string" || !rawName.trim()) {
+              reject("missing_filename"); return;
+            }
+            // 2) extension allow-list
+            const ext = extOf(rawName);
+            if (!ext || !ALLOWED_EXT.has(ext)) {
+              reject(`invalid_extension:${ext || "none"}`); return;
+            }
+            // 3) content_type (if provided) must match image mime allow-list
+            if (entry.content_type && !ALLOWED_MIME.has(String(entry.content_type).toLowerCase())) {
+              reject(`invalid_content_type:${entry.content_type}`); return;
+            }
+            // 4) must have either url or base64
+            if (!entry.url && !entry.base64) {
+              reject("missing_source"); return;
+            }
+            // 5) url format
+            if (entry.url && !isValidHttpUrl(String(entry.url))) {
+              reject("invalid_url"); return;
+            }
+            // 6) base64 format
+            if (entry.base64 && !isValidBase64(String(entry.base64))) {
+              reject("invalid_base64"); return;
+            }
+            // 7) duplicate filename within same category
+            const safeName = rawName.replace(/[^\w.\-]/g, "_");
+            const key = safeName.toLowerCase();
+            if (seen.has(key)) {
+              reject("duplicate_filename"); return;
+            }
+            seen.add(key);
+            valid.push({ entry, safeName });
+          });
+          return valid;
+        };
+
+        const validDesign = validateAndDedupe(designList, "design-images");
+        const validTwincode = validateAndDedupe(twincodeList, "twincode-images");
+
+        // Log all validation failures up front (one row per failed image)
+        if (failures.length) {
+          await supabase.from("webhook_logs").insert(
+            failures.map((f) => ({
+              event_type: "image_validation_failed",
+              payload: {
+                external_order_id: folder,
+                bucket: f.bucket,
+                index: f.index,
+                filename: f.filename,
+                reason: f.reason,
+              },
+              status: "error",
+              error_message: `Image skipped (${f.reason})${f.filename ? `: ${f.filename}` : ""}`,
+            })),
+          );
+        }
+
         const fetchToBytes = async (entry: any): Promise<{ bytes: Uint8Array; contentType: string } | null> => {
           try {
             if (entry?.base64) {
-              const b64 = String(entry.base64).replace(/^data:[^;]+;base64,/, "");
+              const b64 = String(entry.base64).replace(/^data:[^;]+;base64,/, "").replace(/\s+/g, "");
               const bin = atob(b64);
               const bytes = new Uint8Array(bin.length);
               for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -145,6 +242,7 @@ Deno.serve(async (req) => {
               const r = await fetch(entry.url);
               if (!r.ok) return null;
               const ct = r.headers.get("content-type") || entry.content_type || "image/png";
+              if (!ALLOWED_MIME.has(ct.split(";")[0].trim().toLowerCase())) return null;
               const ab = await r.arrayBuffer();
               return { bytes: new Uint8Array(ab), contentType: ct };
             }
@@ -154,14 +252,23 @@ Deno.serve(async (req) => {
           return null;
         };
 
-        const uploadList = async (list: any[], bucket: string): Promise<number> => {
+        const uploadValid = async (
+          items: { entry: any; safeName: string }[],
+          bucket: string,
+        ): Promise<number> => {
           let saved = 0;
-          for (const entry of list) {
-            const filename: string = entry?.filename || entry?.name || `${crypto.randomUUID()}.png`;
-            const safeName = filename.replace(/[^\w.\-]/g, "_");
+          for (const { entry, safeName } of items) {
             const data = await fetchToBytes(entry);
-            if (!data) continue;
             const path = `${folder}/${safeName}`;
+            if (!data) {
+              await supabase.from("webhook_logs").insert({
+                event_type: "image_fetch_failed",
+                payload: { bucket, path, filename: safeName },
+                status: "error",
+                error_message: `Image fetch/decode failed: ${safeName}`,
+              });
+              continue;
+            }
             const { error: upErr } = await supabase.storage.from(bucket).upload(path, data.bytes, {
               upsert: true,
               contentType: data.contentType,
@@ -179,10 +286,8 @@ Deno.serve(async (req) => {
           return saved;
         };
 
-        let designSaved = 0;
-        let twincodeSaved = 0;
-        if (designList.length) designSaved = await uploadList(designList, "design-images");
-        if (twincodeList.length) twincodeSaved = await uploadList(twincodeList, "twincode-images");
+        const designSaved = validDesign.length ? await uploadValid(validDesign, "design-images") : 0;
+        const twincodeSaved = validTwincode.length ? await uploadValid(validTwincode, "twincode-images") : 0;
 
         // Update upload_history image counts (additive)
         if (historyIdForImages && (designSaved > 0 || twincodeSaved > 0)) {
@@ -206,11 +311,19 @@ Deno.serve(async (req) => {
             payload: {
               external_order_id: folder,
               design_received: designList.length,
+              design_valid: validDesign.length,
               design_saved: designSaved,
               twincode_received: twincodeList.length,
+              twincode_valid: validTwincode.length,
               twincode_saved: twincodeSaved,
+              skipped: failures.length,
+              failures: failures.map((f) => ({
+                bucket: f.bucket,
+                filename: f.filename,
+                reason: f.reason,
+              })),
             },
-            status: "processed",
+            status: failures.length ? "partial" : "processed",
           });
         }
       }
