@@ -1117,13 +1117,15 @@ export default function FileUpload() {
                   <tbody>
                     {!apiHistory.length ? (
                       <tr>
-                        <td colSpan={9} className="py-6 text-center text-muted-foreground text-sm">
+                        <td colSpan={10} className="py-6 text-center text-muted-foreground text-sm">
                           {isKo ? "API 연동 이력이 없습니다" : "暂无API联动记录"}
                         </td>
                       </tr>
                     ) : (
                       apiHistory.map((h: any) => {
                         const extOrderId = h.file_name?.replace("API-", "") || "-";
+                        const twinkers: string[] = (h as any).twinkers || [];
+                        const twinkerLabel = twinkers.length ? (twinkers.length > 2 ? `${twinkers.slice(0, 2).join(", ")} +${twinkers.length - 2}` : twinkers.join(", ")) : "-";
                         return (
                           <tr key={h.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                             <td className="py-2.5">
@@ -1132,6 +1134,7 @@ export default function FileUpload() {
                                 {extOrderId}
                               </div>
                             </td>
+                            <td className="py-2.5 text-muted-foreground" title={twinkers.join(", ")}>{twinkerLabel}</td>
                             <td className="py-2.5 text-center">
                               {h.logo_path ? (
                                 <div className="flex items-center justify-center gap-1.5">
