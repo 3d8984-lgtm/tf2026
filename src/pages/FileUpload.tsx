@@ -639,6 +639,23 @@ export default function FileUpload() {
   };
 
 
+  // Detect API connection status from latest webhook log (received within last 24h)
+  const { data: lastWebhook } = useQuery({
+    queryKey: ["last_webhook_log"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("webhook_logs")
+        .select("created_at,status")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data as { created_at: string; status: string } | null;
+    },
+    refetchInterval: 30000,
+  });
+  const lastWebhookAt = lastWebhook?.created_at ? new Date(lastWebhook.created_at) : null;
+  const isApiConnected = !!lastWebhookAt && (Date.now() - lastWebhookAt.getTime() < 24 * 60 * 60 * 1000);
+
   // Fetch upload history from DB and reconcile image counts with actual storage files
   const { data: allUploadHistory = [] } = useQuery({
     queryKey: ["upload_history"],
