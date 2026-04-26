@@ -656,20 +656,40 @@ export default function FileUpload() {
       const historyIds = rows.map((r: any) => r.id);
       const { data: orderRows } = await (supabase
         .from("orders")
-        .select("external_order_id,upload_history_id") as any)
+        .select("external_order_id,upload_history_id,recipient_name,source_data") as any)
         .in("upload_history_id", historyIds);
 
       const foldersByHistory = new Map<string, string[]>();
+      const twinkersByHistory = new Map<string, string[]>();
       (orderRows || []).forEach((o: any) => {
         const arr = foldersByHistory.get(o.upload_history_id) || [];
         arr.push(o.external_order_id);
         foldersByHistory.set(o.upload_history_id, arr);
+
+        // Collect unique twinker names per history.
+        // File upload: source_data.items[*].twinker. Webhook: order.twinker / recipient_name.
+        const tArr = twinkersByHistory.get(o.upload_history_id) || [];
+        const items = (o.source_data && (o.source_data as any).items) || [];
+        if (Array.isArray(items) && items.length) {
+          items.forEach((it: any) => {
+            const t = (it?.twinker || "").toString().trim();
+            if (t && !tArr.includes(t)) tArr.push(t);
+          });
+        }
+        const fromOrder = (o.source_data?.order?.twinker || o.source_data?.twinker || "").toString().trim();
+        if (fromOrder && !tArr.includes(fromOrder)) tArr.push(fromOrder);
+        if (!tArr.length && o.recipient_name) {
+          const rn = String(o.recipient_name).trim();
+          if (rn && rn !== "N/A") tArr.push(rn);
+        }
+        twinkersByHistory.set(o.upload_history_id, tArr);
       });
 
       // Count files per history by listing each folder in both buckets
       const reconciled = await Promise.all(rows.map(async (r: any) => {
         const folders = foldersByHistory.get(r.id) || [];
-        if (folders.length === 0) return r;
+        const twinkers = twinkersByHistory.get(r.id) || [];
+        if (folders.length === 0) return { ...r, twinkers };
 
         const [designCounts, twincodeCounts] = await Promise.all([
           Promise.all(folders.map(async (f) => {
@@ -691,7 +711,7 @@ export default function FileUpload() {
             twincode_image_count: twincodeTotal,
           } as any) as any).eq("id", r.id);
         }
-        return { ...r, design_image_count: designTotal, twincode_image_count: twincodeTotal };
+        return { ...r, design_image_count: designTotal, twincode_image_count: twincodeTotal, twinkers };
       }));
 
       return reconciled;
@@ -1083,6 +1103,7 @@ export default function FileUpload() {
                   <thead>
                     <tr className="border-b text-left">
                       <th className="pb-2 font-medium text-muted-foreground">{isKo ? "주문번호" : "订单号"}</th>
+                      <th className="pb-2 font-medium text-muted-foreground">{isKo ? "트윈커" : "Twinker"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "로고" : "Logo"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "데이터 행" : "数据行"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "디자인" : "设计"}</th>
@@ -1096,13 +1117,15 @@ export default function FileUpload() {
                   <tbody>
                     {!apiHistory.length ? (
                       <tr>
-                        <td colSpan={9} className="py-6 text-center text-muted-foreground text-sm">
+                        <td colSpan={10} className="py-6 text-center text-muted-foreground text-sm">
                           {isKo ? "API 연동 이력이 없습니다" : "暂无API联动记录"}
                         </td>
                       </tr>
                     ) : (
                       apiHistory.map((h: any) => {
                         const extOrderId = h.file_name?.replace("API-", "") || "-";
+                        const twinkers: string[] = (h as any).twinkers || [];
+                        const twinkerLabel = twinkers.length ? (twinkers.length > 2 ? `${twinkers.slice(0, 2).join(", ")} +${twinkers.length - 2}` : twinkers.join(", ")) : "-";
                         return (
                           <tr key={h.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                             <td className="py-2.5">
@@ -1111,6 +1134,7 @@ export default function FileUpload() {
                                 {extOrderId}
                               </div>
                             </td>
+                            <td className="py-2.5 text-muted-foreground" title={twinkers.join(", ")}>{twinkerLabel}</td>
                             <td className="py-2.5 text-center">
                               {h.logo_path ? (
                                 <div className="flex items-center justify-center gap-1.5">
@@ -1939,6 +1963,7 @@ export default function FileUpload() {
                   <thead>
                     <tr className="border-b text-left">
                       <th className="pb-2 font-medium text-muted-foreground">{t("upload.fileName")}</th>
+                      <th className="pb-2 font-medium text-muted-foreground">{isKo ? "트윈커" : "Twinker"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "로고" : "Logo"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-right">{isKo ? "데이터 행" : "数据行"}</th>
                       <th className="pb-2 font-medium text-muted-foreground text-center">{isKo ? "디자인" : "设计"}</th>
@@ -1953,12 +1978,15 @@ export default function FileUpload() {
                   <tbody>
                     {!uploadHistory.length ? (
                       <tr>
-                        <td colSpan={10} className="py-6 text-center text-muted-foreground text-sm">
+                        <td colSpan={11} className="py-6 text-center text-muted-foreground text-sm">
                           {isKo ? "업로드 이력이 없습니다" : "暂无上传记录"}
                         </td>
                       </tr>
                     ) : (
-                      uploadHistory.map((h) => (
+                      uploadHistory.map((h) => {
+                        const twinkers: string[] = (h as any).twinkers || [];
+                        const twinkerLabel = twinkers.length ? (twinkers.length > 2 ? `${twinkers.slice(0, 2).join(", ")} +${twinkers.length - 2}` : twinkers.join(", ")) : "-";
+                        return (
                         <tr key={h.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                           <td className="py-2.5">
                             <div className="flex items-center gap-2">
@@ -1966,6 +1994,7 @@ export default function FileUpload() {
                               {h.file_name}
                             </div>
                           </td>
+                          <td className="py-2.5 text-muted-foreground" title={twinkers.join(", ")}>{twinkerLabel}</td>
                           <td className="py-2.5 text-center">
                             {(h as any).logo_path ? (
                               <div className="flex items-center justify-center gap-1.5">
@@ -2139,7 +2168,8 @@ export default function FileUpload() {
                             </div>
                           </td>
                         </tr>
-                      ))
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
