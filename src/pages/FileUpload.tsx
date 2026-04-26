@@ -639,17 +639,22 @@ export default function FileUpload() {
   };
 
 
-  // Detect API connection status from latest webhook log (received within last 24h)
+  // Detect API connection status: only real external order events from TWINMETA count.
+  // - event_type must be order_create / order_update (실제 주문 수신)
+  // - status must be 'processed' (정상 처리 완료)
+  // - within last 24 hours
   const { data: lastWebhook } = useQuery({
-    queryKey: ["last_webhook_log"],
+    queryKey: ["last_webhook_log_real"],
     queryFn: async () => {
       const { data } = await supabase
         .from("webhook_logs")
-        .select("created_at,status")
+        .select("created_at,status,event_type,source")
+        .in("event_type", ["order_create", "order_update"])
+        .eq("status", "processed")
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      return data as { created_at: string; status: string } | null;
+      return data as { created_at: string; status: string; event_type: string; source: string } | null;
     },
     refetchInterval: 30000,
   });
