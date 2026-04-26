@@ -1067,8 +1067,10 @@ export default function FileUpload() {
                     <h3 className="text-sm font-semibold">
                       {isKo ? "TWINMETA 사이트 API 연동" : "TWINMETA站点 API连接"}
                     </h3>
-                    <span className="status-badge status-running">
-                      {isKo ? "연결됨" : "已连接"}
+                    <span className={`status-badge ${isApiConnected ? "status-running" : "status-stopped"}`}>
+                      {isApiConnected
+                        ? (isKo ? "연결됨" : "已连接")
+                        : (isKo ? "대기 중" : "等待中")}
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground mb-3">
@@ -1084,7 +1086,8 @@ export default function FileUpload() {
                         : (isKo ? "수동 동기화" : "手动同步")}
                     </Button>
                     <span className="text-xs text-muted-foreground">
-                      {isKo ? "마지막 동기화: -" : "最后同步: -"}
+                      {isKo ? "마지막 수신: " : "最后接收: "}
+                      {lastWebhookAt ? lastWebhookAt.toLocaleString() : (isKo ? "기록 없음" : "无记录")}
                     </span>
                   </div>
                 </div>
