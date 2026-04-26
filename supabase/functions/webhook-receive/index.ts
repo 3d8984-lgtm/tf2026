@@ -67,6 +67,7 @@ Deno.serve(async (req) => {
 
       let orderSuccess = false;
       let orderError: string | null = null;
+      let historyIdForImages: string | null = null;
 
       if (eventType === "order_create") {
         const { data: insertedOrder, error } = await supabase.from("orders").insert(orderData).select("id").single();
@@ -93,6 +94,7 @@ Deno.serve(async (req) => {
           // Link order to upload_history
           if (historyRow?.id && insertedOrder?.id) {
             await supabase.from("orders").update({ upload_history_id: historyRow.id }).eq("id", insertedOrder.id);
+            historyIdForImages = historyRow.id;
           }
         }
       } else {
@@ -111,6 +113,105 @@ Deno.serve(async (req) => {
           });
         } else {
           orderSuccess = true;
+          // Find existing upload_history_id for image count updates
+          const { data: existingOrder } = await supabase
+            .from("orders")
+            .select("upload_history_id")
+            .eq("external_order_id", orderData.external_order_id)
+            .maybeSingle();
+          historyIdForImages = existingOrder?.upload_history_id ?? null;
+        }
+      }
+
+      // === Auto-receive design / twincode images from webhook payload ===
+      // Accepted shapes (per category):
+      //   design_images / twincode_images: Array<{ filename: string, url?: string, base64?: string, content_type?: string }>
+      //   Aliases also accepted: order.design_images, order.twincode_images
+      if (orderSuccess && !orderError) {
+        const folder = orderData.external_order_id;
+        const designList: any[] = body.design_images || order.design_images || [];
+        const twincodeList: any[] = body.twincode_images || order.twincode_images || [];
+
+        const fetchToBytes = async (entry: any): Promise<{ bytes: Uint8Array; contentType: string } | null> => {
+          try {
+            if (entry?.base64) {
+              const b64 = String(entry.base64).replace(/^data:[^;]+;base64,/, "");
+              const bin = atob(b64);
+              const bytes = new Uint8Array(bin.length);
+              for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+              return { bytes, contentType: entry.content_type || "image/png" };
+            }
+            if (entry?.url) {
+              const r = await fetch(entry.url);
+              if (!r.ok) return null;
+              const ct = r.headers.get("content-type") || entry.content_type || "image/png";
+              const ab = await r.arrayBuffer();
+              return { bytes: new Uint8Array(ab), contentType: ct };
+            }
+          } catch (_) {
+            return null;
+          }
+          return null;
+        };
+
+        const uploadList = async (list: any[], bucket: string): Promise<number> => {
+          let saved = 0;
+          for (const entry of list) {
+            const filename: string = entry?.filename || entry?.name || `${crypto.randomUUID()}.png`;
+            const safeName = filename.replace(/[^\w.\-]/g, "_");
+            const data = await fetchToBytes(entry);
+            if (!data) continue;
+            const path = `${folder}/${safeName}`;
+            const { error: upErr } = await supabase.storage.from(bucket).upload(path, data.bytes, {
+              upsert: true,
+              contentType: data.contentType,
+            });
+            if (!upErr) saved++;
+            else {
+              await supabase.from("webhook_logs").insert({
+                event_type: "image_upload_error",
+                payload: { bucket, path, error: upErr.message },
+                status: "error",
+                error_message: upErr.message,
+              });
+            }
+          }
+          return saved;
+        };
+
+        let designSaved = 0;
+        let twincodeSaved = 0;
+        if (designList.length) designSaved = await uploadList(designList, "design-images");
+        if (twincodeList.length) twincodeSaved = await uploadList(twincodeList, "twincode-images");
+
+        // Update upload_history image counts (additive)
+        if (historyIdForImages && (designSaved > 0 || twincodeSaved > 0)) {
+          const { data: hist } = await supabase
+            .from("upload_history")
+            .select("design_image_count, twincode_image_count")
+            .eq("id", historyIdForImages)
+            .maybeSingle();
+          await supabase
+            .from("upload_history")
+            .update({
+              design_image_count: (hist?.design_image_count || 0) + designSaved,
+              twincode_image_count: (hist?.twincode_image_count || 0) + twincodeSaved,
+            })
+            .eq("id", historyIdForImages);
+        }
+
+        if (designList.length || twincodeList.length) {
+          await supabase.from("webhook_logs").insert({
+            event_type: "images_received",
+            payload: {
+              external_order_id: folder,
+              design_received: designList.length,
+              design_saved: designSaved,
+              twincode_received: twincodeList.length,
+              twincode_saved: twincodeSaved,
+            },
+            status: "processed",
+          });
         }
       }
 
