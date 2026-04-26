@@ -48,7 +48,7 @@ export default function SiteCallbackSettings() {
         .from("callback_settings")
         .select("*")
         .limit(1)
-        .single();
+        .maybeSingle();
       if (!error && data) {
         setSettingsId(data.id);
         setConfig({
