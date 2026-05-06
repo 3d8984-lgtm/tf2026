@@ -39,6 +39,15 @@ interface ScanResult {
   found: boolean;
 }
 
+interface HistoryEntry {
+  id: string;
+  at: number;
+  barcodes: string[];
+  serials: string[];
+  ok: boolean;
+  reason: string;
+}
+
 export default function CardQrInspection() {
   const { lang } = useLang();
   const isKo = lang === "ko";
@@ -104,6 +113,8 @@ export default function CardQrInspection() {
     if (order) inputRef.current?.focus();
   }, [order, scans.length]);
 
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+
   const reset = useCallback(() => {
     setScans([]);
     setInput("");
@@ -111,7 +122,7 @@ export default function CardQrInspection() {
   }, []);
 
   // When switching orders, reset
-  useEffect(() => { reset(); }, [selectedOrderId, reset]);
+  useEffect(() => { reset(); setHistory([]); }, [selectedOrderId, reset]);
 
   const handleScan = (raw: string) => {
     const code = raw.trim();
@@ -149,6 +160,25 @@ export default function CardQrInspection() {
       ? { ok: true, reason: t("3장 연속 카드 확인됨", "已确认3张连续卡片") }
       : { ok: false, reason: t("카드가 연속되지 않음", "卡片不连续") };
   }, [scans, isKo]);
+
+  // Append to history when 3 scans + verification ready
+  const lastLoggedRef = useRef<string>("");
+  useEffect(() => {
+    if (scans.length === 3 && verification) {
+      const key = scans.map(s => s.scannedAt).join("-");
+      if (lastLoggedRef.current === key) return;
+      lastLoggedRef.current = key;
+      setHistory(prev => [{
+        id: key,
+        at: Date.now(),
+        barcodes: scans.map(s => s.barcode),
+        serials: scans.map(s => s.card?.card_serial ?? "-"),
+        ok: verification.ok,
+        reason: verification.reason,
+      }, ...prev].slice(0, 50));
+    }
+  }, [scans, verification]);
+
 
   // ─── Order list view ──────────────────────────────────────────────────
   if (!order) {
@@ -294,6 +324,56 @@ export default function CardQrInspection() {
               </div>
             );
           })}
+        </div>
+
+        {/* Scan history */}
+        <div className="rounded-lg border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b bg-muted/30 flex items-center justify-between">
+            <div className="text-sm font-semibold">{t("스캔 검사 이력", "扫描检验历史")}</div>
+            <div className="text-xs text-muted-foreground tabular-nums">
+              {t(`총 ${history.length}건`, `共 ${history.length} 条`)}
+            </div>
+          </div>
+          {history.length === 0 ? (
+            <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+              {t("이력이 없습니다", "暂无历史")}
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-muted/20 text-muted-foreground text-xs">
+                <tr>
+                  <th className="text-left px-4 py-2 font-medium w-40">{t("시각", "时间")}</th>
+                  <th className="text-left px-4 py-2 font-medium w-24">{t("결과", "结果")}</th>
+                  <th className="text-left px-4 py-2 font-medium">{t("카드 시리얼", "卡片序列号")}</th>
+                  <th className="text-left px-4 py-2 font-medium">{t("DM 바코드", "DM条码")}</th>
+                  <th className="text-left px-4 py-2 font-medium">{t("사유", "原因")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map(h => (
+                  <tr key={h.id} className="border-t">
+                    <td className="px-4 py-2 tabular-nums text-muted-foreground">
+                      {new Date(h.at).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN")}
+                    </td>
+                    <td className="px-4 py-2">
+                      {h.ok ? (
+                        <span className="inline-flex items-center gap-1 text-[hsl(var(--success))]">
+                          <CheckCircle2 className="w-4 h-4" /> {t("통과", "通过")}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-destructive">
+                          <XCircle className="w-4 h-4" /> {t("실패", "失败")}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 font-mono text-xs">{h.serials.join(", ")}</td>
+                    <td className="px-4 py-2 font-mono text-xs break-all">{h.barcodes.join(", ")}</td>
+                    <td className="px-4 py-2 text-xs text-muted-foreground">{h.reason}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>
