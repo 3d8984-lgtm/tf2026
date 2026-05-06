@@ -4,7 +4,7 @@ import { NavLink, Link, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Upload, Database,
   Shirt, Activity, AlertTriangle, FileBarChart, Settings,
-  ChevronLeft, ChevronRight, ScanLine, Globe, LogOut, Truck, Search, BookOpen
+  ChevronLeft, ChevronRight, ScanLine, Globe, LogOut, Truck, Search, BookOpen, QrCode
 } from "lucide-react";
 import { useLang, type Lang } from "@/contexts/LangContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -25,6 +25,7 @@ const menuKeys: MenuItem[] = [
     { label: { ko: "파일 업로드", zh: "文件上传" }, tab: "file" },
   ]},
   { path: "/master", icon: Database, key: "menu.master" },
+  { path: "/card-qr-inspect", icon: QrCode, key: "menu.cardQrInspect" },
   { path: "/tshirt-work", icon: ScanLine, key: "menu.tshirtWork" },
   { path: "/tshirt", icon: Shirt, key: "menu.tshirt" },
   { path: "/monitor", icon: Activity, key: "menu.monitor", children: [
