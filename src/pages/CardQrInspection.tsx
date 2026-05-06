@@ -113,6 +113,8 @@ export default function CardQrInspection() {
     if (order) inputRef.current?.focus();
   }, [order, scans.length]);
 
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+
   const reset = useCallback(() => {
     setScans([]);
     setInput("");
@@ -120,7 +122,7 @@ export default function CardQrInspection() {
   }, []);
 
   // When switching orders, reset
-  useEffect(() => { reset(); }, [selectedOrderId, reset]);
+  useEffect(() => { reset(); setHistory([]); }, [selectedOrderId, reset]);
 
   const handleScan = (raw: string) => {
     const code = raw.trim();
