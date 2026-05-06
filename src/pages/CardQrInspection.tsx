@@ -322,7 +322,7 @@ export default function CardQrInspection() {
                   </div>
                 ) : (
                   <div>
-                    <div className="aspect-[3/4] bg-muted/20 flex items-center justify-center overflow-hidden">
+                    <div className="h-40 bg-muted/20 flex items-center justify-center overflow-hidden">
                       {s.designImageUrl ? (
                         <img src={s.designImageUrl} alt="card" className="w-full h-full object-contain" />
                       ) : (
@@ -332,7 +332,7 @@ export default function CardQrInspection() {
                         </div>
                       )}
                     </div>
-                    <dl className="p-3 text-xs space-y-1.5">
+                    <dl className="p-4 text-base space-y-2.5">
                       <Row label={t("카드 고유번호", "卡片编号")} value={s.card!.card_serial} />
                       <Row label={t("CP 점수", "CP分数")} value={s.card!.cp_score ?? "-"} />
                       <Row label={t("트윈커", "Twinker")} value={s.card!.twinker} />
