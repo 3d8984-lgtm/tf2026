@@ -39,6 +39,15 @@ interface ScanResult {
   found: boolean;
 }
 
+interface HistoryEntry {
+  id: string;
+  at: number;
+  barcodes: string[];
+  serials: string[];
+  ok: boolean;
+  reason: string;
+}
+
 export default function CardQrInspection() {
   const { lang } = useLang();
   const isKo = lang === "ko";
