@@ -232,6 +232,30 @@ export default function CardQrInspection() {
         <Button variant="outline" size="sm" onClick={() => setSelectedOrderId(null)}>
           <ChevronLeft className="w-4 h-4" /> {t("주문 목록", "订单列表")}
         </Button>
+        <Button variant="outline" size="sm" onClick={() => {
+          const demo: ScanResult = {
+            scannedAt: Date.now(),
+            barcode: "DM-2026-0501-00731",
+            found: true,
+            card: {
+              card_barcode: "DM-2026-0501-00731",
+              card_serial: "TM-CARD-A0731",
+              card_grade: "S",
+              design_qr: "DSGN-TWIN-007",
+              hologram_qr: "HOLO-2026-A731",
+              twinker: "Sasha Kim",
+              cp_score: 8420,
+              edition: "12 / 50",
+              minted_on: "2026-04-22",
+              sign: "S.Kim ✦",
+              twincode: "TWN-007-A",
+            },
+            designImageUrl: undefined,
+          };
+          setScans(prev => (prev.length >= 3 ? [demo] : [...prev, demo]));
+        }}>
+          <ScanLine className="w-4 h-4" /> {t("데모 스캔", "演示扫描")}
+        </Button>
         <Button variant="outline" size="sm" onClick={reset}>
           <RotateCcw className="w-4 h-4" /> {t("초기화", "重置")}
         </Button>
