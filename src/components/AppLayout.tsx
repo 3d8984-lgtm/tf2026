@@ -25,6 +25,7 @@ const menuKeys: MenuItem[] = [
     { label: { ko: "파일 업로드", zh: "文件上传" }, tab: "file" },
   ]},
   { path: "/master", icon: Database, key: "menu.master" },
+  { path: "/card-qr-inspect", icon: QrCode, key: "menu.cardQrInspect" },
   { path: "/tshirt-work", icon: ScanLine, key: "menu.tshirtWork" },
   { path: "/tshirt", icon: Shirt, key: "menu.tshirt" },
   { path: "/monitor", icon: Activity, key: "menu.monitor", children: [
