@@ -322,7 +322,7 @@ export default function CardQrInspection() {
                   </div>
                 ) : (
                   <div>
-                    <div className="h-40 bg-muted/20 flex items-center justify-center overflow-hidden">
+                    <div className="h-52 bg-muted/20 flex items-center justify-center overflow-hidden">
                       {s.designImageUrl ? (
                         <img src={s.designImageUrl} alt="card" className="w-full h-full object-contain" />
                       ) : (
