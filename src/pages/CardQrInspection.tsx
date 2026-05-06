@@ -161,6 +161,25 @@ export default function CardQrInspection() {
       : { ok: false, reason: t("카드가 연속되지 않음", "卡片不连续") };
   }, [scans, isKo]);
 
+  // Append to history when 3 scans + verification ready
+  const lastLoggedRef = useRef<string>("");
+  useEffect(() => {
+    if (scans.length === 3 && verification) {
+      const key = scans.map(s => s.scannedAt).join("-");
+      if (lastLoggedRef.current === key) return;
+      lastLoggedRef.current = key;
+      setHistory(prev => [{
+        id: key,
+        at: Date.now(),
+        barcodes: scans.map(s => s.barcode),
+        serials: scans.map(s => s.card?.card_serial ?? "-"),
+        ok: verification.ok,
+        reason: verification.reason,
+      }, ...prev].slice(0, 50));
+    }
+  }, [scans, verification]);
+
+
   // ─── Order list view ──────────────────────────────────────────────────
   if (!order) {
     return (
