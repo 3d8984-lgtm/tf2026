@@ -15,7 +15,7 @@ const ROLE_PERMISSIONS: Record<UserRole, {
   };
 }> = {
   worker: {
-    menuAccess: ["/", "/tshirt-work", "/card-qr-inspect", "/tshirt", "/monitor", "/shipping", "/defects", "/manual"],
+    menuAccess: ["/", "/tshirt-work", "/card-qr-inspect", "/card-photo-inspect", "/tshirt", "/monitor", "/shipping", "/defects", "/manual"],
     settingsTabs: [],
     canEdit: {
       orders: false,
@@ -26,7 +26,7 @@ const ROLE_PERMISSIONS: Record<UserRole, {
     },
   },
   manager: {
-    menuAccess: ["/", "/upload", "/master", "/tshirt-work", "/card-qr-inspect", "/tshirt", "/monitor", "/shipping", "/defects", "/reports", "/manual", "/settings"],
+    menuAccess: ["/", "/upload", "/master", "/tshirt-work", "/card-qr-inspect", "/card-photo-inspect", "/tshirt", "/monitor", "/shipping", "/defects", "/reports", "/manual", "/settings"],
     settingsTabs: ["general", "equipment", "plcTags", "sensors", "commands", "alarms", "inspection"],
     canEdit: {
       orders: true,
@@ -37,7 +37,7 @@ const ROLE_PERMISSIONS: Record<UserRole, {
     },
   },
   admin: {
-    menuAccess: ["/", "/upload", "/master", "/tshirt-work", "/card-qr-inspect", "/tshirt", "/monitor", "/shipping", "/defects", "/reports", "/manual", "/settings"],
+    menuAccess: ["/", "/upload", "/master", "/tshirt-work", "/card-qr-inspect", "/card-photo-inspect", "/tshirt", "/monitor", "/shipping", "/defects", "/reports", "/manual", "/settings"],
     settingsTabs: ["general", "users", "equipment", "plcTags", "sensors", "commands", "alarms", "inspection", "webhook", "courier", "callback"],
     canEdit: {
       orders: true,
