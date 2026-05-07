@@ -602,6 +602,73 @@ export default function CardPhotoInspection() {
             </div>
           </div>
         )}
+
+        {/* Inspection history for this order */}
+        <div className="rounded-lg border bg-card overflow-hidden">
+          <div className="px-4 py-2 border-b bg-muted/30 text-sm font-semibold flex items-center justify-between">
+            <span>
+              {t("이 주문 검사 기록", "本订单检验记录")}
+              <span className="ml-2 text-xs text-muted-foreground">
+                {t(`완료 ${orderHistory.length}/${order.items.length}`, `已完成 ${orderHistory.length}/${order.items.length}`)}
+              </span>
+            </span>
+            {allDone && (
+              <Button size="sm" variant="outline" onClick={goToNextCard}>
+                {t("다음 카드", "下一张卡片")}
+              </Button>
+            )}
+          </div>
+          {orderHistory.length === 0 ? (
+            <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+              {t("아직 검사 기록이 없습니다", "暂无检验记录")}
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-muted/20 text-muted-foreground text-xs">
+                <tr>
+                  <th className="text-left px-4 py-2 font-medium">#</th>
+                  <th className="text-left px-4 py-2 font-medium">{t("카드 순번", "卡片序号")}</th>
+                  <th className="text-left px-4 py-2 font-medium">{t("DM 바코드", "DM条码")}</th>
+                  <th className="text-left px-4 py-2 font-medium">{t("결과", "结果")}</th>
+                  <th className="text-left px-4 py-2 font-medium">{t("시각", "时间")}</th>
+                  <th className="px-4 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {orderHistory.map(h => (
+                  <tr key={h.key} className="border-t hover:bg-muted/20">
+                    <td className="px-4 py-2 tabular-nums">{h.itemIdx + 1}</td>
+                    <td className="px-4 py-2 font-mono text-xs">{h.cardSerial || "-"}</td>
+                    <td className="px-4 py-2 font-mono text-xs">{h.dmBarcode || "-"}</td>
+                    <td className="px-4 py-2">
+                      {h.pass ? (
+                        <span className="inline-flex items-center gap-1 text-[hsl(var(--success))] text-xs font-semibold">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> {t("합격", "合格")}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[hsl(var(--warning))] text-xs font-semibold">
+                          <AlertTriangle className="w-3.5 h-3.5" /> {t(`불일치 ${h.failCount}`, `不一致 ${h.failCount}`)}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 text-xs text-muted-foreground">
+                      {new Date(h.at).toLocaleString(isKo ? "ko-KR" : "zh-CN")}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      <button
+                        onClick={() => removeHistory(h.key)}
+                        className="text-muted-foreground hover:text-[hsl(var(--warning))] transition-colors"
+                        title={t("삭제", "删除")}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
     </div>
   );
