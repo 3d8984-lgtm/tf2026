@@ -45,6 +45,30 @@ interface FieldCheck {
   match: boolean;
 }
 
+type Tfn = (ko: string, zh: string) => string;
+const VISUAL_FIELDS: {
+  key: string;
+  side: "front" | "back";
+  label: (t: Tfn) => string;
+  getExpected: (e: CardItem) => string;
+  getDetected: (r: any) => string;
+}[] = [
+  { key: "cp", side: "front", label: t => t("CP 점수", "CP分数"),
+    getExpected: e => String(e.cp_score ?? ""), getDetected: r => r.cp_score ?? "" },
+  { key: "seq", side: "front", label: t => t("카드 순번", "卡片序号"),
+    getExpected: e => e.card_serial ?? "", getDetected: r => r.card_sequence ?? "" },
+  { key: "edition", side: "back", label: () => "EDITION",
+    getExpected: e => String(e.edition ?? ""), getDetected: r => r.edition ?? "" },
+  { key: "minted", side: "back", label: () => "Minted on",
+    getExpected: e => String(e.minted_on ?? ""), getDetected: r => r.minted_on ?? "" },
+  { key: "twin", side: "back", label: t => t("트윈코드", "TwinCode"),
+    getExpected: e => e.twincode || e.design_qr || "", getDetected: r => r.twincode ?? "" },
+  { key: "dm", side: "back", label: t => t("DM 바코드", "DM条码"),
+    getExpected: e => e.card_barcode ?? "", getDetected: r => r.dm_barcode ?? "" },
+  { key: "grade", side: "back", label: t => t("카드 등급", "卡片等级"),
+    getExpected: e => e.card_grade ?? "", getDetected: r => r.card_grade ?? "" },
+];
+
 export default function CardPhotoInspection() {
   const { lang } = useLang();
   const isKo = lang === "ko";
