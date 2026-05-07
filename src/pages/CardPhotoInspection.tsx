@@ -391,14 +391,17 @@ export default function CardPhotoInspection() {
           <div className="aspect-video bg-black rounded overflow-hidden flex items-center justify-center">
             <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-contain" />
           </div>
-          <div className="grid grid-cols-2 gap-3 mt-3">
-            <Button onClick={() => captureSide("front")} disabled={!stream || busySide !== null}>
-              {busySide === "front" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
-              {t("앞면 촬영 & 분석", "拍摄并分析正面")}
-            </Button>
-            <Button onClick={() => captureSide("back")} disabled={!stream || busySide !== null} variant="secondary">
+          <div className="text-xs text-muted-foreground mt-3 mb-2">
+            {t("① 뒷면을 먼저 촬영하면 DM 바코드로 주문이 자동 매칭됩니다. ② 그 다음 앞면을 촬영하세요.", "① 先拍摄背面，通过DM条码自动匹配订单。② 然后拍摄正面。")}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Button onClick={() => captureSide("back")} disabled={!stream || busySide !== null}>
               {busySide === "back" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
-              {t("뒷면 촬영 & 분석", "拍摄并分析背面")}
+              {t("① 뒷면 촬영 & 분석", "① 拍摄并分析背面")}
+            </Button>
+            <Button onClick={() => captureSide("front")} disabled={!stream || busySide !== null} variant="secondary">
+              {busySide === "front" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+              {t("② 앞면 촬영 & 분석", "② 拍摄并分析正面")}
             </Button>
           </div>
         </div>
