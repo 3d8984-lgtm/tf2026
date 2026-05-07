@@ -517,13 +517,6 @@ export default function CardPhotoInspection() {
             </div>
           </div>
         )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
     </div>
   );
