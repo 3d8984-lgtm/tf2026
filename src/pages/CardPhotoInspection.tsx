@@ -45,6 +45,30 @@ interface FieldCheck {
   match: boolean;
 }
 
+type Tfn = (ko: string, zh: string) => string;
+const VISUAL_FIELDS: {
+  key: string;
+  side: "front" | "back";
+  label: (t: Tfn) => string;
+  getExpected: (e: CardItem) => string;
+  getDetected: (r: any) => string;
+}[] = [
+  { key: "cp", side: "front", label: t => t("CP 점수", "CP分数"),
+    getExpected: e => String(e.cp_score ?? ""), getDetected: r => r.cp_score ?? "" },
+  { key: "seq", side: "front", label: t => t("카드 순번", "卡片序号"),
+    getExpected: e => e.card_serial ?? "", getDetected: r => r.card_sequence ?? "" },
+  { key: "edition", side: "back", label: () => "EDITION",
+    getExpected: e => String(e.edition ?? ""), getDetected: r => r.edition ?? "" },
+  { key: "minted", side: "back", label: () => "Minted on",
+    getExpected: e => String(e.minted_on ?? ""), getDetected: r => r.minted_on ?? "" },
+  { key: "twin", side: "back", label: t => t("트윈코드", "TwinCode"),
+    getExpected: e => e.twincode || e.design_qr || "", getDetected: r => r.twincode ?? "" },
+  { key: "dm", side: "back", label: t => t("DM 바코드", "DM条码"),
+    getExpected: e => e.card_barcode ?? "", getDetected: r => r.dm_barcode ?? "" },
+  { key: "grade", side: "back", label: t => t("카드 등급", "卡片等级"),
+    getExpected: e => e.card_grade ?? "", getDetected: r => r.card_grade ?? "" },
+];
+
 export default function CardPhotoInspection() {
   const { lang } = useLang();
   const isKo = lang === "ko";
@@ -465,42 +489,56 @@ export default function CardPhotoInspection() {
           </div>
         </div>
 
-        {/* Field comparison table */}
-        {checks.length > 0 && expected && (
+        {/* Field comparison — visual cards */}
+        {expected && (
           <div className="rounded-lg border bg-card overflow-hidden">
-            <div className="px-4 py-2 border-b bg-muted/30 text-sm font-semibold">
-              {t("자동 추출 항목 비교", "自动提取字段对比")}
+            <div className="px-4 py-2 border-b bg-muted/30 text-sm font-semibold flex items-center justify-between">
+              <span>{t("검사 항목", "检验项目")}</span>
+              <span className="text-xs text-muted-foreground">
+                {t(`총 ${VISUAL_FIELDS.length}개 · 일치 ${checks.filter(c=>c.match).length} · 불일치 ${checks.filter(c=>!c.match).length} · 대기 ${VISUAL_FIELDS.length - checks.length}`,
+                   `共 ${VISUAL_FIELDS.length} · 一致 ${checks.filter(c=>c.match).length} · 不一致 ${checks.filter(c=>!c.match).length} · 等待 ${VISUAL_FIELDS.length - checks.length}`)}
+              </span>
             </div>
-            <table className="w-full text-sm">
-              <thead className="bg-muted/20 text-muted-foreground text-xs">
-                <tr>
-                  <th className="text-left px-4 py-2 font-medium">{t("항목", "字段")}</th>
-                  <th className="text-left px-4 py-2 font-medium">{t("주문 정보", "订单信息")}</th>
-                  <th className="text-left px-4 py-2 font-medium">{t("사진에서 추출", "照片提取")}</th>
-                  <th className="px-4 py-2 font-medium w-24">{t("결과", "结果")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {checks.map((c, i) => (
-                  <tr key={i} className="border-t">
-                    <td className="px-4 py-2 font-medium">{c.label}</td>
-                    <td className="px-4 py-2 font-mono text-xs break-all">{c.expected || "-"}</td>
-                    <td className="px-4 py-2 font-mono text-xs break-all">{c.detected || "-"}</td>
-                    <td className="px-4 py-2">
-                      {c.match ? (
-                        <span className="inline-flex items-center gap-1 text-[hsl(var(--success))]">
-                          <CheckCircle2 className="w-4 h-4" /> {t("일치", "一致")}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[hsl(var(--warning))]">
-                          <XCircle className="w-4 h-4" /> {t("불일치", "不一致")}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 p-4">
+              {VISUAL_FIELDS.map(f => {
+                const side = f.side;
+                const ready = side === "front" ? !!frontResult : !!backResult;
+                const check = checks.find(c => c.label === f.label(t));
+                const status: "pending" | "match" | "fail" = !ready ? "pending" : check?.match ? "match" : "fail";
+                const expectedVal = f.getExpected(expected);
+                const detectedVal = ready
+                  ? (side === "front" ? f.getDetected(frontResult!) : f.getDetected(backResult!))
+                  : "";
+                const styles = {
+                  pending: "border-border bg-muted/20",
+                  match: "border-[hsl(var(--success)/0.4)] bg-[hsl(var(--success)/0.08)]",
+                  fail: "border-[hsl(var(--warning)/0.4)] bg-[hsl(var(--warning)/0.08)]",
+                }[status];
+                return (
+                  <div key={f.key} className={`rounded-lg border p-3 ${styles}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        {side === "front" ? t("앞면", "正面") : t("뒷면", "背面")}
+                      </span>
+                      {status === "pending" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{t("대기", "等待")}</span>}
+                      {status === "match" && <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success))]" />}
+                      {status === "fail" && <XCircle className="w-4 h-4 text-[hsl(var(--warning))]" />}
+                    </div>
+                    <div className="text-sm font-semibold mb-2">{f.label(t)}</div>
+                    <div className="space-y-1 text-xs">
+                      <div>
+                        <div className="text-muted-foreground text-[10px] uppercase">{t("기준", "标准")}</div>
+                        <div className="font-mono break-all">{expectedVal || "-"}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground text-[10px] uppercase">{t("추출", "提取")}</div>
+                        <div className="font-mono break-all">{ready ? (detectedVal || "-") : "…"}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
