@@ -181,7 +181,22 @@ export default function CardPhotoInspection() {
       const ex = data?.extracted;
       if (!ex) throw new Error(t("추출 결과 없음", "无提取结果"));
       if (side === "front") setFrontResult(ex);
-      else setBackResult(ex);
+      else {
+        setBackResult(ex);
+        // Auto-match order by detected DM barcode
+        const dm = String(ex.dm_barcode ?? "").trim();
+        if (dm && !selectedOrderId) {
+          for (const o of orders) {
+            const idx = o.items.findIndex(it => it.card_barcode === dm);
+            if (idx >= 0) {
+              setSelectedOrderId(o.id);
+              setSelectedItemIdx(idx);
+              toast.success(t(`주문 ${o.externalOrderId} 카드 ${idx + 1} 자동 매칭`, `订单 ${o.externalOrderId} 卡片 ${idx + 1} 自动匹配`));
+              break;
+            }
+          }
+        }
+      }
     } catch (e: any) {
       toast.error(e?.message ?? "Inspection failed");
     } finally {
@@ -348,24 +363,6 @@ export default function CardPhotoInspection() {
       </PageHeader>
 
       <div className="flex-1 overflow-auto p-6 space-y-4">
-        {/* Card index switch */}
-        {order.items.length > 1 && (
-          <div className="rounded-lg border bg-card p-3 flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-muted-foreground mr-2">{t("검사할 카드 선택", "选择检验卡片")}:</span>
-            {order.items.map((it, i) => (
-              <Button
-                key={i}
-                size="sm"
-                variant={i === selectedItemIdx ? "default" : "outline"}
-                onClick={() => { setSelectedItemIdx(i); reset(); }}
-                className="font-mono text-xs"
-              >
-                #{i + 1} · {it.card_serial}
-              </Button>
-            ))}
-          </div>
-        )}
-
         {/* Camera */}
         <div className="rounded-lg border bg-card p-4">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
