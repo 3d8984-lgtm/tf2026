@@ -305,6 +305,67 @@ export default function CardPhotoInspection() {
   const failCount = checks.filter(c => !c.match).length;
   const allDone = !!frontResult && !!backResult;
 
+  // ── Inspection history (persisted in localStorage) ────────────────────
+  type HistoryEntry = {
+    key: string;             // orderId + itemIdx
+    orderId: string;
+    externalOrderId: string;
+    itemIdx: number;
+    cardSerial: string;
+    dmBarcode: string;
+    pass: boolean;
+    failCount: number;
+    at: number;              // epoch ms
+  };
+  const HISTORY_KEY = "card-photo-inspect-history";
+  const [history, setHistory] = useState<HistoryEntry[]>(() => {
+    try {
+      const raw = localStorage.getItem(HISTORY_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch {}
+  }, [history]);
+
+  const recordedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!allDone || !order || !expected) return;
+    const key = `${order.id}::${selectedItemIdx}`;
+    if (recordedRef.current.has(key)) return;
+    recordedRef.current.add(key);
+    const entry: HistoryEntry = {
+      key,
+      orderId: order.id,
+      externalOrderId: order.externalOrderId,
+      itemIdx: selectedItemIdx,
+      cardSerial: expected.card_serial ?? "",
+      dmBarcode: expected.card_barcode ?? "",
+      pass: failCount === 0,
+      failCount,
+      at: Date.now(),
+    };
+    setHistory(prev => [entry, ...prev.filter(h => h.key !== key)]);
+  }, [allDone, order, expected, selectedItemIdx, failCount]);
+
+  const orderHistory = useMemo(
+    () => history.filter(h => order && h.orderId === order.id),
+    [history, order]
+  );
+
+  const goToNextCard = () => {
+    if (!order) return;
+    const next = selectedItemIdx + 1;
+    reset();
+    if (next < order.items.length) setSelectedItemIdx(next);
+    else toast.success(t("이 주문의 모든 카드 검사가 완료되었습니다", "本订单所有卡片检验已完成"));
+  };
+
+  const removeHistory = (key: string) => {
+    recordedRef.current.delete(key);
+    setHistory(prev => prev.filter(h => h.key !== key));
+  };
+
   // ── Order selection view ──────────────────────────────────────────────
   if (!order) {
     return (
@@ -541,6 +602,73 @@ export default function CardPhotoInspection() {
             </div>
           </div>
         )}
+
+        {/* Inspection history for this order */}
+        <div className="rounded-lg border bg-card overflow-hidden">
+          <div className="px-4 py-2 border-b bg-muted/30 text-sm font-semibold flex items-center justify-between">
+            <span>
+              {t("이 주문 검사 기록", "本订单检验记录")}
+              <span className="ml-2 text-xs text-muted-foreground">
+                {t(`완료 ${orderHistory.length}/${order.items.length}`, `已完成 ${orderHistory.length}/${order.items.length}`)}
+              </span>
+            </span>
+            {allDone && (
+              <Button size="sm" variant="outline" onClick={goToNextCard}>
+                {t("다음 카드", "下一张卡片")}
+              </Button>
+            )}
+          </div>
+          {orderHistory.length === 0 ? (
+            <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+              {t("아직 검사 기록이 없습니다", "暂无检验记录")}
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-muted/20 text-muted-foreground text-xs">
+                <tr>
+                  <th className="text-left px-4 py-2 font-medium">#</th>
+                  <th className="text-left px-4 py-2 font-medium">{t("카드 순번", "卡片序号")}</th>
+                  <th className="text-left px-4 py-2 font-medium">{t("DM 바코드", "DM条码")}</th>
+                  <th className="text-left px-4 py-2 font-medium">{t("결과", "结果")}</th>
+                  <th className="text-left px-4 py-2 font-medium">{t("시각", "时间")}</th>
+                  <th className="px-4 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {orderHistory.map(h => (
+                  <tr key={h.key} className="border-t hover:bg-muted/20">
+                    <td className="px-4 py-2 tabular-nums">{h.itemIdx + 1}</td>
+                    <td className="px-4 py-2 font-mono text-xs">{h.cardSerial || "-"}</td>
+                    <td className="px-4 py-2 font-mono text-xs">{h.dmBarcode || "-"}</td>
+                    <td className="px-4 py-2">
+                      {h.pass ? (
+                        <span className="inline-flex items-center gap-1 text-[hsl(var(--success))] text-xs font-semibold">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> {t("합격", "合格")}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[hsl(var(--warning))] text-xs font-semibold">
+                          <AlertTriangle className="w-3.5 h-3.5" /> {t(`불일치 ${h.failCount}`, `不一致 ${h.failCount}`)}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 text-xs text-muted-foreground">
+                      {new Date(h.at).toLocaleString(isKo ? "ko-KR" : "zh-CN")}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      <button
+                        onClick={() => removeHistory(h.key)}
+                        className="text-muted-foreground hover:text-[hsl(var(--warning))] transition-colors"
+                        title={t("삭제", "删除")}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
     </div>
   );
