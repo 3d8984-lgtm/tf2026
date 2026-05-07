@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Camera, CheckCircle2, XCircle, RotateCcw, ChevronLeft, Image as ImageIcon,
-  ScanLine, AlertTriangle, Loader2,
+  ScanLine, AlertTriangle, Loader2, Trash2,
 } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { toast } from "sonner";
