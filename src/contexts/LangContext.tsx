@@ -21,6 +21,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "menu.tshirt": "티셔츠 제작 관리",
     "menu.tshirtWork": "티셔츠 부착 작업",
     "menu.cardQrInspect": "카드 QR코드 검사",
+    "menu.cardPhotoInspect": "카드 사진 검사",
     "menu.monitor": "생산/포장 모니터링",
     "menu.shipping": "배송 관리",
     "menu.defects": "불량/예외 관리",

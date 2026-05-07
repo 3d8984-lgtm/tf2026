@@ -14,6 +14,7 @@ import MasterData from "@/pages/MasterData";
 import TshirtProduction from "@/pages/TshirtProduction";
 import TshirtWork from "@/pages/TshirtWork";
 import CardQrInspection from "@/pages/CardQrInspection";
+import CardPhotoInspection from "@/pages/CardPhotoInspection";
 import ProductionMonitor from "@/pages/ProductionMonitor";
 import Shipping from "@/pages/Shipping";
 import Defects from "@/pages/Defects";
@@ -68,6 +69,7 @@ function ProtectedRoutes() {
         
         <Route path="/tshirt" element={<TshirtProduction />} />
         <Route path="/card-qr-inspect" element={<CardQrInspection />} />
+        <Route path="/card-photo-inspect" element={<CardPhotoInspection />} />
         <Route path="/tshirt-work" element={<TshirtWork />} />
         <Route path="/monitor" element={<ProductionMonitor />} />
         <Route path="/shipping" element={<Shipping />} />
