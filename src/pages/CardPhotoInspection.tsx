@@ -505,12 +505,23 @@ export default function CardPhotoInspection() {
   );
 }
 
-function CapturedCard({ label, img, busy }: { label: string; img: string | null; busy: boolean }) {
+function CapturedCard({ label, img, busy, onDelete }: { label: string; img: string | null; busy: boolean; onDelete?: () => void }) {
   return (
     <div className="rounded-lg border bg-card overflow-hidden">
       <div className="px-4 py-2 border-b bg-muted/30 text-xs font-semibold flex items-center justify-between">
         <span>{label}</span>
-        {busy && <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />}
+        <div className="flex items-center gap-2">
+          {busy && <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />}
+          {img && onDelete && (
+            <button
+              onClick={onDelete}
+              className="text-[hsl(var(--warning))] hover:opacity-70 transition-opacity"
+              title={label}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
       <div className="aspect-video bg-muted/20 flex items-center justify-center">
         {img ? (
