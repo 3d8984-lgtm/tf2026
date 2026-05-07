@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Camera, CheckCircle2, XCircle, RotateCcw, ChevronLeft, Image as ImageIcon,
-  ScanLine, AlertTriangle, Loader2,
+  ScanLine, AlertTriangle, Loader2, Trash2,
 } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { toast } from "sonner";
@@ -447,8 +447,18 @@ export default function CardPhotoInspection() {
 
           {/* Captured photos */}
           <div className="space-y-4">
-            <CapturedCard label={t("앞면 촬영", "正面拍摄")} img={frontImg} busy={busySide === "front"} />
-            <CapturedCard label={t("뒷면 촬영", "背面拍摄")} img={backImg} busy={busySide === "back"} />
+            <CapturedCard
+              label={t("앞면 촬영", "正面拍摄")}
+              img={frontImg}
+              busy={busySide === "front"}
+              onDelete={() => { setFrontImg(null); setFrontResult(null); }}
+            />
+            <CapturedCard
+              label={t("뒷면 촬영", "背面拍摄")}
+              img={backImg}
+              busy={busySide === "back"}
+              onDelete={() => { setBackImg(null); setBackResult(null); }}
+            />
           </div>
         </div>
 
@@ -495,12 +505,23 @@ export default function CardPhotoInspection() {
   );
 }
 
-function CapturedCard({ label, img, busy }: { label: string; img: string | null; busy: boolean }) {
+function CapturedCard({ label, img, busy, onDelete }: { label: string; img: string | null; busy: boolean; onDelete?: () => void }) {
   return (
     <div className="rounded-lg border bg-card overflow-hidden">
       <div className="px-4 py-2 border-b bg-muted/30 text-xs font-semibold flex items-center justify-between">
         <span>{label}</span>
-        {busy && <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />}
+        <div className="flex items-center gap-2">
+          {busy && <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />}
+          {img && onDelete && (
+            <button
+              onClick={onDelete}
+              className="text-[hsl(var(--warning))] hover:opacity-70 transition-opacity"
+              title={label}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
       <div className="aspect-video bg-muted/20 flex items-center justify-center">
         {img ? (
