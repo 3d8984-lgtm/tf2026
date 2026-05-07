@@ -305,6 +305,67 @@ export default function CardPhotoInspection() {
   const failCount = checks.filter(c => !c.match).length;
   const allDone = !!frontResult && !!backResult;
 
+  // ── Inspection history (persisted in localStorage) ────────────────────
+  type HistoryEntry = {
+    key: string;             // orderId + itemIdx
+    orderId: string;
+    externalOrderId: string;
+    itemIdx: number;
+    cardSerial: string;
+    dmBarcode: string;
+    pass: boolean;
+    failCount: number;
+    at: number;              // epoch ms
+  };
+  const HISTORY_KEY = "card-photo-inspect-history";
+  const [history, setHistory] = useState<HistoryEntry[]>(() => {
+    try {
+      const raw = localStorage.getItem(HISTORY_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch {}
+  }, [history]);
+
+  const recordedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!allDone || !order || !expected) return;
+    const key = `${order.id}::${selectedItemIdx}`;
+    if (recordedRef.current.has(key)) return;
+    recordedRef.current.add(key);
+    const entry: HistoryEntry = {
+      key,
+      orderId: order.id,
+      externalOrderId: order.externalOrderId,
+      itemIdx: selectedItemIdx,
+      cardSerial: expected.card_serial ?? "",
+      dmBarcode: expected.card_barcode ?? "",
+      pass: failCount === 0,
+      failCount,
+      at: Date.now(),
+    };
+    setHistory(prev => [entry, ...prev.filter(h => h.key !== key)]);
+  }, [allDone, order, expected, selectedItemIdx, failCount]);
+
+  const orderHistory = useMemo(
+    () => history.filter(h => order && h.orderId === order.id),
+    [history, order]
+  );
+
+  const goToNextCard = () => {
+    if (!order) return;
+    const next = selectedItemIdx + 1;
+    reset();
+    if (next < order.items.length) setSelectedItemIdx(next);
+    else toast.success(t("이 주문의 모든 카드 검사가 완료되었습니다", "本订单所有卡片检验已完成"));
+  };
+
+  const removeHistory = (key: string) => {
+    recordedRef.current.delete(key);
+    setHistory(prev => prev.filter(h => h.key !== key));
+  };
+
   // ── Order selection view ──────────────────────────────────────────────
   if (!order) {
     return (
