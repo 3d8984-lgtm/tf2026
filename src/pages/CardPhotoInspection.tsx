@@ -447,8 +447,18 @@ export default function CardPhotoInspection() {
 
           {/* Captured photos */}
           <div className="space-y-4">
-            <CapturedCard label={t("앞면 촬영", "正面拍摄")} img={frontImg} busy={busySide === "front"} />
-            <CapturedCard label={t("뒷면 촬영", "背面拍摄")} img={backImg} busy={busySide === "back"} />
+            <CapturedCard
+              label={t("앞면 촬영", "正面拍摄")}
+              img={frontImg}
+              busy={busySide === "front"}
+              onDelete={() => { setFrontImg(null); setFrontResult(null); }}
+            />
+            <CapturedCard
+              label={t("뒷면 촬영", "背面拍摄")}
+              img={backImg}
+              busy={busySide === "back"}
+              onDelete={() => { setBackImg(null); setBackResult(null); }}
+            />
           </div>
         </div>
 
