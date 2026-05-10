@@ -24,7 +24,6 @@ const menuKeys: MenuItem[] = [
     { label: { ko: "API 연동", zh: "API连接" }, tab: "api" },
     { label: { ko: "파일 업로드", zh: "文件上传" }, tab: "file" },
   ]},
-  { path: "/master", icon: Database, key: "menu.master" },
   { path: "/card-qr-inspect", icon: QrCode, key: "menu.cardQrInspect" },
   { path: "/card-photo-inspect", icon: Camera, key: "menu.cardPhotoInspect" },
   { path: "/tshirt-work", icon: ScanLine, key: "menu.tshirtWork" },
@@ -45,6 +44,7 @@ const menuKeys: MenuItem[] = [
     { label: { ko: "배송 현황", zh: "配送现况" }, tab: "shipping" },
   ]},
   { path: "/manual", icon: BookOpen, key: "menu.manual" },
+  { path: "/master", icon: Database, key: "menu.master" },
   { path: "/settings", icon: Settings, key: "menu.settings", children: [
     { label: { ko: "일반", zh: "常规" }, tab: "general" },
     { label: { ko: "사용자 관리", zh: "用户管理" }, tab: "users" },
