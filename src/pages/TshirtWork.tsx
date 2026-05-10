@@ -75,8 +75,8 @@ export default function TshirtWork() {
   const { tshirtQR: mockTshirtQR, siliconQR: mockSiliconQR, designQR: mockDesignQR, holoQR: mockHoloQR } = useQrMasterData();
 
   const steps = [
+    { key: "silicon", label: t("tshirtWork.siliconQR"), icon: Sticker, placeholder: isKo ? "실리콘 마크 QR을 먼저 스캔하세요" : "请先扫描硅胶标QR" },
     { key: "tshirt", label: t("tshirtWork.tshirtScan"), icon: Shirt, placeholder: isKo ? "티셔츠 QR을 스캔하세요" : "请扫描T恤QR" },
-    { key: "silicon", label: t("tshirtWork.siliconQR"), icon: Sticker, placeholder: isKo ? "실리콘 마크 QR을 스캔하세요" : "请扫描硅胶标QR" },
     { key: "design", label: t("tshirtWork.designQR"), icon: QrCode, placeholder: isKo ? "디자인 QR을 스캔하세요" : "请扫描设计QR" },
     { key: "hologram", label: t("tshirtWork.hologramQR"), icon: Hash, placeholder: isKo ? "홀로그램 QR을 스캔하세요" : "请扫描全息QR" },
   ];
@@ -246,15 +246,15 @@ export default function TshirtWork() {
     setTimeout(() => {
       let pass = false; let reason = "";
       if (step === 0) {
-        const found = mockTshirtQR[value];
-        if (found && found.product === order.product && found.color === workItem.color && found.size === workItem.size) { pass = true; }
-        else if (!found) reason = isKo ? `티셔츠 QR [${value}] 기준 데이터에 없음` : `T恤QR [${value}] 基准数据中不存在`;
-        else reason = isKo ? `티셔츠 색상/사이즈 불일치 (${found.color}/${found.size} ≠ ${workItem.color}/${workItem.size})` : `T恤颜色/尺码不匹配 (${found.color}/${found.size} ≠ ${workItem.color}/${workItem.size})`;
-      } else if (step === 1) {
         const found = mockSiliconQR[value];
         if (found && found.product === order.product && found.design === order.design) { pass = true; setMatchedProduct(found); }
         else if (!found) reason = isKo ? `실리콘 QR [${value}] 기준 데이터에 없음` : `硅胶QR [${value}] 基准数据中不存在`;
         else reason = isKo ? "실리콘 QR 상품/디자인코드 불일치" : "硅胶QR 商品/设计代码不匹配";
+      } else if (step === 1) {
+        const found = mockTshirtQR[value];
+        if (found && found.product === order.product && found.color === workItem.color && found.size === workItem.size) { pass = true; }
+        else if (!found) reason = isKo ? `티셔츠 QR [${value}] 기준 데이터에 없음` : `T恤QR [${value}] 基准数据中不存在`;
+        else reason = isKo ? `티셔츠 색상/사이즈 불일치 (${found.color}/${found.size} ≠ ${workItem.color}/${workItem.size})` : `T恤颜色/尺码不匹配 (${found.color}/${found.size} ≠ ${workItem.color}/${workItem.size})`;
       } else if (step === 2) {
         const found = mockDesignQR[value];
         if (found && baseProduct && found.product === baseProduct.product && found.design === baseProduct.design) pass = true;
