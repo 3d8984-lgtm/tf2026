@@ -582,8 +582,8 @@ export default function CardPhotoInspection() {
                         {side === "front" ? t("앞면", "正面") : t("뒷면", "背面")}
                       </span>
                       {status === "pending" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{t("대기", "等待")}</span>}
-                      {status === "match" && <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success))]" />}
-                      {status === "fail" && <XCircle className="w-4 h-4 text-[hsl(var(--warning))]" />}
+                      {status === "match" && <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))] text-sm font-bold">O</span>}
+                      {status === "fail" && <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[hsl(var(--warning)/0.15)] text-[hsl(var(--warning))] text-sm font-bold">X</span>}
                     </div>
                     <div className="text-sm font-semibold mb-2">{f.label(t)}</div>
                     <div className="space-y-1 text-xs">
