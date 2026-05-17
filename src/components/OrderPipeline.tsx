@@ -1,4 +1,4 @@
-import { Shirt, CreditCard, Package, Mail, Truck, CheckCircle2, Scale } from "lucide-react";
+import { Shirt, CreditCard, Package, Mail, Truck, CheckCircle2 } from "lucide-react";
 import { useOrders, useProductionTracking } from "@/hooks/useDbData";
 import { useLang } from "@/contexts/LangContext";
 
@@ -6,7 +6,6 @@ const stages = [
   { key: "tshirt", label_ko: "티셔츠 제작", label_zh: "T恤制作", icon: Shirt },
   { key: "card", label_ko: "카드 포장", label_zh: "卡片包装", icon: CreditCard },
   { key: "set", label_ko: "세트 포장", label_zh: "套装包装", icon: Package },
-  { key: "weight", label_ko: "중량 검사", label_zh: "重量检测", icon: Scale },
   { key: "courier", label_ko: "택배 포장", label_zh: "快递包装", icon: Mail },
   { key: "invoice", label_ko: "송장 부착", label_zh: "运单贴附", icon: Truck },
   { key: "done", label_ko: "완료", label_zh: "完成", icon: CheckCircle2 },
@@ -16,11 +15,11 @@ type StageKey = (typeof stages)[number]["key"];
 
 const stageColors: Record<StageKey, string> = {
   tshirt: "hsl(205 75% 42%)", card: "hsl(152 60% 42%)", set: "hsl(38 92% 50%)",
-  weight: "hsl(320 55% 50%)", courier: "hsl(280 55% 52%)", invoice: "hsl(205 75% 55%)", done: "hsl(152 60% 36%)",
+  courier: "hsl(280 55% 52%)", invoice: "hsl(205 75% 55%)", done: "hsl(152 60% 36%)",
 };
 const stageBgColors: Record<StageKey, string> = {
   tshirt: "hsl(205 75% 42% / 0.1)", card: "hsl(152 60% 42% / 0.1)", set: "hsl(38 92% 50% / 0.1)",
-  weight: "hsl(320 55% 50% / 0.1)", courier: "hsl(280 55% 52% / 0.1)", invoice: "hsl(205 75% 55% / 0.1)", done: "hsl(152 60% 36% / 0.1)",
+  courier: "hsl(280 55% 52% / 0.1)", invoice: "hsl(205 75% 55% / 0.1)", done: "hsl(152 60% 36% / 0.1)",
 };
 
 function pct(count: number, total: number) {
@@ -58,7 +57,7 @@ export default function OrderPipeline() {
   // Build pipeline data from DB
   const pipelineOrders = (orders ?? []).map(order => {
     const orderTracking = (tracking ?? []).filter(t => t.order_id === order.id);
-    const stageCounts: Record<StageKey, number> = { tshirt: 0, card: 0, set: 0, weight: 0, courier: 0, invoice: 0, done: 0 };
+    const stageCounts: Record<StageKey, number> = { tshirt: 0, card: 0, set: 0, courier: 0, invoice: 0, done: 0 };
 
     orderTracking.forEach(t => {
       if (t.stage in stageCounts) {
@@ -66,7 +65,7 @@ export default function OrderPipeline() {
       }
     });
 
-    const stageKeys: StageKey[] = ["tshirt", "card", "set", "weight", "courier", "invoice", "done"];
+    const stageKeys: StageKey[] = ["tshirt", "card", "set", "courier", "invoice", "done"];
     let currentStage: StageKey = "tshirt";
     for (let i = stageKeys.length - 1; i >= 0; i--) {
       if (stageCounts[stageKeys[i]] > 0) {
@@ -117,7 +116,7 @@ export default function OrderPipeline() {
 
       {/* Order rows */}
       {pipelineOrders.map((order, oi) => {
-        const stageKeys: StageKey[] = ["tshirt", "card", "set", "weight", "courier", "invoice", "done"];
+        const stageKeys: StageKey[] = ["tshirt", "card", "set", "courier", "invoice", "done"];
         const currentIdx = stageKeys.indexOf(order.currentStage);
         const overallDone = order.stageCounts.done;
         const overallPct = pct(overallDone, order.qty);
