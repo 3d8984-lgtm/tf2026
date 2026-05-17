@@ -27,7 +27,6 @@ const menuKeys: MenuItem[] = [
   { path: "/card-qr-inspect", icon: QrCode, key: "menu.cardQrInspect" },
   { path: "/card-photo-inspect", icon: Camera, key: "menu.cardPhotoInspect" },
   { path: "/tshirt-work", icon: ScanLine, key: "menu.tshirtWork" },
-  { path: "/tshirt", icon: Shirt, key: "menu.tshirt" },
   { path: "/monitor", icon: Activity, key: "menu.monitor", children: [
     { label: { ko: "주문 관리", zh: "订单管理" }, tab: "orders" },
     { label: { ko: "주문 파이프라인", zh: "订单流水线" }, tab: "pipeline" },

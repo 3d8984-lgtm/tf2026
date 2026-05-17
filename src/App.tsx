@@ -11,7 +11,7 @@ import Dashboard from "@/pages/Dashboard";
 import FileUpload from "@/pages/FileUpload";
 import MasterData from "@/pages/MasterData";
 
-import TshirtProduction from "@/pages/TshirtProduction";
+
 import TshirtWork from "@/pages/TshirtWork";
 import CardQrInspection from "@/pages/CardQrInspection";
 import CardPhotoInspection from "@/pages/CardPhotoInspection";
@@ -67,7 +67,7 @@ function ProtectedRoutes() {
         <Route path="/upload" element={<FileUpload />} />
         <Route path="/master" element={<MasterData />} />
         
-        <Route path="/tshirt" element={<TshirtProduction />} />
+        
         <Route path="/card-qr-inspect" element={<CardQrInspection />} />
         <Route path="/card-photo-inspect" element={<CardPhotoInspection />} />
         <Route path="/tshirt-work" element={<TshirtWork />} />
