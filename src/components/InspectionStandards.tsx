@@ -25,15 +25,11 @@ interface InspectionStandard {
 /* ── 공통 검수 기준 mock ── */
 const defaultStandards: InspectionStandard[] = [
   { id: 1, process: "setpacking", item: "QR 매칭", method: "QR + 바코드 스캔", criteria: "홀로그램 QR값 ↔ 카드 바코드값 일치", autoStop: true, enabled: true },
-  { id: 2, process: "setpacking", item: "중량 검사", method: "중량 센서", criteria: "270g ~ 300g", minVal: 270, maxVal: 300, unit: "g", autoStop: true, enabled: true },
   { id: 3, process: "shipping", item: "송장 매칭", method: "바코드 스캔", criteria: "세트 QR ↔ 송장 바코드 주문정보 일치", autoStop: true, enabled: true },
 ];
 
 /* ── 주문별 예외 기준 mock ── */
-const defaultOrderOverrides = [
-  { id: 1, orderId: "ORD-2024-0042", orderName: "VIP 특별 주문", process: "setpacking", item: "중량 검사", criteria: "250g ~ 320g", minVal: 250, maxVal: 320, unit: "g", reason: "특수 포장재 사용" },
-  { id: 2, orderId: "ORD-2024-0088", orderName: "대량 프로모션", process: "shipping", item: "택배 중량", criteria: "280g ~ 550g", minVal: 280, maxVal: 550, unit: "g", reason: "추가 홍보물 동봉" },
-];
+const defaultOrderOverrides: Array<{ id: number; orderId: string; orderName: string; process: string; item: string; criteria: string; minVal?: number; maxVal?: number; unit?: string; reason: string }> = [];
 
 const defaultStandardsZh = defaultStandards.map(s => ({
   ...s,
