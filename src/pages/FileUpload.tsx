@@ -760,7 +760,7 @@ export default function FileUpload() {
     { col: "B", category: isKo ? "주문확인" : "订单确认", key: "order_no", label: isKo ? "주문번호" : "订单号", desc: isKo ? "TWINMETA 사이트에서 발급된 주문 번호" : "TWINMETA站点发放的订单号" },
     { col: "C", category: isKo ? "주문확인" : "订单确认", key: "project_deadline", label: isKo ? "납기 발송일" : "交期发货日", desc: isKo ? "주문 건의 발송 마감일 (YYYY-MM-DD)" : "订单的发货截止日期 (YYYY-MM-DD)" },
     { col: "D", category: isKo ? "주문확인" : "订单确认", key: "twinker", label: isKo ? "트윈커" : "Twinker", desc: isKo ? "주문자(트윈커) 식별자 또는 닉네임" : "下单人(Twinker)标识或昵称" },
-    { col: "E", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_serial", label: isKo ? "티셔츠 일련번호" : "T恤序列号", desc: isKo ? "개별 티셔츠 고유 일련번호" : "单件T恤唯一序列号" },
+    
     { col: "F", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_type", label: isKo ? "티셔츠 종류" : "T恤种类", desc: isKo ? "티셔츠 제품 유형 구분" : "T恤产品类型区分" },
     { col: "G", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_color", label: isKo ? "티셔츠 컬러" : "T恤颜色", desc: isKo ? "티셔츠 색상 코드 또는 명칭" : "T恤颜色代码或名称" },
     { col: "H", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_size", label: isKo ? "티셔츠 사이즈" : "T恤尺码", desc: isKo ? "티셔츠 사이즈 (S/M/L/XL 등)" : "T恤尺码 (S/M/L/XL等)" },
