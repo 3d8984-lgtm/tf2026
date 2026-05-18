@@ -767,7 +767,7 @@ export default function FileUpload() {
     { col: "I", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "silicon_qr", label: isKo ? "실리콘 마크QR값" : "硅胶标记QR值", desc: isKo ? "실리콘 마크에 인쇄된 QR 코드 값" : "硅胶标记上印刷的QR码值" },
     { col: "J", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "design_qr", label: isKo ? "디자인QR값" : "设计QR值", desc: isKo ? "디자인 식별용 QR 코드 값" : "设计识别用QR码值" },
     { col: "K", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "hologram_qr", label: isKo ? "홀로그램QR값" : "全息QR值", desc: isKo ? "홀로그램 스티커의 QR 코드 값" : "全息贴纸的QR码值" },
-    { col: "L", category: isKo ? "카드 포장용" : "卡片包装用", key: "card_serial", label: isKo ? "카드 일련번호" : "卡片序列号", desc: isKo ? "개별 카드 고유 일련번호" : "单张卡片唯一序列号" },
+    
     { col: "M", category: isKo ? "카드 포장용" : "卡片包装用", key: "card_grade", label: isKo ? "카드 등급" : "卡片等级", desc: isKo ? "카드 품질 등급 (S/A/B 등)" : "卡片品质等级 (S/A/B等)" },
     { col: "N", category: isKo ? "카드 포장용" : "卡片包装用", key: "card_barcode", label: isKo ? "카드 바코드값" : "卡片条码值", desc: isKo ? "카드에 인쇄된 바코드 값" : "卡片上印刷的条码值" },
     { col: "O", category: isKo ? "택배송장정보" : "快递面单信息", key: "country_code", label: isKo ? "국가기호" : "国家代码", desc: isKo ? "배송 국가 코드 (US, KR 등)" : "配送国家代码 (US, KR等)" },
