@@ -24,7 +24,7 @@ export default function OutsourceDashboard() {
   const { t } = useLang();
   return (
     <div>
-      <PageHeader label={t("menu.outDashboard")} description={t("section.outsource")} />
+      <PageHeader title={t("menu.outDashboard")} description={t("section.outsource")} />
       <div className="p-6 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <KpiCard label={t("out.received")} value="42" icon={Inbox} />
