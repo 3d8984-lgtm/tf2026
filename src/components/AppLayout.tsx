@@ -4,12 +4,21 @@ import { NavLink, Link, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Upload, Database,
   Shirt, Activity, AlertTriangle, FileBarChart, Settings,
-  ChevronLeft, ChevronRight, ScanLine, Globe, LogOut, Truck, Search, BookOpen, QrCode, Camera
+  ChevronLeft, ChevronRight, ScanLine, Globe, LogOut, Truck, Search, BookOpen, QrCode, Camera,
+  Factory, ClipboardList, Stamp, Printer, Sparkles, CreditCard, Image as ImageIcon,
 } from "lucide-react";
 import { useLang, type Lang } from "@/contexts/LangContext";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import twinmetaLogo from "@/assets/twinmeta-logo.png";
+
+interface MenuItem {
+  path: string;
+  icon: typeof LayoutDashboard;
+  key: string;
+  section?: "hq" | "outsource";
+  children?: { label: { ko: string; zh: string }; tab: string }[];
+}
 
 interface MenuItem {
   path: string;
