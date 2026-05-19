@@ -136,12 +136,12 @@ export default function OutsourceOrders() {
         </Card>
       </div>
 
-      <Dialog open={!!detail} onOpenChange={() => setDetail(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>{detail?.orderNo}</DialogTitle></DialogHeader>
-          <pre className="text-xs bg-muted p-3 rounded overflow-auto">{JSON.stringify(detail, null, 2)}</pre>
-        </DialogContent>
-      </Dialog>
+      <OrderDetailModal
+        open={!!detail}
+        onOpenChange={(o) => !o && setDetail(null)}
+        data={detail ? buildDetailData(detail) : null}
+      />
+
 
       <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
         <AlertDialogContent>
