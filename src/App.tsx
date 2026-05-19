@@ -21,6 +21,13 @@ import Defects from "@/pages/Defects";
 import Reports from "@/pages/Reports";
 import SystemSettings from "@/pages/SystemSettings";
 import Manual from "@/pages/Manual";
+import OutsourceDashboard from "@/pages/outsource/OutsourceDashboard";
+import OutsourceOrders from "@/pages/outsource/OutsourceOrders";
+import SiliconFactory from "@/pages/outsource/SiliconFactory";
+import HeatTransferFactory from "@/pages/outsource/HeatTransferFactory";
+import HologramFactory from "@/pages/outsource/HologramFactory";
+import NfcCardFactory from "@/pages/outsource/NfcCardFactory";
+import LogoFactory from "@/pages/outsource/LogoFactory";
 import NotFound from "@/pages/NotFound";
 import { useLang } from "@/contexts/LangContext";
 import { Button } from "@/components/ui/button";
@@ -77,6 +84,13 @@ function ProtectedRoutes() {
         <Route path="/reports" element={<Reports />} />
         <Route path="/manual" element={<Manual />} />
         <Route path="/settings" element={<SystemSettings />} />
+        <Route path="/outsource" element={<OutsourceDashboard />} />
+        <Route path="/outsource/orders" element={<OutsourceOrders />} />
+        <Route path="/outsource/silicon" element={<SiliconFactory />} />
+        <Route path="/outsource/heat-transfer" element={<HeatTransferFactory />} />
+        <Route path="/outsource/hologram" element={<HologramFactory />} />
+        <Route path="/outsource/nfc-card" element={<NfcCardFactory />} />
+        <Route path="/outsource/logo" element={<LogoFactory />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

@@ -28,6 +28,43 @@ const translations: Record<Lang, Record<string, string>> = {
     "menu.reports": "이력조회/리포트",
     "menu.settings": "시스템 설정",
 
+    // Sections
+    "section.hq": "본사 포장",
+    "section.outsource": "외주 생산",
+
+    // Outsource menu
+    "menu.outDashboard": "외주 생산 대시보드",
+    "menu.outOrders": "주문 데이터 확인",
+    "menu.outSilicon": "실리콘 마크 공장",
+    "menu.outHeatTransfer": "열전사 디자인 공장",
+    "menu.outHologram": "홀로그램 스티커 공장",
+    "menu.outNfcCard": "NFC 카드 공장",
+    "menu.outLogo": "LOGO 공장",
+
+    // Outsource common
+    "out.received": "접수 건수",
+    "out.ordered": "발주 건수",
+    "out.completed": "완료 건수",
+    "out.orderList": "발주 대상 주문 리스트",
+    "out.orderNo": "주문번호",
+    "out.serial": "순번번호",
+    "out.qty": "수량",
+    "out.status": "상태",
+    "out.action": "동작",
+    "out.preview": "미리보기",
+    "out.generatePdf": "PDF 생성",
+    "out.generateFolder": "폴더 생성",
+    "out.generateExcel": "엑셀 생성",
+    "out.generateOrderSheet": "발주서 생성",
+    "out.generateFrontBack": "앞면/뒷면 PDF 생성",
+    "out.sendEmail": "이메일 발송",
+    "out.download": "다운로드",
+    "out.downloadZip": "ZIP 다운로드",
+    "out.requestedQty": "요청수량 (주문수량 × 1.1, 올림)",
+    "out.recentOrders": "최근 발주 리스트",
+    "out.factoryStatus": "공장별 발주 현황",
+    "out.detail": "상세보기",
+
     // Dashboard
     "dashboard.title": "대시보드",
     "dashboard.desc": "전체 생산·포장·출고 현황을 한눈에 확인합니다",
@@ -468,6 +505,43 @@ const translations: Record<Lang, Record<string, string>> = {
     "menu.defects": "不良/异常管理",
     "menu.reports": "历史查询/报表",
     "menu.settings": "系统设置",
+
+    // Sections
+    "section.hq": "总部包装",
+    "section.outsource": "外协生产",
+
+    // Outsource menu
+    "menu.outDashboard": "外协生产仪表盘",
+    "menu.outOrders": "订单数据确认",
+    "menu.outSilicon": "硅胶标识工厂",
+    "menu.outHeatTransfer": "热转印设计工厂",
+    "menu.outHologram": "全息贴纸工厂",
+    "menu.outNfcCard": "NFC卡片工厂",
+    "menu.outLogo": "LOGO工厂",
+
+    // Outsource common
+    "out.received": "接收数量",
+    "out.ordered": "发单数量",
+    "out.completed": "完成数量",
+    "out.orderList": "发单对象订单列表",
+    "out.orderNo": "订单号",
+    "out.serial": "序号",
+    "out.qty": "数量",
+    "out.status": "状态",
+    "out.action": "操作",
+    "out.preview": "预览",
+    "out.generatePdf": "生成PDF",
+    "out.generateFolder": "生成文件夹",
+    "out.generateExcel": "生成Excel",
+    "out.generateOrderSheet": "生成发单书",
+    "out.generateFrontBack": "生成正反面PDF",
+    "out.sendEmail": "邮件发送",
+    "out.download": "下载",
+    "out.downloadZip": "ZIP下载",
+    "out.requestedQty": "请求数量 (订单数量 × 1.1, 向上取整)",
+    "out.recentOrders": "最近发单列表",
+    "out.factoryStatus": "工厂发单现况",
+    "out.detail": "详情",
 
     // Dashboard
     "dashboard.title": "仪表盘",

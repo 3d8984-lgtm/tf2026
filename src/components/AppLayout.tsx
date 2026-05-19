@@ -4,7 +4,8 @@ import { NavLink, Link, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Upload, Database,
   Shirt, Activity, AlertTriangle, FileBarChart, Settings,
-  ChevronLeft, ChevronRight, ScanLine, Globe, LogOut, Truck, Search, BookOpen, QrCode, Camera
+  ChevronLeft, ChevronRight, ScanLine, Globe, LogOut, Truck, Search, BookOpen, QrCode, Camera,
+  Factory, ClipboardList, Stamp, Printer, Sparkles, CreditCard, Image as ImageIcon,
 } from "lucide-react";
 import { useLang, type Lang } from "@/contexts/LangContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,19 +16,20 @@ interface MenuItem {
   path: string;
   icon: typeof LayoutDashboard;
   key: string;
+  section?: "hq" | "outsource";
   children?: { label: { ko: string; zh: string }; tab: string }[];
 }
 
 const menuKeys: MenuItem[] = [
-  { path: "/", icon: LayoutDashboard, key: "menu.dashboard" },
-  { path: "/upload", icon: Upload, key: "menu.upload", children: [
+  { path: "/", icon: LayoutDashboard, key: "menu.dashboard", section: "hq" },
+  { path: "/upload", icon: Upload, key: "menu.upload", section: "hq", children: [
     { label: { ko: "API 연동", zh: "API连接" }, tab: "api" },
     { label: { ko: "파일 업로드", zh: "文件上传" }, tab: "file" },
   ]},
-  { path: "/card-qr-inspect", icon: QrCode, key: "menu.cardQrInspect" },
-  { path: "/card-photo-inspect", icon: Camera, key: "menu.cardPhotoInspect" },
-  { path: "/tshirt-work", icon: ScanLine, key: "menu.tshirtWork" },
-  { path: "/monitor", icon: Activity, key: "menu.monitor", children: [
+  { path: "/card-qr-inspect", icon: QrCode, key: "menu.cardQrInspect", section: "hq" },
+  { path: "/card-photo-inspect", icon: Camera, key: "menu.cardPhotoInspect", section: "hq" },
+  { path: "/tshirt-work", icon: ScanLine, key: "menu.tshirtWork", section: "hq" },
+  { path: "/monitor", icon: Activity, key: "menu.monitor", section: "hq", children: [
     { label: { ko: "주문 관리", zh: "订单管理" }, tab: "orders" },
     { label: { ko: "주문 파이프라인", zh: "订单流水线" }, tab: "pipeline" },
     { label: { ko: "카드 포장", zh: "卡片包装" }, tab: "card" },
@@ -35,16 +37,16 @@ const menuKeys: MenuItem[] = [
     { label: { ko: "배송 관리", zh: "配送管理" }, tab: "shipping" },
     { label: { ko: "기계 상태", zh: "设备状态" }, tab: "machines" },
   ]},
-  { path: "/shipping", icon: Truck, key: "menu.shipping" },
-  { path: "/defects", icon: AlertTriangle, key: "menu.defects" },
-  { path: "/reports", icon: FileBarChart, key: "menu.reports", children: [
+  { path: "/shipping", icon: Truck, key: "menu.shipping", section: "hq" },
+  { path: "/defects", icon: AlertTriangle, key: "menu.defects", section: "hq" },
+  { path: "/reports", icon: FileBarChart, key: "menu.reports", section: "hq", children: [
     { label: { ko: "생산 실적", zh: "生产实绩" }, tab: "production" },
     { label: { ko: "불량 분석", zh: "不良分析" }, tab: "defect" },
     { label: { ko: "배송 현황", zh: "配送现况" }, tab: "shipping" },
   ]},
-  { path: "/manual", icon: BookOpen, key: "menu.manual" },
-  { path: "/master", icon: Database, key: "menu.master" },
-  { path: "/settings", icon: Settings, key: "menu.settings", children: [
+  { path: "/manual", icon: BookOpen, key: "menu.manual", section: "hq" },
+  { path: "/master", icon: Database, key: "menu.master", section: "hq" },
+  { path: "/settings", icon: Settings, key: "menu.settings", section: "hq", children: [
     { label: { ko: "일반", zh: "常规" }, tab: "general" },
     { label: { ko: "사용자 관리", zh: "用户管理" }, tab: "users" },
     { label: { ko: "장비 관리", zh: "设备管理" }, tab: "equipment" },
@@ -57,6 +59,14 @@ const menuKeys: MenuItem[] = [
     { label: { ko: "택배사 연동", zh: "快递对接" }, tab: "courier" },
     { label: { ko: "TWINMETA 회신", zh: "TWINMETA回调" }, tab: "callback" },
   ]},
+  // Outsource production
+  { path: "/outsource", icon: Factory, key: "menu.outDashboard", section: "outsource" },
+  { path: "/outsource/orders", icon: ClipboardList, key: "menu.outOrders", section: "outsource" },
+  { path: "/outsource/silicon", icon: Stamp, key: "menu.outSilicon", section: "outsource" },
+  { path: "/outsource/heat-transfer", icon: Printer, key: "menu.outHeatTransfer", section: "outsource" },
+  { path: "/outsource/hologram", icon: Sparkles, key: "menu.outHologram", section: "outsource" },
+  { path: "/outsource/nfc-card", icon: CreditCard, key: "menu.outNfcCard", section: "outsource" },
+  { path: "/outsource/logo", icon: ImageIcon, key: "menu.outLogo", section: "outsource" },
 ];
 
 interface SearchResult {
@@ -184,27 +194,46 @@ export default function AppLayout() {
               )}
             </>
           ) : (
-            visibleMenuKeys.map(({ path, icon: Icon, key }) => (
-              <NavLink
-                key={path}
-                to={path}
-                end={path === "/"}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors duration-150 ${
-                    isActive ? "font-medium" : "hover:opacity-90"
-                  }`
-                }
-                style={({ isActive }) => ({
-                  background: isActive ? "hsl(var(--sidebar-accent))" : "transparent",
-                  color: isActive ? "hsl(var(--sidebar-accent-foreground))" : "hsl(var(--sidebar-foreground))",
-                })}
-                title={t(key)}
-                onClick={() => { setMenuSearch(""); setSearchOpen(false); }}
-              >
-                <Icon className="w-[18px] h-[18px] shrink-0" />
-                {!collapsed && <span className="truncate">{t(key)}</span>}
-              </NavLink>
-            ))
+            (["hq", "outsource"] as const).map(section => {
+              const items = visibleMenuKeys.filter(m => (m.section ?? "hq") === section);
+              if (items.length === 0) return null;
+              return (
+                <div key={section} className="space-y-0.5">
+                  {!collapsed && (
+                    <div
+                      className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider opacity-50"
+                      style={{ color: "hsl(var(--sidebar-foreground))" }}
+                    >
+                      {t(`section.${section}`)}
+                    </div>
+                  )}
+                  {collapsed && section === "outsource" && (
+                    <div className="my-2 mx-3 border-t" style={{ borderColor: "hsl(var(--sidebar-border))" }} />
+                  )}
+                  {items.map(({ path, icon: Icon, key }) => (
+                    <NavLink
+                      key={path}
+                      to={path}
+                      end={path === "/"}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors duration-150 ${
+                          isActive ? "font-medium" : "hover:opacity-90"
+                        }`
+                      }
+                      style={({ isActive }) => ({
+                        background: isActive ? "hsl(var(--sidebar-accent))" : "transparent",
+                        color: isActive ? "hsl(var(--sidebar-accent-foreground))" : "hsl(var(--sidebar-foreground))",
+                      })}
+                      title={t(key)}
+                      onClick={() => { setMenuSearch(""); setSearchOpen(false); }}
+                    >
+                      <Icon className="w-[18px] h-[18px] shrink-0" />
+                      {!collapsed && <span className="truncate">{t(key)}</span>}
+                    </NavLink>
+                  ))}
+                </div>
+              );
+            })
           )}
         </nav>
 
