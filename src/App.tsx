@@ -84,6 +84,13 @@ function ProtectedRoutes() {
         <Route path="/reports" element={<Reports />} />
         <Route path="/manual" element={<Manual />} />
         <Route path="/settings" element={<SystemSettings />} />
+        <Route path="/outsource" element={<OutsourceDashboard />} />
+        <Route path="/outsource/orders" element={<OutsourceOrders />} />
+        <Route path="/outsource/silicon" element={<SiliconFactory />} />
+        <Route path="/outsource/heat-transfer" element={<HeatTransferFactory />} />
+        <Route path="/outsource/hologram" element={<HologramFactory />} />
+        <Route path="/outsource/nfc-card" element={<NfcCardFactory />} />
+        <Route path="/outsource/logo" element={<LogoFactory />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
