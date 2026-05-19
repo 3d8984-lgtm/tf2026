@@ -194,27 +194,46 @@ export default function AppLayout() {
               )}
             </>
           ) : (
-            visibleMenuKeys.map(({ path, icon: Icon, key }) => (
-              <NavLink
-                key={path}
-                to={path}
-                end={path === "/"}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors duration-150 ${
-                    isActive ? "font-medium" : "hover:opacity-90"
-                  }`
-                }
-                style={({ isActive }) => ({
-                  background: isActive ? "hsl(var(--sidebar-accent))" : "transparent",
-                  color: isActive ? "hsl(var(--sidebar-accent-foreground))" : "hsl(var(--sidebar-foreground))",
-                })}
-                title={t(key)}
-                onClick={() => { setMenuSearch(""); setSearchOpen(false); }}
-              >
-                <Icon className="w-[18px] h-[18px] shrink-0" />
-                {!collapsed && <span className="truncate">{t(key)}</span>}
-              </NavLink>
-            ))
+            (["hq", "outsource"] as const).map(section => {
+              const items = visibleMenuKeys.filter(m => (m.section ?? "hq") === section);
+              if (items.length === 0) return null;
+              return (
+                <div key={section} className="space-y-0.5">
+                  {!collapsed && (
+                    <div
+                      className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider opacity-50"
+                      style={{ color: "hsl(var(--sidebar-foreground))" }}
+                    >
+                      {t(`section.${section}`)}
+                    </div>
+                  )}
+                  {collapsed && section === "outsource" && (
+                    <div className="my-2 mx-3 border-t" style={{ borderColor: "hsl(var(--sidebar-border))" }} />
+                  )}
+                  {items.map(({ path, icon: Icon, key }) => (
+                    <NavLink
+                      key={path}
+                      to={path}
+                      end={path === "/"}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors duration-150 ${
+                          isActive ? "font-medium" : "hover:opacity-90"
+                        }`
+                      }
+                      style={({ isActive }) => ({
+                        background: isActive ? "hsl(var(--sidebar-accent))" : "transparent",
+                        color: isActive ? "hsl(var(--sidebar-accent-foreground))" : "hsl(var(--sidebar-foreground))",
+                      })}
+                      title={t(key)}
+                      onClick={() => { setMenuSearch(""); setSearchOpen(false); }}
+                    >
+                      <Icon className="w-[18px] h-[18px] shrink-0" />
+                      {!collapsed && <span className="truncate">{t(key)}</span>}
+                    </NavLink>
+                  ))}
+                </div>
+              );
+            })
           )}
         </nav>
 
