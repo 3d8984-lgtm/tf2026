@@ -28,6 +28,43 @@ const translations: Record<Lang, Record<string, string>> = {
     "menu.reports": "이력조회/리포트",
     "menu.settings": "시스템 설정",
 
+    // Sections
+    "section.hq": "본사 포장",
+    "section.outsource": "외주 생산",
+
+    // Outsource menu
+    "menu.outDashboard": "외주 생산 대시보드",
+    "menu.outOrders": "주문 데이터 확인",
+    "menu.outSilicon": "실리콘 마크 공장",
+    "menu.outHeatTransfer": "열전사 디자인 공장",
+    "menu.outHologram": "홀로그램 스티커 공장",
+    "menu.outNfcCard": "NFC 카드 공장",
+    "menu.outLogo": "LOGO 공장",
+
+    // Outsource common
+    "out.received": "접수 건수",
+    "out.ordered": "발주 건수",
+    "out.completed": "완료 건수",
+    "out.orderList": "발주 대상 주문 리스트",
+    "out.orderNo": "주문번호",
+    "out.serial": "순번번호",
+    "out.qty": "수량",
+    "out.status": "상태",
+    "out.action": "동작",
+    "out.preview": "미리보기",
+    "out.generatePdf": "PDF 생성",
+    "out.generateFolder": "폴더 생성",
+    "out.generateExcel": "엑셀 생성",
+    "out.generateOrderSheet": "발주서 생성",
+    "out.generateFrontBack": "앞면/뒷면 PDF 생성",
+    "out.sendEmail": "이메일 발송",
+    "out.download": "다운로드",
+    "out.downloadZip": "ZIP 다운로드",
+    "out.requestedQty": "요청수량 (주문수량 × 1.1, 올림)",
+    "out.recentOrders": "최근 발주 리스트",
+    "out.factoryStatus": "공장별 발주 현황",
+    "out.detail": "상세보기",
+
     // Dashboard
     "dashboard.title": "대시보드",
     "dashboard.desc": "전체 생산·포장·출고 현황을 한눈에 확인합니다",
