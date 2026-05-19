@@ -64,6 +64,12 @@ const translations: Record<Lang, Record<string, string>> = {
     "out.recentOrders": "최근 발주 리스트",
     "out.factoryStatus": "공장별 발주 현황",
     "out.detail": "상세보기",
+    "out.delete": "삭제",
+    "out.deleteSelected": "선택 삭제",
+    "out.deleteConfirmTitle": "주문 삭제 확인",
+    "out.deleteConfirmDesc": "선택한 주문을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+    "out.deleted": "삭제되었습니다",
+    "out.cancel": "취소",
 
     // Dashboard
     "dashboard.title": "대시보드",
@@ -542,6 +548,12 @@ const translations: Record<Lang, Record<string, string>> = {
     "out.recentOrders": "最近发单列表",
     "out.factoryStatus": "工厂发单现况",
     "out.detail": "详情",
+    "out.delete": "删除",
+    "out.deleteSelected": "删除所选",
+    "out.deleteConfirmTitle": "确认删除订单",
+    "out.deleteConfirmDesc": "确定要删除所选订单吗？此操作无法撤销。",
+    "out.deleted": "已删除",
+    "out.cancel": "取消",
 
     // Dashboard
     "dashboard.title": "仪表盘",
