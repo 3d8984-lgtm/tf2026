@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,53 +18,98 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useLang } from "@/contexts/LangContext";
-import { Search, Trash2 } from "lucide-react";
+import { Search, Trash2, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { useOrders } from "@/hooks/useDbData";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 
-interface Row {
-  orderNo: string;
-  serial: string;
-  date: string;
-  qty: number;
+interface ItemRow {
+  rowKey: string;          // unique row id (orderId + itemIndex)
+  orderId: string;         // db uuid
+  orderNo: string;         // external_order_id (작업번호)
+  serial: string;          // item serial (sequence_no) — fallback to product_code/index
+  date: string;            // created_at (YYYY-MM-DD)
+  qty: number;             // 1 per item
   status: string;
+  item: Record<string, string>;
 }
 
-const initial: Row[] = [
-  { orderNo: "TM-2026-0001", serial: "000001", date: "2026-05-19", qty: 10, status: "신규" },
-  { orderNo: "TM-2026-0002", serial: "000002", date: "2026-05-19", qty: 25, status: "발주대기" },
-  { orderNo: "TM-2026-0003", serial: "000003", date: "2026-05-18", qty: 5, status: "발주완료" },
-];
+function fmtDate(iso?: string | null): string {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toISOString().slice(0, 10);
+  } catch {
+    return String(iso).slice(0, 10);
+  }
+}
 
-// Mock mapping from row to full API response (replace with real API call later)
-function buildDetailData(row: Row): OrderDetailData {
-  const s = row.serial;
+function buildDetailData(row: ItemRow): OrderDetailData {
+  const i = row.item || {};
   return {
-    orderSerialNo: row.orderNo,
-    twinCodeSvg: `https://cdn.twinmeta.com/svg/${s}.svg`,
-    designPng: `https://picsum.photos/seed/design${s}/600/600`,
-    cpValue: `CP-${s}`,
-    sequenceNo: s,
-    twinCodePng: `https://picsum.photos/seed/twin${s}/600/600`,
-    dmBarcodePng: `https://picsum.photos/seed/dm${s}/600/600`,
-    edition: `${parseInt(s, 10) || 1}/100`,
-    mintedOn: row.date,
-    grade: "S",
-    signPng: `https://picsum.photos/seed/sign${s}/600/600`,
-    cardFrontDesignPng: `https://picsum.photos/seed/front${s}/600/600`,
-    cardBackDesignPng: `https://picsum.photos/seed/back${s}/600/600`,
-    logoPng: `https://picsum.photos/seed/logo${s}/600/600`,
+    orderSerialNo: row.serial || row.orderNo,
+    twinCodeSvg: i.twincode_svg_url || null,
+    designPng: i.design_png_url || null,
+    cpValue: i.cp_value || null,
+    sequenceNo: i.sequence_no || row.serial || null,
+    twinCodePng: i.twincode_png_url || null,
+    dmBarcodePng: i.dm_barcode_png_url || null,
+    edition: i.edition || null,
+    mintedOn: i.minted_on || null,
+    grade: i.grade || null,
+    signPng: i.sign_png_url || null,
+    cardFrontDesignPng: i.card_front_png_url || null,
+    cardBackDesignPng: i.card_back_png_url || null,
+    logoPng: i.logo_png_url || null,
   };
 }
 
 export default function OutsourceOrders() {
   const { t } = useLang();
+  const queryClient = useQueryClient();
+  const { data: ordersData, isLoading } = useOrders();
   const [q, setQ] = useState("");
-  const [rows, setRows] = useState<Row[]>(initial);
-  const [detail, setDetail] = useState<Row | null>(null);
+  const [detail, setDetail] = useState<ItemRow | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [pendingDelete, setPendingDelete] = useState<string[] | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ rowKeys: string[]; orderIds: string[] } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
-  const filtered = rows.filter(m => !q || m.orderNo.includes(q));
+  // Expand each order into per-item rows
+  const rows: ItemRow[] = useMemo(() => {
+    const out: ItemRow[] = [];
+    for (const o of (ordersData || []) as any[]) {
+      const items: Record<string, string>[] = (o.source_data?.items as any) || [];
+      const date = fmtDate(o.created_at);
+      if (items.length === 0) {
+        out.push({
+          rowKey: `${o.id}:0`,
+          orderId: o.id,
+          orderNo: o.external_order_id,
+          serial: o.product_code || "",
+          date,
+          qty: o.quantity || 1,
+          status: o.status || "received",
+          item: {},
+        });
+      } else {
+        items.forEach((it, idx) => {
+          out.push({
+            rowKey: `${o.id}:${idx}`,
+            orderId: o.id,
+            orderNo: o.external_order_id,
+            serial: it.sequence_no || `${idx + 1}`,
+            date,
+            qty: 1,
+            status: o.status || "received",
+            item: it,
+          });
+        });
+      }
+    }
+    return out;
+  }, [ordersData]);
+
+  const filtered = rows.filter(m => !q || m.orderNo.toLowerCase().includes(q.toLowerCase()) || m.serial.toLowerCase().includes(q.toLowerCase()));
 
   const toggle = (id: string) => {
     const next = new Set(selected);
@@ -72,20 +117,42 @@ export default function OutsourceOrders() {
     setSelected(next);
   };
   const toggleAll = () => {
-    setSelected(selected.size === filtered.length ? new Set() : new Set(filtered.map(r => r.orderNo)));
+    setSelected(selected.size === filtered.length ? new Set() : new Set(filtered.map(r => r.rowKey)));
   };
 
-  const confirmDelete = () => {
+  const requestDelete = (rowKeys: string[]) => {
+    const orderIds = Array.from(
+      new Set(
+        rowKeys
+          .map(k => rows.find(r => r.rowKey === k)?.orderId)
+          .filter(Boolean) as string[],
+      ),
+    );
+    setPendingDelete({ rowKeys, orderIds });
+  };
+
+  const confirmDelete = async () => {
     if (!pendingDelete) return;
-    const ids = new Set(pendingDelete);
-    setRows(prev => prev.filter(r => !ids.has(r.orderNo)));
-    setSelected(prev => {
-      const next = new Set(prev);
-      ids.forEach(id => next.delete(id));
-      return next;
-    });
-    toast({ title: t("out.deleted"), description: `${pendingDelete.length} ${t("out.qty")}` });
-    setPendingDelete(null);
+    setDeleting(true);
+    try {
+      const { error } = await supabase.from("orders").delete().in("id", pendingDelete.orderIds);
+      if (error) throw error;
+      const removedKeys = new Set(pendingDelete.rowKeys);
+      setSelected(prev => {
+        const next = new Set(prev);
+        removedKeys.forEach(k => next.delete(k));
+        return next;
+      });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["order_stats"] });
+      toast({ title: t("out.deleted"), description: `${pendingDelete.orderIds.length} ${t("out.qty")}` });
+      setPendingDelete(null);
+    } catch (e: any) {
+      console.error(e);
+      toast({ title: "삭제 실패", description: e?.message || "", variant: "destructive" });
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -102,7 +169,7 @@ export default function OutsourceOrders() {
               size="sm"
               variant="destructive"
               disabled={selected.size === 0}
-              onClick={() => setPendingDelete(Array.from(selected))}
+              onClick={() => requestDelete(Array.from(selected))}
             >
               <Trash2 className="w-4 h-4 mr-1" /> {t("out.deleteSelected")}
             </Button>
@@ -125,9 +192,16 @@ export default function OutsourceOrders() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map(o => (
-                  <TableRow key={o.orderNo}>
-                    <TableCell><Checkbox checked={selected.has(o.orderNo)} onCheckedChange={() => toggle(o.orderNo)} /></TableCell>
+                {isLoading && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8">
+                      <Loader2 className="w-4 h-4 animate-spin inline" />
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!isLoading && filtered.map(o => (
+                  <TableRow key={o.rowKey}>
+                    <TableCell><Checkbox checked={selected.has(o.rowKey)} onCheckedChange={() => toggle(o.rowKey)} /></TableCell>
                     <TableCell className="font-mono">{o.orderNo}</TableCell>
                     <TableCell className="font-mono">{o.serial}</TableCell>
                     <TableCell>{o.date}</TableCell>
@@ -138,7 +212,7 @@ export default function OutsourceOrders() {
                       <Button
                         size="icon"
                         variant="ghost"
-                        onClick={() => setPendingDelete([o.orderNo])}
+                        onClick={() => requestDelete([o.rowKey])}
                         aria-label={t("out.delete")}
                       >
                         <Trash2 className="w-4 h-4 text-destructive" />
@@ -146,7 +220,7 @@ export default function OutsourceOrders() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {filtered.length === 0 && (
+                {!isLoading && filtered.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">—</TableCell>
                   </TableRow>
@@ -163,16 +237,17 @@ export default function OutsourceOrders() {
         data={detail ? buildDetailData(detail) : null}
       />
 
-
-      <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
+      <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && !deleting && setPendingDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("out.deleteConfirmTitle")}</AlertDialogTitle>
             <AlertDialogDescription>{t("out.deleteConfirmDesc")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t("out.cancel")}</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete}>{t("out.delete")}</AlertDialogAction>
+            <AlertDialogCancel disabled={deleting}>{t("out.cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} disabled={deleting}>
+              {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : t("out.delete")}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
