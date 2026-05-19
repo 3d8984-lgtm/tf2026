@@ -754,27 +754,39 @@ export default function FileUpload() {
   const uploadHistory = allUploadHistory.filter((h: any) => (h.source || 'file') === 'file');
   const apiHistory = allUploadHistory.filter((h: any) => (h.source) === 'api');
 
-  // Column spec for file upload
+  // Column spec for file upload (24 fields, matches API ingest)
+  const CAT_ORDER = isKo ? "주문 정보" : "订单信息";
+  const CAT_CARD = isKo ? "트윈코드/카드 디자인" : "TwinCode/卡片设计";
+  const CAT_TSHIRT = isKo ? "티셔츠 정보" : "T恤信息";
+  const CAT_SHIP = isKo ? "배송 정보" : "配送信息";
   const columnSpec = [
-    { col: "A", category: isKo ? "주문확인" : "订单确认", key: "work_order_no", label: isKo ? "작업지시번호" : "作业指示编号", desc: isKo ? "YYYYMMDD-N 형식의 고유 작업지시 번호" : "YYYYMMDD-N格式的唯一作业指示编号" },
-    { col: "B", category: isKo ? "주문확인" : "订单确认", key: "order_no", label: isKo ? "주문번호" : "订单号", desc: isKo ? "TWINMETA 사이트에서 발급된 주문 번호" : "TWINMETA站点发放的订单号" },
-    { col: "C", category: isKo ? "주문확인" : "订单确认", key: "project_deadline", label: isKo ? "납기 발송일" : "交期发货日", desc: isKo ? "주문 건의 발송 마감일 (YYYY-MM-DD)" : "订单的发货截止日期 (YYYY-MM-DD)" },
-    { col: "D", category: isKo ? "주문확인" : "订单确认", key: "twinker", label: isKo ? "트윈커" : "Twinker", desc: isKo ? "주문자(트윈커) 식별자 또는 닉네임" : "下单人(Twinker)标识或昵称" },
-    
-    { col: "F", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_type", label: isKo ? "티셔츠 종류" : "T恤种类", desc: isKo ? "티셔츠 제품 유형 구분" : "T恤产品类型区分" },
-    { col: "G", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_color", label: isKo ? "티셔츠 컬러" : "T恤颜色", desc: isKo ? "티셔츠 색상 코드 또는 명칭" : "T恤颜色代码或名称" },
-    { col: "H", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "tshirt_size", label: isKo ? "티셔츠 사이즈" : "T恤尺码", desc: isKo ? "티셔츠 사이즈 (S/M/L/XL 등)" : "T恤尺码 (S/M/L/XL等)" },
-    { col: "I", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "silicon_qr", label: isKo ? "실리콘 마크QR값" : "硅胶标记QR值", desc: isKo ? "실리콘 마크에 인쇄된 QR 코드 값" : "硅胶标记上印刷的QR码值" },
-    { col: "J", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "design_qr", label: isKo ? "디자인QR값" : "设计QR值", desc: isKo ? "디자인 식별용 QR 코드 값" : "设计识别用QR码值" },
-    { col: "K", category: isKo ? "티셔츠 작업용" : "T恤作业用", key: "hologram_qr", label: isKo ? "홀로그램QR값" : "全息QR值", desc: isKo ? "홀로그램 스티커의 QR 코드 값" : "全息贴纸的QR码值" },
-    
-    { col: "M", category: isKo ? "카드 포장용" : "卡片包装用", key: "card_grade", label: isKo ? "카드 등급" : "卡片等级", desc: isKo ? "카드 품질 등급 (S/A/B 등)" : "卡片品质等级 (S/A/B等)" },
-    { col: "N", category: isKo ? "카드 포장용" : "卡片包装用", key: "card_barcode", label: isKo ? "카드 바코드값" : "卡片条码值", desc: isKo ? "카드에 인쇄된 바코드 값" : "卡片上印刷的条码值" },
-    { col: "O", category: isKo ? "택배송장정보" : "快递面单信息", key: "country_code", label: isKo ? "국가기호" : "国家代码", desc: isKo ? "배송 국가 코드 (US, KR 등)" : "配送国家代码 (US, KR等)" },
-    { col: "P", category: isKo ? "택배송장정보" : "快递面单信息", key: "recipient", label: isKo ? "수취인명" : "收件人", desc: isKo ? "택배 수취인 이름 (없을 시 트윈커 사용)" : "快递收件人姓名 (若无则使用Twinker)" },
-    { col: "Q", category: isKo ? "택배송장정보" : "快递面单信息", key: "phone", label: isKo ? "연락처" : "联系方式", desc: isKo ? "수취인 연락처 전화번호" : "收件人联系电话" },
-    { col: "R", category: isKo ? "택배송장정보" : "快递面单信息", key: "address", label: isKo ? "주소" : "地址", desc: isKo ? "배송지 상세 주소" : "配送地址详情" },
-    { col: "S", category: isKo ? "택배송장정보" : "快递面单信息", key: "zipcode", label: isKo ? "우편번호" : "邮编", desc: isKo ? "배송지 우편번호 (ZIP Code)" : "配送地邮编 (ZIP Code)" },
+    { col: "A", category: CAT_ORDER, key: "work_order_no", label: isKo ? "작업번호" : "作业编号", desc: isKo ? "고유 작업번호" : "唯一作业编号" },
+    { col: "B", category: CAT_ORDER, key: "order_serial_no", label: isKo ? "주문일련번호" : "订单流水号", desc: isKo ? "주문 식별 일련번호" : "订单识别流水号" },
+    { col: "C", category: CAT_ORDER, key: "twinker_name", label: isKo ? "트윈커명" : "Twinker名", desc: isKo ? "트윈커(주문자) 이름" : "Twinker(下单人)名称" },
+
+    { col: "D", category: CAT_CARD, key: "twincode_svg_url", label: isKo ? "트윈코드 SVG (링크)" : "TwinCode SVG (链接)", desc: isKo ? "트윈코드 SVG 다운로드 URL" : "TwinCode SVG下载URL" },
+    { col: "E", category: CAT_CARD, key: "design_png_url", label: isKo ? "디자인 PNG (링크)" : "设计 PNG (链接)", desc: isKo ? "디자인 PNG 이미지 URL" : "设计PNG图片URL" },
+    { col: "F", category: CAT_CARD, key: "cp_value", label: isKo ? "CP값" : "CP值", desc: isKo ? "CP 식별 값" : "CP识别值" },
+    { col: "G", category: CAT_CARD, key: "sequence_no", label: isKo ? "순번번호" : "序号", desc: isKo ? "발행 순번" : "发行序号" },
+    { col: "H", category: CAT_CARD, key: "twincode_png_url", label: isKo ? "트윈코드 PNG (링크)" : "TwinCode PNG (链接)", desc: isKo ? "트윈코드 PNG 이미지 URL" : "TwinCode PNG URL" },
+    { col: "I", category: CAT_CARD, key: "dm_barcode_png_url", label: isKo ? "DM 바코드 PNG (링크)" : "DM条码 PNG (链接)", desc: isKo ? "DM 바코드 이미지 URL" : "DM条码图片URL" },
+    { col: "J", category: CAT_CARD, key: "edition", label: isKo ? "EDITION 값" : "EDITION值", desc: isKo ? "에디션 번호" : "版本号" },
+    { col: "K", category: CAT_CARD, key: "minted_on", label: isKo ? "Minted on 값" : "Minted on值", desc: isKo ? "발행일(Minted on)" : "发行日期" },
+    { col: "L", category: CAT_CARD, key: "grade", label: isKo ? "등급 값" : "等级值", desc: isKo ? "카드 등급" : "卡片等级" },
+    { col: "M", category: CAT_CARD, key: "sign_png_url", label: isKo ? "싸인 PNG (링크)" : "签名 PNG (链接)", desc: isKo ? "사인 이미지 URL" : "签名图片URL" },
+    { col: "N", category: CAT_CARD, key: "card_front_png_url", label: isKo ? "카드 앞면 디자인 PNG (링크)" : "卡片正面设计 PNG (链接)", desc: isKo ? "카드 앞면 이미지 URL" : "卡片正面图片URL" },
+    { col: "O", category: CAT_CARD, key: "card_back_png_url", label: isKo ? "카드 뒷면 디자인 PNG (링크)" : "卡片背面设计 PNG (链接)", desc: isKo ? "카드 뒷면 이미지 URL" : "卡片背面图片URL" },
+    { col: "P", category: CAT_CARD, key: "logo_png_url", label: isKo ? "LOGO PNG (링크)" : "LOGO PNG (链接)", desc: isKo ? "로고 이미지 URL" : "LOGO图片URL" },
+
+    { col: "Q", category: CAT_TSHIRT, key: "tshirt_type", label: isKo ? "티셔츠 종류" : "T恤种类", desc: isKo ? "티셔츠 제품 유형" : "T恤产品类型" },
+    { col: "R", category: CAT_TSHIRT, key: "tshirt_color", label: isKo ? "티셔츠 컬러" : "T恤颜色", desc: isKo ? "티셔츠 색상" : "T恤颜色" },
+    { col: "S", category: CAT_TSHIRT, key: "tshirt_size", label: isKo ? "티셔츠 사이즈" : "T恤尺码", desc: isKo ? "티셔츠 사이즈" : "T恤尺码" },
+
+    { col: "T", category: CAT_SHIP, key: "country_code", label: isKo ? "국가기호" : "国家代码", desc: isKo ? "배송 국가 코드" : "配送国家代码" },
+    { col: "U", category: CAT_SHIP, key: "recipient", label: isKo ? "수취인명" : "收件人", desc: isKo ? "택배 수취인 이름" : "快递收件人姓名" },
+    { col: "V", category: CAT_SHIP, key: "phone", label: isKo ? "연락처" : "联系方式", desc: isKo ? "수취인 연락처" : "收件人联系方式" },
+    { col: "W", category: CAT_SHIP, key: "address", label: isKo ? "주소" : "地址", desc: isKo ? "배송지 주소" : "配送地址" },
+    { col: "X", category: CAT_SHIP, key: "zipcode", label: isKo ? "우편번호" : "邮编", desc: isKo ? "배송지 우편번호" : "配送地邮编" },
   ];
 
   const processFile = useCallback((file: File) => {
@@ -828,17 +840,14 @@ export default function FileUpload() {
     if (!parsedRows.length) return;
     setSaving(true);
     try {
-      // Map Excel rows to orders table
+      // Map Excel rows to orders table (new 24-column spec)
       // A(0): work_order_no → external_order_id
-      // B(1): order_no → product_code
-      // C(2): project_deadline → project_completed_at
-      // D(3): twinker (recipient_name fallback)
-      // E(4): tshirt_serial, F(5): tshirt_type, G(6): tshirt_color, H(7): tshirt_size
-      // I(8): silicon_qr, J(9): design_qr, K(10): hologram_qr
-      // L(11): card_serial, M(12): card_grade, N(13): card_barcode
-      // O(14): country_code, P(15): recipient, Q(16): phone, R(17): address, S(18): zipcode
+      // B(1): order_serial_no → product_code (fallback)
+      // C(2): twinker_name → recipient_name (preferred)
+      // D~P (3~15): card/twincode design data and asset URLs (stored in source_data)
+      // Q(16): tshirt_type, R(17): tshirt_color, S(18): tshirt_size
+      // T(19): country_code, U(20): recipient, V(21): phone, W(22): address, X(23): zipcode
 
-      // Group rows by external_order_id (work order no) since multiple rows can share the same order
       const orderMap = new Map<string, {
         external_order_id: string;
         product_code: string;
@@ -861,58 +870,51 @@ export default function FileUpload() {
         const extId = str(0);
         if (!extId) continue;
 
-        // Parse date
-        let projectDate: string | null = null;
-        const rawDate = row[2];
-        if (rawDate) {
-          if (typeof rawDate === "number") {
-            const d = XLSX.SSF.parse_date_code(rawDate);
-            if (d) projectDate = `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}`;
-          } else {
-            projectDate = String(rawDate).trim() || null;
-          }
-        }
-
         const itemData = {
-          twinker: str(3),
-          tshirt_serial: str(4),
-          tshirt_type: str(5),
-          tshirt_color: str(6),
-          tshirt_size: str(7),
-          silicon_qr: str(8),
-          design_qr: str(9),
-          hologram_qr: str(10),
-          card_serial: str(11),
-          card_grade: str(12),
-          card_barcode: str(13),
+          twinker_name: str(2),
+          twincode_svg_url: str(3),
+          design_png_url: str(4),
+          cp_value: str(5),
+          sequence_no: str(6),
+          twincode_png_url: str(7),
+          dm_barcode_png_url: str(8),
+          edition: str(9),
+          minted_on: str(10),
+          grade: str(11),
+          sign_png_url: str(12),
+          card_front_png_url: str(13),
+          card_back_png_url: str(14),
+          logo_png_url: str(15),
+          tshirt_type: str(16),
+          tshirt_color: str(17),
+          tshirt_size: str(18),
         };
 
         if (orderMap.has(extId)) {
           const existing = orderMap.get(extId)!;
           existing.quantity += 1;
-          // Append item to items array in source_data
           ((existing.source_data as { items: Record<string, string>[] }).items).push(itemData);
         } else {
-          // Twinker (D, idx=3) preferred for recipient_name; fall back to recipient (P, idx=15)
-          const twinkerName = str(3);
-          const recipientName = str(15);
+          const twinkerName = str(2);
+          const recipientName = str(20);
           orderMap.set(extId, {
             external_order_id: extId,
             product_code: str(1) || extId,
-            design_code: str(9) || null,
+            design_code: str(4) || null,
             quantity: 1,
             recipient_name: twinkerName || recipientName || "N/A",
-            recipient_phone: str(16) || null,
-            shipping_address: str(17) || "N/A",
+            recipient_phone: str(21) || null,
+            shipping_address: str(22) || "N/A",
             shipping_city: null,
             shipping_state: null,
-            shipping_zip: str(18) || null,
-            shipping_country: str(14) || "US",
-            project_completed_at: projectDate,
+            shipping_zip: str(23) || null,
+            shipping_country: str(19) || "US",
+            project_completed_at: null,
             source_data: { items: [itemData] },
           });
         }
       }
+
 
       const orders = Array.from(orderMap.values());
 
@@ -1033,10 +1035,10 @@ export default function FileUpload() {
   };
 
   const categoryBadges = [
-    { label: isKo ? "주문확인" : "订单确认", cols: "A~C" },
-    { label: isKo ? "티셔츠 작업용" : "T恤作业用", cols: "D~J" },
-    { label: isKo ? "카드 포장용" : "卡片包装用", cols: "K~M" },
-    { label: isKo ? "택배송장정보" : "快递面单信息", cols: "N~R" },
+    { label: CAT_ORDER, cols: "A~C" },
+    { label: CAT_CARD, cols: "D~P" },
+    { label: CAT_TSHIRT, cols: "Q~S" },
+    { label: CAT_SHIP, cols: "T~X" },
   ];
 
   const handleDownloadTemplate = () => {
@@ -1127,6 +1129,68 @@ export default function FileUpload() {
                 );
               })}
             </div>
+
+            {/* API 수신 항목 안내 */}
+            <div className="kpi-card section-enter">
+              <div className="flex items-start gap-4">
+                <div className="p-2.5 rounded-lg shrink-0" style={{ background: "hsl(var(--primary) / 0.08)" }}>
+                  <Info className="w-5 h-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-semibold mb-1">
+                    {isKo ? "API 수신 항목 (총 24개)" : "API接收字段 (共24个)"}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    {isKo
+                      ? "TWINMETA 사이트에서 아래 24개 항목을 수신합니다. PNG/SVG 항목은 모두 다운로드 URL(링크) 형태로 전달됩니다."
+                      : "从TWINMETA站点接收以下24个字段。所有PNG/SVG字段以下载URL(链接)形式传输。"}
+                  </p>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {categoryBadges.map((g) => (
+                      <span key={g.cols} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border border-border bg-muted/30 text-foreground">
+                        <span className="font-mono text-[10px] opacity-70">{g.cols}</span>
+                        {g.label}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="rounded-lg border overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-muted/40">
+                          <th className="px-2.5 py-1.5 text-left font-medium text-muted-foreground w-10">#</th>
+                          <th className="px-2.5 py-1.5 text-left font-medium text-muted-foreground">{isKo ? "항목명" : "字段名"}</th>
+                          <th className="px-2.5 py-1.5 text-left font-medium text-muted-foreground">{isKo ? "카테고리" : "类别"}</th>
+                          <th className="px-2.5 py-1.5 text-left font-medium text-muted-foreground w-20">{isKo ? "타입" : "类型"}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {columnSpec.map((s, i) => {
+                          const isLink = /url$/i.test(s.key);
+                          return (
+                            <tr key={s.key} className="border-t">
+                              <td className="px-2.5 py-1.5 font-mono text-muted-foreground">{i + 1}</td>
+                              <td className="px-2.5 py-1.5">{s.label}</td>
+                              <td className="px-2.5 py-1.5 text-muted-foreground">{s.category}</td>
+                              <td className="px-2.5 py-1.5">
+                                {isLink ? (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary">
+                                    <Link className="w-3 h-3" />URL
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-muted-foreground">TEXT</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+
 
             {/* API sync history - same format as file upload history */}
             <div className="kpi-card section-enter" style={{ animationDelay: "80ms" }}>
