@@ -4,8 +4,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useLang } from "@/contexts/LangContext";
-import { Mail, Download, FileText, Eye } from "lucide-react";
+import { Mail, Download, FileText, Eye, Trash2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 export interface FactoryOrder {
@@ -16,15 +26,10 @@ export interface FactoryOrder {
 }
 
 interface Props {
-  /** primary action key like 'out.generatePdf' */
   generateLabelKey: string;
-  /** download label key */
   downloadLabelKey?: string;
-  /** Extra columns appended after qty */
   extraColumns?: { header: string; render: (o: FactoryOrder) => React.ReactNode }[];
-  /** Sample data */
   orders: FactoryOrder[];
-  /** Preview content shown after generate */
   renderPreview?: (selected: FactoryOrder[]) => React.ReactNode;
 }
 
@@ -32,12 +37,14 @@ export default function FactoryOrderPanel({
   generateLabelKey,
   downloadLabelKey = "out.download",
   extraColumns = [],
-  orders,
+  orders: initialOrders,
   renderPreview,
 }: Props) {
   const { t } = useLang();
+  const [orders, setOrders] = useState<FactoryOrder[]>(initialOrders);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [generated, setGenerated] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<string[] | null>(null);
 
   const toggle = (id: string) => {
     const next = new Set(selected);
@@ -50,12 +57,33 @@ export default function FactoryOrderPanel({
 
   const selectedOrders = orders.filter(o => selected.has(o.orderNo));
 
+  const confirmDelete = () => {
+    if (!pendingDelete) return;
+    const ids = new Set(pendingDelete);
+    setOrders(prev => prev.filter(o => !ids.has(o.orderNo)));
+    setSelected(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => next.delete(id));
+      return next;
+    });
+    toast({ title: t("out.deleted"), description: `${pendingDelete.length} ${t("out.qty")}` });
+    setPendingDelete(null);
+  };
+
   return (
     <div className="space-y-4">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">{t("out.orderList")}</CardTitle>
           <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={selected.size === 0}
+              onClick={() => setPendingDelete(Array.from(selected))}
+            >
+              <Trash2 className="w-4 h-4 mr-1" /> {t("out.deleteSelected")}
+            </Button>
             <Button
               size="sm"
               disabled={selected.size === 0}
@@ -80,6 +108,7 @@ export default function FactoryOrderPanel({
                 <TableHead>{t("out.qty")}</TableHead>
                 {extraColumns.map((c, i) => <TableHead key={i}>{c.header}</TableHead>)}
                 <TableHead>{t("out.status")}</TableHead>
+                <TableHead className="w-16 text-right">{t("out.action")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -91,14 +120,31 @@ export default function FactoryOrderPanel({
                   <TableCell>{o.qty}</TableCell>
                   {extraColumns.map((c, i) => <TableCell key={i}>{c.render(o)}</TableCell>)}
                   <TableCell><Badge variant="outline">{o.status}</Badge></TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => setPendingDelete([o.orderNo])}
+                      aria-label={t("out.delete")}
+                    >
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
+              {orders.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6 + extraColumns.length} className="text-center text-sm text-muted-foreground py-8">
+                    —
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
-      {generated && (
+      {generated && selectedOrders.length > 0 && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2"><Eye className="w-4 h-4" /> {t("out.preview")}</CardTitle>
@@ -120,6 +166,19 @@ export default function FactoryOrderPanel({
           </CardContent>
         </Card>
       )}
+
+      <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("out.deleteConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("out.deleteConfirmDesc")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("out.cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>{t("out.delete")}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
