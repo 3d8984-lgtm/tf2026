@@ -18,21 +18,31 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useLang } from "@/contexts/LangContext";
-import { Search, Trash2, Loader2 } from "lucide-react";
+import { Search, Trash2, Loader2, ChevronLeft } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useOrders } from "@/hooks/useDbData";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 
 interface ItemRow {
-  rowKey: string;          // unique row id (orderId + itemIndex)
-  orderId: string;         // db uuid
-  orderNo: string;         // external_order_id (작업번호)
-  serial: string;          // item serial (sequence_no) — fallback to product_code/index
-  date: string;            // created_at (YYYY-MM-DD)
-  qty: number;             // 1 per item
+  rowKey: string;
+  orderId: string;
+  orderNo: string;
+  serial: string;
+  date: string;
+  qty: number;
   status: string;
   item: Record<string, string>;
+}
+
+interface OrderGroup {
+  orderId: string;        // db uuid
+  orderNo: string;        // external_order_id (작업번호)
+  date: string;
+  status: string;
+  itemCount: number;
+  totalQty: number;
+  rows: ItemRow[];
 }
 
 function fmtDate(iso?: string | null): string {
@@ -70,30 +80,30 @@ export default function OutsourceOrders() {
   const { data: ordersData, isLoading } = useOrders();
   const [q, setQ] = useState("");
   const [detail, setDetail] = useState<ItemRow | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [pendingDelete, setPendingDelete] = useState<{ rowKeys: string[]; orderIds: string[] } | null>(null);
+  const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ orderIds: string[] } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Expand each order into per-item rows
-  const rows: ItemRow[] = useMemo(() => {
-    const out: ItemRow[] = [];
+  // Group orders by work number (one DB order = one 작업번호)
+  const groups: OrderGroup[] = useMemo(() => {
+    const out: OrderGroup[] = [];
     for (const o of (ordersData || []) as any[]) {
       const items: Record<string, string>[] = (o.source_data?.items as any) || [];
       const date = fmtDate(o.created_at);
-      if (items.length === 0) {
-        out.push({
-          rowKey: `${o.id}:0`,
-          orderId: o.id,
-          orderNo: o.external_order_id,
-          serial: o.product_code || "",
-          date,
-          qty: o.quantity || 1,
-          status: o.status || "received",
-          item: {},
-        });
-      } else {
-        items.forEach((it, idx) => {
-          out.push({
+      const rows: ItemRow[] = items.length === 0
+        ? [{
+            rowKey: `${o.id}:0`,
+            orderId: o.id,
+            orderNo: o.external_order_id,
+            serial: o.product_code || "",
+            date,
+            qty: o.quantity || 1,
+            status: o.status || "received",
+            item: {},
+          }]
+        : items.map((it, idx) => ({
             rowKey: `${o.id}:${idx}`,
             orderId: o.id,
             orderNo: o.external_order_id,
@@ -102,33 +112,54 @@ export default function OutsourceOrders() {
             qty: 1,
             status: o.status || "received",
             item: it,
-          });
-        });
-      }
+          }));
+      out.push({
+        orderId: o.id,
+        orderNo: o.external_order_id,
+        date,
+        status: o.status || "received",
+        itemCount: rows.length,
+        totalQty: o.quantity || rows.length,
+        rows,
+      });
     }
     return out;
   }, [ordersData]);
 
-  const filtered = rows.filter(m => !q || m.orderNo.toLowerCase().includes(q.toLowerCase()) || m.serial.toLowerCase().includes(q.toLowerCase()));
+  const activeGroup = useMemo(
+    () => groups.find(g => g.orderId === activeGroupId) || null,
+    [groups, activeGroupId],
+  );
 
-  const toggle = (id: string) => {
-    const next = new Set(selected);
+  const filteredGroups = groups.filter(
+    g => !q || g.orderNo.toLowerCase().includes(q.toLowerCase()),
+  );
+  const filteredItems = activeGroup
+    ? activeGroup.rows.filter(
+        r => !q || r.serial.toLowerCase().includes(q.toLowerCase()),
+      )
+    : [];
+
+  const toggleGroup = (id: string) => {
+    const next = new Set(selectedGroups);
     next.has(id) ? next.delete(id) : next.add(id);
-    setSelected(next);
+    setSelectedGroups(next);
   };
-  const toggleAll = () => {
-    setSelected(selected.size === filtered.length ? new Set() : new Set(filtered.map(r => r.rowKey)));
+  const toggleAllGroups = () => {
+    setSelectedGroups(
+      selectedGroups.size === filteredGroups.length
+        ? new Set()
+        : new Set(filteredGroups.map(g => g.orderId)),
+    );
+  };
+  const toggleItem = (id: string) => {
+    const next = new Set(selectedItems);
+    next.has(id) ? next.delete(id) : next.add(id);
+    setSelectedItems(next);
   };
 
-  const requestDelete = (rowKeys: string[]) => {
-    const orderIds = Array.from(
-      new Set(
-        rowKeys
-          .map(k => rows.find(r => r.rowKey === k)?.orderId)
-          .filter(Boolean) as string[],
-      ),
-    );
-    setPendingDelete({ rowKeys, orderIds });
+  const requestDeleteGroups = (orderIds: string[]) => {
+    setPendingDelete({ orderIds });
   };
 
   const confirmDelete = async () => {
@@ -137,15 +168,18 @@ export default function OutsourceOrders() {
     try {
       const { error } = await supabase.from("orders").delete().in("id", pendingDelete.orderIds);
       if (error) throw error;
-      const removedKeys = new Set(pendingDelete.rowKeys);
-      setSelected(prev => {
+      setSelectedGroups(prev => {
         const next = new Set(prev);
-        removedKeys.forEach(k => next.delete(k));
+        pendingDelete.orderIds.forEach(id => next.delete(id));
         return next;
       });
+      // if currently viewing a deleted group, go back
+      if (activeGroupId && pendingDelete.orderIds.includes(activeGroupId)) {
+        setActiveGroupId(null);
+      }
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["order_stats"] });
-      toast({ title: t("out.deleted"), description: `${pendingDelete.orderIds.length} ${t("out.qty")}` });
+      toast({ title: t("out.deleted"), description: `${pendingDelete.orderIds.length}` });
       setPendingDelete(null);
     } catch (e: any) {
       console.error(e);
@@ -155,6 +189,73 @@ export default function OutsourceOrders() {
     }
   };
 
+  // === Detail page (item list within a 작업번호) ===
+  if (activeGroup) {
+    return (
+      <div>
+        <PageHeader title={`${t("menu.outOrders")} · ${activeGroup.orderNo}`} description={t("section.outsource")} />
+        <div className="p-6 space-y-4">
+          <Card>
+            <CardContent className="p-4 flex gap-2 items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="ghost" onClick={() => { setActiveGroupId(null); setSelectedItems(new Set()); setQ(""); }}>
+                  <ChevronLeft className="w-4 h-4 mr-1" /> 목록으로
+                </Button>
+                <div className="text-sm text-muted-foreground">
+                  작업번호 <span className="font-mono text-foreground">{activeGroup.orderNo}</span> · {activeGroup.itemCount}건
+                </div>
+              </div>
+              <div className="relative w-64">
+                <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input placeholder={t("out.serial")} value={q} onChange={e => setQ(e.target.value)} className="pl-8" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("out.serial")}</TableHead>
+                    <TableHead>주문일자</TableHead>
+                    <TableHead>{t("out.qty")}</TableHead>
+                    <TableHead>{t("out.status")}</TableHead>
+                    <TableHead className="w-32 text-right">{t("out.action")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredItems.map(r => (
+                    <TableRow key={r.rowKey}>
+                      <TableCell className="font-mono">{r.serial}</TableCell>
+                      <TableCell>{r.date}</TableCell>
+                      <TableCell>{r.qty}</TableCell>
+                      <TableCell><Badge variant="outline">{r.status}</Badge></TableCell>
+                      <TableCell className="text-right">
+                        <Button size="sm" variant="ghost" onClick={() => setDetail(r)}>{t("out.detail")}</Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {filteredItems.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">—</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+
+        <OrderDetailModal
+          open={!!detail}
+          onOpenChange={(o) => !o && setDetail(null)}
+          data={detail ? buildDetailData(detail) : null}
+        />
+      </div>
+    );
+  }
+
+  // === List page (groups by 작업번호) ===
   return (
     <div>
       <PageHeader title={t("menu.outOrders")} description={t("section.outsource")} />
@@ -163,13 +264,13 @@ export default function OutsourceOrders() {
           <CardContent className="p-4 flex gap-2 items-center justify-between">
             <div className="relative flex-1 max-w-sm">
               <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder={t("out.orderNo")} value={q} onChange={e => setQ(e.target.value)} className="pl-8" />
+              <Input placeholder="작업번호" value={q} onChange={e => setQ(e.target.value)} className="pl-8" />
             </div>
             <Button
               size="sm"
               variant="destructive"
-              disabled={selected.size === 0}
-              onClick={() => requestDelete(Array.from(selected))}
+              disabled={selectedGroups.size === 0}
+              onClick={() => requestDeleteGroups(Array.from(selectedGroups))}
             >
               <Trash2 className="w-4 h-4 mr-1" /> {t("out.deleteSelected")}
             </Button>
@@ -181,11 +282,14 @@ export default function OutsourceOrders() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10">
-                    <Checkbox checked={selected.size === filtered.length && filtered.length > 0} onCheckedChange={toggleAll} />
+                    <Checkbox
+                      checked={selectedGroups.size === filteredGroups.length && filteredGroups.length > 0}
+                      onCheckedChange={toggleAllGroups}
+                    />
                   </TableHead>
-                  <TableHead>{t("out.orderNo")}</TableHead>
-                  <TableHead>{t("out.serial")}</TableHead>
+                  <TableHead>작업번호</TableHead>
                   <TableHead>주문일자</TableHead>
+                  <TableHead>주문 건수</TableHead>
                   <TableHead>{t("out.qty")}</TableHead>
                   <TableHead>{t("out.status")}</TableHead>
                   <TableHead className="w-32 text-right">{t("out.action")}</TableHead>
@@ -199,20 +303,31 @@ export default function OutsourceOrders() {
                     </TableCell>
                   </TableRow>
                 )}
-                {!isLoading && filtered.map(o => (
-                  <TableRow key={o.rowKey}>
-                    <TableCell><Checkbox checked={selected.has(o.rowKey)} onCheckedChange={() => toggle(o.rowKey)} /></TableCell>
-                    <TableCell className="font-mono">{o.orderNo}</TableCell>
-                    <TableCell className="font-mono">{o.serial}</TableCell>
-                    <TableCell>{o.date}</TableCell>
-                    <TableCell>{o.qty}</TableCell>
-                    <TableCell><Badge variant="outline">{o.status}</Badge></TableCell>
+                {!isLoading && filteredGroups.map(g => (
+                  <TableRow key={g.orderId}>
+                    <TableCell>
+                      <Checkbox checked={selectedGroups.has(g.orderId)} onCheckedChange={() => toggleGroup(g.orderId)} />
+                    </TableCell>
+                    <TableCell>
+                      <button
+                        className="font-mono text-primary hover:underline"
+                        onClick={() => { setActiveGroupId(g.orderId); setQ(""); }}
+                      >
+                        {g.orderNo}
+                      </button>
+                    </TableCell>
+                    <TableCell>{g.date}</TableCell>
+                    <TableCell>{g.itemCount}</TableCell>
+                    <TableCell>{g.totalQty}</TableCell>
+                    <TableCell><Badge variant="outline">{g.status}</Badge></TableCell>
                     <TableCell className="text-right">
-                      <Button size="sm" variant="ghost" onClick={() => setDetail(o)}>{t("out.detail")}</Button>
+                      <Button size="sm" variant="ghost" onClick={() => { setActiveGroupId(g.orderId); setQ(""); }}>
+                        주문 보기
+                      </Button>
                       <Button
                         size="icon"
                         variant="ghost"
-                        onClick={() => requestDelete([o.rowKey])}
+                        onClick={() => requestDeleteGroups([g.orderId])}
                         aria-label={t("out.delete")}
                       >
                         <Trash2 className="w-4 h-4 text-destructive" />
@@ -220,7 +335,7 @@ export default function OutsourceOrders() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {!isLoading && filtered.length === 0 && (
+                {!isLoading && filteredGroups.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">—</TableCell>
                   </TableRow>
@@ -230,12 +345,6 @@ export default function OutsourceOrders() {
           </CardContent>
         </Card>
       </div>
-
-      <OrderDetailModal
-        open={!!detail}
-        onOpenChange={(o) => !o && setDetail(null)}
-        data={detail ? buildDetailData(detail) : null}
-      />
 
       <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && !deleting && setPendingDelete(null)}>
         <AlertDialogContent>
