@@ -24,12 +24,12 @@ export default function OutsourceDashboard() {
   const { t } = useLang();
   return (
     <div>
-      <PageHeader title={t("menu.outDashboard")} description={t("section.outsource")} />
+      <PageHeader label={t("menu.outDashboard")} description={t("section.outsource")} />
       <div className="p-6 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <KpiCard title={t("out.received")} value="42" icon={Inbox} />
-          <KpiCard title={t("out.ordered")} value="31" icon={Send} />
-          <KpiCard title={t("out.completed")} value="26" icon={CheckCircle2} />
+          <KpiCard label={t("out.received")} value="42" icon={Inbox} />
+          <KpiCard label={t("out.ordered")} value="31" icon={Send} />
+          <KpiCard label={t("out.completed")} value="26" icon={CheckCircle2} />
         </div>
 
         <Card>
