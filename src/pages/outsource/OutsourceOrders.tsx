@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import OrderDetailModal, { OrderDetailData } from "@/components/outsource/OrderDetailModal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,6 +34,27 @@ const initial: Row[] = [
   { orderNo: "TM-2026-0002", serial: "000002", date: "2026-05-19", qty: 25, status: "발주대기" },
   { orderNo: "TM-2026-0003", serial: "000003", date: "2026-05-18", qty: 5, status: "발주완료" },
 ];
+
+// Mock mapping from row to full API response (replace with real API call later)
+function buildDetailData(row: Row): OrderDetailData {
+  const s = row.serial;
+  return {
+    orderSerialNo: row.orderNo,
+    twinCodeSvg: `https://cdn.twinmeta.com/svg/${s}.svg`,
+    designPng: `https://picsum.photos/seed/design${s}/600/600`,
+    cpValue: `CP-${s}`,
+    sequenceNo: s,
+    twinCodePng: `https://picsum.photos/seed/twin${s}/600/600`,
+    dmBarcodePng: `https://picsum.photos/seed/dm${s}/600/600`,
+    edition: `${parseInt(s, 10) || 1}/100`,
+    mintedOn: row.date,
+    grade: "S",
+    signPng: `https://picsum.photos/seed/sign${s}/600/600`,
+    cardFrontDesignPng: `https://picsum.photos/seed/front${s}/600/600`,
+    cardBackDesignPng: `https://picsum.photos/seed/back${s}/600/600`,
+    logoPng: `https://picsum.photos/seed/logo${s}/600/600`,
+  };
+}
 
 export default function OutsourceOrders() {
   const { t } = useLang();
@@ -136,12 +157,12 @@ export default function OutsourceOrders() {
         </Card>
       </div>
 
-      <Dialog open={!!detail} onOpenChange={() => setDetail(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>{detail?.orderNo}</DialogTitle></DialogHeader>
-          <pre className="text-xs bg-muted p-3 rounded overflow-auto">{JSON.stringify(detail, null, 2)}</pre>
-        </DialogContent>
-      </Dialog>
+      <OrderDetailModal
+        open={!!detail}
+        onOpenChange={(o) => !o && setDetail(null)}
+        data={detail ? buildDetailData(detail) : null}
+      />
+
 
       <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
         <AlertDialogContent>
