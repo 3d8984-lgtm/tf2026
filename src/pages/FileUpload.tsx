@@ -1130,6 +1130,68 @@ export default function FileUpload() {
               })}
             </div>
 
+            {/* API 수신 항목 안내 */}
+            <div className="kpi-card section-enter">
+              <div className="flex items-start gap-4">
+                <div className="p-2.5 rounded-lg shrink-0" style={{ background: "hsl(var(--primary) / 0.08)" }}>
+                  <Info className="w-5 h-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-semibold mb-1">
+                    {isKo ? "API 수신 항목 (총 24개)" : "API接收字段 (共24个)"}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    {isKo
+                      ? "TWINMETA 사이트에서 아래 24개 항목을 수신합니다. PNG/SVG 항목은 모두 다운로드 URL(링크) 형태로 전달됩니다."
+                      : "从TWINMETA站点接收以下24个字段。所有PNG/SVG字段以下载URL(链接)形式传输。"}
+                  </p>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {categoryBadges.map((g) => (
+                      <span key={g.cols} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border border-border bg-muted/30 text-foreground">
+                        <span className="font-mono text-[10px] opacity-70">{g.cols}</span>
+                        {g.label}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="rounded-lg border overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-muted/40">
+                          <th className="px-2.5 py-1.5 text-left font-medium text-muted-foreground w-10">#</th>
+                          <th className="px-2.5 py-1.5 text-left font-medium text-muted-foreground">{isKo ? "항목명" : "字段名"}</th>
+                          <th className="px-2.5 py-1.5 text-left font-medium text-muted-foreground">{isKo ? "카테고리" : "类别"}</th>
+                          <th className="px-2.5 py-1.5 text-left font-medium text-muted-foreground w-20">{isKo ? "타입" : "类型"}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {columnSpec.map((s, i) => {
+                          const isLink = /url$/i.test(s.key);
+                          return (
+                            <tr key={s.key} className="border-t">
+                              <td className="px-2.5 py-1.5 font-mono text-muted-foreground">{i + 1}</td>
+                              <td className="px-2.5 py-1.5">{s.label}</td>
+                              <td className="px-2.5 py-1.5 text-muted-foreground">{s.category}</td>
+                              <td className="px-2.5 py-1.5">
+                                {isLink ? (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary">
+                                    <Link className="w-3 h-3" />URL
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-muted-foreground">TEXT</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+
+
             {/* API sync history - same format as file upload history */}
             <div className="kpi-card section-enter" style={{ animationDelay: "80ms" }}>
               <h3 className="text-sm font-medium mb-4">
