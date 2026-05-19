@@ -840,17 +840,14 @@ export default function FileUpload() {
     if (!parsedRows.length) return;
     setSaving(true);
     try {
-      // Map Excel rows to orders table
+      // Map Excel rows to orders table (new 24-column spec)
       // A(0): work_order_no → external_order_id
-      // B(1): order_no → product_code
-      // C(2): project_deadline → project_completed_at
-      // D(3): twinker (recipient_name fallback)
-      // E(4): tshirt_serial, F(5): tshirt_type, G(6): tshirt_color, H(7): tshirt_size
-      // I(8): silicon_qr, J(9): design_qr, K(10): hologram_qr
-      // L(11): card_serial, M(12): card_grade, N(13): card_barcode
-      // O(14): country_code, P(15): recipient, Q(16): phone, R(17): address, S(18): zipcode
+      // B(1): order_serial_no → product_code (fallback)
+      // C(2): twinker_name → recipient_name (preferred)
+      // D~P (3~15): card/twincode design data and asset URLs (stored in source_data)
+      // Q(16): tshirt_type, R(17): tshirt_color, S(18): tshirt_size
+      // T(19): country_code, U(20): recipient, V(21): phone, W(22): address, X(23): zipcode
 
-      // Group rows by external_order_id (work order no) since multiple rows can share the same order
       const orderMap = new Map<string, {
         external_order_id: string;
         product_code: string;
@@ -873,58 +870,51 @@ export default function FileUpload() {
         const extId = str(0);
         if (!extId) continue;
 
-        // Parse date
-        let projectDate: string | null = null;
-        const rawDate = row[2];
-        if (rawDate) {
-          if (typeof rawDate === "number") {
-            const d = XLSX.SSF.parse_date_code(rawDate);
-            if (d) projectDate = `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}`;
-          } else {
-            projectDate = String(rawDate).trim() || null;
-          }
-        }
-
         const itemData = {
-          twinker: str(3),
-          tshirt_serial: str(4),
-          tshirt_type: str(5),
-          tshirt_color: str(6),
-          tshirt_size: str(7),
-          silicon_qr: str(8),
-          design_qr: str(9),
-          hologram_qr: str(10),
-          card_serial: str(11),
-          card_grade: str(12),
-          card_barcode: str(13),
+          twinker_name: str(2),
+          twincode_svg_url: str(3),
+          design_png_url: str(4),
+          cp_value: str(5),
+          sequence_no: str(6),
+          twincode_png_url: str(7),
+          dm_barcode_png_url: str(8),
+          edition: str(9),
+          minted_on: str(10),
+          grade: str(11),
+          sign_png_url: str(12),
+          card_front_png_url: str(13),
+          card_back_png_url: str(14),
+          logo_png_url: str(15),
+          tshirt_type: str(16),
+          tshirt_color: str(17),
+          tshirt_size: str(18),
         };
 
         if (orderMap.has(extId)) {
           const existing = orderMap.get(extId)!;
           existing.quantity += 1;
-          // Append item to items array in source_data
           ((existing.source_data as { items: Record<string, string>[] }).items).push(itemData);
         } else {
-          // Twinker (D, idx=3) preferred for recipient_name; fall back to recipient (P, idx=15)
-          const twinkerName = str(3);
-          const recipientName = str(15);
+          const twinkerName = str(2);
+          const recipientName = str(20);
           orderMap.set(extId, {
             external_order_id: extId,
             product_code: str(1) || extId,
-            design_code: str(9) || null,
+            design_code: str(4) || null,
             quantity: 1,
             recipient_name: twinkerName || recipientName || "N/A",
-            recipient_phone: str(16) || null,
-            shipping_address: str(17) || "N/A",
+            recipient_phone: str(21) || null,
+            shipping_address: str(22) || "N/A",
             shipping_city: null,
             shipping_state: null,
-            shipping_zip: str(18) || null,
-            shipping_country: str(14) || "US",
-            project_completed_at: projectDate,
+            shipping_zip: str(23) || null,
+            shipping_country: str(19) || "US",
+            project_completed_at: null,
             source_data: { items: [itemData] },
           });
         }
       }
+
 
       const orders = Array.from(orderMap.values());
 
