@@ -506,6 +506,43 @@ const translations: Record<Lang, Record<string, string>> = {
     "menu.reports": "历史查询/报表",
     "menu.settings": "系统设置",
 
+    // Sections
+    "section.hq": "总部包装",
+    "section.outsource": "外协生产",
+
+    // Outsource menu
+    "menu.outDashboard": "外协生产仪表盘",
+    "menu.outOrders": "订单数据确认",
+    "menu.outSilicon": "硅胶标识工厂",
+    "menu.outHeatTransfer": "热转印设计工厂",
+    "menu.outHologram": "全息贴纸工厂",
+    "menu.outNfcCard": "NFC卡片工厂",
+    "menu.outLogo": "LOGO工厂",
+
+    // Outsource common
+    "out.received": "接收数量",
+    "out.ordered": "发单数量",
+    "out.completed": "完成数量",
+    "out.orderList": "发单对象订单列表",
+    "out.orderNo": "订单号",
+    "out.serial": "序号",
+    "out.qty": "数量",
+    "out.status": "状态",
+    "out.action": "操作",
+    "out.preview": "预览",
+    "out.generatePdf": "生成PDF",
+    "out.generateFolder": "生成文件夹",
+    "out.generateExcel": "生成Excel",
+    "out.generateOrderSheet": "生成发单书",
+    "out.generateFrontBack": "生成正反面PDF",
+    "out.sendEmail": "邮件发送",
+    "out.download": "下载",
+    "out.downloadZip": "ZIP下载",
+    "out.requestedQty": "请求数量 (订单数量 × 1.1, 向上取整)",
+    "out.recentOrders": "最近发单列表",
+    "out.factoryStatus": "工厂发单现况",
+    "out.detail": "详情",
+
     // Dashboard
     "dashboard.title": "仪表盘",
     "dashboard.desc": "一览所有生产·包装·出库现状",
