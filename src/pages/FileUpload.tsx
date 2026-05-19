@@ -1035,10 +1035,10 @@ export default function FileUpload() {
   };
 
   const categoryBadges = [
-    { label: isKo ? "주문확인" : "订单确认", cols: "A~C" },
-    { label: isKo ? "티셔츠 작업용" : "T恤作业用", cols: "D~J" },
-    { label: isKo ? "카드 포장용" : "卡片包装用", cols: "K~M" },
-    { label: isKo ? "택배송장정보" : "快递面单信息", cols: "N~R" },
+    { label: CAT_ORDER, cols: "A~C" },
+    { label: CAT_CARD, cols: "D~P" },
+    { label: CAT_TSHIRT, cols: "Q~S" },
+    { label: CAT_SHIP, cols: "T~X" },
   ];
 
   const handleDownloadTemplate = () => {
