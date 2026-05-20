@@ -40,6 +40,8 @@ const translations: Record<Lang, Record<string, string>> = {
     "menu.outHologram": "홀로그램 스티커 공장",
     "menu.outNfcCard": "NFC 카드 공장",
     "menu.outLogo": "LOGO 공장",
+    "menu.outHistory": "발주 이력 관리",
+    "menu.outSettings": "시스템 설정",
 
     // Outsource common
     "out.received": "접수 건수",
