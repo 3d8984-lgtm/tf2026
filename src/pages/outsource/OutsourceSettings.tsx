@@ -16,16 +16,18 @@ interface FactoryEmail {
   key: Factory;
   name: { ko: string; zh: string };
   contact: string;
+  phone: string;
+  url: string;
   email: string;
   cc: string;
 }
 
 const INITIAL: FactoryEmail[] = [
-  { key: "silicon", name: { ko: "실리콘 마크 공장", zh: "硅胶标识工厂" }, contact: "Mr. Liu", email: "silicon@factory.cn", cc: "" },
-  { key: "heat", name: { ko: "열전사 디자인 공장", zh: "热转印设计工厂" }, contact: "Ms. Zhang", email: "heat@factory.cn", cc: "" },
-  { key: "hologram", name: { ko: "홀로그램 스티커 공장", zh: "全息贴纸工厂" }, contact: "Mr. Wang", email: "hologram@factory.cn", cc: "" },
-  { key: "nfc", name: { ko: "NFC 카드 공장", zh: "NFC卡片工厂" }, contact: "Mr. Chen", email: "nfc@factory.cn", cc: "" },
-  { key: "logo", name: { ko: "LOGO 공장", zh: "LOGO工厂" }, contact: "Ms. Li", email: "logo@factory.cn", cc: "" },
+  { key: "silicon", name: { ko: "실리콘 마크 공장", zh: "硅胶标识工厂" }, contact: "Mr. Liu", phone: "+86-138-0000-0001", url: "https://silicon.factory.cn", email: "silicon@factory.cn", cc: "" },
+  { key: "heat", name: { ko: "열전사 디자인 공장", zh: "热转印设计工厂" }, contact: "Ms. Zhang", phone: "+86-139-0000-0002", url: "https://heat.factory.cn", email: "heat@factory.cn", cc: "" },
+  { key: "hologram", name: { ko: "홀로그램 스티커 공장", zh: "全息贴纸工厂" }, contact: "Mr. Wang", phone: "+86-137-0000-0003", url: "https://hologram.factory.cn", email: "hologram@factory.cn", cc: "" },
+  { key: "nfc", name: { ko: "NFC 카드 공장", zh: "NFC卡片工厂" }, contact: "Mr. Chen", phone: "+86-136-0000-0004", url: "https://nfc.factory.cn", email: "nfc@factory.cn", cc: "" },
+  { key: "logo", name: { ko: "LOGO 공장", zh: "LOGO工厂" }, contact: "Ms. Li", phone: "+86-135-0000-0005", url: "https://logo.factory.cn", email: "logo@factory.cn", cc: "" },
 ];
 
 export default function OutsourceSettings() {
