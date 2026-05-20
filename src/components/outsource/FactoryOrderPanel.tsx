@@ -49,6 +49,7 @@ export default function FactoryOrderPanel({
 }: Props) {
   const { t } = useLang();
   const [orders, setOrders] = useState<FactoryOrder[]>(initialOrders);
+  useEffect(() => { setOrders(initialOrders); }, [initialOrders]);
   const [selected, setSelected] = useState<Set<string>>(new Set()); // item serials
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
