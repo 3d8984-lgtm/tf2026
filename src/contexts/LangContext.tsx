@@ -526,6 +526,8 @@ const translations: Record<Lang, Record<string, string>> = {
     "menu.outHologram": "全息贴纸工厂",
     "menu.outNfcCard": "NFC卡片工厂",
     "menu.outLogo": "LOGO工厂",
+    "menu.outHistory": "发货历史管理",
+    "menu.outSettings": "系统设置",
 
     // Outsource common
     "out.received": "接收数量",
