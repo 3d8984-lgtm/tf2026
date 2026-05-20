@@ -164,14 +164,16 @@ export default function OutsourceHistory() {
             <TableHeader>
               <TableRow>
                 <TableHead>{lang === "ko" ? "공장" : "工厂"}</TableHead>
-                <TableHead>{lang === "ko" ? "작업번호" : "订单号"}</TableHead>
-                <TableHead>{lang === "ko" ? "기본정보" : "基本信息"}</TableHead>
+                <TableHead>{lang === "ko" ? "작업번호" : "作业号"}</TableHead>
                 <TableHead className="text-right">{lang === "ko" ? "수량" : "数量"}</TableHead>
                 <TableHead>{lang === "ko" ? "발주일" : "发单日期"}</TableHead>
-                <TableHead>{lang === "ko" ? "발송일" : "发货日期"}</TableHead>
-                <TableHead>{lang === "ko" ? "송장번호" : "运单号"}</TableHead>
                 <TableHead>{lang === "ko" ? "수령일" : "收货日期"}</TableHead>
                 <TableHead>{lang === "ko" ? "상태" : "状态"}</TableHead>
+                <TableHead>{lang === "ko" ? "제작 착수" : "开始制作"}</TableHead>
+                <TableHead>{lang === "ko" ? "예상 완료일" : "预计完成日"}</TableHead>
+                <TableHead>{lang === "ko" ? "제작완료" : "制作完成"}</TableHead>
+                <TableHead>{lang === "ko" ? "발송일" : "发货日期"}</TableHead>
+                <TableHead>{lang === "ko" ? "송장번호" : "运单号"}</TableHead>
                 <TableHead className="text-right">{lang === "ko" ? "동작" : "操作"}</TableHead>
               </TableRow>
             </TableHeader>
@@ -182,9 +184,13 @@ export default function OutsourceHistory() {
                     <Badge variant="secondary">{factoryLabel[r.factory]}</Badge>
                   </TableCell>
                   <TableCell className="font-medium">{r.orderNo}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{r.productCode}</TableCell>
                   <TableCell className="text-right">{r.qty.toLocaleString()}</TableCell>
                   <TableCell>{r.orderedAt}</TableCell>
+                  <TableCell>{r.receivedAt ?? "-"}</TableCell>
+                  <TableCell>{statusBadge(r.status)}</TableCell>
+                  <TableCell>{r.startedAt ?? "-"}</TableCell>
+                  <TableCell>{r.expectedAt ?? "-"}</TableCell>
+                  <TableCell>{r.producedAt ?? "-"}</TableCell>
                   <TableCell>{r.shippedAt ?? "-"}</TableCell>
                   <TableCell>
                     {r.trackingNo ? (
@@ -194,8 +200,6 @@ export default function OutsourceHistory() {
                       </div>
                     ) : "-"}
                   </TableCell>
-                  <TableCell>{r.receivedAt ?? "-"}</TableCell>
-                  <TableCell>{statusBadge(r.status)}</TableCell>
                   <TableCell className="text-right">
                     {r.status === "shipped" && (
                       <Button size="sm" variant="outline" onClick={() => confirmReceived(r.id)}>
@@ -207,7 +211,7 @@ export default function OutsourceHistory() {
               ))}
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
                     {lang === "ko" ? "조회된 발주 이력이 없습니다." : "暂无发货历史。"}
                   </TableCell>
                 </TableRow>
