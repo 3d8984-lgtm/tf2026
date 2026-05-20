@@ -50,13 +50,13 @@ const FACTORY_LABEL_ZH: Record<Factory, string> = {
 };
 
 const SAMPLE: HistoryRow[] = [
-  { id: "H001", factory: "silicon", orderNo: "TM-2026-0001", orderedAt: "2026-05-12", qty: 220, productCode: "TS-RED-100", shippedAt: "2026-05-14", trackingNo: "SF1234567890", carrier: "SF Express", receivedAt: "2026-05-17", status: "received" },
-  { id: "H002", factory: "heat", orderNo: "TM-2026-0001", orderedAt: "2026-05-12", qty: 220, productCode: "TS-RED-100", shippedAt: "2026-05-15", trackingNo: "YT9988776655", carrier: "YTO", status: "shipped" },
-  { id: "H003", factory: "hologram", orderNo: "TM-2026-0002", orderedAt: "2026-05-13", qty: 330, productCode: "TS-BLU-200", status: "ordered" },
-  { id: "H004", factory: "nfc", orderNo: "TM-2026-0002", orderedAt: "2026-05-13", qty: 330, productCode: "TS-BLU-200", shippedAt: "2026-05-16", trackingNo: "ZTO11223344", carrier: "ZTO", status: "shipped" },
-  { id: "H005", factory: "logo", orderNo: "TM-2026-0003", orderedAt: "2026-05-14", qty: 165, productCode: "LOGO-A", shippedAt: "2026-05-15", trackingNo: "JD556677889", carrier: "JD", receivedAt: "2026-05-18", status: "received" },
-  { id: "H006", factory: "silicon", orderNo: "TM-2026-0004", orderedAt: "2026-05-15", qty: 110, productCode: "TS-BLK-300", status: "ordered" },
-  { id: "H007", factory: "logo", orderNo: "TM-2026-0004", orderedAt: "2026-05-15", qty: 110, productCode: "LOGO-B", shippedAt: "2026-05-16", trackingNo: "EMS998877665", carrier: "EMS", status: "shipped" },
+  { id: "H001", factory: "silicon", orderNo: "TM-2026-0001", orderedAt: "2026-05-12", qty: 220, productCode: "TS-RED-100", startedAt: "2026-05-12", expectedAt: "2026-05-14", producedAt: "2026-05-14", shippedAt: "2026-05-14", trackingNo: "SF1234567890", carrier: "SF Express", receivedAt: "2026-05-17", status: "received" },
+  { id: "H002", factory: "heat", orderNo: "TM-2026-0001", orderedAt: "2026-05-12", qty: 220, productCode: "TS-RED-100", startedAt: "2026-05-12", expectedAt: "2026-05-15", producedAt: "2026-05-15", shippedAt: "2026-05-15", trackingNo: "YT9988776655", carrier: "YTO", status: "shipped" },
+  { id: "H003", factory: "hologram", orderNo: "TM-2026-0002", orderedAt: "2026-05-13", qty: 330, productCode: "TS-BLU-200", startedAt: "2026-05-13", expectedAt: "2026-05-16", status: "ordered" },
+  { id: "H004", factory: "nfc", orderNo: "TM-2026-0002", orderedAt: "2026-05-13", qty: 330, productCode: "TS-BLU-200", startedAt: "2026-05-13", expectedAt: "2026-05-16", producedAt: "2026-05-16", shippedAt: "2026-05-16", trackingNo: "ZTO11223344", carrier: "ZTO", status: "shipped" },
+  { id: "H005", factory: "logo", orderNo: "TM-2026-0003", orderedAt: "2026-05-14", qty: 165, productCode: "LOGO-A", startedAt: "2026-05-14", expectedAt: "2026-05-15", producedAt: "2026-05-15", shippedAt: "2026-05-15", trackingNo: "JD556677889", carrier: "JD", receivedAt: "2026-05-18", status: "received" },
+  { id: "H006", factory: "silicon", orderNo: "TM-2026-0004", orderedAt: "2026-05-15", qty: 110, productCode: "TS-BLK-300", startedAt: "2026-05-15", expectedAt: "2026-05-18", status: "ordered" },
+  { id: "H007", factory: "logo", orderNo: "TM-2026-0004", orderedAt: "2026-05-15", qty: 110, productCode: "LOGO-B", startedAt: "2026-05-15", expectedAt: "2026-05-16", producedAt: "2026-05-16", shippedAt: "2026-05-16", trackingNo: "EMS998877665", carrier: "EMS", status: "shipped" },
 ];
 
 export default function OutsourceHistory() {
