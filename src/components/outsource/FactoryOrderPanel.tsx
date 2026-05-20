@@ -320,11 +320,3 @@ function DeleteDialog({
   );
 }
 
-export const sampleOrders: FactoryOrder[] = [
-  { orderNo: "TM-2026-0001", serial: "000001", qty: 10, status: "대기" },
-  { orderNo: "TM-2026-0001", serial: "000002", qty: 5, status: "대기" },
-  { orderNo: "TM-2026-0002", serial: "000003", qty: 25, status: "대기" },
-  { orderNo: "TM-2026-0002", serial: "000004", qty: 8, status: "대기" },
-  { orderNo: "TM-2026-0002", serial: "000005", qty: 12, status: "대기" },
-  { orderNo: "TM-2026-0003", serial: "000006", qty: 5, status: "대기" },
-];
