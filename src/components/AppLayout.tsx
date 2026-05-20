@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Upload, Database,
   Shirt, Activity, AlertTriangle, FileBarChart, Settings,
   ChevronLeft, ChevronRight, ScanLine, Globe, LogOut, Truck, Search, BookOpen, QrCode, Camera,
-  Factory, ClipboardList, Stamp, Printer, Sparkles, CreditCard, Image as ImageIcon,
+  Factory, ClipboardList, Stamp, Printer, Sparkles, CreditCard, Image as ImageIcon, History, Cog,
 } from "lucide-react";
 import { useLang, type Lang } from "@/contexts/LangContext";
 import { useAuth } from "@/hooks/useAuth";
