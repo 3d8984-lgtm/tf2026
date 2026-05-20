@@ -1,10 +1,12 @@
 import PageHeader from "@/components/PageHeader";
-import FactoryOrderPanel, { sampleOrders } from "@/components/outsource/FactoryOrderPanel";
+import FactoryOrderPanel from "@/components/outsource/FactoryOrderPanel";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useLang } from "@/contexts/LangContext";
+import { useFactoryOrders } from "@/hooks/useFactoryOrders";
 
 export default function HologramFactory() {
   const { t } = useLang();
+  const { orders } = useFactoryOrders();
   return (
     <div>
       <PageHeader title={t("menu.outHologram")} description="순번번호 + 주문번호 Excel 발주" />
