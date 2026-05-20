@@ -1,9 +1,11 @@
 import PageHeader from "@/components/PageHeader";
-import FactoryOrderPanel, { sampleOrders } from "@/components/outsource/FactoryOrderPanel";
+import FactoryOrderPanel from "@/components/outsource/FactoryOrderPanel";
 import { useLang } from "@/contexts/LangContext";
+import { useFactoryOrders } from "@/hooks/useFactoryOrders";
 
 export default function SiliconFactory() {
   const { t } = useLang();
+  const { orders } = useFactoryOrders();
   return (
     <div>
       <PageHeader title={t("menu.outSilicon")} description="트윈코드 SVG + 주문일련번호 + QR코드를 합성한 PDF 발주" />
