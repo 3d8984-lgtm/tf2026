@@ -93,6 +93,8 @@ function ProtectedRoutes() {
         <Route path="/outsource/hologram" element={<HologramFactory />} />
         <Route path="/outsource/nfc-card" element={<NfcCardFactory />} />
         <Route path="/outsource/logo" element={<LogoFactory />} />
+        <Route path="/outsource/history" element={<OutsourceHistory />} />
+        <Route path="/outsource/settings" element={<OutsourceSettings />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
