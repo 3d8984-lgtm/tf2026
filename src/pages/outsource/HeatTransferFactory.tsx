@@ -1,10 +1,12 @@
 import PageHeader from "@/components/PageHeader";
-import FactoryOrderPanel, { sampleOrders } from "@/components/outsource/FactoryOrderPanel";
+import FactoryOrderPanel from "@/components/outsource/FactoryOrderPanel";
 import { useLang } from "@/contexts/LangContext";
 import { Folder, Image as ImageIcon, QrCode } from "lucide-react";
+import { useFactoryOrders } from "@/hooks/useFactoryOrders";
 
 export default function HeatTransferFactory() {
   const { t } = useLang();
+  const { orders } = useFactoryOrders();
   return (
     <div>
       <PageHeader title={t("menu.outHeatTransfer")} description="디자인 PNG + QR코드 폴더(ZIP) 발주" />
