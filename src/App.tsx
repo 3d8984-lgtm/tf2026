@@ -28,6 +28,8 @@ import HeatTransferFactory from "@/pages/outsource/HeatTransferFactory";
 import HologramFactory from "@/pages/outsource/HologramFactory";
 import NfcCardFactory from "@/pages/outsource/NfcCardFactory";
 import LogoFactory from "@/pages/outsource/LogoFactory";
+import OutsourceHistory from "@/pages/outsource/OutsourceHistory";
+import OutsourceSettings from "@/pages/outsource/OutsourceSettings";
 import NotFound from "@/pages/NotFound";
 import { useLang } from "@/contexts/LangContext";
 import { Button } from "@/components/ui/button";
@@ -91,6 +93,8 @@ function ProtectedRoutes() {
         <Route path="/outsource/hologram" element={<HologramFactory />} />
         <Route path="/outsource/nfc-card" element={<NfcCardFactory />} />
         <Route path="/outsource/logo" element={<LogoFactory />} />
+        <Route path="/outsource/history" element={<OutsourceHistory />} />
+        <Route path="/outsource/settings" element={<OutsourceSettings />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

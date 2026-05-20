@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Upload, Database,
   Shirt, Activity, AlertTriangle, FileBarChart, Settings,
   ChevronLeft, ChevronRight, ScanLine, Globe, LogOut, Truck, Search, BookOpen, QrCode, Camera,
-  Factory, ClipboardList, Stamp, Printer, Sparkles, CreditCard, Image as ImageIcon,
+  Factory, ClipboardList, Stamp, Printer, Sparkles, CreditCard, Image as ImageIcon, History, Cog,
 } from "lucide-react";
 import { useLang, type Lang } from "@/contexts/LangContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -67,6 +67,8 @@ const menuKeys: MenuItem[] = [
   { path: "/outsource/hologram", icon: Sparkles, key: "menu.outHologram", section: "outsource" },
   { path: "/outsource/nfc-card", icon: CreditCard, key: "menu.outNfcCard", section: "outsource" },
   { path: "/outsource/logo", icon: ImageIcon, key: "menu.outLogo", section: "outsource" },
+  { path: "/outsource/history", icon: History, key: "menu.outHistory", section: "outsource" },
+  { path: "/outsource/settings", icon: Cog, key: "menu.outSettings", section: "outsource" },
 ];
 
 interface SearchResult {
