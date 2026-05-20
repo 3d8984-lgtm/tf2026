@@ -24,6 +24,9 @@ interface HistoryRow {
   orderedAt: string;
   qty: number;
   productCode: string;
+  startedAt?: string;
+  expectedAt?: string;
+  producedAt?: string;
   shippedAt?: string;
   trackingNo?: string;
   carrier?: string;
