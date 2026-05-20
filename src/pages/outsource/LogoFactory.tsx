@@ -56,7 +56,7 @@ export default function LogoFactory() {
         totalQty: 0,
         requestQty: 0,
         status: o.status,
-        logoUrl: SAMPLE_LOGOS[o.orderNo] ?? null,
+        logoUrl: logoByOrderNo[o.orderNo] ?? null,
         logoFileName: `${o.orderNo}_LOGO.png`,
       };
       g.items.push(o);
