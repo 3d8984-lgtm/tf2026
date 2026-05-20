@@ -65,7 +65,7 @@ export default function LogoFactory() {
       map.set(o.orderNo, g);
     }
     return Array.from(map.values());
-  }, [orders]);
+  }, [orders, logoByOrderNo]);
 
   const toggle = (id: string) => {
     const next = new Set(selected);
