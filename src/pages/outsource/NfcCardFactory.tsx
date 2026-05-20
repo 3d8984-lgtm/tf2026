@@ -1,9 +1,11 @@
 import PageHeader from "@/components/PageHeader";
-import FactoryOrderPanel, { sampleOrders } from "@/components/outsource/FactoryOrderPanel";
+import FactoryOrderPanel from "@/components/outsource/FactoryOrderPanel";
 import { useLang } from "@/contexts/LangContext";
+import { useFactoryOrders } from "@/hooks/useFactoryOrders";
 
 export default function NfcCardFactory() {
   const { t } = useLang();
+  const { orders } = useFactoryOrders();
   return (
     <div>
       <PageHeader title={t("menu.outNfcCard")} description="앞면/뒷면 PDF 폴더(ZIP) 발주" />
@@ -11,7 +13,7 @@ export default function NfcCardFactory() {
         <FactoryOrderPanel
           generateLabelKey="out.generateFrontBack"
           downloadLabelKey="out.downloadZip"
-          orders={sampleOrders}
+          orders={orders}
           renderPreview={(sel) => (
             <div className="space-y-4">
               {sel.map(o => (

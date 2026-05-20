@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import PageHeader from "@/components/PageHeader";
-import { sampleOrders, type FactoryOrder } from "@/components/outsource/FactoryOrderPanel";
+import { type FactoryOrder } from "@/components/outsource/FactoryOrderPanel";
+import { useFactoryOrders } from "@/hooks/useFactoryOrders";
 import { useLang } from "@/contexts/LangContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,16 +37,11 @@ interface LogoGroup {
   logoFileName: string;
 }
 
-// Sample logo URLs per work order (in production, fetch from orders.logo_url)
-const SAMPLE_LOGOS: Record<string, string> = {
-  "TM-2026-0001": "https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=600",
-  "TM-2026-0002": "https://images.unsplash.com/photo-1599305445671-ac291c95aaa9?w=600",
-  "TM-2026-0003": "https://images.unsplash.com/photo-1614680376573-df3480f0c6ff?w=600",
-};
-
 export default function LogoFactory() {
   const { t } = useLang();
-  const [orders, setOrders] = useState<FactoryOrder[]>(sampleOrders);
+  const { orders: dbOrders, logoByOrderNo } = useFactoryOrders();
+  const [orders, setOrders] = useState<FactoryOrder[]>([]);
+  useEffect(() => { setOrders(dbOrders); }, [dbOrders]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [preview, setPreview] = useState<LogoGroup | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string[] | null>(null);
@@ -60,7 +56,7 @@ export default function LogoFactory() {
         totalQty: 0,
         requestQty: 0,
         status: o.status,
-        logoUrl: SAMPLE_LOGOS[o.orderNo] ?? null,
+        logoUrl: logoByOrderNo[o.orderNo] ?? null,
         logoFileName: `${o.orderNo}_LOGO.png`,
       };
       g.items.push(o);
@@ -69,7 +65,7 @@ export default function LogoFactory() {
       map.set(o.orderNo, g);
     }
     return Array.from(map.values());
-  }, [orders]);
+  }, [orders, logoByOrderNo]);
 
   const toggle = (id: string) => {
     const next = new Set(selected);
