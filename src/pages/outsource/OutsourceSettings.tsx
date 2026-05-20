@@ -88,10 +88,18 @@ export default function OutsourceSettings() {
                   {lang === "ko" ? "테스트 메일" : "测试邮件"}
                 </Button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
                 <div className="space-y-1.5">
                   <Label>{lang === "ko" ? "담당자" : "联系人"}</Label>
                   <Input value={it.contact} onChange={e => update(it.key, { contact: e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>{lang === "ko" ? "연락처" : "联系电话"}</Label>
+                  <Input value={it.phone} onChange={e => update(it.key, { phone: e.target.value })} placeholder="+86-138-0000-0000" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>URL</Label>
+                  <Input value={it.url} onChange={e => update(it.key, { url: e.target.value })} placeholder="https://factory.cn" />
                 </div>
                 <div className="space-y-1.5">
                   <Label>{lang === "ko" ? "수신 이메일" : "收件邮箱"} *</Label>
