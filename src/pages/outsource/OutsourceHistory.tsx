@@ -24,6 +24,9 @@ interface HistoryRow {
   orderedAt: string;
   qty: number;
   productCode: string;
+  startedAt?: string;
+  expectedAt?: string;
+  producedAt?: string;
   shippedAt?: string;
   trackingNo?: string;
   carrier?: string;
@@ -47,13 +50,13 @@ const FACTORY_LABEL_ZH: Record<Factory, string> = {
 };
 
 const SAMPLE: HistoryRow[] = [
-  { id: "H001", factory: "silicon", orderNo: "TM-2026-0001", orderedAt: "2026-05-12", qty: 220, productCode: "TS-RED-100", shippedAt: "2026-05-14", trackingNo: "SF1234567890", carrier: "SF Express", receivedAt: "2026-05-17", status: "received" },
-  { id: "H002", factory: "heat", orderNo: "TM-2026-0001", orderedAt: "2026-05-12", qty: 220, productCode: "TS-RED-100", shippedAt: "2026-05-15", trackingNo: "YT9988776655", carrier: "YTO", status: "shipped" },
-  { id: "H003", factory: "hologram", orderNo: "TM-2026-0002", orderedAt: "2026-05-13", qty: 330, productCode: "TS-BLU-200", status: "ordered" },
-  { id: "H004", factory: "nfc", orderNo: "TM-2026-0002", orderedAt: "2026-05-13", qty: 330, productCode: "TS-BLU-200", shippedAt: "2026-05-16", trackingNo: "ZTO11223344", carrier: "ZTO", status: "shipped" },
-  { id: "H005", factory: "logo", orderNo: "TM-2026-0003", orderedAt: "2026-05-14", qty: 165, productCode: "LOGO-A", shippedAt: "2026-05-15", trackingNo: "JD556677889", carrier: "JD", receivedAt: "2026-05-18", status: "received" },
-  { id: "H006", factory: "silicon", orderNo: "TM-2026-0004", orderedAt: "2026-05-15", qty: 110, productCode: "TS-BLK-300", status: "ordered" },
-  { id: "H007", factory: "logo", orderNo: "TM-2026-0004", orderedAt: "2026-05-15", qty: 110, productCode: "LOGO-B", shippedAt: "2026-05-16", trackingNo: "EMS998877665", carrier: "EMS", status: "shipped" },
+  { id: "H001", factory: "silicon", orderNo: "TM-2026-0001", orderedAt: "2026-05-12", qty: 220, productCode: "TS-RED-100", startedAt: "2026-05-12", expectedAt: "2026-05-14", producedAt: "2026-05-14", shippedAt: "2026-05-14", trackingNo: "SF1234567890", carrier: "SF Express", receivedAt: "2026-05-17", status: "received" },
+  { id: "H002", factory: "heat", orderNo: "TM-2026-0001", orderedAt: "2026-05-12", qty: 220, productCode: "TS-RED-100", startedAt: "2026-05-12", expectedAt: "2026-05-15", producedAt: "2026-05-15", shippedAt: "2026-05-15", trackingNo: "YT9988776655", carrier: "YTO", status: "shipped" },
+  { id: "H003", factory: "hologram", orderNo: "TM-2026-0002", orderedAt: "2026-05-13", qty: 330, productCode: "TS-BLU-200", startedAt: "2026-05-13", expectedAt: "2026-05-16", status: "ordered" },
+  { id: "H004", factory: "nfc", orderNo: "TM-2026-0002", orderedAt: "2026-05-13", qty: 330, productCode: "TS-BLU-200", startedAt: "2026-05-13", expectedAt: "2026-05-16", producedAt: "2026-05-16", shippedAt: "2026-05-16", trackingNo: "ZTO11223344", carrier: "ZTO", status: "shipped" },
+  { id: "H005", factory: "logo", orderNo: "TM-2026-0003", orderedAt: "2026-05-14", qty: 165, productCode: "LOGO-A", startedAt: "2026-05-14", expectedAt: "2026-05-15", producedAt: "2026-05-15", shippedAt: "2026-05-15", trackingNo: "JD556677889", carrier: "JD", receivedAt: "2026-05-18", status: "received" },
+  { id: "H006", factory: "silicon", orderNo: "TM-2026-0004", orderedAt: "2026-05-15", qty: 110, productCode: "TS-BLK-300", startedAt: "2026-05-15", expectedAt: "2026-05-18", status: "ordered" },
+  { id: "H007", factory: "logo", orderNo: "TM-2026-0004", orderedAt: "2026-05-15", qty: 110, productCode: "LOGO-B", startedAt: "2026-05-15", expectedAt: "2026-05-16", producedAt: "2026-05-16", shippedAt: "2026-05-16", trackingNo: "EMS998877665", carrier: "EMS", status: "shipped" },
 ];
 
 export default function OutsourceHistory() {
@@ -161,14 +164,16 @@ export default function OutsourceHistory() {
             <TableHeader>
               <TableRow>
                 <TableHead>{lang === "ko" ? "공장" : "工厂"}</TableHead>
-                <TableHead>{lang === "ko" ? "작업번호" : "订单号"}</TableHead>
-                <TableHead>{lang === "ko" ? "기본정보" : "基本信息"}</TableHead>
+                <TableHead>{lang === "ko" ? "작업번호" : "作业号"}</TableHead>
                 <TableHead className="text-right">{lang === "ko" ? "수량" : "数量"}</TableHead>
                 <TableHead>{lang === "ko" ? "발주일" : "发单日期"}</TableHead>
-                <TableHead>{lang === "ko" ? "발송일" : "发货日期"}</TableHead>
-                <TableHead>{lang === "ko" ? "송장번호" : "运单号"}</TableHead>
                 <TableHead>{lang === "ko" ? "수령일" : "收货日期"}</TableHead>
                 <TableHead>{lang === "ko" ? "상태" : "状态"}</TableHead>
+                <TableHead>{lang === "ko" ? "제작 착수" : "开始制作"}</TableHead>
+                <TableHead>{lang === "ko" ? "예상 완료일" : "预计完成日"}</TableHead>
+                <TableHead>{lang === "ko" ? "제작완료" : "制作完成"}</TableHead>
+                <TableHead>{lang === "ko" ? "발송일" : "发货日期"}</TableHead>
+                <TableHead>{lang === "ko" ? "송장번호" : "运单号"}</TableHead>
                 <TableHead className="text-right">{lang === "ko" ? "동작" : "操作"}</TableHead>
               </TableRow>
             </TableHeader>
@@ -179,9 +184,13 @@ export default function OutsourceHistory() {
                     <Badge variant="secondary">{factoryLabel[r.factory]}</Badge>
                   </TableCell>
                   <TableCell className="font-medium">{r.orderNo}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{r.productCode}</TableCell>
                   <TableCell className="text-right">{r.qty.toLocaleString()}</TableCell>
                   <TableCell>{r.orderedAt}</TableCell>
+                  <TableCell>{r.receivedAt ?? "-"}</TableCell>
+                  <TableCell>{statusBadge(r.status)}</TableCell>
+                  <TableCell>{r.startedAt ?? "-"}</TableCell>
+                  <TableCell>{r.expectedAt ?? "-"}</TableCell>
+                  <TableCell>{r.producedAt ?? "-"}</TableCell>
                   <TableCell>{r.shippedAt ?? "-"}</TableCell>
                   <TableCell>
                     {r.trackingNo ? (
@@ -191,8 +200,6 @@ export default function OutsourceHistory() {
                       </div>
                     ) : "-"}
                   </TableCell>
-                  <TableCell>{r.receivedAt ?? "-"}</TableCell>
-                  <TableCell>{statusBadge(r.status)}</TableCell>
                   <TableCell className="text-right">
                     {r.status === "shipped" && (
                       <Button size="sm" variant="outline" onClick={() => confirmReceived(r.id)}>
@@ -204,7 +211,7 @@ export default function OutsourceHistory() {
               ))}
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
                     {lang === "ko" ? "조회된 발주 이력이 없습니다." : "暂无发货历史。"}
                   </TableCell>
                 </TableRow>
