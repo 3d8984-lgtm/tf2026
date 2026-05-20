@@ -28,6 +28,8 @@ import HeatTransferFactory from "@/pages/outsource/HeatTransferFactory";
 import HologramFactory from "@/pages/outsource/HologramFactory";
 import NfcCardFactory from "@/pages/outsource/NfcCardFactory";
 import LogoFactory from "@/pages/outsource/LogoFactory";
+import OutsourceHistory from "@/pages/outsource/OutsourceHistory";
+import OutsourceSettings from "@/pages/outsource/OutsourceSettings";
 import NotFound from "@/pages/NotFound";
 import { useLang } from "@/contexts/LangContext";
 import { Button } from "@/components/ui/button";
