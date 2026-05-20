@@ -11,7 +11,7 @@ export default function HologramFactory() {
       <div className="p-6">
         <FactoryOrderPanel
           generateLabelKey="out.generateExcel"
-          orders={sampleOrders}
+          orders={orders}
           renderPreview={(sel) => (
             <Table>
               <TableHeader>

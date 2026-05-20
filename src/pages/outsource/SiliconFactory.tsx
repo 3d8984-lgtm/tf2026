@@ -12,7 +12,7 @@ export default function SiliconFactory() {
       <div className="p-6">
         <FactoryOrderPanel
           generateLabelKey="out.generatePdf"
-          orders={sampleOrders}
+          orders={orders}
           renderPreview={(sel) => (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {sel.map(o => (

@@ -12,7 +12,7 @@ export default function HeatTransferFactory() {
         <FactoryOrderPanel
           generateLabelKey="out.generateFolder"
           downloadLabelKey="out.downloadZip"
-          orders={sampleOrders}
+          orders={orders}
           renderPreview={(sel) => (
             <div className="font-mono text-sm space-y-1">
               <div className="flex items-center gap-2"><Folder className="w-4 h-4 text-warning" /> design/</div>

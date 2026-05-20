@@ -11,7 +11,7 @@ export default function NfcCardFactory() {
         <FactoryOrderPanel
           generateLabelKey="out.generateFrontBack"
           downloadLabelKey="out.downloadZip"
-          orders={sampleOrders}
+          orders={orders}
           renderPreview={(sel) => (
             <div className="space-y-4">
               {sel.map(o => (
