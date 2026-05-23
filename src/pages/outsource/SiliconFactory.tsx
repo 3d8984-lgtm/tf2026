@@ -1,4 +1,20 @@
 import { useMemo, useState } from "react";
+import * as pdfjsLib from "pdfjs-dist";
+// @ts-ignore - vite worker import
+import PdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?worker";
+(pdfjsLib as any).GlobalWorkerOptions.workerPort = new PdfWorker();
+
+async function renderPdfFirstPagePng(bytes: Uint8Array): Promise<string> {
+  const doc = await (pdfjsLib as any).getDocument({ data: bytes.slice(0) }).promise;
+  const page = await doc.getPage(1);
+  const viewport = page.getViewport({ scale: 1.2 });
+  const canvas = document.createElement("canvas");
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  const ctx = canvas.getContext("2d")!;
+  await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+  return canvas.toDataURL("image/png");
+}
 import PageHeader from "@/components/PageHeader";
 import { useLang } from "@/contexts/LangContext";
 import { useOrders } from "@/hooks/useDbData";
