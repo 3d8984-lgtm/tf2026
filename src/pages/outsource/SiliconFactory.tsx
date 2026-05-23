@@ -916,6 +916,7 @@ interface ProofItem { seq: number; orderNo: string; uniqueNo: string; svgUrl: st
 interface ProofSettings {
   twinSize: number; twinCols: number; twinRows: number; twinGap: number;
   twinOffsetX: number; twinOffsetY: number; twinTextSize: number; twinTextGap: number;
+  markW: number;
   qrSize: number; qrCutSize: number; qrGap: number; qrTextSize: number; qrTextGap: number;
 }
 
