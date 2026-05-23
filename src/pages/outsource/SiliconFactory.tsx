@@ -378,6 +378,17 @@ export default function SiliconFactory() {
                           </Button>
                         )}
                       </div>
+                      <div className="aspect-[3/4] w-full border rounded bg-muted/30 overflow-hidden flex items-center justify-center">
+                        {templates[g]?.url ? (
+                          <iframe
+                            src={`${templates[g]!.url}#toolbar=0&navpanes=0&scrollbar=0&view=Fit`}
+                            title={`${g} preview`}
+                            className="w-full h-full"
+                          />
+                        ) : (
+                          <span className="text-xs text-muted-foreground">미리보기 없음</span>
+                        )}
+                      </div>
                       <label className="flex items-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
                         <Upload className="w-3 h-3" />
                         <span className="truncate">{templates[g]?.name || "PDF 업로드"}</span>
