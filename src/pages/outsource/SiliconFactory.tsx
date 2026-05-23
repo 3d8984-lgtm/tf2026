@@ -863,3 +863,187 @@ function NumField({ label, v, set }: { label: string; v: number; set: (v: number
     </div>
   );
 }
+
+interface ProofItem { seq: number; orderNo: string; uniqueNo: string; svgUrl: string | null; grade: Grade; }
+interface ProofSettings { twinSize: number; twinCols: number; twinRows: number; twinGap: number; qrSize: number; qrGap: number; }
+
+function ProofBox({
+  items, templates, proof, setProof, qrMap, page, setPage, qrPage, setQrPage,
+}: {
+  items: ProofItem[];
+  templates: Record<Grade, { name: string; bytes: Uint8Array; preview: string; aspect: number } | null>;
+  proof: ProofSettings;
+  setProof: React.Dispatch<React.SetStateAction<ProofSettings>>;
+  qrMap: Record<string, string>;
+  page: number; setPage: (n: number) => void;
+  qrPage: number; setQrPage: (n: number) => void;
+}) {
+  const PAPER_W_PX = 640;
+  const A4_W = 210, A4_H = 297;
+  const mmPx = PAPER_W_PX / A4_W;
+  const paperHpx = A4_H * mmPx;
+
+  // ===== 트윈코드 시안 =====
+  const tCols = Math.max(1, proof.twinCols);
+  const tRows = Math.max(1, proof.twinRows);
+  const tGap = proof.twinGap;
+  const cellW = (A4_W - (tCols - 1) * tGap) / tCols;
+  const cellH = (A4_H - (tRows - 1) * tGap) / tRows;
+  const perPageT = tCols * tRows;
+  const totalPagesT = Math.max(1, Math.ceil(items.length / perPageT));
+  const pageT = Math.min(page, totalPagesT - 1);
+  const pageItemsT = items.slice(pageT * perPageT, pageT * perPageT + perPageT);
+
+  // ===== QR 시안 =====
+  const qMargin = 10;
+  const qCols = Math.max(1, Math.floor((A4_W - 2 * qMargin + proof.qrGap) / (proof.qrSize + proof.qrGap)));
+  const qRows = Math.max(1, Math.floor((A4_H - 2 * qMargin + proof.qrGap) / (proof.qrSize + proof.qrGap)));
+  const perPageQ = qCols * qRows;
+  const totalPagesQ = Math.max(1, Math.ceil(items.length / perPageQ));
+  const pageQ = Math.min(qPage, totalPagesQ - 1);
+  const pageItemsQ = items.slice(pageQ * perPageQ, pageQ * perPageQ + perPageQ);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">시안 박스 · 공장 발주 파일 확인</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Tabs defaultValue="twin">
+          <TabsList>
+            <TabsTrigger value="twin">트윈코드 시안</TabsTrigger>
+            <TabsTrigger value="qr">큐알코드 시안</TabsTrigger>
+          </TabsList>
+
+          {/* ============== 트윈코드 시안 ============== */}
+          <TabsContent value="twin" className="pt-4 space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <NumField label="트윈코드 크기(mm)" v={proof.twinSize} set={v => setProof(p => ({ ...p, twinSize: v }))} />
+              <NumField label="가로 수량" v={proof.twinCols} set={v => setProof(p => ({ ...p, twinCols: v }))} />
+              <NumField label="세로 수량" v={proof.twinRows} set={v => setProof(p => ({ ...p, twinRows: v }))} />
+              <NumField label="마크 이격(mm)" v={proof.twinGap} set={v => setProof(p => ({ ...p, twinGap: v }))} />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-muted-foreground">
+                페이지당 {perPageT}개 · 총 {items.length}개 · {totalPagesT}페이지
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" disabled={pageT <= 0} onClick={() => setPage(pageT - 1)}>이전</Button>
+                <span className="text-xs tabular-nums w-16 text-center">{pageT + 1} / {totalPagesT}</span>
+                <Button size="sm" variant="outline" disabled={pageT >= totalPagesT - 1} onClick={() => setPage(pageT + 1)}>다음</Button>
+              </div>
+            </div>
+            <div className="flex justify-center">
+              <div
+                className="relative bg-white shadow border"
+                style={{ width: PAPER_W_PX, height: paperHpx }}
+              >
+                {pageItemsT.map((it, idx) => {
+                  const col = idx % tCols;
+                  const row = Math.floor(idx / tCols);
+                  const x = col * (cellW + tGap) * mmPx;
+                  const y = row * (cellH + tGap) * mmPx;
+                  const w = cellW * mmPx;
+                  const h = cellH * mmPx;
+                  const tmpl = templates[it.grade];
+                  const twinPx = proof.twinSize * mmPx;
+                  return (
+                    <div
+                      key={it.uniqueNo}
+                      className="absolute flex items-center justify-center"
+                      style={{ left: x, top: y, width: w, height: h }}
+                    >
+                      {tmpl?.preview ? (
+                        <img src={tmpl.preview} alt="" className="absolute inset-0 w-full h-full object-contain pointer-events-none" />
+                      ) : (
+                        <div className="absolute inset-0 border border-dashed border-muted-foreground/40 flex items-center justify-center text-[9px] text-muted-foreground">
+                          {it.grade} 포맷 없음
+                        </div>
+                      )}
+                      {it.svgUrl ? (
+                        <img
+                          src={it.svgUrl}
+                          alt=""
+                          className="relative object-contain"
+                          style={{ width: twinPx, height: twinPx }}
+                        />
+                      ) : (
+                        <div
+                          className="relative border border-dashed border-destructive flex items-center justify-center text-[8px] text-destructive"
+                          style={{ width: twinPx, height: twinPx }}
+                        >no svg</div>
+                      )}
+                      <div
+                        className="absolute left-0 right-0 text-center font-mono text-foreground"
+                        style={{ bottom: 2 * mmPx, fontSize: Math.max(6, 2.2 * mmPx) }}
+                      >
+                        {it.uniqueNo}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ============== 큐알코드 시안 ============== */}
+          <TabsContent value="qr" className="pt-4 space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <NumField label="QR 크기(mm)" v={proof.qrSize} set={v => setProof(p => ({ ...p, qrSize: v }))} />
+              <NumField label="QR 간격(mm)" v={proof.qrGap} set={v => setProof(p => ({ ...p, qrGap: v }))} />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-muted-foreground">
+                {qCols} × {qRows} · 페이지당 {perPageQ}개 · 총 {items.length}개 · {totalPagesQ}페이지
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" disabled={pageQ <= 0} onClick={() => setQrPage(pageQ - 1)}>이전</Button>
+                <span className="text-xs tabular-nums w-16 text-center">{pageQ + 1} / {totalPagesQ}</span>
+                <Button size="sm" variant="outline" disabled={pageQ >= totalPagesQ - 1} onClick={() => setQrPage(pageQ + 1)}>다음</Button>
+              </div>
+            </div>
+            <div className="flex justify-center">
+              <div
+                className="relative bg-white shadow border"
+                style={{ width: PAPER_W_PX, height: paperHpx }}
+              >
+                {pageItemsQ.map((it, idx) => {
+                  const col = idx % qCols;
+                  const row = Math.floor(idx / qCols);
+                  const x = (qMargin + col * (proof.qrSize + proof.qrGap)) * mmPx;
+                  const y = (qMargin + row * (proof.qrSize + proof.qrGap)) * mmPx;
+                  const s = proof.qrSize * mmPx;
+                  const labelH = Math.max(8, 3 * mmPx);
+                  const qrH = s - labelH - 2;
+                  return (
+                    <div
+                      key={it.uniqueNo}
+                      className="absolute border border-dashed border-foreground/60 flex flex-col items-center justify-center"
+                      style={{ left: x, top: y, width: s, height: s }}
+                      title={`칼선: ${it.uniqueNo}`}
+                    >
+                      {qrMap[it.uniqueNo] ? (
+                        <img src={qrMap[it.uniqueNo]} alt="qr" style={{ width: qrH, height: qrH }} />
+                      ) : (
+                        <div style={{ width: qrH, height: qrH }} className="bg-muted" />
+                      )}
+                      <div
+                        className="font-mono text-foreground leading-none"
+                        style={{ fontSize: Math.max(6, 2 * mmPx), marginTop: 1 }}
+                      >
+                        {it.uniqueNo}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="text-[10px] text-muted-foreground text-center">
+              ※ 점선 사각형은 각 QR 라벨의 칼선이며 마크 고유번호를 포함합니다.
+            </div>
+          </TabsContent>
+        </Tabs>
+      </CardContent>
+    </Card>
+  );
+}
