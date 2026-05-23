@@ -356,9 +356,34 @@ export default function SiliconFactory() {
                 <TabsTrigger value="qr">QR 스티커</TabsTrigger>
                 <TabsTrigger value="common">공통</TabsTrigger>
               </TabsList>
-              <TabsContent value="mark" className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3">
-                <NumField label="마크 가로(mm)" v={settings.markW} set={v => setSettings({ ...settings, markW: v })} />
-                <NumField label="마크 세로(mm)" v={settings.markH} set={v => setSettings({ ...settings, markH: v })} />
+              <TabsContent value="mark" className="pt-3">
+                <div className="text-xs text-muted-foreground mb-3">
+                  마크 등급별 PDF 포맷을 업로드하세요. PDF 파일의 실사이즈 그대로 사용됩니다.
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {GRADES.map(g => (
+                    <div key={g} className="border rounded-md p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-medium">{g}</Label>
+                        {templates[g] && (
+                          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => onUploadTemplate(g, null)}>
+                            <X className="w-3 h-3" />
+                          </Button>
+                        )}
+                      </div>
+                      <label className="flex items-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
+                        <Upload className="w-3 h-3" />
+                        <span className="truncate">{templates[g]?.name || "PDF 업로드"}</span>
+                        <input
+                          type="file"
+                          accept="application/pdf"
+                          className="hidden"
+                          onChange={e => onUploadTemplate(g, e.target.files?.[0] || null)}
+                        />
+                      </label>
+                    </div>
+                  ))}
+                </div>
               </TabsContent>
               <TabsContent value="qr" className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3">
                 <NumField label="스티커 가로(mm)" v={settings.stickerW} set={v => setSettings({ ...settings, stickerW: v })} />
