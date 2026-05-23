@@ -891,15 +891,16 @@ function ProofBox({
 }) {
   const PAPER_W_PX = 640;
   const A4_W = 210, A4_H = 297;
+  const MARK_W = 63, MARK_H = 60.811; // 업로드된 PDF(벡터) 원본 사이즈 고정
   const mmPx = PAPER_W_PX / A4_W;
   const paperHpx = A4_H * mmPx;
 
-  // ===== 트윈코드 시안 =====
+  // ===== 트윈코드 시안 (마크 원본 사이즈 63 × 60.811 mm 고정) =====
   const tCols = Math.max(1, proof.twinCols);
   const tRows = Math.max(1, proof.twinRows);
   const tGap = proof.twinGap;
-  const cellW = (A4_W - (tCols - 1) * tGap) / tCols;
-  const cellH = (A4_H - (tRows - 1) * tGap) / tRows;
+  const cellW = MARK_W;
+  const cellH = MARK_H;
   const perPageT = tCols * tRows;
   const totalPagesT = Math.max(1, Math.ceil(items.length / perPageT));
   const pageT = Math.min(page, totalPagesT - 1);
@@ -940,7 +941,7 @@ function ProofBox({
             </div>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="text-xs text-muted-foreground">
-                출력 사이즈: <span className="font-mono text-foreground">A4 210 × 297 mm</span> · 페이지당 {perPageT}개 · 총 {items.length}개 · {totalPagesT}페이지
+                출력 사이즈: <span className="font-mono text-foreground">A4 210 × 297 mm</span> · 마크 원본: <span className="font-mono text-foreground">63 × 60.811 mm</span> (벡터 고정) · 페이지당 {perPageT}개 · 총 {items.length}개 · {totalPagesT}페이지
               </div>
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="outline" disabled={pageT <= 0} onClick={() => setPage(pageT - 1)}>이전</Button>
