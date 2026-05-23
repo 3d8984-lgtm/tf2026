@@ -900,7 +900,7 @@ function ProofBox({
   const qRows = Math.max(1, Math.floor((A4_H - 2 * qMargin + proof.qrGap) / (proof.qrSize + proof.qrGap)));
   const perPageQ = qCols * qRows;
   const totalPagesQ = Math.max(1, Math.ceil(items.length / perPageQ));
-  const pageQ = Math.min(qPage, totalPagesQ - 1);
+  const pageQ = Math.min(qrPage, totalPagesQ - 1);
   const pageItemsQ = items.slice(pageQ * perPageQ, pageQ * perPageQ + perPageQ);
 
   return (
