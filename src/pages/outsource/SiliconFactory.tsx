@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
-import { Download, Eye, FileText, AlertTriangle, Loader2, QrCode } from "lucide-react";
+import { Download, Eye, FileText, AlertTriangle, Loader2, QrCode, Upload, X } from "lucide-react";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import QRCode from "qrcode";
 
