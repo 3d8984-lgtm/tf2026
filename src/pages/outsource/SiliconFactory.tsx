@@ -620,7 +620,20 @@ export default function SiliconFactory() {
               </Table>
             </CardContent>
           </Card>
+
+          <ProofBox
+            items={detailItems}
+            templates={templates}
+            proof={proof}
+            setProof={setProof}
+            qrMap={proofQrMap}
+            page={proofPage}
+            setPage={setProofPage}
+            qrPage={proofQrPage}
+            setQrPage={setProofQrPage}
+          />
         </div>
+
 
         <Dialog open={!!previewRow} onOpenChange={o => { if (!o) { setPreviewRow(null); setPreviewQr(null); } }}>
           <DialogContent>
