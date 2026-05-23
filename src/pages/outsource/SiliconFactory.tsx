@@ -162,21 +162,19 @@ export default function SiliconFactory() {
   const [previewRow, setPreviewRow] = useState<Row | null>(null);
   const [previewQr, setPreviewQr] = useState<string | null>(null);
   const [errorsOnly, setErrorsOnly] = useState(false);
-  const [templates, setTemplates] = useState<Record<Grade, { name: string; bytes: Uint8Array; url: string } | null>>({
+  const [templates, setTemplates] = useState<Record<Grade, { name: string; bytes: Uint8Array; preview: string } | null>>({
     COMMON: null, RARE: null, EPIC: null, LEGEND: null,
   });
 
   const onUploadTemplate = async (grade: Grade, file: File | null) => {
-    setTemplates(prev => {
-      const old = prev[grade];
-      if (old?.url) URL.revokeObjectURL(old.url);
-      return { ...prev, [grade]: null };
-    });
-    if (!file) return;
-    const buf = new Uint8Array(await file.arrayBuffer());
-    const blob = new Blob([buf as BlobPart], { type: "application/pdf" });
-    const url = URL.createObjectURL(blob);
-    setTemplates(prev => ({ ...prev, [grade]: { name: file.name, bytes: buf, url } }));
+    if (!file) { setTemplates(prev => ({ ...prev, [grade]: null })); return; }
+    try {
+      const buf = new Uint8Array(await file.arrayBuffer());
+      const preview = await renderPdfFirstPagePng(buf);
+      setTemplates(prev => ({ ...prev, [grade]: { name: file.name, bytes: buf, preview } }));
+    } catch (e: any) {
+      toast({ title: "PDF 미리보기 실패", description: e.message, variant: "destructive" });
+    }
   };
 
   const rows: Row[] = useMemo(() => {
