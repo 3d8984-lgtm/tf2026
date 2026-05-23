@@ -36,6 +36,29 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Download, Eye, FileText, AlertTriangle, Loader2, QrCode, Upload, X, ChevronLeft } from "lucide-react";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { jsPDF } from "jspdf";
+import { svg2pdf } from "svg2pdf.js";
+
+// Convert SVG text → single-page PDF bytes (vector). Page size in pt.
+async function svgToVectorPdfBytes(svgText: string, widthPt: number, heightPt: number): Promise<Uint8Array> {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(svgText, "image/svg+xml");
+  const svgEl = doc.documentElement as unknown as SVGSVGElement;
+  // svg2pdf requires the element to be in the DOM for measurements
+  const host = document.createElement("div");
+  host.style.position = "fixed";
+  host.style.left = "-99999px";
+  host.appendChild(svgEl);
+  document.body.appendChild(host);
+  try {
+    const pdf = new jsPDF({ unit: "pt", format: [widthPt, heightPt] });
+    await svg2pdf(svgEl, pdf, { x: 0, y: 0, width: widthPt, height: heightPt });
+    const ab = pdf.output("arraybuffer");
+    return new Uint8Array(ab);
+  } finally {
+    document.body.removeChild(host);
+  }
+}
 import QRCode from "qrcode";
 
 interface Row {
