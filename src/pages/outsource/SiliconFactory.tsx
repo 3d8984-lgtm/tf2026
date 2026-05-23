@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 // @ts-ignore - vite worker import
 import PdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?worker";
@@ -168,8 +168,20 @@ export default function SiliconFactory() {
   const [templates, setTemplates] = useState<Record<Grade, { name: string; bytes: Uint8Array; preview: string; aspect: number } | null>>({
     COMMON: null, RARE: null, EPIC: null, LEGEND: null,
   });
-  const [previewEdit, setPreviewEdit] = useState(false);
-  const [previewHeight, setPreviewHeight] = useState<number | null>(null);
+  const [previewEdit, setPreviewEdit] = useState(() => localStorage.getItem("silicon-preview-edit") === "1");
+  const [previewHeight, setPreviewHeight] = useState<number | null>(() => {
+    const v = localStorage.getItem("silicon-preview-height");
+    return v ? Number(v) : null;
+  });
+
+  // Persist preview height/edit state
+  useEffect(() => {
+    localStorage.setItem("silicon-preview-edit", previewEdit ? "1" : "0");
+  }, [previewEdit]);
+  useEffect(() => {
+    if (previewHeight !== null) localStorage.setItem("silicon-preview-height", String(previewHeight));
+    else localStorage.removeItem("silicon-preview-height");
+  }, [previewHeight]);
 
   const onUploadTemplate = async (grade: Grade, file: File | null) => {
     if (!file) { setTemplates(prev => ({ ...prev, [grade]: null })); return; }
