@@ -4,7 +4,7 @@ import * as pdfjsLib from "pdfjs-dist";
 import PdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?worker";
 (pdfjsLib as any).GlobalWorkerOptions.workerPort = new PdfWorker();
 
-async function renderPdfFirstPagePng(bytes: Uint8Array): Promise<string> {
+async function renderPdfFirstPagePng(bytes: Uint8Array): Promise<{ dataUrl: string; aspect: number }> {
   const doc = await (pdfjsLib as any).getDocument({ data: bytes.slice(0) }).promise;
   const page = await doc.getPage(1);
   const viewport = page.getViewport({ scale: 1.2 });
@@ -13,7 +13,10 @@ async function renderPdfFirstPagePng(bytes: Uint8Array): Promise<string> {
   canvas.height = viewport.height;
   const ctx = canvas.getContext("2d")!;
   await page.render({ canvasContext: ctx, viewport, canvas }).promise;
-  return canvas.toDataURL("image/png");
+  return {
+    dataUrl: canvas.toDataURL("image/png"),
+    aspect: viewport.width / viewport.height,
+  };
 }
 import PageHeader from "@/components/PageHeader";
 import { useLang } from "@/contexts/LangContext";
@@ -162,7 +165,7 @@ export default function SiliconFactory() {
   const [previewRow, setPreviewRow] = useState<Row | null>(null);
   const [previewQr, setPreviewQr] = useState<string | null>(null);
   const [errorsOnly, setErrorsOnly] = useState(false);
-  const [templates, setTemplates] = useState<Record<Grade, { name: string; bytes: Uint8Array; preview: string } | null>>({
+  const [templates, setTemplates] = useState<Record<Grade, { name: string; bytes: Uint8Array; preview: string; aspect: number } | null>>({
     COMMON: null, RARE: null, EPIC: null, LEGEND: null,
   });
 
@@ -170,8 +173,8 @@ export default function SiliconFactory() {
     if (!file) { setTemplates(prev => ({ ...prev, [grade]: null })); return; }
     try {
       const buf = new Uint8Array(await file.arrayBuffer());
-      const preview = await renderPdfFirstPagePng(buf);
-      setTemplates(prev => ({ ...prev, [grade]: { name: file.name, bytes: buf, preview } }));
+      const { dataUrl, aspect } = await renderPdfFirstPagePng(buf);
+      setTemplates(prev => ({ ...prev, [grade]: { name: file.name, bytes: buf, preview: dataUrl, aspect } }));
     } catch (e: any) {
       toast({ title: "PDF 미리보기 실패", description: e.message, variant: "destructive" });
     }
@@ -392,7 +395,10 @@ export default function SiliconFactory() {
                           </Button>
                         )}
                       </div>
-                      <div className="aspect-[3/4] w-full border rounded bg-muted/30 overflow-hidden flex items-center justify-center">
+                      <div
+                        className="w-full border rounded bg-muted/30 overflow-hidden flex items-center justify-center"
+                        style={{ aspectRatio: templates[g]?.aspect ? String(templates[g]!.aspect) : "3 / 4" }}
+                      >
                         {templates[g]?.preview ? (
                           <img
                             src={templates[g]!.preview}
