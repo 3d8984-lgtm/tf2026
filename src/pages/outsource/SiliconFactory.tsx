@@ -168,6 +168,8 @@ export default function SiliconFactory() {
   const [templates, setTemplates] = useState<Record<Grade, { name: string; bytes: Uint8Array; preview: string; aspect: number } | null>>({
     COMMON: null, RARE: null, EPIC: null, LEGEND: null,
   });
+  const [previewEdit, setPreviewEdit] = useState(false);
+  const [previewHeight, setPreviewHeight] = useState<number | null>(null);
 
   const onUploadTemplate = async (grade: Grade, file: File | null) => {
     if (!file) { setTemplates(prev => ({ ...prev, [grade]: null })); return; }
