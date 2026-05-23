@@ -213,11 +213,15 @@ export default function SiliconFactory() {
     const defaults = {
       twinSize: 12, twinCols: 5, twinRows: 7, twinGap: 3,
       twinOffsetX: 0, twinOffsetY: 0, twinTextSize: 2.5, twinTextGap: 2,
-      qrSize: 25, qrGap: 5, qrTextSize: 2, qrTextGap: 1,
+      qrSize: 25, qrCutSize: 25, qrGap: 5, qrTextSize: 2, qrTextGap: 1,
     };
     try {
       const raw = typeof window !== "undefined" ? localStorage.getItem("silicon.proofSettings.v1") : null;
-      if (raw) return { ...defaults, ...JSON.parse(raw) };
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed.qrCutSize !== "number") parsed.qrCutSize = parsed.qrSize ?? defaults.qrCutSize;
+        return { ...defaults, ...parsed };
+      }
     } catch {}
     return defaults;
   });
@@ -910,7 +914,7 @@ interface ProofItem { seq: number; orderNo: string; uniqueNo: string; svgUrl: st
 interface ProofSettings {
   twinSize: number; twinCols: number; twinRows: number; twinGap: number;
   twinOffsetX: number; twinOffsetY: number; twinTextSize: number; twinTextGap: number;
-  qrSize: number; qrGap: number; qrTextSize: number; qrTextGap: number;
+  qrSize: number; qrCutSize: number; qrGap: number; qrTextSize: number; qrTextGap: number;
 }
 
 function ProofBox({
@@ -943,8 +947,8 @@ function ProofBox({
 
   // ===== QR 시안 =====
   const qMargin = 10;
-  const qCols = Math.max(1, Math.floor((A4_W - 2 * qMargin + proof.qrGap) / (proof.qrSize + proof.qrGap)));
-  const qRows = Math.max(1, Math.floor((A4_H - 2 * qMargin + proof.qrGap) / (proof.qrSize + proof.qrGap)));
+  const qCols = Math.max(1, Math.floor((A4_W - 2 * qMargin + proof.qrGap) / (proof.qrCutSize + proof.qrGap)));
+  const qRows = Math.max(1, Math.floor((A4_H - 2 * qMargin + proof.qrGap) / (proof.qrCutSize + proof.qrGap)));
   const perPageQ = qCols * qRows;
   const totalPagesQ = Math.max(1, Math.ceil(items.length / perPageQ));
   const pageQ = Math.min(qrPage, totalPagesQ - 1);
@@ -1047,15 +1051,16 @@ function ProofBox({
 
           {/* ============== 큐알코드 시안 ============== */}
           <TabsContent value="qr" className="pt-4 space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <NumField label="QR 크기(mm)" v={proof.qrSize} set={v => setProof(p => ({ ...p, qrSize: v }))} step={0.1} />
+              <NumField label="칼선 크기(mm)" v={proof.qrCutSize} set={v => setProof(p => ({ ...p, qrCutSize: v }))} step={0.1} />
               <NumField label="QR 간격(mm)" v={proof.qrGap} set={v => setProof(p => ({ ...p, qrGap: v }))} step={0.1} />
               <NumField label="마크번호 크기(mm)" v={proof.qrTextSize} set={v => setProof(p => ({ ...p, qrTextSize: v }))} step={0.1} />
               <NumField label="마크번호 이격(mm)" v={proof.qrTextGap} set={v => setProof(p => ({ ...p, qrTextGap: v }))} step={0.1} />
             </div>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="text-xs text-muted-foreground">
-                출력 사이즈: <span className="font-mono text-foreground">{(qCols * proof.qrSize + Math.max(0, qCols - 1) * proof.qrGap).toFixed(2)} × {(qRows * proof.qrSize + Math.max(0, qRows - 1) * proof.qrGap).toFixed(2)} mm</span> · 용지: <span className="font-mono text-foreground">A4 210 × 297 mm</span> · {qCols} × {qRows} · 페이지당 {perPageQ}개 · 총 {items.length}개 · {totalPagesQ}페이지
+                출력 사이즈: <span className="font-mono text-foreground">{(qCols * proof.qrCutSize + Math.max(0, qCols - 1) * proof.qrGap).toFixed(2)} × {(qRows * proof.qrCutSize + Math.max(0, qRows - 1) * proof.qrGap).toFixed(2)} mm</span> · 용지: <span className="font-mono text-foreground">A4 210 × 297 mm</span> · {qCols} × {qRows} · 페이지당 {perPageQ}개 · 총 {items.length}개 · {totalPagesQ}페이지
               </div>
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="default" onClick={() => {
@@ -1075,17 +1080,20 @@ function ProofBox({
                 {pageItemsQ.map((it, idx) => {
                   const col = idx % qCols;
                   const row = Math.floor(idx / qCols);
-                  const x = (qMargin + col * (proof.qrSize + proof.qrGap)) * mmPx;
-                  const y = (qMargin + row * (proof.qrSize + proof.qrGap)) * mmPx;
-                  const s = proof.qrSize * mmPx;
+                  const x = (qMargin + col * (proof.qrCutSize + proof.qrGap)) * mmPx;
+                  const y = (qMargin + row * (proof.qrCutSize + proof.qrGap)) * mmPx;
+                  const cutS = proof.qrCutSize * mmPx;
+                  const qrS = proof.qrSize * mmPx;
                   const labelPx = Math.max(6, proof.qrTextSize * mmPx);
                   const gapPx = proof.qrTextGap * mmPx;
-                  const qrH = Math.max(8, s - labelPx - gapPx);
+                  // QR image fits inside cut line; cap to available space
+                  const avail = Math.max(8, cutS - labelPx - gapPx);
+                  const qrH = Math.min(qrS, avail);
                   return (
                     <div
                       key={it.uniqueNo}
                       className="absolute border border-dashed border-foreground/60 flex flex-col items-center justify-center"
-                      style={{ left: x, top: y, width: s, height: s }}
+                      style={{ left: x, top: y, width: cutS, height: cutS }}
                       title={`칼선: ${it.uniqueNo}`}
                     >
                       {qrMap[it.uniqueNo] ? (
@@ -1105,7 +1113,7 @@ function ProofBox({
               </div>
             </div>
             <div className="text-[10px] text-muted-foreground text-center">
-              ※ 점선 사각형은 각 QR 라벨의 칼선이며 마크 고유번호를 포함합니다.
+              ※ 점선 사각형은 각 QR 라벨의 칼선(크기: {proof.qrCutSize}mm)이며, QR 이미지({proof.qrSize}mm)와 마크 고유번호를 포함합니다.
             </div>
           </TabsContent>
         </Tabs>
