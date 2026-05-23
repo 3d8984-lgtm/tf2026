@@ -146,14 +146,21 @@ export default function SiliconFactory() {
   const [previewRow, setPreviewRow] = useState<Row | null>(null);
   const [previewQr, setPreviewQr] = useState<string | null>(null);
   const [errorsOnly, setErrorsOnly] = useState(false);
-  const [templates, setTemplates] = useState<Record<Grade, { name: string; bytes: Uint8Array } | null>>({
+  const [templates, setTemplates] = useState<Record<Grade, { name: string; bytes: Uint8Array; url: string } | null>>({
     COMMON: null, RARE: null, EPIC: null, LEGEND: null,
   });
 
   const onUploadTemplate = async (grade: Grade, file: File | null) => {
-    if (!file) { setTemplates(t => ({ ...t, [grade]: null })); return; }
+    setTemplates(prev => {
+      const old = prev[grade];
+      if (old?.url) URL.revokeObjectURL(old.url);
+      return { ...prev, [grade]: null };
+    });
+    if (!file) return;
     const buf = new Uint8Array(await file.arrayBuffer());
-    setTemplates(t => ({ ...t, [grade]: { name: file.name, bytes: buf } }));
+    const blob = new Blob([buf as BlobPart], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    setTemplates(prev => ({ ...prev, [grade]: { name: file.name, bytes: buf, url } }));
   };
 
   const rows: Row[] = useMemo(() => {
@@ -369,6 +376,17 @@ export default function SiliconFactory() {
                           <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => onUploadTemplate(g, null)}>
                             <X className="w-3 h-3" />
                           </Button>
+                        )}
+                      </div>
+                      <div className="aspect-[3/4] w-full border rounded bg-muted/30 overflow-hidden flex items-center justify-center">
+                        {templates[g]?.url ? (
+                          <iframe
+                            src={`${templates[g]!.url}#toolbar=0&navpanes=0&scrollbar=0&view=Fit`}
+                            title={`${g} preview`}
+                            className="w-full h-full"
+                          />
+                        ) : (
+                          <span className="text-xs text-muted-foreground">미리보기 없음</span>
                         )}
                       </div>
                       <label className="flex items-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
