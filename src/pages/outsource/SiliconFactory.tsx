@@ -213,6 +213,7 @@ export default function SiliconFactory() {
     const defaults = {
       twinSize: 12, twinCols: 5, twinRows: 7, twinGap: 3,
       twinOffsetX: 0, twinOffsetY: 0, twinTextSize: 2.5, twinTextGap: 2,
+      markW: 63, // 마크 가로(mm). 세로는 원본 비율(63:60.811)로 자동 계산
       qrSize: 25, qrCutSize: 25, qrGap: 5, qrTextSize: 2, qrTextGap: 1,
     };
     try {
@@ -220,6 +221,7 @@ export default function SiliconFactory() {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (typeof parsed.qrCutSize !== "number") parsed.qrCutSize = parsed.qrSize ?? defaults.qrCutSize;
+        if (typeof parsed.markW !== "number") parsed.markW = defaults.markW;
         return { ...defaults, ...parsed };
       }
     } catch {}
@@ -914,6 +916,7 @@ interface ProofItem { seq: number; orderNo: string; uniqueNo: string; svgUrl: st
 interface ProofSettings {
   twinSize: number; twinCols: number; twinRows: number; twinGap: number;
   twinOffsetX: number; twinOffsetY: number; twinTextSize: number; twinTextGap: number;
+  markW: number;
   qrSize: number; qrCutSize: number; qrGap: number; qrTextSize: number; qrTextGap: number;
 }
 
@@ -930,16 +933,17 @@ function ProofBox({
 }) {
   const PAPER_W_PX = 640;
   const A4_W = 210, A4_H = 297;
-  const MARK_W = 63, MARK_H = 60.811; // 업로드된 PDF(벡터) 원본 사이즈 고정
+  const MARK_ORIG_W = 63, MARK_ORIG_H = 60.811; // 업로드된 PDF(벡터) 원본 사이즈
+  const MARK_AR = MARK_ORIG_H / MARK_ORIG_W;
   const mmPx = PAPER_W_PX / A4_W;
   const paperHpx = A4_H * mmPx;
 
-  // ===== 트윈코드 시안 (마크 원본 사이즈 63 × 60.811 mm 고정) =====
+  // ===== 트윈코드 시안 (마크 크기는 사용자 조절, 비율 고정) =====
   const tCols = Math.max(1, proof.twinCols);
   const tRows = Math.max(1, proof.twinRows);
   const tGap = proof.twinGap;
-  const cellW = MARK_W;
-  const cellH = MARK_H;
+  const cellW = Math.max(1, proof.markW);
+  const cellH = cellW * MARK_AR;
   const perPageT = tCols * tRows;
   const totalPagesT = Math.max(1, Math.ceil(items.length / perPageT));
   const pageT = Math.min(page, totalPagesT - 1);
@@ -969,6 +973,7 @@ function ProofBox({
           {/* ============== 트윈코드 시안 ============== */}
           <TabsContent value="twin" className="pt-4 space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <NumField label="마크 가로(mm)" v={proof.markW} set={v => setProof(p => ({ ...p, markW: v }))} step={0.1} />
               <NumField label="트윈코드 크기(mm)" v={proof.twinSize} set={v => setProof(p => ({ ...p, twinSize: v }))} step={0.1} />
               <NumField label="트윈코드 X 오프셋(mm)" v={proof.twinOffsetX} set={v => setProof(p => ({ ...p, twinOffsetX: v }))} step={0.1} />
               <NumField label="트윈코드 Y 오프셋(mm)" v={proof.twinOffsetY} set={v => setProof(p => ({ ...p, twinOffsetY: v }))} step={0.1} />
@@ -980,7 +985,7 @@ function ProofBox({
             </div>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="text-xs text-muted-foreground">
-                출력 사이즈: <span className="font-mono text-foreground">{(tCols * cellW + Math.max(0, tCols - 1) * tGap).toFixed(2)} × {(tRows * cellH + Math.max(0, tRows - 1) * tGap).toFixed(2)} mm</span> · 용지: <span className="font-mono text-foreground">A4 210 × 297 mm</span> · 마크 원본: <span className="font-mono text-foreground">63 × 60.811 mm</span> (벡터 고정) · 페이지당 {perPageT}개 · 총 {items.length}개 · {totalPagesT}페이지
+                출력 사이즈: <span className="font-mono text-foreground">{(tCols * cellW + Math.max(0, tCols - 1) * tGap).toFixed(2)} × {(tRows * cellH + Math.max(0, tRows - 1) * tGap).toFixed(2)} mm</span> · 용지: <span className="font-mono text-foreground">A4 210 × 297 mm</span> · 마크 크기: <span className="font-mono text-foreground">{cellW.toFixed(2)} × {cellH.toFixed(2)} mm</span> (원본 63 × 60.811, 비율 고정) · 페이지당 {perPageT}개 · 총 {items.length}개 · {totalPagesT}페이지
               </div>
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="default" onClick={() => {
