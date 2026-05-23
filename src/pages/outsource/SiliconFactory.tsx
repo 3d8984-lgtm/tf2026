@@ -36,6 +36,29 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Download, Eye, FileText, AlertTriangle, Loader2, QrCode, Upload, X, ChevronLeft } from "lucide-react";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { jsPDF } from "jspdf";
+import { svg2pdf } from "svg2pdf.js";
+
+// Convert SVG text → single-page PDF bytes (vector). Page size in pt.
+async function svgToVectorPdfBytes(svgText: string, widthPt: number, heightPt: number): Promise<Uint8Array> {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(svgText, "image/svg+xml");
+  const svgEl = doc.documentElement as unknown as SVGSVGElement;
+  // svg2pdf requires the element to be in the DOM for measurements
+  const host = document.createElement("div");
+  host.style.position = "fixed";
+  host.style.left = "-99999px";
+  host.appendChild(svgEl);
+  document.body.appendChild(host);
+  try {
+    const pdf = new jsPDF({ unit: "pt", format: [widthPt, heightPt] });
+    await svg2pdf(svgEl, pdf, { x: 0, y: 0, width: widthPt, height: heightPt });
+    const ab = pdf.output("arraybuffer");
+    return new Uint8Array(ab);
+  } finally {
+    document.body.removeChild(host);
+  }
+}
 import QRCode from "qrcode";
 
 interface Row {
@@ -471,18 +494,30 @@ export default function SiliconFactory() {
         const page = out.addPage(copied);
         const { width: pw, height: ph } = page.getSize();
 
-        // Overlay twincode SVG (centered) + uniqueNo text (bottom)
+        // Overlay twincode as VECTOR (SVG → PDF page → embed). Falls back to PNG.
         try {
-          const pngBytes = r.svgUrl
-            ? await svgUrlToPng(r.svgUrl, 600)
-            : placeholderSvgPng(r.orderNo, 600);
-          const png = await out.embedPng(pngBytes);
           const target = Math.min(pw, ph) * 0.35;
-          const scale = target / Math.max(png.width, png.height);
-          const w = png.width * scale, h = png.height * scale;
-          page.drawImage(png, { x: (pw - w) / 2, y: (ph - h) / 2, width: w, height: h });
+          if (r.svgUrl) {
+            const res = await fetch(r.svgUrl);
+            if (!res.ok) throw new Error("svg fetch failed");
+            const svgText = await res.text();
+            const vecBytes = await svgToVectorPdfBytes(svgText, target, target);
+            const [embedded] = await out.embedPdf(vecBytes);
+            page.drawPage(embedded, {
+              x: (pw - target) / 2,
+              y: (ph - target) / 2,
+              width: target,
+              height: target,
+            });
+          } else {
+            const pngBytes = placeholderSvgPng(r.orderNo, 600);
+            const png = await out.embedPng(pngBytes);
+            const scale = target / Math.max(png.width, png.height);
+            const w = png.width * scale, h = png.height * scale;
+            page.drawImage(png, { x: (pw - w) / 2, y: (ph - h) / 2, width: w, height: h });
+          }
         } catch (e) {
-          console.error("SVG embed failed", r.orderNo, e);
+          console.error("twincode embed failed", r.orderNo, e);
         }
         const tw = font.widthOfTextAtSize(r.uniqueNo, settings.textPt);
         page.drawText(r.uniqueNo, {
