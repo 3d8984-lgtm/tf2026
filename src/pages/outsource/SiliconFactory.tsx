@@ -321,11 +321,35 @@ export default function SiliconFactory() {
     return null;
   };
 
-  const openPreview = async (r: Row) => {
-    setPreviewRow(r);
-    const qr = await QRCode.toDataURL(r.uniqueNo, { errorCorrectionLevel: "M", margin: 1, width: 240 });
+  const openPreview = async (uniqueNo: string, svgUrl: string | null) => {
+    setPreviewRow({ uniqueNo, svgUrl });
+    const qr = await QRCode.toDataURL(uniqueNo, { errorCorrectionLevel: "M", margin: 1, width: 240 });
     setPreviewQr(qr);
   };
+
+  const detailItems = useMemo(() => {
+    if (!detailOrderNo || !ordersData) return [];
+    const order = (ordersData as any[]).find(o => o.external_order_id === detailOrderNo);
+    if (!order) return [];
+    const items: any[] = Array.isArray(order.source_data?.items) ? order.source_data.items : [];
+    const qty = order.quantity || items.length || 1;
+    const orderSvg = findSvgUrl(order);
+    const count = Math.max(items.length, qty);
+    return Array.from({ length: count }, (_, idx) => {
+      const it = items[idx] || {};
+      const svgUrl =
+        (typeof it.twincode_svg_url === "string" && it.twincode_svg_url) ||
+        (typeof it.svg_url === "string" && it.svg_url) ||
+        (typeof it.twin_code_svg_url === "string" && it.twin_code_svg_url) ||
+        orderSvg || null;
+      return {
+        seq: idx + 1,
+        orderNo: detailOrderNo,
+        uniqueNo: `${detailOrderNo}-${idx + 1}`,
+        svgUrl,
+      };
+    });
+  }, [detailOrderNo, ordersData]);
 
   const generateSiliconePdf = async () => {
     const err = validate(selectedRows);
