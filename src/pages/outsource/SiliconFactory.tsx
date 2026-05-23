@@ -739,6 +739,20 @@ export default function SiliconFactory() {
   );
 }
 
+function QrThumb({ value }: { value: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    QRCode.toDataURL(value, { errorCorrectionLevel: "M", margin: 1, width: 80 })
+      .then(d => { if (!cancelled) setSrc(d); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [value]);
+  return src
+    ? <img src={src} alt="qr" className="w-10 h-10 border rounded bg-white" />
+    : <div className="w-10 h-10 border rounded bg-muted" />;
+}
+
 function NumField({ label, v, set }: { label: string; v: number; set: (v: number) => void }) {
   return (
     <div className="space-y-1">
