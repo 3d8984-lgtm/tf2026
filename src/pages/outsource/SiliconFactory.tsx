@@ -494,18 +494,30 @@ export default function SiliconFactory() {
         const page = out.addPage(copied);
         const { width: pw, height: ph } = page.getSize();
 
-        // Overlay twincode SVG (centered) + uniqueNo text (bottom)
+        // Overlay twincode as VECTOR (SVG → PDF page → embed). Falls back to PNG.
         try {
-          const pngBytes = r.svgUrl
-            ? await svgUrlToPng(r.svgUrl, 600)
-            : placeholderSvgPng(r.orderNo, 600);
-          const png = await out.embedPng(pngBytes);
           const target = Math.min(pw, ph) * 0.35;
-          const scale = target / Math.max(png.width, png.height);
-          const w = png.width * scale, h = png.height * scale;
-          page.drawImage(png, { x: (pw - w) / 2, y: (ph - h) / 2, width: w, height: h });
+          if (r.svgUrl) {
+            const res = await fetch(r.svgUrl);
+            if (!res.ok) throw new Error("svg fetch failed");
+            const svgText = await res.text();
+            const vecBytes = await svgToVectorPdfBytes(svgText, target, target);
+            const [embedded] = await out.embedPdf(vecBytes);
+            page.drawPage(embedded, {
+              x: (pw - target) / 2,
+              y: (ph - target) / 2,
+              width: target,
+              height: target,
+            });
+          } else {
+            const pngBytes = placeholderSvgPng(r.orderNo, 600);
+            const png = await out.embedPng(pngBytes);
+            const scale = target / Math.max(png.width, png.height);
+            const w = png.width * scale, h = png.height * scale;
+            page.drawImage(png, { x: (pw - w) / 2, y: (ph - h) / 2, width: w, height: h });
+          }
         } catch (e) {
-          console.error("SVG embed failed", r.orderNo, e);
+          console.error("twincode embed failed", r.orderNo, e);
         }
         const tw = font.widthOfTextAtSize(r.uniqueNo, settings.textPt);
         page.drawText(r.uniqueNo, {
