@@ -965,20 +965,24 @@ function ProofBox({
           {/* ============== 트윈코드 시안 ============== */}
           <TabsContent value="twin" className="pt-4 space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <NumField label="트윈코드 크기(mm)" v={proof.twinSize} set={v => setProof(p => ({ ...p, twinSize: v }))} />
-              <NumField label="트윈코드 X 오프셋(mm)" v={proof.twinOffsetX} set={v => setProof(p => ({ ...p, twinOffsetX: v }))} />
-              <NumField label="트윈코드 Y 오프셋(mm)" v={proof.twinOffsetY} set={v => setProof(p => ({ ...p, twinOffsetY: v }))} />
+              <NumField label="트윈코드 크기(mm)" v={proof.twinSize} set={v => setProof(p => ({ ...p, twinSize: v }))} step={0.1} />
+              <NumField label="트윈코드 X 오프셋(mm)" v={proof.twinOffsetX} set={v => setProof(p => ({ ...p, twinOffsetX: v }))} step={0.1} />
+              <NumField label="트윈코드 Y 오프셋(mm)" v={proof.twinOffsetY} set={v => setProof(p => ({ ...p, twinOffsetY: v }))} step={0.1} />
               <NumField label="가로 수량" v={proof.twinCols} set={v => setProof(p => ({ ...p, twinCols: v }))} />
               <NumField label="세로 수량" v={proof.twinRows} set={v => setProof(p => ({ ...p, twinRows: v }))} />
-              <NumField label="마크 이격(mm)" v={proof.twinGap} set={v => setProof(p => ({ ...p, twinGap: v }))} />
-              <NumField label="마크번호 크기(mm)" v={proof.twinTextSize} set={v => setProof(p => ({ ...p, twinTextSize: v }))} />
-              <NumField label="마크번호 이격(mm)" v={proof.twinTextGap} set={v => setProof(p => ({ ...p, twinTextGap: v }))} />
+              <NumField label="마크 이격(mm)" v={proof.twinGap} set={v => setProof(p => ({ ...p, twinGap: v }))} step={0.1} />
+              <NumField label="마크번호 크기(mm)" v={proof.twinTextSize} set={v => setProof(p => ({ ...p, twinTextSize: v }))} step={0.1} />
+              <NumField label="마크번호 이격(mm)" v={proof.twinTextGap} set={v => setProof(p => ({ ...p, twinTextGap: v }))} step={0.1} />
             </div>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="text-xs text-muted-foreground">
-                출력 사이즈: <span className="font-mono text-foreground">A4 210 × 297 mm</span> · 마크 원본: <span className="font-mono text-foreground">63 × 60.811 mm</span> (벡터 고정) · 페이지당 {perPageT}개 · 총 {items.length}개 · {totalPagesT}페이지
+                출력 사이즈: <span className="font-mono text-foreground">{(tCols * cellW + Math.max(0, tCols - 1) * tGap).toFixed(2)} × {(tRows * cellH + Math.max(0, tRows - 1) * tGap).toFixed(2)} mm</span> · 용지: <span className="font-mono text-foreground">A4 210 × 297 mm</span> · 마크 원본: <span className="font-mono text-foreground">63 × 60.811 mm</span> (벡터 고정) · 페이지당 {perPageT}개 · 총 {items.length}개 · {totalPagesT}페이지
               </div>
               <div className="flex items-center gap-2">
+                <Button size="sm" variant="default" onClick={() => {
+                  try { localStorage.setItem(PROOF_LS_KEY, JSON.stringify(proof)); toast({ title: "시안 설정 저장됨" }); }
+                  catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" }); }
+                }}>설정 저장</Button>
                 <Button size="sm" variant="outline" disabled={pageT <= 0} onClick={() => setPage(pageT - 1)}>이전</Button>
                 <span className="text-xs tabular-nums w-16 text-center">{pageT + 1} / {totalPagesT}</span>
                 <Button size="sm" variant="outline" disabled={pageT >= totalPagesT - 1} onClick={() => setPage(pageT + 1)}>다음</Button>
