@@ -448,16 +448,6 @@ export default function SiliconFactory() {
                 <NumField label="스티커 세로(mm)" v={settings.stickerH} set={v => setSettings({ ...settings, stickerH: v })} />
                 <NumField label="QR 크기(mm)" v={settings.qrSize} set={v => setSettings({ ...settings, qrSize: v })} />
               </TabsContent>
-              <TabsContent value="common" className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3">
-                <NumField label="좌우 여백(mm)" v={settings.marginX} set={v => setSettings({ ...settings, marginX: v })} />
-                <NumField label="상하 여백(mm)" v={settings.marginY} set={v => setSettings({ ...settings, marginY: v })} />
-                <NumField label="간격(mm)" v={settings.gap} set={v => setSettings({ ...settings, gap: v })} />
-                <NumField label="텍스트(pt)" v={settings.textPt} set={v => setSettings({ ...settings, textPt: v })} />
-                <div className="flex items-center gap-2 pt-6">
-                  <Switch checked={settings.guides} onCheckedChange={v => setSettings({ ...settings, guides: v })} />
-                  <Label>가이드라인 표시</Label>
-                </div>
-              </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
