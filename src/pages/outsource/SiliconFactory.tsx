@@ -146,14 +146,21 @@ export default function SiliconFactory() {
   const [previewRow, setPreviewRow] = useState<Row | null>(null);
   const [previewQr, setPreviewQr] = useState<string | null>(null);
   const [errorsOnly, setErrorsOnly] = useState(false);
-  const [templates, setTemplates] = useState<Record<Grade, { name: string; bytes: Uint8Array } | null>>({
+  const [templates, setTemplates] = useState<Record<Grade, { name: string; bytes: Uint8Array; url: string } | null>>({
     COMMON: null, RARE: null, EPIC: null, LEGEND: null,
   });
 
   const onUploadTemplate = async (grade: Grade, file: File | null) => {
-    if (!file) { setTemplates(t => ({ ...t, [grade]: null })); return; }
+    setTemplates(prev => {
+      const old = prev[grade];
+      if (old?.url) URL.revokeObjectURL(old.url);
+      return { ...prev, [grade]: null };
+    });
+    if (!file) return;
     const buf = new Uint8Array(await file.arrayBuffer());
-    setTemplates(t => ({ ...t, [grade]: { name: file.name, bytes: buf } }));
+    const blob = new Blob([buf as BlobPart], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    setTemplates(prev => ({ ...prev, [grade]: { name: file.name, bytes: buf, url } }));
   };
 
   const rows: Row[] = useMemo(() => {
