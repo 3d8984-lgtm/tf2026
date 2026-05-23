@@ -146,6 +146,15 @@ export default function SiliconFactory() {
   const [previewRow, setPreviewRow] = useState<Row | null>(null);
   const [previewQr, setPreviewQr] = useState<string | null>(null);
   const [errorsOnly, setErrorsOnly] = useState(false);
+  const [templates, setTemplates] = useState<Record<Grade, { name: string; bytes: Uint8Array } | null>>({
+    COMMON: null, RARE: null, EPIC: null, LEGEND: null,
+  });
+
+  const onUploadTemplate = async (grade: Grade, file: File | null) => {
+    if (!file) { setTemplates(t => ({ ...t, [grade]: null })); return; }
+    const buf = new Uint8Array(await file.arrayBuffer());
+    setTemplates(t => ({ ...t, [grade]: { name: file.name, bytes: buf } }));
+  };
 
   const rows: Row[] = useMemo(() => {
     if (!ordersData) return [];
