@@ -213,11 +213,15 @@ export default function SiliconFactory() {
     const defaults = {
       twinSize: 12, twinCols: 5, twinRows: 7, twinGap: 3,
       twinOffsetX: 0, twinOffsetY: 0, twinTextSize: 2.5, twinTextGap: 2,
-      qrSize: 25, qrGap: 5, qrTextSize: 2, qrTextGap: 1,
+      qrSize: 25, qrCutSize: 25, qrGap: 5, qrTextSize: 2, qrTextGap: 1,
     };
     try {
       const raw = typeof window !== "undefined" ? localStorage.getItem("silicon.proofSettings.v1") : null;
-      if (raw) return { ...defaults, ...JSON.parse(raw) };
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed.qrCutSize !== "number") parsed.qrCutSize = parsed.qrSize ?? defaults.qrCutSize;
+        return { ...defaults, ...parsed };
+      }
     } catch {}
     return defaults;
   });
