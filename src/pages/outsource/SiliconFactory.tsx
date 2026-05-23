@@ -45,7 +45,16 @@ interface Row {
   product: string;
   grade: Grade;
   svgUrl: string | null;
+  svgCount: number;
+  quantity: number;
+  receivedAt: string; // YYYY-MM-DD
+  dueDate: string;    // YYYY-MM-DD
   status: "ok" | "no-svg" | "duplicate" | "no-template";
+}
+
+function fmtDate(v?: string | null): string {
+  if (!v) return "";
+  try { return new Date(v).toISOString().slice(0, 10); } catch { return String(v).slice(0, 10); }
 }
 
 const MM = 2.8346456693; // 1mm in pt
