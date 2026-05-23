@@ -439,6 +439,7 @@ export default function SiliconFactory() {
                   <TableHead>실리콘 고유번호</TableHead>
                   <TableHead>거래처(트윈커)</TableHead>
                   <TableHead>상품코드</TableHead>
+                  <TableHead>등급</TableHead>
                   <TableHead>SVG</TableHead>
                   <TableHead>상태</TableHead>
                   <TableHead className="text-right">미리보기</TableHead>
