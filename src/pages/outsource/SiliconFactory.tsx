@@ -545,17 +545,9 @@ export default function SiliconFactory() {
                 <Label className="text-sm">오류만 보기 ({errorCount})</Label>
               </div>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled={!!busy || selectedRows.length === 0} onClick={generateSiliconePdf}>
-                {busy?.includes("실리콘") ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileText className="w-4 h-4 mr-1" />}
-                실리콘 마크 PDF
-              </Button>
-              <Button size="sm" disabled={!!busy || selectedRows.length === 0} onClick={generateQrPdf}>
-                {busy?.includes("QR") ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <QrCode className="w-4 h-4 mr-1" />}
-                QR 스티커 PDF
-              </Button>
-            </div>
+            <div className="flex gap-2" />
           </CardHeader>
+
           <CardContent>
             {busy && (
               <div className="mb-3 text-xs text-muted-foreground">{busy} {progress}%</div>
