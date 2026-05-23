@@ -914,7 +914,7 @@ interface ProofItem { seq: number; orderNo: string; uniqueNo: string; svgUrl: st
 interface ProofSettings {
   twinSize: number; twinCols: number; twinRows: number; twinGap: number;
   twinOffsetX: number; twinOffsetY: number; twinTextSize: number; twinTextGap: number;
-  qrSize: number; qrGap: number; qrTextSize: number; qrTextGap: number;
+  qrSize: number; qrCutSize: number; qrGap: number; qrTextSize: number; qrTextGap: number;
 }
 
 function ProofBox({
