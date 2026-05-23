@@ -932,16 +932,17 @@ function ProofBox({
 }) {
   const PAPER_W_PX = 640;
   const A4_W = 210, A4_H = 297;
-  const MARK_W = 63, MARK_H = 60.811; // 업로드된 PDF(벡터) 원본 사이즈 고정
+  const MARK_ORIG_W = 63, MARK_ORIG_H = 60.811; // 업로드된 PDF(벡터) 원본 사이즈
+  const MARK_AR = MARK_ORIG_H / MARK_ORIG_W;
   const mmPx = PAPER_W_PX / A4_W;
   const paperHpx = A4_H * mmPx;
 
-  // ===== 트윈코드 시안 (마크 원본 사이즈 63 × 60.811 mm 고정) =====
+  // ===== 트윈코드 시안 (마크 크기는 사용자 조절, 비율 고정) =====
   const tCols = Math.max(1, proof.twinCols);
   const tRows = Math.max(1, proof.twinRows);
   const tGap = proof.twinGap;
-  const cellW = MARK_W;
-  const cellH = MARK_H;
+  const cellW = Math.max(1, proof.markW);
+  const cellH = cellW * MARK_AR;
   const perPageT = tCols * tRows;
   const totalPagesT = Math.max(1, Math.ceil(items.length / perPageT));
   const pageT = Math.min(page, totalPagesT - 1);
