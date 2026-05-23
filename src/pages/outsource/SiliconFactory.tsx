@@ -32,6 +32,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Download, Eye, FileText, AlertTriangle, Loader2, QrCode, Upload, X } from "lucide-react";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import QRCode from "qrcode";
@@ -136,6 +138,8 @@ const DEFAULTS: Settings = {
   textPt: 6,
   guides: true,
 };
+
+const PREVIEW_SETTINGS_KEY = "outsource-silicon-preview";
 
 type Grade = "COMMON" | "RARE" | "EPIC" | "LEGEND";
 const GRADES: Grade[] = ["COMMON", "RARE", "EPIC", "LEGEND"];
