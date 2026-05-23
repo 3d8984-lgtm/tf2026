@@ -1051,8 +1051,9 @@ function ProofBox({
 
           {/* ============== 큐알코드 시안 ============== */}
           <TabsContent value="qr" className="pt-4 space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <NumField label="QR 크기(mm)" v={proof.qrSize} set={v => setProof(p => ({ ...p, qrSize: v }))} step={0.1} />
+              <NumField label="칼선 크기(mm)" v={proof.qrCutSize} set={v => setProof(p => ({ ...p, qrCutSize: v }))} step={0.1} />
               <NumField label="QR 간격(mm)" v={proof.qrGap} set={v => setProof(p => ({ ...p, qrGap: v }))} step={0.1} />
               <NumField label="마크번호 크기(mm)" v={proof.qrTextSize} set={v => setProof(p => ({ ...p, qrTextSize: v }))} step={0.1} />
               <NumField label="마크번호 이격(mm)" v={proof.qrTextGap} set={v => setProof(p => ({ ...p, qrTextGap: v }))} step={0.1} />
