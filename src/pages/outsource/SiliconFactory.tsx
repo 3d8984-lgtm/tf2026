@@ -209,19 +209,17 @@ export default function SiliconFactory() {
   const [previewEdit, setPreviewEdit] = useState(false);
   const [previewHeight, setPreviewHeight] = useState<number | null>(null);
   const [previewSettingsLoaded, setPreviewSettingsLoaded] = useState(false);
-  const [proof, setProof] = useState({
-    twinSize: 12,
-    twinCols: 5,
-    twinRows: 7,
-    twinGap: 3,
-    twinOffsetX: 0,
-    twinOffsetY: 0,
-    twinTextSize: 2.5,
-    twinTextGap: 2,
-    qrSize: 25,
-    qrGap: 5,
-    qrTextSize: 2,
-    qrTextGap: 1,
+  const [proof, setProof] = useState(() => {
+    const defaults = {
+      twinSize: 12, twinCols: 5, twinRows: 7, twinGap: 3,
+      twinOffsetX: 0, twinOffsetY: 0, twinTextSize: 2.5, twinTextGap: 2,
+      qrSize: 25, qrGap: 5, qrTextSize: 2, qrTextGap: 1,
+    };
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem("silicon.proofSettings.v1") : null;
+      if (raw) return { ...defaults, ...JSON.parse(raw) };
+    } catch {}
+    return defaults;
   });
   const [proofPage, setProofPage] = useState(0);
   const [proofQrPage, setProofQrPage] = useState(0);
@@ -897,14 +895,16 @@ function QrThumb({ value }: { value: string }) {
     : <div className="w-10 h-10 border rounded bg-muted" />;
 }
 
-function NumField({ label, v, set }: { label: string; v: number; set: (v: number) => void }) {
+function NumField({ label, v, set, step }: { label: string; v: number; set: (v: number) => void; step?: number }) {
   return (
     <div className="space-y-1">
       <Label className="text-xs">{label}</Label>
-      <Input type="number" value={v} onChange={e => set(Number(e.target.value) || 0)} />
+      <Input type="number" step={step ?? 1} value={v} onChange={e => set(Number(e.target.value) || 0)} />
     </div>
   );
 }
+
+const PROOF_LS_KEY = "silicon.proofSettings.v1";
 
 interface ProofItem { seq: number; orderNo: string; uniqueNo: string; svgUrl: string | null; grade: Grade; }
 interface ProofSettings {
@@ -965,20 +965,24 @@ function ProofBox({
           {/* ============== 트윈코드 시안 ============== */}
           <TabsContent value="twin" className="pt-4 space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <NumField label="트윈코드 크기(mm)" v={proof.twinSize} set={v => setProof(p => ({ ...p, twinSize: v }))} />
-              <NumField label="트윈코드 X 오프셋(mm)" v={proof.twinOffsetX} set={v => setProof(p => ({ ...p, twinOffsetX: v }))} />
-              <NumField label="트윈코드 Y 오프셋(mm)" v={proof.twinOffsetY} set={v => setProof(p => ({ ...p, twinOffsetY: v }))} />
+              <NumField label="트윈코드 크기(mm)" v={proof.twinSize} set={v => setProof(p => ({ ...p, twinSize: v }))} step={0.1} />
+              <NumField label="트윈코드 X 오프셋(mm)" v={proof.twinOffsetX} set={v => setProof(p => ({ ...p, twinOffsetX: v }))} step={0.1} />
+              <NumField label="트윈코드 Y 오프셋(mm)" v={proof.twinOffsetY} set={v => setProof(p => ({ ...p, twinOffsetY: v }))} step={0.1} />
               <NumField label="가로 수량" v={proof.twinCols} set={v => setProof(p => ({ ...p, twinCols: v }))} />
               <NumField label="세로 수량" v={proof.twinRows} set={v => setProof(p => ({ ...p, twinRows: v }))} />
-              <NumField label="마크 이격(mm)" v={proof.twinGap} set={v => setProof(p => ({ ...p, twinGap: v }))} />
-              <NumField label="마크번호 크기(mm)" v={proof.twinTextSize} set={v => setProof(p => ({ ...p, twinTextSize: v }))} />
-              <NumField label="마크번호 이격(mm)" v={proof.twinTextGap} set={v => setProof(p => ({ ...p, twinTextGap: v }))} />
+              <NumField label="마크 이격(mm)" v={proof.twinGap} set={v => setProof(p => ({ ...p, twinGap: v }))} step={0.1} />
+              <NumField label="마크번호 크기(mm)" v={proof.twinTextSize} set={v => setProof(p => ({ ...p, twinTextSize: v }))} step={0.1} />
+              <NumField label="마크번호 이격(mm)" v={proof.twinTextGap} set={v => setProof(p => ({ ...p, twinTextGap: v }))} step={0.1} />
             </div>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="text-xs text-muted-foreground">
-                출력 사이즈: <span className="font-mono text-foreground">A4 210 × 297 mm</span> · 마크 원본: <span className="font-mono text-foreground">63 × 60.811 mm</span> (벡터 고정) · 페이지당 {perPageT}개 · 총 {items.length}개 · {totalPagesT}페이지
+                출력 사이즈: <span className="font-mono text-foreground">{(tCols * cellW + Math.max(0, tCols - 1) * tGap).toFixed(2)} × {(tRows * cellH + Math.max(0, tRows - 1) * tGap).toFixed(2)} mm</span> · 용지: <span className="font-mono text-foreground">A4 210 × 297 mm</span> · 마크 원본: <span className="font-mono text-foreground">63 × 60.811 mm</span> (벡터 고정) · 페이지당 {perPageT}개 · 총 {items.length}개 · {totalPagesT}페이지
               </div>
               <div className="flex items-center gap-2">
+                <Button size="sm" variant="default" onClick={() => {
+                  try { localStorage.setItem(PROOF_LS_KEY, JSON.stringify(proof)); toast({ title: "시안 설정 저장됨" }); }
+                  catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" }); }
+                }}>설정 저장</Button>
                 <Button size="sm" variant="outline" disabled={pageT <= 0} onClick={() => setPage(pageT - 1)}>이전</Button>
                 <span className="text-xs tabular-nums w-16 text-center">{pageT + 1} / {totalPagesT}</span>
                 <Button size="sm" variant="outline" disabled={pageT >= totalPagesT - 1} onClick={() => setPage(pageT + 1)}>다음</Button>
@@ -1044,16 +1048,20 @@ function ProofBox({
           {/* ============== 큐알코드 시안 ============== */}
           <TabsContent value="qr" className="pt-4 space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <NumField label="QR 크기(mm)" v={proof.qrSize} set={v => setProof(p => ({ ...p, qrSize: v }))} />
-              <NumField label="QR 간격(mm)" v={proof.qrGap} set={v => setProof(p => ({ ...p, qrGap: v }))} />
-              <NumField label="마크번호 크기(mm)" v={proof.qrTextSize} set={v => setProof(p => ({ ...p, qrTextSize: v }))} />
-              <NumField label="마크번호 이격(mm)" v={proof.qrTextGap} set={v => setProof(p => ({ ...p, qrTextGap: v }))} />
+              <NumField label="QR 크기(mm)" v={proof.qrSize} set={v => setProof(p => ({ ...p, qrSize: v }))} step={0.1} />
+              <NumField label="QR 간격(mm)" v={proof.qrGap} set={v => setProof(p => ({ ...p, qrGap: v }))} step={0.1} />
+              <NumField label="마크번호 크기(mm)" v={proof.qrTextSize} set={v => setProof(p => ({ ...p, qrTextSize: v }))} step={0.1} />
+              <NumField label="마크번호 이격(mm)" v={proof.qrTextGap} set={v => setProof(p => ({ ...p, qrTextGap: v }))} step={0.1} />
             </div>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="text-xs text-muted-foreground">
-                출력 사이즈: <span className="font-mono text-foreground">A4 210 × 297 mm</span> · {qCols} × {qRows} · 페이지당 {perPageQ}개 · 총 {items.length}개 · {totalPagesQ}페이지
+                출력 사이즈: <span className="font-mono text-foreground">{(qCols * proof.qrSize + Math.max(0, qCols - 1) * proof.qrGap).toFixed(2)} × {(qRows * proof.qrSize + Math.max(0, qRows - 1) * proof.qrGap).toFixed(2)} mm</span> · 용지: <span className="font-mono text-foreground">A4 210 × 297 mm</span> · {qCols} × {qRows} · 페이지당 {perPageQ}개 · 총 {items.length}개 · {totalPagesQ}페이지
               </div>
               <div className="flex items-center gap-2">
+                <Button size="sm" variant="default" onClick={() => {
+                  try { localStorage.setItem(PROOF_LS_KEY, JSON.stringify(proof)); toast({ title: "시안 설정 저장됨" }); }
+                  catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" }); }
+                }}>설정 저장</Button>
                 <Button size="sm" variant="outline" disabled={pageQ <= 0} onClick={() => setQrPage(pageQ - 1)}>이전</Button>
                 <span className="text-xs tabular-nums w-16 text-center">{pageQ + 1} / {totalPagesQ}</span>
                 <Button size="sm" variant="outline" disabled={pageQ >= totalPagesQ - 1} onClick={() => setQrPage(pageQ + 1)}>다음</Button>
