@@ -973,6 +973,7 @@ function ProofBox({
           {/* ============== 트윈코드 시안 ============== */}
           <TabsContent value="twin" className="pt-4 space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <NumField label="마크 가로(mm)" v={proof.markW} set={v => setProof(p => ({ ...p, markW: v }))} step={0.1} />
               <NumField label="트윈코드 크기(mm)" v={proof.twinSize} set={v => setProof(p => ({ ...p, twinSize: v }))} step={0.1} />
               <NumField label="트윈코드 X 오프셋(mm)" v={proof.twinOffsetX} set={v => setProof(p => ({ ...p, twinOffsetX: v }))} step={0.1} />
               <NumField label="트윈코드 Y 오프셋(mm)" v={proof.twinOffsetY} set={v => setProof(p => ({ ...p, twinOffsetY: v }))} step={0.1} />
@@ -984,7 +985,7 @@ function ProofBox({
             </div>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="text-xs text-muted-foreground">
-                출력 사이즈: <span className="font-mono text-foreground">{(tCols * cellW + Math.max(0, tCols - 1) * tGap).toFixed(2)} × {(tRows * cellH + Math.max(0, tRows - 1) * tGap).toFixed(2)} mm</span> · 용지: <span className="font-mono text-foreground">A4 210 × 297 mm</span> · 마크 원본: <span className="font-mono text-foreground">63 × 60.811 mm</span> (벡터 고정) · 페이지당 {perPageT}개 · 총 {items.length}개 · {totalPagesT}페이지
+                출력 사이즈: <span className="font-mono text-foreground">{(tCols * cellW + Math.max(0, tCols - 1) * tGap).toFixed(2)} × {(tRows * cellH + Math.max(0, tRows - 1) * tGap).toFixed(2)} mm</span> · 용지: <span className="font-mono text-foreground">A4 210 × 297 mm</span> · 마크 크기: <span className="font-mono text-foreground">{cellW.toFixed(2)} × {cellH.toFixed(2)} mm</span> (원본 63 × 60.811, 비율 고정) · 페이지당 {perPageT}개 · 총 {items.length}개 · {totalPagesT}페이지
               </div>
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="default" onClick={() => {
