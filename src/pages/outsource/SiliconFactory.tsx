@@ -175,11 +175,10 @@ export default function SiliconFactory() {
   });
 
   // Persist preview height/edit state
-  useState(() => {});
-  useMemo(() => {
+  useEffect(() => {
     localStorage.setItem("silicon-preview-edit", previewEdit ? "1" : "0");
   }, [previewEdit]);
-  useMemo(() => {
+  useEffect(() => {
     if (previewHeight !== null) localStorage.setItem("silicon-preview-height", String(previewHeight));
     else localStorage.removeItem("silicon-preview-height");
   }, [previewHeight]);
