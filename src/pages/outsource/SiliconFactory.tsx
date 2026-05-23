@@ -1,4 +1,20 @@
 import { useMemo, useState } from "react";
+import * as pdfjsLib from "pdfjs-dist";
+// @ts-ignore - vite worker import
+import PdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?worker";
+(pdfjsLib as any).GlobalWorkerOptions.workerPort = new PdfWorker();
+
+async function renderPdfFirstPagePng(bytes: Uint8Array): Promise<string> {
+  const doc = await (pdfjsLib as any).getDocument({ data: bytes.slice(0) }).promise;
+  const page = await doc.getPage(1);
+  const viewport = page.getViewport({ scale: 1.2 });
+  const canvas = document.createElement("canvas");
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  const ctx = canvas.getContext("2d")!;
+  await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+  return canvas.toDataURL("image/png");
+}
 import PageHeader from "@/components/PageHeader";
 import { useLang } from "@/contexts/LangContext";
 import { useOrders } from "@/hooks/useDbData";
@@ -146,21 +162,19 @@ export default function SiliconFactory() {
   const [previewRow, setPreviewRow] = useState<Row | null>(null);
   const [previewQr, setPreviewQr] = useState<string | null>(null);
   const [errorsOnly, setErrorsOnly] = useState(false);
-  const [templates, setTemplates] = useState<Record<Grade, { name: string; bytes: Uint8Array; url: string } | null>>({
+  const [templates, setTemplates] = useState<Record<Grade, { name: string; bytes: Uint8Array; preview: string } | null>>({
     COMMON: null, RARE: null, EPIC: null, LEGEND: null,
   });
 
   const onUploadTemplate = async (grade: Grade, file: File | null) => {
-    setTemplates(prev => {
-      const old = prev[grade];
-      if (old?.url) URL.revokeObjectURL(old.url);
-      return { ...prev, [grade]: null };
-    });
-    if (!file) return;
-    const buf = new Uint8Array(await file.arrayBuffer());
-    const blob = new Blob([buf as BlobPart], { type: "application/pdf" });
-    const url = URL.createObjectURL(blob);
-    setTemplates(prev => ({ ...prev, [grade]: { name: file.name, bytes: buf, url } }));
+    if (!file) { setTemplates(prev => ({ ...prev, [grade]: null })); return; }
+    try {
+      const buf = new Uint8Array(await file.arrayBuffer());
+      const preview = await renderPdfFirstPagePng(buf);
+      setTemplates(prev => ({ ...prev, [grade]: { name: file.name, bytes: buf, preview } }));
+    } catch (e: any) {
+      toast({ title: "PDF 미리보기 실패", description: e.message, variant: "destructive" });
+    }
   };
 
   const rows: Row[] = useMemo(() => {
@@ -379,11 +393,11 @@ export default function SiliconFactory() {
                         )}
                       </div>
                       <div className="aspect-[3/4] w-full border rounded bg-muted/30 overflow-hidden flex items-center justify-center">
-                        {templates[g]?.url ? (
-                          <iframe
-                            src={`${templates[g]!.url}#toolbar=0&navpanes=0&scrollbar=0&view=Fit`}
-                            title={`${g} preview`}
-                            className="w-full h-full"
+                        {templates[g]?.preview ? (
+                          <img
+                            src={templates[g]!.preview}
+                            alt={`${g} preview`}
+                            className="w-full h-full object-contain bg-white"
                           />
                         ) : (
                           <span className="text-xs text-muted-foreground">미리보기 없음</span>
