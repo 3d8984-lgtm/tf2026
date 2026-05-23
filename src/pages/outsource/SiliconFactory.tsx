@@ -613,7 +613,7 @@ export default function SiliconFactory() {
                         : <Badge variant="secondary"><AlertTriangle className="w-3 h-3 mr-1" />0</Badge>}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button size="sm" variant="ghost" onClick={() => openPreview(r)}>
+                      <Button size="sm" variant="ghost" onClick={() => setDetailOrderNo(r.orderNo)}>
                         <Eye className="w-4 h-4 mr-1" />상세보기
                       </Button>
                     </TableCell>
