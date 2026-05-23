@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
-import { Download, Eye, FileText, AlertTriangle, Loader2, QrCode } from "lucide-react";
+import { Download, Eye, FileText, AlertTriangle, Loader2, QrCode, Upload, X } from "lucide-react";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import QRCode from "qrcode";
 
@@ -22,8 +22,9 @@ interface Row {
   uniqueNo: string; // orderNo + "-1"
   recipient: string;
   product: string;
+  grade: Grade;
   svgUrl: string | null;
-  status: "ok" | "no-svg" | "duplicate";
+  status: "ok" | "no-svg" | "duplicate" | "no-template";
 }
 
 const MM = 2.8346456693; // 1mm in pt
@@ -100,7 +101,6 @@ function placeholderSvgPng(text: string, sizePx: number): Uint8Array {
 }
 
 interface Settings {
-  markW: number; markH: number;       // mm
   stickerW: number; stickerH: number; // mm
   qrSize: number;                     // mm
   marginX: number; marginY: number;   // mm
@@ -110,7 +110,6 @@ interface Settings {
 }
 
 const DEFAULTS: Settings = {
-  markW: 30, markH: 20,
   stickerW: 30, stickerH: 30,
   qrSize: 22,
   marginX: 10, marginY: 10,
@@ -118,6 +117,9 @@ const DEFAULTS: Settings = {
   textPt: 6,
   guides: true,
 };
+
+type Grade = "COMMON" | "RARE" | "EPIC" | "LEGEND";
+const GRADES: Grade[] = ["COMMON", "RARE", "EPIC", "LEGEND"];
 
 function tsName() {
   const d = new Date();
@@ -144,6 +146,15 @@ export default function SiliconFactory() {
   const [previewRow, setPreviewRow] = useState<Row | null>(null);
   const [previewQr, setPreviewQr] = useState<string | null>(null);
   const [errorsOnly, setErrorsOnly] = useState(false);
+  const [templates, setTemplates] = useState<Record<Grade, { name: string; bytes: Uint8Array } | null>>({
+    COMMON: null, RARE: null, EPIC: null, LEGEND: null,
+  });
+
+  const onUploadTemplate = async (grade: Grade, file: File | null) => {
+    if (!file) { setTemplates(t => ({ ...t, [grade]: null })); return; }
+    const buf = new Uint8Array(await file.arrayBuffer());
+    setTemplates(t => ({ ...t, [grade]: { name: file.name, bytes: buf } }));
+  };
 
   const rows: Row[] = useMemo(() => {
     if (!ordersData) return [];
@@ -153,12 +164,20 @@ export default function SiliconFactory() {
       const orderNo = o.external_order_id;
       const url = findSvgUrl(o);
       const dup = (seen.get(orderNo) || 0) > 1;
+      const rawGrade = String(
+        o.source_data?.items?.[0]?.grade ??
+        o.source_data?.grade ??
+        o.grade ??
+        "COMMON"
+      ).toUpperCase();
+      const grade: Grade = (GRADES as string[]).includes(rawGrade) ? (rawGrade as Grade) : "COMMON";
       const status: Row["status"] = dup ? "duplicate" : url ? "ok" : "no-svg";
       return {
         orderNo,
         uniqueNo: `${orderNo}-1`,
         recipient: o.recipient_name,
         product: o.product_code,
+        grade,
         svgUrl: url,
         status,
       };
@@ -202,58 +221,54 @@ export default function SiliconFactory() {
   const generateSiliconePdf = async () => {
     const err = validate(selectedRows);
     if (err) { toast({ title: "오류", description: err, variant: "destructive" }); return; }
+    const missingGrades = Array.from(new Set(selectedRows.map(r => r.grade))).filter(g => !templates[g]);
+    if (missingGrades.length > 0) {
+      toast({ title: "포맷 미업로드", description: `등급 PDF 포맷이 없습니다: ${missingGrades.join(", ")}`, variant: "destructive" });
+      return;
+    }
     setBusy("실리콘 마크 PDF 생성 중..."); setProgress(0);
     try {
-      const pdf = await PDFDocument.create();
-      const font = await pdf.embedFont(StandardFonts.Helvetica);
-      const pageW = 210 * MM, pageH = 297 * MM;
-      const cellW = settings.markW * MM, cellH = settings.markH * MM;
-      const textH = settings.textPt + 4;
-      const blockH = cellH + textH;
-      const gridW = pageW - 2 * settings.marginX * MM;
-      const gridH = pageH - 2 * settings.marginY * MM;
-      const cols = Math.max(1, Math.floor((gridW + settings.gap * MM) / (cellW + settings.gap * MM)));
-      const rowsPerPage = Math.max(1, Math.floor((gridH + settings.gap * MM) / (blockH + settings.gap * MM)));
-      const perPage = cols * rowsPerPage;
+      const out = await PDFDocument.create();
+      const font = await out.embedFont(StandardFonts.Helvetica);
 
-      let page = pdf.addPage([pageW, pageH]);
+      // Cache loaded template docs and copied pages per grade
+      const tmplCache: Partial<Record<Grade, PDFDocument>> = {};
+      const getTmpl = async (g: Grade) => {
+        if (!tmplCache[g]) tmplCache[g] = await PDFDocument.load(templates[g]!.bytes);
+        return tmplCache[g]!;
+      };
+
       for (let i = 0; i < selectedRows.length; i++) {
         const r = selectedRows[i];
-        const idx = i % perPage;
-        if (i > 0 && idx === 0) page = pdf.addPage([pageW, pageH]);
-        const col = idx % cols;
-        const row = Math.floor(idx / cols);
-        const x = settings.marginX * MM + col * (cellW + settings.gap * MM);
-        const yTop = pageH - settings.marginY * MM - row * (blockH + settings.gap * MM);
-        const yMarkBottom = yTop - cellH;
+        const tmpl = await getTmpl(r.grade);
+        const [copied] = await out.copyPages(tmpl, [0]);
+        const page = out.addPage(copied);
+        const { width: pw, height: ph } = page.getSize();
 
-        if (settings.guides) {
-          page.drawRectangle({ x, y: yMarkBottom, width: cellW, height: cellH, borderColor: rgb(0.7,0.7,0.7), borderWidth: 0.3 });
-        }
+        // Overlay twincode SVG (centered) + uniqueNo text (bottom)
         try {
           const pngBytes = r.svgUrl
-            ? await svgUrlToPng(r.svgUrl, 400)
-            : placeholderSvgPng(r.orderNo, 400);
-          const png = await pdf.embedPng(pngBytes);
-          const pad = 2 * MM;
-          const maxW = cellW - pad * 2, maxH = cellH - pad * 2;
-          const scale = Math.min(maxW / png.width, maxH / png.height);
+            ? await svgUrlToPng(r.svgUrl, 600)
+            : placeholderSvgPng(r.orderNo, 600);
+          const png = await out.embedPng(pngBytes);
+          const target = Math.min(pw, ph) * 0.35;
+          const scale = target / Math.max(png.width, png.height);
           const w = png.width * scale, h = png.height * scale;
-          page.drawImage(png, { x: x + (cellW - w) / 2, y: yMarkBottom + (cellH - h) / 2, width: w, height: h });
+          page.drawImage(png, { x: (pw - w) / 2, y: (ph - h) / 2, width: w, height: h });
         } catch (e) {
           console.error("SVG embed failed", r.orderNo, e);
         }
         const tw = font.widthOfTextAtSize(r.uniqueNo, settings.textPt);
         page.drawText(r.uniqueNo, {
-          x: x + (cellW - tw) / 2,
-          y: yMarkBottom - settings.textPt - 1,
+          x: (pw - tw) / 2,
+          y: settings.marginY * MM,
           size: settings.textPt,
           font,
           color: rgb(0, 0, 0),
         });
         setProgress(Math.round(((i + 1) / selectedRows.length) * 100));
       }
-      const bytes = await pdf.save();
+      const bytes = await out.save();
       const first = selectedRows[0].uniqueNo;
       const last = selectedRows[selectedRows.length - 1].uniqueNo;
       downloadBlob(bytes, `silicone-mark_${first}_${last}_${tsName()}.pdf`);
@@ -341,9 +356,34 @@ export default function SiliconFactory() {
                 <TabsTrigger value="qr">QR 스티커</TabsTrigger>
                 <TabsTrigger value="common">공통</TabsTrigger>
               </TabsList>
-              <TabsContent value="mark" className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3">
-                <NumField label="마크 가로(mm)" v={settings.markW} set={v => setSettings({ ...settings, markW: v })} />
-                <NumField label="마크 세로(mm)" v={settings.markH} set={v => setSettings({ ...settings, markH: v })} />
+              <TabsContent value="mark" className="pt-3">
+                <div className="text-xs text-muted-foreground mb-3">
+                  마크 등급별 PDF 포맷을 업로드하세요. PDF 파일의 실사이즈 그대로 사용됩니다.
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {GRADES.map(g => (
+                    <div key={g} className="border rounded-md p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-medium">{g}</Label>
+                        {templates[g] && (
+                          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => onUploadTemplate(g, null)}>
+                            <X className="w-3 h-3" />
+                          </Button>
+                        )}
+                      </div>
+                      <label className="flex items-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
+                        <Upload className="w-3 h-3" />
+                        <span className="truncate">{templates[g]?.name || "PDF 업로드"}</span>
+                        <input
+                          type="file"
+                          accept="application/pdf"
+                          className="hidden"
+                          onChange={e => onUploadTemplate(g, e.target.files?.[0] || null)}
+                        />
+                      </label>
+                    </div>
+                  ))}
+                </div>
               </TabsContent>
               <TabsContent value="qr" className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3">
                 <NumField label="스티커 가로(mm)" v={settings.stickerW} set={v => setSettings({ ...settings, stickerW: v })} />
@@ -367,7 +407,8 @@ export default function SiliconFactory() {
         {/* Toolbar */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-3 flex-wrap">
+              <CardTitle className="text-base">주문 목록</CardTitle>
               <Input placeholder="주문번호 / 거래처 / 상품 검색" value={search} onChange={e => setSearch(e.target.value)} className="w-72" />
               <div className="flex items-center gap-2">
                 <Switch checked={errorsOnly} onCheckedChange={setErrorsOnly} />
@@ -398,6 +439,7 @@ export default function SiliconFactory() {
                   <TableHead>실리콘 고유번호</TableHead>
                   <TableHead>거래처(트윈커)</TableHead>
                   <TableHead>상품코드</TableHead>
+                  <TableHead>등급</TableHead>
                   <TableHead>SVG</TableHead>
                   <TableHead>상태</TableHead>
                   <TableHead className="text-right">미리보기</TableHead>
@@ -405,10 +447,10 @@ export default function SiliconFactory() {
               </TableHeader>
               <TableBody>
                 {isLoading && (
-                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">로딩 중...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">로딩 중...</TableCell></TableRow>
                 )}
                 {!isLoading && filtered.length === 0 && (
-                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">주문 데이터가 없습니다</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">주문 데이터가 없습니다</TableCell></TableRow>
                 )}
                 {filtered.map((r, i) => (
                   <TableRow key={r.orderNo} className={r.status !== "ok" ? "bg-destructive/5" : ""}>
@@ -418,6 +460,7 @@ export default function SiliconFactory() {
                     <TableCell className="font-mono">{r.uniqueNo}</TableCell>
                     <TableCell>{r.recipient}</TableCell>
                     <TableCell>{r.product}</TableCell>
+                    <TableCell><Badge variant="outline">{r.grade}</Badge></TableCell>
                     <TableCell>{r.svgUrl ? <Badge variant="outline">OK</Badge> : <Badge variant="secondary">없음</Badge>}</TableCell>
                     <TableCell>
                       {r.status === "ok" && <Badge variant="outline">정상</Badge>}
