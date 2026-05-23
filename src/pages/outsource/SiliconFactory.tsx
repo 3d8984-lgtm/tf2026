@@ -460,6 +460,7 @@ export default function SiliconFactory() {
                     <TableCell className="font-mono">{r.uniqueNo}</TableCell>
                     <TableCell>{r.recipient}</TableCell>
                     <TableCell>{r.product}</TableCell>
+                    <TableCell><Badge variant="outline">{r.grade}</Badge></TableCell>
                     <TableCell>{r.svgUrl ? <Badge variant="outline">OK</Badge> : <Badge variant="secondary">없음</Badge>}</TableCell>
                     <TableCell>
                       {r.status === "ok" && <Badge variant="outline">정상</Badge>}
