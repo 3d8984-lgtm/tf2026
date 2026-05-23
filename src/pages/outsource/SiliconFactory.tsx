@@ -160,6 +160,7 @@ function downloadBlob(bytes: Uint8Array, filename: string) {
 
 export default function SiliconFactory() {
   const { t } = useLang();
+  const { user } = useAuth();
   const { data: ordersData, isLoading } = useOrders();
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -172,20 +173,66 @@ export default function SiliconFactory() {
   const [templates, setTemplates] = useState<Record<Grade, { name: string; bytes: Uint8Array; preview: string; aspect: number } | null>>({
     COMMON: null, RARE: null, EPIC: null, LEGEND: null,
   });
-  const [previewEdit, setPreviewEdit] = useState(() => localStorage.getItem("silicon-preview-edit") === "1");
-  const [previewHeight, setPreviewHeight] = useState<number | null>(() => {
-    const v = localStorage.getItem("silicon-preview-height");
-    return v ? Number(v) : null;
-  });
+  const [previewEdit, setPreviewEdit] = useState(false);
+  const [previewHeight, setPreviewHeight] = useState<number | null>(null);
+  const [previewSettingsLoaded, setPreviewSettingsLoaded] = useState(false);
 
-  // Persist preview height/edit state
   useEffect(() => {
-    localStorage.setItem("silicon-preview-edit", previewEdit ? "1" : "0");
-  }, [previewEdit]);
+    let cancelled = false;
+
+    const loadPreviewSettings = async () => {
+      if (!user?.id) {
+        setPreviewSettingsLoaded(true);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("user_ui_settings")
+        .select("setting_value")
+        .eq("user_id", user.id)
+        .eq("setting_key", PREVIEW_SETTINGS_KEY)
+        .maybeSingle();
+
+      if (cancelled) return;
+      if (error) {
+        console.error("Failed to load preview settings:", error);
+        setPreviewSettingsLoaded(true);
+        return;
+      }
+
+      const value = data?.setting_value as { previewEdit?: unknown; previewHeight?: unknown } | undefined;
+      setPreviewEdit(value?.previewEdit === true);
+      setPreviewHeight(typeof value?.previewHeight === "number" ? value.previewHeight : null);
+      setPreviewSettingsLoaded(true);
+    };
+
+    void loadPreviewSettings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
   useEffect(() => {
-    if (previewHeight !== null) localStorage.setItem("silicon-preview-height", String(previewHeight));
-    else localStorage.removeItem("silicon-preview-height");
-  }, [previewHeight]);
+    if (!user?.id || !previewSettingsLoaded) return;
+
+    const timeout = window.setTimeout(async () => {
+      const { error } = await supabase
+        .from("user_ui_settings")
+        .upsert({
+          user_id: user.id,
+          setting_key: PREVIEW_SETTINGS_KEY,
+          setting_value: { previewEdit, previewHeight },
+        }, { onConflict: "user_id,setting_key" });
+
+      if (error) {
+        console.error("Failed to save preview settings:", error);
+        toast({ title: "미리보기 높이 저장 실패", description: error.message, variant: "destructive" });
+      }
+    }, 300);
+
+    return () => window.clearTimeout(timeout);
+  }, [previewEdit, previewHeight, previewSettingsLoaded, user?.id]);
 
   const onUploadTemplate = async (grade: Grade, file: File | null) => {
     if (!file) { setTemplates(prev => ({ ...prev, [grade]: null })); return; }
