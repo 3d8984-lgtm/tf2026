@@ -1113,7 +1113,7 @@ function ProofBox({
               </div>
             </div>
             <div className="text-[10px] text-muted-foreground text-center">
-              ※ 점선 사각형은 각 QR 라벨의 칼선이며 마크 고유번호를 포함합니다.
+              ※ 점선 사각형은 각 QR 라벨의 칼선(크기: {proof.qrCutSize}mm)이며, QR 이미지({proof.qrSize}mm)와 마크 고유번호를 포함합니다.
             </div>
           </TabsContent>
         </Tabs>
