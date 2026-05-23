@@ -209,19 +209,17 @@ export default function SiliconFactory() {
   const [previewEdit, setPreviewEdit] = useState(false);
   const [previewHeight, setPreviewHeight] = useState<number | null>(null);
   const [previewSettingsLoaded, setPreviewSettingsLoaded] = useState(false);
-  const [proof, setProof] = useState({
-    twinSize: 12,
-    twinCols: 5,
-    twinRows: 7,
-    twinGap: 3,
-    twinOffsetX: 0,
-    twinOffsetY: 0,
-    twinTextSize: 2.5,
-    twinTextGap: 2,
-    qrSize: 25,
-    qrGap: 5,
-    qrTextSize: 2,
-    qrTextGap: 1,
+  const [proof, setProof] = useState(() => {
+    const defaults = {
+      twinSize: 12, twinCols: 5, twinRows: 7, twinGap: 3,
+      twinOffsetX: 0, twinOffsetY: 0, twinTextSize: 2.5, twinTextGap: 2,
+      qrSize: 25, qrGap: 5, qrTextSize: 2, qrTextGap: 1,
+    };
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem("silicon.proofSettings.v1") : null;
+      if (raw) return { ...defaults, ...JSON.parse(raw) };
+    } catch {}
+    return defaults;
   });
   const [proofPage, setProofPage] = useState(0);
   const [proofQrPage, setProofQrPage] = useState(0);
