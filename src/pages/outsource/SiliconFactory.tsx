@@ -100,7 +100,6 @@ function placeholderSvgPng(text: string, sizePx: number): Uint8Array {
 }
 
 interface Settings {
-  markW: number; markH: number;       // mm
   stickerW: number; stickerH: number; // mm
   qrSize: number;                     // mm
   marginX: number; marginY: number;   // mm
@@ -110,7 +109,6 @@ interface Settings {
 }
 
 const DEFAULTS: Settings = {
-  markW: 30, markH: 20,
   stickerW: 30, stickerH: 30,
   qrSize: 22,
   marginX: 10, marginY: 10,
@@ -118,6 +116,9 @@ const DEFAULTS: Settings = {
   textPt: 6,
   guides: true,
 };
+
+type Grade = "COMMON" | "RARE" | "EPIC" | "LEGEND";
+const GRADES: Grade[] = ["COMMON", "RARE", "EPIC", "LEGEND"];
 
 function tsName() {
   const d = new Date();
