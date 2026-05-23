@@ -1080,17 +1080,20 @@ function ProofBox({
                 {pageItemsQ.map((it, idx) => {
                   const col = idx % qCols;
                   const row = Math.floor(idx / qCols);
-                  const x = (qMargin + col * (proof.qrSize + proof.qrGap)) * mmPx;
-                  const y = (qMargin + row * (proof.qrSize + proof.qrGap)) * mmPx;
-                  const s = proof.qrSize * mmPx;
+                  const x = (qMargin + col * (proof.qrCutSize + proof.qrGap)) * mmPx;
+                  const y = (qMargin + row * (proof.qrCutSize + proof.qrGap)) * mmPx;
+                  const cutS = proof.qrCutSize * mmPx;
+                  const qrS = proof.qrSize * mmPx;
                   const labelPx = Math.max(6, proof.qrTextSize * mmPx);
                   const gapPx = proof.qrTextGap * mmPx;
-                  const qrH = Math.max(8, s - labelPx - gapPx);
+                  // QR image fits inside cut line; cap to available space
+                  const avail = Math.max(8, cutS - labelPx - gapPx);
+                  const qrH = Math.min(qrS, avail);
                   return (
                     <div
                       key={it.uniqueNo}
                       className="absolute border border-dashed border-foreground/60 flex flex-col items-center justify-center"
-                      style={{ left: x, top: y, width: s, height: s }}
+                      style={{ left: x, top: y, width: cutS, height: cutS }}
                       title={`칼선: ${it.uniqueNo}`}
                     >
                       {qrMap[it.uniqueNo] ? (
