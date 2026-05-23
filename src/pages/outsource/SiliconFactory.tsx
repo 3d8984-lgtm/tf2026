@@ -244,12 +244,70 @@ export default function SiliconFactory() {
     return () => window.clearTimeout(timeout);
   }, [previewEdit, previewHeight, previewSettingsLoaded, user?.id]);
 
+  // Load persisted PDF templates from storage on mount
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      const { data: list } = await supabase.storage
+        .from("silicon-templates")
+        .list(user.id);
+      const nameByGrade = new Map<Grade, string>();
+      (list || []).forEach(f => {
+        const m = f.name.match(/^([A-Z]+)__(.+)\.pdf$/);
+        if (m && (GRADES as string[]).includes(m[1])) nameByGrade.set(m[1] as Grade, f.name);
+      });
+      for (const g of GRADES) {
+        const stored = nameByGrade.get(g);
+        if (!stored) continue;
+        const path = `${user.id}/${stored}`;
+        const { data: file, error } = await supabase.storage
+          .from("silicon-templates")
+          .download(path);
+        if (cancelled || error || !file) continue;
+        try {
+          const buf = new Uint8Array(await file.arrayBuffer());
+          const { dataUrl, aspect } = await renderPdfFirstPagePng(buf);
+          if (cancelled) return;
+          const origName = stored.replace(/^[A-Z]+__/, "");
+          setTemplates(prev => ({
+            ...prev,
+            [g]: { name: origName, bytes: buf, preview: dataUrl, aspect },
+          }));
+        } catch (e) {
+          console.error("Failed to load template", g, e);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
   const onUploadTemplate = async (grade: Grade, file: File | null) => {
+    if (!user?.id) {
+      toast({ title: "로그인 필요", variant: "destructive" });
+      return;
+    }
+    // Always clear any existing files for this grade
+    const { data: existing } = await supabase.storage.from("silicon-templates").list(user.id);
+    const toRemove = (existing || [])
+      .filter(f => f.name.startsWith(`${grade}__`))
+      .map(f => `${user.id}/${f.name}`);
+    if (toRemove.length) await supabase.storage.from("silicon-templates").remove(toRemove);
+
     if (!file) { setTemplates(prev => ({ ...prev, [grade]: null })); return; }
     try {
       const buf = new Uint8Array(await file.arrayBuffer());
       const { dataUrl, aspect } = await renderPdfFirstPagePng(buf);
       setTemplates(prev => ({ ...prev, [grade]: { name: file.name, bytes: buf, preview: dataUrl, aspect } }));
+      const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+      const path = `${user.id}/${grade}__${safeName}`;
+      const { error } = await supabase.storage
+        .from("silicon-templates")
+        .upload(path, new Blob([buf as BlobPart], { type: "application/pdf" }), {
+          upsert: true,
+          contentType: "application/pdf",
+        });
+      if (error) toast({ title: "PDF 저장 실패", description: error.message, variant: "destructive" });
     } catch (e: any) {
       toast({ title: "PDF 미리보기 실패", description: e.message, variant: "destructive" });
     }
