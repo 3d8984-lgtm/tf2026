@@ -393,11 +393,11 @@ export default function SiliconFactory() {
                         )}
                       </div>
                       <div className="aspect-[3/4] w-full border rounded bg-muted/30 overflow-hidden flex items-center justify-center">
-                        {templates[g]?.url ? (
-                          <iframe
-                            src={`${templates[g]!.url}#toolbar=0&navpanes=0&scrollbar=0&view=Fit`}
-                            title={`${g} preview`}
-                            className="w-full h-full"
+                        {templates[g]?.preview ? (
+                          <img
+                            src={templates[g]!.preview}
+                            alt={`${g} preview`}
+                            className="w-full h-full object-contain bg-white"
                           />
                         ) : (
                           <span className="text-xs text-muted-foreground">미리보기 없음</span>
