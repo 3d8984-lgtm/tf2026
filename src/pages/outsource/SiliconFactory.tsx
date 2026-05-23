@@ -395,7 +395,10 @@ export default function SiliconFactory() {
                           </Button>
                         )}
                       </div>
-                      <div className="aspect-[3/4] w-full border rounded bg-muted/30 overflow-hidden flex items-center justify-center">
+                      <div
+                        className="w-full border rounded bg-muted/30 overflow-hidden flex items-center justify-center"
+                        style={{ aspectRatio: templates[g]?.aspect ? String(templates[g]!.aspect) : "3 / 4" }}
+                      >
                         {templates[g]?.preview ? (
                           <img
                             src={templates[g]!.preview}
