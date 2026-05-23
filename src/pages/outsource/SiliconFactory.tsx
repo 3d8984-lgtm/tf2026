@@ -168,6 +168,8 @@ export default function SiliconFactory() {
   const [templates, setTemplates] = useState<Record<Grade, { name: string; bytes: Uint8Array; preview: string; aspect: number } | null>>({
     COMMON: null, RARE: null, EPIC: null, LEGEND: null,
   });
+  const [previewEdit, setPreviewEdit] = useState(false);
+  const [previewHeight, setPreviewHeight] = useState<number | null>(null);
 
   const onUploadTemplate = async (grade: Grade, file: File | null) => {
     if (!file) { setTemplates(prev => ({ ...prev, [grade]: null })); return; }
@@ -381,12 +383,27 @@ export default function SiliconFactory() {
                 <TabsTrigger value="common">공통</TabsTrigger>
               </TabsList>
               <TabsContent value="mark" className="pt-3">
-                <div className="text-xs text-muted-foreground mb-3">
-                  마크 등급별 PDF 포맷을 업로드하세요. PDF 파일의 실사이즈 그대로 사용됩니다.
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="text-xs text-muted-foreground">
+                    마크 등급별 PDF 포맷을 업로드하세요. PDF 파일의 실사이즈 그대로 사용됩니다.
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {previewEdit && (
+                      <>
+                        <Button size="sm" variant="outline" onClick={() => setPreviewHeight(h => Math.max(120, (h ?? 400) - 40))}>-</Button>
+                        <span className="text-xs w-16 text-center tabular-nums">{previewHeight ?? "auto"}{previewHeight ? "px" : ""}</span>
+                        <Button size="sm" variant="outline" onClick={() => setPreviewHeight(h => Math.min(1200, (h ?? 400) + 40))}>+</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setPreviewHeight(null)}>초기화</Button>
+                      </>
+                    )}
+                    <Button size="sm" variant={previewEdit ? "default" : "outline"} onClick={() => setPreviewEdit(v => !v)}>
+                      {previewEdit ? "편집 완료" : "높이 편집"}
+                    </Button>
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                   {GRADES.map(g => (
-                    <div key={g} className="border rounded-md p-3 space-y-2">
+                    <div key={g} className={`border rounded-md p-3 space-y-2 ${previewEdit ? "ring-1 ring-primary/40" : ""}`}>
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-medium">{g}</Label>
                         {templates[g] && (
@@ -397,7 +414,11 @@ export default function SiliconFactory() {
                       </div>
                       <div
                         className="w-full border rounded bg-muted/30 overflow-hidden flex items-center justify-center"
-                        style={{ aspectRatio: templates[g]?.aspect ? String(templates[g]!.aspect) : "3 / 4" }}
+                        style={
+                          previewHeight
+                            ? { height: `${previewHeight}px` }
+                            : { aspectRatio: templates[g]?.aspect ? String(templates[g]!.aspect) : "3 / 4" }
+                        }
                       >
                         {templates[g]?.preview ? (
                           <img
