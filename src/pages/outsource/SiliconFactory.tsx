@@ -872,7 +872,11 @@ function NumField({ label, v, set }: { label: string; v: number; set: (v: number
 }
 
 interface ProofItem { seq: number; orderNo: string; uniqueNo: string; svgUrl: string | null; grade: Grade; }
-interface ProofSettings { twinSize: number; twinCols: number; twinRows: number; twinGap: number; qrSize: number; qrGap: number; }
+interface ProofSettings {
+  twinSize: number; twinCols: number; twinRows: number; twinGap: number;
+  twinOffsetX: number; twinOffsetY: number; twinTextSize: number; twinTextGap: number;
+  qrSize: number; qrGap: number; qrTextSize: number; qrTextGap: number;
+}
 
 function ProofBox({
   items, templates, proof, setProof, qrMap, page, setPage, qrPage, setQrPage,
