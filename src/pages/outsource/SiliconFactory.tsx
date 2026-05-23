@@ -407,7 +407,8 @@ export default function SiliconFactory() {
         {/* Toolbar */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-3 flex-wrap">
+              <CardTitle className="text-base">주문 목록</CardTitle>
               <Input placeholder="주문번호 / 거래처 / 상품 검색" value={search} onChange={e => setSearch(e.target.value)} className="w-72" />
               <div className="flex items-center gap-2">
                 <Switch checked={errorsOnly} onCheckedChange={setErrorsOnly} />
