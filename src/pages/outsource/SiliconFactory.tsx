@@ -380,7 +380,6 @@ export default function SiliconFactory() {
               <TabsList>
                 <TabsTrigger value="mark">실리콘 마크</TabsTrigger>
                 <TabsTrigger value="qr">QR 스티커</TabsTrigger>
-                <TabsTrigger value="common">공통</TabsTrigger>
               </TabsList>
               <TabsContent value="mark" className="pt-3">
                 <div className="flex items-start justify-between gap-3 mb-3">
