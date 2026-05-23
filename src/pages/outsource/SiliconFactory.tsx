@@ -165,7 +165,7 @@ export default function SiliconFactory() {
   const [previewRow, setPreviewRow] = useState<Row | null>(null);
   const [previewQr, setPreviewQr] = useState<string | null>(null);
   const [errorsOnly, setErrorsOnly] = useState(false);
-  const [templates, setTemplates] = useState<Record<Grade, { name: string; bytes: Uint8Array; preview: string } | null>>({
+  const [templates, setTemplates] = useState<Record<Grade, { name: string; bytes: Uint8Array; preview: string; aspect: number } | null>>({
     COMMON: null, RARE: null, EPIC: null, LEGEND: null,
   });
 
@@ -173,8 +173,8 @@ export default function SiliconFactory() {
     if (!file) { setTemplates(prev => ({ ...prev, [grade]: null })); return; }
     try {
       const buf = new Uint8Array(await file.arrayBuffer());
-      const preview = await renderPdfFirstPagePng(buf);
-      setTemplates(prev => ({ ...prev, [grade]: { name: file.name, bytes: buf, preview } }));
+      const { dataUrl, aspect } = await renderPdfFirstPagePng(buf);
+      setTemplates(prev => ({ ...prev, [grade]: { name: file.name, bytes: buf, preview: dataUrl, aspect } }));
     } catch (e: any) {
       toast({ title: "PDF 미리보기 실패", description: e.message, variant: "destructive" });
     }
