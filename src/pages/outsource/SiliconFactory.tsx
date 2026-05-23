@@ -176,9 +176,10 @@ export default function SiliconFactory() {
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
   const [busy, setBusy] = useState<null | string>(null);
   const [progress, setProgress] = useState(0);
-  const [previewRow, setPreviewRow] = useState<Row | null>(null);
+  const [previewRow, setPreviewRow] = useState<{ uniqueNo: string; svgUrl: string | null } | null>(null);
   const [previewQr, setPreviewQr] = useState<string | null>(null);
   const [errorsOnly, setErrorsOnly] = useState(false);
+  const [detailOrderNo, setDetailOrderNo] = useState<string | null>(null);
   const [templates, setTemplates] = useState<Record<Grade, { name: string; bytes: Uint8Array; preview: string; aspect: number } | null>>({
     COMMON: null, RARE: null, EPIC: null, LEGEND: null,
   });
