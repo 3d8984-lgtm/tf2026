@@ -1034,8 +1034,9 @@ function ProofBox({
                   const x = (qMargin + col * (proof.qrSize + proof.qrGap)) * mmPx;
                   const y = (qMargin + row * (proof.qrSize + proof.qrGap)) * mmPx;
                   const s = proof.qrSize * mmPx;
-                  const labelH = Math.max(8, 3 * mmPx);
-                  const qrH = s - labelH - 2;
+                  const labelPx = Math.max(6, proof.qrTextSize * mmPx);
+                  const gapPx = proof.qrTextGap * mmPx;
+                  const qrH = Math.max(8, s - labelPx - gapPx);
                   return (
                     <div
                       key={it.uniqueNo}
@@ -1050,7 +1051,7 @@ function ProofBox({
                       )}
                       <div
                         className="font-mono text-foreground leading-none"
-                        style={{ fontSize: Math.max(6, 2 * mmPx), marginTop: 1 }}
+                        style={{ fontSize: labelPx, marginTop: gapPx }}
                       >
                         {it.uniqueNo}
                       </div>
