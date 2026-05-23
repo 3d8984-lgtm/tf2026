@@ -475,6 +475,92 @@ export default function SiliconFactory() {
 
   const errorCount = rows.filter(r => r.status !== "ok").length;
 
+  if (detailOrderNo) {
+    return (
+      <div>
+        <PageHeader title={`${t("menu.outSilicon")} · ${detailOrderNo}`} description="주문 상세 목록" />
+        <div className="p-6 space-y-4">
+          <Card>
+            <CardContent className="p-4 flex items-center justify-between">
+              <Button size="sm" variant="ghost" onClick={() => setDetailOrderNo(null)}>
+                <ChevronLeft className="w-4 h-4 mr-1" /> 목록으로
+              </Button>
+              <div className="text-sm text-muted-foreground">
+                작업번호 <span className="font-mono text-foreground">{detailOrderNo}</span> · {detailItems.length}건
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-16">순번</TableHead>
+                    <TableHead>주문번호</TableHead>
+                    <TableHead>마크 고유번호</TableHead>
+                    <TableHead>트윈코드</TableHead>
+                    <TableHead>QR코드</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {detailItems.length === 0 && (
+                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">—</TableCell></TableRow>
+                  )}
+                  {detailItems.map(it => (
+                    <TableRow
+                      key={it.uniqueNo}
+                      className="cursor-pointer"
+                      onClick={() => openPreview(it.uniqueNo, it.svgUrl)}
+                    >
+                      <TableCell className="tabular-nums">{it.seq}</TableCell>
+                      <TableCell className="font-mono">{it.orderNo}</TableCell>
+                      <TableCell className="font-mono">{it.uniqueNo}</TableCell>
+                      <TableCell>
+                        {it.svgUrl ? (
+                          <img src={it.svgUrl} alt="twincode" className="w-10 h-10 object-contain border rounded bg-white" />
+                        ) : (
+                          <span className="text-xs text-muted-foreground">없음</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <QrThumb value={it.uniqueNo} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Dialog open={!!previewRow} onOpenChange={o => { if (!o) { setPreviewRow(null); setPreviewQr(null); } }}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>미리보기 · {previewRow?.uniqueNo}</DialogTitle></DialogHeader>
+            {previewRow && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="border rounded p-4 flex flex-col items-center gap-2">
+                  <div className="text-xs text-muted-foreground">트윈코드</div>
+                  {previewRow.svgUrl ? (
+                    <img src={previewRow.svgUrl} alt="svg" className="w-40 h-40 object-contain bg-white" />
+                  ) : (
+                    <div className="w-40 h-40 border border-dashed flex items-center justify-center text-xs">SVG 없음</div>
+                  )}
+                  <div className="font-mono text-xs">{previewRow.uniqueNo}</div>
+                </div>
+                <div className="border rounded p-4 flex flex-col items-center gap-2">
+                  <div className="text-xs text-muted-foreground">QR코드</div>
+                  {previewQr && <img src={previewQr} alt="qr" className="w-40 h-40" />}
+                  <div className="font-mono text-xs">{previewRow.uniqueNo}</div>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
+
   return (
     <div>
       <PageHeader title={t("menu.outSilicon")} description="트윈코드 SVG 실리콘 마크 PDF + 주문번호 QR 스티커 A4 PDF 생성" />
