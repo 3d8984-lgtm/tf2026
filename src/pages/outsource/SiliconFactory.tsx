@@ -1048,16 +1048,20 @@ function ProofBox({
           {/* ============== 큐알코드 시안 ============== */}
           <TabsContent value="qr" className="pt-4 space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <NumField label="QR 크기(mm)" v={proof.qrSize} set={v => setProof(p => ({ ...p, qrSize: v }))} />
-              <NumField label="QR 간격(mm)" v={proof.qrGap} set={v => setProof(p => ({ ...p, qrGap: v }))} />
-              <NumField label="마크번호 크기(mm)" v={proof.qrTextSize} set={v => setProof(p => ({ ...p, qrTextSize: v }))} />
-              <NumField label="마크번호 이격(mm)" v={proof.qrTextGap} set={v => setProof(p => ({ ...p, qrTextGap: v }))} />
+              <NumField label="QR 크기(mm)" v={proof.qrSize} set={v => setProof(p => ({ ...p, qrSize: v }))} step={0.1} />
+              <NumField label="QR 간격(mm)" v={proof.qrGap} set={v => setProof(p => ({ ...p, qrGap: v }))} step={0.1} />
+              <NumField label="마크번호 크기(mm)" v={proof.qrTextSize} set={v => setProof(p => ({ ...p, qrTextSize: v }))} step={0.1} />
+              <NumField label="마크번호 이격(mm)" v={proof.qrTextGap} set={v => setProof(p => ({ ...p, qrTextGap: v }))} step={0.1} />
             </div>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="text-xs text-muted-foreground">
-                출력 사이즈: <span className="font-mono text-foreground">A4 210 × 297 mm</span> · {qCols} × {qRows} · 페이지당 {perPageQ}개 · 총 {items.length}개 · {totalPagesQ}페이지
+                출력 사이즈: <span className="font-mono text-foreground">{(qCols * proof.qrSize + Math.max(0, qCols - 1) * proof.qrGap).toFixed(2)} × {(qRows * proof.qrSize + Math.max(0, qRows - 1) * proof.qrGap).toFixed(2)} mm</span> · 용지: <span className="font-mono text-foreground">A4 210 × 297 mm</span> · {qCols} × {qRows} · 페이지당 {perPageQ}개 · 총 {items.length}개 · {totalPagesQ}페이지
               </div>
               <div className="flex items-center gap-2">
+                <Button size="sm" variant="default" onClick={() => {
+                  try { localStorage.setItem(PROOF_LS_KEY, JSON.stringify(proof)); toast({ title: "시안 설정 저장됨" }); }
+                  catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" }); }
+                }}>설정 저장</Button>
                 <Button size="sm" variant="outline" disabled={pageQ <= 0} onClick={() => setQrPage(pageQ - 1)}>이전</Button>
                 <span className="text-xs tabular-nums w-16 text-center">{pageQ + 1} / {totalPagesQ}</span>
                 <Button size="sm" variant="outline" disabled={pageQ >= totalPagesQ - 1} onClick={() => setQrPage(pageQ + 1)}>다음</Button>
