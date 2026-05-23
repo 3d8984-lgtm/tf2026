@@ -423,6 +423,21 @@ export default function SiliconFactory() {
     });
   }, [detailOrderNo, ordersData]);
 
+  // Generate QR dataURLs for all detail items (for proof preview)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const next: Record<string, string> = {};
+      for (const it of detailItems) {
+        try {
+          next[it.uniqueNo] = await QRCode.toDataURL(it.uniqueNo, { errorCorrectionLevel: "M", margin: 0, width: 200 });
+        } catch {}
+      }
+      if (!cancelled) setProofQrMap(next);
+    })();
+    return () => { cancelled = true; };
+  }, [detailItems]);
+
   const generateSiliconePdf = async () => {
     const err = validate(selectedRows);
     if (err) { toast({ title: "오류", description: err, variant: "destructive" }); return; }
