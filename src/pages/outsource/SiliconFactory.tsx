@@ -447,10 +447,10 @@ export default function SiliconFactory() {
               </TableHeader>
               <TableBody>
                 {isLoading && (
-                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">로딩 중...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">로딩 중...</TableCell></TableRow>
                 )}
                 {!isLoading && filtered.length === 0 && (
-                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">주문 데이터가 없습니다</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">주문 데이터가 없습니다</TableCell></TableRow>
                 )}
                 {filtered.map((r, i) => (
                   <TableRow key={r.orderNo} className={r.status !== "ok" ? "bg-destructive/5" : ""}>
