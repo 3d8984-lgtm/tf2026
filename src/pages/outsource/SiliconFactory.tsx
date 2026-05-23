@@ -22,8 +22,9 @@ interface Row {
   uniqueNo: string; // orderNo + "-1"
   recipient: string;
   product: string;
+  grade: Grade;
   svgUrl: string | null;
-  status: "ok" | "no-svg" | "duplicate";
+  status: "ok" | "no-svg" | "duplicate" | "no-template";
 }
 
 const MM = 2.8346456693; // 1mm in pt
