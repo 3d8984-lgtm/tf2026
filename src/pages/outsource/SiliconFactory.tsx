@@ -45,7 +45,16 @@ interface Row {
   product: string;
   grade: Grade;
   svgUrl: string | null;
+  svgCount: number;
+  quantity: number;
+  receivedAt: string; // YYYY-MM-DD
+  dueDate: string;    // YYYY-MM-DD
   status: "ok" | "no-svg" | "duplicate" | "no-template";
+}
+
+function fmtDate(v?: string | null): string {
+  if (!v) return "";
+  try { return new Date(v).toISOString().slice(0, 10); } catch { return String(v).slice(0, 10); }
 }
 
 const MM = 2.8346456693; // 1mm in pt
@@ -261,6 +270,11 @@ export default function SiliconFactory() {
       ).toUpperCase();
       const grade: Grade = (GRADES as string[]).includes(rawGrade) ? (rawGrade as Grade) : "COMMON";
       const status: Row["status"] = dup ? "duplicate" : url ? "ok" : "no-svg";
+      const items: any[] = Array.isArray(o.source_data?.items) ? o.source_data.items : [];
+      const svgCount = items.filter(it =>
+        typeof (it?.twincode_svg_url ?? it?.svg_url ?? it?.twin_code_svg_url) === "string"
+        && String(it.twincode_svg_url ?? it.svg_url ?? it.twin_code_svg_url).trim().length > 0
+      ).length || (url ? 1 : 0);
       return {
         orderNo,
         uniqueNo: `${orderNo}-1`,
@@ -268,10 +282,15 @@ export default function SiliconFactory() {
         product: o.product_code,
         grade,
         svgUrl: url,
+        svgCount,
+        quantity: o.quantity ?? 0,
+        receivedAt: fmtDate(o.created_at),
+        dueDate: fmtDate(o.project_completed_at),
         status,
       };
     }).sort((a, b) => a.orderNo.localeCompare(b.orderNo));
   }, [ordersData]);
+
 
   const filtered = rows.filter(r => {
     if (errorsOnly && r.status === "ok") return false;
@@ -526,17 +545,9 @@ export default function SiliconFactory() {
                 <Label className="text-sm">오류만 보기 ({errorCount})</Label>
               </div>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled={!!busy || selectedRows.length === 0} onClick={generateSiliconePdf}>
-                {busy?.includes("실리콘") ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileText className="w-4 h-4 mr-1" />}
-                실리콘 마크 PDF
-              </Button>
-              <Button size="sm" disabled={!!busy || selectedRows.length === 0} onClick={generateQrPdf}>
-                {busy?.includes("QR") ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <QrCode className="w-4 h-4 mr-1" />}
-                QR 스티커 PDF
-              </Button>
-            </div>
+            <div className="flex gap-2" />
           </CardHeader>
+
           <CardContent>
             {busy && (
               <div className="mb-3 text-xs text-muted-foreground">{busy} {progress}%</div>
@@ -546,44 +557,45 @@ export default function SiliconFactory() {
                 <TableRow>
                   <TableHead className="w-10"><Checkbox checked={allSelected} onCheckedChange={toggleAll} /></TableHead>
                   <TableHead className="w-12">#</TableHead>
-                  <TableHead>주문번호</TableHead>
-                  <TableHead>실리콘 고유번호</TableHead>
-                  <TableHead>거래처(트윈커)</TableHead>
-                  <TableHead>상품코드</TableHead>
-                  <TableHead>등급</TableHead>
-                  <TableHead>SVG</TableHead>
-                  <TableHead>상태</TableHead>
-                  <TableHead className="text-right">미리보기</TableHead>
+                  <TableHead>작업번호</TableHead>
+                  <TableHead>주문접수일</TableHead>
+                  <TableHead>납기일</TableHead>
+                  <TableHead>트윈커</TableHead>
+                  <TableHead className="text-right">작업수량</TableHead>
+                  <TableHead className="text-right">트윈코드(SVG) 수량</TableHead>
+                  <TableHead className="text-right">상세보기</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading && (
-                  <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">로딩 중...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">로딩 중...</TableCell></TableRow>
                 )}
                 {!isLoading && filtered.length === 0 && (
-                  <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">주문 데이터가 없습니다</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">주문 데이터가 없습니다</TableCell></TableRow>
                 )}
                 {filtered.map((r, i) => (
                   <TableRow key={r.orderNo} className={r.status !== "ok" ? "bg-destructive/5" : ""}>
                     <TableCell><Checkbox checked={selected.has(r.orderNo)} onCheckedChange={() => toggle(r.orderNo)} /></TableCell>
                     <TableCell>{i + 1}</TableCell>
                     <TableCell className="font-mono">{r.orderNo}</TableCell>
-                    <TableCell className="font-mono">{r.uniqueNo}</TableCell>
+                    <TableCell>{r.receivedAt}</TableCell>
+                    <TableCell>{r.dueDate || <span className="text-muted-foreground">-</span>}</TableCell>
                     <TableCell>{r.recipient}</TableCell>
-                    <TableCell>{r.product}</TableCell>
-                    <TableCell><Badge variant="outline">{r.grade}</Badge></TableCell>
-                    <TableCell>{r.svgUrl ? <Badge variant="outline">OK</Badge> : <Badge variant="secondary">없음</Badge>}</TableCell>
-                    <TableCell>
-                      {r.status === "ok" && <Badge variant="outline">정상</Badge>}
-                      {r.status === "no-svg" && <Badge variant="secondary"><AlertTriangle className="w-3 h-3 mr-1" />SVG 없음</Badge>}
-                      {r.status === "duplicate" && <Badge variant="destructive"><AlertTriangle className="w-3 h-3 mr-1" />중복</Badge>}
+                    <TableCell className="text-right tabular-nums">{r.quantity}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {r.svgCount > 0
+                        ? <Badge variant="outline">{r.svgCount}</Badge>
+                        : <Badge variant="secondary"><AlertTriangle className="w-3 h-3 mr-1" />0</Badge>}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button size="icon" variant="ghost" onClick={() => openPreview(r)}><Eye className="w-4 h-4" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => openPreview(r)}>
+                        <Eye className="w-4 h-4 mr-1" />상세보기
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
+
             </Table>
           </CardContent>
         </Card>
