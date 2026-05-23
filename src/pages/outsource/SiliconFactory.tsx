@@ -270,6 +270,11 @@ export default function SiliconFactory() {
       ).toUpperCase();
       const grade: Grade = (GRADES as string[]).includes(rawGrade) ? (rawGrade as Grade) : "COMMON";
       const status: Row["status"] = dup ? "duplicate" : url ? "ok" : "no-svg";
+      const items: any[] = Array.isArray(o.source_data?.items) ? o.source_data.items : [];
+      const svgCount = items.filter(it =>
+        typeof (it?.twincode_svg_url ?? it?.svg_url ?? it?.twin_code_svg_url) === "string"
+        && String(it.twincode_svg_url ?? it.svg_url ?? it.twin_code_svg_url).trim().length > 0
+      ).length || (url ? 1 : 0);
       return {
         orderNo,
         uniqueNo: `${orderNo}-1`,
@@ -277,10 +282,15 @@ export default function SiliconFactory() {
         product: o.product_code,
         grade,
         svgUrl: url,
+        svgCount,
+        quantity: o.quantity ?? 0,
+        receivedAt: fmtDate(o.created_at),
+        dueDate: fmtDate(o.project_completed_at),
         status,
       };
     }).sort((a, b) => a.orderNo.localeCompare(b.orderNo));
   }, [ordersData]);
+
 
   const filtered = rows.filter(r => {
     if (errorsOnly && r.status === "ok") return false;
