@@ -947,8 +947,8 @@ function ProofBox({
 
   // ===== QR 시안 =====
   const qMargin = 10;
-  const qCols = Math.max(1, Math.floor((A4_W - 2 * qMargin + proof.qrGap) / (proof.qrSize + proof.qrGap)));
-  const qRows = Math.max(1, Math.floor((A4_H - 2 * qMargin + proof.qrGap) / (proof.qrSize + proof.qrGap)));
+  const qCols = Math.max(1, Math.floor((A4_W - 2 * qMargin + proof.qrGap) / (proof.qrCutSize + proof.qrGap)));
+  const qRows = Math.max(1, Math.floor((A4_H - 2 * qMargin + proof.qrGap) / (proof.qrCutSize + proof.qrGap)));
   const perPageQ = qCols * qRows;
   const totalPagesQ = Math.max(1, Math.ceil(items.length / perPageQ));
   const pageQ = Math.min(qrPage, totalPagesQ - 1);
