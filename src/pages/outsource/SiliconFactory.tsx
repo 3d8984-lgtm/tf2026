@@ -930,13 +930,17 @@ function ProofBox({
           <TabsContent value="twin" className="pt-4 space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <NumField label="트윈코드 크기(mm)" v={proof.twinSize} set={v => setProof(p => ({ ...p, twinSize: v }))} />
+              <NumField label="트윈코드 X 오프셋(mm)" v={proof.twinOffsetX} set={v => setProof(p => ({ ...p, twinOffsetX: v }))} />
+              <NumField label="트윈코드 Y 오프셋(mm)" v={proof.twinOffsetY} set={v => setProof(p => ({ ...p, twinOffsetY: v }))} />
               <NumField label="가로 수량" v={proof.twinCols} set={v => setProof(p => ({ ...p, twinCols: v }))} />
               <NumField label="세로 수량" v={proof.twinRows} set={v => setProof(p => ({ ...p, twinRows: v }))} />
               <NumField label="마크 이격(mm)" v={proof.twinGap} set={v => setProof(p => ({ ...p, twinGap: v }))} />
+              <NumField label="마크번호 크기(mm)" v={proof.twinTextSize} set={v => setProof(p => ({ ...p, twinTextSize: v }))} />
+              <NumField label="마크번호 이격(mm)" v={proof.twinTextGap} set={v => setProof(p => ({ ...p, twinTextGap: v }))} />
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="text-xs text-muted-foreground">
-                페이지당 {perPageT}개 · 총 {items.length}개 · {totalPagesT}페이지
+                출력 사이즈: <span className="font-mono text-foreground">A4 210 × 297 mm</span> · 페이지당 {perPageT}개 · 총 {items.length}개 · {totalPagesT}페이지
               </div>
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="outline" disabled={pageT <= 0} onClick={() => setPage(pageT - 1)}>이전</Button>
@@ -958,10 +962,12 @@ function ProofBox({
                   const h = cellH * mmPx;
                   const tmpl = templates[it.grade];
                   const twinPx = proof.twinSize * mmPx;
+                  const offX = proof.twinOffsetX * mmPx;
+                  const offY = proof.twinOffsetY * mmPx;
                   return (
                     <div
                       key={it.uniqueNo}
-                      className="absolute flex items-center justify-center"
+                      className="absolute"
                       style={{ left: x, top: y, width: w, height: h }}
                     >
                       {tmpl?.preview ? (
@@ -971,22 +977,24 @@ function ProofBox({
                           {it.grade} 포맷 없음
                         </div>
                       )}
-                      {it.svgUrl ? (
-                        <img
-                          src={it.svgUrl}
-                          alt=""
-                          className="relative object-contain"
-                          style={{ width: twinPx, height: twinPx }}
-                        />
-                      ) : (
-                        <div
-                          className="relative border border-dashed border-destructive flex items-center justify-center text-[8px] text-destructive"
-                          style={{ width: twinPx, height: twinPx }}
-                        >no svg</div>
-                      )}
+                      <div
+                        className="absolute"
+                        style={{
+                          left: `calc(50% + ${offX}px - ${twinPx / 2}px)`,
+                          top: `calc(50% + ${offY}px - ${twinPx / 2}px)`,
+                          width: twinPx,
+                          height: twinPx,
+                        }}
+                      >
+                        {it.svgUrl ? (
+                          <img src={it.svgUrl} alt="" className="w-full h-full object-contain" />
+                        ) : (
+                          <div className="w-full h-full border border-dashed border-destructive flex items-center justify-center text-[8px] text-destructive">no svg</div>
+                        )}
+                      </div>
                       <div
                         className="absolute left-0 right-0 text-center font-mono text-foreground"
-                        style={{ bottom: 2 * mmPx, fontSize: Math.max(6, 2.2 * mmPx) }}
+                        style={{ bottom: proof.twinTextGap * mmPx, fontSize: Math.max(6, proof.twinTextSize * mmPx) }}
                       >
                         {it.uniqueNo}
                       </div>
@@ -1002,10 +1010,12 @@ function ProofBox({
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <NumField label="QR 크기(mm)" v={proof.qrSize} set={v => setProof(p => ({ ...p, qrSize: v }))} />
               <NumField label="QR 간격(mm)" v={proof.qrGap} set={v => setProof(p => ({ ...p, qrGap: v }))} />
+              <NumField label="마크번호 크기(mm)" v={proof.qrTextSize} set={v => setProof(p => ({ ...p, qrTextSize: v }))} />
+              <NumField label="마크번호 이격(mm)" v={proof.qrTextGap} set={v => setProof(p => ({ ...p, qrTextGap: v }))} />
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="text-xs text-muted-foreground">
-                {qCols} × {qRows} · 페이지당 {perPageQ}개 · 총 {items.length}개 · {totalPagesQ}페이지
+                출력 사이즈: <span className="font-mono text-foreground">A4 210 × 297 mm</span> · {qCols} × {qRows} · 페이지당 {perPageQ}개 · 총 {items.length}개 · {totalPagesQ}페이지
               </div>
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="outline" disabled={pageQ <= 0} onClick={() => setQrPage(pageQ - 1)}>이전</Button>
