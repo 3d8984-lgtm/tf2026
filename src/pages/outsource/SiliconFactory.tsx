@@ -221,58 +221,54 @@ export default function SiliconFactory() {
   const generateSiliconePdf = async () => {
     const err = validate(selectedRows);
     if (err) { toast({ title: "오류", description: err, variant: "destructive" }); return; }
+    const missingGrades = Array.from(new Set(selectedRows.map(r => r.grade))).filter(g => !templates[g]);
+    if (missingGrades.length > 0) {
+      toast({ title: "포맷 미업로드", description: `등급 PDF 포맷이 없습니다: ${missingGrades.join(", ")}`, variant: "destructive" });
+      return;
+    }
     setBusy("실리콘 마크 PDF 생성 중..."); setProgress(0);
     try {
-      const pdf = await PDFDocument.create();
-      const font = await pdf.embedFont(StandardFonts.Helvetica);
-      const pageW = 210 * MM, pageH = 297 * MM;
-      const cellW = settings.markW * MM, cellH = settings.markH * MM;
-      const textH = settings.textPt + 4;
-      const blockH = cellH + textH;
-      const gridW = pageW - 2 * settings.marginX * MM;
-      const gridH = pageH - 2 * settings.marginY * MM;
-      const cols = Math.max(1, Math.floor((gridW + settings.gap * MM) / (cellW + settings.gap * MM)));
-      const rowsPerPage = Math.max(1, Math.floor((gridH + settings.gap * MM) / (blockH + settings.gap * MM)));
-      const perPage = cols * rowsPerPage;
+      const out = await PDFDocument.create();
+      const font = await out.embedFont(StandardFonts.Helvetica);
 
-      let page = pdf.addPage([pageW, pageH]);
+      // Cache loaded template docs and copied pages per grade
+      const tmplCache: Partial<Record<Grade, PDFDocument>> = {};
+      const getTmpl = async (g: Grade) => {
+        if (!tmplCache[g]) tmplCache[g] = await PDFDocument.load(templates[g]!.bytes);
+        return tmplCache[g]!;
+      };
+
       for (let i = 0; i < selectedRows.length; i++) {
         const r = selectedRows[i];
-        const idx = i % perPage;
-        if (i > 0 && idx === 0) page = pdf.addPage([pageW, pageH]);
-        const col = idx % cols;
-        const row = Math.floor(idx / cols);
-        const x = settings.marginX * MM + col * (cellW + settings.gap * MM);
-        const yTop = pageH - settings.marginY * MM - row * (blockH + settings.gap * MM);
-        const yMarkBottom = yTop - cellH;
+        const tmpl = await getTmpl(r.grade);
+        const [copied] = await out.copyPages(tmpl, [0]);
+        const page = out.addPage(copied);
+        const { width: pw, height: ph } = page.getSize();
 
-        if (settings.guides) {
-          page.drawRectangle({ x, y: yMarkBottom, width: cellW, height: cellH, borderColor: rgb(0.7,0.7,0.7), borderWidth: 0.3 });
-        }
+        // Overlay twincode SVG (centered) + uniqueNo text (bottom)
         try {
           const pngBytes = r.svgUrl
-            ? await svgUrlToPng(r.svgUrl, 400)
-            : placeholderSvgPng(r.orderNo, 400);
-          const png = await pdf.embedPng(pngBytes);
-          const pad = 2 * MM;
-          const maxW = cellW - pad * 2, maxH = cellH - pad * 2;
-          const scale = Math.min(maxW / png.width, maxH / png.height);
+            ? await svgUrlToPng(r.svgUrl, 600)
+            : placeholderSvgPng(r.orderNo, 600);
+          const png = await out.embedPng(pngBytes);
+          const target = Math.min(pw, ph) * 0.35;
+          const scale = target / Math.max(png.width, png.height);
           const w = png.width * scale, h = png.height * scale;
-          page.drawImage(png, { x: x + (cellW - w) / 2, y: yMarkBottom + (cellH - h) / 2, width: w, height: h });
+          page.drawImage(png, { x: (pw - w) / 2, y: (ph - h) / 2, width: w, height: h });
         } catch (e) {
           console.error("SVG embed failed", r.orderNo, e);
         }
         const tw = font.widthOfTextAtSize(r.uniqueNo, settings.textPt);
         page.drawText(r.uniqueNo, {
-          x: x + (cellW - tw) / 2,
-          y: yMarkBottom - settings.textPt - 1,
+          x: (pw - tw) / 2,
+          y: settings.marginY * MM,
           size: settings.textPt,
           font,
           color: rgb(0, 0, 0),
         });
         setProgress(Math.round(((i + 1) / selectedRows.length) * 100));
       }
-      const bytes = await pdf.save();
+      const bytes = await out.save();
       const first = selectedRows[0].uniqueNo;
       const last = selectedRows[selectedRows.length - 1].uniqueNo;
       downloadBlob(bytes, `silicone-mark_${first}_${last}_${tsName()}.pdf`);
