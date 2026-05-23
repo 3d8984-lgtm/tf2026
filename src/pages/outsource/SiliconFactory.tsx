@@ -213,6 +213,7 @@ export default function SiliconFactory() {
     const defaults = {
       twinSize: 12, twinCols: 5, twinRows: 7, twinGap: 3,
       twinOffsetX: 0, twinOffsetY: 0, twinTextSize: 2.5, twinTextGap: 2,
+      markW: 63, // 마크 가로(mm). 세로는 원본 비율(63:60.811)로 자동 계산
       qrSize: 25, qrCutSize: 25, qrGap: 5, qrTextSize: 2, qrTextGap: 1,
     };
     try {
@@ -220,6 +221,7 @@ export default function SiliconFactory() {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (typeof parsed.qrCutSize !== "number") parsed.qrCutSize = parsed.qrSize ?? defaults.qrCutSize;
+        if (typeof parsed.markW !== "number") parsed.markW = defaults.markW;
         return { ...defaults, ...parsed };
       }
     } catch {}
