@@ -897,14 +897,16 @@ function QrThumb({ value }: { value: string }) {
     : <div className="w-10 h-10 border rounded bg-muted" />;
 }
 
-function NumField({ label, v, set }: { label: string; v: number; set: (v: number) => void }) {
+function NumField({ label, v, set, step }: { label: string; v: number; set: (v: number) => void; step?: number }) {
   return (
     <div className="space-y-1">
       <Label className="text-xs">{label}</Label>
-      <Input type="number" value={v} onChange={e => set(Number(e.target.value) || 0)} />
+      <Input type="number" step={step ?? 1} value={v} onChange={e => set(Number(e.target.value) || 0)} />
     </div>
   );
 }
+
+const PROOF_LS_KEY = "silicon.proofSettings.v1";
 
 interface ProofItem { seq: number; orderNo: string; uniqueNo: string; svgUrl: string | null; grade: Grade; }
 interface ProofSettings {
