@@ -191,8 +191,14 @@ export default function SiliconFactory() {
     twinCols: 5,
     twinRows: 7,
     twinGap: 3,
+    twinOffsetX: 0,
+    twinOffsetY: 0,
+    twinTextSize: 2.5,
+    twinTextGap: 2,
     qrSize: 25,
     qrGap: 5,
+    qrTextSize: 2,
+    qrTextGap: 1,
   });
   const [proofPage, setProofPage] = useState(0);
   const [proofQrPage, setProofQrPage] = useState(0);
