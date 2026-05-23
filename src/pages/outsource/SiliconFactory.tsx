@@ -559,13 +559,14 @@ export default function SiliconFactory() {
                     <TableHead className="w-16">순번</TableHead>
                     <TableHead>주문번호</TableHead>
                     <TableHead>마크 고유번호</TableHead>
+                    <TableHead>카드등급</TableHead>
                     <TableHead>트윈코드</TableHead>
                     <TableHead>QR코드</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {detailItems.length === 0 && (
-                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">—</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">—</TableCell></TableRow>
                   )}
                   {detailItems.map(it => (
                     <TableRow
@@ -576,6 +577,7 @@ export default function SiliconFactory() {
                       <TableCell className="tabular-nums">{it.seq}</TableCell>
                       <TableCell className="font-mono">{it.orderNo}</TableCell>
                       <TableCell className="font-mono">{it.uniqueNo}</TableCell>
+                      <TableCell><Badge variant="outline">{it.grade}</Badge></TableCell>
                       <TableCell>
                         {it.svgUrl ? (
                           <img src={it.svgUrl} alt="twincode" className="w-10 h-10 object-contain border rounded bg-white" />
