@@ -400,11 +400,14 @@ export default function SiliconFactory() {
         (typeof it.svg_url === "string" && it.svg_url) ||
         (typeof it.twin_code_svg_url === "string" && it.twin_code_svg_url) ||
         orderSvg || null;
+      const rawGrade = String(it.grade ?? order.source_data?.grade ?? order.grade ?? "COMMON").toUpperCase();
+      const grade: Grade = (GRADES as string[]).includes(rawGrade) ? (rawGrade as Grade) : "COMMON";
       return {
         seq: idx + 1,
         orderNo: detailOrderNo,
         uniqueNo: `${detailOrderNo}-${idx + 1}`,
         svgUrl,
+        grade,
       };
     });
   }, [detailOrderNo, ordersData]);
