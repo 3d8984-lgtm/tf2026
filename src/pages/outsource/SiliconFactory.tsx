@@ -1160,7 +1160,7 @@ function ProofBox({
       const baselineYmm = cellYmm + effCellHmm + proof.twinTextGap + textHmm;
       const textWidth = helv.widthOfTextAtSize(it.uniqueNo, fontPt);
       page.drawText(it.uniqueNo, {
-        x: cellXmm + effCellWmm / 2 - textWidth / 2,
+        x: (cellXmm + effCellWmm / 2) * MM - textWidth / 2,
         y: pageHpt - baselineYmm * MM,
         size: fontPt,
         font: helv,
