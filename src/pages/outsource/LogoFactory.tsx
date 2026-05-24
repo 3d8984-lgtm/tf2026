@@ -632,7 +632,8 @@ function TxtField({ label, v, set, type = "text" }: { label: string; v: string; 
 function printLogoWorkOrder(
   wo: { company: string; orderNo: string; orderDate: string; deliveryDate: string; baseQty: number; surplusQty: number; totalQty: number; recipient: string; phone: string; address: string; notes: string },
   workType: WorkType,
-  logoSizeMm: number,
+  logoWidthMm: number,
+  logoHeightMm: number,
   logoSrc: string | null,
 ) {
   const esc = (s: any) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
