@@ -1076,9 +1076,17 @@ function ProofBox({
       if (hMm > effCellHmm) effCellHmm = hMm;
     }
 
-    // Page = exactly the grid content. No A4, no margin, no fit-scaling.
-    const pageWmm = tCols * effCellWmm + Math.max(0, tCols - 1) * tGap;
-    const pageHmm = tRows * effCellHmm + Math.max(0, tRows - 1) * tGap;
+    // Text block height (mm) — included in "대지" so output page contains text.
+    const textHmm = Math.max(0, proof.twinTextSize);
+    const textBlockMm = proof.twinTextGap + textHmm; // gap from mark bottom + glyph height
+    const marginMm = Math.max(0, proof.twinMargin);
+
+    // Effective cell = template + text block below it
+    const cellTotalHmm = effCellHmm + textBlockMm;
+
+    // Page = grid content + margin on all sides
+    const pageWmm = tCols * effCellWmm + Math.max(0, tCols - 1) * tGap + 2 * marginMm;
+    const pageHmm = tRows * cellTotalHmm + Math.max(0, tRows - 1) * tGap + 2 * marginMm;
     const pageWpt = pageWmm * MM;
     const pageHpt = pageHmm * MM;
     const page = out.addPage([pageWpt, pageHpt]);
@@ -1105,14 +1113,14 @@ function ProofBox({
       const it = pageItems[idx];
       const col = idx % tCols;
       const row = Math.floor(idx / tCols);
-      const cellXmm = col * (effCellWmm + tGap);
-      const cellYmm = row * (effCellHmm + tGap);
+      const cellXmm = marginMm + col * (effCellWmm + tGap);
+      const cellYmm = marginMm + row * (cellTotalHmm + tGap);
 
       // Draw template at its native size (no scaling).
       const emb = gradeEmbeds[it.grade];
       const drawWmm = emb ? (emb.width / MM) : cellW;
       const drawHmm = emb ? (emb.height / MM) : cellH;
-      // Center inside the cell
+      // Center horizontally inside the cell; align to top so text sits cleanly below.
       const xMm = cellXmm + (effCellWmm - drawWmm) / 2;
       const yMm = cellYmm + (effCellHmm - drawHmm) / 2;
 
@@ -1146,12 +1154,14 @@ function ProofBox({
         }
       }
 
+      // Text BELOW mark, inside the page (margin guarantees no overflow).
       const fontPt = Math.max(4, proof.twinTextSize * MM);
-      const textBaseYmm = yMm + drawHmm - proof.twinTextGap;
+      // Baseline = bottom of glyph row. Place glyphs in the textBlock area beneath mark.
+      const baselineYmm = cellYmm + effCellHmm + proof.twinTextGap + textHmm;
       const textWidth = helv.widthOfTextAtSize(it.uniqueNo, fontPt);
       page.drawText(it.uniqueNo, {
-        x: xMm * MM + drawWmm * MM / 2 - textWidth / 2,
-        y: pageHpt - textBaseYmm * MM,
+        x: cellXmm + effCellWmm / 2 - textWidth / 2,
+        y: pageHpt - baselineYmm * MM,
         size: fontPt,
         font: helv,
         color: rgb(0, 0, 0),
