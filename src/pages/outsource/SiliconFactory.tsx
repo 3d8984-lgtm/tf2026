@@ -1252,11 +1252,19 @@ function ProofBox({
                   return fit < 1 ? <span className="ml-2 text-amber-600 dark:text-amber-400">· 대지 초과 자동 축소 {(fit * 100).toFixed(1)}%</span> : null;
                 })()}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Button size="sm" variant="default" onClick={() => {
                   try { localStorage.setItem(PROOF_LS_KEY, JSON.stringify(proof)); toast({ title: "시안 설정 저장됨" }); }
                   catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" }); }
                 }}>설정 저장</Button>
+                <Button size="sm" variant="secondary" onClick={downloadTwinPdfCurrent} disabled={pdfBusy}>
+                  {pdfBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                  현재 페이지 PDF
+                </Button>
+                <Button size="sm" variant="secondary" onClick={downloadTwinPdfAll} disabled={pdfBusy}>
+                  {pdfBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                  전체 PDF (ZIP)
+                </Button>
                 <Button size="sm" variant="outline" disabled={pageT <= 0} onClick={() => setPage(pageT - 1)}>이전</Button>
                 <span className="text-xs tabular-nums w-16 text-center">{pageT + 1} / {totalPagesT}</span>
                 <Button size="sm" variant="outline" disabled={pageT >= totalPagesT - 1} onClick={() => setPage(pageT + 1)}>다음</Button>
