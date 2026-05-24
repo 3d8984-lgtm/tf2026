@@ -73,6 +73,171 @@ function svgDataUrlToText(dataUrl: string): string {
   return dataUrl;
 }
 
+/**
+ * Edge-preserving sharp upscale for logo / text / icon / line-art images.
+ *
+ * Strategy (NO photo-style smoothing, NO AI re-draw):
+ *  1. Iterative 2× bilinear upscale (high quality) until the image is at-or-above target.
+ *     Step-wise 2× preserves edges far better than a single large bicubic jump.
+ *  2. Final fit to exact target size with high-quality resampling.
+ *  3. Unsharp-mask on RGB only to restore edge crispness lost during resampling.
+ *  4. Alpha channel is kept untouched (preserves transparent background).
+ *     If the source alpha is binary-ish, edges are re-thresholded to avoid
+ *     soft halos around logos.
+ *  5. Tiny low-contrast noise is suppressed without touching strong edges.
+ *
+ * The function never invents new detail; it only resamples and re-sharpens
+ * what is already in the source image.
+ */
+function edgePreservingUpscale(
+  img: HTMLImageElement,
+  targetW: number,
+  targetH: number,
+): HTMLCanvasElement {
+  const srcW = img.naturalWidth;
+  const srcH = img.naturalHeight;
+  if (srcW === 0 || srcH === 0) throw new Error("이미지 크기가 0입니다");
+
+  // Step 1+2: iterative 2× upscale then final fit.
+  let canvas = document.createElement("canvas");
+  canvas.width = srcW;
+  canvas.height = srcH;
+  let ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(img, 0, 0);
+
+  while (canvas.width * 2 <= targetW && canvas.height * 2 <= targetH) {
+    const next = document.createElement("canvas");
+    next.width = canvas.width * 2;
+    next.height = canvas.height * 2;
+    const nctx = next.getContext("2d")!;
+    nctx.imageSmoothingEnabled = true;
+    nctx.imageSmoothingQuality = "high";
+    nctx.drawImage(canvas, 0, 0, next.width, next.height);
+    canvas = next;
+  }
+
+  if (canvas.width !== targetW || canvas.height !== targetH) {
+    const final = document.createElement("canvas");
+    final.width = targetW;
+    final.height = targetH;
+    const fctx = final.getContext("2d")!;
+    fctx.imageSmoothingEnabled = true;
+    fctx.imageSmoothingQuality = "high";
+    fctx.drawImage(canvas, 0, 0, targetW, targetH);
+    canvas = final;
+  }
+
+  ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  const W = canvas.width;
+  const H = canvas.height;
+  const imgData = ctx.getImageData(0, 0, W, H);
+  const px = imgData.data;
+  const N = W * H;
+
+  // ----- Detect whether source alpha is binary-ish (logo with transparency).
+  // Sample original pixels (before resample) to decide thresholding policy.
+  let srcBinaryAlpha = false;
+  let srcHasAlpha = false;
+  try {
+    const sc = document.createElement("canvas");
+    sc.width = srcW;
+    sc.height = srcH;
+    const sctx = sc.getContext("2d")!;
+    sctx.drawImage(img, 0, 0);
+    const sd = sctx.getImageData(0, 0, srcW, srcH).data;
+    let mid = 0;
+    let edge = 0;
+    for (let i = 3; i < sd.length; i += 4) {
+      const a = sd[i];
+      if (a > 0 && a < 255) {
+        if (a > 24 && a < 232) mid++;
+        else edge++;
+      } else if (a === 0) {
+        srcHasAlpha = true;
+      }
+    }
+    if (srcHasAlpha || mid + edge > 0) srcHasAlpha = srcHasAlpha || mid + edge > 0;
+    // Binary-ish: many fully-on/off, few mid-tones
+    srcBinaryAlpha = srcHasAlpha && mid * 8 < edge + 1;
+  } catch {
+    /* tainted canvas — skip detection */
+  }
+
+  // ----- Step 3: Unsharp mask on RGB. Alpha is untouched.
+  // Build a 3×3 box-blur as the "blurred" copy, then sharpen = orig + amount*(orig - blur).
+  const blurred = new Uint8ClampedArray(px.length);
+  // Edge rows/cols: copy directly to avoid out-of-bounds.
+  blurred.set(px);
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      const idx = (y * W + x) * 4;
+      for (let c = 0; c < 3; c++) {
+        let sum = 0;
+        // 3×3 box
+        sum += px[idx - W * 4 - 4 + c];
+        sum += px[idx - W * 4 + c];
+        sum += px[idx - W * 4 + 4 + c];
+        sum += px[idx - 4 + c];
+        sum += px[idx + c];
+        sum += px[idx + 4 + c];
+        sum += px[idx + W * 4 - 4 + c];
+        sum += px[idx + W * 4 + c];
+        sum += px[idx + W * 4 + 4 + c];
+        blurred[idx + c] = sum / 9;
+      }
+    }
+  }
+
+  // Sharpen amount tuned for logo / line-art (strong but not ringing).
+  const AMOUNT = 0.85;
+  // Threshold: skip very small differences to avoid amplifying compression noise.
+  const NOISE_THRESH = 4;
+  for (let i = 0; i < px.length; i += 4) {
+    for (let c = 0; c < 3; c++) {
+      const o = px[i + c];
+      const b = blurred[i + c];
+      const d = o - b;
+      if (d > -NOISE_THRESH && d < NOISE_THRESH) continue;
+      const v = o + AMOUNT * d;
+      px[i + c] = v < 0 ? 0 : v > 255 ? 255 : v;
+    }
+  }
+
+  // ----- Step 4: Alpha cleanup for transparent-background logos.
+  // If the source had a clean binary alpha, restore hard edges so the upscaled
+  // result does not show a soft halo around the logo.
+  if (srcBinaryAlpha) {
+    for (let i = 3; i < px.length; i += 4) {
+      const a = px[i];
+      if (a < 24) px[i] = 0;
+      else if (a > 232) px[i] = 255;
+      // mid-tones (true anti-alias) left alone
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+  return canvas;
+}
+
+/** Convert mm + dpi → integer pixel count. */
+function mmToPx(mm: number, dpi: number): number {
+  return Math.max(1, Math.round((mm / 25.4) * dpi));
+}
+
+/** Rasterize an SVG data URL at an exact target size, preserving transparency. */
+async function rasterizeSvgAt(svgDataUrl: string, targetW: number, targetH: number): Promise<HTMLCanvasElement> {
+  const img = await loadImage(svgDataUrl);
+  const c = document.createElement("canvas");
+  c.width = targetW;
+  c.height = targetH;
+  const cx = c.getContext("2d")!;
+  cx.imageSmoothingEnabled = true;
+  cx.imageSmoothingQuality = "high";
+  cx.drawImage(img, 0, 0, targetW, targetH);
+  return c;
+}
+
 export default function LogoFactory() {
   const { t } = useLang();
   const { data: ordersData, isLoading } = useOrders();
@@ -352,28 +517,83 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
   const handleUpscale = async () => {
     if (!sourceLogo) return;
-    setBusy("로고 업스케일링 중...");
+    setBusy("로고 업스케일링 중 (edge-preserving)...");
     try {
       const src = sourceLogo!;
       const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
       const img = await loadImage(dataUrl);
-      const scale = 2;
-      const canvas = document.createElement("canvas");
-      canvas.width = img.naturalWidth * scale;
-      canvas.height = img.naturalHeight * scale;
-      const ctx = canvas.getContext("2d")!;
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      // Preview: 2× edge-preserving upscale of the source.
+      const targetW = img.naturalWidth * 2;
+      const targetH = img.naturalHeight * 2;
+      const canvas = edgePreservingUpscale(img, targetW, targetH);
       const up = canvas.toDataURL("image/png");
       setUpscaledDataUrl(up);
       setProcessedDataUrl(up);
       setProcessedKind("upscaled");
       setCompareTarget("upscaled");
-      toast({ title: "업스케일 완료", description: `${img.naturalWidth}×${img.naturalHeight} → ${canvas.width}×${canvas.height}` });
+      toast({
+        title: "업스케일 완료",
+        description: `${img.naturalWidth}×${img.naturalHeight} → ${canvas.width}×${canvas.height} · edge-preserving + unsharp`,
+      });
     } catch (e: any) {
       toast({ title: "업스케일 실패", description: e.message, variant: "destructive" });
     } finally { setBusy(null); }
+  };
+
+  /**
+   * Generate a print-ready PNG at the requested DPI and trigger download.
+   * - If a vector (SVG) result exists, rasterizes the SVG directly at the
+   *   exact target size — perfectly crisp, no upscaling artifacts.
+   * - Otherwise runs edge-preserving sharp upscale from the source image.
+   * - Transparent background is preserved (PNG with alpha).
+   */
+  const downloadPrintPng = async (dpi: 300 | 600) => {
+    if (!sourceLogo) {
+      toast({ title: "로고가 없습니다", variant: "destructive" });
+      return;
+    }
+    if (!logoWidthMm || !logoHeightMm) {
+      toast({ title: "출력 크기(mm)를 먼저 입력하세요", variant: "destructive" });
+      return;
+    }
+    setBusy(`PNG ${dpi}dpi 생성 중...`);
+    try {
+      const targetW = mmToPx(logoWidthMm, dpi);
+      const targetH = mmToPx(logoHeightMm, dpi);
+
+      let canvas: HTMLCanvasElement;
+      let modeLabel: string;
+      if (vectorDataUrl && processedKind === "vector") {
+        canvas = await rasterizeSvgAt(vectorDataUrl, targetW, targetH);
+        modeLabel = "벡터 래스터화";
+      } else {
+        const src = sourceLogo!;
+        const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
+        const img = await loadImage(dataUrl);
+        canvas = edgePreservingUpscale(img, targetW, targetH);
+        modeLabel = "edge-preserving sharp upscale";
+      }
+
+      const blob: Blob = await new Promise((resolve, reject) =>
+        canvas.toBlob(b => b ? resolve(b) : reject(new Error("PNG 인코딩 실패")), "image/png"),
+      );
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `logo_${orderNo}_${workType}_${logoWidthMm}x${logoHeightMm}mm_${dpi}dpi.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast({
+        title: `PNG ${dpi}dpi 다운로드 완료`,
+        description: `${targetW}×${targetH}px · ${logoWidthMm}×${logoHeightMm}mm · ${modeLabel}`,
+      });
+    } catch (e: any) {
+      toast({ title: `PNG ${dpi}dpi 다운로드 실패`, description: e?.message || String(e), variant: "destructive" });
+    } finally {
+      setBusy(null);
+    }
   };
 
   // Analyze logo image to derive optimal tracer parameters.
@@ -755,7 +975,25 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center justify-between">
               <span>로고 작업 시안</span>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => downloadPrintPng(300)}
+                  disabled={!sourceLogo || !!busy}
+                  title={`인쇄용 PNG · ${logoWidthMm}×${logoHeightMm}mm @ 300dpi (${mmToPx(logoWidthMm, 300)}×${mmToPx(logoHeightMm, 300)}px). 벡터 변환 결과가 있으면 SVG에서 직접 래스터화합니다.`}
+                >
+                  <Download className="w-4 h-4 mr-1" /> PNG 300dpi
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => downloadPrintPng(600)}
+                  disabled={!sourceLogo || !!busy}
+                  title={`인쇄용 PNG · ${logoWidthMm}×${logoHeightMm}mm @ 600dpi (${mmToPx(logoWidthMm, 600)}×${mmToPx(logoHeightMm, 600)}px). 벡터 변환 결과가 있으면 SVG에서 직접 래스터화합니다.`}
+                >
+                  <Download className="w-4 h-4 mr-1" /> PNG 600dpi
+                </Button>
                 <Button
                   size="sm"
                   variant="outline"
