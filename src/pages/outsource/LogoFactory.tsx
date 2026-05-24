@@ -671,7 +671,7 @@ function printLogoWorkOrder(
     <tr><th>下单日期</th><td>${esc(wo.orderDate)}</td><th>交货日期</th><td>${esc(wo.deliveryDate)}</td></tr>
     <tr><th>收件人</th><td>${esc(wo.recipient)}</td><th>联系电话</th><td>${esc(wo.phone)}</td></tr>
     <tr><th>收货地址</th><td colspan="3">${esc(wo.address)}</td></tr>
-    <tr><th>作业类型</th><td>${esc(typeLabel)}</td><th>LOGO 尺寸</th><td>${esc(logoSizeMm)} mm</td></tr>
+    <tr><th>作业类型</th><td>${esc(typeLabel)}</td><th>LOGO 尺寸</th><td>${esc(logoWidthMm)} × ${esc(logoHeightMm)} mm</td></tr>
   </table>
   <h2>数量</h2>
   <table class="qty">
