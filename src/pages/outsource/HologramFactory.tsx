@@ -1,4 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import * as pdfjsLib from "pdfjs-dist";
+// @ts-ignore - vite worker import
+import PdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?worker";
+(pdfjsLib as any).GlobalWorkerOptions.workerPort = new PdfWorker();
 import PageHeader from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +14,18 @@ import { useOrders } from "@/hooks/useDbData";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import QRCode from "qrcode";
+
+async function renderPdfFirstPagePng(bytes: Uint8Array): Promise<string> {
+  const doc = await (pdfjsLib as any).getDocument({ data: bytes.slice(0) }).promise;
+  const page = await doc.getPage(1);
+  const viewport = page.getViewport({ scale: 1.5 });
+  const canvas = document.createElement("canvas");
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  const ctx = canvas.getContext("2d")!;
+  await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+  return canvas.toDataURL("image/png");
+}
 
 type Grade = "COMMON" | "RARE" | "EPIC" | "LEGEND";
 const GRADES: Grade[] = ["COMMON", "RARE", "EPIC", "LEGEND"];
@@ -46,7 +62,7 @@ export default function HologramFactory() {
   const { t } = useLang();
   const { data: ordersData } = useOrders();
   const [activeOrderNo, setActiveOrderNo] = useState<string | null>(null);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfPreview, setPdfPreview] = useState<string | null>(null);
   const [pdfName, setPdfName] = useState<string | null>(null);
   const [pdfSize, setPdfSize] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -57,21 +73,22 @@ export default function HologramFactory() {
   const loadStoredPdf = async () => {
     const { data: list } = await supabase.storage.from(PDF_BUCKET).list("", { limit: 100 });
     const meta = list?.find((f) => f.name === PDF_PATH);
-    if (!meta) { setPdfUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null; }); setPdfName(null); setPdfSize(null); return; }
-    // Download as blob to avoid Chrome blocking cross-origin PDF iframes
+    if (!meta) { setPdfPreview(null); setPdfName(null); setPdfSize(null); return; }
     const { data: blob, error } = await supabase.storage.from(PDF_BUCKET).download(PDF_PATH);
-    if (error || !blob) { setPdfUrl(null); return; }
-    const pdfBlob = blob.type === "application/pdf" ? blob : new Blob([blob], { type: "application/pdf" });
-    const url = URL.createObjectURL(pdfBlob);
-    setPdfUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return url; });
-    setPdfName((meta.metadata as any)?.originalName || PDF_PATH);
-    setPdfSize((meta.metadata as any)?.size ?? blob.size ?? null);
+    if (error || !blob) { setPdfPreview(null); return; }
+    try {
+      const buf = new Uint8Array(await blob.arrayBuffer());
+      const dataUrl = await renderPdfFirstPagePng(buf);
+      setPdfPreview(dataUrl);
+      setPdfName((meta.metadata as any)?.originalName || PDF_PATH);
+      setPdfSize((meta.metadata as any)?.size ?? blob.size ?? null);
+    } catch (e: any) {
+      toast({ title: "PDF 미리보기 실패", description: e.message, variant: "destructive" as any });
+      setPdfPreview(null);
+    }
   };
 
-  useEffect(() => {
-    loadStoredPdf();
-    return () => { setPdfUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null; }); };
-  }, []);
+  useEffect(() => { loadStoredPdf(); }, []);
 
   const onPdfSelected = async (f?: File | null) => {
     if (!f) return;
@@ -101,10 +118,13 @@ export default function HologramFactory() {
       toast({ title: "삭제 실패", description: error.message, variant: "destructive" as any });
       return;
     }
-    setPdfUrl(null); setPdfName(null); setPdfSize(null);
+    setPdfPreview(null); setPdfName(null); setPdfSize(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
     toast({ title: "PDF 삭제 완료" });
   };
+
+
+
 
   const orderRows = useMemo(() => {
     const list = (ordersData || []) as any[];
@@ -225,7 +245,7 @@ export default function HologramFactory() {
             >
               <div className="flex items-center gap-3">
                 {uploading ? <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /> : <Upload className="w-5 h-5 text-muted-foreground" />}
-                {pdfUrl ? (
+                {pdfPreview ? (
                   <div className="text-sm">
                     <div className="font-medium">{pdfName}</div>
                     <div className="text-xs text-muted-foreground">
@@ -239,7 +259,7 @@ export default function HologramFactory() {
                 )}
               </div>
               <div className="flex items-center gap-2">
-                {pdfUrl && (
+                {pdfPreview && (
                   <Button
                     size="sm"
                     variant="ghost"
@@ -250,19 +270,17 @@ export default function HologramFactory() {
                   </Button>
                 )}
                 <Button size="sm" variant="outline" disabled={uploading} onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}>
-                  <Upload className="w-4 h-4 mr-1" /> {pdfUrl ? "변경" : "파일 선택"}
+                  <Upload className="w-4 h-4 mr-1" /> {pdfPreview ? "변경" : "파일 선택"}
                 </Button>
               </div>
             </div>
 
             <div>
               <div className="text-sm font-medium mb-2">미리보기</div>
-              {pdfUrl ? (
-                <iframe
-                  src={pdfUrl}
-                  title="PDF 미리보기"
-                  className="w-full h-[600px] rounded-md border border-border bg-background"
-                />
+              {pdfPreview ? (
+                <div className="w-full rounded-md border border-border bg-background p-2 flex items-center justify-center">
+                  <img src={pdfPreview} alt="PDF 미리보기" className="max-w-full h-auto" />
+                </div>
               ) : (
                 <div className="w-full h-[200px] rounded-md border border-dashed border-border bg-muted/20 flex items-center justify-center text-sm text-muted-foreground">
                   업로드된 PDF가 없습니다.
@@ -271,6 +289,7 @@ export default function HologramFactory() {
             </div>
           </CardContent>
         </Card>
+
 
         <Card>
           <CardHeader><CardTitle className="text-base">주문 목록</CardTitle></CardHeader>
