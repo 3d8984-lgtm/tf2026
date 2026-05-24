@@ -930,7 +930,7 @@ interface ProofSettings {
 }
 
 function ProofBox({
-  items, templates, proof, setProof, qrMap, page, setPage, qrPage, setQrPage,
+  items, templates, proof, setProof, qrMap, page, setPage, qrPage, setQrPage, order,
 }: {
   items: ProofItem[];
   templates: Record<Grade, { name: string; bytes: Uint8Array; preview: string; aspect: number } | null>;
@@ -939,7 +939,9 @@ function ProofBox({
   qrMap: Record<string, string>;
   page: number; setPage: (n: number) => void;
   qrPage: number; setQrPage: (n: number) => void;
+  order?: any;
 }) {
+
   const PAPER_W_PX = 640;
   const A4_W = 210, A4_H = 297;
   const MARK_ORIG_W = 63, MARK_ORIG_H = 60.811; // 업로드된 PDF(벡터) 원본 사이즈
