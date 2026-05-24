@@ -919,6 +919,15 @@ function NumField({ label, v, set, step }: { label: string; v: number; set: (v: 
   );
 }
 
+function TxtField({ label, v, set, type = "text" }: { label: string; v: string; set: (v: string) => void; type?: string }) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs">{label}</Label>
+      <Input type={type} value={v} onChange={e => set(e.target.value)} className="h-9" />
+    </div>
+  );
+}
+
 const PROOF_LS_KEY = "silicon.proofSettings.v1";
 
 interface ProofItem { seq: number; orderNo: string; uniqueNo: string; svgUrl: string | null; grade: Grade; }
