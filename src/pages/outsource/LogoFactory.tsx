@@ -933,6 +933,63 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 </div>
               </div>
             </div>
+
+            {/* Compare viewer: original vs processed (vector) */}
+            {sourceLogo && (
+              <div className="border rounded-md p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-sm font-semibold">원본 ↔ 변환 결과 확대 비교</div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-1 rounded-md border p-0.5">
+                      <Button size="sm" variant={compareMode === "side" ? "default" : "ghost"} className="h-7 px-2 text-xs" onClick={() => setCompareMode("side")}>좌우</Button>
+                      <Button size="sm" variant={compareMode === "slider" ? "default" : "ghost"} className="h-7 px-2 text-xs" onClick={() => setCompareMode("slider")}>오버레이</Button>
+                    </div>
+                    <div className="flex items-center gap-1 rounded-md border p-0.5">
+                      {(["checker", "white", "black"] as const).map(b => (
+                        <Button key={b} size="sm" variant={compareBg === b ? "default" : "ghost"} className="h-7 px-2 text-xs" onClick={() => setCompareBg(b)}>
+                          {b === "checker" ? "체커" : b === "white" ? "백" : "흑"}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Zoom control */}
+                <div className="flex items-center gap-3">
+                  <Label className="text-xs w-14 shrink-0">확대 {compareZoom.toFixed(1)}×</Label>
+                  <Slider min={1} max={10} step={0.5} value={[compareZoom]} onValueChange={(v) => setCompareZoom(v[0])} className="flex-1" />
+                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => { setCompareZoom(1); setCompareOrigin({ x: 50, y: 50 }); }}>초기화</Button>
+                </div>
+
+                {processedKind !== "vector" ? (
+                  <div className="text-xs text-muted-foreground p-3 rounded bg-muted/30">
+                    ※ 비교를 위해서 먼저 '벡터 변환'을 실행하세요. 현재는 원본만 표시됩니다.
+                  </div>
+                ) : null}
+
+                {/* Viewer */}
+                {compareMode === "side" ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <CompareTile label="원본" src={sourceLogo} zoom={compareZoom} origin={compareOrigin} onMove={setCompareOrigin} bg={compareBg} />
+                    <CompareTile label="벡터 변환" src={processedKind === "vector" ? (processedDataUrl || sourceLogo) : sourceLogo} zoom={compareZoom} origin={compareOrigin} onMove={setCompareOrigin} bg={compareBg} muted={processedKind !== "vector"} />
+                  </div>
+                ) : (
+                  <CompareOverlay
+                    original={sourceLogo}
+                    processed={processedKind === "vector" ? processedDataUrl : null}
+                    zoom={compareZoom}
+                    origin={compareOrigin}
+                    onMove={setCompareOrigin}
+                    sliderPct={sliderPct}
+                    onSliderChange={setSliderPct}
+                    bg={compareBg}
+                  />
+                )}
+                <p className="text-[10px] text-muted-foreground">
+                  ※ 이미지 위에서 마우스를 움직이면 확대 중심점이 따라옵니다. 좌우 모드는 동기화된 확대, 오버레이 모드는 가운데 핸들을 드래그해 비교하세요.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
