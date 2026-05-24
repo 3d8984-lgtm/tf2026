@@ -365,8 +365,11 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      setProcessedDataUrl(canvas.toDataURL("image/png"));
+      const up = canvas.toDataURL("image/png");
+      setUpscaledDataUrl(up);
+      setProcessedDataUrl(up);
       setProcessedKind("upscaled");
+      setCompareTarget("upscaled");
       toast({ title: "업스케일 완료", description: `${img.naturalWidth}×${img.naturalHeight} → ${canvas.width}×${canvas.height}` });
     } catch (e: any) {
       toast({ title: "업스케일 실패", description: e.message, variant: "destructive" });
