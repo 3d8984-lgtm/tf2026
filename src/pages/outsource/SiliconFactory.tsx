@@ -1016,6 +1016,26 @@ function ProofBox({
   const setWO = (patch: Partial<typeof workOrder>) => setWorkOrder(prev => ({ ...prev, ...patch }));
   const woTotal = (Number(workOrder.common) || 0) + (Number(workOrder.rare) || 0) + (Number(workOrder.epic) || 0) + (Number(workOrder.legend) || 0);
 
+  // ===== 트윈코드 테스트 SVG (업로드 시 모든 마크에 동일 적용) =====
+  const [testTwinSvg, setTestTwinSvg] = useState<{ url: string; name: string } | null>(null);
+  useEffect(() => () => { if (testTwinSvg?.url) URL.revokeObjectURL(testTwinSvg.url); }, [testTwinSvg]);
+  const handleTestSvgUpload = (file: File) => {
+    if (!file) return;
+    if (!/svg/i.test(file.type) && !/\.svg$/i.test(file.name)) {
+      toast({ title: "SVG 파일만 업로드 가능합니다", variant: "destructive" });
+      return;
+    }
+    if (testTwinSvg?.url) URL.revokeObjectURL(testTwinSvg.url);
+    const url = URL.createObjectURL(file);
+    setTestTwinSvg({ url, name: file.name });
+    toast({ title: "테스트 트윈코드 적용됨", description: `모든 마크에 ${file.name} 표시` });
+  };
+  const clearTestSvg = () => {
+    if (testTwinSvg?.url) URL.revokeObjectURL(testTwinSvg.url);
+    setTestTwinSvg(null);
+    toast({ title: "테스트 트윈코드 제거됨", description: "API 트윈코드로 복원됩니다" });
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -1076,6 +1096,29 @@ function ProofBox({
 
           {/* ============== 트윈코드 시안 ============== */}
           <TabsContent value="twin" className="pt-4 space-y-4">
+            <div className="rounded-md border border-dashed p-3 flex items-center justify-between gap-3 flex-wrap bg-muted/30">
+              <div className="flex items-center gap-3 flex-wrap">
+                <Label className="text-xs font-semibold">트윈코드 테스트 SVG</Label>
+                <Input
+                  type="file"
+                  accept=".svg,image/svg+xml"
+                  className="h-9 w-auto max-w-xs cursor-pointer"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleTestSvgUpload(f); e.currentTarget.value = ""; }}
+                />
+                {testTwinSvg && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <img src={testTwinSvg.url} alt="" className="w-6 h-6 object-contain border bg-background" />
+                    <span className="font-mono truncate max-w-[200px]">{testTwinSvg.name}</span>
+                    <span className="text-amber-600 dark:text-amber-400">· 모든 마크에 적용 중</span>
+                  </div>
+                )}
+              </div>
+              {testTwinSvg ? (
+                <Button size="sm" variant="destructive" onClick={clearTestSvg}>테스트 SVG 삭제</Button>
+              ) : (
+                <span className="text-[11px] text-muted-foreground">업로드 시 모든 마크 포맷에 일괄 표시되어 포맷 확인용으로 사용됩니다. 삭제 시 API 트윈코드로 복원됩니다.</span>
+              )}
+            </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <NumField label="마크 가로(mm)" v={proof.markW} set={v => setProof(p => ({ ...p, markW: v }))} step={0.1} />
               <NumField label="트윈코드 크기(mm)" v={proof.twinSize} set={v => setProof(p => ({ ...p, twinSize: v }))} step={0.1} />
@@ -1142,8 +1185,8 @@ function ProofBox({
                           height: twinPx,
                         }}
                       >
-                        {it.svgUrl ? (
-                          <img src={it.svgUrl} alt="" className="w-full h-full object-contain" />
+                        {(testTwinSvg?.url || it.svgUrl) ? (
+                          <img src={testTwinSvg?.url || it.svgUrl!} alt="" className="w-full h-full object-contain" />
                         ) : (
                           <div className="w-full h-full border border-dashed border-destructive flex items-center justify-center text-[8px] text-destructive">no svg</div>
                         )}
