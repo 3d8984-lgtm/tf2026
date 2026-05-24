@@ -946,16 +946,16 @@ function printWorkOrder(
     const t = templates[g];
     const img = t?.preview
       ? `<img src="${t.preview}" alt="${g}" />`
-      : `<div class="ph">미업로드</div>`;
+      : `<div class="ph">未上传</div>`;
     return `<div class="g-cell"><div class="g-name">${g}</div><div class="g-img">${img}</div></div>`;
   };
   const html = `<!doctype html>
-<html lang="ko"><head><meta charset="utf-8" />
-<title>작업지시서 - ${esc(wo.orderNo)}</title>
+<html lang="zh-CN"><head><meta charset="utf-8" />
+<title>作业指示书 - ${esc(wo.orderNo)}</title>
 <style>
   @page { size: A4; margin: 12mm; }
   * { box-sizing: border-box; }
-  body { font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", "PingFang SC", "Microsoft YaHei", sans-serif; color:#111; margin:0; padding:0; }
+  body { font-family: "PingFang SC", "Microsoft YaHei", "SimHei", "Noto Sans SC", sans-serif; color:#111; margin:0; padding:0; }
   h1 { font-size: 22pt; text-align:center; margin: 0 0 4mm; letter-spacing: 8px; border-bottom: 2px solid #111; padding-bottom: 4mm; }
   .meta { display:flex; justify-content:space-between; font-size: 9pt; color:#555; margin-bottom: 6mm; }
   table { width:100%; border-collapse: collapse; font-size: 10pt; }
@@ -978,27 +978,27 @@ function printWorkOrder(
   .no-print button { padding: 8px 14px; font-size: 13px; cursor:pointer; }
 </style></head>
 <body>
-  <div class="no-print"><button onclick="window.print()">인쇄 / PDF 저장</button></div>
-  <h1>작 업 지 시 서</h1>
-  <div class="meta"><span>발주처: ${esc(wo.company)}</span><span>출력일: ${today}</span></div>
+  <div class="no-print"><button onclick="window.print()">打印 / 保存PDF</button></div>
+  <h1>作 业 指 示 书</h1>
+  <div class="meta"><span>发包方:${esc(wo.company)}</span><span>打印日期:${today}</span></div>
   <table>
-    <tr><th>발주업체</th><td>${esc(wo.company)}</td><th>작업번호</th><td>${esc(wo.orderNo)}</td></tr>
-    <tr><th>발주일</th><td>${esc(wo.orderDate)}</td><th>납품일</th><td>${esc(wo.deliveryDate)}</td></tr>
-    <tr><th>받을사람</th><td>${esc(wo.recipient)}</td><th>전화번호</th><td>${esc(wo.phone)}</td></tr>
-    <tr><th>주소</th><td colspan="3">${esc(wo.address)}</td></tr>
+    <tr><th>发包公司</th><td>${esc(wo.company)}</td><th>作业编号</th><td>${esc(wo.orderNo)}</td></tr>
+    <tr><th>下单日期</th><td>${esc(wo.orderDate)}</td><th>交货日期</th><td>${esc(wo.deliveryDate)}</td></tr>
+    <tr><th>收件人</th><td>${esc(wo.recipient)}</td><th>联系电话</th><td>${esc(wo.phone)}</td></tr>
+    <tr><th>收货地址</th><td colspan="3">${esc(wo.address)}</td></tr>
   </table>
-  <h2>등급별 수량</h2>
+  <h2>各等级数量</h2>
   <table class="qty">
-    <tr><th>COMMON</th><th>RARE</th><th>EPIC</th><th>LEGEND</th><th>총수량</th></tr>
+    <tr><th>COMMON</th><th>RARE</th><th>EPIC</th><th>LEGEND</th><th>总数量</th></tr>
     <tr><td>${esc(wo.common)}</td><td>${esc(wo.rare)}</td><td>${esc(wo.epic)}</td><td>${esc(wo.legend)}</td><td><strong>${esc(wo.total)}</strong></td></tr>
   </table>
-  <h2>발주특이사항</h2>
+  <h2>订单特殊事项</h2>
   <table><tr><td class="notes">${esc(wo.notes) || "&nbsp;"}</td></tr></table>
-  <h2>등급별 실리콘 마크 (예시)</h2>
+  <h2>各等级硅胶标识(示例)</h2>
   <div class="grades">
     ${(["COMMON","RARE","EPIC","LEGEND"] as Grade[]).map(gradeRow).join("")}
   </div>
-  <div class="sig"><div>담당자</div><div>승인</div></div>
+  <div class="sig"><div>负责人</div><div>审批</div></div>
   <script>window.addEventListener("load", () => setTimeout(() => window.print(), 300));</script>
 </body></html>`;
   const w = window.open("", "_blank", "width=900,height=1100");
