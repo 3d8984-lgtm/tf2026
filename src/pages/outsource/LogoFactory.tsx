@@ -194,7 +194,11 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
   // Logo settings
   const [workType, setWorkType] = useState<WorkType>("heat-transfer");
-  const [logoSizeMm, setLogoSizeMm] = useState<number>(50);
+  const DEFAULT_BASE_MM = 50;
+  const [logoWidthMm, setLogoWidthMm] = useState<number>(DEFAULT_BASE_MM);
+  const [logoHeightMm, setLogoHeightMm] = useState<number>(DEFAULT_BASE_MM);
+  const [lockAspect, setLockAspect] = useState<boolean>(true);
+  const [naturalAspect, setNaturalAspect] = useState<number>(1); // width / height
   const [processedDataUrl, setProcessedDataUrl] = useState<string | null>(null); // upscaled or vectorized
   const [processedKind, setProcessedKind] = useState<"original" | "upscaled" | "vector">("original");
   const [testLogoDataUrl, setTestLogoDataUrl] = useState<string | null>(null);
@@ -208,6 +212,44 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     setTestLogoDataUrl(null);
     setTestLogoName(null);
   }, [logoUrl]);
+
+  // Auto-set default print size based on source logo's natural aspect ratio.
+  // Base = 50mm on the longer side; the shorter side scales proportionally.
+  useEffect(() => {
+    const src = testLogoDataUrl || logoUrl;
+    if (!src) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
+        const img = await loadImage(dataUrl);
+        if (cancelled) return;
+        const ar = img.naturalWidth / img.naturalHeight;
+        setNaturalAspect(ar || 1);
+        if (ar >= 1) {
+          setLogoWidthMm(DEFAULT_BASE_MM);
+          setLogoHeightMm(Math.round((DEFAULT_BASE_MM / ar) * 10) / 10);
+        } else {
+          setLogoHeightMm(DEFAULT_BASE_MM);
+          setLogoWidthMm(Math.round(DEFAULT_BASE_MM * ar * 10) / 10);
+        }
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [logoUrl, testLogoDataUrl]);
+
+  const handleWidthChange = (v: number) => {
+    setLogoWidthMm(v);
+    if (lockAspect && naturalAspect > 0) {
+      setLogoHeightMm(Math.round((v / naturalAspect) * 10) / 10);
+    }
+  };
+  const handleHeightChange = (v: number) => {
+    setLogoHeightMm(v);
+    if (lockAspect && naturalAspect > 0) {
+      setLogoWidthMm(Math.round(v * naturalAspect * 10) / 10);
+    }
+  };
 
   // Test logo overrides API logo as the source; processed result overrides both for display
   const sourceLogo = testLogoDataUrl || logoUrl;
@@ -318,13 +360,12 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       pdf.setFontSize(14);
       pdf.text(`Work Order: ${orderNo}`, 14, 16);
       pdf.setFontSize(10);
-      pdf.text(`Type: ${WORK_TYPES.find(w => w.value === workType)?.label} | Logo Size: ${logoSizeMm}mm | Qty: ${total} (base ${qty} + 5% ${surplus})`, 14, 23);
+      pdf.text(`Type: ${WORK_TYPES.find(w => w.value === workType)?.label} | Size: ${logoWidthMm}×${logoHeightMm}mm | Qty: ${total} (base ${qty} + 5% ${surplus})`, 14, 23);
 
-      const logoH = logoSizeMm * ar;
-      const x = (pageW - logoSizeMm) / 2;
-      const y = (pageH - logoH) / 2;
-      pdf.rect(x - 2, y - 2, logoSizeMm + 4, logoH + 4);
-      pdf.addImage(pngUrl, "PNG", x, y, logoSizeMm, logoH, undefined, "FAST");
+      const x = (pageW - logoWidthMm) / 2;
+      const y = (pageH - logoHeightMm) / 2;
+      pdf.rect(x - 2, y - 2, logoWidthMm + 4, logoHeightMm + 4);
+      pdf.addImage(pngUrl, "PNG", x, y, logoWidthMm, logoHeightMm, undefined, "FAST");
 
       pdf.setFontSize(8);
       pdf.text(`Logo source: ${processedKind}`, 14, pageH - 10);
@@ -372,7 +413,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                     toast({ title: "작업지시서 저장됨" });
                   } catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" }); }
                 }}>저장</Button>
-                <Button size="sm" variant="outline" onClick={() => printLogoWorkOrder(wo, workType, logoSizeMm, displayedLogo)}>
+                <Button size="sm" variant="outline" onClick={() => printLogoWorkOrder(wo, workType, logoWidthMm, logoHeightMm, displayedLogo)}>
                   <FileText className="w-4 h-4 mr-1" />작업지시서 출력
                 </Button>
               </div>
@@ -476,15 +517,36 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">로고 사이즈 (mm)</Label>
-                <Input
-                  type="number"
-                  step="0.5"
-                  value={logoSizeMm}
-                  onChange={(e) => setLogoSizeMm(Number(e.target.value) || 0)}
-                  className="h-9"
-                />
+              <div className="space-y-1 md:col-span-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">로고 사이즈 (mm) — 가로 × 세로</Label>
+                  <label className="text-[11px] text-muted-foreground flex items-center gap-1 cursor-pointer">
+                    <input type="checkbox" checked={lockAspect} onChange={(e) => setLockAspect(e.target.checked)} className="h-3 w-3" />
+                    비율 고정
+                  </label>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      step="0.5"
+                      value={logoWidthMm}
+                      onChange={(e) => handleWidthChange(Number(e.target.value) || 0)}
+                      className="h-9 pr-12"
+                    />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">W mm</span>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      step="0.5"
+                      value={logoHeightMm}
+                      onChange={(e) => handleHeightChange(Number(e.target.value) || 0)}
+                      className="h-9 pr-12"
+                    />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">H mm</span>
+                  </div>
+                </div>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">로고 업스케일링 (2×)</Label>
@@ -534,7 +596,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 <div className="aspect-square w-full border rounded flex items-center justify-center overflow-hidden relative"
                   style={{ background: workType === "heat-transfer" ? "#1f2937" : workType === "embroidery" ? "#f3eee0" : workType === "laser" ? "#9ca3af" : "#fff" }}>
                   {displayedLogo ? (
-                    <div className="relative flex items-center justify-center" style={{ width: `${Math.min(80, logoSizeMm * 1.2)}%`, height: `${Math.min(80, logoSizeMm * 1.2)}%` }}>
+                    <div className="relative flex items-center justify-center" style={{ width: `${Math.min(80, logoWidthMm * 1.2)}%`, height: `${Math.min(80, logoHeightMm * 1.2)}%` }}>
                       <img
                         src={displayedLogo}
                         alt="effect preview"
@@ -547,7 +609,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                   )}
                 </div>
                 <div className="text-[11px] text-muted-foreground">
-                  적용 크기: {logoSizeMm}mm · 수량: {total} EA
+                  적용 크기: {logoWidthMm} × {logoHeightMm} mm · 수량: {total} EA
                 </div>
               </div>
             </div>
@@ -570,7 +632,8 @@ function TxtField({ label, v, set, type = "text" }: { label: string; v: string; 
 function printLogoWorkOrder(
   wo: { company: string; orderNo: string; orderDate: string; deliveryDate: string; baseQty: number; surplusQty: number; totalQty: number; recipient: string; phone: string; address: string; notes: string },
   workType: WorkType,
-  logoSizeMm: number,
+  logoWidthMm: number,
+  logoHeightMm: number,
   logoSrc: string | null,
 ) {
   const esc = (s: any) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
@@ -608,7 +671,7 @@ function printLogoWorkOrder(
     <tr><th>下单日期</th><td>${esc(wo.orderDate)}</td><th>交货日期</th><td>${esc(wo.deliveryDate)}</td></tr>
     <tr><th>收件人</th><td>${esc(wo.recipient)}</td><th>联系电话</th><td>${esc(wo.phone)}</td></tr>
     <tr><th>收货地址</th><td colspan="3">${esc(wo.address)}</td></tr>
-    <tr><th>作业类型</th><td>${esc(typeLabel)}</td><th>LOGO 尺寸</th><td>${esc(logoSizeMm)} mm</td></tr>
+    <tr><th>作业类型</th><td>${esc(typeLabel)}</td><th>LOGO 尺寸</th><td>${esc(logoWidthMm)} × ${esc(logoHeightMm)} mm</td></tr>
   </table>
   <h2>数量</h2>
   <table class="qty">
