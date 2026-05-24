@@ -1041,16 +1041,6 @@ function ProofBox({
 
   const buildTwinPdfBytesForPage = async (pageIdx: number): Promise<Uint8Array> => {
     const tMargin = 10;
-    const contentW = tCols * cellW + Math.max(0, tCols - 1) * tGap;
-    const contentH = tRows * cellH + Math.max(0, tRows - 1) * tGap;
-    const availW = A4_W - 2 * tMargin;
-    const availH = A4_H - 2 * tMargin;
-    const fit = Math.min(availW / contentW, availH / contentH, 1);
-    const scaledW = contentW * fit;
-    const scaledH = contentH * fit;
-    const originX = tMargin + (availW - scaledW) / 2;
-    const originY = tMargin + (availH - scaledH) / 2;
-
     // mm → pt
     const A4Wpt = A4_W * MM;
     const A4Hpt = A4_H * MM;
@@ -1071,6 +1061,39 @@ function ProofBox({
       return embedded;
     };
 
+    // Pre-embed all templates used on this page so we know their native size.
+    const gradeEmbeds: Partial<Record<Grade, any>> = {};
+    for (const it of pageItems) {
+      const tmpl = templates[it.grade];
+      if (tmpl?.bytes && !gradeEmbeds[it.grade]) {
+        try { gradeEmbeds[it.grade] = await getTmplEmbed(tmpl.bytes); } catch (e) { console.warn("tmpl embed failed", e); }
+      }
+    }
+
+    // Determine effective cell size = max native template size across this page (mm).
+    // Falls back to user-configured cellW/cellH when no template uploaded.
+    let effCellWmm = cellW;
+    let effCellHmm = cellH;
+    for (const g of Object.keys(gradeEmbeds) as Grade[]) {
+      const emb = gradeEmbeds[g];
+      if (!emb) continue;
+      const wMm = emb.width / MM;
+      const hMm = emb.height / MM;
+      if (wMm > effCellWmm) effCellWmm = wMm;
+      if (hMm > effCellHmm) effCellHmm = hMm;
+    }
+
+    const contentW = tCols * effCellWmm + Math.max(0, tCols - 1) * tGap;
+    const contentH = tRows * effCellHmm + Math.max(0, tRows - 1) * tGap;
+    const availW = A4_W - 2 * tMargin;
+    const availH = A4_H - 2 * tMargin;
+    // Never scale up; only scale down if content exceeds usable page area.
+    const fit = Math.min(availW / contentW, availH / contentH, 1);
+    const scaledW = contentW * fit;
+    const scaledH = contentH * fit;
+    const originX = tMargin + (availW - scaledW) / 2;
+    const originY = tMargin + (availH - scaledH) / 2;
+
     const twinEmbedCache = new Map<string, any>();
     const getTwinEmbed = async (url: string) => {
       if (twinEmbedCache.has(url)) return twinEmbedCache.get(url);
@@ -1078,8 +1101,7 @@ function ProofBox({
         const res = await fetch(url);
         if (!res.ok) throw new Error("svg fetch failed");
         const svgText = await res.text();
-        // Convert SVG → single-page vector PDF, then embed
-        const sizePt = 200; // intrinsic embed size (scaled on draw)
+        const sizePt = 200;
         const pdfBytes = await svgToVectorPdfBytes(svgText, sizePt, sizePt);
         const [embedded] = await out.embedPdf(pdfBytes);
         twinEmbedCache.set(url, embedded);
@@ -1094,48 +1116,56 @@ function ProofBox({
       const it = pageItems[idx];
       const col = idx % tCols;
       const row = Math.floor(idx / tCols);
-      const xMm = originX + col * (cellW + tGap) * fit;
-      const yMm = originY + row * (cellH + tGap) * fit;
-      const wMm = cellW * fit;
-      const hMm = cellH * fit;
-      const tmpl = templates[it.grade];
+      const cellXmm = originX + col * (effCellWmm + tGap) * fit;
+      const cellYmm = originY + row * (effCellHmm + tGap) * fit;
+      const cellWmmFit = effCellWmm * fit;
+      const cellHmmFit = effCellHmm * fit;
+
+      // Native template size (mm) → draw at original size (only fit-scaled if A4 overflow).
+      const emb = gradeEmbeds[it.grade];
+      const nativeWmm = emb ? (emb.width / MM) : cellW;
+      const nativeHmm = emb ? (emb.height / MM) : cellH;
+      const drawWmm = nativeWmm * fit;
+      const drawHmm = nativeHmm * fit;
+      // Center inside the cell
+      const xMm = cellXmm + (cellWmmFit - drawWmm) / 2;
+      const yMm = cellYmm + (cellHmmFit - drawHmm) / 2;
+
       const twinMm = proof.twinSize * fit;
       const offX = proof.twinOffsetX * fit;
       const offY = proof.twinOffsetY * fit;
 
       // pdf-lib origin is bottom-left
       const xPt = xMm * MM;
-      const yPt = A4Hpt - (yMm + hMm) * MM;
-      const wPt = wMm * MM;
-      const hPt = hMm * MM;
+      const yPt = A4Hpt - (yMm + drawHmm) * MM;
+      const wPt = drawWmm * MM;
+      const hPt = drawHmm * MM;
 
-      if (tmpl?.bytes) {
-        try {
-          const emb = await getTmplEmbed(tmpl.bytes);
-          page.drawPage(emb, { x: xPt, y: yPt, width: wPt, height: hPt });
-        } catch (e) { console.warn("template embed failed", e); }
+      if (emb) {
+        try { page.drawPage(emb, { x: xPt, y: yPt, width: wPt, height: hPt }); }
+        catch (e) { console.warn("template draw failed", e); }
       } else {
         page.drawRectangle({ x: xPt, y: yPt, width: wPt, height: hPt, borderColor: rgb(0.7,0.7,0.7), borderWidth: 0.3 });
       }
 
       const twinUrl = testTwinSvg?.url || it.svgUrl;
       if (twinUrl) {
-        const emb = await getTwinEmbed(twinUrl);
-        if (emb) {
-          const txMm = xMm + wMm / 2 + offX - twinMm / 2;
-          const tyMm = yMm + hMm / 2 + offY - twinMm / 2;
+        const tEmb = await getTwinEmbed(twinUrl);
+        if (tEmb) {
+          const txMm = xMm + drawWmm / 2 + offX - twinMm / 2;
+          const tyMm = yMm + drawHmm / 2 + offY - twinMm / 2;
           const txPt = txMm * MM;
           const tyPt = A4Hpt - (tyMm + twinMm) * MM;
           const twPt = twinMm * MM;
-          page.drawPage(emb, { x: txPt, y: tyPt, width: twPt, height: twPt });
+          page.drawPage(tEmb, { x: txPt, y: tyPt, width: twPt, height: twPt });
         }
       }
 
       const fontPt = Math.max(4, proof.twinTextSize * fit * MM);
-      const textBaseYmm = yMm + hMm - proof.twinTextGap * fit;
+      const textBaseYmm = yMm + drawHmm - proof.twinTextGap * fit;
       const textWidth = helv.widthOfTextAtSize(it.uniqueNo, fontPt);
       page.drawText(it.uniqueNo, {
-        x: xMm * MM + wMm * MM / 2 - textWidth / 2,
+        x: xMm * MM + drawWmm * MM / 2 - textWidth / 2,
         y: A4Hpt - textBaseYmm * MM,
         size: fontPt,
         font: helv,
