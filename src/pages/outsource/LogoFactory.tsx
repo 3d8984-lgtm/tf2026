@@ -263,10 +263,11 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   };
 
   const handleVectorize = async () => {
-    if (!logoUrl) return;
+    if (!sourceLogo) return;
     setBusy("벡터 변환 중...");
     try {
-      const dataUrl = await fetchAsDataUrl(logoUrl);
+      const src = sourceLogo;
+      const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
       const img = await loadImage(dataUrl);
       const canvas = document.createElement("canvas");
       canvas.width = img.naturalWidth;
