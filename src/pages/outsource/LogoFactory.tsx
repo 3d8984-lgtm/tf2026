@@ -539,8 +539,10 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
         viewbox: true,
       } as any);
       const svgDataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(svgString)}`;
+      setVectorDataUrl(svgDataUrl);
       setProcessedDataUrl(svgDataUrl);
       setProcessedKind("vector");
+      setCompareTarget("vector");
       toast({ title: "벡터 변환 완료", description: `${resolvedLabel} 프리셋으로 변환되었습니다.` });
     } catch (e: any) {
       toast({ title: "벡터 변환 실패", description: e.message, variant: "destructive" });
