@@ -57,15 +57,21 @@ export default function HologramFactory() {
   const loadStoredPdf = async () => {
     const { data: list } = await supabase.storage.from(PDF_BUCKET).list("", { limit: 100 });
     const meta = list?.find((f) => f.name === PDF_PATH);
-    if (!meta) { setPdfUrl(null); setPdfName(null); setPdfSize(null); return; }
-    const { data } = supabase.storage.from(PDF_BUCKET).getPublicUrl(PDF_PATH);
-    // cache-bust so updates show immediately
-    setPdfUrl(`${data.publicUrl}?v=${meta.updated_at ?? Date.now()}`);
+    if (!meta) { setPdfUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null; }); setPdfName(null); setPdfSize(null); return; }
+    // Download as blob to avoid Chrome blocking cross-origin PDF iframes
+    const { data: blob, error } = await supabase.storage.from(PDF_BUCKET).download(PDF_PATH);
+    if (error || !blob) { setPdfUrl(null); return; }
+    const pdfBlob = blob.type === "application/pdf" ? blob : new Blob([blob], { type: "application/pdf" });
+    const url = URL.createObjectURL(pdfBlob);
+    setPdfUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return url; });
     setPdfName((meta.metadata as any)?.originalName || PDF_PATH);
-    setPdfSize((meta.metadata as any)?.size ?? null);
+    setPdfSize((meta.metadata as any)?.size ?? blob.size ?? null);
   };
 
-  useEffect(() => { loadStoredPdf(); }, []);
+  useEffect(() => {
+    loadStoredPdf();
+    return () => { setPdfUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null; }); };
+  }, []);
 
   const onPdfSelected = async (f?: File | null) => {
     if (!f) return;
