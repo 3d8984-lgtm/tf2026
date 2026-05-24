@@ -194,7 +194,11 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
   // Logo settings
   const [workType, setWorkType] = useState<WorkType>("heat-transfer");
-  const [logoSizeMm, setLogoSizeMm] = useState<number>(50);
+  const DEFAULT_BASE_MM = 50;
+  const [logoWidthMm, setLogoWidthMm] = useState<number>(DEFAULT_BASE_MM);
+  const [logoHeightMm, setLogoHeightMm] = useState<number>(DEFAULT_BASE_MM);
+  const [lockAspect, setLockAspect] = useState<boolean>(true);
+  const [naturalAspect, setNaturalAspect] = useState<number>(1); // width / height
   const [processedDataUrl, setProcessedDataUrl] = useState<string | null>(null); // upscaled or vectorized
   const [processedKind, setProcessedKind] = useState<"original" | "upscaled" | "vector">("original");
   const [testLogoDataUrl, setTestLogoDataUrl] = useState<string | null>(null);
@@ -208,6 +212,44 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     setTestLogoDataUrl(null);
     setTestLogoName(null);
   }, [logoUrl]);
+
+  // Auto-set default print size based on source logo's natural aspect ratio.
+  // Base = 50mm on the longer side; the shorter side scales proportionally.
+  useEffect(() => {
+    const src = testLogoDataUrl || logoUrl;
+    if (!src) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
+        const img = await loadImage(dataUrl);
+        if (cancelled) return;
+        const ar = img.naturalWidth / img.naturalHeight;
+        setNaturalAspect(ar || 1);
+        if (ar >= 1) {
+          setLogoWidthMm(DEFAULT_BASE_MM);
+          setLogoHeightMm(Math.round((DEFAULT_BASE_MM / ar) * 10) / 10);
+        } else {
+          setLogoHeightMm(DEFAULT_BASE_MM);
+          setLogoWidthMm(Math.round(DEFAULT_BASE_MM * ar * 10) / 10);
+        }
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [logoUrl, testLogoDataUrl]);
+
+  const handleWidthChange = (v: number) => {
+    setLogoWidthMm(v);
+    if (lockAspect && naturalAspect > 0) {
+      setLogoHeightMm(Math.round((v / naturalAspect) * 10) / 10);
+    }
+  };
+  const handleHeightChange = (v: number) => {
+    setLogoHeightMm(v);
+    if (lockAspect && naturalAspect > 0) {
+      setLogoWidthMm(Math.round(v * naturalAspect * 10) / 10);
+    }
+  };
 
   // Test logo overrides API logo as the source; processed result overrides both for display
   const sourceLogo = testLogoDataUrl || logoUrl;
