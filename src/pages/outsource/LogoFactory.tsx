@@ -361,10 +361,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       return;
     }
     try {
-      const prefix = "data:image/svg+xml;utf8,";
-      const svgText = processedDataUrl.startsWith(prefix)
-        ? decodeURIComponent(processedDataUrl.slice(prefix.length))
-        : processedDataUrl;
+      const svgText = svgDataUrlToText(processedDataUrl);
       const blob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -452,13 +449,20 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       pdf.rect(x - 2, y - 2, logoWidthMm + 4, logoHeightMm + 4, "F");
       pdf.setDrawColor(80);
       pdf.rect(x - 2, y - 2, logoWidthMm + 4, logoHeightMm + 4);
-      pdf.addImage(pngUrl, "PNG", x, y, logoWidthMm, logoHeightMm, undefined, "FAST");
+      if (processedKind === "vector" && processedDataUrl?.startsWith("data:image/svg+xml")) {
+        const svgText = svgDataUrlToText(processedDataUrl);
+        const svgDoc = new DOMParser().parseFromString(svgText, "image/svg+xml");
+        const svgEl = svgDoc.documentElement;
+        await svg2pdf(svgEl, pdf, { x, y, width: logoWidthMm, height: logoHeightMm });
+      } else {
+        pdf.addImage(pngUrl, "PNG", x, y, logoWidthMm, logoHeightMm, undefined, "FAST");
+      }
 
       pdf.setFontSize(8);
       pdf.text(`Logo source: ${processedKind} · Effect: ${WORK_TYPES.find(w => w.value === workType)?.label}`, 14, pageH - 10);
 
       pdf.save(`logo_${orderNo}_${workType}.pdf`);
-      toast({ title: "PDF 다운로드 완료" });
+      toast({ title: "PDF 다운로드 완료", description: processedKind === "vector" ? "벡터 변환본을 PDF에 직접 적용했습니다." : "벡터가 필요하면 먼저 벡터 변환을 실행하세요." });
     } catch (e: any) {
       console.error("[downloadResultPdf]", e);
       toast({ title: "PDF 생성 실패", description: e?.message || String(e), variant: "destructive" });
