@@ -1000,7 +1000,10 @@ function ProofBox({
             <div className="flex justify-center">
               <div
                 className="relative bg-white shadow border"
-                style={{ width: PAPER_W_PX, height: paperHpx }}
+                style={{
+                  width: PAPER_W_PX,
+                  height: Math.max(paperHpx, (tRows * cellH + Math.max(0, tRows - 1) * tGap) * mmPx),
+                }}
               >
                 {pageItemsT.map((it, idx) => {
                   const col = idx % tCols;
