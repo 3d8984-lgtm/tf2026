@@ -860,9 +860,15 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="text-[10px] text-muted-foreground md:max-w-[260px]">
+              <div className="text-[10px] text-muted-foreground md:max-w-[280px]">
                 현재: <span className="font-medium text-foreground">{VECTOR_PRESETS[vectorPreset].label}</span><br />
                 {VECTOR_PRESETS[vectorPreset].desc}
+                {vectorPreset === "auto" && autoAnalysis && (
+                  <div className="mt-1 rounded border bg-muted/40 p-1.5 font-mono text-[10px] leading-snug text-foreground/80">
+                    분석결과 · 색상≈{autoAnalysis.numberofcolors} · 엣지밀도 {(autoAnalysis.edgeDensity * 100).toFixed(1)}% · 선명도 {(autoAnalysis.sharpness * 100).toFixed(0)}%<br />
+                    ltres={autoAnalysis.ltres} · qtres={autoAnalysis.qtres} · pathomit={autoAnalysis.pathomit} · blur×{autoAnalysis.blurMul}
+                  </div>
+                )}
               </div>
             </div>
             <p className="text-[10px] text-muted-foreground">
