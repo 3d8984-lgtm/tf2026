@@ -355,11 +355,6 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     } finally { setBusy(null); }
   };
 
-  const handleVectorize = async () => {
-    if (!sourceLogo) return;
-    setBusy("벡터 변환 중...");
-    try {
-      const src = sourceLogo;
   // Analyze logo image to derive optimal tracer parameters.
   // Returns ltres/qtres/pathomit/blurMul/numberofcolors plus a chosen baseline label.
   const analyzeLogoForVector = (img: HTMLImageElement) => {
