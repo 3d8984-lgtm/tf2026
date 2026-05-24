@@ -360,13 +360,12 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       pdf.setFontSize(14);
       pdf.text(`Work Order: ${orderNo}`, 14, 16);
       pdf.setFontSize(10);
-      pdf.text(`Type: ${WORK_TYPES.find(w => w.value === workType)?.label} | Logo Size: ${logoSizeMm}mm | Qty: ${total} (base ${qty} + 5% ${surplus})`, 14, 23);
+      pdf.text(`Type: ${WORK_TYPES.find(w => w.value === workType)?.label} | Size: ${logoWidthMm}×${logoHeightMm}mm | Qty: ${total} (base ${qty} + 5% ${surplus})`, 14, 23);
 
-      const logoH = logoSizeMm * ar;
-      const x = (pageW - logoSizeMm) / 2;
-      const y = (pageH - logoH) / 2;
-      pdf.rect(x - 2, y - 2, logoSizeMm + 4, logoH + 4);
-      pdf.addImage(pngUrl, "PNG", x, y, logoSizeMm, logoH, undefined, "FAST");
+      const x = (pageW - logoWidthMm) / 2;
+      const y = (pageH - logoHeightMm) / 2;
+      pdf.rect(x - 2, y - 2, logoWidthMm + 4, logoHeightMm + 4);
+      pdf.addImage(pngUrl, "PNG", x, y, logoWidthMm, logoHeightMm, undefined, "FAST");
 
       pdf.setFontSize(8);
       pdf.text(`Logo source: ${processedKind}`, 14, pageH - 10);
