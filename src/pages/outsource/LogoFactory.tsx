@@ -488,13 +488,13 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">로고 업스케일링 (2×)</Label>
-                <Button size="sm" variant="outline" className="w-full h-9" onClick={handleUpscale} disabled={!logoUrl || !!busy}>
+                <Button size="sm" variant="outline" className="w-full h-9" onClick={handleUpscale} disabled={!sourceLogo || !!busy}>
                   <Sparkles className="w-3 h-3 mr-1" /> 업스케일 실행
                 </Button>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">PNG → 벡터 (SVG)</Label>
-                <Button size="sm" variant="outline" className="w-full h-9" onClick={handleVectorize} disabled={!logoUrl || !!busy}>
+                <Button size="sm" variant="outline" className="w-full h-9" onClick={handleVectorize} disabled={!sourceLogo || !!busy}>
                   <Wand2 className="w-3 h-3 mr-1" /> 벡터 변환
                 </Button>
               </div>
