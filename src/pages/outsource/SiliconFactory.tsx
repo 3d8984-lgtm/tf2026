@@ -212,7 +212,7 @@ export default function SiliconFactory() {
   const [previewSettingsLoaded, setPreviewSettingsLoaded] = useState(false);
   const [proof, setProof] = useState(() => {
     const defaults = {
-      twinSize: 12, twinCols: 5, twinRows: 7, twinGap: 3,
+      twinSize: 12, twinCols: 5, twinRows: 7, twinGap: 3, twinMargin: 3,
       twinOffsetX: 0, twinOffsetY: 0, twinTextSize: 2.5, twinTextGap: 2,
       markW: 63, // 마크 가로(mm). 세로는 원본 비율(63:60.811)로 자동 계산
       qrSize: 25, qrCutSize: 25, qrGap: 5, qrTextSize: 2, qrTextGap: 1,
@@ -932,7 +932,7 @@ const PROOF_LS_KEY = "silicon.proofSettings.v1";
 
 interface ProofItem { seq: number; orderNo: string; uniqueNo: string; svgUrl: string | null; grade: Grade; }
 interface ProofSettings {
-  twinSize: number; twinCols: number; twinRows: number; twinGap: number;
+  twinSize: number; twinCols: number; twinRows: number; twinGap: number; twinMargin: number;
   twinOffsetX: number; twinOffsetY: number; twinTextSize: number; twinTextGap: number;
   markW: number;
   qrSize: number; qrCutSize: number; qrGap: number; qrTextSize: number; qrTextGap: number;
@@ -1076,9 +1076,17 @@ function ProofBox({
       if (hMm > effCellHmm) effCellHmm = hMm;
     }
 
-    // Page = exactly the grid content. No A4, no margin, no fit-scaling.
-    const pageWmm = tCols * effCellWmm + Math.max(0, tCols - 1) * tGap;
-    const pageHmm = tRows * effCellHmm + Math.max(0, tRows - 1) * tGap;
+    // Text block height (mm) — included in "대지" so output page contains text.
+    const textHmm = Math.max(0, proof.twinTextSize);
+    const textBlockMm = proof.twinTextGap + textHmm; // gap from mark bottom + glyph height
+    const marginMm = Math.max(0, proof.twinMargin);
+
+    // Effective cell = template + text block below it
+    const cellTotalHmm = effCellHmm + textBlockMm;
+
+    // Page = grid content + margin on all sides
+    const pageWmm = tCols * effCellWmm + Math.max(0, tCols - 1) * tGap + 2 * marginMm;
+    const pageHmm = tRows * cellTotalHmm + Math.max(0, tRows - 1) * tGap + 2 * marginMm;
     const pageWpt = pageWmm * MM;
     const pageHpt = pageHmm * MM;
     const page = out.addPage([pageWpt, pageHpt]);
@@ -1105,14 +1113,14 @@ function ProofBox({
       const it = pageItems[idx];
       const col = idx % tCols;
       const row = Math.floor(idx / tCols);
-      const cellXmm = col * (effCellWmm + tGap);
-      const cellYmm = row * (effCellHmm + tGap);
+      const cellXmm = marginMm + col * (effCellWmm + tGap);
+      const cellYmm = marginMm + row * (cellTotalHmm + tGap);
 
       // Draw template at its native size (no scaling).
       const emb = gradeEmbeds[it.grade];
       const drawWmm = emb ? (emb.width / MM) : cellW;
       const drawHmm = emb ? (emb.height / MM) : cellH;
-      // Center inside the cell
+      // Center horizontally inside the cell; align to top so text sits cleanly below.
       const xMm = cellXmm + (effCellWmm - drawWmm) / 2;
       const yMm = cellYmm + (effCellHmm - drawHmm) / 2;
 
@@ -1146,12 +1154,14 @@ function ProofBox({
         }
       }
 
+      // Text BELOW mark, inside the page (margin guarantees no overflow).
       const fontPt = Math.max(4, proof.twinTextSize * MM);
-      const textBaseYmm = yMm + drawHmm - proof.twinTextGap;
+      // Baseline = bottom of glyph row. Place glyphs in the textBlock area beneath mark.
+      const baselineYmm = cellYmm + effCellHmm + proof.twinTextGap + textHmm;
       const textWidth = helv.widthOfTextAtSize(it.uniqueNo, fontPt);
       page.drawText(it.uniqueNo, {
-        x: xMm * MM + drawWmm * MM / 2 - textWidth / 2,
-        y: pageHpt - textBaseYmm * MM,
+        x: cellXmm + effCellWmm / 2 - textWidth / 2,
+        y: pageHpt - baselineYmm * MM,
         size: fontPt,
         font: helv,
         color: rgb(0, 0, 0),
@@ -1296,20 +1306,20 @@ function ProofBox({
               <NumField label="가로 수량" v={proof.twinCols} set={v => setProof(p => ({ ...p, twinCols: v }))} />
               <NumField label="세로 수량" v={proof.twinRows} set={v => setProof(p => ({ ...p, twinRows: v }))} />
               <NumField label="마크 이격(mm)" v={proof.twinGap} set={v => setProof(p => ({ ...p, twinGap: v }))} step={0.1} />
+              <NumField label="대지 여백(mm)" v={proof.twinMargin} set={v => setProof(p => ({ ...p, twinMargin: v }))} step={0.1} />
               <NumField label="마크번호 크기(mm)" v={proof.twinTextSize} set={v => setProof(p => ({ ...p, twinTextSize: v }))} step={0.1} />
               <NumField label="마크번호 이격(mm)" v={proof.twinTextGap} set={v => setProof(p => ({ ...p, twinTextGap: v }))} step={0.1} />
             </div>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="text-xs text-muted-foreground">
-                출력 사이즈: <span className="font-mono text-foreground">{(tCols * cellW + Math.max(0, tCols - 1) * tGap).toFixed(2)} × {(tRows * cellH + Math.max(0, tRows - 1) * tGap).toFixed(2)} mm</span> · 마크 크기: <span className="font-mono text-foreground">{cellW.toFixed(2)} × {cellH.toFixed(2)} mm</span> (원본 63 × 60.811, 비율 고정) · 페이지당 {perPageT}개 · 총 {items.length}개 · {totalPagesT}페이지
                 {(() => {
-                  const tMargin = 10;
-                  const contentW = tCols * cellW + Math.max(0, tCols - 1) * tGap;
-                  const contentH = tRows * cellH + Math.max(0, tRows - 1) * tGap;
-                  const availW = A4_W - 2 * tMargin;
-                  const availH = A4_H - 2 * tMargin;
-                  const fit = Math.min(availW / contentW, availH / contentH, 1);
-                  return fit < 1 ? <span className="ml-2 text-amber-600 dark:text-amber-400">· 대지 초과 자동 축소 {(fit * 100).toFixed(1)}%</span> : null;
+                  const textBlock = proof.twinTextGap + proof.twinTextSize;
+                  const cellTotalH = cellH + textBlock;
+                  const outW = tCols * cellW + Math.max(0, tCols - 1) * tGap + 2 * proof.twinMargin;
+                  const outH = tRows * cellTotalH + Math.max(0, tRows - 1) * tGap + 2 * proof.twinMargin;
+                  return (
+                    <>대지 사이즈(텍스트 포함): <span className="font-mono text-foreground">{outW.toFixed(2)} × {outH.toFixed(2)} mm</span> · 여백 {proof.twinMargin}mm · 마크 크기: <span className="font-mono text-foreground">{cellW.toFixed(2)} × {cellH.toFixed(2)} mm</span> · 페이지당 {perPageT}개 · 총 {items.length}개 · {totalPagesT}페이지</>
+                  );
                 })()}
               </div>
               <div className="flex items-center gap-2 flex-wrap shrink-0">
@@ -1341,80 +1351,78 @@ function ProofBox({
             </div>
 
             <div className="flex justify-center">
-              <div
-                className="relative bg-white shadow border"
-                style={{ width: PAPER_W_PX, height: paperHpx }}
-              >
-                {(() => {
-                  const tMargin = 10; // mm 여백
-                  const contentW = tCols * cellW + Math.max(0, tCols - 1) * tGap;
-                  const contentH = tRows * cellH + Math.max(0, tRows - 1) * tGap;
-                  const availW = A4_W - 2 * tMargin;
-                  const availH = A4_H - 2 * tMargin;
-                  const fit = Math.min(availW / contentW, availH / contentH, 1);
-                  const scaledW = contentW * fit;
-                  const scaledH = contentH * fit;
-                  const originX = (tMargin + (availW - scaledW) / 2) * mmPx;
-                  const originY = (tMargin + (availH - scaledH) / 2) * mmPx;
-                  return (
-                    <>
+              {(() => {
+                const marginMm = Math.max(0, proof.twinMargin);
+                const textBlock = proof.twinTextGap + proof.twinTextSize;
+                const cellTotalH = cellH + textBlock;
+                const outWmm = tCols * cellW + Math.max(0, tCols - 1) * tGap + 2 * marginMm;
+                const outHmm = tRows * cellTotalH + Math.max(0, tRows - 1) * tGap + 2 * marginMm;
+                // Scale so preview width fits PAPER_W_PX
+                const fitPx = PAPER_W_PX / outWmm;
+                const stageW = outWmm * fitPx;
+                const stageH = outHmm * fitPx;
+                return (
+                  <div className="relative bg-white shadow border" style={{ width: stageW, height: stageH }}>
+                    {/* 대지 여백 표시 */}
+                    {marginMm > 0 && (
                       <div
-                        className="absolute border border-dashed border-muted-foreground/30 pointer-events-none"
-                        style={{ left: tMargin * mmPx, top: tMargin * mmPx, width: availW * mmPx, height: availH * mmPx }}
+                        className="absolute border border-dashed border-muted-foreground/40 pointer-events-none"
+                        style={{ left: marginMm * fitPx, top: marginMm * fitPx, width: (outWmm - 2 * marginMm) * fitPx, height: (outHmm - 2 * marginMm) * fitPx }}
                       />
-                      {pageItemsT.map((it, idx) => {
-                        const col = idx % tCols;
-                        const row = Math.floor(idx / tCols);
-                        const x = originX + col * (cellW + tGap) * fit * mmPx;
-                        const y = originY + row * (cellH + tGap) * fit * mmPx;
-                        const w = cellW * fit * mmPx;
-                        const h = cellH * fit * mmPx;
-                        const tmpl = templates[it.grade];
-                        const twinPx = proof.twinSize * fit * mmPx;
-                        const offX = proof.twinOffsetX * fit * mmPx;
-                        const offY = proof.twinOffsetY * fit * mmPx;
-                        return (
-                          <div
-                            key={it.uniqueNo}
-                            className="absolute"
-                            style={{ left: x, top: y, width: w, height: h }}
-                          >
-
-                      {tmpl?.preview ? (
-                        <img src={tmpl.preview} alt="" className="absolute inset-0 w-full h-full object-contain pointer-events-none" />
-                      ) : (
-                        <div className="absolute inset-0 border border-dashed border-muted-foreground/40 flex items-center justify-center text-[9px] text-muted-foreground">
-                          {it.grade} 포맷 없음
-                        </div>
-                      )}
-                      <div
-                        className="absolute"
-                        style={{
-                          left: `calc(50% + ${offX}px - ${twinPx / 2}px)`,
-                          top: `calc(50% + ${offY}px - ${twinPx / 2}px)`,
-                          width: twinPx,
-                          height: twinPx,
-                        }}
-                      >
-                        {(testTwinSvg?.url || it.svgUrl) ? (
-                          <img src={testTwinSvg?.url || it.svgUrl!} alt="" className="w-full h-full object-contain" />
-                        ) : (
-                          <div className="w-full h-full border border-dashed border-destructive flex items-center justify-center text-[8px] text-destructive">no svg</div>
-                        )}
-                      </div>
-                      <div
-                        className="absolute left-0 right-0 text-center font-mono text-foreground"
-                        style={{ bottom: proof.twinTextGap * fit * mmPx, fontSize: Math.max(6, proof.twinTextSize * fit * mmPx) }}
-                      >
-                        {it.uniqueNo}
-                      </div>
+                    )}
+                    {pageItemsT.map((it, idx) => {
+                      const col = idx % tCols;
+                      const row = Math.floor(idx / tCols);
+                      const cellXmm = marginMm + col * (cellW + tGap);
+                      const cellYmm = marginMm + row * (cellTotalH + tGap);
+                      const x = cellXmm * fitPx;
+                      const y = cellYmm * fitPx;
+                      const w = cellW * fitPx;
+                      const h = cellH * fitPx;
+                      const tmpl = templates[it.grade];
+                      const twinPx = proof.twinSize * fitPx;
+                      const offX = proof.twinOffsetX * fitPx;
+                      const offY = proof.twinOffsetY * fitPx;
+                      return (
+                        <div key={it.uniqueNo} className="absolute" style={{ left: x, top: y, width: w, height: h + textBlock * fitPx }}>
+                          {/* mark area */}
+                          <div className="absolute" style={{ left: 0, top: 0, width: w, height: h }}>
+                            {tmpl?.preview ? (
+                              <img src={tmpl.preview} alt="" className="absolute inset-0 w-full h-full object-contain pointer-events-none" />
+                            ) : (
+                              <div className="absolute inset-0 border border-dashed border-muted-foreground/40 flex items-center justify-center text-[9px] text-muted-foreground">
+                                {it.grade} 포맷 없음
+                              </div>
+                            )}
+                            <div
+                              className="absolute"
+                              style={{
+                                left: `calc(50% + ${offX}px - ${twinPx / 2}px)`,
+                                top: `calc(50% + ${offY}px - ${twinPx / 2}px)`,
+                                width: twinPx,
+                                height: twinPx,
+                              }}
+                            >
+                              {(testTwinSvg?.url || it.svgUrl) ? (
+                                <img src={testTwinSvg?.url || it.svgUrl!} alt="" className="w-full h-full object-contain" />
+                              ) : (
+                                <div className="w-full h-full border border-dashed border-destructive flex items-center justify-center text-[8px] text-destructive">no svg</div>
+                              )}
                             </div>
-                          );
-                        })}
-                      </>
-                    );
-                  })()}
-              </div>
+                          </div>
+                          {/* text below mark */}
+                          <div
+                            className="absolute left-0 right-0 text-center font-mono text-foreground leading-none"
+                            style={{ top: h + proof.twinTextGap * fitPx, fontSize: Math.max(6, proof.twinTextSize * fitPx) }}
+                          >
+                            {it.uniqueNo}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           </TabsContent>
 
