@@ -264,10 +264,16 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const [compareOrigin, setCompareOrigin] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
   const [sliderPct, setSliderPct] = useState<number>(50);
   const [compareBg, setCompareBg] = useState<"checker" | "white" | "black">("checker");
+  const [compareTarget, setCompareTarget] = useState<"upscaled" | "vector">("vector");
+  // Persist each processed result independently so the comparator can switch between them.
+  const [upscaledDataUrl, setUpscaledDataUrl] = useState<string | null>(null);
+  const [vectorDataUrl, setVectorDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
     setProcessedDataUrl(null);
     setProcessedKind("original");
+    setUpscaledDataUrl(null);
+    setVectorDataUrl(null);
     setTestLogoDataUrl(null);
     setTestLogoName(null);
   }, [logoUrl]);
@@ -325,6 +331,8 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       setTestLogoName(file.name);
       setProcessedDataUrl(null);
       setProcessedKind("original");
+      setUpscaledDataUrl(null);
+      setVectorDataUrl(null);
       toast({ title: "테스트 로고 적용됨", description: file.name });
     };
     reader.onerror = () => toast({ title: "파일 읽기 실패", variant: "destructive" });
@@ -336,6 +344,8 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     setTestLogoName(null);
     setProcessedDataUrl(null);
     setProcessedKind("original");
+    setUpscaledDataUrl(null);
+    setVectorDataUrl(null);
     if (testLogoInputRef.current) testLogoInputRef.current.value = "";
     toast({ title: "테스트 로고 제거됨", description: "원본 로고로 복원되었습니다" });
   };
@@ -355,8 +365,11 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      setProcessedDataUrl(canvas.toDataURL("image/png"));
+      const up = canvas.toDataURL("image/png");
+      setUpscaledDataUrl(up);
+      setProcessedDataUrl(up);
       setProcessedKind("upscaled");
+      setCompareTarget("upscaled");
       toast({ title: "업스케일 완료", description: `${img.naturalWidth}×${img.naturalHeight} → ${canvas.width}×${canvas.height}` });
     } catch (e: any) {
       toast({ title: "업스케일 실패", description: e.message, variant: "destructive" });
@@ -526,8 +539,10 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
         viewbox: true,
       } as any);
       const svgDataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(svgString)}`;
+      setVectorDataUrl(svgDataUrl);
       setProcessedDataUrl(svgDataUrl);
       setProcessedKind("vector");
+      setCompareTarget("vector");
       toast({ title: "벡터 변환 완료", description: `${resolvedLabel} 프리셋으로 변환되었습니다.` });
     } catch (e: any) {
       toast({ title: "벡터 변환 실패", description: e.message, variant: "destructive" });
@@ -561,6 +576,8 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const resetLogo = () => {
     setProcessedDataUrl(null);
     setProcessedKind("original");
+    setUpscaledDataUrl(null);
+    setVectorDataUrl(null);
   };
 
   const downloadResultPdf = async () => {
@@ -960,6 +977,10 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                   <div className="text-sm font-semibold">원본 ↔ 변환 결과 확대 비교</div>
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="flex items-center gap-1 rounded-md border p-0.5">
+                      <Button size="sm" variant={compareTarget === "upscaled" ? "default" : "ghost"} className="h-7 px-2 text-xs" onClick={() => setCompareTarget("upscaled")} disabled={!upscaledDataUrl} title={!upscaledDataUrl ? "먼저 '업스케일'을 실행하세요" : "업스케일 결과와 비교"}>업스케일</Button>
+                      <Button size="sm" variant={compareTarget === "vector" ? "default" : "ghost"} className="h-7 px-2 text-xs" onClick={() => setCompareTarget("vector")} disabled={!vectorDataUrl} title={!vectorDataUrl ? "먼저 '벡터 변환'을 실행하세요" : "벡터 결과와 비교"}>벡터</Button>
+                    </div>
+                    <div className="flex items-center gap-1 rounded-md border p-0.5">
                       <Button size="sm" variant={compareMode === "side" ? "default" : "ghost"} className="h-7 px-2 text-xs" onClick={() => setCompareMode("side")}>좌우</Button>
                       <Button size="sm" variant={compareMode === "slider" ? "default" : "ghost"} className="h-7 px-2 text-xs" onClick={() => setCompareMode("slider")}>오버레이</Button>
                     </div>
@@ -980,30 +1001,37 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                   <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => { setCompareZoom(1); setCompareOrigin({ x: 50, y: 50 }); }}>초기화</Button>
                 </div>
 
-                {processedKind !== "vector" ? (
-                  <div className="text-xs text-muted-foreground p-3 rounded bg-muted/30">
-                    ※ 비교를 위해서 먼저 '벡터 변환'을 실행하세요. 현재는 원본만 표시됩니다.
-                  </div>
-                ) : null}
-
-                {/* Viewer */}
-                {compareMode === "side" ? (
-                  <div className="grid grid-cols-2 gap-3">
-                    <CompareTile label="원본" src={sourceLogo} zoom={compareZoom} origin={compareOrigin} onMove={setCompareOrigin} bg={compareBg} />
-                    <CompareTile label="벡터 변환" src={processedKind === "vector" ? (processedDataUrl || sourceLogo) : sourceLogo} zoom={compareZoom} origin={compareOrigin} onMove={setCompareOrigin} bg={compareBg} muted={processedKind !== "vector"} />
-                  </div>
-                ) : (
-                  <CompareOverlay
-                    original={sourceLogo}
-                    processed={processedKind === "vector" ? processedDataUrl : null}
-                    zoom={compareZoom}
-                    origin={compareOrigin}
-                    onMove={setCompareOrigin}
-                    sliderPct={sliderPct}
-                    onSliderChange={setSliderPct}
-                    bg={compareBg}
-                  />
-                )}
+                {(() => {
+                  const targetUrl = compareTarget === "vector" ? vectorDataUrl : upscaledDataUrl;
+                  const targetLabel = compareTarget === "vector" ? "벡터 변환" : "업스케일 (2×)";
+                  const ready = !!targetUrl;
+                  return (
+                    <>
+                      {!ready && (
+                        <div className="text-xs text-muted-foreground p-3 rounded bg-muted/30">
+                          ※ 비교를 위해 먼저 '{compareTarget === "vector" ? "벡터 변환" : "업스케일"}'을 실행하세요. 현재는 원본만 표시됩니다.
+                        </div>
+                      )}
+                      {compareMode === "side" ? (
+                        <div className="grid grid-cols-2 gap-3">
+                          <CompareTile label="원본" src={sourceLogo} zoom={compareZoom} origin={compareOrigin} onMove={setCompareOrigin} bg={compareBg} />
+                          <CompareTile label={targetLabel} src={targetUrl || sourceLogo} zoom={compareZoom} origin={compareOrigin} onMove={setCompareOrigin} bg={compareBg} muted={!ready} />
+                        </div>
+                      ) : (
+                        <CompareOverlay
+                          original={sourceLogo}
+                          processed={targetUrl}
+                          zoom={compareZoom}
+                          origin={compareOrigin}
+                          onMove={setCompareOrigin}
+                          sliderPct={sliderPct}
+                          onSliderChange={setSliderPct}
+                          bg={compareBg}
+                        />
+                      )}
+                    </>
+                  );
+                })()}
                 <p className="text-[10px] text-muted-foreground">
                   ※ 이미지 위에서 마우스를 움직이면 확대 중심점이 따라옵니다. 좌우 모드는 동기화된 확대, 오버레이 모드는 가운데 핸들을 드래그해 비교하세요.
                 </p>
