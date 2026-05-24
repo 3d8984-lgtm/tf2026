@@ -507,7 +507,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
 
             {/* Settings row */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
               <div className="space-y-1">
                 <Label className="text-xs">작업종류</Label>
                 <Select value={workType} onValueChange={(v) => setWorkType(v as WorkType)}>
@@ -517,53 +517,54 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1 md:col-span-2">
+              <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs">로고 사이즈 (mm) — 가로 × 세로</Label>
-                  <label className="text-[11px] text-muted-foreground flex items-center gap-1 cursor-pointer">
+                  <Label className="text-xs">가로 (mm)</Label>
+                  <label className="text-[10px] text-muted-foreground flex items-center gap-1 cursor-pointer">
                     <input type="checkbox" checked={lockAspect} onChange={(e) => setLockAspect(e.target.checked)} className="h-3 w-3" />
-                    비율 고정
+                    비율
                   </label>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="relative">
-                    <Input
-                      type="number"
-                      step="0.5"
-                      value={logoWidthMm}
-                      onChange={(e) => handleWidthChange(Number(e.target.value) || 0)}
-                      className="h-9 pr-12"
-                    />
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">W mm</span>
-                  </div>
-                  <div className="relative">
-                    <Input
-                      type="number"
-                      step="0.5"
-                      value={logoHeightMm}
-                      onChange={(e) => handleHeightChange(Number(e.target.value) || 0)}
-                      className="h-9 pr-12"
-                    />
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">H mm</span>
-                  </div>
+                <div className="relative">
+                  <Input
+                    type="number"
+                    step="0.5"
+                    value={logoWidthMm}
+                    onChange={(e) => handleWidthChange(Number(e.target.value) || 0)}
+                    className="h-9 pr-10"
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">mm</span>
                 </div>
-                <p className="text-[10px] text-muted-foreground">
-                  ※ 업스케일/벡터 변환은 이미지 해상도만 향상시키며, 실제 인쇄 사이즈는 위 설정값(mm)이 그대로 유지됩니다.
-                </p>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">로고 업스케일링 (2×)</Label>
+                <Label className="text-xs">세로 (mm)</Label>
+                <div className="relative">
+                  <Input
+                    type="number"
+                    step="0.5"
+                    value={logoHeightMm}
+                    onChange={(e) => handleHeightChange(Number(e.target.value) || 0)}
+                    className="h-9 pr-10"
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">mm</span>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">업스케일 (2×)</Label>
                 <Button size="sm" variant="outline" className="w-full h-9" onClick={handleUpscale} disabled={!sourceLogo || !!busy}>
-                  <Sparkles className="w-3 h-3 mr-1" /> 업스케일 실행
+                  <Sparkles className="w-3 h-3 mr-1" /> 실행
                 </Button>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">PNG → 벡터 (SVG)</Label>
+                <Label className="text-xs">벡터 변환</Label>
                 <Button size="sm" variant="outline" className="w-full h-9" onClick={handleVectorize} disabled={!sourceLogo || !!busy}>
-                  <Wand2 className="w-3 h-3 mr-1" /> 벡터 변환
+                  <Wand2 className="w-3 h-3 mr-1" /> 실행
                 </Button>
               </div>
             </div>
+            <p className="text-[10px] text-muted-foreground">
+              ※ 업스케일/벡터 변환은 이미지 해상도만 향상시키며, 실제 인쇄 사이즈는 위 설정값(mm)이 그대로 유지됩니다.
+            </p>
 
             {busy && <div className="text-xs text-muted-foreground">{busy}</div>}
 
