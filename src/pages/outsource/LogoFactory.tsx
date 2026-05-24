@@ -344,6 +344,8 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     setTestLogoName(null);
     setProcessedDataUrl(null);
     setProcessedKind("original");
+    setUpscaledDataUrl(null);
+    setVectorDataUrl(null);
     if (testLogoInputRef.current) testLogoInputRef.current.value = "";
     toast({ title: "테스트 로고 제거됨", description: "원본 로고로 복원되었습니다" });
   };
