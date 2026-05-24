@@ -257,6 +257,12 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const [testLogoName, setTestLogoName] = useState<string | null>(null);
   const testLogoInputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // Compare viewer
+  const [compareMode, setCompareMode] = useState<"side" | "slider">("side");
+  const [compareZoom, setCompareZoom] = useState<number>(3);
+  const [compareOrigin, setCompareOrigin] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
+  const [sliderPct, setSliderPct] = useState<number>(50);
+  const [compareBg, setCompareBg] = useState<"checker" | "white" | "black">("checker");
 
   useEffect(() => {
     setProcessedDataUrl(null);
