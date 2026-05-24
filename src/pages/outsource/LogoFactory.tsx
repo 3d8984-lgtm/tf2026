@@ -212,9 +212,17 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const [naturalAspect, setNaturalAspect] = useState<number>(1); // width / height
   const [processedDataUrl, setProcessedDataUrl] = useState<string | null>(null); // upscaled or vectorized
   const [processedKind, setProcessedKind] = useState<"original" | "upscaled" | "vector">("original");
-  type VectorPreset = "high-res" | "smooth-curve" | "sharp-edge" | "mono-line";
-  const [vectorPreset, setVectorPreset] = useState<VectorPreset>("smooth-curve");
+  type VectorPreset = "auto" | "high-res" | "smooth-curve" | "sharp-edge" | "mono-line";
+  const [vectorPreset, setVectorPreset] = useState<VectorPreset>("auto");
+  const [autoAnalysis, setAutoAnalysis] = useState<null | { colors: number; edgeDensity: number; sharpness: number; baseline: VectorPreset; ltres: number; qtres: number; pathomit: number; blurMul: number; targetPx: number; numberofcolors: number }>(null);
   const VECTOR_PRESETS: Record<VectorPreset, { label: string; desc: string; targetPx: number; blurMul: number; opts: Record<string, unknown> }> = {
+    "auto": {
+      label: "자동 최적화 (로고 분석)",
+      desc: "엣지/색상/선명도를 분석해 매개변수를 자동 산출",
+      targetPx: 2600,
+      blurMul: 0.8,
+      opts: {},
+    },
     "high-res": {
       label: "고해상도 (색상 풍부)",
       desc: "원본 색상/디테일을 최대한 보존 · 컬러 로고 권장",
@@ -347,6 +355,87 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     } finally { setBusy(null); }
   };
 
+  // Analyze logo image to derive optimal tracer parameters.
+  // Returns ltres/qtres/pathomit/blurMul/numberofcolors plus a chosen baseline label.
+  const analyzeLogoForVector = (img: HTMLImageElement) => {
+    // Downsample to a small canvas for fast analysis
+    const ANALYSIS_MAX = 256;
+    const ar = img.naturalWidth / img.naturalHeight;
+    const aw = ar >= 1 ? ANALYSIS_MAX : Math.round(ANALYSIS_MAX * ar);
+    const ah = ar >= 1 ? Math.round(ANALYSIS_MAX / ar) : ANALYSIS_MAX;
+    const c = document.createElement("canvas");
+    c.width = aw; c.height = ah;
+    const cx = c.getContext("2d")!;
+    cx.imageSmoothingEnabled = true;
+    cx.imageSmoothingQuality = "high";
+    // Composite onto white so transparent pixels do not skew luminance
+    cx.fillStyle = "#ffffff";
+    cx.fillRect(0, 0, aw, ah);
+    cx.drawImage(img, 0, 0, aw, ah);
+    const { data } = cx.getImageData(0, 0, aw, ah);
+    const total = aw * ah;
+
+    // 1) Unique color count via 5-bit per channel bucketing (alpha-weighted)
+    const colorBuckets = new Set<number>();
+    const lum = new Float32Array(total);
+    let opaqueCount = 0;
+    for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+      const a = data[i + 3];
+      if (a < 16) { lum[p] = -1; continue; }
+      opaqueCount++;
+      const r = data[i] >> 3, g = data[i + 1] >> 3, b = data[i + 2] >> 3;
+      colorBuckets.add((r << 10) | (g << 5) | b);
+      lum[p] = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+    }
+    const colors = colorBuckets.size;
+
+    // 2) Edge density + sharpness via simple gradient (Sobel-ish)
+    let edgeCount = 0;
+    let gradSum = 0;
+    let gradSqSum = 0;
+    let gradN = 0;
+    const EDGE_THRESH = 32;
+    for (let y = 1; y < ah - 1; y++) {
+      for (let x = 1; x < aw - 1; x++) {
+        const p = y * aw + x;
+        if (lum[p] < 0) continue;
+        const gx = Math.abs((lum[p + 1] >= 0 ? lum[p + 1] : lum[p]) - (lum[p - 1] >= 0 ? lum[p - 1] : lum[p]));
+        const gy = Math.abs((lum[p + aw] >= 0 ? lum[p + aw] : lum[p]) - (lum[p - aw] >= 0 ? lum[p - aw] : lum[p]));
+        const g = gx + gy;
+        gradSum += g; gradSqSum += g * g; gradN++;
+        if (g > EDGE_THRESH) edgeCount++;
+      }
+    }
+    const edgeDensity = gradN > 0 ? edgeCount / gradN : 0;        // 0..1
+    const gradMean = gradN > 0 ? gradSum / gradN : 0;
+    const gradStd = gradN > 0 ? Math.sqrt(Math.max(0, gradSqSum / gradN - gradMean * gradMean)) : 0;
+    const sharpness = Math.min(1, gradStd / 80);                  // 0..1, higher = crisper
+
+    // 3) Derive parameters
+    //   - colors: limit by detected palette, never below 2
+    //   - sharp logos → low ltres/qtres, low blur, more pathomit if very busy
+    //   - smooth logos → high ltres/qtres, more blur
+    const numberofcolors = Math.min(12, Math.max(2, colors > 64 ? 10 : colors > 24 ? 6 : colors > 8 ? 4 : Math.max(2, colors)));
+    // ltres/qtres: 0.2 (very sharp) → 1.4 (very smooth). Inverse of sharpness.
+    const ltres = +(0.2 + (1 - sharpness) * 1.2).toFixed(2);
+    const qtres = ltres;
+    // blurMul: skip blur on sharp images, increase on aliased/smooth ones
+    const blurMul = +(Math.max(0, (1 - sharpness) * 1.2 - edgeDensity * 0.4)).toFixed(2);
+    // pathomit: drop more tiny artifacts when image is busy/noisy
+    const pathomit = Math.round(8 + edgeDensity * 60);            // 8..68
+    // targetPx: small logos need more upscaling
+    const maxSide = Math.max(img.naturalWidth, img.naturalHeight);
+    const targetPx = maxSide < 400 ? 3000 : maxSide < 1000 ? 2600 : 2200;
+
+    // baseline label
+    let baseline: VectorPreset = "smooth-curve";
+    if (numberofcolors <= 2) baseline = "mono-line";
+    else if (sharpness > 0.55 && numberofcolors <= 4) baseline = "sharp-edge";
+    else if (numberofcolors >= 8) baseline = "high-res";
+
+    return { colors, edgeDensity, sharpness, baseline, ltres, qtres, pathomit, blurMul, targetPx, numberofcolors };
+  };
+
   const handleVectorize = async () => {
     if (!sourceLogo) return;
     setBusy("벡터 변환 중...");
@@ -356,9 +445,38 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       const img = await loadImage(dataUrl);
 
       const preset = VECTOR_PRESETS[vectorPreset];
+
+      // Resolve effective tracer options (auto = analyze + override)
+      let targetPx = preset.targetPx;
+      let blurMul = preset.blurMul;
+      let opts: Record<string, unknown> = { ...preset.opts };
+      let resolvedLabel = preset.label;
+
+      if (vectorPreset === "auto") {
+        const a = analyzeLogoForVector(img);
+        setAutoAnalysis(a);
+        // Seed from the closest baseline preset, then apply analysis-derived overrides
+        const baseOpts = { ...VECTOR_PRESETS[a.baseline].opts } as Record<string, unknown>;
+        opts = {
+          ...baseOpts,
+          numberofcolors: a.numberofcolors,
+          ltres: a.ltres,
+          qtres: a.qtres,
+          pathomit: a.pathomit,
+          // sharper images → keep right-angle enhancement + skip linefilter
+          rightangleenhance: a.sharpness > 0.45,
+          linefilter: a.sharpness <= 0.45,
+          // blurradius (tracer-internal) scales with computed blur strength
+          blurradius: Math.round(Math.max(0, blurMul * 4)),
+        };
+        targetPx = a.targetPx;
+        blurMul = a.blurMul;
+        resolvedLabel = `자동 (기준=${VECTOR_PRESETS[a.baseline].label.split(" ")[0]})`;
+      }
+
       // 1) Upscale so the tracer has many samples per edge
       const maxSide = Math.max(img.naturalWidth, img.naturalHeight);
-      const scale = Math.max(2, Math.min(8, Math.ceil(preset.targetPx / Math.max(1, maxSide))));
+      const scale = Math.max(2, Math.min(8, Math.ceil(targetPx / Math.max(1, maxSide))));
       const w = img.naturalWidth * scale;
       const h = img.naturalHeight * scale;
 
@@ -370,8 +488,8 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       upCtx.imageSmoothingQuality = "high";
       upCtx.drawImage(img, 0, 0, w, h);
 
-      // 2) Optional pre-blur (preset controls strength; 0 = skip)
-      const blurPx = Math.max(0, preset.blurMul * scale);
+      // 2) Optional pre-blur (strength from preset or analysis)
+      const blurPx = Math.max(0, blurMul * scale);
       let sourceCanvas: HTMLCanvasElement = upCanvas;
       if (blurPx > 0.1) {
         const blurCanvas = document.createElement("canvas");
@@ -386,9 +504,9 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
       const imageData = sourceCanvas.getContext("2d")!.getImageData(0, 0, w, h);
 
-      // 3) Trace with preset-specific thresholds
+      // 3) Trace
       const svgString: string = ImageTracer.imagedataToSVG(imageData, {
-        ...preset.opts,
+        ...opts,
         strokewidth: 0,
         scale: 1 / scale,
         viewbox: true,
@@ -396,11 +514,12 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       const svgDataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(svgString)}`;
       setProcessedDataUrl(svgDataUrl);
       setProcessedKind("vector");
-      toast({ title: "벡터 변환 완료", description: `${preset.label} 프리셋으로 변환되었습니다.` });
+      toast({ title: "벡터 변환 완료", description: `${resolvedLabel} 프리셋으로 변환되었습니다.` });
     } catch (e: any) {
       toast({ title: "벡터 변환 실패", description: e.message, variant: "destructive" });
     } finally { setBusy(null); }
   };
+
 
 
   const downloadVectorSvg = () => {
@@ -741,9 +860,15 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="text-[10px] text-muted-foreground md:max-w-[260px]">
+              <div className="text-[10px] text-muted-foreground md:max-w-[280px]">
                 현재: <span className="font-medium text-foreground">{VECTOR_PRESETS[vectorPreset].label}</span><br />
                 {VECTOR_PRESETS[vectorPreset].desc}
+                {vectorPreset === "auto" && autoAnalysis && (
+                  <div className="mt-1 rounded border bg-muted/40 p-1.5 font-mono text-[10px] leading-snug text-foreground/80">
+                    분석결과 · 색상≈{autoAnalysis.numberofcolors} · 엣지밀도 {(autoAnalysis.edgeDensity * 100).toFixed(1)}% · 선명도 {(autoAnalysis.sharpness * 100).toFixed(0)}%<br />
+                    ltres={autoAnalysis.ltres} · qtres={autoAnalysis.qtres} · pathomit={autoAnalysis.pathomit} · blur×{autoAnalysis.blurMul}
+                  </div>
+                )}
               </div>
             </div>
             <p className="text-[10px] text-muted-foreground">
