@@ -7,12 +7,16 @@ import PageHeader from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ChevronLeft, Eye, Upload, FileText, X, Loader2 } from "lucide-react";
+import { ChevronLeft, Eye, Upload, FileText, X, Loader2, Download } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { useOrders } from "@/hooks/useDbData";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import * as XLSX from "xlsx";
 import QRCode from "qrcode";
 
 async function renderPdfFirstPagePng(bytes: Uint8Array): Promise<string> {
