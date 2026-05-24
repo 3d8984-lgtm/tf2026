@@ -30,6 +30,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -456,6 +457,12 @@ export default function SiliconFactory() {
     });
   }, [detailOrderNo, ordersData]);
 
+  const detailOrder = useMemo(() => {
+    if (!detailOrderNo || !ordersData) return null;
+    return (ordersData as any[]).find(o => o.external_order_id === detailOrderNo) || null;
+  }, [detailOrderNo, ordersData]);
+
+
   // Generate QR dataURLs for all detail items (for proof preview)
   useEffect(() => {
     let cancelled = false;
@@ -633,7 +640,9 @@ export default function SiliconFactory() {
             setPage={setProofPage}
             qrPage={proofQrPage}
             setQrPage={setProofQrPage}
+            order={detailOrder}
           />
+
 
           <Card>
             <CardContent className="p-0">
@@ -910,6 +919,15 @@ function NumField({ label, v, set, step }: { label: string; v: number; set: (v: 
   );
 }
 
+function TxtField({ label, v, set, type = "text" }: { label: string; v: string; set: (v: string) => void; type?: string }) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs">{label}</Label>
+      <Input type={type} value={v} onChange={e => set(e.target.value)} className="h-9" />
+    </div>
+  );
+}
+
 const PROOF_LS_KEY = "silicon.proofSettings.v1";
 
 interface ProofItem { seq: number; orderNo: string; uniqueNo: string; svgUrl: string | null; grade: Grade; }
@@ -921,7 +939,7 @@ interface ProofSettings {
 }
 
 function ProofBox({
-  items, templates, proof, setProof, qrMap, page, setPage, qrPage, setQrPage,
+  items, templates, proof, setProof, qrMap, page, setPage, qrPage, setQrPage, order,
 }: {
   items: ProofItem[];
   templates: Record<Grade, { name: string; bytes: Uint8Array; preview: string; aspect: number } | null>;
@@ -930,7 +948,9 @@ function ProofBox({
   qrMap: Record<string, string>;
   page: number; setPage: (n: number) => void;
   qrPage: number; setQrPage: (n: number) => void;
+  order?: any;
 }) {
+
   const PAPER_W_PX = 640;
   const A4_W = 210, A4_H = 297;
   const MARK_ORIG_W = 63, MARK_ORIG_H = 60.811; // 업로드된 PDF(벡터) 원본 사이즈
@@ -958,17 +978,102 @@ function ProofBox({
   const pageQ = Math.min(qrPage, totalPagesQ - 1);
   const pageItemsQ = items.slice(pageQ * perPageQ, pageQ * perPageQ + perPageQ);
 
+  // ===== 작업지시서 설정 =====
+  const orderNo: string = order?.external_order_id || items[0]?.orderNo || "";
+  const WO_LS_KEY = `silicon.workOrder.v1.${orderNo}`;
+  const gradeCountsFromItems = useMemo(() => {
+    const c: Record<Grade, number> = { COMMON: 0, RARE: 0, EPIC: 0, LEGEND: 0 };
+    for (const it of items) c[it.grade] = (c[it.grade] || 0) + 1;
+    return c;
+  }, [items]);
+  const woDefaults = useMemo(() => {
+    const sd = order?.source_data || {};
+    const addrParts = [order?.shipping_address, order?.shipping_city, order?.shipping_state, order?.shipping_zip, order?.shipping_country].filter(Boolean);
+    return {
+      company: sd.company_name || sd.supplier_name || sd.brand || "",
+      orderNo,
+      orderDate: (order?.created_at || "").slice(0, 10),
+      deliveryDate: (order?.project_completed_at || "").slice(0, 10),
+      common: gradeCountsFromItems.COMMON,
+      rare: gradeCountsFromItems.RARE,
+      epic: gradeCountsFromItems.EPIC,
+      legend: gradeCountsFromItems.LEGEND,
+      total: items.length || order?.quantity || 0,
+      recipient: order?.recipient_name || "",
+      phone: order?.recipient_phone || "",
+      address: addrParts.join(", "),
+      notes: sd.notes || sd.special_notes || sd.memo || "",
+    };
+  }, [order, items, gradeCountsFromItems, orderNo]);
+  const [workOrder, setWorkOrder] = useState(woDefaults);
+  useEffect(() => {
+    try {
+      const raw = typeof window !== "undefined" && orderNo ? localStorage.getItem(WO_LS_KEY) : null;
+      if (raw) setWorkOrder({ ...woDefaults, ...JSON.parse(raw) });
+      else setWorkOrder(woDefaults);
+    } catch { setWorkOrder(woDefaults); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderNo]);
+  const setWO = (patch: Partial<typeof workOrder>) => setWorkOrder(prev => ({ ...prev, ...patch }));
+  const woTotal = (Number(workOrder.common) || 0) + (Number(workOrder.rare) || 0) + (Number(workOrder.epic) || 0) + (Number(workOrder.legend) || 0);
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">시안 박스 · 공장 발주 파일 확인</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-6">
+        {/* ============== 작업지시서 설정 ============== */}
+        <Card className="border-dashed">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center justify-between">
+              <span>작업지시서 설정</span>
+              <Button size="sm" variant="default" onClick={() => {
+                try {
+                  localStorage.setItem(WO_LS_KEY, JSON.stringify({ ...workOrder, total: woTotal }));
+                  toast({ title: "작업지시서 저장됨" });
+                } catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" }); }
+              }}>저장</Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <TxtField label="발주업체명" v={workOrder.company} set={v => setWO({ company: v })} />
+            <TxtField label="작업번호" v={workOrder.orderNo} set={v => setWO({ orderNo: v })} />
+            <div className="grid grid-cols-2 gap-2">
+              <TxtField label="발주일" type="date" v={workOrder.orderDate} set={v => setWO({ orderDate: v })} />
+              <TxtField label="납품일" type="date" v={workOrder.deliveryDate} set={v => setWO({ deliveryDate: v })} />
+            </div>
+            <div className="md:col-span-3 grid grid-cols-2 md:grid-cols-5 gap-2">
+              <TxtField label="COMMON" type="number" v={String(workOrder.common)} set={v => setWO({ common: Number(v) || 0 })} />
+              <TxtField label="RARE" type="number" v={String(workOrder.rare)} set={v => setWO({ rare: Number(v) || 0 })} />
+              <TxtField label="EPIC" type="number" v={String(workOrder.epic)} set={v => setWO({ epic: Number(v) || 0 })} />
+              <TxtField label="LEGEND" type="number" v={String(workOrder.legend)} set={v => setWO({ legend: Number(v) || 0 })} />
+              <div className="space-y-1">
+                <Label className="text-xs">총수량</Label>
+                <Input value={woTotal} readOnly className="h-9 font-mono bg-muted/50" />
+              </div>
+            </div>
+            <TxtField label="받을사람" v={workOrder.recipient} set={v => setWO({ recipient: v })} />
+            <TxtField label="전화번호" v={workOrder.phone} set={v => setWO({ phone: v })} />
+            <TxtField label="주소" v={workOrder.address} set={v => setWO({ address: v })} />
+            <div className="md:col-span-3 space-y-1">
+              <Label className="text-xs">발주특이사항</Label>
+              <Textarea
+                value={workOrder.notes}
+                onChange={(e) => setWO({ notes: e.target.value })}
+                rows={3}
+                placeholder="특이사항을 입력하세요"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
         <Tabs defaultValue="twin">
           <TabsList>
             <TabsTrigger value="twin">트윈코드 시안</TabsTrigger>
             <TabsTrigger value="qr">큐알코드 시안</TabsTrigger>
           </TabsList>
+
 
           {/* ============== 트윈코드 시안 ============== */}
           <TabsContent value="twin" className="pt-4 space-y-4">
@@ -985,7 +1090,7 @@ function ProofBox({
             </div>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="text-xs text-muted-foreground">
-                출력 사이즈: <span className="font-mono text-foreground">{(tCols * cellW + Math.max(0, tCols - 1) * tGap).toFixed(2)} × {(tRows * cellH + Math.max(0, tRows - 1) * tGap).toFixed(2)} mm</span> · 용지: <span className="font-mono text-foreground">A4 210 × 297 mm</span> · 마크 크기: <span className="font-mono text-foreground">{cellW.toFixed(2)} × {cellH.toFixed(2)} mm</span> (원본 63 × 60.811, 비율 고정) · 페이지당 {perPageT}개 · 총 {items.length}개 · {totalPagesT}페이지
+                출력 사이즈: <span className="font-mono text-foreground">{(tCols * cellW + Math.max(0, tCols - 1) * tGap).toFixed(2)} × {(tRows * cellH + Math.max(0, tRows - 1) * tGap).toFixed(2)} mm</span> · 마크 크기: <span className="font-mono text-foreground">{cellW.toFixed(2)} × {cellH.toFixed(2)} mm</span> (원본 63 × 60.811, 비율 고정) · 페이지당 {perPageT}개 · 총 {items.length}개 · {totalPagesT}페이지
               </div>
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="default" onClick={() => {
@@ -1068,7 +1173,7 @@ function ProofBox({
             </div>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="text-xs text-muted-foreground">
-                출력 사이즈: <span className="font-mono text-foreground">{(qCols * proof.qrCutSize + Math.max(0, qCols - 1) * proof.qrGap).toFixed(2)} × {(qRows * proof.qrCutSize + Math.max(0, qRows - 1) * proof.qrGap).toFixed(2)} mm</span> · 용지: <span className="font-mono text-foreground">A4 210 × 297 mm</span> · {qCols} × {qRows} · 페이지당 {perPageQ}개 · 총 {items.length}개 · {totalPagesQ}페이지
+                출력 사이즈: <span className="font-mono text-foreground">{(qCols * proof.qrCutSize + Math.max(0, qCols - 1) * proof.qrGap).toFixed(2)} × {(qRows * proof.qrCutSize + Math.max(0, qRows - 1) * proof.qrGap).toFixed(2)} mm</span> · {qCols} × {qRows} · 페이지당 {perPageQ}개 · 총 {items.length}개 · {totalPagesQ}페이지
               </div>
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="default" onClick={() => {
