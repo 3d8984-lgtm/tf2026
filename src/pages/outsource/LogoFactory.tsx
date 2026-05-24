@@ -212,6 +212,38 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const [naturalAspect, setNaturalAspect] = useState<number>(1); // width / height
   const [processedDataUrl, setProcessedDataUrl] = useState<string | null>(null); // upscaled or vectorized
   const [processedKind, setProcessedKind] = useState<"original" | "upscaled" | "vector">("original");
+  type VectorPreset = "high-res" | "smooth-curve" | "sharp-edge" | "mono-line";
+  const [vectorPreset, setVectorPreset] = useState<VectorPreset>("smooth-curve");
+  const VECTOR_PRESETS: Record<VectorPreset, { label: string; desc: string; targetPx: number; blurMul: number; opts: Record<string, unknown> }> = {
+    "high-res": {
+      label: "고해상도 (색상 풍부)",
+      desc: "원본 색상/디테일을 최대한 보존 · 컬러 로고 권장",
+      targetPx: 3200,
+      blurMul: 0.4,
+      opts: { numberofcolors: 12, colorquantcycles: 5, mincolorratio: 0.005, ltres: 0.4, qtres: 0.4, pathomit: 6, blurradius: 1, blurdelta: 18, rightangleenhance: true, linefilter: false, roundcoords: 2 },
+    },
+    "smooth-curve": {
+      label: "부드러운 곡선",
+      desc: "계단현상 제거 · 둥근 형태/필기체 로고 권장",
+      targetPx: 2400,
+      blurMul: 1.0,
+      opts: { numberofcolors: 4, colorquantcycles: 3, mincolorratio: 0.02, ltres: 1.2, qtres: 1.2, pathomit: 24, blurradius: 4, blurdelta: 28, rightangleenhance: false, linefilter: true, roundcoords: 1 },
+    },
+    "sharp-edge": {
+      label: "선명한 경계",
+      desc: "각진 형태/직선 보존 · 텍스트/엠블럼 로고 권장",
+      targetPx: 2800,
+      blurMul: 0.2,
+      opts: { numberofcolors: 3, colorquantcycles: 4, mincolorratio: 0.01, ltres: 0.2, qtres: 0.2, pathomit: 10, blurradius: 0, blurdelta: 20, rightangleenhance: true, linefilter: false, roundcoords: 2 },
+    },
+    "mono-line": {
+      label: "흑백 단색 (실루엣)",
+      desc: "2색 단순화 · 자수/열전사 단색 작업 최적",
+      targetPx: 2400,
+      blurMul: 0.8,
+      opts: { numberofcolors: 2, colorquantcycles: 3, mincolorratio: 0.05, ltres: 1.0, qtres: 1.0, pathomit: 20, blurradius: 3, blurdelta: 24, rightangleenhance: false, linefilter: true, roundcoords: 1 },
+    },
+  };
   const [testLogoDataUrl, setTestLogoDataUrl] = useState<string | null>(null);
   const [testLogoName, setTestLogoName] = useState<string | null>(null);
   const testLogoInputRef = useRef<HTMLInputElement>(null);
