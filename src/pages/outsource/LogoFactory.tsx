@@ -322,30 +322,55 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       const src = sourceLogo;
       const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
       const img = await loadImage(dataUrl);
-      // Upscale source for cleaner curve tracing (more samples = smoother paths)
-      const scale = Math.max(1, Math.min(4, Math.round(1600 / Math.max(img.naturalWidth, img.naturalHeight))));
-      const canvas = document.createElement("canvas");
-      canvas.width = img.naturalWidth * scale;
-      canvas.height = img.naturalHeight * scale;
-      const ctx = canvas.getContext("2d")!;
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      // Higher-quality tracing: smoother curves, fewer noisy paths, true vector output
+
+      // 1) Upscale aggressively so the tracer has many samples per edge (smoother curves)
+      const maxSide = Math.max(img.naturalWidth, img.naturalHeight);
+      const scale = Math.max(2, Math.min(8, Math.ceil(2400 / Math.max(1, maxSide))));
+      const w = img.naturalWidth * scale;
+      const h = img.naturalHeight * scale;
+
+      const upCanvas = document.createElement("canvas");
+      upCanvas.width = w;
+      upCanvas.height = h;
+      const upCtx = upCanvas.getContext("2d")!;
+      upCtx.imageSmoothingEnabled = true;
+      upCtx.imageSmoothingQuality = "high";
+      upCtx.drawImage(img, 0, 0, w, h);
+
+      // 2) Pre-blur to dissolve aliasing stair-steps before tracing
+      const blurCanvas = document.createElement("canvas");
+      blurCanvas.width = w;
+      blurCanvas.height = h;
+      const blurCtx = blurCanvas.getContext("2d")!;
+      const blurPx = Math.max(1.5, Math.round(scale * 0.9));
+      (blurCtx as any).filter = `blur(${blurPx}px)`;
+      blurCtx.drawImage(upCanvas, 0, 0);
+      (blurCtx as any).filter = "none";
+
+      const imageData = blurCtx.getImageData(0, 0, w, h);
+
+      // 3) Trace with relaxed thresholds so curves are smooth, not stepped
       const svgString: string = ImageTracer.imagedataToSVG(imageData, {
-        numberofcolors: 8,
-        ltres: 0.1,
-        qtres: 0.1,
-        pathomit: 8,
+        // Color quantization
+        numberofcolors: 4,
+        colorquantcycles: 3,
+        mincolorratio: 0.02,
+        // Path simplification — higher = smoother curves (less stair-stepping)
+        ltres: 1.2,
+        qtres: 1.2,
+        pathomit: 24,
         rightangleenhance: false,
+        // Selective blur inside tracer
+        blurradius: 4,
+        blurdelta: 28,
+        // Edge smoothing
         linefilter: true,
-        blurradius: 1,
-        blurdelta: 20,
         strokewidth: 0,
-        roundcoords: 2,
+        roundcoords: 1,
+        // Scale viewbox down so the SVG renders at original logo size
+        scale: 1 / scale,
         viewbox: true,
-      });
+      } as any);
       const svgDataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(svgString)}`;
       setProcessedDataUrl(svgDataUrl);
       setProcessedKind("vector");
@@ -354,6 +379,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       toast({ title: "벡터 변환 실패", description: e.message, variant: "destructive" });
     } finally { setBusy(null); }
   };
+
 
   const downloadVectorSvg = () => {
     if (processedKind !== "vector" || !processedDataUrl) {
