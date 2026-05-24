@@ -246,6 +246,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       const src = sourceLogo!;
       const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
       const img = await loadImage(dataUrl);
+      const scale = 2;
       const canvas = document.createElement("canvas");
       canvas.width = img.naturalWidth * scale;
       canvas.height = img.naturalHeight * scale;
