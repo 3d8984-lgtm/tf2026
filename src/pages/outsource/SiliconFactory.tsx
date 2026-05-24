@@ -457,6 +457,12 @@ export default function SiliconFactory() {
     });
   }, [detailOrderNo, ordersData]);
 
+  const detailOrder = useMemo(() => {
+    if (!detailOrderNo || !ordersData) return null;
+    return (ordersData as any[]).find(o => o.external_order_id === detailOrderNo) || null;
+  }, [detailOrderNo, ordersData]);
+
+
   // Generate QR dataURLs for all detail items (for proof preview)
   useEffect(() => {
     let cancelled = false;
