@@ -62,7 +62,7 @@ export default function HologramFactory() {
   const { t } = useLang();
   const { data: ordersData } = useOrders();
   const [activeOrderNo, setActiveOrderNo] = useState<string | null>(null);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfPreview, setPdfPreview] = useState<string | null>(null);
   const [pdfName, setPdfName] = useState<string | null>(null);
   const [pdfSize, setPdfSize] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -73,21 +73,55 @@ export default function HologramFactory() {
   const loadStoredPdf = async () => {
     const { data: list } = await supabase.storage.from(PDF_BUCKET).list("", { limit: 100 });
     const meta = list?.find((f) => f.name === PDF_PATH);
-    if (!meta) { setPdfUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null; }); setPdfName(null); setPdfSize(null); return; }
-    // Download as blob to avoid Chrome blocking cross-origin PDF iframes
+    if (!meta) { setPdfPreview(null); setPdfName(null); setPdfSize(null); return; }
     const { data: blob, error } = await supabase.storage.from(PDF_BUCKET).download(PDF_PATH);
-    if (error || !blob) { setPdfUrl(null); return; }
-    const pdfBlob = blob.type === "application/pdf" ? blob : new Blob([blob], { type: "application/pdf" });
-    const url = URL.createObjectURL(pdfBlob);
-    setPdfUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return url; });
-    setPdfName((meta.metadata as any)?.originalName || PDF_PATH);
-    setPdfSize((meta.metadata as any)?.size ?? blob.size ?? null);
+    if (error || !blob) { setPdfPreview(null); return; }
+    try {
+      const buf = new Uint8Array(await blob.arrayBuffer());
+      const dataUrl = await renderPdfFirstPagePng(buf);
+      setPdfPreview(dataUrl);
+      setPdfName((meta.metadata as any)?.originalName || PDF_PATH);
+      setPdfSize((meta.metadata as any)?.size ?? blob.size ?? null);
+    } catch (e: any) {
+      toast({ title: "PDF 미리보기 실패", description: e.message, variant: "destructive" as any });
+      setPdfPreview(null);
+    }
   };
 
-  useEffect(() => {
-    loadStoredPdf();
-    return () => { setPdfUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null; }); };
-  }, []);
+  useEffect(() => { loadStoredPdf(); }, []);
+
+  const onPdfSelected = async (f?: File | null) => {
+    if (!f) return;
+    if (f.type !== "application/pdf" && !f.name.toLowerCase().endsWith(".pdf")) {
+      toast({ title: "PDF 파일만 업로드 가능합니다", variant: "destructive" as any });
+      return;
+    }
+    setUploading(true);
+    const { error } = await supabase.storage.from(PDF_BUCKET).upload(PDF_PATH, f, {
+      upsert: true,
+      contentType: "application/pdf",
+    });
+    setUploading(false);
+    if (error) {
+      toast({ title: "업로드 실패", description: error.message, variant: "destructive" as any });
+      return;
+    }
+    toast({ title: "PDF 업로드 완료", description: f.name });
+    await loadStoredPdf();
+  };
+
+  const onDeletePdf = async () => {
+    setUploading(true);
+    const { error } = await supabase.storage.from(PDF_BUCKET).remove([PDF_PATH]);
+    setUploading(false);
+    if (error) {
+      toast({ title: "삭제 실패", description: error.message, variant: "destructive" as any });
+      return;
+    }
+    setPdfPreview(null); setPdfName(null); setPdfSize(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    toast({ title: "PDF 삭제 완료" });
+  };
 
   const onPdfSelected = async (f?: File | null) => {
     if (!f) return;
