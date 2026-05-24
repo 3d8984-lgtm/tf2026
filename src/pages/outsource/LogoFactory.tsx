@@ -482,6 +482,12 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
         resolvedLabel = `자동 (기준=${VECTOR_PRESETS[a.baseline].label.split(" ")[0]})`;
       }
 
+      // Simple-logo monochrome toggle overrides to 2-color (black & white)
+      if (forceMonochrome) {
+        opts = { ...opts, numberofcolors: 2 };
+        resolvedLabel += " · 2색(흑백) 강제";
+      }
+
       // 1) Upscale so the tracer has many samples per edge
       const maxSide = Math.max(img.naturalWidth, img.naturalHeight);
       const scale = Math.max(2, Math.min(8, Math.ceil(targetPx / Math.max(1, maxSide))));
