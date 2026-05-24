@@ -596,7 +596,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 <div className="aspect-square w-full border rounded flex items-center justify-center overflow-hidden relative"
                   style={{ background: workType === "heat-transfer" ? "#1f2937" : workType === "embroidery" ? "#f3eee0" : workType === "laser" ? "#9ca3af" : "#fff" }}>
                   {displayedLogo ? (
-                    <div className="relative flex items-center justify-center" style={{ width: `${Math.min(80, logoSizeMm * 1.2)}%`, height: `${Math.min(80, logoSizeMm * 1.2)}%` }}>
+                    <div className="relative flex items-center justify-center" style={{ width: `${Math.min(80, logoWidthMm * 1.2)}%`, height: `${Math.min(80, logoHeightMm * 1.2)}%` }}>
                       <img
                         src={displayedLogo}
                         alt="effect preview"
