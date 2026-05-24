@@ -609,7 +609,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                   )}
                 </div>
                 <div className="text-[11px] text-muted-foreground">
-                  적용 크기: {logoSizeMm}mm · 수량: {total} EA
+                  적용 크기: {logoWidthMm} × {logoHeightMm} mm · 수량: {total} EA
                 </div>
               </div>
             </div>
