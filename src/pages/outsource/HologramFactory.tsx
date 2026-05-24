@@ -45,6 +45,18 @@ export default function HologramFactory() {
   const { t } = useLang();
   const { data: ordersData } = useOrders();
   const [activeOrderNo, setActiveOrderNo] = useState<string | null>(null);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const onPdfSelected = (f?: File | null) => {
+    if (!f) return;
+    if (f.type !== "application/pdf" && !f.name.toLowerCase().endsWith(".pdf")) {
+      toast({ title: "PDF 파일만 업로드 가능합니다", variant: "destructive" as any });
+      return;
+    }
+    setPdfFile(f);
+    toast({ title: "PDF 업로드 완료", description: f.name });
+  };
 
   const orderRows = useMemo(() => {
     const list = (ordersData || []) as any[];
