@@ -667,7 +667,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
               </div>
             </div>
             <p className="text-[10px] text-muted-foreground">
-              ※ 업스케일/벡터 변환은 이미지 해상도만 향상시키며, 실제 인쇄 사이즈는 위 설정값(mm)이 그대로 유지됩니다.
+              ※ 벡터 파일이 필요하면 먼저 '벡터 변환' 실행 후 SVG를 다운로드하세요. PDF는 작업지시/효과 확인용이며, 벡터 변환 상태에서는 PDF에도 벡터 경로를 직접 적용합니다.
             </p>
 
             {busy && <div className="text-xs text-muted-foreground">{busy}</div>}
