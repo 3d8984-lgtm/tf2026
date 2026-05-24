@@ -517,15 +517,36 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">로고 사이즈 (mm)</Label>
-                <Input
-                  type="number"
-                  step="0.5"
-                  value={logoSizeMm}
-                  onChange={(e) => setLogoSizeMm(Number(e.target.value) || 0)}
-                  className="h-9"
-                />
+              <div className="space-y-1 md:col-span-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">로고 사이즈 (mm) — 가로 × 세로</Label>
+                  <label className="text-[11px] text-muted-foreground flex items-center gap-1 cursor-pointer">
+                    <input type="checkbox" checked={lockAspect} onChange={(e) => setLockAspect(e.target.checked)} className="h-3 w-3" />
+                    비율 고정
+                  </label>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      step="0.5"
+                      value={logoWidthMm}
+                      onChange={(e) => handleWidthChange(Number(e.target.value) || 0)}
+                      className="h-9 pr-12"
+                    />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">W mm</span>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      step="0.5"
+                      value={logoHeightMm}
+                      onChange={(e) => handleHeightChange(Number(e.target.value) || 0)}
+                      className="h-9 pr-12"
+                    />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">H mm</span>
+                  </div>
+                </div>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">로고 업스케일링 (2×)</Label>
