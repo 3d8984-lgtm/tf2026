@@ -264,10 +264,16 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const [compareOrigin, setCompareOrigin] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
   const [sliderPct, setSliderPct] = useState<number>(50);
   const [compareBg, setCompareBg] = useState<"checker" | "white" | "black">("checker");
+  const [compareTarget, setCompareTarget] = useState<"upscaled" | "vector">("vector");
+  // Persist each processed result independently so the comparator can switch between them.
+  const [upscaledDataUrl, setUpscaledDataUrl] = useState<string | null>(null);
+  const [vectorDataUrl, setVectorDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
     setProcessedDataUrl(null);
     setProcessedKind("original");
+    setUpscaledDataUrl(null);
+    setVectorDataUrl(null);
     setTestLogoDataUrl(null);
     setTestLogoName(null);
   }, [logoUrl]);
