@@ -1217,16 +1217,20 @@ function ProofBox({
                       </div>
                       <div
                         className="absolute left-0 right-0 text-center font-mono text-foreground"
-                        style={{ bottom: proof.twinTextGap * mmPx, fontSize: Math.max(6, proof.twinTextSize * mmPx) }}
+                        style={{ bottom: proof.twinTextGap * fit * mmPx, fontSize: Math.max(6, proof.twinTextSize * fit * mmPx) }}
                       >
                         {it.uniqueNo}
                       </div>
-                    </div>
-                  );
-                })}
+                            </div>
+                          );
+                        })}
+                      </>
+                    );
+                  })()}
               </div>
             </div>
           </TabsContent>
+
 
           {/* ============== 큐알코드 시안 ============== */}
           <TabsContent value="qr" className="pt-4 space-y-4">
