@@ -1133,6 +1133,15 @@ function ProofBox({
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="text-xs text-muted-foreground">
                 출력 사이즈: <span className="font-mono text-foreground">{(tCols * cellW + Math.max(0, tCols - 1) * tGap).toFixed(2)} × {(tRows * cellH + Math.max(0, tRows - 1) * tGap).toFixed(2)} mm</span> · 마크 크기: <span className="font-mono text-foreground">{cellW.toFixed(2)} × {cellH.toFixed(2)} mm</span> (원본 63 × 60.811, 비율 고정) · 페이지당 {perPageT}개 · 총 {items.length}개 · {totalPagesT}페이지
+                {(() => {
+                  const tMargin = 10;
+                  const contentW = tCols * cellW + Math.max(0, tCols - 1) * tGap;
+                  const contentH = tRows * cellH + Math.max(0, tRows - 1) * tGap;
+                  const availW = A4_W - 2 * tMargin;
+                  const availH = A4_H - 2 * tMargin;
+                  const fit = Math.min(availW / contentW, availH / contentH, 1);
+                  return fit < 1 ? <span className="ml-2 text-amber-600 dark:text-amber-400">· 대지 초과 자동 축소 {(fit * 100).toFixed(1)}%</span> : null;
+                })()}
               </div>
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="default" onClick={() => {
@@ -1147,28 +1156,43 @@ function ProofBox({
             <div className="flex justify-center">
               <div
                 className="relative bg-white shadow border"
-                style={{
-                  width: PAPER_W_PX,
-                  height: Math.max(paperHpx, (tRows * cellH + Math.max(0, tRows - 1) * tGap) * mmPx),
-                }}
+                style={{ width: PAPER_W_PX, height: paperHpx }}
               >
-                {pageItemsT.map((it, idx) => {
-                  const col = idx % tCols;
-                  const row = Math.floor(idx / tCols);
-                  const x = col * (cellW + tGap) * mmPx;
-                  const y = row * (cellH + tGap) * mmPx;
-                  const w = cellW * mmPx;
-                  const h = cellH * mmPx;
-                  const tmpl = templates[it.grade];
-                  const twinPx = proof.twinSize * mmPx;
-                  const offX = proof.twinOffsetX * mmPx;
-                  const offY = proof.twinOffsetY * mmPx;
+                {(() => {
+                  const tMargin = 10; // mm 여백
+                  const contentW = tCols * cellW + Math.max(0, tCols - 1) * tGap;
+                  const contentH = tRows * cellH + Math.max(0, tRows - 1) * tGap;
+                  const availW = A4_W - 2 * tMargin;
+                  const availH = A4_H - 2 * tMargin;
+                  const fit = Math.min(availW / contentW, availH / contentH, 1);
+                  const scaledW = contentW * fit;
+                  const scaledH = contentH * fit;
+                  const originX = (tMargin + (availW - scaledW) / 2) * mmPx;
+                  const originY = (tMargin + (availH - scaledH) / 2) * mmPx;
                   return (
-                    <div
-                      key={it.uniqueNo}
-                      className="absolute"
-                      style={{ left: x, top: y, width: w, height: h }}
-                    >
+                    <>
+                      <div
+                        className="absolute border border-dashed border-muted-foreground/30 pointer-events-none"
+                        style={{ left: tMargin * mmPx, top: tMargin * mmPx, width: availW * mmPx, height: availH * mmPx }}
+                      />
+                      {pageItemsT.map((it, idx) => {
+                        const col = idx % tCols;
+                        const row = Math.floor(idx / tCols);
+                        const x = originX + col * (cellW + tGap) * fit * mmPx;
+                        const y = originY + row * (cellH + tGap) * fit * mmPx;
+                        const w = cellW * fit * mmPx;
+                        const h = cellH * fit * mmPx;
+                        const tmpl = templates[it.grade];
+                        const twinPx = proof.twinSize * fit * mmPx;
+                        const offX = proof.twinOffsetX * fit * mmPx;
+                        const offY = proof.twinOffsetY * fit * mmPx;
+                        return (
+                          <div
+                            key={it.uniqueNo}
+                            className="absolute"
+                            style={{ left: x, top: y, width: w, height: h }}
+                          >
+
                       {tmpl?.preview ? (
                         <img src={tmpl.preview} alt="" className="absolute inset-0 w-full h-full object-contain pointer-events-none" />
                       ) : (
