@@ -1252,24 +1252,34 @@ function ProofBox({
                   return fit < 1 ? <span className="ml-2 text-amber-600 dark:text-amber-400">· 대지 초과 자동 축소 {(fit * 100).toFixed(1)}%</span> : null;
                 })()}
               </div>
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap shrink-0">
                 <Button size="sm" variant="default" onClick={() => {
                   try { localStorage.setItem(PROOF_LS_KEY, JSON.stringify(proof)); toast({ title: "시안 설정 저장됨" }); }
                   catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" }); }
                 }}>설정 저장</Button>
-                <Button size="sm" variant="secondary" onClick={downloadTwinPdfCurrent} disabled={pdfBusy}>
-                  {pdfBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                  현재 페이지 PDF
-                </Button>
-                <Button size="sm" variant="secondary" onClick={downloadTwinPdfAll} disabled={pdfBusy}>
-                  {pdfBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                  전체 PDF (ZIP)
-                </Button>
                 <Button size="sm" variant="outline" disabled={pageT <= 0} onClick={() => setPage(pageT - 1)}>이전</Button>
                 <span className="text-xs tabular-nums w-16 text-center">{pageT + 1} / {totalPagesT}</span>
                 <Button size="sm" variant="outline" disabled={pageT >= totalPagesT - 1} onClick={() => setPage(pageT + 1)}>다음</Button>
               </div>
             </div>
+            <div className="rounded-md border bg-primary/5 p-3 flex items-center justify-between gap-3 flex-wrap">
+              <div className="text-xs font-semibold flex items-center gap-2">
+                <Download className="w-4 h-4 text-primary" />
+                PDF 다운로드
+                <span className="text-muted-foreground font-normal">· 파일명: 작업번호(페이지번호)</span>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button size="sm" variant="secondary" onClick={downloadTwinPdfCurrent} disabled={pdfBusy}>
+                  {pdfBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                  현재 페이지 PDF
+                </Button>
+                <Button size="sm" variant="default" onClick={downloadTwinPdfAll} disabled={pdfBusy}>
+                  {pdfBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                  전체 PDF (ZIP)
+                </Button>
+              </div>
+            </div>
+
             <div className="flex justify-center">
               <div
                 className="relative bg-white shadow border"
