@@ -930,6 +930,82 @@ function TxtField({ label, v, set, type = "text" }: { label: string; v: string; 
 
 const PROOF_LS_KEY = "silicon.proofSettings.v1";
 
+interface WorkOrderData {
+  company: string; orderNo: string; orderDate: string; deliveryDate: string;
+  common: number; rare: number; epic: number; legend: number; total: number;
+  recipient: string; phone: string; address: string; notes: string;
+}
+
+function printWorkOrder(
+  wo: WorkOrderData,
+  templates: Record<Grade, { name: string; bytes: Uint8Array; preview: string; aspect: number } | null>,
+) {
+  const esc = (s: any) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+  const today = new Date().toISOString().slice(0, 10);
+  const gradeRow = (g: Grade) => {
+    const t = templates[g];
+    const img = t?.preview
+      ? `<img src="${t.preview}" alt="${g}" />`
+      : `<div class="ph">미업로드</div>`;
+    return `<div class="g-cell"><div class="g-name">${g}</div><div class="g-img">${img}</div></div>`;
+  };
+  const html = `<!doctype html>
+<html lang="ko"><head><meta charset="utf-8" />
+<title>작업지시서 - ${esc(wo.orderNo)}</title>
+<style>
+  @page { size: A4; margin: 12mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", "PingFang SC", "Microsoft YaHei", sans-serif; color:#111; margin:0; padding:0; }
+  h1 { font-size: 22pt; text-align:center; margin: 0 0 4mm; letter-spacing: 8px; border-bottom: 2px solid #111; padding-bottom: 4mm; }
+  .meta { display:flex; justify-content:space-between; font-size: 9pt; color:#555; margin-bottom: 6mm; }
+  table { width:100%; border-collapse: collapse; font-size: 10pt; }
+  table th, table td { border: 1px solid #333; padding: 2.5mm 3mm; vertical-align: middle; }
+  table th { background:#f2f2f2; font-weight:600; width: 22%; text-align:left; }
+  .qty th, .qty td { text-align:center; }
+  .qty th { background:#f7f7f7; }
+  .notes { min-height: 22mm; white-space: pre-wrap; }
+  h2 { font-size: 12pt; margin: 8mm 0 3mm; padding-bottom: 1.5mm; border-bottom: 1px solid #999; }
+  .grades { display:grid; grid-template-columns: repeat(4, 1fr); gap: 4mm; }
+  .g-cell { border:1px solid #333; padding: 3mm; text-align:center; }
+  .g-name { font-weight:700; font-size: 10pt; margin-bottom: 2mm; letter-spacing: 1px; }
+  .g-img { height: 32mm; display:flex; align-items:center; justify-content:center; background:#fafafa; }
+  .g-img img { max-width:100%; max-height:100%; object-fit: contain; }
+  .ph { color:#999; font-size: 9pt; }
+  .sig { margin-top: 10mm; display:flex; justify-content:flex-end; gap: 10mm; font-size: 10pt; }
+  .sig div { border-top:1px solid #333; padding-top:2mm; min-width: 40mm; text-align:center; }
+  @media print { .no-print { display:none; } }
+  .no-print { position:fixed; top:8px; right:8px; }
+  .no-print button { padding: 8px 14px; font-size: 13px; cursor:pointer; }
+</style></head>
+<body>
+  <div class="no-print"><button onclick="window.print()">인쇄 / PDF 저장</button></div>
+  <h1>작 업 지 시 서</h1>
+  <div class="meta"><span>발주처: ${esc(wo.company)}</span><span>출력일: ${today}</span></div>
+  <table>
+    <tr><th>발주업체</th><td>${esc(wo.company)}</td><th>작업번호</th><td>${esc(wo.orderNo)}</td></tr>
+    <tr><th>발주일</th><td>${esc(wo.orderDate)}</td><th>납품일</th><td>${esc(wo.deliveryDate)}</td></tr>
+    <tr><th>받을사람</th><td>${esc(wo.recipient)}</td><th>전화번호</th><td>${esc(wo.phone)}</td></tr>
+    <tr><th>주소</th><td colspan="3">${esc(wo.address)}</td></tr>
+  </table>
+  <h2>등급별 수량</h2>
+  <table class="qty">
+    <tr><th>COMMON</th><th>RARE</th><th>EPIC</th><th>LEGEND</th><th>총수량</th></tr>
+    <tr><td>${esc(wo.common)}</td><td>${esc(wo.rare)}</td><td>${esc(wo.epic)}</td><td>${esc(wo.legend)}</td><td><strong>${esc(wo.total)}</strong></td></tr>
+  </table>
+  <h2>발주특이사항</h2>
+  <table><tr><td class="notes">${esc(wo.notes) || "&nbsp;"}</td></tr></table>
+  <h2>등급별 실리콘 마크 (예시)</h2>
+  <div class="grades">
+    ${(["COMMON","RARE","EPIC","LEGEND"] as Grade[]).map(gradeRow).join("")}
+  </div>
+  <div class="sig"><div>담당자</div><div>승인</div></div>
+  <script>window.addEventListener("load", () => setTimeout(() => window.print(), 300));</script>
+</body></html>`;
+  const w = window.open("", "_blank", "width=900,height=1100");
+  if (!w) { toast({ title: "팝업 차단됨", description: "팝업을 허용해주세요", variant: "destructive" }); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+}
+
 interface ProofItem { seq: number; orderNo: string; uniqueNo: string; svgUrl: string | null; grade: Grade; }
 interface ProofSettings {
   twinSize: number; twinCols: number; twinRows: number; twinGap: number; twinMargin: number;
@@ -1226,12 +1302,17 @@ function ProofBox({
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center justify-between">
               <span>작업지시서 설정</span>
-              <Button size="sm" variant="default" onClick={() => {
-                try {
-                  localStorage.setItem(WO_LS_KEY, JSON.stringify({ ...workOrder, total: woTotal }));
-                  toast({ title: "작업지시서 저장됨" });
-                } catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" }); }
-              }}>저장</Button>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="default" onClick={() => {
+                  try {
+                    localStorage.setItem(WO_LS_KEY, JSON.stringify({ ...workOrder, total: woTotal }));
+                    toast({ title: "작업지시서 저장됨" });
+                  } catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" }); }
+                }}>저장</Button>
+                <Button size="sm" variant="outline" onClick={() => printWorkOrder({ ...workOrder, total: woTotal }, templates)}>
+                  <FileText className="w-4 h-4 mr-1" />작업지시서 출력
+                </Button>
+              </div>
             </CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
