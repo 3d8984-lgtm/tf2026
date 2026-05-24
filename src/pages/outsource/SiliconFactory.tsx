@@ -932,7 +932,7 @@ const PROOF_LS_KEY = "silicon.proofSettings.v1";
 
 interface ProofItem { seq: number; orderNo: string; uniqueNo: string; svgUrl: string | null; grade: Grade; }
 interface ProofSettings {
-  twinSize: number; twinCols: number; twinRows: number; twinGap: number;
+  twinSize: number; twinCols: number; twinRows: number; twinGap: number; twinMargin: number;
   twinOffsetX: number; twinOffsetY: number; twinTextSize: number; twinTextGap: number;
   markW: number;
   qrSize: number; qrCutSize: number; qrGap: number; qrTextSize: number; qrTextGap: number;
