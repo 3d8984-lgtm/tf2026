@@ -216,6 +216,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   type VectorPreset = "auto" | "high-res" | "smooth-curve" | "sharp-edge" | "mono-line";
   const [vectorPreset, setVectorPreset] = useState<VectorPreset>("auto");
   const [autoAnalysis, setAutoAnalysis] = useState<null | { colors: number; edgeDensity: number; sharpness: number; baseline: VectorPreset; ltres: number; qtres: number; pathomit: number; blurMul: number; targetPx: number; numberofcolors: number }>(null);
+  const [forceMonochrome, setForceMonochrome] = useState<boolean>(false);
   const VECTOR_PRESETS: Record<VectorPreset, { label: string; desc: string; targetPx: number; blurMul: number; opts: Record<string, unknown> }> = {
     "auto": {
       label: "자동 최적화 (로고 분석)",
