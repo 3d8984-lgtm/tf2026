@@ -197,17 +197,50 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const [logoSizeMm, setLogoSizeMm] = useState<number>(50);
   const [processedDataUrl, setProcessedDataUrl] = useState<string | null>(null); // upscaled or vectorized
   const [processedKind, setProcessedKind] = useState<"original" | "upscaled" | "vector">("original");
+  const [testLogoDataUrl, setTestLogoDataUrl] = useState<string | null>(null);
+  const [testLogoName, setTestLogoName] = useState<string | null>(null);
+  const testLogoInputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
     setProcessedDataUrl(null);
     setProcessedKind("original");
+    setTestLogoDataUrl(null);
+    setTestLogoName(null);
   }, [logoUrl]);
 
-  const displayedLogo = processedDataUrl || logoUrl;
+  // Test logo overrides API logo as the source; processed result overrides both for display
+  const sourceLogo = testLogoDataUrl || logoUrl;
+  const displayedLogo = processedDataUrl || sourceLogo;
+
+  const handleTestLogoSelect = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "이미지 파일만 업로드 가능합니다", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setTestLogoDataUrl(reader.result as string);
+      setTestLogoName(file.name);
+      setProcessedDataUrl(null);
+      setProcessedKind("original");
+      toast({ title: "테스트 로고 적용됨", description: file.name });
+    };
+    reader.onerror = () => toast({ title: "파일 읽기 실패", variant: "destructive" });
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveTestLogo = () => {
+    setTestLogoDataUrl(null);
+    setTestLogoName(null);
+    setProcessedDataUrl(null);
+    setProcessedKind("original");
+    if (testLogoInputRef.current) testLogoInputRef.current.value = "";
+    toast({ title: "테스트 로고 제거됨", description: "원본 로고로 복원되었습니다" });
+  };
 
   const handleUpscale = async () => {
-    if (!logoUrl) return;
+    if (!sourceLogo) return;
     setBusy("로고 업스케일링 중...");
     try {
       const dataUrl = await fetchAsDataUrl(logoUrl);
