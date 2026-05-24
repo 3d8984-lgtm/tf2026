@@ -216,6 +216,13 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const [vectorPreset, setVectorPreset] = useState<VectorPreset>("auto");
   const [autoAnalysis, setAutoAnalysis] = useState<null | { colors: number; edgeDensity: number; sharpness: number; baseline: VectorPreset; ltres: number; qtres: number; pathomit: number; blurMul: number; targetPx: number; numberofcolors: number }>(null);
   const VECTOR_PRESETS: Record<VectorPreset, { label: string; desc: string; targetPx: number; blurMul: number; opts: Record<string, unknown> }> = {
+    "auto": {
+      label: "자동 최적화 (로고 분석)",
+      desc: "엣지/색상/선명도를 분석해 매개변수를 자동 산출",
+      targetPx: 2600,
+      blurMul: 0.8,
+      opts: {},
+    },
     "high-res": {
       label: "고해상도 (색상 풍부)",
       desc: "원본 색상/디테일을 최대한 보존 · 컬러 로고 권장",
