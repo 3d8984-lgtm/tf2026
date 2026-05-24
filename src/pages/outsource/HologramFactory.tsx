@@ -74,8 +74,8 @@ export default function HologramFactory() {
     return Array.from({ length: count }, (_, idx) => {
       const it = items[idx] || {};
       const editionNo = idx + 1;
-      const uniqueNo = `${detailOrder.external_order_id}-3-${editionNo}`;
-      const qrValue = (it.hologram_qr as string) || uniqueNo;
+      const uniqueNo = `${detailOrder.external_order_id}-3`;
+      const qrValue = (it.hologram_qr as string) || `${uniqueNo}-${editionNo}`;
       return {
         seq: editionNo,
         orderNo: detailOrder.external_order_id as string,
