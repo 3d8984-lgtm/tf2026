@@ -517,28 +517,83 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
   const handleUpscale = async () => {
     if (!sourceLogo) return;
-    setBusy("로고 업스케일링 중...");
+    setBusy("로고 업스케일링 중 (edge-preserving)...");
     try {
       const src = sourceLogo!;
       const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
       const img = await loadImage(dataUrl);
-      const scale = 2;
-      const canvas = document.createElement("canvas");
-      canvas.width = img.naturalWidth * scale;
-      canvas.height = img.naturalHeight * scale;
-      const ctx = canvas.getContext("2d")!;
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      // Preview: 2× edge-preserving upscale of the source.
+      const targetW = img.naturalWidth * 2;
+      const targetH = img.naturalHeight * 2;
+      const canvas = edgePreservingUpscale(img, targetW, targetH);
       const up = canvas.toDataURL("image/png");
       setUpscaledDataUrl(up);
       setProcessedDataUrl(up);
       setProcessedKind("upscaled");
       setCompareTarget("upscaled");
-      toast({ title: "업스케일 완료", description: `${img.naturalWidth}×${img.naturalHeight} → ${canvas.width}×${canvas.height}` });
+      toast({
+        title: "업스케일 완료",
+        description: `${img.naturalWidth}×${img.naturalHeight} → ${canvas.width}×${canvas.height} · edge-preserving + unsharp`,
+      });
     } catch (e: any) {
       toast({ title: "업스케일 실패", description: e.message, variant: "destructive" });
     } finally { setBusy(null); }
+  };
+
+  /**
+   * Generate a print-ready PNG at the requested DPI and trigger download.
+   * - If a vector (SVG) result exists, rasterizes the SVG directly at the
+   *   exact target size — perfectly crisp, no upscaling artifacts.
+   * - Otherwise runs edge-preserving sharp upscale from the source image.
+   * - Transparent background is preserved (PNG with alpha).
+   */
+  const downloadPrintPng = async (dpi: 300 | 600) => {
+    if (!sourceLogo) {
+      toast({ title: "로고가 없습니다", variant: "destructive" });
+      return;
+    }
+    if (!logoWidthMm || !logoHeightMm) {
+      toast({ title: "출력 크기(mm)를 먼저 입력하세요", variant: "destructive" });
+      return;
+    }
+    setBusy(`PNG ${dpi}dpi 생성 중...`);
+    try {
+      const targetW = mmToPx(logoWidthMm, dpi);
+      const targetH = mmToPx(logoHeightMm, dpi);
+
+      let canvas: HTMLCanvasElement;
+      let modeLabel: string;
+      if (vectorDataUrl && processedKind === "vector") {
+        canvas = await rasterizeSvgAt(vectorDataUrl, targetW, targetH);
+        modeLabel = "벡터 래스터화";
+      } else {
+        const src = sourceLogo!;
+        const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
+        const img = await loadImage(dataUrl);
+        canvas = edgePreservingUpscale(img, targetW, targetH);
+        modeLabel = "edge-preserving sharp upscale";
+      }
+
+      const blob: Blob = await new Promise((resolve, reject) =>
+        canvas.toBlob(b => b ? resolve(b) : reject(new Error("PNG 인코딩 실패")), "image/png"),
+      );
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `logo_${orderNo}_${workType}_${logoWidthMm}x${logoHeightMm}mm_${dpi}dpi.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast({
+        title: `PNG ${dpi}dpi 다운로드 완료`,
+        description: `${targetW}×${targetH}px · ${logoWidthMm}×${logoHeightMm}mm · ${modeLabel}`,
+      });
+    } catch (e: any) {
+      toast({ title: `PNG ${dpi}dpi 다운로드 실패`, description: e?.message || String(e), variant: "destructive" });
+    } finally {
+      setBusy(null);
+    }
   };
 
   // Analyze logo image to derive optimal tracer parameters.
