@@ -372,26 +372,22 @@ export default function HologramFactory() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-16">순번</TableHead>
-                    <TableHead>주문번호</TableHead>
                     <TableHead>스티커 고유번호</TableHead>
                     <TableHead>에디션 넘버</TableHead>
                     <TableHead>등급</TableHead>
-                    <TableHead>큐알코드</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {detailItems.map(it => (
                     <TableRow key={it.uniqueNo}>
                       <TableCell>{it.seq}</TableCell>
-                      <TableCell className="font-mono">{it.orderNo}</TableCell>
                       <TableCell className="font-mono">{it.uniqueNo}</TableCell>
                       <TableCell>#{String(it.editionNo).padStart(4, "0")}</TableCell>
                       <TableCell><Badge variant="outline">{it.grade}</Badge></TableCell>
-                      <TableCell><QrThumb value={it.qrValue} /></TableCell>
                     </TableRow>
                   ))}
                   {detailItems.length === 0 && (
-                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-sm text-muted-foreground">—</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={4} className="text-center py-8 text-sm text-muted-foreground">—</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
