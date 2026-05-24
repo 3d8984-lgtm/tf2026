@@ -216,6 +216,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   type VectorPreset = "auto" | "high-res" | "smooth-curve" | "sharp-edge" | "mono-line";
   const [vectorPreset, setVectorPreset] = useState<VectorPreset>("auto");
   const [autoAnalysis, setAutoAnalysis] = useState<null | { colors: number; edgeDensity: number; sharpness: number; baseline: VectorPreset; ltres: number; qtres: number; pathomit: number; blurMul: number; targetPx: number; numberofcolors: number }>(null);
+  const [forceMonochrome, setForceMonochrome] = useState<boolean>(false);
   const VECTOR_PRESETS: Record<VectorPreset, { label: string; desc: string; targetPx: number; blurMul: number; opts: Record<string, unknown> }> = {
     "auto": {
       label: "자동 최적화 (로고 분석)",
@@ -479,6 +480,12 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
         targetPx = a.targetPx;
         blurMul = a.blurMul;
         resolvedLabel = `자동 (기준=${VECTOR_PRESETS[a.baseline].label.split(" ")[0]})`;
+      }
+
+      // Simple-logo monochrome toggle overrides to 2-color (black & white)
+      if (forceMonochrome) {
+        opts = { ...opts, numberofcolors: 2 };
+        resolvedLabel += " · 2색(흑백) 강제";
       }
 
       // 1) Upscale so the tracer has many samples per edge
@@ -850,7 +857,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 </Button>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2 items-end">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-2 items-end">
               <div className="space-y-1">
                 <Label className="text-xs">벡터 품질 프리셋</Label>
                 <Select value={vectorPreset} onValueChange={(v) => setVectorPreset(v as typeof vectorPreset)}>
@@ -867,8 +874,20 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="flex items-center gap-2 pb-2">
+                <label className="flex items-center gap-1.5 cursor-pointer select-none text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={forceMonochrome}
+                    onChange={(e) => setForceMonochrome(e.target.checked)}
+                    className="h-3.5 w-3.5 accent-primary"
+                  />
+                  단순 로고: 2색(흑백) 강제
+                </label>
+              </div>
               <div className="text-[10px] text-muted-foreground md:max-w-[280px]">
-                현재: <span className="font-medium text-foreground">{VECTOR_PRESETS[vectorPreset].label}</span><br />
+                현재: <span className="font-medium text-foreground">{VECTOR_PRESETS[vectorPreset].label}</span>
+                {forceMonochrome && <span className="ml-1 text-primary font-medium">· 2색 강제</span>}<br />
                 {VECTOR_PRESETS[vectorPreset].desc}
                 {vectorPreset === "auto" && autoAnalysis && (
                   <div className="mt-1 rounded border bg-muted/40 p-1.5 font-mono text-[10px] leading-snug text-foreground/80">
