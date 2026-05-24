@@ -332,10 +332,27 @@ export default function HologramFactory() {
   }, [detailOrder]);
 
   if (activeOrderNo && detailOrder) {
+    const downloadExcel = () => {
+      const rows = detailItems.map(it => ({
+        "순번": it.seq,
+        "주문번호": it.orderNo,
+        "스티커 고유번호": it.uniqueNo,
+        "에디션 넘버": `#${String(it.editionNo).padStart(4, "0")}`,
+        "등급": it.grade,
+        "큐알코드": it.qrValue,
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws["!cols"] = [{ wch: 6 }, { wch: 18 }, { wch: 22 }, { wch: 14 }, { wch: 10 }, { wch: 26 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Hologram");
+      XLSX.writeFile(wb, `hologram_${activeOrderNo}.xlsx`);
+      toast({ title: "엑셀 다운로드 완료", description: `hologram_${activeOrderNo}.xlsx` });
+    };
     return (
       <div>
         <PageHeader title={t("menu.outHologram")} description="주문 상세 목록" />
-        <div className="p-6">
+        <div className="p-6 space-y-4">
+          <HologramWorkOrderBox order={detailOrder} items={detailItems} pdfPreview={pdfPreview} />
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div className="flex items-center gap-2">
@@ -346,6 +363,9 @@ export default function HologramFactory() {
                   작업번호 <span className="font-mono">{activeOrderNo}</span> · {detailItems.length}건
                 </CardTitle>
               </div>
+              <Button size="sm" variant="outline" onClick={downloadExcel} disabled={detailItems.length === 0}>
+                <Download className="w-4 h-4 mr-1" /> 작업파일 다운로드 (Excel)
+              </Button>
             </CardHeader>
             <CardContent>
               <Table>
