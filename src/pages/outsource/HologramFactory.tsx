@@ -4,10 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ChevronLeft, Eye, Upload, FileText, X } from "lucide-react";
+import { ChevronLeft, Eye, Upload, FileText, X, Loader2 } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { useOrders } from "@/hooks/useDbData";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import QRCode from "qrcode";
 
 type Grade = "COMMON" | "RARE" | "EPIC" | "LEGEND";
@@ -45,17 +46,58 @@ export default function HologramFactory() {
   const { t } = useLang();
   const { data: ordersData } = useOrders();
   const [activeOrderNo, setActiveOrderNo] = useState<string | null>(null);
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfName, setPdfName] = useState<string | null>(null);
+  const [pdfSize, setPdfSize] = useState<number | null>(null);
+  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const PDF_BUCKET = "hologram-pdf";
+  const PDF_PATH = "format.pdf";
 
-  const onPdfSelected = (f?: File | null) => {
+  const loadStoredPdf = async () => {
+    const { data: list } = await supabase.storage.from(PDF_BUCKET).list("", { limit: 100 });
+    const meta = list?.find((f) => f.name === PDF_PATH);
+    if (!meta) { setPdfUrl(null); setPdfName(null); setPdfSize(null); return; }
+    const { data } = supabase.storage.from(PDF_BUCKET).getPublicUrl(PDF_PATH);
+    // cache-bust so updates show immediately
+    setPdfUrl(`${data.publicUrl}?v=${meta.updated_at ?? Date.now()}`);
+    setPdfName((meta.metadata as any)?.originalName || PDF_PATH);
+    setPdfSize((meta.metadata as any)?.size ?? null);
+  };
+
+  useEffect(() => { loadStoredPdf(); }, []);
+
+  const onPdfSelected = async (f?: File | null) => {
     if (!f) return;
     if (f.type !== "application/pdf" && !f.name.toLowerCase().endsWith(".pdf")) {
       toast({ title: "PDF 파일만 업로드 가능합니다", variant: "destructive" as any });
       return;
     }
-    setPdfFile(f);
+    setUploading(true);
+    const { error } = await supabase.storage.from(PDF_BUCKET).upload(PDF_PATH, f, {
+      upsert: true,
+      contentType: "application/pdf",
+    });
+    setUploading(false);
+    if (error) {
+      toast({ title: "업로드 실패", description: error.message, variant: "destructive" as any });
+      return;
+    }
     toast({ title: "PDF 업로드 완료", description: f.name });
+    await loadStoredPdf();
+  };
+
+  const onDeletePdf = async () => {
+    setUploading(true);
+    const { error } = await supabase.storage.from(PDF_BUCKET).remove([PDF_PATH]);
+    setUploading(false);
+    if (error) {
+      toast({ title: "삭제 실패", description: error.message, variant: "destructive" as any });
+      return;
+    }
+    setPdfUrl(null); setPdfName(null); setPdfSize(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    toast({ title: "PDF 삭제 완료" });
   };
 
   const orderRows = useMemo(() => {
@@ -161,7 +203,7 @@ export default function HologramFactory() {
               <FileText className="w-4 h-4" /> PDF 설정
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <input
               ref={fileInputRef}
               type="file"
@@ -172,16 +214,16 @@ export default function HologramFactory() {
             <div
               onDragOver={(e) => { e.preventDefault(); }}
               onDrop={(e) => { e.preventDefault(); onPdfSelected(e.dataTransfer.files?.[0]); }}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => { if (!uploading) fileInputRef.current?.click(); }}
               className="cursor-pointer rounded-md border border-dashed border-border bg-muted/30 hover:bg-muted/50 transition-colors p-6 flex items-center justify-between gap-4"
             >
               <div className="flex items-center gap-3">
-                <Upload className="w-5 h-5 text-muted-foreground" />
-                {pdfFile ? (
+                {uploading ? <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /> : <Upload className="w-5 h-5 text-muted-foreground" />}
+                {pdfUrl ? (
                   <div className="text-sm">
-                    <div className="font-medium">{pdfFile.name}</div>
+                    <div className="font-medium">{pdfName}</div>
                     <div className="text-xs text-muted-foreground">
-                      {(pdfFile.size / 1024).toFixed(1)} KB · PDF
+                      {pdfSize ? `${(pdfSize / 1024).toFixed(1)} KB · ` : ""}서버에 저장됨
                     </div>
                   </div>
                 ) : (
@@ -191,19 +233,35 @@ export default function HologramFactory() {
                 )}
               </div>
               <div className="flex items-center gap-2">
-                {pdfFile && (
+                {pdfUrl && (
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={(e) => { e.stopPropagation(); setPdfFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                    disabled={uploading}
+                    onClick={(e) => { e.stopPropagation(); onDeletePdf(); }}
                   >
                     <X className="w-4 h-4 mr-1" /> 삭제
                   </Button>
                 )}
-                <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}>
-                  <Upload className="w-4 h-4 mr-1" /> 파일 선택
+                <Button size="sm" variant="outline" disabled={uploading} onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}>
+                  <Upload className="w-4 h-4 mr-1" /> {pdfUrl ? "변경" : "파일 선택"}
                 </Button>
               </div>
+            </div>
+
+            <div>
+              <div className="text-sm font-medium mb-2">미리보기</div>
+              {pdfUrl ? (
+                <iframe
+                  src={pdfUrl}
+                  title="PDF 미리보기"
+                  className="w-full h-[600px] rounded-md border border-border bg-background"
+                />
+              ) : (
+                <div className="w-full h-[200px] rounded-md border border-dashed border-border bg-muted/20 flex items-center justify-center text-sm text-muted-foreground">
+                  업로드된 PDF가 없습니다.
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
