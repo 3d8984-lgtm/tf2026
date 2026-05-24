@@ -203,7 +203,7 @@ export default function HologramFactory() {
               <FileText className="w-4 h-4" /> PDF 설정
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <input
               ref={fileInputRef}
               type="file"
@@ -214,16 +214,16 @@ export default function HologramFactory() {
             <div
               onDragOver={(e) => { e.preventDefault(); }}
               onDrop={(e) => { e.preventDefault(); onPdfSelected(e.dataTransfer.files?.[0]); }}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => { if (!uploading) fileInputRef.current?.click(); }}
               className="cursor-pointer rounded-md border border-dashed border-border bg-muted/30 hover:bg-muted/50 transition-colors p-6 flex items-center justify-between gap-4"
             >
               <div className="flex items-center gap-3">
-                <Upload className="w-5 h-5 text-muted-foreground" />
-                {pdfFile ? (
+                {uploading ? <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /> : <Upload className="w-5 h-5 text-muted-foreground" />}
+                {pdfUrl ? (
                   <div className="text-sm">
-                    <div className="font-medium">{pdfFile.name}</div>
+                    <div className="font-medium">{pdfName}</div>
                     <div className="text-xs text-muted-foreground">
-                      {(pdfFile.size / 1024).toFixed(1)} KB · PDF
+                      {pdfSize ? `${(pdfSize / 1024).toFixed(1)} KB · ` : ""}서버에 저장됨
                     </div>
                   </div>
                 ) : (
@@ -233,19 +233,35 @@ export default function HologramFactory() {
                 )}
               </div>
               <div className="flex items-center gap-2">
-                {pdfFile && (
+                {pdfUrl && (
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={(e) => { e.stopPropagation(); setPdfFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                    disabled={uploading}
+                    onClick={(e) => { e.stopPropagation(); onDeletePdf(); }}
                   >
                     <X className="w-4 h-4 mr-1" /> 삭제
                   </Button>
                 )}
-                <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}>
-                  <Upload className="w-4 h-4 mr-1" /> 파일 선택
+                <Button size="sm" variant="outline" disabled={uploading} onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}>
+                  <Upload className="w-4 h-4 mr-1" /> {pdfUrl ? "변경" : "파일 선택"}
                 </Button>
               </div>
+            </div>
+
+            <div>
+              <div className="text-sm font-medium mb-2">미리보기</div>
+              {pdfUrl ? (
+                <iframe
+                  src={pdfUrl}
+                  title="PDF 미리보기"
+                  className="w-full h-[600px] rounded-md border border-border bg-background"
+                />
+              ) : (
+                <div className="w-full h-[200px] rounded-md border border-dashed border-border bg-muted/20 flex items-center justify-center text-sm text-muted-foreground">
+                  업로드된 PDF가 없습니다.
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
