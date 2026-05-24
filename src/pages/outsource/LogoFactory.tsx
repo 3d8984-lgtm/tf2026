@@ -212,8 +212,9 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const [naturalAspect, setNaturalAspect] = useState<number>(1); // width / height
   const [processedDataUrl, setProcessedDataUrl] = useState<string | null>(null); // upscaled or vectorized
   const [processedKind, setProcessedKind] = useState<"original" | "upscaled" | "vector">("original");
-  type VectorPreset = "high-res" | "smooth-curve" | "sharp-edge" | "mono-line";
-  const [vectorPreset, setVectorPreset] = useState<VectorPreset>("smooth-curve");
+  type VectorPreset = "auto" | "high-res" | "smooth-curve" | "sharp-edge" | "mono-line";
+  const [vectorPreset, setVectorPreset] = useState<VectorPreset>("auto");
+  const [autoAnalysis, setAutoAnalysis] = useState<null | { colors: number; edgeDensity: number; sharpness: number; baseline: VectorPreset; ltres: number; qtres: number; pathomit: number; blurMul: number; targetPx: number; numberofcolors: number }>(null);
   const VECTOR_PRESETS: Record<VectorPreset, { label: string; desc: string; targetPx: number; blurMul: number; opts: Record<string, unknown> }> = {
     "high-res": {
       label: "고해상도 (색상 풍부)",
