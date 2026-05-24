@@ -997,6 +997,122 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   );
 }
 
+const CHECKER_BG = "repeating-conic-gradient(#e5e7eb 0% 25%, #ffffff 0% 50%) 50% / 16px 16px";
+const bgStyle = (b: "checker" | "white" | "black"): React.CSSProperties =>
+  b === "checker" ? { background: CHECKER_BG } : b === "white" ? { background: "#ffffff" } : { background: "#0a0a0a" };
+
+function CompareTile({
+  label, src, zoom, origin, onMove, bg, muted,
+}: {
+  label: string;
+  src: string;
+  zoom: number;
+  origin: { x: number; y: number };
+  onMove: (o: { x: number; y: number }) => void;
+  bg: "checker" | "white" | "black";
+  muted?: boolean;
+}) {
+  const handle = (e: React.MouseEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * 100;
+    const y = ((e.clientY - r.top) / r.height) * 100;
+    onMove({ x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) });
+  };
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <Badge variant="outline" className="text-[10px]">{label}</Badge>
+        {muted && <span className="text-[10px] text-muted-foreground">변환 대기</span>}
+      </div>
+      <div
+        className="aspect-square w-full border rounded overflow-hidden cursor-crosshair relative"
+        style={bgStyle(bg)}
+        onMouseMove={handle}
+      >
+        <img
+          src={src}
+          alt={label}
+          className="absolute inset-0 w-full h-full object-contain select-none pointer-events-none"
+          style={{
+            transform: `scale(${zoom})`,
+            transformOrigin: `${origin.x}% ${origin.y}%`,
+            transition: "transform 80ms linear",
+            opacity: muted ? 0.5 : 1,
+          }}
+          draggable={false}
+          referrerPolicy="no-referrer"
+        />
+      </div>
+    </div>
+  );
+}
+
+function CompareOverlay({
+  original, processed, zoom, origin, onMove, sliderPct, onSliderChange, bg,
+}: {
+  original: string;
+  processed: string | null;
+  zoom: number;
+  origin: { x: number; y: number };
+  onMove: (o: { x: number; y: number }) => void;
+  sliderPct: number;
+  onSliderChange: (n: number) => void;
+  bg: "checker" | "white" | "black";
+}) {
+  const dragging = useRef(false);
+  const setOriginFromEvent = (e: React.MouseEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * 100;
+    const y = ((e.clientY - r.top) / r.height) * 100;
+    onMove({ x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) });
+    if (dragging.current) {
+      onSliderChange(Math.max(0, Math.min(100, x)));
+    }
+  };
+  return (
+    <div
+      className="relative w-full border rounded overflow-hidden select-none"
+      style={{ ...bgStyle(bg), aspectRatio: "2 / 1" }}
+      onMouseMove={setOriginFromEvent}
+      onMouseDown={() => { dragging.current = true; }}
+      onMouseUp={() => { dragging.current = false; }}
+      onMouseLeave={() => { dragging.current = false; }}
+    >
+      <img
+        src={original}
+        alt="원본"
+        className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+        style={{ transform: `scale(${zoom})`, transformOrigin: `${origin.x}% ${origin.y}%` }}
+        draggable={false}
+        referrerPolicy="no-referrer"
+      />
+      {processed && (
+        <img
+          src={processed}
+          alt="벡터"
+          className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+          style={{
+            transform: `scale(${zoom})`,
+            transformOrigin: `${origin.x}% ${origin.y}%`,
+            clipPath: `inset(0 0 0 ${sliderPct}%)`,
+          }}
+          draggable={false}
+        />
+      )}
+      {/* Labels */}
+      <div className="absolute top-1 left-2 text-[10px] px-1.5 py-0.5 rounded bg-background/80 border">원본</div>
+      {processed && <div className="absolute top-1 right-2 text-[10px] px-1.5 py-0.5 rounded bg-background/80 border">벡터</div>}
+      {/* Handle */}
+      <div
+        className="absolute top-0 bottom-0 w-0.5 bg-primary cursor-ew-resize"
+        style={{ left: `${sliderPct}%` }}
+      >
+        <div className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-primary border-2 border-background shadow flex items-center justify-center text-[10px] text-primary-foreground">⇆</div>
+      </div>
+    </div>
+  );
+}
+
 function TxtField({ label, v, set, type = "text" }: { label: string; v: string; set: (v: string) => void; type?: string }) {
   return (
     <div className="space-y-1">
