@@ -413,7 +413,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                     toast({ title: "작업지시서 저장됨" });
                   } catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" }); }
                 }}>저장</Button>
-                <Button size="sm" variant="outline" onClick={() => printLogoWorkOrder(wo, workType, logoSizeMm, displayedLogo)}>
+                <Button size="sm" variant="outline" onClick={() => printLogoWorkOrder(wo, workType, logoWidthMm, logoHeightMm, displayedLogo)}>
                   <FileText className="w-4 h-4 mr-1" />작업지시서 출력
                 </Button>
               </div>
