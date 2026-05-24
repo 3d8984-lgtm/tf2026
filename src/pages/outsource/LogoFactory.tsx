@@ -591,14 +591,24 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 <input
                   ref={testLogoInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/*,.svg"
                   className="hidden"
                   onChange={(e) => {
                     const f = e.target.files?.[0];
                     if (f) handleTestLogoSelect(f);
+                    e.target.value = "";
                   }}
                 />
-                <Button size="sm" variant="outline" onClick={() => testLogoInputRef.current?.click()}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    if (testLogoInputRef.current) {
+                      testLogoInputRef.current.value = "";
+                      testLogoInputRef.current.click();
+                    }
+                  }}
+                >
                   <Upload className="w-3 h-3 mr-1" /> {testLogoDataUrl ? "교체" : "업로드"}
                 </Button>
                 {testLogoDataUrl && (
