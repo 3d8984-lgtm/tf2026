@@ -243,9 +243,9 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     if (!sourceLogo) return;
     setBusy("로고 업스케일링 중...");
     try {
-      const dataUrl = await fetchAsDataUrl(logoUrl);
+      const src = sourceLogo!;
+      const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
       const img = await loadImage(dataUrl);
-      const scale = 2;
       const canvas = document.createElement("canvas");
       canvas.width = img.naturalWidth * scale;
       canvas.height = img.naturalHeight * scale;
