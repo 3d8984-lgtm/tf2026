@@ -975,7 +975,25 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center justify-between">
               <span>로고 작업 시안</span>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => downloadPrintPng(300)}
+                  disabled={!sourceLogo || !!busy}
+                  title={`인쇄용 PNG · ${logoWidthMm}×${logoHeightMm}mm @ 300dpi (${mmToPx(logoWidthMm, 300)}×${mmToPx(logoHeightMm, 300)}px). 벡터 변환 결과가 있으면 SVG에서 직접 래스터화합니다.`}
+                >
+                  <Download className="w-4 h-4 mr-1" /> PNG 300dpi
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => downloadPrintPng(600)}
+                  disabled={!sourceLogo || !!busy}
+                  title={`인쇄용 PNG · ${logoWidthMm}×${logoHeightMm}mm @ 600dpi (${mmToPx(logoWidthMm, 600)}×${mmToPx(logoHeightMm, 600)}px). 벡터 변환 결과가 있으면 SVG에서 직접 래스터화합니다.`}
+                >
+                  <Download className="w-4 h-4 mr-1" /> PNG 600dpi
+                </Button>
                 <Button
                   size="sm"
                   variant="outline"
