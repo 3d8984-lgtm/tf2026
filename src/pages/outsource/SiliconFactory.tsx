@@ -640,7 +640,9 @@ export default function SiliconFactory() {
             setPage={setProofPage}
             qrPage={proofQrPage}
             setQrPage={setProofQrPage}
+            order={detailOrder}
           />
+
 
           <Card>
             <CardContent className="p-0">
