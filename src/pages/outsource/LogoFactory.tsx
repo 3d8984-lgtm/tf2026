@@ -542,9 +542,20 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center justify-between">
               <span>로고 작업 시안</span>
-              <Button size="sm" onClick={downloadResultPdf} disabled={!sourceLogo || !!busy}>
-                <Download className="w-4 h-4 mr-1" /> 작업결과물 다운로드 (PDF)
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={downloadVectorSvg}
+                  disabled={processedKind !== "vector" || !!busy}
+                  title={processedKind !== "vector" ? "먼저 '벡터 변환'을 실행하세요" : "확대해도 깨지지 않는 SVG 벡터 파일"}
+                >
+                  <Download className="w-4 h-4 mr-1" /> SVG 벡터 다운로드
+                </Button>
+                <Button size="sm" onClick={downloadResultPdf} disabled={!sourceLogo || !!busy}>
+                  <Download className="w-4 h-4 mr-1" /> 작업결과물 다운로드 (PDF)
+                </Button>
+              </div>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
