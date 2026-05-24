@@ -1,342 +1,559 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import PageHeader from "@/components/PageHeader";
-import { type FactoryOrder } from "@/components/outsource/FactoryOrderPanel";
-import { useFactoryOrders } from "@/hooks/useFactoryOrders";
+import { useOrders } from "@/hooks/useDbData";
 import { useLang } from "@/contexts/LangContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Download, Eye, Trash2, ImageOff, FileText, Mail } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Eye, ImageOff, ChevronLeft, FileText, Download, Sparkles, Wand2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { jsPDF } from "jspdf";
+// @ts-ignore - no types
+import ImageTracer from "imagetracerjs";
 
-interface LogoGroup {
+function fmtDate(v?: string | null): string {
+  if (!v) return "";
+  try { return new Date(v).toISOString().slice(0, 10); } catch { return String(v).slice(0, 10); }
+}
+
+interface OrderRow {
   orderNo: string;
-  items: FactoryOrder[];
-  totalQty: number;
-  requestQty: number; // ceil(totalQty * 1.1)
-  status: string;
+  receivedAt: string;
+  dueDate: string;
+  recipient: string;
   logoUrl: string | null;
-  logoFileName: string;
+  quantity: number;
+}
+
+type WorkType = "heat-transfer" | "hologram" | "laser" | "embroidery" | "print";
+const WORK_TYPES: { value: WorkType; label: string }[] = [
+  { value: "heat-transfer", label: "열전사" },
+  { value: "hologram", label: "홀로그램" },
+  { value: "laser", label: "레이저" },
+  { value: "embroidery", label: "자수" },
+  { value: "print", label: "인쇄" },
+];
+
+async function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("이미지 로드 실패"));
+    img.src = src;
+  });
+}
+
+async function fetchAsDataUrl(url: string): Promise<string> {
+  const res = await fetch(url, { mode: "cors" });
+  if (!res.ok) throw new Error(`fetch ${res.status}`);
+  const blob = await res.blob();
+  return await new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = () => reject(new Error("read failed"));
+    r.readAsDataURL(blob);
+  });
 }
 
 export default function LogoFactory() {
   const { t } = useLang();
-  const { orders: dbOrders, logoByOrderNo } = useFactoryOrders();
-  const [orders, setOrders] = useState<FactoryOrder[]>([]);
-  useEffect(() => { setOrders(dbOrders); }, [dbOrders]);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [preview, setPreview] = useState<LogoGroup | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<string[] | null>(null);
-  const [generated, setGenerated] = useState(false);
+  const { data: ordersData, isLoading } = useOrders();
+  const [detailOrderNo, setDetailOrderNo] = useState<string | null>(null);
 
-  const groups: LogoGroup[] = useMemo(() => {
-    const map = new Map<string, LogoGroup>();
-    for (const o of orders) {
-      const g = map.get(o.orderNo) || {
-        orderNo: o.orderNo,
-        items: [],
-        totalQty: 0,
-        requestQty: 0,
-        status: o.status,
-        logoUrl: logoByOrderNo[o.orderNo] ?? null,
-        logoFileName: `${o.orderNo}_LOGO.png`,
-      };
-      g.items.push(o);
-      g.totalQty += o.qty;
-      g.requestQty = Math.ceil(g.totalQty * 1.1);
-      map.set(o.orderNo, g);
-    }
-    return Array.from(map.values());
-  }, [orders, logoByOrderNo]);
+  const rows: OrderRow[] = useMemo(() => {
+    if (!ordersData) return [];
+    return (ordersData as any[])
+      .map(o => ({
+        orderNo: o.external_order_id,
+        receivedAt: fmtDate(o.created_at),
+        dueDate: fmtDate(o.project_completed_at),
+        recipient: o.recipient_name || "",
+        logoUrl: o.logo_url || null,
+        quantity: o.quantity || 0,
+      }))
+      .sort((a, b) => a.orderNo.localeCompare(b.orderNo));
+  }, [ordersData]);
 
-  const toggle = (id: string) => {
-    const next = new Set(selected);
-    next.has(id) ? next.delete(id) : next.add(id);
-    setSelected(next);
-  };
-  const toggleAll = () => {
-    setSelected(selected.size === groups.length ? new Set() : new Set(groups.map((g) => g.orderNo)));
-  };
+  const detailOrder = useMemo(() => {
+    if (!detailOrderNo || !ordersData) return null;
+    return (ordersData as any[]).find(o => o.external_order_id === detailOrderNo) || null;
+  }, [detailOrderNo, ordersData]);
 
-  const selectedGroups = groups.filter((g) => selected.has(g.orderNo));
-
-  const downloadLogo = async (g: LogoGroup) => {
-    if (!g.logoUrl) {
-      toast({ title: "로고 이미지가 없습니다", variant: "destructive" as any });
-      return;
-    }
-    try {
-      const res = await fetch(g.logoUrl, { referrerPolicy: "no-referrer" });
-      if (!res.ok) throw new Error(`${res.status}`);
-      const blob = await res.blob();
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = g.logoFileName;
-      a.click();
-      URL.revokeObjectURL(a.href);
-      toast({ title: "로고 다운로드 시작", description: g.logoFileName });
-    } catch (e: any) {
-      // fallback: open in new tab
-      const a = document.createElement("a");
-      a.href = g.logoUrl;
-      a.download = g.logoFileName;
-      a.target = "_blank";
-      a.rel = "noreferrer";
-      a.click();
-    }
-  };
-
-  const confirmDelete = () => {
-    if (!pendingDelete) return;
-    const ids = new Set(pendingDelete);
-    setOrders((prev) => prev.filter((o) => !ids.has(o.orderNo)));
-    setSelected((prev) => {
-      const next = new Set(prev);
-      ids.forEach((id) => next.delete(id));
-      return next;
-    });
-    toast({ title: t("out.deleted"), description: `${pendingDelete.length}` });
-    setPendingDelete(null);
-  };
+  if (detailOrderNo && detailOrder) {
+    return (
+      <LogoDetailView
+        order={detailOrder}
+        onBack={() => setDetailOrderNo(null)}
+      />
+    );
+  }
 
   return (
     <div>
-      <PageHeader
-        title={t("menu.outLogo")}
-        description="작업번호별 1개의 로고 · 발주수량 = 작업건 주문수량 합계 × 1.1 (올림)"
-      />
+      <PageHeader title={t("menu.outLogo")} description="작업번호별 로고 외주 발주 관리" />
       <div className="p-6 space-y-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">{t("out.orderList")}</CardTitle>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="destructive"
-                disabled={selected.size === 0}
-                onClick={() => setPendingDelete(Array.from(selected))}
-              >
-                <Trash2 className="w-4 h-4 mr-1" /> {t("out.deleteSelected")}
-              </Button>
-              <Button
-                size="sm"
-                disabled={selected.size === 0}
-                onClick={() => {
-                  setGenerated(true);
-                  toast({
-                    title: t("out.generateOrderSheet"),
-                    description: `${selectedGroups.length} 작업건 · 총 ${selectedGroups.reduce((s, g) => s + g.requestQty, 0)} EA`,
-                  });
-                }}
-              >
-                <FileText className="w-4 h-4 mr-1" /> {t("out.generateOrderSheet")}
-              </Button>
-            </div>
+          <CardHeader>
+            <CardTitle className="text-base">주문 목록</CardTitle>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-10">
-                    <Checkbox
-                      checked={selected.size === groups.length && groups.length > 0}
-                      onCheckedChange={toggleAll}
-                    />
-                  </TableHead>
+                  <TableHead className="w-12">#</TableHead>
                   <TableHead>작업번호</TableHead>
+                  <TableHead>주문접수일</TableHead>
+                  <TableHead>납기일</TableHead>
+                  <TableHead>트윈커</TableHead>
                   <TableHead>로고</TableHead>
-                  <TableHead>주문 건수</TableHead>
-                  <TableHead>주문수량</TableHead>
-                  <TableHead>발주수량 (×1.1)</TableHead>
-                  <TableHead>{t("out.status")}</TableHead>
-                  <TableHead className="w-44 text-right">{t("out.action")}</TableHead>
+                  <TableHead className="text-right">작업수량</TableHead>
+                  <TableHead className="text-right">상세보기</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {groups.map((g) => (
-                  <TableRow key={g.orderNo}>
+                {isLoading && (
+                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">로딩 중...</TableCell></TableRow>
+                )}
+                {!isLoading && rows.length === 0 && (
+                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">주문 데이터가 없습니다</TableCell></TableRow>
+                )}
+                {rows.map((r, i) => (
+                  <TableRow key={r.orderNo}>
+                    <TableCell>{i + 1}</TableCell>
+                    <TableCell className="font-mono">{r.orderNo}</TableCell>
+                    <TableCell>{r.receivedAt}</TableCell>
+                    <TableCell>{r.dueDate || <span className="text-muted-foreground">-</span>}</TableCell>
+                    <TableCell>{r.recipient}</TableCell>
                     <TableCell>
-                      <Checkbox checked={selected.has(g.orderNo)} onCheckedChange={() => toggle(g.orderNo)} />
-                    </TableCell>
-                    <TableCell className="font-mono">{g.orderNo}</TableCell>
-                    <TableCell>
-                      <button
-                        onClick={() => setPreview(g)}
-                        className="w-14 h-14 rounded-md border bg-muted/40 flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-primary transition"
-                        aria-label="로고 미리보기"
-                      >
-                        {g.logoUrl ? (
-                          <img
-                            src={g.logoUrl}
-                            alt={`${g.orderNo} 로고`}
-                            loading="lazy"
-                            referrerPolicy="no-referrer"
-                            className="w-full h-full object-contain"
-                          />
+                      <div className="w-12 h-12 rounded border bg-muted/30 flex items-center justify-center overflow-hidden">
+                        {r.logoUrl ? (
+                          <img src={r.logoUrl} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                         ) : (
-                          <ImageOff className="w-5 h-5 text-muted-foreground" />
+                          <ImageOff className="w-4 h-4 text-muted-foreground" />
                         )}
-                      </button>
+                      </div>
                     </TableCell>
-                    <TableCell>{g.items.length}</TableCell>
-                    <TableCell>{g.totalQty}</TableCell>
-                    <TableCell>
-                      <span className="font-semibold">{g.requestQty}</span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{g.status}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right space-x-1">
-                      <Button size="sm" variant="ghost" onClick={() => setPreview(g)}>
-                        <Eye className="w-4 h-4 mr-1" /> 보기
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => downloadLogo(g)}
-                        disabled={!g.logoUrl}
-                        aria-label="로고 다운로드"
-                      >
-                        <Download className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setPendingDelete([g.orderNo])}
-                        aria-label={t("out.delete")}
-                      >
-                        <Trash2 className="w-4 h-4 text-destructive" />
+                    <TableCell className="text-right tabular-nums">{r.quantity}</TableCell>
+                    <TableCell className="text-right">
+                      <Button size="sm" variant="ghost" onClick={() => setDetailOrderNo(r.orderNo)}>
+                        <Eye className="w-4 h-4 mr-1" />상세보기
                       </Button>
                     </TableCell>
                   </TableRow>
                 ))}
-                {groups.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">
-                      —
-                    </TableCell>
-                  </TableRow>
-                )}
               </TableBody>
             </Table>
           </CardContent>
         </Card>
+      </div>
+    </div>
+  );
+}
 
-        {generated && selectedGroups.length > 0 && (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Eye className="w-4 h-4" /> {t("out.preview")}
-              </CardTitle>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => toast({ title: t("out.sendEmail") })}>
-                  <Mail className="w-4 h-4 mr-1" /> {t("out.sendEmail")}
+/* ============================== Detail View ============================== */
+
+function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
+  const orderNo: string = order.external_order_id;
+  const qty: number = order.quantity || 0;
+  const surplus = Math.ceil(qty * 0.05);
+  const total = qty + surplus;
+  const logoUrl: string | null = order.logo_url || null;
+
+  // Work order (작업지시서)
+  const WO_LS_KEY = `logo.workOrder.v1.${orderNo}`;
+  const woDefaults = useMemo(() => ({
+    company: "TWINMETA",
+    orderNo,
+    orderDate: fmtDate(order?.created_at),
+    deliveryDate: fmtDate(order?.project_completed_at),
+    baseQty: qty,
+    surplusQty: surplus,
+    totalQty: total,
+    recipient: "TWINMETA",
+    phone: "18562757070",
+    address: "山东省 青岛市 城阳区 青岛市城阳区流亭街道杨埠寨社区工业园6号厂房东侧1楼 TWINMETA",
+    notes: order?.source_data?.notes || order?.source_data?.special_notes || "",
+  }), [orderNo, order, qty, surplus, total]);
+
+  const [wo, setWo] = useState(woDefaults);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(WO_LS_KEY);
+      if (raw) setWo({ ...woDefaults, ...JSON.parse(raw) });
+      else setWo(woDefaults);
+    } catch { setWo(woDefaults); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderNo]);
+  const setWoP = (p: Partial<typeof wo>) => setWo(prev => ({ ...prev, ...p }));
+
+  // Logo settings
+  const [workType, setWorkType] = useState<WorkType>("heat-transfer");
+  const [logoSizeMm, setLogoSizeMm] = useState<number>(50);
+  const [processedDataUrl, setProcessedDataUrl] = useState<string | null>(null); // upscaled or vectorized
+  const [processedKind, setProcessedKind] = useState<"original" | "upscaled" | "vector">("original");
+  const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    setProcessedDataUrl(null);
+    setProcessedKind("original");
+  }, [logoUrl]);
+
+  const displayedLogo = processedDataUrl || logoUrl;
+
+  const handleUpscale = async () => {
+    if (!logoUrl) return;
+    setBusy("로고 업스케일링 중...");
+    try {
+      const dataUrl = await fetchAsDataUrl(logoUrl);
+      const img = await loadImage(dataUrl);
+      const scale = 2;
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth * scale;
+      canvas.height = img.naturalHeight * scale;
+      const ctx = canvas.getContext("2d")!;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      setProcessedDataUrl(canvas.toDataURL("image/png"));
+      setProcessedKind("upscaled");
+      toast({ title: "업스케일 완료", description: `${img.naturalWidth}×${img.naturalHeight} → ${canvas.width}×${canvas.height}` });
+    } catch (e: any) {
+      toast({ title: "업스케일 실패", description: e.message, variant: "destructive" });
+    } finally { setBusy(null); }
+  };
+
+  const handleVectorize = async () => {
+    if (!logoUrl) return;
+    setBusy("벡터 변환 중...");
+    try {
+      const dataUrl = await fetchAsDataUrl(logoUrl);
+      const img = await loadImage(dataUrl);
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const svgString: string = ImageTracer.imagedataToSVG(imageData, { numberofcolors: 8, ltres: 1, qtres: 1 });
+      const svgDataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(svgString)}`;
+      setProcessedDataUrl(svgDataUrl);
+      setProcessedKind("vector");
+      toast({ title: "벡터 변환 완료", description: "PNG → SVG" });
+    } catch (e: any) {
+      toast({ title: "벡터 변환 실패", description: e.message, variant: "destructive" });
+    } finally { setBusy(null); }
+  };
+
+  const resetLogo = () => {
+    setProcessedDataUrl(null);
+    setProcessedKind("original");
+  };
+
+  const downloadResultPdf = async () => {
+    if (!logoUrl) {
+      toast({ title: "로고가 없습니다", variant: "destructive" });
+      return;
+    }
+    setBusy("작업 결과물 PDF 생성 중...");
+    try {
+      const src = displayedLogo || logoUrl;
+      const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
+      // Render to PNG (jsPDF doesn't embed SVG directly without plugin)
+      const img = await loadImage(dataUrl);
+      const px = Math.max(800, img.naturalWidth);
+      const ar = img.naturalHeight / img.naturalWidth;
+      const canvas = document.createElement("canvas");
+      canvas.width = px;
+      canvas.height = Math.round(px * ar);
+      const ctx = canvas.getContext("2d")!;
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const pngUrl = canvas.toDataURL("image/png");
+
+      const pdf = new jsPDF({ unit: "mm", format: "a4" });
+      const pageW = 210, pageH = 297;
+      // header text
+      pdf.setFontSize(14);
+      pdf.text(`Work Order: ${orderNo}`, 14, 16);
+      pdf.setFontSize(10);
+      pdf.text(`Type: ${WORK_TYPES.find(w => w.value === workType)?.label} | Logo Size: ${logoSizeMm}mm | Qty: ${total} (base ${qty} + 5% ${surplus})`, 14, 23);
+
+      const logoH = logoSizeMm * ar;
+      const x = (pageW - logoSizeMm) / 2;
+      const y = (pageH - logoH) / 2;
+      pdf.rect(x - 2, y - 2, logoSizeMm + 4, logoH + 4);
+      pdf.addImage(pngUrl, "PNG", x, y, logoSizeMm, logoH, undefined, "FAST");
+
+      pdf.setFontSize(8);
+      pdf.text(`Logo source: ${processedKind}`, 14, pageH - 10);
+
+      pdf.save(`logo_${orderNo}_${workType}.pdf`);
+      toast({ title: "PDF 다운로드 완료" });
+    } catch (e: any) {
+      toast({ title: "PDF 생성 실패", description: e.message, variant: "destructive" });
+    } finally { setBusy(null); }
+  };
+
+  // Effect preview overlay style based on work type
+  const effectClass: Record<WorkType, string> = {
+    "heat-transfer": "",
+    "hologram": "mix-blend-screen drop-shadow-[0_0_8px_rgba(168,85,247,0.6)]",
+    "laser": "grayscale contrast-125 brightness-90",
+    "embroidery": "drop-shadow-[1px_1px_0_rgba(0,0,0,0.4)]",
+    "print": "",
+  };
+
+  return (
+    <div>
+      <PageHeader title={`LOGO 공장 · ${orderNo}`} description="주문 상세" />
+      <div className="p-6 space-y-4">
+        <Card>
+          <CardContent className="p-4 flex items-center justify-between">
+            <Button size="sm" variant="ghost" onClick={onBack}>
+              <ChevronLeft className="w-4 h-4 mr-1" /> 목록으로
+            </Button>
+            <div className="text-sm text-muted-foreground">
+              작업번호 <span className="font-mono text-foreground">{orderNo}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 작업지시서 설정 */}
+        <Card className="border-dashed">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center justify-between">
+              <span>작업지시서 설정</span>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="default" onClick={() => {
+                  try {
+                    localStorage.setItem(WO_LS_KEY, JSON.stringify(wo));
+                    toast({ title: "작업지시서 저장됨" });
+                  } catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" }); }
+                }}>저장</Button>
+                <Button size="sm" variant="outline" onClick={() => printLogoWorkOrder(wo, workType, logoSizeMm, displayedLogo)}>
+                  <FileText className="w-4 h-4 mr-1" />작업지시서 출력
                 </Button>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {selectedGroups.map((g) => (
-                <div key={g.orderNo} className="flex items-center justify-between border rounded-md p-3 gap-3">
-                  <div className="w-12 h-12 rounded border bg-muted/40 flex items-center justify-center overflow-hidden shrink-0">
-                    {g.logoUrl ? (
-                      <img src={g.logoUrl} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
-                    ) : (
-                      <ImageOff className="w-4 h-4 text-muted-foreground" />
-                    )}
-                  </div>
-                  <div className="flex-1 font-mono text-sm">{g.orderNo}</div>
-                  <div className="text-sm">
-                    주문 {g.totalQty} → 발주 <span className="font-semibold">{g.requestQty}</span>
-                  </div>
-                  <Button size="sm" variant="outline" onClick={() => downloadLogo(g)} disabled={!g.logoUrl}>
-                    <Download className="w-4 h-4 mr-1" /> 로고
-                  </Button>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        )}
-      </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <TxtField label="발주업체명" v={wo.company} set={v => setWoP({ company: v })} />
+            <TxtField label="작업번호" v={wo.orderNo} set={v => setWoP({ orderNo: v })} />
+            <div className="grid grid-cols-2 gap-2">
+              <TxtField label="발주일" type="date" v={wo.orderDate} set={v => setWoP({ orderDate: v })} />
+              <TxtField label="납품일" type="date" v={wo.deliveryDate} set={v => setWoP({ deliveryDate: v })} />
+            </div>
+            <div className="md:col-span-3 grid grid-cols-3 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs">기본수량</Label>
+                <Input
+                  type="number"
+                  value={wo.baseQty}
+                  onChange={(e) => {
+                    const b = Number(e.target.value) || 0;
+                    const s = Math.ceil(b * 0.05);
+                    setWoP({ baseQty: b, surplusQty: s, totalQty: b + s });
+                  }}
+                  className="h-9"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">여유수량 (기본수량의 5%)</Label>
+                <Input value={wo.surplusQty} readOnly className="h-9 font-mono bg-muted/50" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">총수량</Label>
+                <Input value={wo.totalQty} readOnly className="h-9 font-mono bg-muted/50 font-semibold" />
+              </div>
+            </div>
+            <TxtField label="받을사람" v={wo.recipient} set={v => setWoP({ recipient: v })} />
+            <TxtField label="전화번호" v={wo.phone} set={v => setWoP({ phone: v })} />
+            <TxtField label="주소" v={wo.address} set={v => setWoP({ address: v })} />
+            <div className="md:col-span-3 space-y-1">
+              <Label className="text-xs">발주특이사항</Label>
+              <Textarea value={wo.notes} onChange={(e) => setWoP({ notes: e.target.value })} rows={3} placeholder="특이사항을 입력하세요" />
+            </div>
+          </CardContent>
+        </Card>
 
-      {/* Logo preview modal */}
-      <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              로고 미리보기 — <span className="font-mono">{preview?.orderNo}</span>
-            </DialogTitle>
-          </DialogHeader>
-          {preview && (
-            <div className="space-y-4">
-              <div className="rounded-md border bg-muted/30 flex items-center justify-center p-6 min-h-[320px]">
-                {preview.logoUrl ? (
-                  <img
-                    src={preview.logoUrl}
-                    alt={`${preview.orderNo} 로고`}
-                    referrerPolicy="no-referrer"
-                    className="max-h-[60vh] object-contain"
-                  />
-                ) : (
-                  <div className="flex flex-col items-center text-muted-foreground gap-2">
-                    <ImageOff className="w-10 h-10" />
-                    <span className="text-sm">로고 이미지가 없습니다</span>
-                  </div>
-                )}
+        {/* 로고 작업 설정 박스 */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center justify-between">
+              <span>로고 작업 시안</span>
+              <Button size="sm" onClick={downloadResultPdf} disabled={!logoUrl || !!busy}>
+                <Download className="w-4 h-4 mr-1" /> 작업결과물 다운로드 (PDF)
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Settings row */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">작업종류</Label>
+                <Select value={workType} onValueChange={(v) => setWorkType(v as WorkType)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {WORK_TYPES.map(w => <SelectItem key={w.value} value={w.value}>{w.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="grid grid-cols-3 gap-3 text-sm">
-                <div className="rounded border p-3">
-                  <div className="text-xs text-muted-foreground">주문 건수</div>
-                  <div className="font-semibold">{preview.items.length}</div>
-                </div>
-                <div className="rounded border p-3">
-                  <div className="text-xs text-muted-foreground">총 주문수량</div>
-                  <div className="font-semibold">{preview.totalQty}</div>
-                </div>
-                <div className="rounded border p-3">
-                  <div className="text-xs text-muted-foreground">발주수량 (×1.1)</div>
-                  <div className="font-semibold text-primary">{preview.requestQty}</div>
-                </div>
+              <div className="space-y-1">
+                <Label className="text-xs">로고 사이즈 (mm)</Label>
+                <Input
+                  type="number"
+                  step="0.5"
+                  value={logoSizeMm}
+                  onChange={(e) => setLogoSizeMm(Number(e.target.value) || 0)}
+                  className="h-9"
+                />
               </div>
-              <div className="flex justify-end">
-                <Button onClick={() => downloadLogo(preview)} disabled={!preview.logoUrl}>
-                  <Download className="w-4 h-4 mr-1" /> 로고 다운로드
+              <div className="space-y-1">
+                <Label className="text-xs">로고 업스케일링 (2×)</Label>
+                <Button size="sm" variant="outline" className="w-full h-9" onClick={handleUpscale} disabled={!logoUrl || !!busy}>
+                  <Sparkles className="w-3 h-3 mr-1" /> 업스케일 실행
+                </Button>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">PNG → 벡터 (SVG)</Label>
+                <Button size="sm" variant="outline" className="w-full h-9" onClick={handleVectorize} disabled={!logoUrl || !!busy}>
+                  <Wand2 className="w-3 h-3 mr-1" /> 벡터 변환
                 </Button>
               </div>
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
-      <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("out.deleteConfirmTitle")}</AlertDialogTitle>
-            <AlertDialogDescription>{t("out.deleteConfirmDesc")}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("out.cancel")}</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete}>{t("out.delete")}</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            {busy && <div className="text-xs text-muted-foreground">{busy}</div>}
+
+            {/* Preview grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="border rounded-md p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold">로고 미리보기</div>
+                  <Badge variant="outline" className="text-[10px]">
+                    {processedKind === "original" ? "원본" : processedKind === "upscaled" ? "업스케일" : "벡터(SVG)"}
+                  </Badge>
+                </div>
+                <div className="aspect-square w-full border rounded bg-muted/20 flex items-center justify-center overflow-hidden">
+                  {displayedLogo ? (
+                    <img src={displayedLogo} alt="로고" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                  ) : (
+                    <div className="flex flex-col items-center text-muted-foreground gap-1">
+                      <ImageOff className="w-8 h-8" />
+                      <span className="text-xs">로고가 없습니다</span>
+                    </div>
+                  )}
+                </div>
+                {processedKind !== "original" && (
+                  <Button size="sm" variant="ghost" className="w-full" onClick={resetLogo}>원본으로 복원</Button>
+                )}
+              </div>
+
+              <div className="border rounded-md p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold">최종 적용효과 미리보기</div>
+                  <Badge>{WORK_TYPES.find(w => w.value === workType)?.label}</Badge>
+                </div>
+                <div className="aspect-square w-full border rounded flex items-center justify-center overflow-hidden relative"
+                  style={{ background: workType === "heat-transfer" ? "#1f2937" : workType === "embroidery" ? "#f3eee0" : workType === "laser" ? "#9ca3af" : "#fff" }}>
+                  {displayedLogo ? (
+                    <div className="relative flex items-center justify-center" style={{ width: `${Math.min(80, logoSizeMm * 1.2)}%`, height: `${Math.min(80, logoSizeMm * 1.2)}%` }}>
+                      <img
+                        src={displayedLogo}
+                        alt="effect preview"
+                        className={`max-w-full max-h-full object-contain ${effectClass[workType]}`}
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">로고 없음</span>
+                  )}
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  적용 크기: {logoSizeMm}mm · 수량: {total} EA
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
+}
+
+function TxtField({ label, v, set, type = "text" }: { label: string; v: string; set: (v: string) => void; type?: string }) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs">{label}</Label>
+      <Input type={type} value={v} onChange={e => set(e.target.value)} className="h-9" />
+    </div>
+  );
+}
+
+function printLogoWorkOrder(
+  wo: { company: string; orderNo: string; orderDate: string; deliveryDate: string; baseQty: number; surplusQty: number; totalQty: number; recipient: string; phone: string; address: string; notes: string },
+  workType: WorkType,
+  logoSizeMm: number,
+  logoSrc: string | null,
+) {
+  const esc = (s: any) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+  const today = new Date().toISOString().slice(0, 10);
+  const typeLabel = WORK_TYPES.find(w => w.value === workType)?.label || workType;
+  const html = `<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8" />
+<title>作业指示书 - ${esc(wo.orderNo)}</title>
+<style>
+  @page { size: A4; margin: 12mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "PingFang SC", "Microsoft YaHei", "SimHei", "Noto Sans SC", sans-serif; color:#111; margin:0; padding:0; }
+  h1 { font-size: 22pt; text-align:center; margin: 0 0 4mm; letter-spacing: 8px; border-bottom: 2px solid #111; padding-bottom: 4mm; }
+  .meta { display:flex; justify-content:space-between; font-size: 9pt; color:#555; margin-bottom: 6mm; }
+  table { width:100%; border-collapse: collapse; font-size: 10pt; }
+  table th, table td { border: 1px solid #333; padding: 2.5mm 3mm; vertical-align: middle; }
+  table th { background:#f2f2f2; font-weight:600; width: 22%; text-align:left; }
+  .qty th, .qty td { text-align:center; }
+  .notes { min-height: 22mm; white-space: pre-wrap; }
+  h2 { font-size: 12pt; margin: 8mm 0 3mm; padding-bottom: 1.5mm; border-bottom: 1px solid #999; }
+  .logo-box { text-align:center; padding: 6mm; border: 1px solid #333; }
+  .logo-box img { max-width: 60mm; max-height: 60mm; object-fit: contain; }
+  .sig { margin-top: 10mm; display:flex; justify-content:flex-end; gap: 10mm; font-size: 10pt; }
+  .sig div { border-top:1px solid #333; padding-top:2mm; min-width: 40mm; text-align:center; }
+  .no-print { position:fixed; top:8px; right:8px; }
+  .no-print button { padding: 8px 14px; font-size: 13px; cursor:pointer; }
+  @media print { .no-print { display:none; } }
+</style></head>
+<body>
+  <div class="no-print"><button onclick="window.print()">打印 / 保存PDF</button></div>
+  <h1>作 业 指 示 书</h1>
+  <div class="meta"><span>发包方:${esc(wo.company)}</span><span>打印日期:${today}</span></div>
+  <table>
+    <tr><th>发包公司</th><td>${esc(wo.company)}</td><th>作业编号</th><td>${esc(wo.orderNo)}</td></tr>
+    <tr><th>下单日期</th><td>${esc(wo.orderDate)}</td><th>交货日期</th><td>${esc(wo.deliveryDate)}</td></tr>
+    <tr><th>收件人</th><td>${esc(wo.recipient)}</td><th>联系电话</th><td>${esc(wo.phone)}</td></tr>
+    <tr><th>收货地址</th><td colspan="3">${esc(wo.address)}</td></tr>
+    <tr><th>作业类型</th><td>${esc(typeLabel)}</td><th>LOGO 尺寸</th><td>${esc(logoSizeMm)} mm</td></tr>
+  </table>
+  <h2>数量</h2>
+  <table class="qty">
+    <tr><th>基本数量</th><th>富余数量 (5%)</th><th>总数量</th></tr>
+    <tr><td>${esc(wo.baseQty)}</td><td>${esc(wo.surplusQty)}</td><td><strong>${esc(wo.totalQty)}</strong></td></tr>
+  </table>
+  <h2>订单特殊事项</h2>
+  <table><tr><td class="notes">${esc(wo.notes) || "&nbsp;"}</td></tr></table>
+  <h2>LOGO 样式</h2>
+  <div class="logo-box">
+    ${logoSrc ? `<img src="${esc(logoSrc)}" alt="logo" />` : `<span style="color:#999;">无 LOGO</span>`}
+  </div>
+  <div class="sig"><div>负责人</div><div>审批</div></div>
+  <script>window.addEventListener("load", () => setTimeout(() => window.print(), 400));</script>
+</body></html>`;
+  const w = window.open("", "_blank", "width=900,height=1100");
+  if (!w) { toast({ title: "팝업 차단됨", description: "팝업을 허용해주세요", variant: "destructive" }); return; }
+  w.document.open(); w.document.write(html); w.document.close();
 }
