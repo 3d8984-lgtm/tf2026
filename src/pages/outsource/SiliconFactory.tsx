@@ -1312,15 +1312,14 @@ function ProofBox({
             </div>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="text-xs text-muted-foreground">
-                출력 사이즈: <span className="font-mono text-foreground">{(tCols * cellW + Math.max(0, tCols - 1) * tGap).toFixed(2)} × {(tRows * cellH + Math.max(0, tRows - 1) * tGap).toFixed(2)} mm</span> · 마크 크기: <span className="font-mono text-foreground">{cellW.toFixed(2)} × {cellH.toFixed(2)} mm</span> (원본 63 × 60.811, 비율 고정) · 페이지당 {perPageT}개 · 총 {items.length}개 · {totalPagesT}페이지
                 {(() => {
-                  const tMargin = 10;
-                  const contentW = tCols * cellW + Math.max(0, tCols - 1) * tGap;
-                  const contentH = tRows * cellH + Math.max(0, tRows - 1) * tGap;
-                  const availW = A4_W - 2 * tMargin;
-                  const availH = A4_H - 2 * tMargin;
-                  const fit = Math.min(availW / contentW, availH / contentH, 1);
-                  return fit < 1 ? <span className="ml-2 text-amber-600 dark:text-amber-400">· 대지 초과 자동 축소 {(fit * 100).toFixed(1)}%</span> : null;
+                  const textBlock = proof.twinTextGap + proof.twinTextSize;
+                  const cellTotalH = cellH + textBlock;
+                  const outW = tCols * cellW + Math.max(0, tCols - 1) * tGap + 2 * proof.twinMargin;
+                  const outH = tRows * cellTotalH + Math.max(0, tRows - 1) * tGap + 2 * proof.twinMargin;
+                  return (
+                    <>대지 사이즈(텍스트 포함): <span className="font-mono text-foreground">{outW.toFixed(2)} × {outH.toFixed(2)} mm</span> · 여백 {proof.twinMargin}mm · 마크 크기: <span className="font-mono text-foreground">{cellW.toFixed(2)} × {cellH.toFixed(2)} mm</span> · 페이지당 {perPageT}개 · 총 {items.length}개 · {totalPagesT}페이지</>
+                  );
                 })()}
               </div>
               <div className="flex items-center gap-2 flex-wrap shrink-0">
