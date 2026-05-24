@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Eye, ImageOff, ChevronLeft, FileText, Download, Sparkles, Wand2, Upload, Trash2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { jsPDF } from "jspdf";
+import { svg2pdf } from "svg2pdf.js";
 // @ts-ignore - no types
 import ImageTracer from "imagetracerjs";
 
@@ -59,6 +60,16 @@ async function fetchAsDataUrl(url: string): Promise<string> {
     r.onerror = () => reject(new Error("read failed"));
     r.readAsDataURL(blob);
   });
+}
+
+function svgDataUrlToText(dataUrl: string): string {
+  const utf8Prefix = "data:image/svg+xml;utf8,";
+  if (dataUrl.startsWith(utf8Prefix)) return decodeURIComponent(dataUrl.slice(utf8Prefix.length));
+
+  const base64Prefix = "data:image/svg+xml;base64,";
+  if (dataUrl.startsWith(base64Prefix)) return atob(dataUrl.slice(base64Prefix.length));
+
+  return dataUrl;
 }
 
 export default function LogoFactory() {
