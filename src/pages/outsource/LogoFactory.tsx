@@ -311,20 +311,62 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       const src = sourceLogo;
       const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
       const img = await loadImage(dataUrl);
+      // Upscale source for cleaner curve tracing (more samples = smoother paths)
+      const scale = Math.max(1, Math.min(4, Math.round(1600 / Math.max(img.naturalWidth, img.naturalHeight))));
       const canvas = document.createElement("canvas");
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
+      canvas.width = img.naturalWidth * scale;
+      canvas.height = img.naturalHeight * scale;
       const ctx = canvas.getContext("2d")!;
-      ctx.drawImage(img, 0, 0);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const svgString: string = ImageTracer.imagedataToSVG(imageData, { numberofcolors: 8, ltres: 1, qtres: 1 });
+      // Higher-quality tracing: smoother curves, fewer noisy paths, true vector output
+      const svgString: string = ImageTracer.imagedataToSVG(imageData, {
+        numberofcolors: 8,
+        ltres: 0.1,
+        qtres: 0.1,
+        pathomit: 8,
+        rightangleenhance: false,
+        linefilter: true,
+        blurradius: 1,
+        blurdelta: 20,
+        strokewidth: 0,
+        roundcoords: 2,
+        viewbox: true,
+      });
       const svgDataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(svgString)}`;
       setProcessedDataUrl(svgDataUrl);
       setProcessedKind("vector");
-      toast({ title: "벡터 변환 완료", description: "PNG → SVG" });
+      toast({ title: "벡터 변환 완료", description: "SVG 다운로드 버튼으로 원본 벡터 파일을 받으세요." });
     } catch (e: any) {
       toast({ title: "벡터 변환 실패", description: e.message, variant: "destructive" });
     } finally { setBusy(null); }
+  };
+
+  const downloadVectorSvg = () => {
+    if (processedKind !== "vector" || !processedDataUrl) {
+      toast({ title: "벡터 변환을 먼저 실행하세요", variant: "destructive" });
+      return;
+    }
+    try {
+      const prefix = "data:image/svg+xml;utf8,";
+      const svgText = processedDataUrl.startsWith(prefix)
+        ? decodeURIComponent(processedDataUrl.slice(prefix.length))
+        : processedDataUrl;
+      const blob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `logo_${orderNo}_${workType}_vector.svg`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast({ title: "SVG 다운로드 완료", description: "확대해도 깨지지 않는 진짜 벡터 파일입니다." });
+    } catch (e: any) {
+      toast({ title: "SVG 다운로드 실패", description: e?.message || String(e), variant: "destructive" });
+    }
   };
 
   const resetLogo = () => {
