@@ -46,17 +46,58 @@ export default function HologramFactory() {
   const { t } = useLang();
   const { data: ordersData } = useOrders();
   const [activeOrderNo, setActiveOrderNo] = useState<string | null>(null);
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfName, setPdfName] = useState<string | null>(null);
+  const [pdfSize, setPdfSize] = useState<number | null>(null);
+  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const PDF_BUCKET = "hologram-pdf";
+  const PDF_PATH = "format.pdf";
 
-  const onPdfSelected = (f?: File | null) => {
+  const loadStoredPdf = async () => {
+    const { data: list } = await supabase.storage.from(PDF_BUCKET).list("", { limit: 100 });
+    const meta = list?.find((f) => f.name === PDF_PATH);
+    if (!meta) { setPdfUrl(null); setPdfName(null); setPdfSize(null); return; }
+    const { data } = supabase.storage.from(PDF_BUCKET).getPublicUrl(PDF_PATH);
+    // cache-bust so updates show immediately
+    setPdfUrl(`${data.publicUrl}?v=${meta.updated_at ?? Date.now()}`);
+    setPdfName((meta.metadata as any)?.originalName || PDF_PATH);
+    setPdfSize((meta.metadata as any)?.size ?? null);
+  };
+
+  useEffect(() => { loadStoredPdf(); }, []);
+
+  const onPdfSelected = async (f?: File | null) => {
     if (!f) return;
     if (f.type !== "application/pdf" && !f.name.toLowerCase().endsWith(".pdf")) {
       toast({ title: "PDF 파일만 업로드 가능합니다", variant: "destructive" as any });
       return;
     }
-    setPdfFile(f);
+    setUploading(true);
+    const { error } = await supabase.storage.from(PDF_BUCKET).upload(PDF_PATH, f, {
+      upsert: true,
+      contentType: "application/pdf",
+    });
+    setUploading(false);
+    if (error) {
+      toast({ title: "업로드 실패", description: error.message, variant: "destructive" as any });
+      return;
+    }
     toast({ title: "PDF 업로드 완료", description: f.name });
+    await loadStoredPdf();
+  };
+
+  const onDeletePdf = async () => {
+    setUploading(true);
+    const { error } = await supabase.storage.from(PDF_BUCKET).remove([PDF_PATH]);
+    setUploading(false);
+    if (error) {
+      toast({ title: "삭제 실패", description: error.message, variant: "destructive" as any });
+      return;
+    }
+    setPdfUrl(null); setPdfName(null); setPdfSize(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    toast({ title: "PDF 삭제 완료" });
   };
 
   const orderRows = useMemo(() => {
