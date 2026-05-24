@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import { Eye, ImageOff, ChevronLeft, FileText, Download, Sparkles, Wand2, Upload, Trash2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { jsPDF } from "jspdf";
@@ -256,6 +257,12 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const [testLogoName, setTestLogoName] = useState<string | null>(null);
   const testLogoInputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // Compare viewer
+  const [compareMode, setCompareMode] = useState<"side" | "slider">("side");
+  const [compareZoom, setCompareZoom] = useState<number>(3);
+  const [compareOrigin, setCompareOrigin] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
+  const [sliderPct, setSliderPct] = useState<number>(50);
+  const [compareBg, setCompareBg] = useState<"checker" | "white" | "black">("checker");
 
   useEffect(() => {
     setProcessedDataUrl(null);
@@ -926,8 +933,181 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 </div>
               </div>
             </div>
+
+            {/* Compare viewer: original vs processed (vector) */}
+            {sourceLogo && (
+              <div className="border rounded-md p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-sm font-semibold">원본 ↔ 변환 결과 확대 비교</div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-1 rounded-md border p-0.5">
+                      <Button size="sm" variant={compareMode === "side" ? "default" : "ghost"} className="h-7 px-2 text-xs" onClick={() => setCompareMode("side")}>좌우</Button>
+                      <Button size="sm" variant={compareMode === "slider" ? "default" : "ghost"} className="h-7 px-2 text-xs" onClick={() => setCompareMode("slider")}>오버레이</Button>
+                    </div>
+                    <div className="flex items-center gap-1 rounded-md border p-0.5">
+                      {(["checker", "white", "black"] as const).map(b => (
+                        <Button key={b} size="sm" variant={compareBg === b ? "default" : "ghost"} className="h-7 px-2 text-xs" onClick={() => setCompareBg(b)}>
+                          {b === "checker" ? "체커" : b === "white" ? "백" : "흑"}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Zoom control */}
+                <div className="flex items-center gap-3">
+                  <Label className="text-xs w-14 shrink-0">확대 {compareZoom.toFixed(1)}×</Label>
+                  <Slider min={1} max={10} step={0.5} value={[compareZoom]} onValueChange={(v) => setCompareZoom(v[0])} className="flex-1" />
+                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => { setCompareZoom(1); setCompareOrigin({ x: 50, y: 50 }); }}>초기화</Button>
+                </div>
+
+                {processedKind !== "vector" ? (
+                  <div className="text-xs text-muted-foreground p-3 rounded bg-muted/30">
+                    ※ 비교를 위해서 먼저 '벡터 변환'을 실행하세요. 현재는 원본만 표시됩니다.
+                  </div>
+                ) : null}
+
+                {/* Viewer */}
+                {compareMode === "side" ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <CompareTile label="원본" src={sourceLogo} zoom={compareZoom} origin={compareOrigin} onMove={setCompareOrigin} bg={compareBg} />
+                    <CompareTile label="벡터 변환" src={processedKind === "vector" ? (processedDataUrl || sourceLogo) : sourceLogo} zoom={compareZoom} origin={compareOrigin} onMove={setCompareOrigin} bg={compareBg} muted={processedKind !== "vector"} />
+                  </div>
+                ) : (
+                  <CompareOverlay
+                    original={sourceLogo}
+                    processed={processedKind === "vector" ? processedDataUrl : null}
+                    zoom={compareZoom}
+                    origin={compareOrigin}
+                    onMove={setCompareOrigin}
+                    sliderPct={sliderPct}
+                    onSliderChange={setSliderPct}
+                    bg={compareBg}
+                  />
+                )}
+                <p className="text-[10px] text-muted-foreground">
+                  ※ 이미지 위에서 마우스를 움직이면 확대 중심점이 따라옵니다. 좌우 모드는 동기화된 확대, 오버레이 모드는 가운데 핸들을 드래그해 비교하세요.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
+      </div>
+    </div>
+  );
+}
+
+const CHECKER_BG = "repeating-conic-gradient(#e5e7eb 0% 25%, #ffffff 0% 50%) 50% / 16px 16px";
+const bgStyle = (b: "checker" | "white" | "black"): React.CSSProperties =>
+  b === "checker" ? { background: CHECKER_BG } : b === "white" ? { background: "#ffffff" } : { background: "#0a0a0a" };
+
+function CompareTile({
+  label, src, zoom, origin, onMove, bg, muted,
+}: {
+  label: string;
+  src: string;
+  zoom: number;
+  origin: { x: number; y: number };
+  onMove: (o: { x: number; y: number }) => void;
+  bg: "checker" | "white" | "black";
+  muted?: boolean;
+}) {
+  const handle = (e: React.MouseEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * 100;
+    const y = ((e.clientY - r.top) / r.height) * 100;
+    onMove({ x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) });
+  };
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <Badge variant="outline" className="text-[10px]">{label}</Badge>
+        {muted && <span className="text-[10px] text-muted-foreground">변환 대기</span>}
+      </div>
+      <div
+        className="aspect-square w-full border rounded overflow-hidden cursor-crosshair relative"
+        style={bgStyle(bg)}
+        onMouseMove={handle}
+      >
+        <img
+          src={src}
+          alt={label}
+          className="absolute inset-0 w-full h-full object-contain select-none pointer-events-none"
+          style={{
+            transform: `scale(${zoom})`,
+            transformOrigin: `${origin.x}% ${origin.y}%`,
+            transition: "transform 80ms linear",
+            opacity: muted ? 0.5 : 1,
+          }}
+          draggable={false}
+          referrerPolicy="no-referrer"
+        />
+      </div>
+    </div>
+  );
+}
+
+function CompareOverlay({
+  original, processed, zoom, origin, onMove, sliderPct, onSliderChange, bg,
+}: {
+  original: string;
+  processed: string | null;
+  zoom: number;
+  origin: { x: number; y: number };
+  onMove: (o: { x: number; y: number }) => void;
+  sliderPct: number;
+  onSliderChange: (n: number) => void;
+  bg: "checker" | "white" | "black";
+}) {
+  const dragging = useRef(false);
+  const setOriginFromEvent = (e: React.MouseEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * 100;
+    const y = ((e.clientY - r.top) / r.height) * 100;
+    onMove({ x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) });
+    if (dragging.current) {
+      onSliderChange(Math.max(0, Math.min(100, x)));
+    }
+  };
+  return (
+    <div
+      className="relative w-full border rounded overflow-hidden select-none"
+      style={{ ...bgStyle(bg), aspectRatio: "2 / 1" }}
+      onMouseMove={setOriginFromEvent}
+      onMouseDown={() => { dragging.current = true; }}
+      onMouseUp={() => { dragging.current = false; }}
+      onMouseLeave={() => { dragging.current = false; }}
+    >
+      <img
+        src={original}
+        alt="원본"
+        className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+        style={{ transform: `scale(${zoom})`, transformOrigin: `${origin.x}% ${origin.y}%` }}
+        draggable={false}
+        referrerPolicy="no-referrer"
+      />
+      {processed && (
+        <img
+          src={processed}
+          alt="벡터"
+          className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+          style={{
+            transform: `scale(${zoom})`,
+            transformOrigin: `${origin.x}% ${origin.y}%`,
+            clipPath: `inset(0 0 0 ${sliderPct}%)`,
+          }}
+          draggable={false}
+        />
+      )}
+      {/* Labels */}
+      <div className="absolute top-1 left-2 text-[10px] px-1.5 py-0.5 rounded bg-background/80 border">원본</div>
+      {processed && <div className="absolute top-1 right-2 text-[10px] px-1.5 py-0.5 rounded bg-background/80 border">벡터</div>}
+      {/* Handle */}
+      <div
+        className="absolute top-0 bottom-0 w-0.5 bg-primary cursor-ew-resize"
+        style={{ left: `${sliderPct}%` }}
+      >
+        <div className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-primary border-2 border-background shadow flex items-center justify-center text-[10px] text-primary-foreground">⇆</div>
       </div>
     </div>
   );
