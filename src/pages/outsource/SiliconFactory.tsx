@@ -1351,80 +1351,78 @@ function ProofBox({
             </div>
 
             <div className="flex justify-center">
-              <div
-                className="relative bg-white shadow border"
-                style={{ width: PAPER_W_PX, height: paperHpx }}
-              >
-                {(() => {
-                  const tMargin = 10; // mm 여백
-                  const contentW = tCols * cellW + Math.max(0, tCols - 1) * tGap;
-                  const contentH = tRows * cellH + Math.max(0, tRows - 1) * tGap;
-                  const availW = A4_W - 2 * tMargin;
-                  const availH = A4_H - 2 * tMargin;
-                  const fit = Math.min(availW / contentW, availH / contentH, 1);
-                  const scaledW = contentW * fit;
-                  const scaledH = contentH * fit;
-                  const originX = (tMargin + (availW - scaledW) / 2) * mmPx;
-                  const originY = (tMargin + (availH - scaledH) / 2) * mmPx;
-                  return (
-                    <>
+              {(() => {
+                const marginMm = Math.max(0, proof.twinMargin);
+                const textBlock = proof.twinTextGap + proof.twinTextSize;
+                const cellTotalH = cellH + textBlock;
+                const outWmm = tCols * cellW + Math.max(0, tCols - 1) * tGap + 2 * marginMm;
+                const outHmm = tRows * cellTotalH + Math.max(0, tRows - 1) * tGap + 2 * marginMm;
+                // Scale so preview width fits PAPER_W_PX
+                const fitPx = PAPER_W_PX / outWmm;
+                const stageW = outWmm * fitPx;
+                const stageH = outHmm * fitPx;
+                return (
+                  <div className="relative bg-white shadow border" style={{ width: stageW, height: stageH }}>
+                    {/* 대지 여백 표시 */}
+                    {marginMm > 0 && (
                       <div
-                        className="absolute border border-dashed border-muted-foreground/30 pointer-events-none"
-                        style={{ left: tMargin * mmPx, top: tMargin * mmPx, width: availW * mmPx, height: availH * mmPx }}
+                        className="absolute border border-dashed border-muted-foreground/40 pointer-events-none"
+                        style={{ left: marginMm * fitPx, top: marginMm * fitPx, width: (outWmm - 2 * marginMm) * fitPx, height: (outHmm - 2 * marginMm) * fitPx }}
                       />
-                      {pageItemsT.map((it, idx) => {
-                        const col = idx % tCols;
-                        const row = Math.floor(idx / tCols);
-                        const x = originX + col * (cellW + tGap) * fit * mmPx;
-                        const y = originY + row * (cellH + tGap) * fit * mmPx;
-                        const w = cellW * fit * mmPx;
-                        const h = cellH * fit * mmPx;
-                        const tmpl = templates[it.grade];
-                        const twinPx = proof.twinSize * fit * mmPx;
-                        const offX = proof.twinOffsetX * fit * mmPx;
-                        const offY = proof.twinOffsetY * fit * mmPx;
-                        return (
-                          <div
-                            key={it.uniqueNo}
-                            className="absolute"
-                            style={{ left: x, top: y, width: w, height: h }}
-                          >
-
-                      {tmpl?.preview ? (
-                        <img src={tmpl.preview} alt="" className="absolute inset-0 w-full h-full object-contain pointer-events-none" />
-                      ) : (
-                        <div className="absolute inset-0 border border-dashed border-muted-foreground/40 flex items-center justify-center text-[9px] text-muted-foreground">
-                          {it.grade} 포맷 없음
-                        </div>
-                      )}
-                      <div
-                        className="absolute"
-                        style={{
-                          left: `calc(50% + ${offX}px - ${twinPx / 2}px)`,
-                          top: `calc(50% + ${offY}px - ${twinPx / 2}px)`,
-                          width: twinPx,
-                          height: twinPx,
-                        }}
-                      >
-                        {(testTwinSvg?.url || it.svgUrl) ? (
-                          <img src={testTwinSvg?.url || it.svgUrl!} alt="" className="w-full h-full object-contain" />
-                        ) : (
-                          <div className="w-full h-full border border-dashed border-destructive flex items-center justify-center text-[8px] text-destructive">no svg</div>
-                        )}
-                      </div>
-                      <div
-                        className="absolute left-0 right-0 text-center font-mono text-foreground"
-                        style={{ bottom: proof.twinTextGap * fit * mmPx, fontSize: Math.max(6, proof.twinTextSize * fit * mmPx) }}
-                      >
-                        {it.uniqueNo}
-                      </div>
+                    )}
+                    {pageItemsT.map((it, idx) => {
+                      const col = idx % tCols;
+                      const row = Math.floor(idx / tCols);
+                      const cellXmm = marginMm + col * (cellW + tGap);
+                      const cellYmm = marginMm + row * (cellTotalH + tGap);
+                      const x = cellXmm * fitPx;
+                      const y = cellYmm * fitPx;
+                      const w = cellW * fitPx;
+                      const h = cellH * fitPx;
+                      const tmpl = templates[it.grade];
+                      const twinPx = proof.twinSize * fitPx;
+                      const offX = proof.twinOffsetX * fitPx;
+                      const offY = proof.twinOffsetY * fitPx;
+                      return (
+                        <div key={it.uniqueNo} className="absolute" style={{ left: x, top: y, width: w, height: h + textBlock * fitPx }}>
+                          {/* mark area */}
+                          <div className="absolute" style={{ left: 0, top: 0, width: w, height: h }}>
+                            {tmpl?.preview ? (
+                              <img src={tmpl.preview} alt="" className="absolute inset-0 w-full h-full object-contain pointer-events-none" />
+                            ) : (
+                              <div className="absolute inset-0 border border-dashed border-muted-foreground/40 flex items-center justify-center text-[9px] text-muted-foreground">
+                                {it.grade} 포맷 없음
+                              </div>
+                            )}
+                            <div
+                              className="absolute"
+                              style={{
+                                left: `calc(50% + ${offX}px - ${twinPx / 2}px)`,
+                                top: `calc(50% + ${offY}px - ${twinPx / 2}px)`,
+                                width: twinPx,
+                                height: twinPx,
+                              }}
+                            >
+                              {(testTwinSvg?.url || it.svgUrl) ? (
+                                <img src={testTwinSvg?.url || it.svgUrl!} alt="" className="w-full h-full object-contain" />
+                              ) : (
+                                <div className="w-full h-full border border-dashed border-destructive flex items-center justify-center text-[8px] text-destructive">no svg</div>
+                              )}
                             </div>
-                          );
-                        })}
-                      </>
-                    );
-                  })()}
-              </div>
+                          </div>
+                          {/* text below mark */}
+                          <div
+                            className="absolute left-0 right-0 text-center font-mono text-foreground leading-none"
+                            style={{ top: h + proof.twinTextGap * fitPx, fontSize: Math.max(6, proof.twinTextSize * fitPx) }}
+                          >
+                            {it.uniqueNo}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           </TabsContent>
 
