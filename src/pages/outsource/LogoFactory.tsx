@@ -333,30 +333,60 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   };
 
   const downloadResultPdf = async () => {
-    if (!logoUrl) {
+    if (!logoUrl && !displayedLogo) {
       toast({ title: "로고가 없습니다", variant: "destructive" });
       return;
     }
     setBusy("작업 결과물 PDF 생성 중...");
     try {
-      const src = displayedLogo || logoUrl;
+      const src = displayedLogo || logoUrl!;
       const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
-      // Render to PNG (jsPDF doesn't embed SVG directly without plugin)
       const img = await loadImage(dataUrl);
-      const px = Math.max(800, img.naturalWidth);
-      const ar = img.naturalHeight / img.naturalWidth;
+
+      // Render final-effect preview to canvas (matches 최종 적용효과 미리보기)
+      const px = Math.max(1200, img.naturalWidth);
+      const ar = img.naturalHeight / img.naturalWidth || 1;
       const canvas = document.createElement("canvas");
       canvas.width = px;
       canvas.height = Math.round(px * ar);
       const ctx = canvas.getContext("2d")!;
-      ctx.fillStyle = "#fff";
+
+      // Background per work type
+      const bg =
+        workType === "heat-transfer" ? "#1f2937"
+        : workType === "embroidery" ? "#f3eee0"
+        : workType === "laser" ? "#9ca3af"
+        : "#ffffff";
+      ctx.fillStyle = bg;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Apply effect filter (best-effort match of CSS preview)
+      let filter = "none";
+      if (workType === "laser") filter = "grayscale(1) contrast(1.25) brightness(0.9)";
+      else if (workType === "hologram") filter = "saturate(1.4) brightness(1.1)";
+      ctx.filter = filter;
+
+      if (workType === "embroidery") {
+        ctx.shadowColor = "rgba(0,0,0,0.4)";
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = Math.max(1, canvas.width * 0.002);
+        ctx.shadowOffsetY = Math.max(1, canvas.width * 0.002);
+      } else if (workType === "hologram") {
+        ctx.shadowColor = "rgba(168,85,247,0.6)";
+        ctx.shadowBlur = canvas.width * 0.015;
+      }
+
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      ctx.filter = "none";
+      ctx.shadowColor = "transparent";
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+
       const pngUrl = canvas.toDataURL("image/png");
 
       const pdf = new jsPDF({ unit: "mm", format: "a4" });
       const pageW = 210, pageH = 297;
-      // header text
       pdf.setFontSize(14);
       pdf.text(`Work Order: ${orderNo}`, 14, 16);
       pdf.setFontSize(10);
@@ -364,18 +394,24 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
       const x = (pageW - logoWidthMm) / 2;
       const y = (pageH - logoHeightMm) / 2;
+      // Background swatch matching effect preview
+      pdf.setFillColor(bg);
+      pdf.rect(x - 2, y - 2, logoWidthMm + 4, logoHeightMm + 4, "F");
+      pdf.setDrawColor(80);
       pdf.rect(x - 2, y - 2, logoWidthMm + 4, logoHeightMm + 4);
       pdf.addImage(pngUrl, "PNG", x, y, logoWidthMm, logoHeightMm, undefined, "FAST");
 
       pdf.setFontSize(8);
-      pdf.text(`Logo source: ${processedKind}`, 14, pageH - 10);
+      pdf.text(`Logo source: ${processedKind} · Effect: ${WORK_TYPES.find(w => w.value === workType)?.label}`, 14, pageH - 10);
 
       pdf.save(`logo_${orderNo}_${workType}.pdf`);
       toast({ title: "PDF 다운로드 완료" });
     } catch (e: any) {
-      toast({ title: "PDF 생성 실패", description: e.message, variant: "destructive" });
+      console.error("[downloadResultPdf]", e);
+      toast({ title: "PDF 생성 실패", description: e?.message || String(e), variant: "destructive" });
     } finally { setBusy(null); }
   };
+
 
   // Effect preview overlay style based on work type
   const effectClass: Record<WorkType, string> = {
