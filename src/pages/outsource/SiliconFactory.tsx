@@ -1036,6 +1036,115 @@ function ProofBox({
     toast({ title: "테스트 트윈코드 제거됨", description: "API 트윈코드로 복원됩니다" });
   };
 
+  // ===== 트윈코드 시안 PDF 생성 =====
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const buildTwinPdfForPage = async (pageIdx: number): Promise<jsPDF> => {
+    const tMargin = 10;
+    const contentW = tCols * cellW + Math.max(0, tCols - 1) * tGap;
+    const contentH = tRows * cellH + Math.max(0, tRows - 1) * tGap;
+    const availW = A4_W - 2 * tMargin;
+    const availH = A4_H - 2 * tMargin;
+    const fit = Math.min(availW / contentW, availH / contentH, 1);
+    const scaledW = contentW * fit;
+    const scaledH = contentH * fit;
+    const originX = tMargin + (availW - scaledW) / 2;
+    const originY = tMargin + (availH - scaledH) / 2;
+
+    const pdf = new jsPDF({ unit: "mm", format: "a4" });
+    const pageItems = items.slice(pageIdx * perPageT, pageIdx * perPageT + perPageT);
+
+    // cache twincode PNGs by url to avoid re-fetching
+    const twinPngCache = new Map<string, string>();
+    const getTwinPng = async (url: string): Promise<string | null> => {
+      if (twinPngCache.has(url)) return twinPngCache.get(url)!;
+      try {
+        const bytes = await svgUrlToPng(url, 512);
+        let bin = "";
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        const dataUrl = `data:image/png;base64,${btoa(bin)}`;
+        twinPngCache.set(url, dataUrl);
+        return dataUrl;
+      } catch (e) {
+        console.warn("twin svg → png failed", url, e);
+        return null;
+      }
+    };
+
+    for (let idx = 0; idx < pageItems.length; idx++) {
+      const it = pageItems[idx];
+      const col = idx % tCols;
+      const row = Math.floor(idx / tCols);
+      const x = originX + col * (cellW + tGap) * fit;
+      const y = originY + row * (cellH + tGap) * fit;
+      const w = cellW * fit;
+      const h = cellH * fit;
+      const tmpl = templates[it.grade];
+      const twinMm = proof.twinSize * fit;
+      const offX = proof.twinOffsetX * fit;
+      const offY = proof.twinOffsetY * fit;
+
+      if (tmpl?.preview) {
+        try { pdf.addImage(tmpl.preview, "PNG", x, y, w, h, undefined, "FAST"); } catch {}
+      } else {
+        pdf.setDrawColor(180); pdf.setLineDashPattern([1, 1], 0);
+        pdf.rect(x, y, w, h); pdf.setLineDashPattern([], 0);
+      }
+
+      const twinUrl = testTwinSvg?.url || it.svgUrl;
+      if (twinUrl) {
+        const png = await getTwinPng(twinUrl);
+        if (png) {
+          const tx = x + w / 2 + offX - twinMm / 2;
+          const ty = y + h / 2 + offY - twinMm / 2;
+          try { pdf.addImage(png, "PNG", tx, ty, twinMm, twinMm, undefined, "FAST"); } catch {}
+        }
+      }
+
+      const fontMm = Math.max(1.5, proof.twinTextSize * fit);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(fontMm * 2.83465);
+      pdf.setTextColor(0, 0, 0);
+      const textY = y + h - proof.twinTextGap * fit;
+      pdf.text(it.uniqueNo, x + w / 2, textY, { align: "center", baseline: "alphabetic" });
+    }
+    return pdf;
+  };
+
+  const downloadTwinPdfCurrent = async () => {
+    if (items.length === 0) { toast({ title: "다운로드할 항목이 없습니다", variant: "destructive" }); return; }
+    setPdfBusy(true);
+    try {
+      const pdf = await buildTwinPdfForPage(pageT);
+      pdf.save(`${orderNo || "twincode"}(${pageT + 1}).pdf`);
+      toast({ title: "PDF 다운로드 완료", description: `${orderNo}(${pageT + 1}).pdf` });
+    } catch (e: any) {
+      toast({ title: "PDF 생성 실패", description: e?.message, variant: "destructive" });
+    } finally { setPdfBusy(false); }
+  };
+
+  const downloadTwinPdfAll = async () => {
+    if (items.length === 0) { toast({ title: "다운로드할 항목이 없습니다", variant: "destructive" }); return; }
+    setPdfBusy(true);
+    try {
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+      for (let p = 0; p < totalPagesT; p++) {
+        const pdf = await buildTwinPdfForPage(p);
+        const blob = pdf.output("blob");
+        zip.file(`${orderNo || "twincode"}(${p + 1}).pdf`, blob);
+      }
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `${orderNo || "twincode"}.zip`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      toast({ title: "일괄 다운로드 완료", description: `${totalPagesT}개 PDF` });
+    } catch (e: any) {
+      toast({ title: "일괄 다운로드 실패", description: e?.message, variant: "destructive" });
+    } finally { setPdfBusy(false); }
+  };
+
   return (
     <Card>
       <CardHeader>
