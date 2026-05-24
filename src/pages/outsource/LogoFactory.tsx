@@ -212,6 +212,38 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const [naturalAspect, setNaturalAspect] = useState<number>(1); // width / height
   const [processedDataUrl, setProcessedDataUrl] = useState<string | null>(null); // upscaled or vectorized
   const [processedKind, setProcessedKind] = useState<"original" | "upscaled" | "vector">("original");
+  type VectorPreset = "high-res" | "smooth-curve" | "sharp-edge" | "mono-line";
+  const [vectorPreset, setVectorPreset] = useState<VectorPreset>("smooth-curve");
+  const VECTOR_PRESETS: Record<VectorPreset, { label: string; desc: string; targetPx: number; blurMul: number; opts: Record<string, unknown> }> = {
+    "high-res": {
+      label: "고해상도 (색상 풍부)",
+      desc: "원본 색상/디테일을 최대한 보존 · 컬러 로고 권장",
+      targetPx: 3200,
+      blurMul: 0.4,
+      opts: { numberofcolors: 12, colorquantcycles: 5, mincolorratio: 0.005, ltres: 0.4, qtres: 0.4, pathomit: 6, blurradius: 1, blurdelta: 18, rightangleenhance: true, linefilter: false, roundcoords: 2 },
+    },
+    "smooth-curve": {
+      label: "부드러운 곡선",
+      desc: "계단현상 제거 · 둥근 형태/필기체 로고 권장",
+      targetPx: 2400,
+      blurMul: 1.0,
+      opts: { numberofcolors: 4, colorquantcycles: 3, mincolorratio: 0.02, ltres: 1.2, qtres: 1.2, pathomit: 24, blurradius: 4, blurdelta: 28, rightangleenhance: false, linefilter: true, roundcoords: 1 },
+    },
+    "sharp-edge": {
+      label: "선명한 경계",
+      desc: "각진 형태/직선 보존 · 텍스트/엠블럼 로고 권장",
+      targetPx: 2800,
+      blurMul: 0.2,
+      opts: { numberofcolors: 3, colorquantcycles: 4, mincolorratio: 0.01, ltres: 0.2, qtres: 0.2, pathomit: 10, blurradius: 0, blurdelta: 20, rightangleenhance: true, linefilter: false, roundcoords: 2 },
+    },
+    "mono-line": {
+      label: "흑백 단색 (실루엣)",
+      desc: "2색 단순화 · 자수/열전사 단색 작업 최적",
+      targetPx: 2400,
+      blurMul: 0.8,
+      opts: { numberofcolors: 2, colorquantcycles: 3, mincolorratio: 0.05, ltres: 1.0, qtres: 1.0, pathomit: 20, blurradius: 3, blurdelta: 24, rightangleenhance: false, linefilter: true, roundcoords: 1 },
+    },
+  };
   const [testLogoDataUrl, setTestLogoDataUrl] = useState<string | null>(null);
   const [testLogoName, setTestLogoName] = useState<string | null>(null);
   const testLogoInputRef = useRef<HTMLInputElement>(null);
@@ -323,9 +355,10 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
       const img = await loadImage(dataUrl);
 
-      // 1) Upscale aggressively so the tracer has many samples per edge (smoother curves)
+      const preset = VECTOR_PRESETS[vectorPreset];
+      // 1) Upscale so the tracer has many samples per edge
       const maxSide = Math.max(img.naturalWidth, img.naturalHeight);
-      const scale = Math.max(2, Math.min(8, Math.ceil(2400 / Math.max(1, maxSide))));
+      const scale = Math.max(2, Math.min(8, Math.ceil(preset.targetPx / Math.max(1, maxSide))));
       const w = img.naturalWidth * scale;
       const h = img.naturalHeight * scale;
 
@@ -337,44 +370,33 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       upCtx.imageSmoothingQuality = "high";
       upCtx.drawImage(img, 0, 0, w, h);
 
-      // 2) Pre-blur to dissolve aliasing stair-steps before tracing
-      const blurCanvas = document.createElement("canvas");
-      blurCanvas.width = w;
-      blurCanvas.height = h;
-      const blurCtx = blurCanvas.getContext("2d")!;
-      const blurPx = Math.max(1.5, Math.round(scale * 0.9));
-      (blurCtx as any).filter = `blur(${blurPx}px)`;
-      blurCtx.drawImage(upCanvas, 0, 0);
-      (blurCtx as any).filter = "none";
+      // 2) Optional pre-blur (preset controls strength; 0 = skip)
+      const blurPx = Math.max(0, preset.blurMul * scale);
+      let sourceCanvas: HTMLCanvasElement = upCanvas;
+      if (blurPx > 0.1) {
+        const blurCanvas = document.createElement("canvas");
+        blurCanvas.width = w;
+        blurCanvas.height = h;
+        const blurCtx = blurCanvas.getContext("2d")!;
+        (blurCtx as any).filter = `blur(${blurPx}px)`;
+        blurCtx.drawImage(upCanvas, 0, 0);
+        (blurCtx as any).filter = "none";
+        sourceCanvas = blurCanvas;
+      }
 
-      const imageData = blurCtx.getImageData(0, 0, w, h);
+      const imageData = sourceCanvas.getContext("2d")!.getImageData(0, 0, w, h);
 
-      // 3) Trace with relaxed thresholds so curves are smooth, not stepped
+      // 3) Trace with preset-specific thresholds
       const svgString: string = ImageTracer.imagedataToSVG(imageData, {
-        // Color quantization
-        numberofcolors: 4,
-        colorquantcycles: 3,
-        mincolorratio: 0.02,
-        // Path simplification — higher = smoother curves (less stair-stepping)
-        ltres: 1.2,
-        qtres: 1.2,
-        pathomit: 24,
-        rightangleenhance: false,
-        // Selective blur inside tracer
-        blurradius: 4,
-        blurdelta: 28,
-        // Edge smoothing
-        linefilter: true,
+        ...preset.opts,
         strokewidth: 0,
-        roundcoords: 1,
-        // Scale viewbox down so the SVG renders at original logo size
         scale: 1 / scale,
         viewbox: true,
       } as any);
       const svgDataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(svgString)}`;
       setProcessedDataUrl(svgDataUrl);
       setProcessedKind("vector");
-      toast({ title: "벡터 변환 완료", description: "SVG 다운로드 버튼으로 원본 벡터 파일을 받으세요." });
+      toast({ title: "벡터 변환 완료", description: `${preset.label} 프리셋으로 변환되었습니다.` });
     } catch (e: any) {
       toast({ title: "벡터 변환 실패", description: e.message, variant: "destructive" });
     } finally { setBusy(null); }
@@ -702,8 +724,30 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 </Button>
               </div>
             </div>
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2 items-end">
+              <div className="space-y-1">
+                <Label className="text-xs">벡터 품질 프리셋</Label>
+                <Select value={vectorPreset} onValueChange={(v) => setVectorPreset(v as typeof vectorPreset)}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(VECTOR_PRESETS) as Array<keyof typeof VECTOR_PRESETS>).map((k) => (
+                      <SelectItem key={k} value={k}>
+                        <span className="font-medium">{VECTOR_PRESETS[k].label}</span>
+                        <span className="text-muted-foreground"> — {VECTOR_PRESETS[k].desc}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="text-[10px] text-muted-foreground md:max-w-[260px]">
+                현재: <span className="font-medium text-foreground">{VECTOR_PRESETS[vectorPreset].label}</span><br />
+                {VECTOR_PRESETS[vectorPreset].desc}
+              </div>
+            </div>
             <p className="text-[10px] text-muted-foreground">
-              ※ 벡터 파일이 필요하면 먼저 '벡터 변환' 실행 후 SVG를 다운로드하세요. PDF는 작업지시/효과 확인용이며, 벡터 변환 상태에서는 PDF에도 벡터 경로를 직접 적용합니다.
+              ※ 프리셋을 선택한 뒤 '벡터 변환'을 실행하세요. 결과가 마음에 들지 않으면 다른 프리셋으로 다시 변환할 수 있습니다. PDF는 벡터 변환 상태에서 벡터 경로를 그대로 임베드합니다.
             </p>
 
             {busy && <div className="text-xs text-muted-foreground">{busy}</div>}
