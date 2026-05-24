@@ -331,6 +331,8 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       setTestLogoName(file.name);
       setProcessedDataUrl(null);
       setProcessedKind("original");
+      setUpscaledDataUrl(null);
+      setVectorDataUrl(null);
       toast({ title: "테스트 로고 적용됨", description: file.name });
     };
     reader.onerror = () => toast({ title: "파일 읽기 실패", variant: "destructive" });
