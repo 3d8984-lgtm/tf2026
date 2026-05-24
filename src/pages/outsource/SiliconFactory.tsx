@@ -1185,8 +1185,8 @@ function ProofBox({
                           height: twinPx,
                         }}
                       >
-                        {it.svgUrl ? (
-                          <img src={it.svgUrl} alt="" className="w-full h-full object-contain" />
+                        {(testTwinSvg?.url || it.svgUrl) ? (
+                          <img src={testTwinSvg?.url || it.svgUrl!} alt="" className="w-full h-full object-contain" />
                         ) : (
                           <div className="w-full h-full border border-dashed border-destructive flex items-center justify-center text-[8px] text-destructive">no svg</div>
                         )}
