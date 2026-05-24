@@ -547,6 +547,9 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                     <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">H mm</span>
                   </div>
                 </div>
+                <p className="text-[10px] text-muted-foreground">
+                  ※ 업스케일/벡터 변환은 이미지 해상도만 향상시키며, 실제 인쇄 사이즈는 위 설정값(mm)이 그대로 유지됩니다.
+                </p>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">로고 업스케일링 (2×)</Label>
