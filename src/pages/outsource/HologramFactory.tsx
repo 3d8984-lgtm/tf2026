@@ -245,7 +245,7 @@ export default function HologramFactory() {
             >
               <div className="flex items-center gap-3">
                 {uploading ? <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /> : <Upload className="w-5 h-5 text-muted-foreground" />}
-                {pdfUrl ? (
+                {pdfPreview ? (
                   <div className="text-sm">
                     <div className="font-medium">{pdfName}</div>
                     <div className="text-xs text-muted-foreground">
@@ -259,7 +259,7 @@ export default function HologramFactory() {
                 )}
               </div>
               <div className="flex items-center gap-2">
-                {pdfUrl && (
+                {pdfPreview && (
                   <Button
                     size="sm"
                     variant="ghost"
@@ -270,19 +270,17 @@ export default function HologramFactory() {
                   </Button>
                 )}
                 <Button size="sm" variant="outline" disabled={uploading} onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}>
-                  <Upload className="w-4 h-4 mr-1" /> {pdfUrl ? "변경" : "파일 선택"}
+                  <Upload className="w-4 h-4 mr-1" /> {pdfPreview ? "변경" : "파일 선택"}
                 </Button>
               </div>
             </div>
 
             <div>
               <div className="text-sm font-medium mb-2">미리보기</div>
-              {pdfUrl ? (
-                <iframe
-                  src={pdfUrl}
-                  title="PDF 미리보기"
-                  className="w-full h-[600px] rounded-md border border-border bg-background"
-                />
+              {pdfPreview ? (
+                <div className="w-full rounded-md border border-border bg-background p-2 flex items-center justify-center">
+                  <img src={pdfPreview} alt="PDF 미리보기" className="max-w-full h-auto" />
+                </div>
               ) : (
                 <div className="w-full h-[200px] rounded-md border border-dashed border-border bg-muted/20 flex items-center justify-center text-sm text-muted-foreground">
                   업로드된 PDF가 없습니다.
@@ -291,6 +289,7 @@ export default function HologramFactory() {
             </div>
           </CardContent>
         </Card>
+
 
         <Card>
           <CardHeader><CardTitle className="text-base">주문 목록</CardTitle></CardHeader>
