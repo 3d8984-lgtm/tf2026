@@ -1016,6 +1016,26 @@ function ProofBox({
   const setWO = (patch: Partial<typeof workOrder>) => setWorkOrder(prev => ({ ...prev, ...patch }));
   const woTotal = (Number(workOrder.common) || 0) + (Number(workOrder.rare) || 0) + (Number(workOrder.epic) || 0) + (Number(workOrder.legend) || 0);
 
+  // ===== 트윈코드 테스트 SVG (업로드 시 모든 마크에 동일 적용) =====
+  const [testTwinSvg, setTestTwinSvg] = useState<{ url: string; name: string } | null>(null);
+  useEffect(() => () => { if (testTwinSvg?.url) URL.revokeObjectURL(testTwinSvg.url); }, [testTwinSvg]);
+  const handleTestSvgUpload = (file: File) => {
+    if (!file) return;
+    if (!/svg/i.test(file.type) && !/\.svg$/i.test(file.name)) {
+      toast({ title: "SVG 파일만 업로드 가능합니다", variant: "destructive" });
+      return;
+    }
+    if (testTwinSvg?.url) URL.revokeObjectURL(testTwinSvg.url);
+    const url = URL.createObjectURL(file);
+    setTestTwinSvg({ url, name: file.name });
+    toast({ title: "테스트 트윈코드 적용됨", description: `모든 마크에 ${file.name} 표시` });
+  };
+  const clearTestSvg = () => {
+    if (testTwinSvg?.url) URL.revokeObjectURL(testTwinSvg.url);
+    setTestTwinSvg(null);
+    toast({ title: "테스트 트윈코드 제거됨", description: "API 트윈코드로 복원됩니다" });
+  };
+
   return (
     <Card>
       <CardHeader>
