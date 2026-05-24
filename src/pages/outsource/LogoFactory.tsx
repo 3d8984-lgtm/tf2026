@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Eye, ImageOff, ChevronLeft, FileText, Download, Sparkles, Wand2 } from "lucide-react";
+import { Eye, ImageOff, ChevronLeft, FileText, Download, Sparkles, Wand2, Upload, Trash2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { jsPDF } from "jspdf";
 // @ts-ignore - no types
@@ -197,20 +197,54 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const [logoSizeMm, setLogoSizeMm] = useState<number>(50);
   const [processedDataUrl, setProcessedDataUrl] = useState<string | null>(null); // upscaled or vectorized
   const [processedKind, setProcessedKind] = useState<"original" | "upscaled" | "vector">("original");
+  const [testLogoDataUrl, setTestLogoDataUrl] = useState<string | null>(null);
+  const [testLogoName, setTestLogoName] = useState<string | null>(null);
+  const testLogoInputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
     setProcessedDataUrl(null);
     setProcessedKind("original");
+    setTestLogoDataUrl(null);
+    setTestLogoName(null);
   }, [logoUrl]);
 
-  const displayedLogo = processedDataUrl || logoUrl;
+  // Test logo overrides API logo as the source; processed result overrides both for display
+  const sourceLogo = testLogoDataUrl || logoUrl;
+  const displayedLogo = processedDataUrl || sourceLogo;
+
+  const handleTestLogoSelect = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "이미지 파일만 업로드 가능합니다", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setTestLogoDataUrl(reader.result as string);
+      setTestLogoName(file.name);
+      setProcessedDataUrl(null);
+      setProcessedKind("original");
+      toast({ title: "테스트 로고 적용됨", description: file.name });
+    };
+    reader.onerror = () => toast({ title: "파일 읽기 실패", variant: "destructive" });
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveTestLogo = () => {
+    setTestLogoDataUrl(null);
+    setTestLogoName(null);
+    setProcessedDataUrl(null);
+    setProcessedKind("original");
+    if (testLogoInputRef.current) testLogoInputRef.current.value = "";
+    toast({ title: "테스트 로고 제거됨", description: "원본 로고로 복원되었습니다" });
+  };
 
   const handleUpscale = async () => {
-    if (!logoUrl) return;
+    if (!sourceLogo) return;
     setBusy("로고 업스케일링 중...");
     try {
-      const dataUrl = await fetchAsDataUrl(logoUrl);
+      const src = sourceLogo!;
+      const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
       const img = await loadImage(dataUrl);
       const scale = 2;
       const canvas = document.createElement("canvas");
@@ -229,10 +263,11 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   };
 
   const handleVectorize = async () => {
-    if (!logoUrl) return;
+    if (!sourceLogo) return;
     setBusy("벡터 변환 중...");
     try {
-      const dataUrl = await fetchAsDataUrl(logoUrl);
+      const src = sourceLogo;
+      const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
       const img = await loadImage(dataUrl);
       const canvas = document.createElement("canvas");
       canvas.width = img.naturalWidth;
@@ -388,12 +423,48 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center justify-between">
               <span>로고 작업 시안</span>
-              <Button size="sm" onClick={downloadResultPdf} disabled={!logoUrl || !!busy}>
+              <Button size="sm" onClick={downloadResultPdf} disabled={!sourceLogo || !!busy}>
                 <Download className="w-4 h-4 mr-1" /> 작업결과물 다운로드 (PDF)
               </Button>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Test logo upload */}
+            <div className="flex items-center justify-between gap-3 p-3 rounded-md border border-dashed bg-muted/20">
+              <div className="flex items-center gap-3 min-w-0">
+                <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-sm font-medium">테스트 로고 업로드</div>
+                  <div className="text-[11px] text-muted-foreground truncate">
+                    {testLogoDataUrl
+                      ? <>현재 적용됨: <span className="font-mono">{testLogoName}</span> · 제거하면 원본 로고로 복원됩니다</>
+                      : "테스트용 로고 파일을 업로드하면 원본 대신 사용됩니다 (PNG/JPG/SVG)"}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <input
+                  ref={testLogoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleTestLogoSelect(f);
+                  }}
+                />
+                <Button size="sm" variant="outline" onClick={() => testLogoInputRef.current?.click()}>
+                  <Upload className="w-3 h-3 mr-1" /> {testLogoDataUrl ? "교체" : "업로드"}
+                </Button>
+                {testLogoDataUrl && (
+                  <Button size="sm" variant="ghost" onClick={handleRemoveTestLogo}>
+                    <Trash2 className="w-3 h-3 mr-1" /> 제거
+                  </Button>
+                )}
+              </div>
+            </div>
+
+
             {/* Settings row */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div className="space-y-1">
@@ -417,13 +488,13 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">로고 업스케일링 (2×)</Label>
-                <Button size="sm" variant="outline" className="w-full h-9" onClick={handleUpscale} disabled={!logoUrl || !!busy}>
+                <Button size="sm" variant="outline" className="w-full h-9" onClick={handleUpscale} disabled={!sourceLogo || !!busy}>
                   <Sparkles className="w-3 h-3 mr-1" /> 업스케일 실행
                 </Button>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">PNG → 벡터 (SVG)</Label>
-                <Button size="sm" variant="outline" className="w-full h-9" onClick={handleVectorize} disabled={!logoUrl || !!busy}>
+                <Button size="sm" variant="outline" className="w-full h-9" onClick={handleVectorize} disabled={!sourceLogo || !!busy}>
                   <Wand2 className="w-3 h-3 mr-1" /> 벡터 변환
                 </Button>
               </div>
