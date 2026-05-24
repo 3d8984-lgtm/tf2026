@@ -576,6 +576,8 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const resetLogo = () => {
     setProcessedDataUrl(null);
     setProcessedKind("original");
+    setUpscaledDataUrl(null);
+    setVectorDataUrl(null);
   };
 
   const downloadResultPdf = async () => {
