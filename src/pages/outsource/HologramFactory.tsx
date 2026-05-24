@@ -1,4 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import * as pdfjsLib from "pdfjs-dist";
+// @ts-ignore - vite worker import
+import PdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?worker";
+(pdfjsLib as any).GlobalWorkerOptions.workerPort = new PdfWorker();
 import PageHeader from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +14,18 @@ import { useOrders } from "@/hooks/useDbData";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import QRCode from "qrcode";
+
+async function renderPdfFirstPagePng(bytes: Uint8Array): Promise<string> {
+  const doc = await (pdfjsLib as any).getDocument({ data: bytes.slice(0) }).promise;
+  const page = await doc.getPage(1);
+  const viewport = page.getViewport({ scale: 1.5 });
+  const canvas = document.createElement("canvas");
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  const ctx = canvas.getContext("2d")!;
+  await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+  return canvas.toDataURL("image/png");
+}
 
 type Grade = "COMMON" | "RARE" | "EPIC" | "LEGEND";
 const GRADES: Grade[] = ["COMMON", "RARE", "EPIC", "LEGEND"];
