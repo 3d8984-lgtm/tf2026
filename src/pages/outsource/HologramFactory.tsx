@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ChevronLeft, Eye } from "lucide-react";
+import { ChevronLeft, Eye, Upload, FileText, X } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { useOrders } from "@/hooks/useDbData";
+import { toast } from "@/hooks/use-toast";
 import QRCode from "qrcode";
 
 type Grade = "COMMON" | "RARE" | "EPIC" | "LEGEND";
@@ -44,6 +45,18 @@ export default function HologramFactory() {
   const { t } = useLang();
   const { data: ordersData } = useOrders();
   const [activeOrderNo, setActiveOrderNo] = useState<string | null>(null);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const onPdfSelected = (f?: File | null) => {
+    if (!f) return;
+    if (f.type !== "application/pdf" && !f.name.toLowerCase().endsWith(".pdf")) {
+      toast({ title: "PDF 파일만 업로드 가능합니다", variant: "destructive" as any });
+      return;
+    }
+    setPdfFile(f);
+    toast({ title: "PDF 업로드 완료", description: f.name });
+  };
 
   const orderRows = useMemo(() => {
     const list = (ordersData || []) as any[];
@@ -141,7 +154,60 @@ export default function HologramFactory() {
   return (
     <div>
       <PageHeader title={t("menu.outHologram")} description="홀로그램 스티커 주문 목록" />
-      <div className="p-6">
+      <div className="p-6 space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileText className="w-4 h-4" /> PDF 설정
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/pdf,.pdf"
+              className="hidden"
+              onChange={(e) => onPdfSelected(e.target.files?.[0])}
+            />
+            <div
+              onDragOver={(e) => { e.preventDefault(); }}
+              onDrop={(e) => { e.preventDefault(); onPdfSelected(e.dataTransfer.files?.[0]); }}
+              onClick={() => fileInputRef.current?.click()}
+              className="cursor-pointer rounded-md border border-dashed border-border bg-muted/30 hover:bg-muted/50 transition-colors p-6 flex items-center justify-between gap-4"
+            >
+              <div className="flex items-center gap-3">
+                <Upload className="w-5 h-5 text-muted-foreground" />
+                {pdfFile ? (
+                  <div className="text-sm">
+                    <div className="font-medium">{pdfFile.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {(pdfFile.size / 1024).toFixed(1)} KB · PDF
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground">
+                    PDF 포맷 파일을 드래그하거나 클릭하여 업로드하세요.
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {pdfFile && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={(e) => { e.stopPropagation(); setPdfFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                  >
+                    <X className="w-4 h-4 mr-1" /> 삭제
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}>
+                  <Upload className="w-4 h-4 mr-1" /> 파일 선택
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader><CardTitle className="text-base">주문 목록</CardTitle></CardHeader>
           <CardContent>
