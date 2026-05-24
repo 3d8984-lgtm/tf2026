@@ -18,7 +18,6 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from "xlsx";
 import QRCode from "qrcode";
-import QRCode from "qrcode";
 
 async function renderPdfFirstPagePng(bytes: Uint8Array): Promise<string> {
   const doc = await (pdfjsLib as any).getDocument({ data: bytes.slice(0) }).promise;
