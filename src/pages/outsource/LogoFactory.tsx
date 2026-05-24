@@ -355,9 +355,10 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
       const img = await loadImage(dataUrl);
 
-      // 1) Upscale aggressively so the tracer has many samples per edge (smoother curves)
+      const preset = VECTOR_PRESETS[vectorPreset];
+      // 1) Upscale so the tracer has many samples per edge
       const maxSide = Math.max(img.naturalWidth, img.naturalHeight);
-      const scale = Math.max(2, Math.min(8, Math.ceil(2400 / Math.max(1, maxSide))));
+      const scale = Math.max(2, Math.min(8, Math.ceil(preset.targetPx / Math.max(1, maxSide))));
       const w = img.naturalWidth * scale;
       const h = img.naturalHeight * scale;
 
@@ -369,44 +370,33 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       upCtx.imageSmoothingQuality = "high";
       upCtx.drawImage(img, 0, 0, w, h);
 
-      // 2) Pre-blur to dissolve aliasing stair-steps before tracing
-      const blurCanvas = document.createElement("canvas");
-      blurCanvas.width = w;
-      blurCanvas.height = h;
-      const blurCtx = blurCanvas.getContext("2d")!;
-      const blurPx = Math.max(1.5, Math.round(scale * 0.9));
-      (blurCtx as any).filter = `blur(${blurPx}px)`;
-      blurCtx.drawImage(upCanvas, 0, 0);
-      (blurCtx as any).filter = "none";
+      // 2) Optional pre-blur (preset controls strength; 0 = skip)
+      const blurPx = Math.max(0, preset.blurMul * scale);
+      let sourceCanvas: HTMLCanvasElement = upCanvas;
+      if (blurPx > 0.1) {
+        const blurCanvas = document.createElement("canvas");
+        blurCanvas.width = w;
+        blurCanvas.height = h;
+        const blurCtx = blurCanvas.getContext("2d")!;
+        (blurCtx as any).filter = `blur(${blurPx}px)`;
+        blurCtx.drawImage(upCanvas, 0, 0);
+        (blurCtx as any).filter = "none";
+        sourceCanvas = blurCanvas;
+      }
 
-      const imageData = blurCtx.getImageData(0, 0, w, h);
+      const imageData = sourceCanvas.getContext("2d")!.getImageData(0, 0, w, h);
 
-      // 3) Trace with relaxed thresholds so curves are smooth, not stepped
+      // 3) Trace with preset-specific thresholds
       const svgString: string = ImageTracer.imagedataToSVG(imageData, {
-        // Color quantization
-        numberofcolors: 4,
-        colorquantcycles: 3,
-        mincolorratio: 0.02,
-        // Path simplification — higher = smoother curves (less stair-stepping)
-        ltres: 1.2,
-        qtres: 1.2,
-        pathomit: 24,
-        rightangleenhance: false,
-        // Selective blur inside tracer
-        blurradius: 4,
-        blurdelta: 28,
-        // Edge smoothing
-        linefilter: true,
+        ...preset.opts,
         strokewidth: 0,
-        roundcoords: 1,
-        // Scale viewbox down so the SVG renders at original logo size
         scale: 1 / scale,
         viewbox: true,
       } as any);
       const svgDataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(svgString)}`;
       setProcessedDataUrl(svgDataUrl);
       setProcessedKind("vector");
-      toast({ title: "벡터 변환 완료", description: "SVG 다운로드 버튼으로 원본 벡터 파일을 받으세요." });
+      toast({ title: "벡터 변환 완료", description: `${preset.label} 프리셋으로 변환되었습니다.` });
     } catch (e: any) {
       toast({ title: "벡터 변환 실패", description: e.message, variant: "destructive" });
     } finally { setBusy(null); }
