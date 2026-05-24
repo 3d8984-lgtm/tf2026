@@ -1226,12 +1226,17 @@ function ProofBox({
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center justify-between">
               <span>작업지시서 설정</span>
-              <Button size="sm" variant="default" onClick={() => {
-                try {
-                  localStorage.setItem(WO_LS_KEY, JSON.stringify({ ...workOrder, total: woTotal }));
-                  toast({ title: "작업지시서 저장됨" });
-                } catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" }); }
-              }}>저장</Button>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="default" onClick={() => {
+                  try {
+                    localStorage.setItem(WO_LS_KEY, JSON.stringify({ ...workOrder, total: woTotal }));
+                    toast({ title: "작업지시서 저장됨" });
+                  } catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" }); }
+                }}>저장</Button>
+                <Button size="sm" variant="outline" onClick={() => printWorkOrder({ ...workOrder, total: woTotal }, templates)}>
+                  <FileText className="w-4 h-4 mr-1" />작업지시서 출력
+                </Button>
+              </div>
             </CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
