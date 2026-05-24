@@ -423,12 +423,48 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center justify-between">
               <span>로고 작업 시안</span>
-              <Button size="sm" onClick={downloadResultPdf} disabled={!logoUrl || !!busy}>
+              <Button size="sm" onClick={downloadResultPdf} disabled={!sourceLogo || !!busy}>
                 <Download className="w-4 h-4 mr-1" /> 작업결과물 다운로드 (PDF)
               </Button>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Test logo upload */}
+            <div className="flex items-center justify-between gap-3 p-3 rounded-md border border-dashed bg-muted/20">
+              <div className="flex items-center gap-3 min-w-0">
+                <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-sm font-medium">테스트 로고 업로드</div>
+                  <div className="text-[11px] text-muted-foreground truncate">
+                    {testLogoDataUrl
+                      ? <>현재 적용됨: <span className="font-mono">{testLogoName}</span> · 제거하면 원본 로고로 복원됩니다</>
+                      : "테스트용 로고 파일을 업로드하면 원본 대신 사용됩니다 (PNG/JPG/SVG)"}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <input
+                  ref={testLogoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleTestLogoSelect(f);
+                  }}
+                />
+                <Button size="sm" variant="outline" onClick={() => testLogoInputRef.current?.click()}>
+                  <Upload className="w-3 h-3 mr-1" /> {testLogoDataUrl ? "교체" : "업로드"}
+                </Button>
+                {testLogoDataUrl && (
+                  <Button size="sm" variant="ghost" onClick={handleRemoveTestLogo}>
+                    <Trash2 className="w-3 h-3 mr-1" /> 제거
+                  </Button>
+                )}
+              </div>
+            </div>
+
+
             {/* Settings row */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div className="space-y-1">
