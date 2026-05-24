@@ -1306,6 +1306,7 @@ function ProofBox({
               <NumField label="가로 수량" v={proof.twinCols} set={v => setProof(p => ({ ...p, twinCols: v }))} />
               <NumField label="세로 수량" v={proof.twinRows} set={v => setProof(p => ({ ...p, twinRows: v }))} />
               <NumField label="마크 이격(mm)" v={proof.twinGap} set={v => setProof(p => ({ ...p, twinGap: v }))} step={0.1} />
+              <NumField label="대지 여백(mm)" v={proof.twinMargin} set={v => setProof(p => ({ ...p, twinMargin: v }))} step={0.1} />
               <NumField label="마크번호 크기(mm)" v={proof.twinTextSize} set={v => setProof(p => ({ ...p, twinTextSize: v }))} step={0.1} />
               <NumField label="마크번호 이격(mm)" v={proof.twinTextGap} set={v => setProof(p => ({ ...p, twinTextGap: v }))} step={0.1} />
             </div>
