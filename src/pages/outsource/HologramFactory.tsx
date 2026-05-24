@@ -335,14 +335,12 @@ export default function HologramFactory() {
     const downloadExcel = () => {
       const rows = detailItems.map(it => ({
         "순번": it.seq,
-        "주문번호": it.orderNo,
         "스티커 고유번호": it.uniqueNo,
         "에디션 넘버": `#${String(it.editionNo).padStart(4, "0")}`,
         "등급": it.grade,
-        "큐알코드": it.qrValue,
       }));
       const ws = XLSX.utils.json_to_sheet(rows);
-      ws["!cols"] = [{ wch: 6 }, { wch: 18 }, { wch: 22 }, { wch: 14 }, { wch: 10 }, { wch: 26 }];
+      ws["!cols"] = [{ wch: 6 }, { wch: 22 }, { wch: 14 }, { wch: 10 }];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Hologram");
       XLSX.writeFile(wb, `hologram_${activeOrderNo}.xlsx`);
