@@ -988,9 +988,8 @@ function ProofBox({
   }, [items]);
   const woDefaults = useMemo(() => {
     const sd = order?.source_data || {};
-    const addrParts = [order?.shipping_address, order?.shipping_city, order?.shipping_state, order?.shipping_zip, order?.shipping_country].filter(Boolean);
     return {
-      company: sd.company_name || sd.supplier_name || sd.brand || "TWINMETA",
+      company: "TWINMETA",
       orderNo,
       orderDate: (order?.created_at || "").slice(0, 10),
       deliveryDate: (order?.project_completed_at || "").slice(0, 10),
@@ -999,9 +998,9 @@ function ProofBox({
       epic: gradeCountsFromItems.EPIC,
       legend: gradeCountsFromItems.LEGEND,
       total: items.length || order?.quantity || 0,
-      recipient: order?.recipient_name || "TWINMETA",
-      phone: order?.recipient_phone || "18562757070",
-      address: addrParts.join(", ") || "山东省 青岛市 城阳区 青岛市城阳区流亭街道杨埠寨社区工业园6号厂房东侧1楼 TWINMETA",
+      recipient: "TWINMETA",
+      phone: "18562757070",
+      address: "山东省 青岛市 城阳区 青岛市城阳区流亭街道杨埠寨社区工业园6号厂房东侧1楼 TWINMETA",
       notes: sd.notes || sd.special_notes || sd.memo || "",
     };
   }, [order, items, gradeCountsFromItems, orderNo]);
