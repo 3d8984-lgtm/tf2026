@@ -123,38 +123,8 @@ export default function HologramFactory() {
     toast({ title: "PDF 삭제 완료" });
   };
 
-  const onPdfSelected = async (f?: File | null) => {
-    if (!f) return;
-    if (f.type !== "application/pdf" && !f.name.toLowerCase().endsWith(".pdf")) {
-      toast({ title: "PDF 파일만 업로드 가능합니다", variant: "destructive" as any });
-      return;
-    }
-    setUploading(true);
-    const { error } = await supabase.storage.from(PDF_BUCKET).upload(PDF_PATH, f, {
-      upsert: true,
-      contentType: "application/pdf",
-    });
-    setUploading(false);
-    if (error) {
-      toast({ title: "업로드 실패", description: error.message, variant: "destructive" as any });
-      return;
-    }
-    toast({ title: "PDF 업로드 완료", description: f.name });
-    await loadStoredPdf();
-  };
 
-  const onDeletePdf = async () => {
-    setUploading(true);
-    const { error } = await supabase.storage.from(PDF_BUCKET).remove([PDF_PATH]);
-    setUploading(false);
-    if (error) {
-      toast({ title: "삭제 실패", description: error.message, variant: "destructive" as any });
-      return;
-    }
-    setPdfUrl(null); setPdfName(null); setPdfSize(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-    toast({ title: "PDF 삭제 완료" });
-  };
+
 
   const orderRows = useMemo(() => {
     const list = (ordersData || []) as any[];
