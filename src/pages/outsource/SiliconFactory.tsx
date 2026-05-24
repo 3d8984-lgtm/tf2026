@@ -1090,7 +1090,7 @@ function ProofBox({
             </div>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="text-xs text-muted-foreground">
-                출력 사이즈: <span className="font-mono text-foreground">{(tCols * cellW + Math.max(0, tCols - 1) * tGap).toFixed(2)} × {(tRows * cellH + Math.max(0, tRows - 1) * tGap).toFixed(2)} mm</span> · 용지: <span className="font-mono text-foreground">A4 210 × 297 mm</span> · 마크 크기: <span className="font-mono text-foreground">{cellW.toFixed(2)} × {cellH.toFixed(2)} mm</span> (원본 63 × 60.811, 비율 고정) · 페이지당 {perPageT}개 · 총 {items.length}개 · {totalPagesT}페이지
+                출력 사이즈: <span className="font-mono text-foreground">{(tCols * cellW + Math.max(0, tCols - 1) * tGap).toFixed(2)} × {(tRows * cellH + Math.max(0, tRows - 1) * tGap).toFixed(2)} mm</span> · 마크 크기: <span className="font-mono text-foreground">{cellW.toFixed(2)} × {cellH.toFixed(2)} mm</span> (원본 63 × 60.811, 비율 고정) · 페이지당 {perPageT}개 · 총 {items.length}개 · {totalPagesT}페이지
               </div>
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="default" onClick={() => {
@@ -1173,7 +1173,7 @@ function ProofBox({
             </div>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="text-xs text-muted-foreground">
-                출력 사이즈: <span className="font-mono text-foreground">{(qCols * proof.qrCutSize + Math.max(0, qCols - 1) * proof.qrGap).toFixed(2)} × {(qRows * proof.qrCutSize + Math.max(0, qRows - 1) * proof.qrGap).toFixed(2)} mm</span> · 용지: <span className="font-mono text-foreground">A4 210 × 297 mm</span> · {qCols} × {qRows} · 페이지당 {perPageQ}개 · 총 {items.length}개 · {totalPagesQ}페이지
+                출력 사이즈: <span className="font-mono text-foreground">{(qCols * proof.qrCutSize + Math.max(0, qCols - 1) * proof.qrGap).toFixed(2)} × {(qRows * proof.qrCutSize + Math.max(0, qRows - 1) * proof.qrGap).toFixed(2)} mm</span> · {qCols} × {qRows} · 페이지당 {perPageQ}개 · 총 {items.length}개 · {totalPagesQ}페이지
               </div>
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="default" onClick={() => {
