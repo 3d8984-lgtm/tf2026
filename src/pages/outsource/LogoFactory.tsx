@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Eye, ImageOff, ChevronLeft, FileText, Download, Sparkles, Wand2, Upload, Trash2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { jsPDF } from "jspdf";
+import { svg2pdf } from "svg2pdf.js";
 // @ts-ignore - no types
 import ImageTracer from "imagetracerjs";
 
@@ -59,6 +60,16 @@ async function fetchAsDataUrl(url: string): Promise<string> {
     r.onerror = () => reject(new Error("read failed"));
     r.readAsDataURL(blob);
   });
+}
+
+function svgDataUrlToText(dataUrl: string): string {
+  const utf8Prefix = "data:image/svg+xml;utf8,";
+  if (dataUrl.startsWith(utf8Prefix)) return decodeURIComponent(dataUrl.slice(utf8Prefix.length));
+
+  const base64Prefix = "data:image/svg+xml;base64,";
+  if (dataUrl.startsWith(base64Prefix)) return atob(dataUrl.slice(base64Prefix.length));
+
+  return dataUrl;
 }
 
 export default function LogoFactory() {
@@ -350,10 +361,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       return;
     }
     try {
-      const prefix = "data:image/svg+xml;utf8,";
-      const svgText = processedDataUrl.startsWith(prefix)
-        ? decodeURIComponent(processedDataUrl.slice(prefix.length))
-        : processedDataUrl;
+      const svgText = svgDataUrlToText(processedDataUrl);
       const blob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -441,13 +449,20 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       pdf.rect(x - 2, y - 2, logoWidthMm + 4, logoHeightMm + 4, "F");
       pdf.setDrawColor(80);
       pdf.rect(x - 2, y - 2, logoWidthMm + 4, logoHeightMm + 4);
-      pdf.addImage(pngUrl, "PNG", x, y, logoWidthMm, logoHeightMm, undefined, "FAST");
+      if (processedKind === "vector" && processedDataUrl?.startsWith("data:image/svg+xml")) {
+        const svgText = svgDataUrlToText(processedDataUrl);
+        const svgDoc = new DOMParser().parseFromString(svgText, "image/svg+xml");
+        const svgEl = svgDoc.documentElement;
+        await svg2pdf(svgEl, pdf, { x, y, width: logoWidthMm, height: logoHeightMm });
+      } else {
+        pdf.addImage(pngUrl, "PNG", x, y, logoWidthMm, logoHeightMm, undefined, "FAST");
+      }
 
       pdf.setFontSize(8);
       pdf.text(`Logo source: ${processedKind} · Effect: ${WORK_TYPES.find(w => w.value === workType)?.label}`, 14, pageH - 10);
 
       pdf.save(`logo_${orderNo}_${workType}.pdf`);
-      toast({ title: "PDF 다운로드 완료" });
+      toast({ title: "PDF 다운로드 완료", description: processedKind === "vector" ? "벡터 변환본을 PDF에 직접 적용했습니다." : "벡터가 필요하면 먼저 벡터 변환을 실행하세요." });
     } catch (e: any) {
       console.error("[downloadResultPdf]", e);
       toast({ title: "PDF 생성 실패", description: e?.message || String(e), variant: "destructive" });
@@ -652,7 +667,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
               </div>
             </div>
             <p className="text-[10px] text-muted-foreground">
-              ※ 업스케일/벡터 변환은 이미지 해상도만 향상시키며, 실제 인쇄 사이즈는 위 설정값(mm)이 그대로 유지됩니다.
+              ※ 벡터 파일이 필요하면 먼저 '벡터 변환' 실행 후 SVG를 다운로드하세요. PDF는 작업지시/효과 확인용이며, 벡터 변환 상태에서는 PDF에도 벡터 경로를 직접 적용합니다.
             </p>
 
             {busy && <div className="text-xs text-muted-foreground">{busy}</div>}
