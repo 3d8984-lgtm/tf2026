@@ -45,6 +45,141 @@ async function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
+/**
+ * Edge-preserving sharp upscale for logo / text / line-art designs.
+ * Iterative 2× bilinear upscale then final fit + unsharp mask on RGB
+ * (alpha untouched, binary alpha re-hardened). No invented detail.
+ */
+function edgePreservingUpscale(img: HTMLImageElement | HTMLCanvasElement, targetW: number, targetH: number): HTMLCanvasElement {
+  const srcW = (img as HTMLImageElement).naturalWidth ?? (img as HTMLCanvasElement).width;
+  const srcH = (img as HTMLImageElement).naturalHeight ?? (img as HTMLCanvasElement).height;
+  if (srcW === 0 || srcH === 0) throw new Error("이미지 크기가 0입니다");
+  let canvas = document.createElement("canvas");
+  canvas.width = srcW; canvas.height = srcH;
+  let ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(img as CanvasImageSource, 0, 0);
+  while (canvas.width * 2 <= targetW && canvas.height * 2 <= targetH) {
+    const next = document.createElement("canvas");
+    next.width = canvas.width * 2; next.height = canvas.height * 2;
+    const nctx = next.getContext("2d")!;
+    nctx.imageSmoothingEnabled = true; nctx.imageSmoothingQuality = "high";
+    nctx.drawImage(canvas, 0, 0, next.width, next.height);
+    canvas = next;
+  }
+  if (canvas.width !== targetW || canvas.height !== targetH) {
+    const final = document.createElement("canvas");
+    final.width = targetW; final.height = targetH;
+    const fctx = final.getContext("2d")!;
+    fctx.imageSmoothingEnabled = true; fctx.imageSmoothingQuality = "high";
+    fctx.drawImage(canvas, 0, 0, targetW, targetH);
+    canvas = final;
+  }
+  ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  const W = canvas.width, H = canvas.height;
+  const data = ctx.getImageData(0, 0, W, H);
+  const px = data.data;
+  // detect binary-ish alpha on source
+  let srcBinaryAlpha = false;
+  try {
+    const sc = document.createElement("canvas"); sc.width = srcW; sc.height = srcH;
+    const sctx = sc.getContext("2d")!; sctx.drawImage(img as CanvasImageSource, 0, 0);
+    const sd = sctx.getImageData(0, 0, srcW, srcH).data;
+    let mid = 0, edge = 0, hasAlpha = false;
+    for (let i = 3; i < sd.length; i += 4) {
+      const a = sd[i];
+      if (a > 0 && a < 255) { if (a > 24 && a < 232) mid++; else edge++; }
+      else if (a === 0) hasAlpha = true;
+    }
+    srcBinaryAlpha = hasAlpha && mid * 8 < edge + 1;
+  } catch { /* tainted */ }
+  // unsharp mask via 3x3 box blur
+  const blurred = new Uint8ClampedArray(px.length);
+  blurred.set(px);
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      const idx = (y * W + x) * 4;
+      for (let c = 0; c < 3; c++) {
+        const sum =
+          px[idx - W * 4 - 4 + c] + px[idx - W * 4 + c] + px[idx - W * 4 + 4 + c] +
+          px[idx - 4 + c]         + px[idx + c]         + px[idx + 4 + c] +
+          px[idx + W * 4 - 4 + c] + px[idx + W * 4 + c] + px[idx + W * 4 + 4 + c];
+        blurred[idx + c] = sum / 9;
+      }
+    }
+  }
+  const AMOUNT = 0.85, NOISE = 4;
+  for (let i = 0; i < px.length; i += 4) {
+    for (let c = 0; c < 3; c++) {
+      const o = px[i + c], b = blurred[i + c], d = o - b;
+      if (d > -NOISE && d < NOISE) continue;
+      const v = o + AMOUNT * d;
+      px[i + c] = v < 0 ? 0 : v > 255 ? 255 : v;
+    }
+  }
+  if (srcBinaryAlpha) {
+    for (let i = 3; i < px.length; i += 4) {
+      const a = px[i];
+      if (a < 24) px[i] = 0; else if (a > 232) px[i] = 255;
+    }
+  }
+  ctx.putImageData(data, 0, 0);
+  return canvas;
+}
+
+/**
+ * Analyze a design image to recommend the best print-quality preset.
+ * Heuristic: line-art / logos (few colors, transparent bg, sharp edges) → ultra.
+ * Photographic / continuous-tone designs → high.
+ */
+async function analyzeDesignForQuality(src: string): Promise<{ preset: QualityPresetKey; reason: string }> {
+  try {
+    const img = await loadImage(src);
+    const SAMPLE = 160;
+    const ratio = Math.min(SAMPLE / img.width, SAMPLE / img.height, 1);
+    const w = Math.max(8, Math.round(img.width * ratio));
+    const h = Math.max(8, Math.round(img.height * ratio));
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    const cx = c.getContext("2d", { willReadFrequently: true })!;
+    cx.drawImage(img, 0, 0, w, h);
+    const d = cx.getImageData(0, 0, w, h).data;
+    const colors = new Set<number>();
+    let transparentPx = 0, edgeSum = 0, edgeCount = 0;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        const r = d[i] >> 4, g = d[i + 1] >> 4, b = d[i + 2] >> 4;
+        if (d[i + 3] < 16) transparentPx++;
+        if (colors.size < 4096) colors.add((r << 8) | (g << 4) | b);
+        if (x < w - 1 && y < h - 1) {
+          const j = i + 4, k = i + w * 4;
+          edgeSum += Math.abs(d[i] - d[j]) + Math.abs(d[i] - d[k]);
+          edgeCount++;
+        }
+      }
+    }
+    const total = w * h;
+    const colorRatio = colors.size / total;
+    const transRatio = transparentPx / total;
+    const edgeAvg = edgeSum / Math.max(1, edgeCount);
+    const lineArt = colorRatio < 0.08 || transRatio > 0.1;
+    if (lineArt && edgeAvg > 6) return { preset: "ultra", reason: `로고/라인아트 감지 (색상 ${colors.size}, 투명 ${(transRatio * 100).toFixed(0)}%)` };
+    if (lineArt) return { preset: "high", reason: `단순 그래픽 감지 (색상 ${colors.size})` };
+    if (edgeAvg > 20) return { preset: "high", reason: `디테일 사진 감지 (엣지 ${edgeAvg.toFixed(1)})` };
+    return { preset: "standard", reason: `연속톤 이미지 (색상 ${colors.size})` };
+  } catch {
+    return { preset: "high", reason: "분석 실패 — 기본값 적용" };
+  }
+}
+
+type QualityPresetKey = "auto" | "standard" | "high" | "ultra" | "extreme";
+const QUALITY_PRESETS: Record<Exclude<QualityPresetKey, "auto">, { label: string; desc: string; dpi: number; sharpen: boolean }> = {
+  standard:  { label: "표준 200 DPI",       desc: "연속톤 / 사진 디자인. 빠른 처리.",                    dpi: 200, sharpen: false },
+  high:      { label: "고품질 300 DPI",     desc: "상업 인쇄 표준. 대부분의 디자인 권장.",                dpi: 300, sharpen: true  },
+  ultra:     { label: "초고품질 600 DPI",   desc: "로고 / 라인아트. 엣지 보존 샤프닝 적용.",              dpi: 600, sharpen: true  },
+  extreme:   { label: "최상 1200 DPI",      desc: "대형 인쇄 / 미세 디테일. 매우 큰 파일.",               dpi: 1200, sharpen: true },
+};
+
 /** Render a PDF as a high-res alpha mask + return physical size in points (1pt = 1/72 inch). */
 async function loadPdfOutline(bytes: ArrayBuffer): Promise<{
   previewUrl: string;
