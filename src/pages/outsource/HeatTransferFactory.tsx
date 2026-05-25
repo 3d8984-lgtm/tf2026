@@ -151,6 +151,7 @@ interface OrderRow {
   designQty: number;
   logoUrl: string | null;
   items: any[];
+  raw: any;
 }
 
 interface DesignDetail {
