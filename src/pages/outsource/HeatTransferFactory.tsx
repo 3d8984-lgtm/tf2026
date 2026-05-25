@@ -308,7 +308,7 @@ function OrderListCard({ orders, onOpen }: { orders: OrderRow[]; onOpen: (id: st
               <TableHead>작업번호</TableHead>
               <TableHead>주문접수일</TableHead>
               <TableHead>납기일</TableHead>
-              <TableHead>트윈커</TableHead>
+              <TableHead>받을사람</TableHead>
               <TableHead className="text-right">작업수량</TableHead>
               <TableHead className="text-right">디자인수량</TableHead>
               <TableHead className="text-right w-28">상세보기</TableHead>
