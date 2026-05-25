@@ -460,17 +460,34 @@ function printHtWorkOrder(wo: HtWorkOrderData, outlinePreview?: string | null) {
 function WorkOrderInfoBox({ order, outlinePreview }: { order: OrderRow; outlinePreview?: string | null }) {
   const sd = order.raw?.source_data || {};
   const WO_LS_KEY = `heatTransfer.workOrder.v1.${order.orderNo}`;
+  // 실리콘 마크 공장에서 저장한 작업지시서 값을 받을사람/전화/주소 기본값으로 사용
+  const siliconDefaults = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const exact = localStorage.getItem(`silicon.workOrder.v1.${order.orderNo}`);
+      if (exact) return JSON.parse(exact);
+      // fallback: 가장 최근 저장된 실리콘 작업지시서
+      let latest: any = null;
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith("silicon.workOrder.v1.")) continue;
+        const v = localStorage.getItem(k);
+        if (v) { try { latest = JSON.parse(v); } catch { /* */ } }
+      }
+      return latest;
+    } catch { return null; }
+  }, [order.orderNo]);
   const defaults: HtWorkOrderData = useMemo(() => ({
     company: "TWINMETA",
     orderNo: order.orderNo,
     orderDate: order.receivedAt,
     deliveryDate: order.dueDate,
     total: order.workQty,
-    recipient: order.raw?.recipient_name || "TWINMETA",
-    phone: order.raw?.recipient_phone || "18562757070",
-    address: order.raw?.shipping_address || "山东省 青岛市 城阳区 青岛市城阳区流亭街道杨埠寨社区工业园6号厂房东侧1楼 TWINMETA",
+    recipient: siliconDefaults?.recipient || order.raw?.recipient_name || "TWINMETA",
+    phone: siliconDefaults?.phone || order.raw?.recipient_phone || "18562757070",
+    address: siliconDefaults?.address || order.raw?.shipping_address || "山东省 青岛市 城阳区 青岛市城阳区流亭街道杨埠寨社区工业园6号厂房东侧1楼 TWINMETA",
     notes: sd.notes || sd.special_notes || sd.memo || "",
-  }), [order]);
+  }), [order, siliconDefaults]);
   const [wo, setWo] = useState<HtWorkOrderData>(defaults);
   useEffect(() => {
     try {
