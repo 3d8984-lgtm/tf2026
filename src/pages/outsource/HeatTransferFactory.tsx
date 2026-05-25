@@ -17,8 +17,12 @@ import { ChevronLeft, Upload, X, Download, FileText, Loader2, QrCode as QrCodeIc
 import { useLang } from "@/contexts/LangContext";
 import { useOrders } from "@/hooks/useDbData";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import QRCode from "qrcode";
 import JSZip from "jszip";
+
+const DESIGN_FORMAT_BUCKET = "design-formats";
+const DESIGN_FORMAT_FOLDER = "heat-transfer";
 
 // ============ helpers ============
 
@@ -202,17 +206,76 @@ export default function HeatTransferFactory() {
   } | null>(null);
   const [outlineLoading, setOutlineLoading] = useState(false);
 
+  // Load persisted outline on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: list, error } = await supabase.storage
+          .from(DESIGN_FORMAT_BUCKET)
+          .list(DESIGN_FORMAT_FOLDER, { limit: 1, sortBy: { column: "created_at", order: "desc" } });
+        if (error || !list || list.length === 0) return;
+        const fileName = list[0].name;
+        setOutlineLoading(true);
+        const { data: blob, error: dlErr } = await supabase.storage
+          .from(DESIGN_FORMAT_BUCKET)
+          .download(`${DESIGN_FORMAT_FOLDER}/${fileName}`);
+        if (dlErr || !blob) return;
+        const buf = await blob.arrayBuffer();
+        const r = await loadPdfOutline(buf);
+        setOutline({ ...r, name: fileName });
+      } catch (e) {
+        // ignore
+      } finally {
+        setOutlineLoading(false);
+      }
+    })();
+  }, []);
+
   const handleOutlineUpload = async (f: File) => {
     setOutlineLoading(true);
     try {
       const buf = await readFileAsArrayBuffer(f);
       const r = await loadPdfOutline(buf);
+      // clear existing files in folder so the latest upload is the single source of truth
+      const { data: existing } = await supabase.storage
+        .from(DESIGN_FORMAT_BUCKET)
+        .list(DESIGN_FORMAT_FOLDER);
+      if (existing && existing.length > 0) {
+        await supabase.storage
+          .from(DESIGN_FORMAT_BUCKET)
+          .remove(existing.map((o) => `${DESIGN_FORMAT_FOLDER}/${o.name}`));
+      }
+      const { error: upErr } = await supabase.storage
+        .from(DESIGN_FORMAT_BUCKET)
+        .upload(`${DESIGN_FORMAT_FOLDER}/${f.name}`, f, {
+          contentType: "application/pdf",
+          upsert: true,
+        });
+      if (upErr) throw upErr;
       setOutline({ ...r, name: f.name });
-      toast({ title: "외곽선 PDF 로드 완료", description: f.name });
+      toast({ title: "디자인 포맷 저장 완료", description: f.name });
     } catch (e: any) {
-      toast({ title: "PDF 로드 실패", description: e?.message || "", variant: "destructive" });
+      toast({ title: "저장 실패", description: e?.message || "관리자만 변경할 수 있습니다.", variant: "destructive" });
     } finally {
       setOutlineLoading(false);
+    }
+  };
+
+  const handleOutlineClear = async () => {
+    try {
+      const { data: existing } = await supabase.storage
+        .from(DESIGN_FORMAT_BUCKET)
+        .list(DESIGN_FORMAT_FOLDER);
+      if (existing && existing.length > 0) {
+        const { error: rmErr } = await supabase.storage
+          .from(DESIGN_FORMAT_BUCKET)
+          .remove(existing.map((o) => `${DESIGN_FORMAT_FOLDER}/${o.name}`));
+        if (rmErr) throw rmErr;
+      }
+      setOutline(null);
+      toast({ title: "디자인 포맷 삭제됨" });
+    } catch (e: any) {
+      toast({ title: "삭제 실패", description: e?.message || "관리자만 삭제할 수 있습니다.", variant: "destructive" });
     }
   };
 
@@ -229,7 +292,7 @@ export default function HeatTransferFactory() {
               outline={outline}
               loading={outlineLoading}
               onUpload={handleOutlineUpload}
-              onClear={() => setOutline(null)}
+              onClear={handleOutlineClear}
             />
             <OrderListCard orders={orders} onOpen={setActiveOrderId} />
           </>
@@ -264,17 +327,28 @@ function DesignFormatBox({
       <CardContent>
         <div className="grid md:grid-cols-[1fr_auto] gap-4">
           <div className="space-y-2">
-            <Label className="text-xs">디자인 외곽선 (PDF)</Label>
+            <Label className="text-xs">디자인 외곽선 (PDF) · 서버 저장</Label>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="application/pdf"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f); e.target.value = ""; }}
+            />
             <div className="flex gap-2">
-              <Input
-                ref={inputRef}
-                type="file"
-                accept="application/pdf"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f); e.target.value = ""; }}
-                className="h-9"
-              />
-              {outline && (
-                <Button size="sm" variant="outline" onClick={onClear}><X className="w-4 h-4 mr-1" /> 제거</Button>
+              {!outline ? (
+                <Button size="sm" onClick={() => inputRef.current?.click()} disabled={loading}>
+                  <Upload className="w-4 h-4 mr-1" /> 업로드
+                </Button>
+              ) : (
+                <>
+                  <Button size="sm" variant="outline" onClick={() => inputRef.current?.click()} disabled={loading}>
+                    <Upload className="w-4 h-4 mr-1" /> 변경
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={onClear} disabled={loading}>
+                    <X className="w-4 h-4 mr-1" /> 삭제
+                  </Button>
+                </>
               )}
             </div>
             {outline && (
@@ -283,7 +357,7 @@ function DesignFormatBox({
               </div>
             )}
             {!outline && (
-              <p className="text-xs text-muted-foreground">PDF의 첫 페이지가 외곽선으로 사용됩니다. 어두운 영역이 디자인 영역(클리핑 마스크)으로 처리됩니다.</p>
+              <p className="text-xs text-muted-foreground">PDF의 첫 페이지가 외곽선으로 사용됩니다. 업로드한 파일은 서버에 저장되어 변경/삭제 전까지 디자인 포맷으로 유지됩니다.</p>
             )}
           </div>
           <div className="flex items-center justify-center">
