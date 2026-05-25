@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Slider } from "@/components/ui/slider";
 import { ChevronLeft, Upload, X, Download, FileText, Loader2, QrCode as QrCodeIcon } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { useOrders } from "@/hooks/useDbData";
@@ -77,6 +78,7 @@ async function composeClippedDesign(
   widthPt: number,
   heightPt: number,
   dpi: number,
+  transform?: { offsetXPct?: number; offsetYPct?: number; scale?: number },
 ): Promise<HTMLCanvasElement> {
   const targetW = Math.max(64, Math.round((widthPt / 72) * dpi));
   const targetH = Math.max(64, Math.round((heightPt / 72) * dpi));
@@ -92,7 +94,6 @@ async function composeClippedDesign(
   const md = mctx.getImageData(0, 0, targetW, targetH);
   for (let i = 0; i < md.data.length; i += 4) {
     const r = md.data[i], g = md.data[i + 1], b = md.data[i + 2], a = md.data[i + 3];
-    // dark pixels = inside shape. Use 1 - luminance, weighted by alpha.
     const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
     const inside = (1 - lum) * (a / 255);
     md.data[i] = 0; md.data[i + 1] = 0; md.data[i + 2] = 0;
@@ -100,7 +101,7 @@ async function composeClippedDesign(
   }
   mctx.putImageData(md, 0, 0);
 
-  // 2) draw design centered, cover-fit to mask
+  // 2) draw design centered, cover-fit to mask, with user transform (offset + scale, aspect kept)
   const out = document.createElement("canvas");
   out.width = targetW;
   out.height = targetH;
@@ -109,11 +110,15 @@ async function composeClippedDesign(
   octx.imageSmoothingQuality = "high";
 
   const img = await loadImage(designSrc);
-  const scale = Math.max(targetW / img.width, targetH / img.height);
+  const userScale = transform?.scale ?? 1;
+  const offXPct = transform?.offsetXPct ?? 0;
+  const offYPct = transform?.offsetYPct ?? 0;
+  const baseScale = Math.max(targetW / img.width, targetH / img.height);
+  const scale = baseScale * userScale;
   const dw = img.width * scale;
   const dh = img.height * scale;
-  const dx = (targetW - dw) / 2;
-  const dy = (targetH - dh) / 2;
+  const dx = (targetW - dw) / 2 + (offXPct / 100) * targetW;
+  const dy = (targetH - dh) / 2 + (offYPct / 100) * targetH;
   octx.drawImage(img, dx, dy, dw, dh);
 
   // 3) clip with mask alpha
@@ -551,6 +556,11 @@ function DesignTab({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dpi, setDpi] = useState(300);
+  // design transform within fixed format (offset in %, scale relative to cover-fit)
+  const [offsetX, setOffsetX] = useState(0);
+  const [offsetY, setOffsetY] = useState(0);
+  const [designScale, setDesignScale] = useState(1);
+  const transform = { offsetXPct: offsetX, offsetYPct: offsetY, scale: designScale };
 
   const first = details[0];
   const effectiveDesign = testDesign || first?.designSrc || null;
@@ -561,13 +571,13 @@ function DesignTab({
     async function run() {
       if (!outline || !effectiveDesign) { setPreviewUrl(null); return; }
       try {
-        const canvas = await composeClippedDesign(effectiveDesign, outline.maskCanvas, outline.widthPt, outline.heightPt, 96);
+        const canvas = await composeClippedDesign(effectiveDesign, outline.maskCanvas, outline.widthPt, outline.heightPt, 96, transform);
         if (!cancelled) setPreviewUrl(canvas.toDataURL("image/png"));
       } catch (e) { /* ignore */ }
     }
     run();
     return () => { cancelled = true; };
-  }, [outline, effectiveDesign]);
+  }, [outline, effectiveDesign, offsetX, offsetY, designScale]);
 
   const handleTestUpload = async (f: File) => {
     const url = await new Promise<string>((resolve) => {
@@ -582,7 +592,7 @@ function DesignTab({
     if (!src) { toast({ title: "디자인 소스가 없습니다", variant: "destructive" }); return; }
     setBusy(true);
     try {
-      const c = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, dpi);
+      const c = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, dpi, transform);
       const b = await canvasToBlob(c);
       triggerDownload(b, `${d.designUid}_${dpi}dpi.png`);
     } finally { setBusy(false); }
@@ -597,7 +607,7 @@ function DesignTab({
       for (const d of details) {
         const src = testDesign || d.designSrc;
         if (!src) continue;
-        const c = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, dpi);
+        const c = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, dpi, transform);
         const b = await canvasToBlob(c);
         folder.file(`${d.designUid}.png`, b);
       }
@@ -648,6 +658,44 @@ function DesignTab({
             일괄 다운로드
           </Button>
         </div>
+
+        {/* Design transform within fixed format (offset + proportional scale) */}
+        <div className="rounded border p-3 space-y-3 bg-muted/20">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs font-semibold">디자인 위치/크기 조정 (포맷 고정)</Label>
+            <Button size="sm" variant="ghost" className="h-7 text-xs"
+              onClick={() => { setOffsetX(0); setOffsetY(0); setDesignScale(1); }}>
+              초기화
+            </Button>
+          </div>
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs">
+                <span>좌우 (X)</span><span className="font-mono">{offsetX.toFixed(0)}%</span>
+              </div>
+              <Slider value={[offsetX]} min={-100} max={100} step={1} onValueChange={(v) => setOffsetX(v[0])} />
+            </div>
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs">
+                <span>상하 (Y)</span><span className="font-mono">{offsetY.toFixed(0)}%</span>
+              </div>
+              <Slider value={[offsetY]} min={-100} max={100} step={1} onValueChange={(v) => setOffsetY(v[0])} />
+            </div>
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs">
+                <span>크기 (비율 유지)</span><span className="font-mono">{(designScale * 100).toFixed(0)}%</span>
+              </div>
+              <Slider value={[designScale]} min={0.2} max={3} step={0.01} onValueChange={(v) => setDesignScale(v[0])} />
+            </div>
+          </div>
+          <div className="grid md:grid-cols-3 gap-2">
+            <Input type="number" value={offsetX} step={1} onChange={(e) => setOffsetX(Number(e.target.value) || 0)} className="h-8 text-xs" />
+            <Input type="number" value={offsetY} step={1} onChange={(e) => setOffsetY(Number(e.target.value) || 0)} className="h-8 text-xs" />
+            <Input type="number" value={designScale} step={0.05} min={0.1} max={5} onChange={(e) => setDesignScale(Math.max(0.1, Number(e.target.value) || 1))} className="h-8 text-xs" />
+          </div>
+        </div>
+
+
 
         {(() => {
           const wMm = outline ? outline.widthPt / 72 * 25.4 : 0;
