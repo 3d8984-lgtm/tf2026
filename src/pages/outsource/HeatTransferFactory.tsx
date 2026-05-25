@@ -825,7 +825,8 @@ function DesignTab({
   const [testName, setTestName] = useState<string>("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [dpi, setDpi] = useState(300);
+  const [quality, setQuality] = useState<QualityPresetKey>("auto");
+  const [autoResolved, setAutoResolved] = useState<{ preset: Exclude<QualityPresetKey, "auto">; reason: string } | null>(null);
   // design transform within fixed format (offset in %, scale relative to cover-fit)
   const [offsetX, setOffsetX] = useState(0);
   const [offsetY, setOffsetY] = useState(0);
@@ -835,19 +836,36 @@ function DesignTab({
   const first = details[0];
   const effectiveDesign = testDesign || first?.designSrc || null;
 
+  // Resolve "auto" quality preset by analyzing the active design image.
+  useEffect(() => {
+    let cancelled = false;
+    if (quality !== "auto" || !effectiveDesign) { setAutoResolved(null); return; }
+    (async () => {
+      const r = await analyzeDesignForQuality(effectiveDesign);
+      if (!cancelled) setAutoResolved({ preset: r.preset as Exclude<QualityPresetKey, "auto">, reason: r.reason });
+    })();
+    return () => { cancelled = true; };
+  }, [quality, effectiveDesign]);
+
+  const activePreset: Exclude<QualityPresetKey, "auto"> =
+    quality === "auto" ? (autoResolved?.preset ?? "high") : quality;
+  const presetCfg = QUALITY_PRESETS[activePreset];
+  const dpi = presetCfg.dpi;
+  const sharpen = presetCfg.sharpen;
+
   // regenerate preview when inputs change (use 96dpi for screen preview)
   useEffect(() => {
     let cancelled = false;
     async function run() {
       if (!outline || !effectiveDesign) { setPreviewUrl(null); return; }
       try {
-        const canvas = await composeClippedDesign(effectiveDesign, outline.maskCanvas, outline.widthPt, outline.heightPt, 96, transform);
+        const canvas = await composeClippedDesign(effectiveDesign, outline.maskCanvas, outline.widthPt, outline.heightPt, 96, transform, { sharpen });
         if (!cancelled) setPreviewUrl(canvas.toDataURL("image/png"));
       } catch (e) { /* ignore */ }
     }
     run();
     return () => { cancelled = true; };
-  }, [outline, effectiveDesign, offsetX, offsetY, designScale]);
+  }, [outline, effectiveDesign, offsetX, offsetY, designScale, sharpen]);
 
   const handleTestUpload = async (f: File) => {
     const url = await new Promise<string>((resolve) => {
@@ -862,7 +880,7 @@ function DesignTab({
     if (!src) { toast({ title: "디자인 소스가 없습니다", variant: "destructive" }); return; }
     setBusy(true);
     try {
-      const c = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, dpi, transform);
+      const c = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, dpi, transform, { sharpen });
       const b = await pngWithDpi(await canvasToBlob(c), dpi);
       triggerDownload(b, `${d.designUid}_${dpi}dpi.png`);
     } finally { setBusy(false); }
@@ -877,7 +895,7 @@ function DesignTab({
       for (const d of details) {
         const src = testDesign || d.designSrc;
         if (!src) continue;
-        const c = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, dpi, transform);
+        const c = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, dpi, transform, { sharpen });
         const b = await pngWithDpi(await canvasToBlob(c), dpi);
         folder.file(`${d.designUid}.png`, b);
       }
