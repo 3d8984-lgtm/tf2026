@@ -77,6 +77,7 @@ async function composeClippedDesign(
   widthPt: number,
   heightPt: number,
   dpi: number,
+  transform?: { offsetXPct?: number; offsetYPct?: number; scale?: number },
 ): Promise<HTMLCanvasElement> {
   const targetW = Math.max(64, Math.round((widthPt / 72) * dpi));
   const targetH = Math.max(64, Math.round((heightPt / 72) * dpi));
@@ -92,7 +93,6 @@ async function composeClippedDesign(
   const md = mctx.getImageData(0, 0, targetW, targetH);
   for (let i = 0; i < md.data.length; i += 4) {
     const r = md.data[i], g = md.data[i + 1], b = md.data[i + 2], a = md.data[i + 3];
-    // dark pixels = inside shape. Use 1 - luminance, weighted by alpha.
     const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
     const inside = (1 - lum) * (a / 255);
     md.data[i] = 0; md.data[i + 1] = 0; md.data[i + 2] = 0;
@@ -100,7 +100,7 @@ async function composeClippedDesign(
   }
   mctx.putImageData(md, 0, 0);
 
-  // 2) draw design centered, cover-fit to mask
+  // 2) draw design centered, cover-fit to mask, with user transform (offset + scale, aspect kept)
   const out = document.createElement("canvas");
   out.width = targetW;
   out.height = targetH;
@@ -109,11 +109,15 @@ async function composeClippedDesign(
   octx.imageSmoothingQuality = "high";
 
   const img = await loadImage(designSrc);
-  const scale = Math.max(targetW / img.width, targetH / img.height);
+  const userScale = transform?.scale ?? 1;
+  const offXPct = transform?.offsetXPct ?? 0;
+  const offYPct = transform?.offsetYPct ?? 0;
+  const baseScale = Math.max(targetW / img.width, targetH / img.height);
+  const scale = baseScale * userScale;
   const dw = img.width * scale;
   const dh = img.height * scale;
-  const dx = (targetW - dw) / 2;
-  const dy = (targetH - dh) / 2;
+  const dx = (targetW - dw) / 2 + (offXPct / 100) * targetW;
+  const dy = (targetH - dh) / 2 + (offYPct / 100) * targetH;
   octx.drawImage(img, dx, dy, dw, dh);
 
   // 3) clip with mask alpha
