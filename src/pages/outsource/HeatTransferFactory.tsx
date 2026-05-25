@@ -206,17 +206,76 @@ export default function HeatTransferFactory() {
   } | null>(null);
   const [outlineLoading, setOutlineLoading] = useState(false);
 
+  // Load persisted outline on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: list, error } = await supabase.storage
+          .from(DESIGN_FORMAT_BUCKET)
+          .list(DESIGN_FORMAT_FOLDER, { limit: 1, sortBy: { column: "created_at", order: "desc" } });
+        if (error || !list || list.length === 0) return;
+        const fileName = list[0].name;
+        setOutlineLoading(true);
+        const { data: blob, error: dlErr } = await supabase.storage
+          .from(DESIGN_FORMAT_BUCKET)
+          .download(`${DESIGN_FORMAT_FOLDER}/${fileName}`);
+        if (dlErr || !blob) return;
+        const buf = await blob.arrayBuffer();
+        const r = await loadPdfOutline(buf);
+        setOutline({ ...r, name: fileName });
+      } catch (e) {
+        // ignore
+      } finally {
+        setOutlineLoading(false);
+      }
+    })();
+  }, []);
+
   const handleOutlineUpload = async (f: File) => {
     setOutlineLoading(true);
     try {
       const buf = await readFileAsArrayBuffer(f);
       const r = await loadPdfOutline(buf);
+      // clear existing files in folder so the latest upload is the single source of truth
+      const { data: existing } = await supabase.storage
+        .from(DESIGN_FORMAT_BUCKET)
+        .list(DESIGN_FORMAT_FOLDER);
+      if (existing && existing.length > 0) {
+        await supabase.storage
+          .from(DESIGN_FORMAT_BUCKET)
+          .remove(existing.map((o) => `${DESIGN_FORMAT_FOLDER}/${o.name}`));
+      }
+      const { error: upErr } = await supabase.storage
+        .from(DESIGN_FORMAT_BUCKET)
+        .upload(`${DESIGN_FORMAT_FOLDER}/${f.name}`, f, {
+          contentType: "application/pdf",
+          upsert: true,
+        });
+      if (upErr) throw upErr;
       setOutline({ ...r, name: f.name });
-      toast({ title: "외곽선 PDF 로드 완료", description: f.name });
+      toast({ title: "디자인 포맷 저장 완료", description: f.name });
     } catch (e: any) {
-      toast({ title: "PDF 로드 실패", description: e?.message || "", variant: "destructive" });
+      toast({ title: "저장 실패", description: e?.message || "관리자만 변경할 수 있습니다.", variant: "destructive" });
     } finally {
       setOutlineLoading(false);
+    }
+  };
+
+  const handleOutlineClear = async () => {
+    try {
+      const { data: existing } = await supabase.storage
+        .from(DESIGN_FORMAT_BUCKET)
+        .list(DESIGN_FORMAT_FOLDER);
+      if (existing && existing.length > 0) {
+        const { error: rmErr } = await supabase.storage
+          .from(DESIGN_FORMAT_BUCKET)
+          .remove(existing.map((o) => `${DESIGN_FORMAT_FOLDER}/${o.name}`));
+        if (rmErr) throw rmErr;
+      }
+      setOutline(null);
+      toast({ title: "디자인 포맷 삭제됨" });
+    } catch (e: any) {
+      toast({ title: "삭제 실패", description: e?.message || "관리자만 삭제할 수 있습니다.", variant: "destructive" });
     }
   };
 
