@@ -245,9 +245,11 @@ export default function HeatTransferFactory() {
           .from(DESIGN_FORMAT_BUCKET)
           .remove(existing.map((o) => `${DESIGN_FORMAT_FOLDER}/${o.name}`));
       }
+      const safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const storedName = `format_${Date.now()}_${safeName}`;
       const { error: upErr } = await supabase.storage
         .from(DESIGN_FORMAT_BUCKET)
-        .upload(`${DESIGN_FORMAT_FOLDER}/${f.name}`, f, {
+        .upload(`${DESIGN_FORMAT_FOLDER}/${storedName}`, f, {
           contentType: "application/pdf",
           upsert: true,
         });
