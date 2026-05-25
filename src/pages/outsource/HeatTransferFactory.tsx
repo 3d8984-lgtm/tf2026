@@ -292,7 +292,7 @@ export default function HeatTransferFactory() {
               outline={outline}
               loading={outlineLoading}
               onUpload={handleOutlineUpload}
-              onClear={() => setOutline(null)}
+              onClear={handleOutlineClear}
             />
             <OrderListCard orders={orders} onOpen={setActiveOrderId} />
           </>
