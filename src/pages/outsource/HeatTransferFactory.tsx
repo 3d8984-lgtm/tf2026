@@ -631,7 +631,7 @@ function OrderDetail({
       arr.push({
         serial: i + 1,
         orderNo: order.orderNo,
-        designUid: `${order.orderNo}-${i + 1}`,
+        designUid: `${order.orderNo}-2`,
         designSrc: order.logoUrl,
       });
     }
@@ -1107,10 +1107,14 @@ function QrTab({ details }: { details: DesignDetail[] }) {
     try {
       const zip = new JSZip();
       const folder = zip.folder(`qrcode_${first?.orderNo || "order"}`)!;
+      const used = new Map<string, number>();
       for (const d of details) {
         const c = await buildQrPng(d.designUid, cfg);
         const b = await pngWithDpi(await canvasToBlob(c), QR_DPI);
-        folder.file(`${d.designUid}.png`, b);
+        const count = used.get(d.designUid) ?? 0;
+        const name = count === 0 ? `${d.designUid}.png` : `${d.designUid}(${count}).png`;
+        used.set(d.designUid, count + 1);
+        folder.file(name, b);
       }
       const blob = await zip.generateAsync({ type: "blob" });
       triggerDownload(blob, `qrcode_${first?.orderNo || "order"}.zip`);
