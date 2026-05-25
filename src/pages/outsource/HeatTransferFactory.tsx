@@ -255,11 +255,20 @@ async function composeClippedDesign(
   const offYPct = transform?.offsetYPct ?? 0;
   const baseScale = Math.max(targetW / img.width, targetH / img.height);
   const scale = baseScale * userScale;
-  const dw = img.width * scale;
-  const dh = img.height * scale;
-  const dx = (targetW - dw) / 2 + (offXPct / 100) * targetW;
-  const dy = (targetH - dh) / 2 + (offYPct / 100) * targetH;
-  octx.drawImage(img, dx, dy, dw, dh);
+  const dw = Math.max(1, Math.round(img.width * scale));
+  const dh = Math.max(1, Math.round(img.height * scale));
+  const dx = Math.round((targetW - dw) / 2 + (offXPct / 100) * targetW);
+  const dy = Math.round((targetH - dh) / 2 + (offYPct / 100) * targetH);
+  // Edge-preserving sharpening path: pre-upscale the design via iterative 2× + unsharp mask,
+  // then blit at exact pixel size — avoids the soft halo a single big bicubic produces.
+  if (opts?.sharpen && (dw > img.width || dh > img.height)) {
+    const sharp = edgePreservingUpscale(img, dw, dh);
+    octx.imageSmoothingEnabled = false;
+    octx.drawImage(sharp, dx, dy);
+    octx.imageSmoothingEnabled = true;
+  } else {
+    octx.drawImage(img, dx, dy, dw, dh);
+  }
 
   // 3) clip with mask alpha
   octx.globalCompositeOperation = "destination-in";
