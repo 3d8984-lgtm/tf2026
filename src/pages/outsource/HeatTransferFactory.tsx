@@ -523,7 +523,7 @@ function WorkOrderInfoBox({ order, outlinePreview }: { order: OrderRow; outlineP
           <TxtField label="납품일" type="date" v={wo.deliveryDate} set={(v) => set({ deliveryDate: v })} />
         </div>
         <TxtField label="총수량" type="number" v={String(wo.total)} set={(v) => set({ total: Number(v) || 0 })} />
-        <TxtField label="받을사람(트윈커)" v={wo.recipient} set={(v) => set({ recipient: v })} />
+        <TxtField label="받을사람" v={wo.recipient} set={(v) => set({ recipient: v })} />
         <TxtField label="전화번호" v={wo.phone} set={(v) => set({ phone: v })} />
         <div className="md:col-span-3">
           <TxtField label="주소" v={wo.address} set={(v) => set({ address: v })} />
