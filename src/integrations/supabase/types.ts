@@ -501,6 +501,7 @@ export type Database = {
     }
     Functions: {
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_approved: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       inspect_result: "pending" | "pass" | "mismatch" | "weight_fail"
