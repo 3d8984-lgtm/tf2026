@@ -139,6 +139,55 @@ function canvasToBlob(c: HTMLCanvasElement): Promise<Blob> {
   });
 }
 
+// CRC32 for PNG chunk
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(buf: Uint8Array): number {
+  let c = 0xffffffff;
+  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+// Inject a pHYs chunk into a PNG blob so apps like Illustrator read the correct physical size (DPI).
+async function pngWithDpi(blob: Blob, dpi: number): Promise<Blob> {
+  const buf = new Uint8Array(await blob.arrayBuffer());
+  // PNG signature: 8 bytes; first chunk is IHDR (length 13 + 4 + 4 + 13 = ...). We insert pHYs right after IHDR.
+  // Find end of IHDR chunk
+  let pos = 8;
+  const dv = new DataView(buf.buffer);
+  const ihdrLen = dv.getUint32(pos);
+  const ihdrEnd = pos + 4 + 4 + ihdrLen + 4; // length + type + data + crc
+  // ppm = pixels per meter; 1 inch = 0.0254 m
+  const ppm = Math.round(dpi / 0.0254);
+  const chunkData = new Uint8Array(9);
+  const cdv = new DataView(chunkData.buffer);
+  cdv.setUint32(0, ppm);
+  cdv.setUint32(4, ppm);
+  chunkData[8] = 1; // unit: meters
+  const type = new Uint8Array([0x70, 0x48, 0x59, 0x73]); // 'pHYs'
+  const crcInput = new Uint8Array(type.length + chunkData.length);
+  crcInput.set(type, 0); crcInput.set(chunkData, type.length);
+  const crc = crc32(crcInput);
+  const chunk = new Uint8Array(4 + 4 + 9 + 4);
+  const xdv = new DataView(chunk.buffer);
+  xdv.setUint32(0, 9);
+  chunk.set(type, 4);
+  chunk.set(chunkData, 8);
+  xdv.setUint32(17, crc);
+  const out = new Uint8Array(buf.length + chunk.length);
+  out.set(buf.subarray(0, ihdrEnd), 0);
+  out.set(chunk, ihdrEnd);
+  out.set(buf.subarray(ihdrEnd), ihdrEnd + chunk.length);
+  return new Blob([out], { type: "image/png" });
+}
+
 function triggerDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -669,7 +718,7 @@ function DesignTab({
     setBusy(true);
     try {
       const c = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, dpi, transform);
-      const b = await canvasToBlob(c);
+      const b = await pngWithDpi(await canvasToBlob(c), dpi);
       triggerDownload(b, `${d.designUid}_${dpi}dpi.png`);
     } finally { setBusy(false); }
   };
@@ -684,7 +733,7 @@ function DesignTab({
         const src = testDesign || d.designSrc;
         if (!src) continue;
         const c = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, dpi, transform);
-        const b = await canvasToBlob(c);
+        const b = await pngWithDpi(await canvasToBlob(c), dpi);
         folder.file(`${d.designUid}.png`, b);
       }
       const zipBlob = await zip.generateAsync({ type: "blob" });
