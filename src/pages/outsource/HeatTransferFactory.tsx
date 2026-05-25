@@ -218,6 +218,7 @@ async function composeClippedDesign(
   heightPt: number,
   dpi: number,
   transform?: { offsetXPct?: number; offsetYPct?: number; scale?: number },
+  opts?: { sharpen?: boolean },
 ): Promise<HTMLCanvasElement> {
   const targetW = Math.max(64, Math.round((widthPt / 72) * dpi));
   const targetH = Math.max(64, Math.round((heightPt / 72) * dpi));
