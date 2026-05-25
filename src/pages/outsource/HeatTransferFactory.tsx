@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { ChevronLeft, Upload, X, Download, FileText, Loader2, QrCode as QrCodeIcon } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { useOrders } from "@/hooks/useDbData";
@@ -150,6 +151,7 @@ interface OrderRow {
   designQty: number;
   logoUrl: string | null;
   items: any[];
+  raw: any;
 }
 
 interface DesignDetail {
@@ -179,6 +181,7 @@ export default function HeatTransferFactory() {
         designQty: items.length || 1,
         logoUrl: o.logo_url || null,
         items,
+        raw: o,
       });
     }
     return out;
@@ -366,7 +369,7 @@ function OrderDetail({
         <h2 className="text-base font-semibold">작업번호 <span className="font-mono">{order.orderNo}</span></h2>
       </div>
 
-      <WorkOrderInfoBox order={order} />
+      <WorkOrderInfoBox order={order} outlinePreview={outline?.previewUrl} />
 
       <Tabs defaultValue="design">
         <TabsList>
@@ -386,30 +389,134 @@ function OrderDetail({
   );
 }
 
-function WorkOrderInfoBox({ order }: { order: OrderRow }) {
+interface HtWorkOrderData {
+  company: string; orderNo: string; orderDate: string; deliveryDate: string;
+  total: number;
+  recipient: string; phone: string; address: string; notes: string;
+}
+
+function TxtField({ label, v, set, type = "text" }: { label: string; v: string; set: (v: string) => void; type?: string }) {
   return (
-    <Card>
-      <CardHeader><CardTitle className="text-base">작업지시서</CardTitle></CardHeader>
-      <CardContent>
-        <div className="grid md:grid-cols-3 gap-3 text-sm">
-          <Info label="작업번호" value={order.orderNo} mono />
-          <Info label="트윈커" value={order.twinker} />
-          <Info label="납기일" value={order.dueDate} />
-          <Info label="주문접수일" value={order.receivedAt} />
-          <Info label="작업수량" value={String(order.workQty)} />
-          <Info label="디자인수량" value={String(order.designQty)} />
-        </div>
-      </CardContent>
-    </Card>
+    <div className="space-y-1">
+      <Label className="text-xs">{label}</Label>
+      <Input type={type} value={v} onChange={(e) => set(e.target.value)} className="h-9" />
+    </div>
   );
 }
 
-function Info({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+function printHtWorkOrder(wo: HtWorkOrderData, outlinePreview?: string | null) {
+  const esc = (s: any) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+  const today = new Date().toISOString().slice(0, 10);
+  const outlineBlock = outlinePreview
+    ? `<h2>设计外框(示例)</h2><div class="outline"><img src="${outlinePreview}" alt="outline" /></div>`
+    : "";
+  const html = `<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8" />
+<title>作业指示书 - ${esc(wo.orderNo)}</title>
+<style>
+  @page { size: A4; margin: 12mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "PingFang SC", "Microsoft YaHei", "SimHei", "Noto Sans SC", sans-serif; color:#111; margin:0; padding:0; }
+  h1 { font-size: 22pt; text-align:center; margin: 0 0 4mm; letter-spacing: 8px; border-bottom: 2px solid #111; padding-bottom: 4mm; }
+  .meta { display:flex; justify-content:space-between; font-size: 9pt; color:#555; margin-bottom: 6mm; }
+  table { width:100%; border-collapse: collapse; font-size: 10pt; }
+  table th, table td { border: 1px solid #333; padding: 2.5mm 3mm; vertical-align: middle; }
+  table th { background:#f2f2f2; font-weight:600; width: 22%; text-align:left; }
+  .qty th, .qty td { text-align:center; }
+  .qty th { background:#f7f7f7; }
+  .notes { min-height: 22mm; white-space: pre-wrap; }
+  h2 { font-size: 12pt; margin: 8mm 0 3mm; padding-bottom: 1.5mm; border-bottom: 1px solid #999; }
+  .outline { border:1px solid #333; padding: 4mm; text-align:center; }
+  .outline img { max-width: 100%; max-height: 80mm; object-fit: contain; }
+  .sig { margin-top: 10mm; display:flex; justify-content:flex-end; gap: 10mm; font-size: 10pt; }
+  .sig div { border-top:1px solid #333; padding-top:2mm; min-width: 40mm; text-align:center; }
+  @media print { .no-print { display:none; } }
+  .no-print { position:fixed; top:8px; right:8px; }
+  .no-print button { padding: 8px 14px; font-size: 13px; cursor:pointer; }
+</style></head>
+<body>
+  <div class="no-print"><button onclick="window.print()">打印 / 保存PDF</button></div>
+  <h1>作 业 指 示 书</h1>
+  <div class="meta"><span>发包方:${esc(wo.company)}</span><span>打印日期:${today}</span></div>
+  <table>
+    <tr><th>发包公司</th><td>${esc(wo.company)}</td><th>作业编号</th><td>${esc(wo.orderNo)}</td></tr>
+    <tr><th>下单日期</th><td>${esc(wo.orderDate)}</td><th>交货日期</th><td>${esc(wo.deliveryDate)}</td></tr>
+    <tr><th>收件人</th><td>${esc(wo.recipient)}</td><th>联系电话</th><td>${esc(wo.phone)}</td></tr>
+    <tr><th>收货地址</th><td colspan="3">${esc(wo.address)}</td></tr>
+  </table>
+  <h2>作业数量</h2>
+  <table class="qty"><tr><th>总数量</th></tr><tr><td><strong>${esc(wo.total)}</strong></td></tr></table>
+  <h2>订单特殊事项</h2>
+  <table><tr><td class="notes">${esc(wo.notes) || "&nbsp;"}</td></tr></table>
+  ${outlineBlock}
+  <div class="sig"><div>负责人</div><div>审批</div></div>
+  <script>window.addEventListener("load", () => setTimeout(() => window.print(), 300));</script>
+</body></html>`;
+  const w = window.open("", "_blank", "width=900,height=1100");
+  if (!w) { toast({ title: "팝업 차단됨", description: "팝업을 허용해주세요", variant: "destructive" }); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+}
+
+function WorkOrderInfoBox({ order, outlinePreview }: { order: OrderRow; outlinePreview?: string | null }) {
+  const sd = order.raw?.source_data || {};
+  const WO_LS_KEY = `heatTransfer.workOrder.v1.${order.orderNo}`;
+  const defaults: HtWorkOrderData = useMemo(() => ({
+    company: "TWINMETA",
+    orderNo: order.orderNo,
+    orderDate: order.receivedAt,
+    deliveryDate: order.dueDate,
+    total: order.workQty,
+    recipient: order.raw?.recipient_name || "TWINMETA",
+    phone: order.raw?.recipient_phone || "18562757070",
+    address: order.raw?.shipping_address || "山东省 青岛市 城阳区 青岛市城阳区流亭街道杨埠寨社区工业园6号厂房东侧1楼 TWINMETA",
+    notes: sd.notes || sd.special_notes || sd.memo || "",
+  }), [order]);
+  const [wo, setWo] = useState<HtWorkOrderData>(defaults);
+  useEffect(() => {
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem(WO_LS_KEY) : null;
+      if (raw) setWo({ ...defaults, ...JSON.parse(raw) });
+      else setWo(defaults);
+    } catch { setWo(defaults); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order.orderNo]);
+  const set = (patch: Partial<HtWorkOrderData>) => setWo((p) => ({ ...p, ...patch }));
+
   return (
-    <div>
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={mono ? "font-mono" : ""}>{value || "—"}</div>
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center justify-between">
+          <span>작업지시서 설정</span>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="default" onClick={() => {
+              try { localStorage.setItem(WO_LS_KEY, JSON.stringify(wo)); toast({ title: "작업지시서 저장됨" }); }
+              catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" }); }
+            }}>저장</Button>
+            <Button size="sm" variant="outline" onClick={() => printHtWorkOrder(wo, outlinePreview)}>
+              <FileText className="w-4 h-4 mr-1" />작업지시서 출력
+            </Button>
+          </div>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <TxtField label="발주업체명" v={wo.company} set={(v) => set({ company: v })} />
+        <TxtField label="작업번호" v={wo.orderNo} set={(v) => set({ orderNo: v })} />
+        <div className="grid grid-cols-2 gap-2">
+          <TxtField label="발주일" type="date" v={wo.orderDate} set={(v) => set({ orderDate: v })} />
+          <TxtField label="납품일" type="date" v={wo.deliveryDate} set={(v) => set({ deliveryDate: v })} />
+        </div>
+        <TxtField label="총수량" type="number" v={String(wo.total)} set={(v) => set({ total: Number(v) || 0 })} />
+        <TxtField label="받을사람(트윈커)" v={wo.recipient} set={(v) => set({ recipient: v })} />
+        <TxtField label="전화번호" v={wo.phone} set={(v) => set({ phone: v })} />
+        <div className="md:col-span-3">
+          <TxtField label="주소" v={wo.address} set={(v) => set({ address: v })} />
+        </div>
+        <div className="md:col-span-3 space-y-1">
+          <Label className="text-xs">발주특이사항</Label>
+          <Textarea value={wo.notes} onChange={(e) => set({ notes: e.target.value })} rows={3} placeholder="특이사항을 입력하세요" />
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
