@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronLeft, Upload, X, Download, FileText, Loader2, QrCode as QrCodeIcon } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { useOrders } from "@/hooks/useDbData";
@@ -44,6 +45,141 @@ async function loadImage(src: string): Promise<HTMLImageElement> {
     img.src = src;
   });
 }
+
+/**
+ * Edge-preserving sharp upscale for logo / text / line-art designs.
+ * Iterative 2× bilinear upscale then final fit + unsharp mask on RGB
+ * (alpha untouched, binary alpha re-hardened). No invented detail.
+ */
+function edgePreservingUpscale(img: HTMLImageElement | HTMLCanvasElement, targetW: number, targetH: number): HTMLCanvasElement {
+  const srcW = (img as HTMLImageElement).naturalWidth ?? (img as HTMLCanvasElement).width;
+  const srcH = (img as HTMLImageElement).naturalHeight ?? (img as HTMLCanvasElement).height;
+  if (srcW === 0 || srcH === 0) throw new Error("이미지 크기가 0입니다");
+  let canvas = document.createElement("canvas");
+  canvas.width = srcW; canvas.height = srcH;
+  let ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(img as CanvasImageSource, 0, 0);
+  while (canvas.width * 2 <= targetW && canvas.height * 2 <= targetH) {
+    const next = document.createElement("canvas");
+    next.width = canvas.width * 2; next.height = canvas.height * 2;
+    const nctx = next.getContext("2d")!;
+    nctx.imageSmoothingEnabled = true; nctx.imageSmoothingQuality = "high";
+    nctx.drawImage(canvas, 0, 0, next.width, next.height);
+    canvas = next;
+  }
+  if (canvas.width !== targetW || canvas.height !== targetH) {
+    const final = document.createElement("canvas");
+    final.width = targetW; final.height = targetH;
+    const fctx = final.getContext("2d")!;
+    fctx.imageSmoothingEnabled = true; fctx.imageSmoothingQuality = "high";
+    fctx.drawImage(canvas, 0, 0, targetW, targetH);
+    canvas = final;
+  }
+  ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  const W = canvas.width, H = canvas.height;
+  const data = ctx.getImageData(0, 0, W, H);
+  const px = data.data;
+  // detect binary-ish alpha on source
+  let srcBinaryAlpha = false;
+  try {
+    const sc = document.createElement("canvas"); sc.width = srcW; sc.height = srcH;
+    const sctx = sc.getContext("2d")!; sctx.drawImage(img as CanvasImageSource, 0, 0);
+    const sd = sctx.getImageData(0, 0, srcW, srcH).data;
+    let mid = 0, edge = 0, hasAlpha = false;
+    for (let i = 3; i < sd.length; i += 4) {
+      const a = sd[i];
+      if (a > 0 && a < 255) { if (a > 24 && a < 232) mid++; else edge++; }
+      else if (a === 0) hasAlpha = true;
+    }
+    srcBinaryAlpha = hasAlpha && mid * 8 < edge + 1;
+  } catch { /* tainted */ }
+  // unsharp mask via 3x3 box blur
+  const blurred = new Uint8ClampedArray(px.length);
+  blurred.set(px);
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      const idx = (y * W + x) * 4;
+      for (let c = 0; c < 3; c++) {
+        const sum =
+          px[idx - W * 4 - 4 + c] + px[idx - W * 4 + c] + px[idx - W * 4 + 4 + c] +
+          px[idx - 4 + c]         + px[idx + c]         + px[idx + 4 + c] +
+          px[idx + W * 4 - 4 + c] + px[idx + W * 4 + c] + px[idx + W * 4 + 4 + c];
+        blurred[idx + c] = sum / 9;
+      }
+    }
+  }
+  const AMOUNT = 0.85, NOISE = 4;
+  for (let i = 0; i < px.length; i += 4) {
+    for (let c = 0; c < 3; c++) {
+      const o = px[i + c], b = blurred[i + c], d = o - b;
+      if (d > -NOISE && d < NOISE) continue;
+      const v = o + AMOUNT * d;
+      px[i + c] = v < 0 ? 0 : v > 255 ? 255 : v;
+    }
+  }
+  if (srcBinaryAlpha) {
+    for (let i = 3; i < px.length; i += 4) {
+      const a = px[i];
+      if (a < 24) px[i] = 0; else if (a > 232) px[i] = 255;
+    }
+  }
+  ctx.putImageData(data, 0, 0);
+  return canvas;
+}
+
+/**
+ * Analyze a design image to recommend the best print-quality preset.
+ * Heuristic: line-art / logos (few colors, transparent bg, sharp edges) → ultra.
+ * Photographic / continuous-tone designs → high.
+ */
+async function analyzeDesignForQuality(src: string): Promise<{ preset: QualityPresetKey; reason: string }> {
+  try {
+    const img = await loadImage(src);
+    const SAMPLE = 160;
+    const ratio = Math.min(SAMPLE / img.width, SAMPLE / img.height, 1);
+    const w = Math.max(8, Math.round(img.width * ratio));
+    const h = Math.max(8, Math.round(img.height * ratio));
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    const cx = c.getContext("2d", { willReadFrequently: true })!;
+    cx.drawImage(img, 0, 0, w, h);
+    const d = cx.getImageData(0, 0, w, h).data;
+    const colors = new Set<number>();
+    let transparentPx = 0, edgeSum = 0, edgeCount = 0;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        const r = d[i] >> 4, g = d[i + 1] >> 4, b = d[i + 2] >> 4;
+        if (d[i + 3] < 16) transparentPx++;
+        if (colors.size < 4096) colors.add((r << 8) | (g << 4) | b);
+        if (x < w - 1 && y < h - 1) {
+          const j = i + 4, k = i + w * 4;
+          edgeSum += Math.abs(d[i] - d[j]) + Math.abs(d[i] - d[k]);
+          edgeCount++;
+        }
+      }
+    }
+    const total = w * h;
+    const colorRatio = colors.size / total;
+    const transRatio = transparentPx / total;
+    const edgeAvg = edgeSum / Math.max(1, edgeCount);
+    const lineArt = colorRatio < 0.08 || transRatio > 0.1;
+    if (lineArt && edgeAvg > 6) return { preset: "ultra", reason: `로고/라인아트 감지 (색상 ${colors.size}, 투명 ${(transRatio * 100).toFixed(0)}%)` };
+    if (lineArt) return { preset: "high", reason: `단순 그래픽 감지 (색상 ${colors.size})` };
+    if (edgeAvg > 20) return { preset: "high", reason: `디테일 사진 감지 (엣지 ${edgeAvg.toFixed(1)})` };
+    return { preset: "standard", reason: `연속톤 이미지 (색상 ${colors.size})` };
+  } catch {
+    return { preset: "high", reason: "분석 실패 — 기본값 적용" };
+  }
+}
+
+type QualityPresetKey = "auto" | "standard" | "high" | "ultra" | "extreme";
+const QUALITY_PRESETS: Record<Exclude<QualityPresetKey, "auto">, { label: string; desc: string; dpi: number; sharpen: boolean }> = {
+  standard:  { label: "표준 200 DPI",       desc: "연속톤 / 사진 디자인. 빠른 처리.",                    dpi: 200, sharpen: false },
+  high:      { label: "고품질 300 DPI",     desc: "상업 인쇄 표준. 대부분의 디자인 권장.",                dpi: 300, sharpen: true  },
+  ultra:     { label: "초고품질 600 DPI",   desc: "로고 / 라인아트. 엣지 보존 샤프닝 적용.",              dpi: 600, sharpen: true  },
+  extreme:   { label: "최상 1200 DPI",      desc: "대형 인쇄 / 미세 디테일. 매우 큰 파일.",               dpi: 1200, sharpen: true },
+};
 
 /** Render a PDF as a high-res alpha mask + return physical size in points (1pt = 1/72 inch). */
 async function loadPdfOutline(bytes: ArrayBuffer): Promise<{
@@ -83,6 +219,7 @@ async function composeClippedDesign(
   heightPt: number,
   dpi: number,
   transform?: { offsetXPct?: number; offsetYPct?: number; scale?: number },
+  opts?: { sharpen?: boolean },
 ): Promise<HTMLCanvasElement> {
   const targetW = Math.max(64, Math.round((widthPt / 72) * dpi));
   const targetH = Math.max(64, Math.round((heightPt / 72) * dpi));
@@ -119,11 +256,20 @@ async function composeClippedDesign(
   const offYPct = transform?.offsetYPct ?? 0;
   const baseScale = Math.max(targetW / img.width, targetH / img.height);
   const scale = baseScale * userScale;
-  const dw = img.width * scale;
-  const dh = img.height * scale;
-  const dx = (targetW - dw) / 2 + (offXPct / 100) * targetW;
-  const dy = (targetH - dh) / 2 + (offYPct / 100) * targetH;
-  octx.drawImage(img, dx, dy, dw, dh);
+  const dw = Math.max(1, Math.round(img.width * scale));
+  const dh = Math.max(1, Math.round(img.height * scale));
+  const dx = Math.round((targetW - dw) / 2 + (offXPct / 100) * targetW);
+  const dy = Math.round((targetH - dh) / 2 + (offYPct / 100) * targetH);
+  // Edge-preserving sharpening path: pre-upscale the design via iterative 2× + unsharp mask,
+  // then blit at exact pixel size — avoids the soft halo a single big bicubic produces.
+  if (opts?.sharpen && (dw > img.width || dh > img.height)) {
+    const sharp = edgePreservingUpscale(img, dw, dh);
+    octx.imageSmoothingEnabled = false;
+    octx.drawImage(sharp, dx, dy);
+    octx.imageSmoothingEnabled = true;
+  } else {
+    octx.drawImage(img, dx, dy, dw, dh);
+  }
 
   // 3) clip with mask alpha
   octx.globalCompositeOperation = "destination-in";
@@ -680,7 +826,8 @@ function DesignTab({
   const [testName, setTestName] = useState<string>("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [dpi, setDpi] = useState(300);
+  const [quality, setQuality] = useState<QualityPresetKey>("auto");
+  const [autoResolved, setAutoResolved] = useState<{ preset: Exclude<QualityPresetKey, "auto">; reason: string } | null>(null);
   // design transform within fixed format (offset in %, scale relative to cover-fit)
   const [offsetX, setOffsetX] = useState(0);
   const [offsetY, setOffsetY] = useState(0);
@@ -690,19 +837,36 @@ function DesignTab({
   const first = details[0];
   const effectiveDesign = testDesign || first?.designSrc || null;
 
+  // Resolve "auto" quality preset by analyzing the active design image.
+  useEffect(() => {
+    let cancelled = false;
+    if (quality !== "auto" || !effectiveDesign) { setAutoResolved(null); return; }
+    (async () => {
+      const r = await analyzeDesignForQuality(effectiveDesign);
+      if (!cancelled) setAutoResolved({ preset: r.preset as Exclude<QualityPresetKey, "auto">, reason: r.reason });
+    })();
+    return () => { cancelled = true; };
+  }, [quality, effectiveDesign]);
+
+  const activePreset: Exclude<QualityPresetKey, "auto"> =
+    quality === "auto" ? (autoResolved?.preset ?? "high") : quality;
+  const presetCfg = QUALITY_PRESETS[activePreset];
+  const dpi = presetCfg.dpi;
+  const sharpen = presetCfg.sharpen;
+
   // regenerate preview when inputs change (use 96dpi for screen preview)
   useEffect(() => {
     let cancelled = false;
     async function run() {
       if (!outline || !effectiveDesign) { setPreviewUrl(null); return; }
       try {
-        const canvas = await composeClippedDesign(effectiveDesign, outline.maskCanvas, outline.widthPt, outline.heightPt, 96, transform);
+        const canvas = await composeClippedDesign(effectiveDesign, outline.maskCanvas, outline.widthPt, outline.heightPt, 96, transform, { sharpen });
         if (!cancelled) setPreviewUrl(canvas.toDataURL("image/png"));
       } catch (e) { /* ignore */ }
     }
     run();
     return () => { cancelled = true; };
-  }, [outline, effectiveDesign, offsetX, offsetY, designScale]);
+  }, [outline, effectiveDesign, offsetX, offsetY, designScale, sharpen]);
 
   const handleTestUpload = async (f: File) => {
     const url = await new Promise<string>((resolve) => {
@@ -717,7 +881,7 @@ function DesignTab({
     if (!src) { toast({ title: "디자인 소스가 없습니다", variant: "destructive" }); return; }
     setBusy(true);
     try {
-      const c = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, dpi, transform);
+      const c = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, dpi, transform, { sharpen });
       const b = await pngWithDpi(await canvasToBlob(c), dpi);
       triggerDownload(b, `${d.designUid}_${dpi}dpi.png`);
     } finally { setBusy(false); }
@@ -732,7 +896,7 @@ function DesignTab({
       for (const d of details) {
         const src = testDesign || d.designSrc;
         if (!src) continue;
-        const c = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, dpi, transform);
+        const c = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, dpi, transform, { sharpen });
         const b = await pngWithDpi(await canvasToBlob(c), dpi);
         folder.file(`${d.designUid}.png`, b);
       }
@@ -771,9 +935,28 @@ function DesignTab({
               )}
             </div>
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs">업스케일 DPI</Label>
-            <Input type="number" min={72} max={1200} value={dpi} onChange={(e) => setDpi(Math.max(72, Math.min(1200, Number(e.target.value) || 300)))} className="h-9 w-28" />
+          <div className="space-y-1 min-w-[220px]">
+            <Label className="text-xs">인쇄 품질 프리셋</Label>
+            <Select value={quality} onValueChange={(v) => setQuality(v as QualityPresetKey)}>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">
+                  <span className="font-medium">자동 (권장)</span>
+                  <span className="text-muted-foreground"> — 디자인 분석 후 최적 선택</span>
+                </SelectItem>
+                {(Object.keys(QUALITY_PRESETS) as Array<Exclude<QualityPresetKey, "auto">>).map((k) => (
+                  <SelectItem key={k} value={k}>
+                    <span className="font-medium">{QUALITY_PRESETS[k].label}</span>
+                    <span className="text-muted-foreground"> — {QUALITY_PRESETS[k].desc}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              적용: <span className="font-medium text-foreground">{presetCfg.label}</span>
+              {sharpen && <span className="text-foreground"> · 엣지 보존 샤프닝</span>}
+              {quality === "auto" && autoResolved && <span> · {autoResolved.reason}</span>}
+            </p>
           </div>
           <Button size="sm" variant="outline" disabled={busy || !outline || !first} onClick={() => first && downloadOne(first)}>
             <Download className="w-4 h-4 mr-1" /> 현재 디자인
