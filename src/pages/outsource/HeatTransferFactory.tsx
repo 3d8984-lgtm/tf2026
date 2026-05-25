@@ -733,7 +733,7 @@ function DesignTab({
         const src = testDesign || d.designSrc;
         if (!src) continue;
         const c = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, dpi, transform);
-        const b = await canvasToBlob(c);
+        const b = await pngWithDpi(await canvasToBlob(c), dpi);
         folder.file(`${d.designUid}.png`, b);
       }
       const zipBlob = await zip.generateAsync({ type: "blob" });
