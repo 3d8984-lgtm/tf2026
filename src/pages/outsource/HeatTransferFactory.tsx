@@ -649,24 +649,44 @@ function DesignTab({
           </Button>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <div className="text-xs text-muted-foreground mb-1">외곽선</div>
-            <div className="w-full aspect-square rounded border bg-muted/30 flex items-center justify-center overflow-hidden">
-              {outline ? <img src={outline.previewUrl} alt="외곽선" className="max-w-full max-h-full object-contain" /> :
-                <span className="text-xs text-muted-foreground">—</span>}
+        {(() => {
+          const wMm = outline ? outline.widthPt / 72 * 25.4 : 0;
+          const hMm = outline ? outline.heightPt / 72 * 25.4 : 0;
+          const sizeLabel = outline ? `${wMm.toFixed(1)} × ${hMm.toFixed(1)} mm` : "—";
+          const ratio = outline ? `${outline.widthPt} / ${outline.heightPt}` : "1 / 1";
+          return (
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-muted-foreground">외곽선</span>
+                  <span className="text-xs font-mono text-foreground">실제 인쇄크기: {sizeLabel}</span>
+                </div>
+                <div
+                  className="w-full rounded border bg-muted/30 flex items-center justify-center overflow-hidden"
+                  style={{ aspectRatio: ratio }}
+                >
+                  {outline ? <img src={outline.previewUrl} alt="외곽선" className="max-w-full max-h-full object-contain" /> :
+                    <span className="text-xs text-muted-foreground">—</span>}
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-muted-foreground">
+                    미리보기 ({first?.designUid || "—"}){testDesign ? " · 테스트 디자인" : ""}
+                  </span>
+                  <span className="text-xs font-mono text-foreground">실제 인쇄크기: {sizeLabel}</span>
+                </div>
+                <div
+                  className="w-full rounded border bg-[conic-gradient(at_50%_50%,#eee_25%,#fff_0_50%,#eee_0_75%,#fff_0)] bg-[length:16px_16px] flex items-center justify-center overflow-hidden"
+                  style={{ aspectRatio: ratio }}
+                >
+                  {previewUrl ? <img src={previewUrl} alt="미리보기" className="max-w-full max-h-full object-contain" /> :
+                    <span className="text-xs text-muted-foreground">미리보기 없음</span>}
+                </div>
+              </div>
             </div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground mb-1">
-              미리보기 ({first?.designUid || "—"}){testDesign ? " · 테스트 디자인" : ""}
-            </div>
-            <div className="w-full aspect-square rounded border bg-[conic-gradient(at_50%_50%,#eee_25%,#fff_0_50%,#eee_0_75%,#fff_0)] bg-[length:16px_16px] flex items-center justify-center overflow-hidden">
-              {previewUrl ? <img src={previewUrl} alt="미리보기" className="max-w-full max-h-full object-contain" /> :
-                <span className="text-xs text-muted-foreground">미리보기 없음</span>}
-            </div>
-          </div>
-        </div>
+          );
+        })()}
       </CardContent>
     </Card>
   );
