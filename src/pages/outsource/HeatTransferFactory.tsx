@@ -555,6 +555,11 @@ function DesignTab({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dpi, setDpi] = useState(300);
+  // design transform within fixed format (offset in %, scale relative to cover-fit)
+  const [offsetX, setOffsetX] = useState(0);
+  const [offsetY, setOffsetY] = useState(0);
+  const [designScale, setDesignScale] = useState(1);
+  const transform = { offsetXPct: offsetX, offsetYPct: offsetY, scale: designScale };
 
   const first = details[0];
   const effectiveDesign = testDesign || first?.designSrc || null;
@@ -565,13 +570,13 @@ function DesignTab({
     async function run() {
       if (!outline || !effectiveDesign) { setPreviewUrl(null); return; }
       try {
-        const canvas = await composeClippedDesign(effectiveDesign, outline.maskCanvas, outline.widthPt, outline.heightPt, 96);
+        const canvas = await composeClippedDesign(effectiveDesign, outline.maskCanvas, outline.widthPt, outline.heightPt, 96, transform);
         if (!cancelled) setPreviewUrl(canvas.toDataURL("image/png"));
       } catch (e) { /* ignore */ }
     }
     run();
     return () => { cancelled = true; };
-  }, [outline, effectiveDesign]);
+  }, [outline, effectiveDesign, offsetX, offsetY, designScale]);
 
   const handleTestUpload = async (f: File) => {
     const url = await new Promise<string>((resolve) => {
@@ -586,7 +591,7 @@ function DesignTab({
     if (!src) { toast({ title: "디자인 소스가 없습니다", variant: "destructive" }); return; }
     setBusy(true);
     try {
-      const c = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, dpi);
+      const c = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, dpi, transform);
       const b = await canvasToBlob(c);
       triggerDownload(b, `${d.designUid}_${dpi}dpi.png`);
     } finally { setBusy(false); }
@@ -601,7 +606,7 @@ function DesignTab({
       for (const d of details) {
         const src = testDesign || d.designSrc;
         if (!src) continue;
-        const c = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, dpi);
+        const c = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, dpi, transform);
         const b = await canvasToBlob(c);
         folder.file(`${d.designUid}.png`, b);
       }
