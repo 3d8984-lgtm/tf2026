@@ -1051,32 +1051,42 @@ function DesignTab({
 // ============ QR tab ============
 
 interface QrConfig {
-  size: number;        // px
-  margin: number;      // qr quiet zone modules
-  textSize: number;    // px
-  gap: number;         // px between qr and text
+  sizeMm: number;       // QR 본체 크기 (mm)
+  marginMm: number;     // 외곽 여백 (mm)
+  textSizeMm: number;   // 텍스트 높이 (mm)
+  gapMm: number;        // QR과 텍스트 간격 (mm)
 }
 
+const QR_DPI = 300;
+const mmToPx = (mm: number) => Math.max(1, Math.round((mm / 25.4) * QR_DPI));
+
 async function buildQrPng(value: string, cfg: QrConfig): Promise<HTMLCanvasElement> {
+  const qrPx = mmToPx(cfg.sizeMm);
+  const marginPx = mmToPx(cfg.marginMm);
+  const textPx = cfg.textSizeMm > 0 ? mmToPx(cfg.textSizeMm) : 0;
+  const gapPx = cfg.gapMm > 0 ? mmToPx(cfg.gapMm) : 0;
+
   const qrCanvas = document.createElement("canvas");
-  await QRCode.toCanvas(qrCanvas, value, { width: cfg.size, margin: cfg.margin });
-  const padX = 16;
-  const textH = cfg.textSize + 8;
+  await QRCode.toCanvas(qrCanvas, value, { width: qrPx, margin: 0 });
+
+  const textBlock = textPx > 0 ? textPx + Math.round(textPx * 0.3) : 0;
   const out = document.createElement("canvas");
-  out.width = Math.max(qrCanvas.width, padX * 2 + value.length * cfg.textSize * 0.65);
-  out.height = qrCanvas.height + cfg.gap + textH;
+  out.width = Math.max(qrCanvas.width + marginPx * 2, marginPx * 2 + Math.ceil(value.length * textPx * 0.65));
+  out.height = marginPx * 2 + qrCanvas.height + (textBlock > 0 ? gapPx + textBlock : 0);
   const ctx = out.getContext("2d")!;
   ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, out.width, out.height);
-  ctx.drawImage(qrCanvas, (out.width - qrCanvas.width) / 2, 0);
-  ctx.fillStyle = "#000000";
-  ctx.font = `${cfg.textSize}px ui-monospace, monospace`;
-  ctx.textAlign = "center"; ctx.textBaseline = "top";
-  ctx.fillText(value, out.width / 2, qrCanvas.height + cfg.gap);
+  ctx.drawImage(qrCanvas, (out.width - qrCanvas.width) / 2, marginPx);
+  if (textBlock > 0) {
+    ctx.fillStyle = "#000000";
+    ctx.font = `${textPx}px ui-monospace, monospace`;
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    ctx.fillText(value, out.width / 2, marginPx + qrCanvas.height + gapPx);
+  }
   return out;
 }
 
 function QrTab({ details }: { details: DesignDetail[] }) {
-  const [cfg, setCfg] = useState<QrConfig>({ size: 300, margin: 2, textSize: 20, gap: 12 });
+  const [cfg, setCfg] = useState<QrConfig>({ sizeMm: 25, marginMm: 2, textSizeMm: 3, gapMm: 1.5 });
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const first = details[0];
@@ -1090,7 +1100,7 @@ function QrTab({ details }: { details: DesignDetail[] }) {
     }
     run();
     return () => { cancelled = true; };
-  }, [first?.designUid, cfg.size, cfg.margin, cfg.textSize, cfg.gap]);
+  }, [first?.designUid, cfg.sizeMm, cfg.marginMm, cfg.textSizeMm, cfg.gapMm]);
 
   const downloadAll = async () => {
     setBusy(true);
@@ -1099,7 +1109,7 @@ function QrTab({ details }: { details: DesignDetail[] }) {
       const folder = zip.folder(`qrcode_${first?.orderNo || "order"}`)!;
       for (const d of details) {
         const c = await buildQrPng(d.designUid, cfg);
-        const b = await canvasToBlob(c);
+        const b = await pngWithDpi(await canvasToBlob(c), QR_DPI);
         folder.file(`${d.designUid}.png`, b);
       }
       const blob = await zip.generateAsync({ type: "blob" });
@@ -1108,27 +1118,32 @@ function QrTab({ details }: { details: DesignDetail[] }) {
     } finally { setBusy(false); }
   };
 
+  const totalW = cfg.sizeMm + cfg.marginMm * 2;
+  const totalH = cfg.sizeMm + cfg.marginMm * 2 + cfg.gapMm + cfg.textSizeMm * 1.3;
+
   return (
     <Card>
       <CardHeader><CardTitle className="text-base flex items-center gap-2"><QrCodeIcon className="w-4 h-4" /> 큐알코드 시안</CardTitle></CardHeader>
       <CardContent className="space-y-4">
         <div className="grid md:grid-cols-4 gap-3">
-          <NumField label="QR 크기 (px)" v={cfg.size} set={(v) => setCfg({ ...cfg, size: v })} min={80} max={1200} />
-          <NumField label="여백 (modules)" v={cfg.margin} set={(v) => setCfg({ ...cfg, margin: v })} min={0} max={16} />
-          <NumField label="텍스트 크기 (px)" v={cfg.textSize} set={(v) => setCfg({ ...cfg, textSize: v })} min={8} max={96} />
-          <NumField label="QR-텍스트 간격 (px)" v={cfg.gap} set={(v) => setCfg({ ...cfg, gap: v })} min={0} max={120} />
+          <NumField label="QR 크기 (mm)" v={cfg.sizeMm} set={(v) => setCfg({ ...cfg, sizeMm: v })} min={5} max={200} step={0.5} />
+          <NumField label="여백 (mm)" v={cfg.marginMm} set={(v) => setCfg({ ...cfg, marginMm: v })} min={0} max={20} step={0.5} />
+          <NumField label="텍스트 크기 (mm)" v={cfg.textSizeMm} set={(v) => setCfg({ ...cfg, textSizeMm: v })} min={0} max={20} step={0.1} />
+          <NumField label="QR-텍스트 간격 (mm)" v={cfg.gapMm} set={(v) => setCfg({ ...cfg, gapMm: v })} min={0} max={20} step={0.1} />
         </div>
 
         <div className="grid md:grid-cols-2 gap-4 items-start">
           <div>
-            <div className="text-xs text-muted-foreground mb-1">미리보기 ({first?.designUid || "—"})</div>
+            <div className="text-xs text-muted-foreground mb-1">
+              미리보기 ({first?.designUid || "—"}) · 실제 인쇄 크기 약 {totalW.toFixed(1)} × {totalH.toFixed(1)} mm @ {QR_DPI}DPI
+            </div>
             <div className="rounded border bg-muted/30 p-4 flex items-center justify-center min-h-64">
               {previewUrl ? <img src={previewUrl} alt="qr" className="max-w-full max-h-[400px] object-contain" /> :
                 <span className="text-xs text-muted-foreground">—</span>}
             </div>
           </div>
           <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">QR 코드는 디자인 고유번호(작업번호-순번)를 값으로 사용하며, 하단에 동일한 텍스트가 표기됩니다.</p>
+            <p className="text-sm text-muted-foreground">QR 코드는 디자인 고유번호(작업번호-순번)를 값으로 사용하며, 하단에 동일한 텍스트가 표기됩니다. 모든 치수는 mm 단위이며 {QR_DPI}DPI 메타데이터가 포함되어 일러스트레이터에서도 실제 인쇄 크기로 열립니다.</p>
             <Button onClick={downloadAll} disabled={busy || details.length === 0}>
               {busy ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
               폴더로 일괄 다운로드 (ZIP)
@@ -1140,11 +1155,11 @@ function QrTab({ details }: { details: DesignDetail[] }) {
   );
 }
 
-function NumField({ label, v, set, min, max }: { label: string; v: number; set: (n: number) => void; min: number; max: number }) {
+function NumField({ label, v, set, min, max, step }: { label: string; v: number; set: (n: number) => void; min: number; max: number; step?: number }) {
   return (
     <div className="space-y-1">
       <Label className="text-xs">{label}</Label>
-      <Input type="number" min={min} max={max} value={v} onChange={(e) => set(Math.max(min, Math.min(max, Number(e.target.value) || min)))} className="h-9" />
+      <Input type="number" min={min} max={max} step={step ?? 1} value={v} onChange={(e) => set(Math.max(min, Math.min(max, Number(e.target.value) || min)))} className="h-9" />
     </div>
   );
 }
