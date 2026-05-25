@@ -718,7 +718,7 @@ function DesignTab({
     setBusy(true);
     try {
       const c = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, dpi, transform);
-      const b = await canvasToBlob(c);
+      const b = await pngWithDpi(await canvasToBlob(c), dpi);
       triggerDownload(b, `${d.designUid}_${dpi}dpi.png`);
     } finally { setBusy(false); }
   };
