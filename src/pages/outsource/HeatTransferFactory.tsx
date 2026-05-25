@@ -659,6 +659,44 @@ function DesignTab({
           </Button>
         </div>
 
+        {/* Design transform within fixed format (offset + proportional scale) */}
+        <div className="rounded border p-3 space-y-3 bg-muted/20">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs font-semibold">디자인 위치/크기 조정 (포맷 고정)</Label>
+            <Button size="sm" variant="ghost" className="h-7 text-xs"
+              onClick={() => { setOffsetX(0); setOffsetY(0); setDesignScale(1); }}>
+              초기화
+            </Button>
+          </div>
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs">
+                <span>좌우 (X)</span><span className="font-mono">{offsetX.toFixed(0)}%</span>
+              </div>
+              <Slider value={[offsetX]} min={-100} max={100} step={1} onValueChange={(v) => setOffsetX(v[0])} />
+            </div>
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs">
+                <span>상하 (Y)</span><span className="font-mono">{offsetY.toFixed(0)}%</span>
+              </div>
+              <Slider value={[offsetY]} min={-100} max={100} step={1} onValueChange={(v) => setOffsetY(v[0])} />
+            </div>
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs">
+                <span>크기 (비율 유지)</span><span className="font-mono">{(designScale * 100).toFixed(0)}%</span>
+              </div>
+              <Slider value={[designScale]} min={0.2} max={3} step={0.01} onValueChange={(v) => setDesignScale(v[0])} />
+            </div>
+          </div>
+          <div className="grid md:grid-cols-3 gap-2">
+            <Input type="number" value={offsetX} step={1} onChange={(e) => setOffsetX(Number(e.target.value) || 0)} className="h-8 text-xs" />
+            <Input type="number" value={offsetY} step={1} onChange={(e) => setOffsetY(Number(e.target.value) || 0)} className="h-8 text-xs" />
+            <Input type="number" value={designScale} step={0.05} min={0.1} max={5} onChange={(e) => setDesignScale(Math.max(0.1, Number(e.target.value) || 1))} className="h-8 text-xs" />
+          </div>
+        </div>
+
+
+
         {(() => {
           const wMm = outline ? outline.widthPt / 72 * 25.4 : 0;
           const hMm = outline ? outline.heightPt / 72 * 25.4 : 0;
