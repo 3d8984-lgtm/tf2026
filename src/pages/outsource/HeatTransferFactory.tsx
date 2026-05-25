@@ -327,17 +327,28 @@ function DesignFormatBox({
       <CardContent>
         <div className="grid md:grid-cols-[1fr_auto] gap-4">
           <div className="space-y-2">
-            <Label className="text-xs">디자인 외곽선 (PDF)</Label>
+            <Label className="text-xs">디자인 외곽선 (PDF) · 서버 저장</Label>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="application/pdf"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f); e.target.value = ""; }}
+            />
             <div className="flex gap-2">
-              <Input
-                ref={inputRef}
-                type="file"
-                accept="application/pdf"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f); e.target.value = ""; }}
-                className="h-9"
-              />
-              {outline && (
-                <Button size="sm" variant="outline" onClick={onClear}><X className="w-4 h-4 mr-1" /> 제거</Button>
+              {!outline ? (
+                <Button size="sm" onClick={() => inputRef.current?.click()} disabled={loading}>
+                  <Upload className="w-4 h-4 mr-1" /> 업로드
+                </Button>
+              ) : (
+                <>
+                  <Button size="sm" variant="outline" onClick={() => inputRef.current?.click()} disabled={loading}>
+                    <Upload className="w-4 h-4 mr-1" /> 변경
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={onClear} disabled={loading}>
+                    <X className="w-4 h-4 mr-1" /> 삭제
+                  </Button>
+                </>
               )}
             </div>
             {outline && (
@@ -346,7 +357,7 @@ function DesignFormatBox({
               </div>
             )}
             {!outline && (
-              <p className="text-xs text-muted-foreground">PDF의 첫 페이지가 외곽선으로 사용됩니다. 어두운 영역이 디자인 영역(클리핑 마스크)으로 처리됩니다.</p>
+              <p className="text-xs text-muted-foreground">PDF의 첫 페이지가 외곽선으로 사용됩니다. 업로드한 파일은 서버에 저장되어 변경/삭제 전까지 디자인 포맷으로 유지됩니다.</p>
             )}
           </div>
           <div className="flex items-center justify-center">
