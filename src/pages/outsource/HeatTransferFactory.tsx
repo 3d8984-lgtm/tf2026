@@ -181,6 +181,7 @@ export default function HeatTransferFactory() {
         designQty: items.length || 1,
         logoUrl: o.logo_url || null,
         items,
+        raw: o,
       });
     }
     return out;
