@@ -934,9 +934,28 @@ function DesignTab({
               )}
             </div>
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs">업스케일 DPI</Label>
-            <Input type="number" min={72} max={1200} value={dpi} onChange={(e) => setDpi(Math.max(72, Math.min(1200, Number(e.target.value) || 300)))} className="h-9 w-28" />
+          <div className="space-y-1 min-w-[220px]">
+            <Label className="text-xs">인쇄 품질 프리셋</Label>
+            <Select value={quality} onValueChange={(v) => setQuality(v as QualityPresetKey)}>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">
+                  <span className="font-medium">자동 (권장)</span>
+                  <span className="text-muted-foreground"> — 디자인 분석 후 최적 선택</span>
+                </SelectItem>
+                {(Object.keys(QUALITY_PRESETS) as Array<Exclude<QualityPresetKey, "auto">>).map((k) => (
+                  <SelectItem key={k} value={k}>
+                    <span className="font-medium">{QUALITY_PRESETS[k].label}</span>
+                    <span className="text-muted-foreground"> — {QUALITY_PRESETS[k].desc}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              적용: <span className="font-medium text-foreground">{presetCfg.label}</span>
+              {sharpen && <span className="text-foreground"> · 엣지 보존 샤프닝</span>}
+              {quality === "auto" && autoResolved && <span> · {autoResolved.reason}</span>}
+            </p>
           </div>
           <Button size="sm" variant="outline" disabled={busy || !outline || !first} onClick={() => first && downloadOne(first)}>
             <Download className="w-4 h-4 mr-1" /> 현재 디자인
