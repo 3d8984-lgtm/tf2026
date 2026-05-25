@@ -369,7 +369,7 @@ function OrderDetail({
         <h2 className="text-base font-semibold">작업번호 <span className="font-mono">{order.orderNo}</span></h2>
       </div>
 
-      <WorkOrderInfoBox order={order} />
+      <WorkOrderInfoBox order={order} outlinePreview={outline?.previewUrl} />
 
       <Tabs defaultValue="design">
         <TabsList>
