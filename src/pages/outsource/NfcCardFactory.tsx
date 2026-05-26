@@ -887,12 +887,26 @@ function DetailView({
   );
 }
 
+// Apply test value overrides to the preview card (for designer preview only)
+function applyTestValues(c: CardData | undefined, tv: { cpValue: string; editionNo: string; issuedNo: string; mintedOn: string; grade: string }): CardData | undefined {
+  if (!c) return c;
+  return {
+    ...c,
+    cpValue:   tv.cpValue   ? tv.cpValue   : c.cpValue,
+    editionNo: tv.editionNo ? tv.editionNo : c.editionNo,
+    issuedNo:  tv.issuedNo  ? tv.issuedNo  : c.issuedNo,
+    mintedOn:  tv.mintedOn  ? tv.mintedOn  : c.mintedOn,
+    grade:     tv.grade     ? tv.grade     : c.grade,
+  };
+}
+
 // ============== Card side editor (preview + per-option controls) ==============
 function CardSideEditor({
-  side, frame, cardPreview, layout, setLayout, keys,
+  side, frame, testImageUrl, cardPreview, layout, setLayout, keys,
 }: {
   side: "front" | "back";
   frame: any;
+  testImageUrl?: string | null;
   cardPreview?: CardData;
   layout: Record<OptionKey, OptionLayout>;
   setLayout: React.Dispatch<React.SetStateAction<Record<OptionKey, OptionLayout>>>;
