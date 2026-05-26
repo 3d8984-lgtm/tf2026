@@ -708,6 +708,64 @@ function DetailView({
           </CardContent>
         </Card>
 
+        {/* Test image upload (per side) */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">테스트 카드 디자인 이미지 (서버 저장)</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {(["front", "back"] as const).map(side => (
+              <div key={side} className="border rounded-md p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="font-medium text-xs">{side === "front" ? "앞면" : "뒷면"} 테스트 이미지</Label>
+                  {testImages[side] && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600">서버 저장됨</span>
+                  )}
+                </div>
+                <div className="w-full h-32 border rounded bg-muted/30 overflow-hidden flex items-center justify-center">
+                  {testImages[side]?.url
+                    ? <img src={testImages[side]!.url} alt="" className="w-full h-full object-contain bg-white" />
+                    : <span className="text-xs text-muted-foreground flex items-center gap-1"><ImageIcon className="w-3 h-3" />테스트 이미지 없음 (API 디자인 사용)</span>}
+                </div>
+                <div className="text-[11px] text-muted-foreground truncate">
+                  {testImages[side]?.name || "삭제 전까지 서버에 유지됩니다"}
+                </div>
+                <div className="flex gap-2">
+                  <label className="flex-1 flex items-center justify-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
+                    <Upload className="w-3 h-3" />
+                    <span>{testImages[side] ? "변경" : "이미지 업로드"}</span>
+                    <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden"
+                      onChange={e => { const f = e.target.files?.[0] || null; e.currentTarget.value = ""; if (f) onUploadTestImage(side, f); }} />
+                  </label>
+                  {testImages[side] && (
+                    <Button size="sm" variant="destructive" className="text-xs"
+                      onClick={() => { if (confirm("테스트 이미지를 삭제하고 원래 API 디자인을 사용할까요?")) onUploadTestImage(side, null); }}>
+                      <X className="w-3 h-3 mr-1" />삭제
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        {/* Test values for preview */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center justify-between">
+              <span>미리보기 테스트 값</span>
+              <span className="text-[11px] font-normal text-muted-foreground">PDF/표 데이터는 그대로, 디자이너 미리보기에만 적용</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <TxtField label="앞면 · CP값" v={testValues.cpValue} set={v => setTestValues(p => ({ ...p, cpValue: v }))} />
+            <TxtField label="앞면 · EDITION No." v={testValues.editionNo} set={v => setTestValues(p => ({ ...p, editionNo: v }))} />
+            <TxtField label="뒷면 · ISSUED No." v={testValues.issuedNo} set={v => setTestValues(p => ({ ...p, issuedNo: v }))} />
+            <TxtField label="뒷면 · Minted on" v={testValues.mintedOn} set={v => setTestValues(p => ({ ...p, mintedOn: v }))} />
+            <TxtField label="뒷면 · 등급" v={testValues.grade} set={v => setTestValues(p => ({ ...p, grade: v }))} />
+          </CardContent>
+        </Card>
+
         {/* Layout designer */}
         <Tabs defaultValue="front">
           <TabsList>
@@ -719,7 +777,8 @@ function DetailView({
             <CardSideEditor
               side="front"
               frame={frames.front}
-              cardPreview={cards[0]}
+              testImageUrl={testImages.front?.url || null}
+              cardPreview={applyTestValues(cards[0], testValues)}
               layout={layoutFront}
               setLayout={setLayoutFront}
               keys={FRONT_KEYS}
@@ -729,7 +788,8 @@ function DetailView({
             <CardSideEditor
               side="back"
               frame={frames.back}
-              cardPreview={cards[0]}
+              testImageUrl={testImages.back?.url || null}
+              cardPreview={applyTestValues(cards[0], testValues)}
               layout={layoutBack}
               setLayout={setLayoutBack}
               keys={BACK_KEYS}
