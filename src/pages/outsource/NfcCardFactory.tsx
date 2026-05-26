@@ -33,6 +33,7 @@ const FRAME_PREFIX = "nfc-card";
 const TEST_IMG_PREFIX = "nfc-card-test";
 const SETTINGS_KEY_PREFIX = "outsource-nfc-card-v1";
 const GLOBAL_LAYOUT_KEY = "outsource-nfc-card-layout-default";
+const TEST_TWINCODE_PREFIX = "nfc-card-test";
 
 // Inter (OFL — commercially free) TTF for pdf-lib embedding
 const INTER_TTF_URL = "https://cdn.jsdelivr.net/gh/rsms/inter@v4.0/docs/font-files/Inter-Regular.ttf";
