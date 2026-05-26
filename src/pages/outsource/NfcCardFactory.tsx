@@ -897,6 +897,22 @@ function DetailView({
           </CardContent>
         </Card>
 
+        {/* 뒷면 기본 텍스트 (전체 카드 공통 적용 · API 외) */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center justify-between">
+              <span>카드 뒷면 기본 텍스트</span>
+              <span className="text-[11px] font-normal text-muted-foreground">전체 카드에 공통으로 적용되는 고정 텍스트입니다</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <TxtField label="회사명" v={backDefaults.companyName} set={v => setBackDefaults(p => ({ ...p, companyName: v }))} />
+            <TxtField label="중앙슬로건" v={backDefaults.centerSlogan} set={v => setBackDefaults(p => ({ ...p, centerSlogan: v }))} />
+            <TxtField label="NFC Enabled" v={backDefaults.nfcEnabled} set={v => setBackDefaults(p => ({ ...p, nfcEnabled: v }))} />
+          </CardContent>
+        </Card>
+
+
         {/* Layout designer */}
         <Tabs defaultValue="front">
           <TabsList>
