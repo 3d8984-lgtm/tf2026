@@ -1067,10 +1067,16 @@ function CardSideEditor({
           centerY: false,
         });
       } else {
-        update(key, {
-          w: clampMm(startMm.w + dxMm, CARD_W_MM - cfg.x),
-          h: clampMm(startMm.h + dyMm, CARD_H_MM - cfg.y),
-        });
+        if (key === "dmBarcode") {
+          // square: keep w == h
+          const size = clampMm(startMm.w + Math.max(dxMm, dyMm), Math.min(CARD_W_MM - cfg.x, CARD_H_MM - cfg.y));
+          update(key, { w: size, h: size });
+        } else {
+          update(key, {
+            w: clampMm(startMm.w + dxMm, CARD_W_MM - cfg.x),
+            h: clampMm(startMm.h + dyMm, CARD_H_MM - cfg.y),
+          });
+        }
       }
     };
     const onUp = () => {
