@@ -122,11 +122,12 @@ interface OrderRow {
 // ---------- DataMatrix via bwip-js → PNG bytes ----------
 async function dataMatrixPngBytes(text: string, sizePx = 300): Promise<Uint8Array> {
   const canvas = document.createElement("canvas");
-  await bwipjs.toCanvas(canvas, {
+  await (bwipjs as any).toCanvas(canvas, {
     bcid: "datamatrix",
     text: text || "TWINMETA",
     scale: 4,
-    padding: 4,
+    paddingwidth: 4,
+    paddingheight: 4,
     includetext: false,
   });
   // re-render at sizePx
