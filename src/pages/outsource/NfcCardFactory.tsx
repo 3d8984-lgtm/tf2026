@@ -567,6 +567,7 @@ function DetailView({
           if (v.layoutBack)  setLayoutBack(prev => ({ ...prev, ...v.layoutBack }));
           if (v.workOrder)   setWorkOrder(prev => ({ ...prev, ...v.workOrder, orderNo }));
           if (v.testValues)  setTestValues(prev => ({ ...prev, ...v.testValues }));
+          if (v.backDefaults) setBackDefaults(prev => ({ ...prev, ...v.backDefaults }));
           break;
         }
       }
