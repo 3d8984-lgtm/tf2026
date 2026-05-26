@@ -1074,7 +1074,7 @@ function CardSideEditor({
   layout: Record<OptionKey, OptionLayout>;
   setLayout: React.Dispatch<React.SetStateAction<Record<OptionKey, OptionLayout>>>;
   keys: OptionKey[];
-  backDefaults?: { companyName: string; centerSlogan: string; nfcEnabled: string };
+  backDefaults?: { companyName: string; centerSlogan: string; nfcEnabled: string; issuedBy: string };
 }) {
   // Zoomable preview (px per mm). Default 10 = card ~85x54mm renders ~856x540px.
   const [pxPerMm, setPxPerMm] = useState(10);
