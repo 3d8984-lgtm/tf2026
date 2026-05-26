@@ -24,10 +24,9 @@ import { PDFDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import QRCode from "qrcode";
 import bwipjs from "bwip-js/browser";
+import { CardFrame, CARD_W_MM, CARD_H_MM } from "@/components/outsource/CardFrame";
 
 const MM = 2.8346456693; // 1mm in pt
-const CARD_W_MM = 57;
-const CARD_H_MM = 87;
 const FRAME_BUCKET = "design-formats";
 const FRAME_PREFIX = "nfc-card";
 const TEST_IMG_PREFIX = "nfc-card-test";
