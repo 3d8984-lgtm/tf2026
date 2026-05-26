@@ -925,7 +925,9 @@ function DetailView({
               layout={layoutBack}
               setLayout={setLayoutBack}
               keys={BACK_KEYS}
+              backDefaults={backDefaults}
             />
+
           </TabsContent>
         </Tabs>
 
