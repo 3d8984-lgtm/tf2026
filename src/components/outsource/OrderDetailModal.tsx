@@ -216,7 +216,7 @@ export default function OrderDetailModal({ open, onOpenChange, data, refetch }: 
   const [current, setCurrent] = useState<OrderDetailData | null>(data);
   const [loading, setLoading] = useState(false);
   const [showJson, setShowJson] = useState(false);
-  const [lightbox, setLightbox] = useState<{ url: string; label: string } | null>(null);
+  const [lightbox, setLightbox] = useState<{ url: string; label: string; isCard?: boolean } | null>(null);
   const [checks, setChecks] = useState<Record<string, boolean>>({});
   const [downloading, setDownloading] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
