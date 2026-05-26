@@ -112,6 +112,26 @@ function MissingValue() {
   return <span className="text-muted-foreground italic">— (미수신)</span>;
 }
 
+async function downloadCardAsPdf(url: string, fileName: string) {
+  try {
+    const res = await fetch(url, { mode: "cors", referrerPolicy: "no-referrer" });
+    const blob = await res.blob();
+    const dataUrl: string = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result));
+      r.onerror = reject;
+      r.readAsDataURL(blob);
+    });
+    const fmt = (blob.type.includes("png") || /\.png(\?|$)/i.test(url)) ? "PNG" : "JPEG";
+    const doc = new jsPDF({ unit: "mm", format: [CARD_W_MM, CARD_H_MM], orientation: "portrait" });
+    doc.addImage(dataUrl, fmt, 0, 0, CARD_W_MM, CARD_H_MM, undefined, "FAST");
+    doc.save(fileName);
+  } catch (e: any) {
+    toast({ title: "PDF 생성 실패", description: e?.message, variant: "destructive" as any });
+  }
+}
+
+
 function ThumbCard({
   spec,
   url,
