@@ -611,11 +611,11 @@ function DetailView({
           const txt = getText();
           if (!txt) continue;
           const sizePt = Math.max(4, cfg.fontSize * MM);
-          const textW = font.widthOfTextAtSize(txt, sizePt);
+          const useFont = key === "grade" ? fontBold : font;
+          const textW = useFont.widthOfTextAtSize(txt, sizePt);
           const drawX = cfg.centerX ? (cardWpt - textW) / 2 : xPt;
-          // baseline near top of box
           const drawY = (CARD_H_MM - yMm - cfg.fontSize) * MM;
-          page.drawText(txt, { x: drawX, y: drawY, size: sizePt, font, color: rgb(0, 0, 0) });
+          page.drawText(txt, { x: drawX, y: drawY, size: sizePt, font: useFont, color: rgb(0, 0, 0) });
         }
       }
     };
