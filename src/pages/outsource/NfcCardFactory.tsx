@@ -1362,6 +1362,17 @@ function CardSideEditor({
               const apiUrl = side === "front" ? cardPreview?.frontImageUrl : cardPreview?.backImageUrl;
               const designUrl = testImageUrl || apiUrl;
               if (!designUrl) return null;
+              // PDF 출력과 동일한 bleed 보정: 양쪽으로 FRAME_BLEED_MM 확장 → 외곽 여백을 잘라낸 효과
+              const insetPctX = -(FRAME_BLEED_MM / CARD_W_MM) * 100;
+              const insetPctY = -(FRAME_BLEED_MM / CARD_H_MM) * 100;
+              const bleedStyle: React.CSSProperties = {
+                top: `${insetPctY}%`,
+                left: `${insetPctX}%`,
+                right: `${insetPctX}%`,
+                bottom: `${insetPctY}%`,
+                width: "auto",
+                height: "auto",
+              };
               const maskStyle: React.CSSProperties = frame?.preview
                 ? {
                     WebkitMaskImage: `url(${frame.preview})`,
@@ -1370,16 +1381,16 @@ function CardSideEditor({
                     maskRepeat: "no-repeat",
                     WebkitMaskPosition: "center",
                     maskPosition: "center",
-                    WebkitMaskSize: "contain",
-                    maskSize: "contain",
+                    WebkitMaskSize: "100% 100%",
+                    maskSize: "100% 100%",
                   }
                 : {};
               return (
                 <img
                   src={designUrl}
                   alt=""
-                  className="absolute inset-0 w-full h-full object-fill pointer-events-none"
-                  style={maskStyle}
+                  className="absolute object-fill pointer-events-none"
+                  style={{ ...bleedStyle, ...maskStyle }}
                 />
               );
             })()}
