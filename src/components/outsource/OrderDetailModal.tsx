@@ -115,12 +115,16 @@ function ThumbCard({
   onPreview,
   onCheck,
   checked,
+  actualSize,
+  mmScale,
 }: {
   spec: FieldSpec;
   url?: string | null;
   onPreview: (spec: FieldSpec, url: string) => void;
   onCheck: (key: FieldKey, v: boolean) => void;
   checked: boolean;
+  actualSize?: boolean;
+  mmScale?: number;
 }) {
   const [errored, setErrored] = useState(false);
   const [bust, setBust] = useState(0);
@@ -129,9 +133,15 @@ function ThumbCard({
 
   const isCard = spec.key === "cardFrontDesignPng" || spec.key === "cardBackDesignPng";
   const aspectClass = isCard ? "aspect-[57/87]" : "aspect-square";
+  const k = (mmScale ?? 100) / 100;
+  const realSizeStyle: React.CSSProperties | undefined =
+    isCard && actualSize
+      ? { width: `calc(57mm * ${k})`, height: `calc(87mm * ${k})`, aspectRatio: "auto" as any }
+      : undefined;
   return (
-    <div className="rounded-lg border bg-card overflow-hidden flex flex-col">
-      <div className={`relative ${aspectClass} bg-muted/40 flex items-center justify-center group`}>
+    <div className="rounded-lg border bg-card overflow-hidden flex flex-col" style={isCard && actualSize ? { width: `calc(57mm * ${k} + 2px)` } : undefined}>
+      <div className={`relative ${actualSize && isCard ? "" : aspectClass} bg-muted/40 flex items-center justify-center group`} style={realSizeStyle}>
+
         {valid && !errored ? (
           <img
             src={src}
