@@ -632,13 +632,20 @@ function DetailView({
       keys: OptionKey[],
     ) => {
       const page = out.addPage([cardWpt, cardHpt]);
+      // 프레임/디자인 외곽 여백 보정: 디자인과 프레임을 양쪽으로 FRAME_BLEED_MM 만큼 확장해 그려서,
+      // 원본에 포함된 흰 여백이 페이지 바깥으로 빠지고 카드 이미지가 57×87mm 대지를 꽉 채우게 한다.
+      const bleedPt = FRAME_BLEED_MM * MM;
+      const bleedX = -bleedPt;
+      const bleedY = -bleedPt;
+      const bleedW = cardWpt + bleedPt * 2;
+      const bleedH = cardHpt + bleedPt * 2;
       // Layer 1: card design image (test override > API)
       const designUrl = testImages[side]?.url || (side === "front" ? card.frontImageUrl : card.backImageUrl);
       if (designUrl) {
         try {
           const png = await urlToPngBytes(designUrl);
           const emb = await out.embedPng(png);
-          page.drawImage(emb, { x: 0, y: 0, width: cardWpt, height: cardHpt });
+          page.drawImage(emb, { x: bleedX, y: bleedY, width: bleedW, height: bleedH });
         } catch (e) { console.warn("card design embed failed", e); }
       }
       // Layer 2: frame PDF overlay
@@ -646,7 +653,7 @@ function DetailView({
       if (frame?.bytes) {
         try {
           const [emb] = await out.embedPdf(frame.bytes);
-          page.drawPage(emb, { x: 0, y: 0, width: cardWpt, height: cardHpt });
+          page.drawPage(emb, { x: bleedX, y: bleedY, width: bleedW, height: bleedH });
         } catch (e) { console.warn("frame embed failed", e); }
       }
       for (const key of keys) {
