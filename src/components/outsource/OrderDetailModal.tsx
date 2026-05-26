@@ -239,6 +239,22 @@ function ThumbCard({
           />
         </div>
         <FactoryTags factories={spec.factories} />
+        {isCard && valid && !errored && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="w-full h-7 text-[11px] mt-1"
+            onClick={(e) => {
+              e.stopPropagation();
+              const base = (spec.fileName || spec.key).replace(/\.[^.]+$/, "");
+              downloadCardAsPdf(url!, `${base}.pdf`);
+            }}
+          >
+            <FileDown className="w-3.5 h-3.5 mr-1" />
+            PDF 다운로드 (57×87mm)
+          </Button>
+        )}
       </div>
     </div>
   );
