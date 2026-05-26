@@ -840,7 +840,7 @@ function DetailView({
                   <label className="flex-1 flex items-center justify-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
                     <Upload className="w-3 h-3" />
                     <span>{testImages[side] ? "변경" : "이미지 업로드"}</span>
-                    <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden"
+                    <input type="file" accept="image/png,image/jpeg,image/webp,application/pdf" className="hidden"
                       onChange={e => { const f = e.target.files?.[0] || null; e.currentTarget.value = ""; if (f) onUploadTestImage(side, f); }} />
                   </label>
                   {testImages[side] && (
