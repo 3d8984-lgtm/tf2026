@@ -415,8 +415,48 @@ export default function OrderDetailModal({ open, onOpenChange, data, refetch }: 
 
               {/* 섹션 3. 디자인 이미지 */}
               <section>
-                <h3 className="text-sm font-semibold mb-2">🔹 디자인 이미지</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+                  <h3 className="text-sm font-semibold">🔹 디자인 이미지</h3>
+                  <div className="flex items-center gap-3 text-xs">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <Checkbox checked={actualSize} onCheckedChange={(v) => setActualSize(!!v)} />
+                      <span>실제크기 (57×87mm)</span>
+                    </label>
+                    {actualSize && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground">보정</span>
+                        <input
+                          type="range"
+                          min={80}
+                          max={120}
+                          step={0.5}
+                          value={mmScale}
+                          onChange={(e) => setMmScale(parseFloat(e.target.value))}
+                          className="w-32 accent-primary"
+                        />
+                        <input
+                          type="number"
+                          min={50}
+                          max={150}
+                          step={0.5}
+                          value={mmScale}
+                          onChange={(e) => setMmScale(parseFloat(e.target.value) || 100)}
+                          className="w-16 h-7 px-1.5 rounded border bg-background text-right"
+                        />
+                        <span className="text-muted-foreground">%</span>
+                        <Button size="sm" variant="ghost" className="h-7 text-[11px]" onClick={() => setMmScale(100)}>
+                          리셋
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {actualSize && (
+                  <p className="text-[11px] text-muted-foreground mb-2">
+                    💡 카드를 화면에 대고 실제 57mm×87mm가 되도록 보정값을 조정하세요. 설정은 브라우저에 저장됩니다.
+                  </p>
+                )}
+                <div className={actualSize ? "flex flex-wrap gap-3" : "grid grid-cols-2 md:grid-cols-4 gap-3"}>
                   {DESIGN_IMAGE_KEYS.map((k) => {
                     const spec = FIELDS.find((f) => f.key === k)!;
                     return (
@@ -427,6 +467,8 @@ export default function OrderDetailModal({ open, onOpenChange, data, refetch }: 
                         onPreview={handlePreview}
                         onCheck={handleCheck}
                         checked={!!checks[k]}
+                        actualSize={actualSize}
+                        mmScale={mmScale}
                       />
                     );
                   })}
