@@ -610,7 +610,7 @@ function DetailView({
   };
 
   // ====== Build single-card PDF (2 pages: front + back) ======
-  const buildCardPdfBytes = async (card: CardData): Promise<Uint8Array> => {
+  const buildCardPdfBytes = async (card: CardData, opts?: { sides?: Array<"front" | "back"> }): Promise<Uint8Array> => {
     const out = await PDFDocument.create();
     out.registerFontkit(fontkit);
     const interReg = await fetchFontBytes(INTER_TTF_URL, "reg");
