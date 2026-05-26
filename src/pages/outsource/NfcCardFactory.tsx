@@ -1079,8 +1079,13 @@ function CardSideEditor({
   keys: OptionKey[];
   backDefaults?: { companyName: string; centerSlogan: string; nfcEnabled: string; issuedBy: string };
 }) {
-  // Zoomable preview (px per mm). Default 10 = card ~85x54mm renders ~856x540px.
-  const [pxPerMm, setPxPerMm] = useState(10);
+  // Zoomable preview (px per mm). Default 10 = card ~57x87mm renders ~570x870px.
+  // 실제 크기 모드: CSS 표준 96dpi → 1mm = 3.7795px. mmScale로 화면 보정 가능.
+  const PX_PER_MM_REAL = 96 / 25.4;
+  const [actualSize, setActualSize] = useState(false);
+  const [mmScale, setMmScale] = useState(100); // %
+  const [zoom, setZoom] = useState(10);
+  const pxPerMm = actualSize ? PX_PER_MM_REAL * (mmScale / 100) : zoom;
   const previewW = CARD_W_MM * pxPerMm;
   const previewH = CARD_H_MM * pxPerMm;
 
@@ -1241,19 +1246,43 @@ function CardSideEditor({
         <CardTitle className="text-sm flex items-center justify-between gap-3 flex-wrap">
           <span>{side === "front" ? "카드 앞면" : "카드 뒷면"} 옵션 배치</span>
           <div className="flex items-center gap-3 text-xs font-normal">
-            <div className="flex items-center gap-2">
-              <Label className="text-xs">확대</Label>
+            <label className="flex items-center gap-1 cursor-pointer">
               <input
-                type="range"
-                min={4}
-                max={16}
-                step={1}
-                value={pxPerMm}
-                onChange={e => setPxPerMm(Number(e.target.value))}
-                className="w-32"
+                type="checkbox"
+                checked={actualSize}
+                onChange={e => setActualSize(e.target.checked)}
               />
-              <span className="tabular-nums w-10 text-muted-foreground">{pxPerMm}×</span>
-            </div>
+              <span>실제 크기(1:1)</span>
+            </label>
+            {actualSize ? (
+              <div className="flex items-center gap-2">
+                <Label className="text-xs">화면보정</Label>
+                <input
+                  type="range"
+                  min={80}
+                  max={130}
+                  step={1}
+                  value={mmScale}
+                  onChange={e => setMmScale(Number(e.target.value))}
+                  className="w-24"
+                />
+                <span className="tabular-nums w-10 text-muted-foreground">{mmScale}%</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Label className="text-xs">확대</Label>
+                <input
+                  type="range"
+                  min={4}
+                  max={16}
+                  step={1}
+                  value={zoom}
+                  onChange={e => setZoom(Number(e.target.value))}
+                  className="w-32"
+                />
+                <span className="tabular-nums w-10 text-muted-foreground">{zoom}×</span>
+              </div>
+            )}
             <Button
               type="button"
               size="sm"
