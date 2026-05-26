@@ -610,7 +610,7 @@ function DetailView({
   };
 
   // ====== Build single-card PDF (2 pages: front + back) ======
-  const buildCardPdfBytes = async (card: CardData): Promise<Uint8Array> => {
+  const buildCardPdfBytes = async (card: CardData, opts?: { sides?: Array<"front" | "back"> }): Promise<Uint8Array> => {
     const out = await PDFDocument.create();
     out.registerFontkit(fontkit);
     const interReg = await fetchFontBytes(INTER_TTF_URL, "reg");
@@ -724,8 +724,9 @@ function DetailView({
       }
     };
 
-    await drawSide("front", layoutFront, FRONT_KEYS);
-    await drawSide("back", layoutBack, BACK_KEYS);
+    const sides = opts?.sides ?? ["front", "back"];
+    if (sides.includes("front")) await drawSide("front", layoutFront, FRONT_KEYS);
+    if (sides.includes("back")) await drawSide("back", layoutBack, BACK_KEYS);
     return await out.save();
   };
 
@@ -944,6 +945,16 @@ function DetailView({
               layout={layoutFront}
               setLayout={setLayoutFront}
               keys={FRONT_KEYS}
+              onTestPdf={async () => {
+                const sample = applyTestValues(cards[0], testValues);
+                if (!sample) { toast({ title: "샘플 카드가 없습니다", variant: "destructive" }); return; }
+                try {
+                  const bytes = await buildCardPdfBytes(sample, { sides: ["front"] });
+                  downloadBlob(bytes, `test_front_${tsName()}.pdf`);
+                } catch (e: any) {
+                  toast({ title: "테스트 PDF 생성 실패", description: e.message, variant: "destructive" });
+                }
+              }}
             />
           </TabsContent>
           <TabsContent value="back" className="pt-3">
@@ -957,6 +968,16 @@ function DetailView({
               setLayout={setLayoutBack}
               keys={BACK_KEYS}
               backDefaults={backDefaults}
+              onTestPdf={async () => {
+                const sample = applyTestValues(cards[0], testValues);
+                if (!sample) { toast({ title: "샘플 카드가 없습니다", variant: "destructive" }); return; }
+                try {
+                  const bytes = await buildCardPdfBytes(sample, { sides: ["back"] });
+                  downloadBlob(bytes, `test_back_${tsName()}.pdf`);
+                } catch (e: any) {
+                  toast({ title: "테스트 PDF 생성 실패", description: e.message, variant: "destructive" });
+                }
+              }}
             />
 
           </TabsContent>
@@ -1067,7 +1088,7 @@ function applyTestValues(c: CardData | undefined, tv: { cpValue: string; edition
 
 // ============== Card side editor (preview + per-option controls) ==============
 function CardSideEditor({
-  side, frame, testImageUrl, testTwincodeUrl, cardPreview, layout, setLayout, keys, backDefaults,
+  side, frame, testImageUrl, testTwincodeUrl, cardPreview, layout, setLayout, keys, backDefaults, onTestPdf,
 }: {
   side: "front" | "back";
   frame: any;
@@ -1078,7 +1099,9 @@ function CardSideEditor({
   setLayout: React.Dispatch<React.SetStateAction<Record<OptionKey, OptionLayout>>>;
   keys: OptionKey[];
   backDefaults?: { companyName: string; centerSlogan: string; nfcEnabled: string; issuedBy: string };
+  onTestPdf?: () => void | Promise<void>;
 }) {
+  const [pdfBusy, setPdfBusy] = useState(false);
   // Zoomable preview (px per mm). Default 10 = card ~57x87mm renders ~570x870px.
   // 실제 크기 모드: CSS 표준 96dpi → 1mm = 3.7795px. mmScale로 화면 보정 가능.
   const PX_PER_MM_REAL = 96 / 25.4;
@@ -1292,6 +1315,21 @@ function CardSideEditor({
             >
               {pickMode ? "클릭으로 위치 지정 중…" : "위치 찍기"}
             </Button>
+            {onTestPdf && (
+              <Button
+                type="button"
+                size="sm"
+                variant="default"
+                disabled={pdfBusy}
+                onClick={async () => {
+                  setPdfBusy(true);
+                  try { await onTestPdf(); } finally { setPdfBusy(false); }
+                }}
+              >
+                {pdfBusy ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
+                테스트 PDF
+              </Button>
+            )}
           </div>
         </CardTitle>
       </CardHeader>
