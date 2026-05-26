@@ -261,7 +261,8 @@ export default function OrderDetailModal({ open, onOpenChange, data, refetch }: 
   );
 
   const handlePreview = (spec: FieldSpec, url: string) => {
-    setLightbox({ url, label: spec.label });
+    const isCard = spec.key === "cardFrontDesignPng" || spec.key === "cardBackDesignPng";
+    setLightbox({ url, label: spec.label, isCard });
   };
 
   const handleCheck = (key: FieldKey, v: boolean) => {
