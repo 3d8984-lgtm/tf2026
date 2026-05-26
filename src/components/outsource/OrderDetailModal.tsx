@@ -31,7 +31,9 @@ import {
   ImageOff,
   Code2,
   Loader2,
+  FileDown,
 } from "lucide-react";
+import { jsPDF } from "jspdf";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { CardFrame, CARD_W_MM, CARD_H_MM } from "./CardFrame";
@@ -110,6 +112,26 @@ function MissingValue() {
   return <span className="text-muted-foreground italic">— (미수신)</span>;
 }
 
+async function downloadCardAsPdf(url: string, fileName: string) {
+  try {
+    const res = await fetch(url, { mode: "cors", referrerPolicy: "no-referrer" });
+    const blob = await res.blob();
+    const dataUrl: string = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result));
+      r.onerror = reject;
+      r.readAsDataURL(blob);
+    });
+    const fmt = (blob.type.includes("png") || /\.png(\?|$)/i.test(url)) ? "PNG" : "JPEG";
+    const doc = new jsPDF({ unit: "mm", format: [CARD_W_MM, CARD_H_MM], orientation: "portrait" });
+    doc.addImage(dataUrl, fmt, 0, 0, CARD_W_MM, CARD_H_MM, undefined, "FAST");
+    doc.save(fileName);
+  } catch (e: any) {
+    toast({ title: "PDF 생성 실패", description: e?.message, variant: "destructive" as any });
+  }
+}
+
+
 function ThumbCard({
   spec,
   url,
@@ -167,23 +189,41 @@ function ThumbCard({
           </div>
         )}
         {valid && !errored && (
-          <Button
-            size="icon"
-            variant="secondary"
-            className="absolute top-1 right-1 h-7 w-7 opacity-0 group-hover:opacity-100 transition"
-            onClick={(e) => {
-              e.stopPropagation();
-              const a = document.createElement("a");
-              a.href = url!;
-              a.download = spec.fileName || `${spec.key}`;
-              a.target = "_blank";
-              a.rel = "noreferrer";
-              a.click();
-            }}
-            aria-label="다운로드"
-          >
-            <Download className="w-3.5 h-3.5" />
-          </Button>
+          <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition">
+            {isCard && (
+              <Button
+                size="icon"
+                variant="secondary"
+                className="h-7 w-7"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const base = (spec.fileName || spec.key).replace(/\.[^.]+$/, "");
+                  downloadCardAsPdf(url!, `${base}.pdf`);
+                }}
+                aria-label="PDF 다운로드"
+                title="PDF 다운로드 (57×87mm)"
+              >
+                <FileDown className="w-3.5 h-3.5" />
+              </Button>
+            )}
+            <Button
+              size="icon"
+              variant="secondary"
+              className="h-7 w-7"
+              onClick={(e) => {
+                e.stopPropagation();
+                const a = document.createElement("a");
+                a.href = url!;
+                a.download = spec.fileName || `${spec.key}`;
+                a.target = "_blank";
+                a.rel = "noreferrer";
+                a.click();
+              }}
+              aria-label="원본 다운로드"
+            >
+              <Download className="w-3.5 h-3.5" />
+            </Button>
+          </div>
         )}
       </InnerFrame>
       <div className="p-2 space-y-1">
