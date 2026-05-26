@@ -1295,6 +1295,21 @@ function CardSideEditor({
             >
               {pickMode ? "클릭으로 위치 지정 중…" : "위치 찍기"}
             </Button>
+            {onTestPdf && (
+              <Button
+                type="button"
+                size="sm"
+                variant="default"
+                disabled={pdfBusy}
+                onClick={async () => {
+                  setPdfBusy(true);
+                  try { await onTestPdf(); } finally { setPdfBusy(false); }
+                }}
+              >
+                {pdfBusy ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
+                테스트 PDF
+              </Button>
+            )}
           </div>
         </CardTitle>
       </CardHeader>
