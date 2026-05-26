@@ -1230,8 +1230,9 @@ function CardSideEditor({
                     height: cfg.h * pxPerMm,
                     fontSize: isImage ? undefined : fontPx,
                     cursor: pickMode ? "crosshair" : "move",
-                    padding: key === "dmBarcode" ? (cfg.padding ?? 0) * pxPerMm : undefined,
+                    padding: undefined,
                     background: key === "dmBarcode" ? "#fff" : undefined,
+                    boxShadow: key === "dmBarcode" ? `0 0 0 ${(cfg.padding ?? 0) * pxPerMm}px #fff` : undefined,
                   }}
                   title={`${OPTION_LABELS[key]} — 드래그로 이동`}
                 >
