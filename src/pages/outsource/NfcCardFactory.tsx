@@ -1183,13 +1183,28 @@ function CardSideEditor({
     switch (key) {
       case "cpValue":
       case "grade":
-      case "companyName":
-      case "centerSlogan":
-      case "nfcEnabled": return "justify-center text-center";
+      case "centerSlogan": return "justify-center text-center";
       case "editionNo":
-      case "mintedOn":  return "justify-end text-right";
-      case "issuedNo":  return "justify-start text-left";
-      default:          return "justify-center text-center";
+      case "mintedOn":
+      case "nfcEnabled":   return "justify-end text-right";
+      case "issuedNo":
+      case "companyName":  return "justify-start text-left";
+      default:             return "justify-center text-center";
+    }
+  };
+
+  // 글자 크기 변경 시 어느 쪽을 기준으로 자라거나 줄어들지 결정하는 앵커
+  const getAnchorX = (key: OptionKey): "left" | "center" | "right" => {
+    switch (key) {
+      case "cpValue":
+      case "grade":
+      case "centerSlogan": return "center";
+      case "editionNo":
+      case "mintedOn":
+      case "nfcEnabled":   return "right";
+      case "issuedNo":
+      case "companyName":  return "left";
+      default:             return "left";
     }
   };
 
@@ -1317,7 +1332,12 @@ function CardSideEditor({
                     lineHeight: 1,
                     whiteSpace: autoSize ? "nowrap" : undefined,
                     transform: autoSize
-                      ? `translate(${cfg.centerX ? "-50%" : "0"}, ${cfg.centerY ? "-50%" : "0"})`
+                      ? (() => {
+                          const ax = getAnchorX(key);
+                          const tx = ax === "center" ? "-50%" : ax === "right" ? "-100%" : "0";
+                          const ty = cfg.centerY ? "-50%" : "0";
+                          return `translate(${tx}, ${ty})`;
+                        })()
                       : undefined,
                     cursor: pickMode ? "crosshair" : "move",
                     padding: undefined,
