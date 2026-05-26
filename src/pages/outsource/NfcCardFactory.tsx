@@ -88,6 +88,7 @@ interface OptionLayout {
   fontSize: number; // mm (text height)
   centerX: boolean; // 가로정렬(중앙)
   centerY: boolean; // 세로정렬(중앙)
+  padding?: number; // mm — DM 바코드 흰 여백 (quiet zone)
 }
 
 const FRONT_KEYS: OptionKey[] = ["cpValue", "editionNo"];
@@ -112,7 +113,7 @@ const DEFAULT_LAYOUT: Record<OptionKey, OptionLayout> = {
   grade:     { enabled: true, x: 55, y: 5,   w: 25, h: 6,  fontSize: 4,   centerX: false, centerY: false },
   issuedBy:  { enabled: true, x: 55, y: 35,  w: 25, h: 12, fontSize: 0,   centerX: false, centerY: false },
   twincode:  { enabled: true, x: 5,  y: 25,  w: 22, h: 22, fontSize: 0,   centerX: false, centerY: false },
-  dmBarcode: { enabled: true, x: 60, y: 18,  w: 14, h: 14, fontSize: 0,   centerX: false, centerY: false },
+  dmBarcode: { enabled: true, x: 60, y: 18,  w: 14, h: 14, fontSize: 0,   centerX: false, centerY: false, padding: 1 },
 };
 
 interface CardData {
@@ -663,7 +664,15 @@ function DetailView({
             const dmText = `${card.uniqueNo}|${card.uid}|${card.editionNo}`;
             const png = await dataMatrixPngBytes(dmText, 400);
             const emb = await out.embedPng(png);
-            page.drawImage(emb, { x: xPt, y: yPtBottom, width: cfg.w * MM, height: cfg.h * MM });
+            const padMm = Math.max(0, cfg.padding ?? 0);
+            const padPt = padMm * MM;
+            const boxWpt = cfg.w * MM;
+            const boxHpt = cfg.h * MM;
+            // white quiet zone
+            page.drawRectangle({ x: xPt, y: yPtBottom, width: boxWpt, height: boxHpt, color: rgb(1, 1, 1) });
+            const innerW = Math.max(1, boxWpt - padPt * 2);
+            const innerH = Math.max(1, boxHpt - padPt * 2);
+            page.drawImage(emb, { x: xPt + padPt, y: yPtBottom + padPt, width: innerW, height: innerH });
           } catch (e) { console.warn("DM draw fail", e); }
         } else {
           const txt = getText();
@@ -1058,10 +1067,16 @@ function CardSideEditor({
           centerY: false,
         });
       } else {
-        update(key, {
-          w: clampMm(startMm.w + dxMm, CARD_W_MM - cfg.x),
-          h: clampMm(startMm.h + dyMm, CARD_H_MM - cfg.y),
-        });
+        if (key === "dmBarcode") {
+          // square: keep w == h
+          const size = clampMm(startMm.w + Math.max(dxMm, dyMm), Math.min(CARD_W_MM - cfg.x, CARD_H_MM - cfg.y));
+          update(key, { w: size, h: size });
+        } else {
+          update(key, {
+            w: clampMm(startMm.w + dxMm, CARD_W_MM - cfg.x),
+            h: clampMm(startMm.h + dyMm, CARD_H_MM - cfg.y),
+          });
+        }
       }
     };
     const onUp = () => {
@@ -1135,7 +1150,7 @@ function CardSideEditor({
           : <span className="text-[8px] text-muted-foreground">TWIN</span>;
       }
       case "dmBarcode": return dmPreview
-        ? <img src={dmPreview} alt="" className="w-full h-full object-contain pointer-events-none" />
+        ? <img src={dmPreview} alt="" className="w-full h-full object-contain pointer-events-none bg-white" />
         : <span className="text-[8px] text-muted-foreground">DM</span>;
     }
   };
@@ -1217,6 +1232,8 @@ function CardSideEditor({
                     height: cfg.h * pxPerMm,
                     fontSize: isImage ? undefined : fontPx,
                     cursor: pickMode ? "crosshair" : "move",
+                    padding: key === "dmBarcode" ? (cfg.padding ?? 0) * pxPerMm : undefined,
+                    background: key === "dmBarcode" ? "#fff" : undefined,
                   }}
                   title={`${OPTION_LABELS[key]} — 드래그로 이동`}
                 >
@@ -1255,8 +1272,17 @@ function CardSideEditor({
                 </div>
                 <Mini label="X(mm)" v={cfg.x} set={v => update(key, { x: v })} disabled={cfg.centerX} />
                 <Mini label="Y(mm)" v={cfg.y} set={v => update(key, { y: v })} disabled={cfg.centerY} />
-                <Mini label="너비(mm)" v={cfg.w} set={v => update(key, { w: v })} />
-                <Mini label={isImage ? "높이(mm)" : "박스높이(mm)"} v={cfg.h} set={v => update(key, { h: v })} />
+                {key === "dmBarcode" ? (
+                  <>
+                    <Mini label="크기(mm)" v={cfg.w} set={v => update(key, { w: v, h: v })} />
+                    <Mini label="여백(mm)" v={cfg.padding ?? 0} set={v => update(key, { padding: Math.max(0, v) })} step={0.1} />
+                  </>
+                ) : (
+                  <>
+                    <Mini label="너비(mm)" v={cfg.w} set={v => update(key, { w: v })} />
+                    <Mini label={isImage ? "높이(mm)" : "박스높이(mm)"} v={cfg.h} set={v => update(key, { h: v })} />
+                  </>
+                )}
                 {!isImage && (
                   <Mini label="글자(mm)" v={cfg.fontSize} set={v => update(key, { fontSize: v })} step={0.1} />
                 )}
