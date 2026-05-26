@@ -1068,7 +1068,7 @@ function applyTestValues(c: CardData | undefined, tv: { cpValue: string; edition
 
 // ============== Card side editor (preview + per-option controls) ==============
 function CardSideEditor({
-  side, frame, testImageUrl, testTwincodeUrl, cardPreview, layout, setLayout, keys, backDefaults,
+  side, frame, testImageUrl, testTwincodeUrl, cardPreview, layout, setLayout, keys, backDefaults, onTestPdf,
 }: {
   side: "front" | "back";
   frame: any;
@@ -1079,7 +1079,9 @@ function CardSideEditor({
   setLayout: React.Dispatch<React.SetStateAction<Record<OptionKey, OptionLayout>>>;
   keys: OptionKey[];
   backDefaults?: { companyName: string; centerSlogan: string; nfcEnabled: string; issuedBy: string };
+  onTestPdf?: () => void | Promise<void>;
 }) {
+  const [pdfBusy, setPdfBusy] = useState(false);
   // Zoomable preview (px per mm). Default 10 = card ~57x87mm renders ~570x870px.
   // 실제 크기 모드: CSS 표준 96dpi → 1mm = 3.7795px. mmScale로 화면 보정 가능.
   const PX_PER_MM_REAL = 96 / 25.4;
