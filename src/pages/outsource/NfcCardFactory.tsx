@@ -647,13 +647,19 @@ function DetailView({
             case "issuedNo":  return `ISSUED No. ${card.issuedNo ?? ""}`;
             case "mintedOn":  return `Minted on ${card.mintedOn ?? ""}`;
             case "grade":     return card.grade ?? "";
+            case "companyName":  return backDefaults.companyName ?? "";
+            case "centerSlogan": return backDefaults.centerSlogan ?? "";
+            case "nfcEnabled":   return backDefaults.nfcEnabled ?? "";
             default: return "";
           }
         };
         const getAlign = (): "left" | "center" | "right" => {
           switch (key) {
             case "cpValue":
-            case "grade":     return "center";
+            case "grade":
+            case "companyName":
+            case "centerSlogan":
+            case "nfcEnabled": return "center";
             case "editionNo":
             case "mintedOn":  return "right";
             case "issuedNo":  return "left";
