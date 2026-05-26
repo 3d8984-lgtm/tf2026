@@ -826,10 +826,12 @@ function DetailView({
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600">서버 저장됨</span>
                   )}
                 </div>
-                <div className="w-full h-32 border rounded bg-muted/30 overflow-hidden flex items-center justify-center">
+                <div className="flex justify-center">
+                  <CardFrame widthClassName="w-28" className="border rounded bg-muted/30 flex items-center justify-center">
                   {testImages[side]?.url
-                    ? <img src={testImages[side]!.url} alt="" className="w-full h-full object-contain bg-white" />
+                    ? <img src={testImages[side]!.url} alt="" className="w-full h-full object-cover bg-white" />
                     : <span className="text-xs text-muted-foreground flex items-center gap-1"><ImageIcon className="w-3 h-3" />테스트 이미지 없음 (API 디자인 사용)</span>}
+                  </CardFrame>
                 </div>
                 <div className="text-[11px] text-muted-foreground truncate">
                   {testImages[side]?.name || "삭제 전까지 서버에 유지됩니다"}
@@ -1272,7 +1274,7 @@ function CardSideEditor({
 
         {/* Preview */}
         <div className="flex justify-center overflow-auto">
-          <div
+          <CardFrame
             ref={stageRef}
             onClick={onStageClick}
             className={`relative border-2 rounded-md overflow-hidden shadow-md ${pickMode ? "cursor-crosshair ring-2 ring-primary" : ""}`}
@@ -1300,7 +1302,7 @@ function CardSideEditor({
                 <img
                   src={designUrl}
                   alt=""
-                  className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                  className="absolute inset-0 w-full h-full object-cover pointer-events-none"
                   style={maskStyle}
                 />
               );
@@ -1361,7 +1363,7 @@ function CardSideEditor({
                 </div>
               );
             })}
-          </div>
+          </CardFrame>
         </div>
 
         {/* Per-option controls */}
