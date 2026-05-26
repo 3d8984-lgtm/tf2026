@@ -113,6 +113,7 @@ const DEFAULT_BACK_DEFAULTS = {
   companyName: "TWINMETA",
   centerSlogan: "THE ORIGINAL",
   nfcEnabled: "NFC Enabled",
+  issuedBy: "ISSUED BY",
 };
 
 const DEFAULT_LAYOUT: Record<OptionKey, OptionLayout> = {
