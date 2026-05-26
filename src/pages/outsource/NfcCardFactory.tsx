@@ -1277,8 +1277,8 @@ function CardSideEditor({
           <CardFrame
             ref={stageRef}
             onClick={onStageClick}
-            className={`relative border-2 rounded-md overflow-hidden shadow-md ${pickMode ? "cursor-crosshair ring-2 ring-primary" : ""}`}
-            style={{ width: previewW, height: previewH, background: "#fff", fontFamily: "'Inter', system-ui, sans-serif" }}
+            className={`border-2 rounded-md shadow-md ${pickMode ? "cursor-crosshair ring-2 ring-primary" : ""}`}
+            style={{ width: previewW, background: "#fff", fontFamily: "'Inter', system-ui, sans-serif" }}
           >
             {/* Layer order: card design (bottom, clipped by frame as mask) → options (top).
                 프레임 PDF는 일러스트의 클리핑 마스크처럼 동작하여, 프레임이 그려진 영역 안쪽에만 카드 디자인이 보입니다. */}
