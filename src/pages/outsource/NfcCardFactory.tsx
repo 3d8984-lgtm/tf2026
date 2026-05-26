@@ -1145,7 +1145,10 @@ function CardSideEditor({
   const getAlignClass = (key: OptionKey): string => {
     switch (key) {
       case "cpValue":
-      case "grade":     return "justify-center text-center";
+      case "grade":
+      case "companyName":
+      case "centerSlogan":
+      case "nfcEnabled": return "justify-center text-center";
       case "editionNo":
       case "mintedOn":  return "justify-end text-right";
       case "issuedNo":  return "justify-start text-left";
@@ -1161,6 +1164,9 @@ function CardSideEditor({
       case "issuedNo":  return <span className="leading-none">{`ISSUED No. ${cardPreview.issuedNo}`}</span>;
       case "mintedOn":  return <span className="leading-none">{`Minted on ${cardPreview.mintedOn}`}</span>;
       case "grade":     return <span className="leading-none font-bold">{cardPreview.grade}</span>;
+      case "companyName":  return <span className="leading-none">{backDefaults?.companyName || "-"}</span>;
+      case "centerSlogan": return <span className="leading-none">{backDefaults?.centerSlogan || "-"}</span>;
+      case "nfcEnabled":   return <span className="leading-none">{backDefaults?.nfcEnabled || "-"}</span>;
       case "issuedBy":  return cardPreview.issuedByUrl
         ? <img src={cardPreview.issuedByUrl} alt="" className="w-full h-full object-contain pointer-events-none" />
         : <span className="text-[8px] text-muted-foreground">ISSUED BY</span>;
