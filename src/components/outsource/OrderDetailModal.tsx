@@ -189,23 +189,41 @@ function ThumbCard({
           </div>
         )}
         {valid && !errored && (
-          <Button
-            size="icon"
-            variant="secondary"
-            className="absolute top-1 right-1 h-7 w-7 opacity-0 group-hover:opacity-100 transition"
-            onClick={(e) => {
-              e.stopPropagation();
-              const a = document.createElement("a");
-              a.href = url!;
-              a.download = spec.fileName || `${spec.key}`;
-              a.target = "_blank";
-              a.rel = "noreferrer";
-              a.click();
-            }}
-            aria-label="다운로드"
-          >
-            <Download className="w-3.5 h-3.5" />
-          </Button>
+          <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition">
+            {isCard && (
+              <Button
+                size="icon"
+                variant="secondary"
+                className="h-7 w-7"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const base = (spec.fileName || spec.key).replace(/\.[^.]+$/, "");
+                  downloadCardAsPdf(url!, `${base}.pdf`);
+                }}
+                aria-label="PDF 다운로드"
+                title="PDF 다운로드 (57×87mm)"
+              >
+                <FileDown className="w-3.5 h-3.5" />
+              </Button>
+            )}
+            <Button
+              size="icon"
+              variant="secondary"
+              className="h-7 w-7"
+              onClick={(e) => {
+                e.stopPropagation();
+                const a = document.createElement("a");
+                a.href = url!;
+                a.download = spec.fileName || `${spec.key}`;
+                a.target = "_blank";
+                a.rel = "noreferrer";
+                a.click();
+              }}
+              aria-label="원본 다운로드"
+            >
+              <Download className="w-3.5 h-3.5" />
+            </Button>
+          </div>
         )}
       </InnerFrame>
       <div className="p-2 space-y-1">
