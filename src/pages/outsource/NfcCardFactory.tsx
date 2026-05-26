@@ -1088,9 +1088,12 @@ function CardSideEditor({
       case "issuedBy":  return cardPreview.issuedByUrl
         ? <img src={cardPreview.issuedByUrl} alt="" className="w-full h-full object-contain pointer-events-none" />
         : <span className="text-[8px] text-muted-foreground">ISSUED BY</span>;
-      case "twincode":  return cardPreview.twincodeSvgUrl
-        ? <img src={cardPreview.twincodeSvgUrl} alt="" className="w-full h-full object-contain bg-white pointer-events-none" />
-        : <span className="text-[8px] text-muted-foreground">TWIN</span>;
+      case "twincode":  {
+        const tcUrl = testTwincodeUrl || cardPreview.twincodeSvgUrl;
+        return tcUrl
+          ? <img src={tcUrl} alt="" className="w-full h-full object-contain bg-white pointer-events-none" />
+          : <span className="text-[8px] text-muted-foreground">TWIN</span>;
+      }
       case "dmBarcode": return dmPreview
         ? <img src={dmPreview} alt="" className="w-full h-full object-contain pointer-events-none" />
         : <span className="text-[8px] text-muted-foreground">DM</span>;
