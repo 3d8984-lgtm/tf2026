@@ -920,6 +920,7 @@ function DetailView({
             <TxtField label="회사명" v={backDefaults.companyName} set={v => setBackDefaults(p => ({ ...p, companyName: v }))} />
             <TxtField label="중앙슬로건" v={backDefaults.centerSlogan} set={v => setBackDefaults(p => ({ ...p, centerSlogan: v }))} />
             <TxtField label="NFC Enabled" v={backDefaults.nfcEnabled} set={v => setBackDefaults(p => ({ ...p, nfcEnabled: v }))} />
+            <TxtField label="ISSUED BY" v={backDefaults.issuedBy} set={v => setBackDefaults(p => ({ ...p, issuedBy: v }))} />
           </CardContent>
         </Card>
 
