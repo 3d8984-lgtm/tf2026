@@ -460,6 +460,9 @@ function DetailView({
     cpValue: "", editionNo: "", issuedNo: "", mintedOn: "", grade: "",
   });
 
+  // 카드 뒷면 기본 텍스트 (API 외 전체 카드에 공통 적용)
+  const [backDefaults, setBackDefaults] = useState({ ...DEFAULT_BACK_DEFAULTS });
+
   // Load test images from storage
   useEffect(() => {
     let cancelled = false;
