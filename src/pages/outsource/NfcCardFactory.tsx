@@ -313,10 +313,12 @@ export default function NfcCardFactory() {
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600">서버 저장됨</span>
                   )}
                 </div>
-                <div className="w-full h-48 border rounded bg-muted/30 overflow-hidden flex items-center justify-center">
-                  {frames[side]?.preview
-                    ? <img src={frames[side]!.preview} alt="" className="w-full h-full object-contain bg-white" />
-                    : <span className="text-xs text-muted-foreground">업로드된 프레임 없음</span>}
+                <div className="flex justify-center">
+                  <CardFrame widthClassName="w-32" className="border rounded bg-white flex items-center justify-center">
+                    {frames[side]?.preview
+                      ? <img src={frames[side]!.preview} alt="" className="w-full h-full object-contain" />
+                      : <span className="text-[11px] text-muted-foreground px-2 text-center">업로드된 프레임 없음</span>}
+                  </CardFrame>
                 </div>
                 <div className="text-xs text-muted-foreground truncate">
                   {frames[side]?.name || "파일 없음 (삭제/변경 전까지 서버에 유지됩니다)"}
