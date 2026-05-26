@@ -147,8 +147,8 @@ async function dataMatrixPngBytes(text: string, sizePx = 300): Promise<Uint8Arra
     bcid: "datamatrix",
     text: text || "TWINMETA",
     scale: 4,
-    paddingwidth: 4,
-    paddingheight: 4,
+    paddingwidth: 0,
+    paddingheight: 0,
     includetext: false,
   });
   // re-render at sizePx
