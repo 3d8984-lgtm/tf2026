@@ -1066,8 +1066,18 @@ function CardSideEditor({
             ref={stageRef}
             onClick={onStageClick}
             className={`relative border-2 rounded-md overflow-hidden shadow-md ${pickMode ? "cursor-crosshair ring-2 ring-primary" : ""}`}
-            style={{ width: previewW, height: previewH, background: frame?.preview ? `url(${frame.preview}) center/contain no-repeat #fff` : "#fff" }}
+            style={{ width: previewW, height: previewH, background: "#fff", fontFamily: "'Inter', system-ui, sans-serif" }}
           >
+            {/* Background layers: API/test card design, then frame overlay */}
+            {(() => {
+              const designUrl = testImageUrl || (side === "front" ? cardPreview?.frontImageUrl : cardPreview?.backImageUrl);
+              return designUrl ? (
+                <img src={designUrl} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
+              ) : null;
+            })()}
+            {frame?.preview && (
+              <img src={frame.preview} alt="" className="absolute inset-0 w-full h-full object-contain pointer-events-none" />
+            )}
             {keys.map(key => {
               const cfg = layout[key];
               if (!cfg?.enabled) return null;
