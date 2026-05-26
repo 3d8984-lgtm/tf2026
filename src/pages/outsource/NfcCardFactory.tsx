@@ -1017,13 +1017,24 @@ function CardSideEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardPreview?.uniqueNo, keys.join(",")]);
 
+  const getAlignClass = (key: OptionKey): string => {
+    switch (key) {
+      case "cpValue":
+      case "grade":     return "justify-center text-center";
+      case "editionNo":
+      case "mintedOn":  return "justify-end text-right";
+      case "issuedNo":  return "justify-start text-left";
+      default:          return "justify-center text-center";
+    }
+  };
+
   const renderOptionPreview = (key: OptionKey) => {
     if (!cardPreview) return null;
     switch (key) {
-      case "cpValue":   return <span className="leading-none">CP {cardPreview.cpValue || "-"}</span>;
-      case "editionNo": return <span className="leading-none">EDITION No. {cardPreview.editionNo}</span>;
-      case "issuedNo":  return <span className="leading-none">ISSUED No. {cardPreview.issuedNo}</span>;
-      case "mintedOn":  return <span className="leading-none">Minted on {cardPreview.mintedOn}</span>;
+      case "cpValue":   return <span className="leading-none">{cardPreview.cpValue || "-"}</span>;
+      case "editionNo": return <span className="leading-none">{cardPreview.editionNo}</span>;
+      case "issuedNo":  return <span className="leading-none">{cardPreview.issuedNo}</span>;
+      case "mintedOn":  return <span className="leading-none">{cardPreview.mintedOn}</span>;
       case "grade":     return <span className="leading-none font-bold">{cardPreview.grade}</span>;
       case "issuedBy":  return cardPreview.issuedByUrl
         ? <img src={cardPreview.issuedByUrl} alt="" className="w-full h-full object-contain pointer-events-none" />
