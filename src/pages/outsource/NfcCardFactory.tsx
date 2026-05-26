@@ -113,7 +113,7 @@ const DEFAULT_LAYOUT: Record<OptionKey, OptionLayout> = {
   grade:     { enabled: true, x: 55, y: 5,   w: 25, h: 6,  fontSize: 4,   centerX: false, centerY: false },
   issuedBy:  { enabled: true, x: 55, y: 35,  w: 25, h: 12, fontSize: 0,   centerX: false, centerY: false },
   twincode:  { enabled: true, x: 5,  y: 25,  w: 22, h: 22, fontSize: 0,   centerX: false, centerY: false },
-  dmBarcode: { enabled: true, x: 60, y: 18,  w: 14, h: 14, fontSize: 0,   centerX: false, centerY: false, padding: 1 },
+  dmBarcode: { enabled: true, x: 60, y: 18,  w: 14, h: 14, fontSize: 0,   centerX: false, centerY: false, padding: 0.5 },
 };
 
 interface CardData {
@@ -668,11 +668,9 @@ function DetailView({
             const padPt = padMm * MM;
             const boxWpt = cfg.w * MM;
             const boxHpt = cfg.h * MM;
-            // white quiet zone
-            page.drawRectangle({ x: xPt, y: yPtBottom, width: boxWpt, height: boxHpt, color: rgb(1, 1, 1) });
-            const innerW = Math.max(1, boxWpt - padPt * 2);
-            const innerH = Math.max(1, boxHpt - padPt * 2);
-            page.drawImage(emb, { x: xPt + padPt, y: yPtBottom + padPt, width: innerW, height: innerH });
+            // white quiet zone OUTSIDE the outline (box w/h = barcode size)
+            page.drawRectangle({ x: xPt - padPt, y: yPtBottom - padPt, width: boxWpt + padPt * 2, height: boxHpt + padPt * 2, color: rgb(1, 1, 1) });
+            page.drawImage(emb, { x: xPt, y: yPtBottom, width: boxWpt, height: boxHpt });
           } catch (e) { console.warn("DM draw fail", e); }
         } else {
           const txt = getText();
@@ -1232,8 +1230,9 @@ function CardSideEditor({
                     height: cfg.h * pxPerMm,
                     fontSize: isImage ? undefined : fontPx,
                     cursor: pickMode ? "crosshair" : "move",
-                    padding: key === "dmBarcode" ? (cfg.padding ?? 0) * pxPerMm : undefined,
+                    padding: undefined,
                     background: key === "dmBarcode" ? "#fff" : undefined,
+                    boxShadow: key === "dmBarcode" ? `0 0 0 ${(cfg.padding ?? 0) * pxPerMm}px #fff` : undefined,
                   }}
                   title={`${OPTION_LABELS[key]} — 드래그로 이동`}
                 >
