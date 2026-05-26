@@ -184,7 +184,7 @@ function ThumbCard({
             <Download className="w-3.5 h-3.5" />
           </Button>
         )}
-      </div>
+      </InnerFrame>
       <div className="p-2 space-y-1">
         <div className="flex items-start justify-between gap-2">
           <div className="text-xs font-medium leading-tight">
