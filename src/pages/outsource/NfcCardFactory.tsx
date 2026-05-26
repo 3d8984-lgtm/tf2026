@@ -77,7 +77,8 @@ function tsName() {
 
 type OptionKey =
   | "cpValue" | "editionNo"
-  | "issuedNo" | "mintedOn" | "grade" | "issuedBy" | "twincode" | "dmBarcode";
+  | "issuedNo" | "mintedOn" | "grade" | "issuedBy" | "twincode" | "dmBarcode"
+  | "companyName" | "centerSlogan" | "nfcEnabled";
 
 interface OptionLayout {
   enabled: boolean;
@@ -92,7 +93,7 @@ interface OptionLayout {
 }
 
 const FRONT_KEYS: OptionKey[] = ["cpValue", "editionNo"];
-const BACK_KEYS: OptionKey[] = ["issuedNo", "mintedOn", "grade", "issuedBy", "twincode", "dmBarcode"];
+const BACK_KEYS: OptionKey[] = ["issuedNo", "mintedOn", "grade", "issuedBy", "twincode", "dmBarcode", "companyName", "centerSlogan", "nfcEnabled"];
 
 const OPTION_LABELS: Record<OptionKey, string> = {
   cpValue: "CP값",
@@ -103,17 +104,29 @@ const OPTION_LABELS: Record<OptionKey, string> = {
   issuedBy: "ISSUED BY",
   twincode: "트윈코드",
   dmBarcode: "DM 바코드",
+  companyName: "회사명",
+  centerSlogan: "중앙슬로건",
+  nfcEnabled: "NFC Enabled",
+};
+
+const DEFAULT_BACK_DEFAULTS = {
+  companyName: "TWINMETA",
+  centerSlogan: "THE ORIGINAL",
+  nfcEnabled: "NFC Enabled",
 };
 
 const DEFAULT_LAYOUT: Record<OptionKey, OptionLayout> = {
-  cpValue:   { enabled: true, x: 10, y: 10,  w: 30, h: 8,  fontSize: 4, centerX: false, centerY: false },
-  editionNo: { enabled: true, x: 10, y: 40,  w: 30, h: 6,  fontSize: 3.5, centerX: false, centerY: false },
-  issuedNo:  { enabled: true, x: 5,  y: 5,   w: 30, h: 5,  fontSize: 3,   centerX: false, centerY: false },
-  mintedOn:  { enabled: true, x: 5,  y: 12,  w: 35, h: 5,  fontSize: 3,   centerX: false, centerY: false },
-  grade:     { enabled: true, x: 55, y: 5,   w: 25, h: 6,  fontSize: 4,   centerX: false, centerY: false },
-  issuedBy:  { enabled: true, x: 55, y: 35,  w: 25, h: 12, fontSize: 0,   centerX: false, centerY: false },
-  twincode:  { enabled: true, x: 5,  y: 25,  w: 22, h: 22, fontSize: 0,   centerX: false, centerY: false },
-  dmBarcode: { enabled: true, x: 60, y: 18,  w: 14, h: 14, fontSize: 0,   centerX: false, centerY: false, padding: 0.5 },
+  cpValue:     { enabled: true, x: 10, y: 10,  w: 30, h: 8,  fontSize: 4, centerX: false, centerY: false },
+  editionNo:   { enabled: true, x: 10, y: 40,  w: 30, h: 6,  fontSize: 3.5, centerX: false, centerY: false },
+  issuedNo:    { enabled: true, x: 5,  y: 5,   w: 30, h: 5,  fontSize: 3,   centerX: false, centerY: false },
+  mintedOn:    { enabled: true, x: 5,  y: 12,  w: 35, h: 5,  fontSize: 3,   centerX: false, centerY: false },
+  grade:       { enabled: true, x: 55, y: 5,   w: 25, h: 6,  fontSize: 4,   centerX: false, centerY: false },
+  issuedBy:    { enabled: true, x: 55, y: 35,  w: 25, h: 12, fontSize: 0,   centerX: false, centerY: false },
+  twincode:    { enabled: true, x: 5,  y: 25,  w: 22, h: 22, fontSize: 0,   centerX: false, centerY: false },
+  dmBarcode:   { enabled: true, x: 60, y: 18,  w: 14, h: 14, fontSize: 0,   centerX: false, centerY: false, padding: 0.5 },
+  companyName: { enabled: true, x: 5,  y: 75,  w: 47, h: 5,  fontSize: 3,   centerX: true,  centerY: false },
+  centerSlogan:{ enabled: true, x: 5,  y: 50,  w: 47, h: 5,  fontSize: 3.5, centerX: true,  centerY: false },
+  nfcEnabled:  { enabled: true, x: 5,  y: 82,  w: 47, h: 4,  fontSize: 2.5, centerX: true,  centerY: false },
 };
 
 interface CardData {
