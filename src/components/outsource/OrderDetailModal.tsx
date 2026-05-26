@@ -127,9 +127,11 @@ function ThumbCard({
   const valid = isHttps(url);
   const src = valid ? `${url}${bust ? `#r=${bust}` : ""}` : "";
 
+  const isCard = spec.key === "cardFrontDesignPng" || spec.key === "cardBackDesignPng";
+  const aspectClass = isCard ? "aspect-[57/87]" : "aspect-square";
   return (
     <div className="rounded-lg border bg-card overflow-hidden flex flex-col">
-      <div className="relative aspect-square bg-muted/40 flex items-center justify-center group">
+      <div className={`relative ${aspectClass} bg-muted/40 flex items-center justify-center group`}>
         {valid && !errored ? (
           <img
             src={src}
