@@ -27,6 +27,8 @@ import bwipjs from "bwip-js/browser";
 import { CardFrame, CARD_W_MM, CARD_H_MM } from "@/components/outsource/CardFrame";
 
 const MM = 2.8346456693; // 1mm in pt
+// 프레임/디자인 이미지에 포함된 외곽 여백(bleed)을 보정해 카드 이미지가 57×87mm 대지를 꽉 채우도록 함.
+const FRAME_BLEED_MM = 3;
 const FRAME_BUCKET = "design-formats";
 const FRAME_PREFIX = "nfc-card";
 const TEST_IMG_PREFIX = "nfc-card-test";
