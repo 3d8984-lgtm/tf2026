@@ -509,14 +509,28 @@ function DetailView({
       return;
     }
     try {
-      const safe = file.name.replace(/[^\w.\-]+/g, "_");
+      let uploadFile: Blob = file;
+      let uploadName = file.name;
+      let contentType = file.type || "image/png";
+      const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+      if (isPdf) {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const { dataUrl } = await renderPdfFirstPagePng(bytes);
+        const bin = atob(dataUrl.split(",")[1]);
+        const arr = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+        uploadFile = new Blob([arr], { type: "image/png" });
+        uploadName = file.name.replace(/\.pdf$/i, "") + ".png";
+        contentType = "image/png";
+      }
+      const safe = uploadName.replace(/[^\w.\-]+/g, "_");
       const path = `${TEST_IMG_PREFIX}/${side}__${safe}`;
       const { error } = await supabase.storage.from(FRAME_BUCKET)
-        .upload(path, file, { upsert: true, contentType: file.type || "image/png" });
+        .upload(path, uploadFile, { upsert: true, contentType });
       if (error) { toast({ title: "업로드 실패", description: error.message, variant: "destructive" }); return; }
       const { data: pub } = supabase.storage.from(FRAME_BUCKET).getPublicUrl(path);
       setTestImages(prev => ({ ...prev, [side]: { url: `${pub.publicUrl}?v=${Date.now()}`, name: file.name } }));
-      toast({ title: `${side === "front" ? "앞면" : "뒷면"} 테스트 이미지 등록됨` });
+      toast({ title: `${side === "front" ? "앞면" : "뒷면"} 테스트 이미지 등록됨`, description: isPdf ? "PDF 첫 페이지가 이미지로 변환되었습니다" : undefined });
     } catch (e: any) {
       toast({ title: "업로드 실패", description: e.message, variant: "destructive" });
     }
@@ -826,7 +840,7 @@ function DetailView({
                   <label className="flex-1 flex items-center justify-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
                     <Upload className="w-3 h-3" />
                     <span>{testImages[side] ? "변경" : "이미지 업로드"}</span>
-                    <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden"
+                    <input type="file" accept="image/png,image/jpeg,image/webp,application/pdf" className="hidden"
                       onChange={e => { const f = e.target.files?.[0] || null; e.currentTarget.value = ""; if (f) onUploadTestImage(side, f); }} />
                   </label>
                   {testImages[side] && (
