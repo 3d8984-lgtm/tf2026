@@ -964,11 +964,12 @@ function applyTestValues(c: CardData | undefined, tv: { cpValue: string; edition
 
 // ============== Card side editor (preview + per-option controls) ==============
 function CardSideEditor({
-  side, frame, testImageUrl, cardPreview, layout, setLayout, keys,
+  side, frame, testImageUrl, testTwincodeUrl, cardPreview, layout, setLayout, keys,
 }: {
   side: "front" | "back";
   frame: any;
   testImageUrl?: string | null;
+  testTwincodeUrl?: string | null;
   cardPreview?: CardData;
   layout: Record<OptionKey, OptionLayout>;
   setLayout: React.Dispatch<React.SetStateAction<Record<OptionKey, OptionLayout>>>;
