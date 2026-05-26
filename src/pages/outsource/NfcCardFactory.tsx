@@ -668,11 +668,9 @@ function DetailView({
             const padPt = padMm * MM;
             const boxWpt = cfg.w * MM;
             const boxHpt = cfg.h * MM;
-            // white quiet zone
-            page.drawRectangle({ x: xPt, y: yPtBottom, width: boxWpt, height: boxHpt, color: rgb(1, 1, 1) });
-            const innerW = Math.max(1, boxWpt - padPt * 2);
-            const innerH = Math.max(1, boxHpt - padPt * 2);
-            page.drawImage(emb, { x: xPt + padPt, y: yPtBottom + padPt, width: innerW, height: innerH });
+            // white quiet zone OUTSIDE the outline (box w/h = barcode size)
+            page.drawRectangle({ x: xPt - padPt, y: yPtBottom - padPt, width: boxWpt + padPt * 2, height: boxHpt + padPt * 2, color: rgb(1, 1, 1) });
+            page.drawImage(emb, { x: xPt, y: yPtBottom, width: boxWpt, height: boxHpt });
           } catch (e) { console.warn("DM draw fail", e); }
         } else {
           const txt = getText();
