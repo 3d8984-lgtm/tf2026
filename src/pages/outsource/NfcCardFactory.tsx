@@ -276,22 +276,31 @@ export default function NfcCardFactory() {
                 <div className="flex items-center justify-between">
                   <Label className="font-medium">{side === "front" ? "카드 앞면 프레임" : "카드 뒷면 프레임"}</Label>
                   {frames[side] && (
-                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => onUploadFrame(side, null)}>
-                      <X className="w-3 h-3" />
-                    </Button>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600">서버 저장됨</span>
                   )}
                 </div>
                 <div className="w-full h-48 border rounded bg-muted/30 overflow-hidden flex items-center justify-center">
                   {frames[side]?.preview
                     ? <img src={frames[side]!.preview} alt="" className="w-full h-full object-contain bg-white" />
-                    : <span className="text-xs text-muted-foreground">미리보기 없음</span>}
+                    : <span className="text-xs text-muted-foreground">업로드된 프레임 없음</span>}
                 </div>
-                <label className="flex items-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
-                  <Upload className="w-3 h-3" />
-                  <span className="truncate">{frames[side]?.name || "PDF 업로드"}</span>
-                  <input type="file" accept="application/pdf" className="hidden"
-                    onChange={e => onUploadFrame(side, e.target.files?.[0] || null)} />
-                </label>
+                <div className="text-xs text-muted-foreground truncate">
+                  {frames[side]?.name || "파일 없음 (삭제/변경 전까지 서버에 유지됩니다)"}
+                </div>
+                <div className="flex gap-2">
+                  <label className="flex-1 flex items-center justify-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
+                    <Upload className="w-3 h-3" />
+                    <span>{frames[side] ? "변경" : "PDF 업로드"}</span>
+                    <input type="file" accept="application/pdf" className="hidden"
+                      onChange={e => { const f = e.target.files?.[0] || null; e.currentTarget.value = ""; if (f) onUploadFrame(side, f); }} />
+                  </label>
+                  {frames[side] && (
+                    <Button size="sm" variant="destructive" className="text-xs"
+                      onClick={() => { if (confirm("서버에서 프레임 PDF를 삭제할까요?")) onUploadFrame(side, null); }}>
+                      <X className="w-3 h-3 mr-1" />삭제
+                    </Button>
+                  )}
+                </div>
               </div>
             ))}
           </CardContent>
