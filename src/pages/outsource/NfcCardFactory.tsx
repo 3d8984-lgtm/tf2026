@@ -579,12 +579,22 @@ function DetailView({
 
         const getText = (): string => {
           switch (key) {
-            case "cpValue":   return card.cpValue ? `CP ${card.cpValue}` : "CP -";
-            case "editionNo": return `EDITION No. ${card.editionNo}`;
-            case "issuedNo":  return `ISSUED No. ${card.issuedNo}`;
-            case "mintedOn":  return `Minted on ${card.mintedOn}`;
-            case "grade":     return card.grade;
+            case "cpValue":   return card.cpValue ?? "";
+            case "editionNo": return card.editionNo ?? "";
+            case "issuedNo":  return card.issuedNo ?? "";
+            case "mintedOn":  return card.mintedOn ?? "";
+            case "grade":     return card.grade ?? "";
             default: return "";
+          }
+        };
+        const getAlign = (): "left" | "center" | "right" => {
+          switch (key) {
+            case "cpValue":
+            case "grade":     return "center";
+            case "editionNo":
+            case "mintedOn":  return "right";
+            case "issuedNo":  return "left";
+            default:          return "left";
           }
         };
 
@@ -613,7 +623,11 @@ function DetailView({
           const sizePt = Math.max(4, cfg.fontSize * MM);
           const useFont = key === "grade" ? fontBold : font;
           const textW = useFont.widthOfTextAtSize(txt, sizePt);
-          const drawX = cfg.centerX ? (cardWpt - textW) / 2 : xPt;
+          const boxWpt = cfg.w * MM;
+          const align = getAlign();
+          let drawX = xPt;
+          if (align === "center") drawX = xPt + (boxWpt - textW) / 2;
+          else if (align === "right") drawX = xPt + boxWpt - textW;
           const drawY = (CARD_H_MM - yMm - cfg.fontSize) * MM;
           page.drawText(txt, { x: drawX, y: drawY, size: sizePt, font: useFont, color: rgb(0, 0, 0) });
         }
