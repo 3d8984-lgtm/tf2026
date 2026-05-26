@@ -1217,9 +1217,7 @@ function CardSideEditor({
       case "companyName":  return <span className="leading-none">{backDefaults?.companyName || "-"}</span>;
       case "centerSlogan": return <span className="leading-none">{backDefaults?.centerSlogan || "-"}</span>;
       case "nfcEnabled":   return <span className="leading-none">{backDefaults?.nfcEnabled || "-"}</span>;
-      case "issuedBy":  return cardPreview.issuedByUrl
-        ? <img src={cardPreview.issuedByUrl} alt="" className="w-full h-full object-contain pointer-events-none" />
-        : <span className="text-[8px] text-muted-foreground">ISSUED BY</span>;
+      case "issuedBy":  return <span className="leading-none">{backDefaults?.issuedBy || "-"}</span>;
       case "twincode":  {
         const tcUrl = testTwincodeUrl || cardPreview.twincodeSvgUrl;
         return tcUrl
