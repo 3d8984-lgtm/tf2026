@@ -38,6 +38,9 @@ export const CardFrame = React.forwardRef<HTMLDivElement, CardFrameProps>(
           aspectRatio: "auto",
         }
       : undefined;
+    const ratioStyle: React.CSSProperties | undefined = !actualSize
+      ? { aspectRatio: `${CARD_W_MM} / ${CARD_H_MM}` }
+      : undefined;
 
     return (
       <div
@@ -48,7 +51,7 @@ export const CardFrame = React.forwardRef<HTMLDivElement, CardFrameProps>(
           !actualSize && (widthClassName ?? "w-full"),
           className,
         )}
-        style={{ ...realSizeStyle, ...style }}
+        style={{ ...ratioStyle, ...realSizeStyle, ...style }}
         {...rest}
       >
         {children}
