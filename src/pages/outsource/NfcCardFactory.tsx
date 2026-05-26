@@ -643,12 +643,15 @@ function DetailView({
           }
         };
 
-        if (key === "twincode" && card.twincodeSvgUrl) {
-          try {
-            const png = await urlToPngBytes(card.twincodeSvgUrl);
-            const emb = await out.embedPng(png);
-            page.drawImage(emb, { x: xPt, y: yPtBottom, width: cfg.w * MM, height: cfg.h * MM });
-          } catch (e) { console.warn("twincode draw fail", e); }
+        if (key === "twincode") {
+          const twincodeUrl = testTwincodeSvg?.url || card.twincodeSvgUrl;
+          if (twincodeUrl) {
+            try {
+              const png = await urlToPngBytes(twincodeUrl);
+              const emb = await out.embedPng(png);
+              page.drawImage(emb, { x: xPt, y: yPtBottom, width: cfg.w * MM, height: cfg.h * MM });
+            } catch (e) { console.warn("twincode draw fail", e); }
+          }
         } else if (key === "issuedBy" && card.issuedByUrl) {
           try {
             const png = await urlToPngBytes(card.issuedByUrl);
