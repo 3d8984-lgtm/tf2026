@@ -316,7 +316,7 @@ export default function NfcCardFactory() {
                 <div className="flex justify-center">
                   <CardFrame widthClassName="w-32" className="border rounded bg-white flex items-center justify-center">
                     {frames[side]?.preview
-                      ? <img src={frames[side]!.preview} alt="" className="w-full h-full object-contain" />
+                      ? <img src={frames[side]!.preview} alt="" className="w-full h-full object-fill" />
                       : <span className="text-[11px] text-muted-foreground px-2 text-center">업로드된 프레임 없음</span>}
                   </CardFrame>
                 </div>
@@ -829,7 +829,7 @@ function DetailView({
                 <div className="flex justify-center">
                   <CardFrame widthClassName="w-28" className="border rounded bg-muted/30 flex items-center justify-center">
                   {testImages[side]?.url
-                    ? <img src={testImages[side]!.url} alt="" className="w-full h-full object-cover bg-white" />
+                    ? <img src={testImages[side]!.url} alt="" className="w-full h-full object-fill bg-white" />
                     : <span className="text-xs text-muted-foreground flex items-center gap-1"><ImageIcon className="w-3 h-3" />테스트 이미지 없음 (API 디자인 사용)</span>}
                   </CardFrame>
                 </div>
@@ -1302,7 +1302,7 @@ function CardSideEditor({
                 <img
                   src={designUrl}
                   alt=""
-                  className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                  className="absolute inset-0 w-full h-full object-fill pointer-events-none"
                   style={maskStyle}
                 />
               );
