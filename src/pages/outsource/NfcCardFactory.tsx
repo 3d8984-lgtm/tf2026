@@ -113,7 +113,7 @@ const DEFAULT_LAYOUT: Record<OptionKey, OptionLayout> = {
   grade:     { enabled: true, x: 55, y: 5,   w: 25, h: 6,  fontSize: 4,   centerX: false, centerY: false },
   issuedBy:  { enabled: true, x: 55, y: 35,  w: 25, h: 12, fontSize: 0,   centerX: false, centerY: false },
   twincode:  { enabled: true, x: 5,  y: 25,  w: 22, h: 22, fontSize: 0,   centerX: false, centerY: false },
-  dmBarcode: { enabled: true, x: 60, y: 18,  w: 14, h: 14, fontSize: 0,   centerX: false, centerY: false, padding: 1 },
+  dmBarcode: { enabled: true, x: 60, y: 18,  w: 14, h: 14, fontSize: 0,   centerX: false, centerY: false, padding: 0.5 },
 };
 
 interface CardData {
