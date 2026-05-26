@@ -627,8 +627,8 @@ function DetailView({
           switch (key) {
             case "cpValue":   return card.cpValue ?? "";
             case "editionNo": return card.editionNo ?? "";
-            case "issuedNo":  return card.issuedNo ?? "";
-            case "mintedOn":  return card.mintedOn ?? "";
+            case "issuedNo":  return `ISSUED No. ${card.issuedNo ?? ""}`;
+            case "mintedOn":  return `Minted on ${card.mintedOn ?? ""}`;
             case "grade":     return card.grade ?? "";
             default: return "";
           }
@@ -1135,8 +1135,8 @@ function CardSideEditor({
     switch (key) {
       case "cpValue":   return <span className="leading-none">{cardPreview.cpValue || "-"}</span>;
       case "editionNo": return <span className="leading-none">{cardPreview.editionNo}</span>;
-      case "issuedNo":  return <span className="leading-none">{cardPreview.issuedNo}</span>;
-      case "mintedOn":  return <span className="leading-none">{cardPreview.mintedOn}</span>;
+      case "issuedNo":  return <span className="leading-none">{`ISSUED No. ${cardPreview.issuedNo}`}</span>;
+      case "mintedOn":  return <span className="leading-none">{`Minted on ${cardPreview.mintedOn}`}</span>;
       case "grade":     return <span className="leading-none font-bold">{cardPreview.grade}</span>;
       case "issuedBy":  return cardPreview.issuedByUrl
         ? <img src={cardPreview.issuedByUrl} alt="" className="w-full h-full object-contain pointer-events-none" />
