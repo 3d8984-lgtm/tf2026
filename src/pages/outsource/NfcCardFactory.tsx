@@ -1394,41 +1394,52 @@ function CardSideEditor({
                 />
               );
             })()}
+            {/* Frame overlay (same bleed expansion as PDF) — visible frame artwork over the design,
+                so the preview matches the actual PDF output. */}
+            {frame?.preview && (
+              <img
+                src={frame.preview}
+                alt=""
+                aria-hidden
+                className="absolute object-fill pointer-events-none"
+                style={{
+                  top: `${-(FRAME_BLEED_MM / CARD_H_MM) * 100}%`,
+                  left: `${-(FRAME_BLEED_MM / CARD_W_MM) * 100}%`,
+                  right: `${-(FRAME_BLEED_MM / CARD_W_MM) * 100}%`,
+                  bottom: `${-(FRAME_BLEED_MM / CARD_H_MM) * 100}%`,
+                  width: "auto",
+                  height: "auto",
+                }}
+              />
+            )}
             {keys.map(key => {
               const cfg = layout[key];
               if (!cfg?.enabled) return null;
               const fontPx = (cfg.fontSize || 3) * pxPerMm;
               const isImage = key === "twincode" || key === "dmBarcode";
               const isSel = selected === key;
-              // 텍스트는 글자 크기에 맞춰 컨테이너 자동조정, 이미지는 지정된 w/h 유지
+              // PDF와 동일한 박스 기반 좌표/정렬 — 텍스트도 cfg.w 폭의 박스 안에서 정렬
               const xMm = cfg.centerX && isImage ? (CARD_W_MM - cfg.w) / 2 : cfg.x;
               const yMm = cfg.centerY && isImage ? (CARD_H_MM - cfg.h) / 2 : cfg.y;
-              const autoSize = !isImage;
+              const boxWpx = cfg.w * pxPerMm;
+              const boxHpx = isImage ? cfg.h * pxPerMm : Math.max(fontPx, 4);
+              const alignClass = isImage ? "justify-center" : getAlignClass(key);
               return (
                 <div
                   key={key}
                   onPointerDown={e => startDrag(e, key, "move")}
-                  className={`absolute flex items-center ${isImage ? "justify-center" : "justify-center text-center"} text-foreground overflow-hidden select-none ${
+                  className={`absolute flex items-start ${alignClass} text-foreground overflow-visible select-none ${
                     isSel ? "border-2 border-primary bg-primary/10 ring-2 ring-primary/30" : "border border-primary/60 bg-primary/5 hover:bg-primary/10"
                   }`}
                   style={{
                     left: xMm * pxPerMm,
                     top: yMm * pxPerMm,
-                    width: autoSize ? "auto" : cfg.w * pxPerMm,
-                    height: autoSize ? "auto" : cfg.h * pxPerMm,
+                    width: boxWpx,
+                    height: boxHpx,
                     fontSize: isImage ? undefined : fontPx,
                     lineHeight: 1,
-                    whiteSpace: autoSize ? "nowrap" : undefined,
-                    transform: autoSize
-                      ? (() => {
-                          const ax = getAnchorX(key);
-                          const tx = ax === "center" ? "-50%" : ax === "right" ? "-100%" : "0";
-                          const ty = cfg.centerY ? "-50%" : "0";
-                          return `translate(${tx}, ${ty})`;
-                        })()
-                      : undefined,
+                    whiteSpace: "nowrap",
                     cursor: pickMode ? "crosshair" : "move",
-                    padding: undefined,
                     background: key === "dmBarcode" ? "#fff" : undefined,
                     boxShadow: key === "dmBarcode" ? `0 0 0 ${(cfg.padding ?? 0) * pxPerMm}px #fff` : undefined,
                   }}
@@ -1439,14 +1450,12 @@ function CardSideEditor({
                   <span className="absolute -top-4 left-0 text-[10px] bg-primary text-primary-foreground px-1 rounded-sm whitespace-nowrap pointer-events-none">
                     {OPTION_LABELS[key]}
                   </span>
-                  {/* resize handle (이미지 전용 — 텍스트는 자동) */}
-                  {!autoSize && (
-                    <span
-                      onPointerDown={e => startDrag(e, key, "resize")}
-                      className="absolute right-0 bottom-0 w-3 h-3 bg-primary cursor-se-resize"
-                      title="크기 조절"
-                    />
-                  )}
+                  {/* resize handle */}
+                  <span
+                    onPointerDown={e => startDrag(e, key, "resize")}
+                    className="absolute right-0 bottom-0 w-3 h-3 bg-primary cursor-se-resize"
+                    title="크기 조절"
+                  />
                 </div>
               );
             })}
