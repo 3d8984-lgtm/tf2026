@@ -132,15 +132,17 @@ function ThumbCard({
   const src = valid ? `${url}${bust ? `#r=${bust}` : ""}` : "";
 
   const isCard = spec.key === "cardFrontDesignPng" || spec.key === "cardBackDesignPng";
-  const aspectClass = isCard ? "aspect-[57/87]" : "aspect-square";
   const k = (mmScale ?? 100) / 100;
-  const realSizeStyle: React.CSSProperties | undefined =
-    isCard && actualSize
-      ? { width: `calc(57mm * ${k})`, height: `calc(87mm * ${k})`, aspectRatio: "auto" as any }
-      : undefined;
+  const wrapperStyle: React.CSSProperties | undefined =
+    isCard && actualSize ? { width: `calc(${CARD_W_MM}mm * ${k} + 2px)` } : undefined;
+  const InnerFrame: React.ElementType = isCard ? CardFrame : "div";
+  const innerProps: any = isCard
+    ? { actualSize, mmScale, className: "flex items-center justify-center group" }
+    : { className: "relative aspect-square bg-muted/40 flex items-center justify-center group" };
   return (
-    <div className="rounded-lg border bg-card overflow-hidden flex flex-col" style={isCard && actualSize ? { width: `calc(57mm * ${k} + 2px)` } : undefined}>
-      <div className={`relative ${actualSize && isCard ? "" : aspectClass} bg-muted/40 flex items-center justify-center group`} style={realSizeStyle}>
+    <div className="rounded-lg border bg-card overflow-hidden flex flex-col" style={wrapperStyle}>
+      <InnerFrame {...innerProps}>
+
 
         {valid && !errored ? (
           <img
