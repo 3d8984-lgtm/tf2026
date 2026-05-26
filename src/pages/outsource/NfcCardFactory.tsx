@@ -1264,23 +1264,18 @@ function CardSideEditor({
             className={`relative border-2 rounded-md overflow-hidden shadow-md ${pickMode ? "cursor-crosshair ring-2 ring-primary" : ""}`}
             style={{ width: previewW, height: previewH, background: "#fff", fontFamily: "'Inter', system-ui, sans-serif" }}
           >
-            {/* Background layers: frame (template) underneath, then API/test card design on top */}
-            {frame?.preview && (
-              <img src={frame.preview} alt="" className="absolute inset-0 w-full h-full object-contain pointer-events-none" />
-            )}
+            {/* Layer order: card design (bottom) → frame (template) → options (top) */}
             {(() => {
               const apiUrl = side === "front" ? cardPreview?.frontImageUrl : cardPreview?.backImageUrl;
               const designUrl = testImageUrl || apiUrl;
               if (!designUrl) return null;
-              // 테스트 이미지가 있으면 프레임 위로 올려 항상 보이도록, API 이미지는 기존처럼 배경으로
               return (
-                <img
-                  src={designUrl}
-                  alt=""
-                  className={`absolute inset-0 w-full h-full object-contain pointer-events-none ${testImageUrl ? "z-10" : ""}`}
-                />
+                <img src={designUrl} alt="" className="absolute inset-0 w-full h-full object-contain pointer-events-none" />
               );
             })()}
+            {frame?.preview && (
+              <img src={frame.preview} alt="" className="absolute inset-0 w-full h-full object-contain pointer-events-none" />
+            )}
             {keys.map(key => {
               const cfg = layout[key];
               if (!cfg?.enabled) return null;
