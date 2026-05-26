@@ -747,13 +747,79 @@ function CardSideEditor({
   setLayout: React.Dispatch<React.SetStateAction<Record<OptionKey, OptionLayout>>>;
   keys: OptionKey[];
 }) {
-  // Preview area: render card at scale (px per mm)
-  const PX_PER_MM = 5;
-  const previewW = CARD_W_MM * PX_PER_MM;
-  const previewH = CARD_H_MM * PX_PER_MM;
+  // Zoomable preview (px per mm). Default 10 = card ~85x54mm renders ~856x540px.
+  const [pxPerMm, setPxPerMm] = useState(10);
+  const previewW = CARD_W_MM * pxPerMm;
+  const previewH = CARD_H_MM * pxPerMm;
+
+  const [selected, setSelected] = useState<OptionKey | null>(keys[0] ?? null);
+  const [pickMode, setPickMode] = useState(false);
+  const stageRef = useRef<HTMLDivElement | null>(null);
 
   const update = (key: OptionKey, patch: Partial<OptionLayout>) => {
     setLayout(prev => ({ ...prev, [key]: { ...prev[key], ...patch } }));
+  };
+
+  const clampMm = (v: number, max: number) => Math.max(0, Math.min(max, Math.round(v * 10) / 10));
+
+  // Drag move / resize using pointer events
+  const startDrag = (
+    e: React.PointerEvent,
+    key: OptionKey,
+    mode: "move" | "resize",
+  ) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setSelected(key);
+    setPickMode(false);
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const cfg = layout[key];
+    const startMm = { x: cfg.x, y: cfg.y, w: cfg.w, h: cfg.h };
+    const target = e.currentTarget as HTMLElement;
+    target.setPointerCapture(e.pointerId);
+
+    const onMove = (ev: PointerEvent) => {
+      const dxMm = (ev.clientX - startX) / pxPerMm;
+      const dyMm = (ev.clientY - startY) / pxPerMm;
+      if (mode === "move") {
+        update(key, {
+          x: clampMm(startMm.x + dxMm, CARD_W_MM - cfg.w),
+          y: clampMm(startMm.y + dyMm, CARD_H_MM - cfg.h),
+          centerX: false,
+          centerY: false,
+        });
+      } else {
+        update(key, {
+          w: clampMm(startMm.w + dxMm, CARD_W_MM - cfg.x),
+          h: clampMm(startMm.h + dyMm, CARD_H_MM - cfg.y),
+        });
+      }
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
+  // Click-to-position: when pickMode active, clicking on stage moves selected option's top-left to that point
+  const onStageClick = (e: React.MouseEvent) => {
+    if (!pickMode || !selected) return;
+    const rect = stageRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const xMm = (e.clientX - rect.left) / pxPerMm;
+    const yMm = (e.clientY - rect.top) / pxPerMm;
+    const cfg = layout[selected];
+    // Center the box on the clicked point for intuitive placement
+    update(selected, {
+      x: clampMm(xMm - cfg.w / 2, CARD_W_MM - cfg.w),
+      y: clampMm(yMm - cfg.h / 2, CARD_H_MM - cfg.h),
+      centerX: false,
+      centerY: false,
+    });
+    setPickMode(false);
   };
 
   const [dmPreview, setDmPreview] = useState<string | null>(null);
@@ -781,13 +847,13 @@ function CardSideEditor({
       case "mintedOn":  return <span className="leading-none">Minted on {cardPreview.mintedOn}</span>;
       case "grade":     return <span className="leading-none font-bold">{cardPreview.grade}</span>;
       case "issuedBy":  return cardPreview.issuedByUrl
-        ? <img src={cardPreview.issuedByUrl} alt="" className="w-full h-full object-contain" />
+        ? <img src={cardPreview.issuedByUrl} alt="" className="w-full h-full object-contain pointer-events-none" />
         : <span className="text-[8px] text-muted-foreground">ISSUED BY</span>;
       case "twincode":  return cardPreview.twincodeSvgUrl
-        ? <img src={cardPreview.twincodeSvgUrl} alt="" className="w-full h-full object-contain bg-white" />
+        ? <img src={cardPreview.twincodeSvgUrl} alt="" className="w-full h-full object-contain bg-white pointer-events-none" />
         : <span className="text-[8px] text-muted-foreground">TWIN</span>;
       case "dmBarcode": return dmPreview
-        ? <img src={dmPreview} alt="" className="w-full h-full object-contain" />
+        ? <img src={dmPreview} alt="" className="w-full h-full object-contain pointer-events-none" />
         : <span className="text-[8px] text-muted-foreground">DM</span>;
     }
   };
@@ -795,13 +861,46 @@ function CardSideEditor({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm">{side === "front" ? "카드 앞면" : "카드 뒷면"} 옵션 배치</CardTitle>
+        <CardTitle className="text-sm flex items-center justify-between gap-3 flex-wrap">
+          <span>{side === "front" ? "카드 앞면" : "카드 뒷면"} 옵션 배치</span>
+          <div className="flex items-center gap-3 text-xs font-normal">
+            <div className="flex items-center gap-2">
+              <Label className="text-xs">확대</Label>
+              <input
+                type="range"
+                min={4}
+                max={16}
+                step={1}
+                value={pxPerMm}
+                onChange={e => setPxPerMm(Number(e.target.value))}
+                className="w-32"
+              />
+              <span className="tabular-nums w-10 text-muted-foreground">{pxPerMm}×</span>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant={pickMode ? "default" : "outline"}
+              onClick={() => setPickMode(v => !v)}
+              disabled={!selected}
+            >
+              {pickMode ? "클릭으로 위치 지정 중…" : "위치 찍기"}
+            </Button>
+          </div>
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="text-xs text-muted-foreground">
+          박스를 드래그해 이동하거나 오른쪽 아래 모서리를 끌어 크기를 조절하세요.
+          확정된 PDF 좌표를 알면 "위치 찍기" 모드에서 미리보기를 클릭해 중심을 맞출 수 있습니다.
+        </div>
+
         {/* Preview */}
-        <div className="flex justify-center">
+        <div className="flex justify-center overflow-auto">
           <div
-            className="relative border-2 rounded-md overflow-hidden shadow-md"
+            ref={stageRef}
+            onClick={onStageClick}
+            className={`relative border-2 rounded-md overflow-hidden shadow-md ${pickMode ? "cursor-crosshair ring-2 ring-primary" : ""}`}
             style={{ width: previewW, height: previewH, background: frame?.preview ? `url(${frame.preview}) center/contain no-repeat #fff` : "#fff" }}
           >
             {keys.map(key => {
@@ -809,22 +908,37 @@ function CardSideEditor({
               if (!cfg?.enabled) return null;
               const xMm = cfg.centerX ? (CARD_W_MM - cfg.w) / 2 : cfg.x;
               const yMm = cfg.centerY ? (CARD_H_MM - cfg.h) / 2 : cfg.y;
-              const fontPx = (cfg.fontSize || 3) * PX_PER_MM;
+              const fontPx = (cfg.fontSize || 3) * pxPerMm;
               const isImage = key === "twincode" || key === "issuedBy" || key === "dmBarcode";
+              const isSel = selected === key;
               return (
                 <div
                   key={key}
-                  className="absolute border border-primary/60 bg-primary/5 flex items-center justify-center text-foreground overflow-hidden"
+                  onPointerDown={e => startDrag(e, key, "move")}
+                  className={`absolute flex items-center justify-center text-foreground overflow-hidden select-none ${
+                    isSel ? "border-2 border-primary bg-primary/10 ring-2 ring-primary/30" : "border border-primary/60 bg-primary/5 hover:bg-primary/10"
+                  }`}
                   style={{
-                    left: xMm * PX_PER_MM,
-                    top: yMm * PX_PER_MM,
-                    width: cfg.w * PX_PER_MM,
-                    height: cfg.h * PX_PER_MM,
+                    left: xMm * pxPerMm,
+                    top: yMm * pxPerMm,
+                    width: cfg.w * pxPerMm,
+                    height: cfg.h * pxPerMm,
                     fontSize: isImage ? undefined : fontPx,
+                    cursor: pickMode ? "crosshair" : "move",
                   }}
-                  title={OPTION_LABELS[key]}
+                  title={`${OPTION_LABELS[key]} — 드래그로 이동`}
                 >
                   {renderOptionPreview(key)}
+                  {/* label tag */}
+                  <span className="absolute -top-4 left-0 text-[10px] bg-primary text-primary-foreground px-1 rounded-sm whitespace-nowrap pointer-events-none">
+                    {OPTION_LABELS[key]}
+                  </span>
+                  {/* resize handle */}
+                  <span
+                    onPointerDown={e => startDrag(e, key, "resize")}
+                    className="absolute right-0 bottom-0 w-3 h-3 bg-primary cursor-se-resize"
+                    title="크기 조절"
+                  />
                 </div>
               );
             })}
@@ -836,8 +950,13 @@ function CardSideEditor({
           {keys.map(key => {
             const cfg = layout[key];
             const isImage = key === "twincode" || key === "issuedBy" || key === "dmBarcode";
+            const isSel = selected === key;
             return (
-              <div key={key} className="border rounded-md p-3 grid grid-cols-2 md:grid-cols-8 gap-2 items-end">
+              <div
+                key={key}
+                onClick={() => setSelected(key)}
+                className={`border rounded-md p-3 grid grid-cols-2 md:grid-cols-9 gap-2 items-end cursor-pointer ${isSel ? "border-primary bg-primary/5" : ""}`}
+              >
                 <div className="md:col-span-2 flex items-center gap-2">
                   <Checkbox checked={cfg.enabled} onCheckedChange={v => update(key, { enabled: !!v })} />
                   <Label className="text-sm font-medium">{OPTION_LABELS[key]}</Label>
