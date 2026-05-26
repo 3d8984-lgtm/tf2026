@@ -1394,6 +1394,24 @@ function CardSideEditor({
                 />
               );
             })()}
+            {/* Frame overlay (same bleed expansion as PDF) — visible frame artwork over the design,
+                so the preview matches the actual PDF output. */}
+            {frame?.preview && (
+              <img
+                src={frame.preview}
+                alt=""
+                aria-hidden
+                className="absolute object-fill pointer-events-none"
+                style={{
+                  top: `${-(FRAME_BLEED_MM / CARD_H_MM) * 100}%`,
+                  left: `${-(FRAME_BLEED_MM / CARD_W_MM) * 100}%`,
+                  right: `${-(FRAME_BLEED_MM / CARD_W_MM) * 100}%`,
+                  bottom: `${-(FRAME_BLEED_MM / CARD_H_MM) * 100}%`,
+                  width: "auto",
+                  height: "auto",
+                }}
+              />
+            )}
             {keys.map(key => {
               const cfg = layout[key];
               if (!cfg?.enabled) return null;
