@@ -1186,7 +1186,8 @@ function CardSideEditor({
       case "mintedOn":
       case "nfcEnabled":   return "justify-end text-right";
       case "issuedNo":
-      case "companyName":  return "justify-start text-left";
+      case "companyName":
+      case "issuedBy":     return "justify-start text-left";
       default:             return "justify-center text-center";
     }
   };
