@@ -945,6 +945,16 @@ function DetailView({
               layout={layoutFront}
               setLayout={setLayoutFront}
               keys={FRONT_KEYS}
+              onTestPdf={async () => {
+                const sample = applyTestValues(cards[0], testValues);
+                if (!sample) { toast({ title: "샘플 카드가 없습니다", variant: "destructive" }); return; }
+                try {
+                  const bytes = await buildCardPdfBytes(sample, { sides: ["front"] });
+                  downloadBlob(bytes, `test_front_${tsName()}.pdf`);
+                } catch (e: any) {
+                  toast({ title: "테스트 PDF 생성 실패", description: e.message, variant: "destructive" });
+                }
+              }}
             />
           </TabsContent>
           <TabsContent value="back" className="pt-3">
@@ -958,6 +968,16 @@ function DetailView({
               setLayout={setLayoutBack}
               keys={BACK_KEYS}
               backDefaults={backDefaults}
+              onTestPdf={async () => {
+                const sample = applyTestValues(cards[0], testValues);
+                if (!sample) { toast({ title: "샘플 카드가 없습니다", variant: "destructive" }); return; }
+                try {
+                  const bytes = await buildCardPdfBytes(sample, { sides: ["back"] });
+                  downloadBlob(bytes, `test_back_${tsName()}.pdf`);
+                } catch (e: any) {
+                  toast({ title: "테스트 PDF 생성 실패", description: e.message, variant: "destructive" });
+                }
+              }}
             />
 
           </TabsContent>
