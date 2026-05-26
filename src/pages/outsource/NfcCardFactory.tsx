@@ -122,7 +122,7 @@ const DEFAULT_LAYOUT: Record<OptionKey, OptionLayout> = {
   mintedOn:    { enabled: true, x: 5,  y: 12,  w: 35, h: 5,  fontSize: 3,   centerX: false, centerY: false },
   grade:       { enabled: true, x: 55, y: 5,   w: 25, h: 6,  fontSize: 4,   centerX: false, centerY: false },
   issuedBy:    { enabled: true, x: 55, y: 35,  w: 25, h: 12, fontSize: 3, centerX: false, centerY: false },
-  twincode:    { enabled: true, x: 5,  y: 25,  w: 22, h: 22, fontSize: 0,   centerX: false, centerY: false },
+  twincode:    { enabled: true, x: 5,  y: 25,  w: 14, h: 14, fontSize: 0,   centerX: false, centerY: false },
   dmBarcode:   { enabled: true, x: 60, y: 18,  w: 14, h: 14, fontSize: 0,   centerX: false, centerY: false, padding: 0.5 },
   companyName: { enabled: true, x: 5,  y: 75,  w: 47, h: 5,  fontSize: 3,   centerX: true,  centerY: false },
   centerSlogan:{ enabled: true, x: 5,  y: 50,  w: 47, h: 5,  fontSize: 3.5, centerX: true,  centerY: false },
