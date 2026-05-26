@@ -504,6 +504,7 @@ function DetailView({
           if (v.layoutFront) setLayoutFront(prev => ({ ...prev, ...v.layoutFront }));
           if (v.layoutBack)  setLayoutBack(prev => ({ ...prev, ...v.layoutBack }));
           if (v.workOrder)   setWorkOrder(prev => ({ ...prev, ...v.workOrder, orderNo }));
+          if (v.testValues)  setTestValues(prev => ({ ...prev, ...v.testValues }));
           break;
         }
       }
@@ -514,7 +515,7 @@ function DetailView({
 
   const saveLayout = async () => {
     if (!userId) { toast({ title: "로그인 필요", variant: "destructive" }); return; }
-    const payload = { layoutFront, layoutBack, workOrder } as any;
+    const payload = { layoutFront, layoutBack, workOrder, testValues } as any;
     const rows = [
       { user_id: userId, setting_key: `${SETTINGS_KEY_PREFIX}-${orderNo}`, setting_value: payload },
       { user_id: userId, setting_key: GLOBAL_LAYOUT_KEY, setting_value: payload },
@@ -526,7 +527,7 @@ function DetailView({
       toast({ title: "저장 실패", description: error.message, variant: "destructive" });
       return;
     }
-    toast({ title: "저장 완료", description: "서버에 옵션 설정이 저장되었습니다" });
+    toast({ title: "저장 완료", description: "옵션 위치/크기/테스트값이 서버에 저장되었습니다" });
   };
 
   // ====== Build single-card PDF (2 pages: front + back) ======
