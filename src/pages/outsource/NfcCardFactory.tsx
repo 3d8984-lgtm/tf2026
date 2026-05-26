@@ -431,6 +431,60 @@ function DetailView({
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
+  // Test images per side (server-persisted; falls back to API card image when removed)
+  const [testImages, setTestImages] = useState<{
+    front: { url: string; name: string } | null;
+    back: { url: string; name: string } | null;
+  }>({ front: null, back: null });
+
+  // Test values for preview only (override card[0] for front/back fields)
+  const [testValues, setTestValues] = useState({
+    cpValue: "", editionNo: "", issuedNo: "", mintedOn: "", grade: "",
+  });
+
+  // Load test images from storage
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: list } = await supabase.storage.from(FRAME_BUCKET).list(TEST_IMG_PREFIX);
+      if (cancelled) return;
+      for (const side of ["front", "back"] as const) {
+        const found = (list || []).find(f => f.name.startsWith(`${side}__`));
+        if (!found) continue;
+        const path = `${TEST_IMG_PREFIX}/${found.name}`;
+        const { data: pub } = supabase.storage.from(FRAME_BUCKET).getPublicUrl(path);
+        const name = found.name.replace(/^(front|back)__/, "");
+        setTestImages(prev => ({ ...prev, [side]: { url: `${pub.publicUrl}?v=${Date.now()}`, name } }));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const onUploadTestImage = async (side: "front" | "back", file: File | null) => {
+    const { data: existing } = await supabase.storage.from(FRAME_BUCKET).list(TEST_IMG_PREFIX);
+    const toRemove = (existing || [])
+      .filter(f => f.name.startsWith(`${side}__`))
+      .map(f => `${TEST_IMG_PREFIX}/${f.name}`);
+    if (toRemove.length) await supabase.storage.from(FRAME_BUCKET).remove(toRemove);
+    if (!file) {
+      setTestImages(prev => ({ ...prev, [side]: null }));
+      toast({ title: `${side === "front" ? "앞면" : "뒷면"} 테스트 이미지 삭제됨`, description: "원래 카드 디자인이 적용됩니다" });
+      return;
+    }
+    try {
+      const safe = file.name.replace(/[^\w.\-]+/g, "_");
+      const path = `${TEST_IMG_PREFIX}/${side}__${safe}`;
+      const { error } = await supabase.storage.from(FRAME_BUCKET)
+        .upload(path, file, { upsert: true, contentType: file.type || "image/png" });
+      if (error) { toast({ title: "업로드 실패", description: error.message, variant: "destructive" }); return; }
+      const { data: pub } = supabase.storage.from(FRAME_BUCKET).getPublicUrl(path);
+      setTestImages(prev => ({ ...prev, [side]: { url: `${pub.publicUrl}?v=${Date.now()}`, name: file.name } }));
+      toast({ title: `${side === "front" ? "앞면" : "뒷면"} 테스트 이미지 등록됨` });
+    } catch (e: any) {
+      toast({ title: "업로드 실패", description: e.message, variant: "destructive" });
+    }
+  };
+
   // Load saved layout from user_ui_settings (per-order, fallback to global default)
   useEffect(() => {
     if (!userId) { setLoaded(true); return; }
