@@ -478,7 +478,15 @@ function DetailView({
   // ====== Build single-card PDF (2 pages: front + back) ======
   const buildCardPdfBytes = async (card: CardData): Promise<Uint8Array> => {
     const out = await PDFDocument.create();
-    const font = await out.embedFont(StandardFonts.Helvetica);
+    out.registerFontkit(fontkit);
+    const interReg = await fetchFontBytes(INTER_TTF_URL, "reg");
+    const interBold = await fetchFontBytes(INTER_BOLD_TTF_URL, "bold");
+    const font = interReg
+      ? await out.embedFont(interReg, { subset: true })
+      : await out.embedFont((await import("pdf-lib")).StandardFonts.Helvetica);
+    const fontBold = interBold
+      ? await out.embedFont(interBold, { subset: true })
+      : font;
     const cardWpt = CARD_W_MM * MM;
     const cardHpt = CARD_H_MM * MM;
 
