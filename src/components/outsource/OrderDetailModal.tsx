@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { CardFrame, CARD_W_MM, CARD_H_MM } from "./CardFrame";
 
 export interface OrderDetailData {
   orderSerialNo: string;
