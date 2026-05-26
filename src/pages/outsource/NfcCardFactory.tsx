@@ -22,7 +22,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Download, Eye, FileText, Loader2, Upload, X, ChevronLeft, Save } from "lucide-react";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import QRCode from "qrcode";
-import bwipjs from "bwip-js";
+import bwipjs from "bwip-js/browser";
 
 const MM = 2.8346456693; // 1mm in pt
 const CARD_W_MM = 85.6;
