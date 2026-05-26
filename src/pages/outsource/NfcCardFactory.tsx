@@ -724,8 +724,9 @@ function DetailView({
       }
     };
 
-    await drawSide("front", layoutFront, FRONT_KEYS);
-    await drawSide("back", layoutBack, BACK_KEYS);
+    const sides = opts?.sides ?? ["front", "back"];
+    if (sides.includes("front")) await drawSide("front", layoutFront, FRONT_KEYS);
+    if (sides.includes("back")) await drawSide("back", layoutBack, BACK_KEYS);
     return await out.save();
   };
 
