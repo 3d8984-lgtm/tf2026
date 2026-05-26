@@ -514,13 +514,31 @@ export default function OrderDetailModal({ open, onOpenChange, data, refetch }: 
           </DialogHeader>
           {lightbox && (
             <div className="flex flex-col items-center gap-3">
-              <img
-                src={lightbox.url}
-                alt={lightbox.label}
-                loading="lazy"
-                referrerPolicy="no-referrer"
-                className="max-h-[70vh] object-contain"
-              />
+              {lightbox.isCard ? (
+                <CardFrame
+                  actualSize={actualSize}
+                  mmScale={mmScale}
+                  widthClassName="w-auto"
+                  className={actualSize ? "border" : "h-[70vh] border"}
+                  style={!actualSize ? { aspectRatio: `${CARD_W_MM}/${CARD_H_MM}`, width: "auto" } : undefined}
+                >
+                  <img
+                    src={lightbox.url}
+                    alt={lightbox.label}
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-contain"
+                  />
+                </CardFrame>
+              ) : (
+                <img
+                  src={lightbox.url}
+                  alt={lightbox.label}
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                  className="max-h-[70vh] object-contain"
+                />
+              )}
               <a
                 href={lightbox.url}
                 download
