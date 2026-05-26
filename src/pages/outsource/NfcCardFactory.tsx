@@ -664,7 +664,15 @@ function DetailView({
             const dmText = `${card.uniqueNo}|${card.uid}|${card.editionNo}`;
             const png = await dataMatrixPngBytes(dmText, 400);
             const emb = await out.embedPng(png);
-            page.drawImage(emb, { x: xPt, y: yPtBottom, width: cfg.w * MM, height: cfg.h * MM });
+            const padMm = Math.max(0, cfg.padding ?? 0);
+            const padPt = padMm * MM;
+            const boxWpt = cfg.w * MM;
+            const boxHpt = cfg.h * MM;
+            // white quiet zone
+            page.drawRectangle({ x: xPt, y: yPtBottom, width: boxWpt, height: boxHpt, color: rgb(1, 1, 1) });
+            const innerW = Math.max(1, boxWpt - padPt * 2);
+            const innerH = Math.max(1, boxHpt - padPt * 2);
+            page.drawImage(emb, { x: xPt + padPt, y: yPtBottom + padPt, width: innerW, height: innerH });
           } catch (e) { console.warn("DM draw fail", e); }
         } else {
           const txt = getText();
