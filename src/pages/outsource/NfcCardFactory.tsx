@@ -438,6 +438,9 @@ function DetailView({
     back: { url: string; name: string } | null;
   }>({ front: null, back: null });
 
+  // Test twincode SVG (server-persisted; falls back to API twincodeSvgUrl when removed)
+  const [testTwincodeSvg, setTestTwincodeSvg] = useState<{ url: string; name: string } | null>(null);
+
   // Test values for preview only (override card[0] for front/back fields)
   const [testValues, setTestValues] = useState({
     cpValue: "", editionNo: "", issuedNo: "", mintedOn: "", grade: "",
@@ -457,6 +460,22 @@ function DetailView({
         const name = found.name.replace(/^(front|back)__/, "");
         setTestImages(prev => ({ ...prev, [side]: { url: `${pub.publicUrl}?v=${Date.now()}`, name } }));
       }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Load test twincode SVG from storage
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: list } = await supabase.storage.from(FRAME_BUCKET).list(TEST_TWINCODE_PREFIX);
+      if (cancelled) return;
+      const found = (list || []).find(f => f.name.startsWith("twincode__"));
+      if (!found) return;
+      const path = `${TEST_TWINCODE_PREFIX}/${found.name}`;
+      const { data: pub } = supabase.storage.from(FRAME_BUCKET).getPublicUrl(path);
+      const name = found.name.replace(/^twincode__/, "");
+      setTestTwincodeSvg({ url: `${pub.publicUrl}?v=${Date.now()}`, name });
     })();
     return () => { cancelled = true; };
   }, []);
@@ -481,6 +500,31 @@ function DetailView({
       const { data: pub } = supabase.storage.from(FRAME_BUCKET).getPublicUrl(path);
       setTestImages(prev => ({ ...prev, [side]: { url: `${pub.publicUrl}?v=${Date.now()}`, name: file.name } }));
       toast({ title: `${side === "front" ? "앞면" : "뒷면"} 테스트 이미지 등록됨` });
+    } catch (e: any) {
+      toast({ title: "업로드 실패", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const onUploadTestTwincode = async (file: File | null) => {
+    const { data: existing } = await supabase.storage.from(FRAME_BUCKET).list(TEST_TWINCODE_PREFIX);
+    const toRemove = (existing || [])
+      .filter(f => f.name.startsWith("twincode__"))
+      .map(f => `${TEST_TWINCODE_PREFIX}/${f.name}`);
+    if (toRemove.length) await supabase.storage.from(FRAME_BUCKET).remove(toRemove);
+    if (!file) {
+      setTestTwincodeSvg(null);
+      toast({ title: "트윈코드 테스트 SVG 삭제됨", description: "원래 API 트윈코드가 적용됩니다" });
+      return;
+    }
+    try {
+      const safe = file.name.replace(/[^\w.\-]+/g, "_");
+      const path = `${TEST_TWINCODE_PREFIX}/twincode__${safe}`;
+      const { error } = await supabase.storage.from(FRAME_BUCKET)
+        .upload(path, file, { upsert: true, contentType: file.type || "image/svg+xml" });
+      if (error) { toast({ title: "업로드 실패", description: error.message, variant: "destructive" }); return; }
+      const { data: pub } = supabase.storage.from(FRAME_BUCKET).getPublicUrl(path);
+      setTestTwincodeSvg({ url: `${pub.publicUrl}?v=${Date.now()}`, name: file.name });
+      toast({ title: "트윈코드 테스트 SVG 등록됨" });
     } catch (e: any) {
       toast({ title: "업로드 실패", description: e.message, variant: "destructive" });
     }
