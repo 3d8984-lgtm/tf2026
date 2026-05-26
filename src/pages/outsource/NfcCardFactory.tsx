@@ -1144,7 +1144,7 @@ function CardSideEditor({
           : <span className="text-[8px] text-muted-foreground">TWIN</span>;
       }
       case "dmBarcode": return dmPreview
-        ? <img src={dmPreview} alt="" className="w-full h-full object-contain pointer-events-none" />
+        ? <img src={dmPreview} alt="" className="w-full h-full object-contain pointer-events-none bg-white" />
         : <span className="text-[8px] text-muted-foreground">DM</span>;
     }
   };
