@@ -113,6 +113,7 @@ const DEFAULT_BACK_DEFAULTS = {
   companyName: "TWINMETA",
   centerSlogan: "THE ORIGINAL",
   nfcEnabled: "NFC Enabled",
+  issuedBy: "ISSUED BY",
 };
 
 const DEFAULT_LAYOUT: Record<OptionKey, OptionLayout> = {
@@ -121,7 +122,7 @@ const DEFAULT_LAYOUT: Record<OptionKey, OptionLayout> = {
   issuedNo:    { enabled: true, x: 5,  y: 5,   w: 30, h: 5,  fontSize: 3,   centerX: false, centerY: false },
   mintedOn:    { enabled: true, x: 5,  y: 12,  w: 35, h: 5,  fontSize: 3,   centerX: false, centerY: false },
   grade:       { enabled: true, x: 55, y: 5,   w: 25, h: 6,  fontSize: 4,   centerX: false, centerY: false },
-  issuedBy:    { enabled: true, x: 55, y: 35,  w: 25, h: 12, fontSize: 0,   centerX: false, centerY: false },
+  issuedBy:    { enabled: true, x: 55, y: 35,  w: 25, h: 12, fontSize: 3, centerX: false, centerY: false },
   twincode:    { enabled: true, x: 5,  y: 25,  w: 22, h: 22, fontSize: 0,   centerX: false, centerY: false },
   dmBarcode:   { enabled: true, x: 60, y: 18,  w: 14, h: 14, fontSize: 0,   centerX: false, centerY: false, padding: 0.5 },
   companyName: { enabled: true, x: 5,  y: 75,  w: 47, h: 5,  fontSize: 3,   centerX: true,  centerY: false },
@@ -664,6 +665,7 @@ function DetailView({
             case "companyName":  return backDefaults.companyName ?? "";
             case "centerSlogan": return backDefaults.centerSlogan ?? "";
             case "nfcEnabled":   return backDefaults.nfcEnabled ?? "";
+            case "issuedBy":     return backDefaults.issuedBy ?? "";
             default: return "";
           }
         };
@@ -671,13 +673,14 @@ function DetailView({
           switch (key) {
             case "cpValue":
             case "grade":
-            case "companyName":
-            case "centerSlogan":
-            case "nfcEnabled": return "center";
+            case "centerSlogan": return "center";
             case "editionNo":
-            case "mintedOn":  return "right";
-            case "issuedNo":  return "left";
-            default:          return "left";
+            case "mintedOn":
+            case "nfcEnabled":   return "right";
+            case "issuedNo":
+            case "companyName":
+            case "issuedBy":     return "left";
+            default:             return "left";
           }
         };
 
@@ -690,12 +693,6 @@ function DetailView({
               page.drawImage(emb, { x: xPt, y: yPtBottom, width: cfg.w * MM, height: cfg.h * MM });
             } catch (e) { console.warn("twincode draw fail", e); }
           }
-        } else if (key === "issuedBy" && card.issuedByUrl) {
-          try {
-            const png = await urlToPngBytes(card.issuedByUrl);
-            const emb = await out.embedPng(png);
-            page.drawImage(emb, { x: xPt, y: yPtBottom, width: cfg.w * MM, height: cfg.h * MM });
-          } catch (e) { console.warn("issuedBy draw fail", e); }
         } else if (key === "dmBarcode") {
           try {
             const dmText = `${card.uniqueNo}|${card.uid}|${card.editionNo}`;
@@ -923,6 +920,7 @@ function DetailView({
             <TxtField label="회사명" v={backDefaults.companyName} set={v => setBackDefaults(p => ({ ...p, companyName: v }))} />
             <TxtField label="중앙슬로건" v={backDefaults.centerSlogan} set={v => setBackDefaults(p => ({ ...p, centerSlogan: v }))} />
             <TxtField label="NFC Enabled" v={backDefaults.nfcEnabled} set={v => setBackDefaults(p => ({ ...p, nfcEnabled: v }))} />
+            <TxtField label="ISSUED BY" v={backDefaults.issuedBy} set={v => setBackDefaults(p => ({ ...p, issuedBy: v }))} />
           </CardContent>
         </Card>
 
@@ -1076,7 +1074,7 @@ function CardSideEditor({
   layout: Record<OptionKey, OptionLayout>;
   setLayout: React.Dispatch<React.SetStateAction<Record<OptionKey, OptionLayout>>>;
   keys: OptionKey[];
-  backDefaults?: { companyName: string; centerSlogan: string; nfcEnabled: string };
+  backDefaults?: { companyName: string; centerSlogan: string; nfcEnabled: string; issuedBy: string };
 }) {
   // Zoomable preview (px per mm). Default 10 = card ~85x54mm renders ~856x540px.
   const [pxPerMm, setPxPerMm] = useState(10);
@@ -1107,7 +1105,7 @@ function CardSideEditor({
     const startY = e.clientY;
     const cfg = layout[key];
     const startMm = { x: cfg.x, y: cfg.y, w: cfg.w, h: cfg.h };
-    const isImage = key === "twincode" || key === "issuedBy" || key === "dmBarcode";
+    const isImage = key === "twincode" || key === "dmBarcode";
     const target = e.currentTarget as HTMLElement;
     target.setPointerCapture(e.pointerId);
 
@@ -1188,7 +1186,8 @@ function CardSideEditor({
       case "mintedOn":
       case "nfcEnabled":   return "justify-end text-right";
       case "issuedNo":
-      case "companyName":  return "justify-start text-left";
+      case "companyName":
+      case "issuedBy":     return "justify-start text-left";
       default:             return "justify-center text-center";
     }
   };
@@ -1203,7 +1202,8 @@ function CardSideEditor({
       case "mintedOn":
       case "nfcEnabled":   return "right";
       case "issuedNo":
-      case "companyName":  return "left";
+      case "companyName":
+      case "issuedBy":     return "left";
       default:             return "left";
     }
   };
@@ -1219,9 +1219,7 @@ function CardSideEditor({
       case "companyName":  return <span className="leading-none">{backDefaults?.companyName || "-"}</span>;
       case "centerSlogan": return <span className="leading-none">{backDefaults?.centerSlogan || "-"}</span>;
       case "nfcEnabled":   return <span className="leading-none">{backDefaults?.nfcEnabled || "-"}</span>;
-      case "issuedBy":  return cardPreview.issuedByUrl
-        ? <img src={cardPreview.issuedByUrl} alt="" className="w-full h-full object-contain pointer-events-none" />
-        : <span className="text-[8px] text-muted-foreground">ISSUED BY</span>;
+      case "issuedBy":  return <span className="leading-none">{backDefaults?.issuedBy || "-"}</span>;
       case "twincode":  {
         const tcUrl = testTwincodeUrl || cardPreview.twincodeSvgUrl;
         return tcUrl
@@ -1310,7 +1308,7 @@ function CardSideEditor({
               const cfg = layout[key];
               if (!cfg?.enabled) return null;
               const fontPx = (cfg.fontSize || 3) * pxPerMm;
-              const isImage = key === "twincode" || key === "issuedBy" || key === "dmBarcode";
+              const isImage = key === "twincode" || key === "dmBarcode";
               const isSel = selected === key;
               // 텍스트는 글자 크기에 맞춰 컨테이너 자동조정, 이미지는 지정된 w/h 유지
               const xMm = cfg.centerX && isImage ? (CARD_W_MM - cfg.w) / 2 : cfg.x;
@@ -1369,7 +1367,7 @@ function CardSideEditor({
         <div className="space-y-2">
           {keys.map(key => {
             const cfg = layout[key];
-            const isImage = key === "twincode" || key === "issuedBy" || key === "dmBarcode";
+            const isImage = key === "twincode" || key === "dmBarcode";
             const isSel = selected === key;
             return (
               <div
