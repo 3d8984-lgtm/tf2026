@@ -1270,8 +1270,17 @@ function CardSideEditor({
                 </div>
                 <Mini label="X(mm)" v={cfg.x} set={v => update(key, { x: v })} disabled={cfg.centerX} />
                 <Mini label="Y(mm)" v={cfg.y} set={v => update(key, { y: v })} disabled={cfg.centerY} />
-                <Mini label="너비(mm)" v={cfg.w} set={v => update(key, { w: v })} />
-                <Mini label={isImage ? "높이(mm)" : "박스높이(mm)"} v={cfg.h} set={v => update(key, { h: v })} />
+                {key === "dmBarcode" ? (
+                  <>
+                    <Mini label="크기(mm)" v={cfg.w} set={v => update(key, { w: v, h: v })} />
+                    <Mini label="여백(mm)" v={cfg.padding ?? 0} set={v => update(key, { padding: Math.max(0, v) })} step={0.1} />
+                  </>
+                ) : (
+                  <>
+                    <Mini label="너비(mm)" v={cfg.w} set={v => update(key, { w: v })} />
+                    <Mini label={isImage ? "높이(mm)" : "박스높이(mm)"} v={cfg.h} set={v => update(key, { h: v })} />
+                  </>
+                )}
                 {!isImage && (
                   <Mini label="글자(mm)" v={cfg.fontSize} set={v => update(key, { fontSize: v })} step={0.1} />
                 )}
