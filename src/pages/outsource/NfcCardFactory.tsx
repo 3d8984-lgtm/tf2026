@@ -665,6 +665,7 @@ function DetailView({
             case "companyName":  return backDefaults.companyName ?? "";
             case "centerSlogan": return backDefaults.centerSlogan ?? "";
             case "nfcEnabled":   return backDefaults.nfcEnabled ?? "";
+            case "issuedBy":     return backDefaults.issuedBy ?? "";
             default: return "";
           }
         };
@@ -672,13 +673,14 @@ function DetailView({
           switch (key) {
             case "cpValue":
             case "grade":
-            case "companyName":
-            case "centerSlogan":
-            case "nfcEnabled": return "center";
+            case "centerSlogan": return "center";
             case "editionNo":
-            case "mintedOn":  return "right";
-            case "issuedNo":  return "left";
-            default:          return "left";
+            case "mintedOn":
+            case "nfcEnabled":   return "right";
+            case "issuedNo":
+            case "companyName":
+            case "issuedBy":     return "left";
+            default:             return "left";
           }
         };
 
@@ -691,12 +693,6 @@ function DetailView({
               page.drawImage(emb, { x: xPt, y: yPtBottom, width: cfg.w * MM, height: cfg.h * MM });
             } catch (e) { console.warn("twincode draw fail", e); }
           }
-        } else if (key === "issuedBy" && card.issuedByUrl) {
-          try {
-            const png = await urlToPngBytes(card.issuedByUrl);
-            const emb = await out.embedPng(png);
-            page.drawImage(emb, { x: xPt, y: yPtBottom, width: cfg.w * MM, height: cfg.h * MM });
-          } catch (e) { console.warn("issuedBy draw fail", e); }
         } else if (key === "dmBarcode") {
           try {
             const dmText = `${card.uniqueNo}|${card.uid}|${card.editionNo}`;
