@@ -811,6 +811,45 @@ function DetailView({
           </CardContent>
         </Card>
 
+        {/* Test twincode SVG upload */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">트윈코드 테스트 SVG (서버 저장)</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-4">
+            <div className="border rounded-md p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="font-medium text-xs">트윈코드 SVG</Label>
+                {testTwincodeSvg && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600">서버 저장됨</span>
+                )}
+              </div>
+              <div className="w-full h-32 border rounded bg-muted/30 overflow-hidden flex items-center justify-center">
+                {testTwincodeSvg?.url
+                  ? <img src={testTwincodeSvg.url} alt="" className="w-full h-full object-contain bg-white" />
+                  : <span className="text-xs text-muted-foreground flex items-center gap-1"><ImageIcon className="w-3 h-3" />테스트 SVG 없음 (API 트윈코드 사용)</span>}
+              </div>
+              <div className="text-[11px] text-muted-foreground truncate">
+                {testTwincodeSvg?.name || "삭제 전까지 서버에 유지됩니다"}
+              </div>
+              <div className="flex gap-2">
+                <label className="flex-1 flex items-center justify-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
+                  <Upload className="w-3 h-3" />
+                  <span>{testTwincodeSvg ? "변경" : "SVG 업로드"}</span>
+                  <input type="file" accept="image/svg+xml" className="hidden"
+                    onChange={e => { const f = e.target.files?.[0] || null; e.currentTarget.value = ""; if (f) onUploadTestTwincode(f); }} />
+                </label>
+                {testTwincodeSvg && (
+                  <Button size="sm" variant="destructive" className="text-xs"
+                    onClick={() => { if (confirm("테스트 SVG를 삭제하고 원래 API 트윈코드를 사용할까요?")) onUploadTestTwincode(null); }}>
+                    <X className="w-3 h-3 mr-1" />삭제
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Test values for preview */}
         <Card>
           <CardHeader className="pb-3">
