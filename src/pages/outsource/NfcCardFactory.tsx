@@ -1093,6 +1093,7 @@ function CardSideEditor({
     const startY = e.clientY;
     const cfg = layout[key];
     const startMm = { x: cfg.x, y: cfg.y, w: cfg.w, h: cfg.h };
+    const isImage = key === "twincode" || key === "issuedBy" || key === "dmBarcode";
     const target = e.currentTarget as HTMLElement;
     target.setPointerCapture(e.pointerId);
 
@@ -1100,9 +1101,12 @@ function CardSideEditor({
       const dxMm = (ev.clientX - startX) / pxPerMm;
       const dyMm = (ev.clientY - startY) / pxPerMm;
       if (mode === "move") {
+        // 텍스트(autoSize)는 컨테이너 너비/높이가 가변이므로 카드 전체 범위로 클램프
+        const maxX = isImage ? CARD_W_MM - cfg.w : CARD_W_MM;
+        const maxY = isImage ? CARD_H_MM - cfg.h : CARD_H_MM;
         update(key, {
-          x: clampMm(startMm.x + dxMm, CARD_W_MM - cfg.w),
-          y: clampMm(startMm.y + dyMm, CARD_H_MM - cfg.h),
+          x: clampMm(startMm.x + dxMm, maxX),
+          y: clampMm(startMm.y + dyMm, maxY),
           centerX: false,
           centerY: false,
         });
