@@ -1259,24 +1259,31 @@ function CardSideEditor({
             {keys.map(key => {
               const cfg = layout[key];
               if (!cfg?.enabled) return null;
-              const xMm = cfg.centerX ? (CARD_W_MM - cfg.w) / 2 : cfg.x;
-              const yMm = cfg.centerY ? (CARD_H_MM - cfg.h) / 2 : cfg.y;
               const fontPx = (cfg.fontSize || 3) * pxPerMm;
               const isImage = key === "twincode" || key === "issuedBy" || key === "dmBarcode";
               const isSel = selected === key;
+              // 텍스트는 글자 크기에 맞춰 컨테이너 자동조정, 이미지는 지정된 w/h 유지
+              const xMm = cfg.centerX && isImage ? (CARD_W_MM - cfg.w) / 2 : cfg.x;
+              const yMm = cfg.centerY && isImage ? (CARD_H_MM - cfg.h) / 2 : cfg.y;
+              const autoSize = !isImage;
               return (
                 <div
                   key={key}
                   onPointerDown={e => startDrag(e, key, "move")}
-                  className={`absolute flex items-center ${isImage ? "justify-center" : getAlignClass(key)} text-foreground overflow-hidden select-none ${
+                  className={`absolute flex items-center ${isImage ? "justify-center" : "justify-center text-center"} text-foreground overflow-hidden select-none ${
                     isSel ? "border-2 border-primary bg-primary/10 ring-2 ring-primary/30" : "border border-primary/60 bg-primary/5 hover:bg-primary/10"
                   }`}
                   style={{
                     left: xMm * pxPerMm,
                     top: yMm * pxPerMm,
-                    width: cfg.w * pxPerMm,
-                    height: cfg.h * pxPerMm,
+                    width: autoSize ? "auto" : cfg.w * pxPerMm,
+                    height: autoSize ? "auto" : cfg.h * pxPerMm,
                     fontSize: isImage ? undefined : fontPx,
+                    lineHeight: 1,
+                    whiteSpace: autoSize ? "nowrap" : undefined,
+                    transform: autoSize
+                      ? `translate(${cfg.centerX ? "-50%" : "0"}, ${cfg.centerY ? "-50%" : "0"})`
+                      : undefined,
                     cursor: pickMode ? "crosshair" : "move",
                     padding: undefined,
                     background: key === "dmBarcode" ? "#fff" : undefined,
@@ -1289,12 +1296,14 @@ function CardSideEditor({
                   <span className="absolute -top-4 left-0 text-[10px] bg-primary text-primary-foreground px-1 rounded-sm whitespace-nowrap pointer-events-none">
                     {OPTION_LABELS[key]}
                   </span>
-                  {/* resize handle */}
-                  <span
-                    onPointerDown={e => startDrag(e, key, "resize")}
-                    className="absolute right-0 bottom-0 w-3 h-3 bg-primary cursor-se-resize"
-                    title="크기 조절"
-                  />
+                  {/* resize handle (이미지 전용 — 텍스트는 자동) */}
+                  {!autoSize && (
+                    <span
+                      onPointerDown={e => startDrag(e, key, "resize")}
+                      className="absolute right-0 bottom-0 w-3 h-3 bg-primary cursor-se-resize"
+                      title="크기 조절"
+                    />
+                  )}
                 </div>
               );
             })}
