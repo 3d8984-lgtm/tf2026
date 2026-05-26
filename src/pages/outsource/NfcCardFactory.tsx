@@ -1202,7 +1202,8 @@ function CardSideEditor({
       case "mintedOn":
       case "nfcEnabled":   return "right";
       case "issuedNo":
-      case "companyName":  return "left";
+      case "companyName":
+      case "issuedBy":     return "left";
       default:             return "left";
     }
   };
