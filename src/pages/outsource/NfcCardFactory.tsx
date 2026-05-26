@@ -1332,7 +1332,12 @@ function CardSideEditor({
                     lineHeight: 1,
                     whiteSpace: autoSize ? "nowrap" : undefined,
                     transform: autoSize
-                      ? `translate(${cfg.centerX ? "-50%" : "0"}, ${cfg.centerY ? "-50%" : "0"})`
+                      ? (() => {
+                          const ax = getAnchorX(key);
+                          const tx = ax === "center" ? "-50%" : ax === "right" ? "-100%" : "0";
+                          const ty = cfg.centerY ? "-50%" : "0";
+                          return `translate(${tx}, ${ty})`;
+                        })()
                       : undefined,
                     cursor: pickMode ? "crosshair" : "move",
                     padding: undefined,
