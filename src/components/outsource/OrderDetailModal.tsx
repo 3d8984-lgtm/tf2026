@@ -217,6 +217,14 @@ export default function OrderDetailModal({ open, onOpenChange, data, refetch }: 
   const [checks, setChecks] = useState<Record<string, boolean>>({});
   const [downloading, setDownloading] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
+  const [actualSize, setActualSize] = useState<boolean>(() => {
+    try { return localStorage.getItem("orderDetail.actualSize") === "1"; } catch { return false; }
+  });
+  const [mmScale, setMmScale] = useState<number>(() => {
+    try { const v = parseFloat(localStorage.getItem("orderDetail.mmScale") || "100"); return isNaN(v) ? 100 : v; } catch { return 100; }
+  });
+  useEffect(() => { try { localStorage.setItem("orderDetail.actualSize", actualSize ? "1" : "0"); } catch {} }, [actualSize]);
+  useEffect(() => { try { localStorage.setItem("orderDetail.mmScale", String(mmScale)); } catch {} }, [mmScale]);
 
   useEffect(() => {
     if (!open) return;
