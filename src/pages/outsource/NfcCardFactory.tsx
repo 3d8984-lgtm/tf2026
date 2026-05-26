@@ -496,7 +496,16 @@ function DetailView({
       keys: OptionKey[],
     ) => {
       const page = out.addPage([cardWpt, cardHpt]);
-      // Draw frame background
+      // Layer 1: card design image (test override > API)
+      const designUrl = testImages[side]?.url || (side === "front" ? card.frontImageUrl : card.backImageUrl);
+      if (designUrl) {
+        try {
+          const png = await urlToPngBytes(designUrl);
+          const emb = await out.embedPng(png);
+          page.drawImage(emb, { x: 0, y: 0, width: cardWpt, height: cardHpt });
+        } catch (e) { console.warn("card design embed failed", e); }
+      }
+      // Layer 2: frame PDF overlay
       const frame = frames[side];
       if (frame?.bytes) {
         try {
