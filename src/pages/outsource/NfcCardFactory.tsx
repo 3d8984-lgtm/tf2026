@@ -579,12 +579,22 @@ function DetailView({
 
         const getText = (): string => {
           switch (key) {
-            case "cpValue":   return card.cpValue ? `CP ${card.cpValue}` : "CP -";
-            case "editionNo": return `EDITION No. ${card.editionNo}`;
-            case "issuedNo":  return `ISSUED No. ${card.issuedNo}`;
-            case "mintedOn":  return `Minted on ${card.mintedOn}`;
-            case "grade":     return card.grade;
+            case "cpValue":   return card.cpValue ?? "";
+            case "editionNo": return card.editionNo ?? "";
+            case "issuedNo":  return card.issuedNo ?? "";
+            case "mintedOn":  return card.mintedOn ?? "";
+            case "grade":     return card.grade ?? "";
             default: return "";
+          }
+        };
+        const getAlign = (): "left" | "center" | "right" => {
+          switch (key) {
+            case "cpValue":
+            case "grade":     return "center";
+            case "editionNo":
+            case "mintedOn":  return "right";
+            case "issuedNo":  return "left";
+            default:          return "left";
           }
         };
 
@@ -613,7 +623,11 @@ function DetailView({
           const sizePt = Math.max(4, cfg.fontSize * MM);
           const useFont = key === "grade" ? fontBold : font;
           const textW = useFont.widthOfTextAtSize(txt, sizePt);
-          const drawX = cfg.centerX ? (cardWpt - textW) / 2 : xPt;
+          const boxWpt = cfg.w * MM;
+          const align = getAlign();
+          let drawX = xPt;
+          if (align === "center") drawX = xPt + (boxWpt - textW) / 2;
+          else if (align === "right") drawX = xPt + boxWpt - textW;
           const drawY = (CARD_H_MM - yMm - cfg.fontSize) * MM;
           page.drawText(txt, { x: drawX, y: drawY, size: sizePt, font: useFont, color: rgb(0, 0, 0) });
         }
@@ -1003,13 +1017,24 @@ function CardSideEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardPreview?.uniqueNo, keys.join(",")]);
 
+  const getAlignClass = (key: OptionKey): string => {
+    switch (key) {
+      case "cpValue":
+      case "grade":     return "justify-center text-center";
+      case "editionNo":
+      case "mintedOn":  return "justify-end text-right";
+      case "issuedNo":  return "justify-start text-left";
+      default:          return "justify-center text-center";
+    }
+  };
+
   const renderOptionPreview = (key: OptionKey) => {
     if (!cardPreview) return null;
     switch (key) {
-      case "cpValue":   return <span className="leading-none">CP {cardPreview.cpValue || "-"}</span>;
-      case "editionNo": return <span className="leading-none">EDITION No. {cardPreview.editionNo}</span>;
-      case "issuedNo":  return <span className="leading-none">ISSUED No. {cardPreview.issuedNo}</span>;
-      case "mintedOn":  return <span className="leading-none">Minted on {cardPreview.mintedOn}</span>;
+      case "cpValue":   return <span className="leading-none">{cardPreview.cpValue || "-"}</span>;
+      case "editionNo": return <span className="leading-none">{cardPreview.editionNo}</span>;
+      case "issuedNo":  return <span className="leading-none">{cardPreview.issuedNo}</span>;
+      case "mintedOn":  return <span className="leading-none">{cardPreview.mintedOn}</span>;
       case "grade":     return <span className="leading-none font-bold">{cardPreview.grade}</span>;
       case "issuedBy":  return cardPreview.issuedByUrl
         ? <img src={cardPreview.issuedByUrl} alt="" className="w-full h-full object-contain pointer-events-none" />
@@ -1090,7 +1115,7 @@ function CardSideEditor({
                 <div
                   key={key}
                   onPointerDown={e => startDrag(e, key, "move")}
-                  className={`absolute flex items-center justify-center text-foreground overflow-hidden select-none ${
+                  className={`absolute flex items-center ${isImage ? "justify-center" : getAlignClass(key)} text-foreground overflow-hidden select-none ${
                     isSel ? "border-2 border-primary bg-primary/10 ring-2 ring-primary/30" : "border border-primary/60 bg-primary/5 hover:bg-primary/10"
                   }`}
                   style={{
