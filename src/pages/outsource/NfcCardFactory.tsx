@@ -1264,18 +1264,33 @@ function CardSideEditor({
             className={`relative border-2 rounded-md overflow-hidden shadow-md ${pickMode ? "cursor-crosshair ring-2 ring-primary" : ""}`}
             style={{ width: previewW, height: previewH, background: "#fff", fontFamily: "'Inter', system-ui, sans-serif" }}
           >
-            {/* Layer order: card design (bottom) → frame (template) → options (top) */}
+            {/* Layer order: card design (bottom, clipped by frame as mask) → options (top).
+                프레임 PDF는 일러스트의 클리핑 마스크처럼 동작하여, 프레임이 그려진 영역 안쪽에만 카드 디자인이 보입니다. */}
             {(() => {
               const apiUrl = side === "front" ? cardPreview?.frontImageUrl : cardPreview?.backImageUrl;
               const designUrl = testImageUrl || apiUrl;
               if (!designUrl) return null;
+              const maskStyle: React.CSSProperties = frame?.preview
+                ? {
+                    WebkitMaskImage: `url(${frame.preview})`,
+                    maskImage: `url(${frame.preview})`,
+                    WebkitMaskRepeat: "no-repeat",
+                    maskRepeat: "no-repeat",
+                    WebkitMaskPosition: "center",
+                    maskPosition: "center",
+                    WebkitMaskSize: "contain",
+                    maskSize: "contain",
+                  }
+                : {};
               return (
-                <img src={designUrl} alt="" className="absolute inset-0 w-full h-full object-contain pointer-events-none" />
+                <img
+                  src={designUrl}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                  style={maskStyle}
+                />
               );
             })()}
-            {frame?.preview && (
-              <img src={frame.preview} alt="" className="absolute inset-0 w-full h-full object-contain pointer-events-none" />
-            )}
             {keys.map(key => {
               const cfg = layout[key];
               if (!cfg?.enabled) return null;
