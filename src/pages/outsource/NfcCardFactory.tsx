@@ -1008,12 +1008,12 @@ function DetailView({
                     <TableCell className="font-mono text-xs">{c.uniqueNo}</TableCell>
                     <TableCell>
                       {c.frontImageUrl
-                        ? <a href={c.frontImageUrl} target="_blank" rel="noopener noreferrer"><img src={c.frontImageUrl} alt="" className="w-10 h-6 object-cover border rounded" /></a>
+                        ? <a href={c.frontImageUrl} target="_blank" rel="noopener noreferrer"><CardFrame widthClassName="w-8" className="border rounded"><img src={c.frontImageUrl} alt="" className="w-full h-full object-cover" /></CardFrame></a>
                         : <span className="text-xs text-muted-foreground">-</span>}
                     </TableCell>
                     <TableCell>
                       {c.backImageUrl
-                        ? <a href={c.backImageUrl} target="_blank" rel="noopener noreferrer"><img src={c.backImageUrl} alt="" className="w-10 h-6 object-cover border rounded" /></a>
+                        ? <a href={c.backImageUrl} target="_blank" rel="noopener noreferrer"><CardFrame widthClassName="w-8" className="border rounded"><img src={c.backImageUrl} alt="" className="w-full h-full object-cover" /></CardFrame></a>
                         : <span className="text-xs text-muted-foreground">-</span>}
                     </TableCell>
                     <TableCell className="text-xs">{c.cpValue || "-"}</TableCell>
