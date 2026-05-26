@@ -19,8 +19,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Download, Eye, FileText, Loader2, Upload, X, ChevronLeft, Save } from "lucide-react";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { Download, Eye, FileText, Loader2, Upload, X, ChevronLeft, Save, Image as ImageIcon } from "lucide-react";
+import { PDFDocument, rgb } from "pdf-lib";
+import fontkit from "@pdf-lib/fontkit";
 import QRCode from "qrcode";
 import bwipjs from "bwip-js/browser";
 
@@ -29,8 +30,26 @@ const CARD_W_MM = 85.6;
 const CARD_H_MM = 53.98;
 const FRAME_BUCKET = "design-formats";
 const FRAME_PREFIX = "nfc-card";
+const TEST_IMG_PREFIX = "nfc-card-test";
 const SETTINGS_KEY_PREFIX = "outsource-nfc-card-v1";
 const GLOBAL_LAYOUT_KEY = "outsource-nfc-card-layout-default";
+
+// Inter (OFL — commercially free) TTF for pdf-lib embedding
+const INTER_TTF_URL = "https://cdn.jsdelivr.net/gh/rsms/inter@v4.0/docs/font-files/Inter-Regular.ttf";
+const INTER_BOLD_TTF_URL = "https://cdn.jsdelivr.net/gh/rsms/inter@v4.0/docs/font-files/Inter-SemiBold.ttf";
+let _interBytesCache: Uint8Array | null = null;
+let _interBoldBytesCache: Uint8Array | null = null;
+async function fetchFontBytes(url: string, which: "reg" | "bold"): Promise<Uint8Array | null> {
+  try {
+    if (which === "reg" && _interBytesCache) return _interBytesCache;
+    if (which === "bold" && _interBoldBytesCache) return _interBoldBytesCache;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const buf = new Uint8Array(await res.arrayBuffer());
+    if (which === "reg") _interBytesCache = buf; else _interBoldBytesCache = buf;
+    return buf;
+  } catch { return null; }
+}
 
 async function renderPdfFirstPagePng(bytes: Uint8Array): Promise<{ dataUrl: string; aspect: number }> {
   const doc = await (pdfjsLib as any).getDocument({ data: bytes.slice(0) }).promise;
