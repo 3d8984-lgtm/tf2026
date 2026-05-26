@@ -851,6 +851,7 @@ function DetailView({
               side="back"
               frame={frames.back}
               testImageUrl={testImages.back?.url || null}
+              testTwincodeUrl={testTwincodeSvg?.url || null}
               cardPreview={applyTestValues(cards[0], testValues)}
               layout={layoutBack}
               setLayout={setLayoutBack}
