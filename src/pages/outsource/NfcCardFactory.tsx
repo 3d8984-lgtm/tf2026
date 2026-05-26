@@ -1115,7 +1115,7 @@ function CardSideEditor({
                 <div
                   key={key}
                   onPointerDown={e => startDrag(e, key, "move")}
-                  className={`absolute flex items-center justify-center text-foreground overflow-hidden select-none ${
+                  className={`absolute flex items-center ${isImage ? "justify-center" : getAlignClass(key)} text-foreground overflow-hidden select-none ${
                     isSel ? "border-2 border-primary bg-primary/10 ring-2 ring-primary/30" : "border border-primary/60 bg-primary/5 hover:bg-primary/10"
                   }`}
                   style={{
