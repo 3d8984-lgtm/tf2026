@@ -1105,7 +1105,7 @@ function CardSideEditor({
     const startY = e.clientY;
     const cfg = layout[key];
     const startMm = { x: cfg.x, y: cfg.y, w: cfg.w, h: cfg.h };
-    const isImage = key === "twincode" || key === "issuedBy" || key === "dmBarcode";
+    const isImage = key === "twincode" || key === "dmBarcode";
     const target = e.currentTarget as HTMLElement;
     target.setPointerCapture(e.pointerId);
 
@@ -1308,7 +1308,7 @@ function CardSideEditor({
               const cfg = layout[key];
               if (!cfg?.enabled) return null;
               const fontPx = (cfg.fontSize || 3) * pxPerMm;
-              const isImage = key === "twincode" || key === "issuedBy" || key === "dmBarcode";
+              const isImage = key === "twincode" || key === "dmBarcode";
               const isSel = selected === key;
               // 텍스트는 글자 크기에 맞춰 컨테이너 자동조정, 이미지는 지정된 w/h 유지
               const xMm = cfg.centerX && isImage ? (CARD_W_MM - cfg.w) / 2 : cfg.x;
@@ -1367,7 +1367,7 @@ function CardSideEditor({
         <div className="space-y-2">
           {keys.map(key => {
             const cfg = layout[key];
-            const isImage = key === "twincode" || key === "issuedBy" || key === "dmBarcode";
+            const isImage = key === "twincode" || key === "dmBarcode";
             const isSel = selected === key;
             return (
               <div
