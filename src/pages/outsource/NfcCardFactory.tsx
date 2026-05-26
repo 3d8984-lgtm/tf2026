@@ -26,8 +26,8 @@ import QRCode from "qrcode";
 import bwipjs from "bwip-js/browser";
 
 const MM = 2.8346456693; // 1mm in pt
-const CARD_W_MM = 85.6;
-const CARD_H_MM = 53.98;
+const CARD_W_MM = 57;
+const CARD_H_MM = 87;
 const FRAME_BUCKET = "design-formats";
 const FRAME_PREFIX = "nfc-card";
 const TEST_IMG_PREFIX = "nfc-card-test";
