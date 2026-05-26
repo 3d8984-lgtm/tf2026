@@ -77,7 +77,8 @@ function tsName() {
 
 type OptionKey =
   | "cpValue" | "editionNo"
-  | "issuedNo" | "mintedOn" | "grade" | "issuedBy" | "twincode" | "dmBarcode";
+  | "issuedNo" | "mintedOn" | "grade" | "issuedBy" | "twincode" | "dmBarcode"
+  | "companyName" | "centerSlogan" | "nfcEnabled";
 
 interface OptionLayout {
   enabled: boolean;
@@ -92,7 +93,7 @@ interface OptionLayout {
 }
 
 const FRONT_KEYS: OptionKey[] = ["cpValue", "editionNo"];
-const BACK_KEYS: OptionKey[] = ["issuedNo", "mintedOn", "grade", "issuedBy", "twincode", "dmBarcode"];
+const BACK_KEYS: OptionKey[] = ["issuedNo", "mintedOn", "grade", "issuedBy", "twincode", "dmBarcode", "companyName", "centerSlogan", "nfcEnabled"];
 
 const OPTION_LABELS: Record<OptionKey, string> = {
   cpValue: "CP값",
@@ -103,17 +104,29 @@ const OPTION_LABELS: Record<OptionKey, string> = {
   issuedBy: "ISSUED BY",
   twincode: "트윈코드",
   dmBarcode: "DM 바코드",
+  companyName: "회사명",
+  centerSlogan: "중앙슬로건",
+  nfcEnabled: "NFC Enabled",
+};
+
+const DEFAULT_BACK_DEFAULTS = {
+  companyName: "TWINMETA",
+  centerSlogan: "THE ORIGINAL",
+  nfcEnabled: "NFC Enabled",
 };
 
 const DEFAULT_LAYOUT: Record<OptionKey, OptionLayout> = {
-  cpValue:   { enabled: true, x: 10, y: 10,  w: 30, h: 8,  fontSize: 4, centerX: false, centerY: false },
-  editionNo: { enabled: true, x: 10, y: 40,  w: 30, h: 6,  fontSize: 3.5, centerX: false, centerY: false },
-  issuedNo:  { enabled: true, x: 5,  y: 5,   w: 30, h: 5,  fontSize: 3,   centerX: false, centerY: false },
-  mintedOn:  { enabled: true, x: 5,  y: 12,  w: 35, h: 5,  fontSize: 3,   centerX: false, centerY: false },
-  grade:     { enabled: true, x: 55, y: 5,   w: 25, h: 6,  fontSize: 4,   centerX: false, centerY: false },
-  issuedBy:  { enabled: true, x: 55, y: 35,  w: 25, h: 12, fontSize: 0,   centerX: false, centerY: false },
-  twincode:  { enabled: true, x: 5,  y: 25,  w: 22, h: 22, fontSize: 0,   centerX: false, centerY: false },
-  dmBarcode: { enabled: true, x: 60, y: 18,  w: 14, h: 14, fontSize: 0,   centerX: false, centerY: false, padding: 0.5 },
+  cpValue:     { enabled: true, x: 10, y: 10,  w: 30, h: 8,  fontSize: 4, centerX: false, centerY: false },
+  editionNo:   { enabled: true, x: 10, y: 40,  w: 30, h: 6,  fontSize: 3.5, centerX: false, centerY: false },
+  issuedNo:    { enabled: true, x: 5,  y: 5,   w: 30, h: 5,  fontSize: 3,   centerX: false, centerY: false },
+  mintedOn:    { enabled: true, x: 5,  y: 12,  w: 35, h: 5,  fontSize: 3,   centerX: false, centerY: false },
+  grade:       { enabled: true, x: 55, y: 5,   w: 25, h: 6,  fontSize: 4,   centerX: false, centerY: false },
+  issuedBy:    { enabled: true, x: 55, y: 35,  w: 25, h: 12, fontSize: 0,   centerX: false, centerY: false },
+  twincode:    { enabled: true, x: 5,  y: 25,  w: 22, h: 22, fontSize: 0,   centerX: false, centerY: false },
+  dmBarcode:   { enabled: true, x: 60, y: 18,  w: 14, h: 14, fontSize: 0,   centerX: false, centerY: false, padding: 0.5 },
+  companyName: { enabled: true, x: 5,  y: 75,  w: 47, h: 5,  fontSize: 3,   centerX: true,  centerY: false },
+  centerSlogan:{ enabled: true, x: 5,  y: 50,  w: 47, h: 5,  fontSize: 3.5, centerX: true,  centerY: false },
+  nfcEnabled:  { enabled: true, x: 5,  y: 82,  w: 47, h: 4,  fontSize: 2.5, centerX: true,  centerY: false },
 };
 
 interface CardData {
@@ -447,6 +460,9 @@ function DetailView({
     cpValue: "", editionNo: "", issuedNo: "", mintedOn: "", grade: "",
   });
 
+  // 카드 뒷면 기본 텍스트 (API 외 전체 카드에 공통 적용)
+  const [backDefaults, setBackDefaults] = useState({ ...DEFAULT_BACK_DEFAULTS });
+
   // Load test images from storage
   useEffect(() => {
     let cancelled = false;
@@ -551,6 +567,7 @@ function DetailView({
           if (v.layoutBack)  setLayoutBack(prev => ({ ...prev, ...v.layoutBack }));
           if (v.workOrder)   setWorkOrder(prev => ({ ...prev, ...v.workOrder, orderNo }));
           if (v.testValues)  setTestValues(prev => ({ ...prev, ...v.testValues }));
+          if (v.backDefaults) setBackDefaults(prev => ({ ...prev, ...v.backDefaults }));
           break;
         }
       }
@@ -561,7 +578,7 @@ function DetailView({
 
   const saveLayout = async () => {
     if (!userId) { toast({ title: "로그인 필요", variant: "destructive" }); return; }
-    const payload = { layoutFront, layoutBack, workOrder, testValues } as any;
+    const payload = { layoutFront, layoutBack, workOrder, testValues, backDefaults } as any;
     const rows = [
       { user_id: userId, setting_key: `${SETTINGS_KEY_PREFIX}-${orderNo}`, setting_value: payload },
       { user_id: userId, setting_key: GLOBAL_LAYOUT_KEY, setting_value: payload },
@@ -630,13 +647,19 @@ function DetailView({
             case "issuedNo":  return `ISSUED No. ${card.issuedNo ?? ""}`;
             case "mintedOn":  return `Minted on ${card.mintedOn ?? ""}`;
             case "grade":     return card.grade ?? "";
+            case "companyName":  return backDefaults.companyName ?? "";
+            case "centerSlogan": return backDefaults.centerSlogan ?? "";
+            case "nfcEnabled":   return backDefaults.nfcEnabled ?? "";
             default: return "";
           }
         };
         const getAlign = (): "left" | "center" | "right" => {
           switch (key) {
             case "cpValue":
-            case "grade":     return "center";
+            case "grade":
+            case "companyName":
+            case "centerSlogan":
+            case "nfcEnabled": return "center";
             case "editionNo":
             case "mintedOn":  return "right";
             case "issuedNo":  return "left";
@@ -874,6 +897,22 @@ function DetailView({
           </CardContent>
         </Card>
 
+        {/* 뒷면 기본 텍스트 (전체 카드 공통 적용 · API 외) */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center justify-between">
+              <span>카드 뒷면 기본 텍스트</span>
+              <span className="text-[11px] font-normal text-muted-foreground">전체 카드에 공통으로 적용되는 고정 텍스트입니다</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <TxtField label="회사명" v={backDefaults.companyName} set={v => setBackDefaults(p => ({ ...p, companyName: v }))} />
+            <TxtField label="중앙슬로건" v={backDefaults.centerSlogan} set={v => setBackDefaults(p => ({ ...p, centerSlogan: v }))} />
+            <TxtField label="NFC Enabled" v={backDefaults.nfcEnabled} set={v => setBackDefaults(p => ({ ...p, nfcEnabled: v }))} />
+          </CardContent>
+        </Card>
+
+
         {/* Layout designer */}
         <Tabs defaultValue="front">
           <TabsList>
@@ -902,7 +941,9 @@ function DetailView({
               layout={layoutBack}
               setLayout={setLayoutBack}
               keys={BACK_KEYS}
+              backDefaults={backDefaults}
             />
+
           </TabsContent>
         </Tabs>
 
@@ -1011,7 +1052,7 @@ function applyTestValues(c: CardData | undefined, tv: { cpValue: string; edition
 
 // ============== Card side editor (preview + per-option controls) ==============
 function CardSideEditor({
-  side, frame, testImageUrl, testTwincodeUrl, cardPreview, layout, setLayout, keys,
+  side, frame, testImageUrl, testTwincodeUrl, cardPreview, layout, setLayout, keys, backDefaults,
 }: {
   side: "front" | "back";
   frame: any;
@@ -1021,6 +1062,7 @@ function CardSideEditor({
   layout: Record<OptionKey, OptionLayout>;
   setLayout: React.Dispatch<React.SetStateAction<Record<OptionKey, OptionLayout>>>;
   keys: OptionKey[];
+  backDefaults?: { companyName: string; centerSlogan: string; nfcEnabled: string };
 }) {
   // Zoomable preview (px per mm). Default 10 = card ~85x54mm renders ~856x540px.
   const [pxPerMm, setPxPerMm] = useState(10);
@@ -1122,7 +1164,10 @@ function CardSideEditor({
   const getAlignClass = (key: OptionKey): string => {
     switch (key) {
       case "cpValue":
-      case "grade":     return "justify-center text-center";
+      case "grade":
+      case "companyName":
+      case "centerSlogan":
+      case "nfcEnabled": return "justify-center text-center";
       case "editionNo":
       case "mintedOn":  return "justify-end text-right";
       case "issuedNo":  return "justify-start text-left";
@@ -1138,6 +1183,9 @@ function CardSideEditor({
       case "issuedNo":  return <span className="leading-none">{`ISSUED No. ${cardPreview.issuedNo}`}</span>;
       case "mintedOn":  return <span className="leading-none">{`Minted on ${cardPreview.mintedOn}`}</span>;
       case "grade":     return <span className="leading-none font-bold">{cardPreview.grade}</span>;
+      case "companyName":  return <span className="leading-none">{backDefaults?.companyName || "-"}</span>;
+      case "centerSlogan": return <span className="leading-none">{backDefaults?.centerSlogan || "-"}</span>;
+      case "nfcEnabled":   return <span className="leading-none">{backDefaults?.nfcEnabled || "-"}</span>;
       case "issuedBy":  return cardPreview.issuedByUrl
         ? <img src={cardPreview.issuedByUrl} alt="" className="w-full h-full object-contain pointer-events-none" />
         : <span className="text-[8px] text-muted-foreground">ISSUED BY</span>;
