@@ -1079,8 +1079,13 @@ function CardSideEditor({
   keys: OptionKey[];
   backDefaults?: { companyName: string; centerSlogan: string; nfcEnabled: string; issuedBy: string };
 }) {
-  // Zoomable preview (px per mm). Default 10 = card ~85x54mm renders ~856x540px.
-  const [pxPerMm, setPxPerMm] = useState(10);
+  // Zoomable preview (px per mm). Default 10 = card ~57x87mm renders ~570x870px.
+  // 실제 크기 모드: CSS 표준 96dpi → 1mm = 3.7795px. mmScale로 화면 보정 가능.
+  const PX_PER_MM_REAL = 96 / 25.4;
+  const [actualSize, setActualSize] = useState(false);
+  const [mmScale, setMmScale] = useState(100); // %
+  const [zoom, setZoom] = useState(10);
+  const pxPerMm = actualSize ? PX_PER_MM_REAL * (mmScale / 100) : zoom;
   const previewW = CARD_W_MM * pxPerMm;
   const previewH = CARD_H_MM * pxPerMm;
 
