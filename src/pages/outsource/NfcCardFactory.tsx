@@ -24,10 +24,9 @@ import { PDFDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import QRCode from "qrcode";
 import bwipjs from "bwip-js/browser";
+import { CardFrame, CARD_W_MM, CARD_H_MM } from "@/components/outsource/CardFrame";
 
 const MM = 2.8346456693; // 1mm in pt
-const CARD_W_MM = 57;
-const CARD_H_MM = 87;
 const FRAME_BUCKET = "design-formats";
 const FRAME_PREFIX = "nfc-card";
 const TEST_IMG_PREFIX = "nfc-card-test";
@@ -314,10 +313,12 @@ export default function NfcCardFactory() {
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600">서버 저장됨</span>
                   )}
                 </div>
-                <div className="w-full h-48 border rounded bg-muted/30 overflow-hidden flex items-center justify-center">
-                  {frames[side]?.preview
-                    ? <img src={frames[side]!.preview} alt="" className="w-full h-full object-contain bg-white" />
-                    : <span className="text-xs text-muted-foreground">업로드된 프레임 없음</span>}
+                <div className="flex justify-center">
+                  <CardFrame widthClassName="w-32" className="border rounded bg-white flex items-center justify-center">
+                    {frames[side]?.preview
+                      ? <img src={frames[side]!.preview} alt="" className="w-full h-full object-contain" />
+                      : <span className="text-[11px] text-muted-foreground px-2 text-center">업로드된 프레임 없음</span>}
+                  </CardFrame>
                 </div>
                 <div className="text-xs text-muted-foreground truncate">
                   {frames[side]?.name || "파일 없음 (삭제/변경 전까지 서버에 유지됩니다)"}
@@ -1009,12 +1010,12 @@ function DetailView({
                     <TableCell className="font-mono text-xs">{c.uniqueNo}</TableCell>
                     <TableCell>
                       {c.frontImageUrl
-                        ? <a href={c.frontImageUrl} target="_blank" rel="noopener noreferrer"><img src={c.frontImageUrl} alt="" className="w-10 h-6 object-cover border rounded" /></a>
+                        ? <a href={c.frontImageUrl} target="_blank" rel="noopener noreferrer"><CardFrame widthClassName="w-8" className="border rounded"><img src={c.frontImageUrl} alt="" className="w-full h-full object-cover" /></CardFrame></a>
                         : <span className="text-xs text-muted-foreground">-</span>}
                     </TableCell>
                     <TableCell>
                       {c.backImageUrl
-                        ? <a href={c.backImageUrl} target="_blank" rel="noopener noreferrer"><img src={c.backImageUrl} alt="" className="w-10 h-6 object-cover border rounded" /></a>
+                        ? <a href={c.backImageUrl} target="_blank" rel="noopener noreferrer"><CardFrame widthClassName="w-8" className="border rounded"><img src={c.backImageUrl} alt="" className="w-full h-full object-cover" /></CardFrame></a>
                         : <span className="text-xs text-muted-foreground">-</span>}
                     </TableCell>
                     <TableCell className="text-xs">{c.cpValue || "-"}</TableCell>

@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { CardFrame, CARD_W_MM, CARD_H_MM } from "./CardFrame";
 
 export interface OrderDetailData {
   orderSerialNo: string;
@@ -132,15 +133,17 @@ function ThumbCard({
   const src = valid ? `${url}${bust ? `#r=${bust}` : ""}` : "";
 
   const isCard = spec.key === "cardFrontDesignPng" || spec.key === "cardBackDesignPng";
-  const aspectClass = isCard ? "aspect-[57/87]" : "aspect-square";
   const k = (mmScale ?? 100) / 100;
-  const realSizeStyle: React.CSSProperties | undefined =
-    isCard && actualSize
-      ? { width: `calc(57mm * ${k})`, height: `calc(87mm * ${k})`, aspectRatio: "auto" as any }
-      : undefined;
+  const wrapperStyle: React.CSSProperties | undefined =
+    isCard && actualSize ? { width: `calc(${CARD_W_MM}mm * ${k} + 2px)` } : undefined;
+  const InnerFrame: React.ElementType = isCard ? CardFrame : "div";
+  const innerProps: any = isCard
+    ? { actualSize, mmScale, className: "flex items-center justify-center group" }
+    : { className: "relative aspect-square bg-muted/40 flex items-center justify-center group" };
   return (
-    <div className="rounded-lg border bg-card overflow-hidden flex flex-col" style={isCard && actualSize ? { width: `calc(57mm * ${k} + 2px)` } : undefined}>
-      <div className={`relative ${actualSize && isCard ? "" : aspectClass} bg-muted/40 flex items-center justify-center group`} style={realSizeStyle}>
+    <div className="rounded-lg border bg-card overflow-hidden flex flex-col" style={wrapperStyle}>
+      <InnerFrame {...innerProps}>
+
 
         {valid && !errored ? (
           <img
@@ -182,7 +185,7 @@ function ThumbCard({
             <Download className="w-3.5 h-3.5" />
           </Button>
         )}
-      </div>
+      </InnerFrame>
       <div className="p-2 space-y-1">
         <div className="flex items-start justify-between gap-2">
           <div className="text-xs font-medium leading-tight">
@@ -213,7 +216,7 @@ export default function OrderDetailModal({ open, onOpenChange, data, refetch }: 
   const [current, setCurrent] = useState<OrderDetailData | null>(data);
   const [loading, setLoading] = useState(false);
   const [showJson, setShowJson] = useState(false);
-  const [lightbox, setLightbox] = useState<{ url: string; label: string } | null>(null);
+  const [lightbox, setLightbox] = useState<{ url: string; label: string; isCard?: boolean } | null>(null);
   const [checks, setChecks] = useState<Record<string, boolean>>({});
   const [downloading, setDownloading] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
@@ -258,7 +261,8 @@ export default function OrderDetailModal({ open, onOpenChange, data, refetch }: 
   );
 
   const handlePreview = (spec: FieldSpec, url: string) => {
-    setLightbox({ url, label: spec.label });
+    const isCard = spec.key === "cardFrontDesignPng" || spec.key === "cardBackDesignPng";
+    setLightbox({ url, label: spec.label, isCard });
   };
 
   const handleCheck = (key: FieldKey, v: boolean) => {
@@ -510,13 +514,31 @@ export default function OrderDetailModal({ open, onOpenChange, data, refetch }: 
           </DialogHeader>
           {lightbox && (
             <div className="flex flex-col items-center gap-3">
-              <img
-                src={lightbox.url}
-                alt={lightbox.label}
-                loading="lazy"
-                referrerPolicy="no-referrer"
-                className="max-h-[70vh] object-contain"
-              />
+              {lightbox.isCard ? (
+                <CardFrame
+                  actualSize={actualSize}
+                  mmScale={mmScale}
+                  widthClassName="w-auto"
+                  className={actualSize ? "border" : "h-[70vh] border"}
+                  style={!actualSize ? { aspectRatio: `${CARD_W_MM}/${CARD_H_MM}`, width: "auto" } : undefined}
+                >
+                  <img
+                    src={lightbox.url}
+                    alt={lightbox.label}
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-contain"
+                  />
+                </CardFrame>
+              ) : (
+                <img
+                  src={lightbox.url}
+                  alt={lightbox.label}
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                  className="max-h-[70vh] object-contain"
+                />
+              )}
               <a
                 href={lightbox.url}
                 download
