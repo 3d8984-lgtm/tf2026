@@ -31,7 +31,9 @@ import {
   ImageOff,
   Code2,
   Loader2,
+  FileDown,
 } from "lucide-react";
+import { jsPDF } from "jspdf";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { CardFrame, CARD_W_MM, CARD_H_MM } from "./CardFrame";
