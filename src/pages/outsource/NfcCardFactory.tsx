@@ -1696,6 +1696,23 @@ function CardSideEditor({
     }
   };
 
+  // 오버레이 박스 자동 크기 계산용 (PDF/캔버스와 동일한 텍스트 매핑)
+  const textForOverlay = (key: OptionKey): string => {
+    if (!cardPreview) return "";
+    switch (key) {
+      case "cpValue":   return cardPreview.cpValue || "-";
+      case "editionNo": return cardPreview.editionNo || "";
+      case "issuedNo":  return `ISSUED No. ${cardPreview.issuedNo || ""}`;
+      case "mintedOn":  return `Minted on ${cardPreview.mintedOn || ""}`;
+      case "grade":     return cardPreview.grade || "";
+      case "companyName":  return backDefaults?.companyName || "";
+      case "centerSlogan": return backDefaults?.centerSlogan || "";
+      case "nfcEnabled":   return backDefaults?.nfcEnabled || "";
+      case "issuedBy":     return backDefaults?.issuedBy || "";
+      default: return "";
+    }
+  };
+
   return (
     <Card>
       <CardHeader className="pb-3">
