@@ -1983,6 +1983,44 @@ function Mini({ label, v, set, step, disabled }: { label: string; v: number; set
   );
 }
 
+// 일러스트레이터 스타일 3×3 기준점 선택기
+function AnchorPicker({ value, onChange }: { value: AnchorPoint; onChange: (v: AnchorPoint) => void }) {
+  const rows: AnchorPoint[][] = [
+    ["tl", "tc", "tr"],
+    ["ml", "mc", "mr"],
+    ["bl", "bc", "br"],
+  ];
+  return (
+    <div
+      className="inline-grid grid-cols-3 gap-0 border border-foreground/40 bg-background"
+      style={{ width: 42, height: 42 }}
+      role="radiogroup"
+      aria-label="기준점 선택"
+    >
+      {rows.flat().map(p => {
+        const active = value === p;
+        return (
+          <button
+            key={p}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            aria-label={`기준점 ${p}`}
+            onClick={e => { e.stopPropagation(); onChange(p); }}
+            className="flex items-center justify-center hover:bg-primary/10 transition-colors"
+            style={{ width: 14, height: 14 }}
+          >
+            <span
+              className={active ? "bg-primary" : "bg-foreground/40"}
+              style={{ width: 6, height: 6, borderRadius: 1 }}
+            />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function TxtField({ label, v, set, type = "text" }: { label: string; v: string; set: (v: string) => void; type?: string }) {
   return (
     <div className="space-y-1">
