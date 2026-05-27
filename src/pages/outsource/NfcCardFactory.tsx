@@ -952,6 +952,8 @@ function DetailView({
             <CardSideEditor
               side="front"
               frame={frames.front}
+              bleedMm={bleedMm}
+              setBleedMm={setBleedMm}
               testImageUrl={testImages.front?.url || null}
               cardPreview={applyTestValues(cards[0], testValues)}
               layout={layoutFront}
