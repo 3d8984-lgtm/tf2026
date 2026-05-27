@@ -36,19 +36,68 @@ const SETTINGS_KEY_PREFIX = "outsource-nfc-card-v1";
 const GLOBAL_LAYOUT_KEY = "outsource-nfc-card-layout-default";
 const TEST_TWINCODE_PREFIX = "nfc-card-test";
 
-// Inter (OFL — commercially free) TTF for pdf-lib embedding
-const INTER_TTF_URL = "https://cdn.jsdelivr.net/gh/rsms/inter@v4.0/docs/font-files/Inter-Regular.ttf";
-const INTER_BOLD_TTF_URL = "https://cdn.jsdelivr.net/gh/rsms/inter@v4.0/docs/font-files/Inter-SemiBold.ttf";
-let _interBytesCache: Uint8Array | null = null;
-let _interBoldBytesCache: Uint8Array | null = null;
-async function fetchFontBytes(url: string, which: "reg" | "bold"): Promise<Uint8Array | null> {
+// ===== Master font options (상업적 사용 가능 / commercial-free Korean gothic) =====
+interface FontOption {
+  id: string;
+  label: string;
+  css: string;        // CSS font-family stack (preview)
+  cssLink: string;    // <link rel=stylesheet> href to register family in browser
+  ttfReg: string;     // TTF/OTF URL for pdf-lib embedding (Regular)
+  ttfBold: string;    // TTF/OTF URL for pdf-lib embedding (Bold)
+}
+const FONT_OPTIONS: FontOption[] = [
+  {
+    id: "pretendard",
+    label: "Pretendard",
+    css: "'Pretendard Variable', Pretendard, -apple-system, sans-serif",
+    cssLink: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css",
+    ttfReg: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/public/static/Pretendard-Regular.otf",
+    ttfBold: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/public/static/Pretendard-Bold.otf",
+  },
+  {
+    id: "noto-sans-kr",
+    label: "Noto Sans KR",
+    css: "'Noto Sans KR', sans-serif",
+    cssLink: "https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap",
+    ttfReg: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf",
+    ttfBold: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf",
+  },
+  {
+    id: "ibm-plex-sans-kr",
+    label: "IBM Plex Sans KR",
+    css: "'IBM Plex Sans KR', sans-serif",
+    cssLink: "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;700&display=swap",
+    ttfReg: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ibmplexsanskr/IBMPlexSansKR-Regular.ttf",
+    ttfBold: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ibmplexsanskr/IBMPlexSansKR-Bold.ttf",
+  },
+  {
+    id: "nanum-gothic",
+    label: "Nanum Gothic (나눔고딕)",
+    css: "'Nanum Gothic', sans-serif",
+    cssLink: "https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700&display=swap",
+    ttfReg: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/nanumgothic/NanumGothic-Regular.ttf",
+    ttfBold: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/nanumgothic/NanumGothic-Bold.ttf",
+  },
+  {
+    id: "spoqa-han-sans-neo",
+    label: "Spoqa Han Sans Neo",
+    css: "'Spoqa Han Sans Neo', sans-serif",
+    cssLink: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f136e75c0d75cb1cd3a5a0fa3a223e/css/SpoqaHanSansNeo.css",
+    ttfReg: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f136e75c0d75cb1cd3a5a0fa3a223e/Subset/SpoqaHanSansNeo/SpoqaHanSansNeo-Regular.otf",
+    ttfBold: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f136e75c0d75cb1cd3a5a0fa3a223e/Subset/SpoqaHanSansNeo/SpoqaHanSansNeo-Bold.otf",
+  },
+];
+const DEFAULT_MASTER_FONT = "pretendard";
+
+const _fontBytesCache = new Map<string, Uint8Array>();
+async function fetchFontBytes(url: string, _which?: "reg" | "bold"): Promise<Uint8Array | null> {
   try {
-    if (which === "reg" && _interBytesCache) return _interBytesCache;
-    if (which === "bold" && _interBoldBytesCache) return _interBoldBytesCache;
+    const cached = _fontBytesCache.get(url);
+    if (cached) return cached;
     const res = await fetch(url);
     if (!res.ok) return null;
     const buf = new Uint8Array(await res.arrayBuffer());
-    if (which === "reg") _interBytesCache = buf; else _interBoldBytesCache = buf;
+    _fontBytesCache.set(url, buf);
     return buf;
   } catch { return null; }
 }
@@ -548,6 +597,23 @@ function DetailView({
   // 카드 뒷면 기본 텍스트 (API 외 전체 카드에 공통 적용)
   const [backDefaults, setBackDefaults] = useState({ ...DEFAULT_BACK_DEFAULTS });
 
+  // 마스터 글자꼴 (선택 시 카드 텍스트/숫자 미리보기 + PDF에 자동 적용)
+  const [masterFont, setMasterFont] = useState<string>(DEFAULT_MASTER_FONT);
+  const currentFont = FONT_OPTIONS.find(f => f.id === masterFont) ?? FONT_OPTIONS[0];
+
+  // 브라우저 미리보기용: 선택 가능한 모든 폰트의 웹 CSS 를 한 번만 주입
+  useEffect(() => {
+    FONT_OPTIONS.forEach(f => {
+      const id = `nfc-font-css-${f.id}`;
+      if (document.getElementById(id)) return;
+      const link = document.createElement("link");
+      link.id = id;
+      link.rel = "stylesheet";
+      link.href = f.cssLink;
+      document.head.appendChild(link);
+    });
+  }, []);
+
   // 외곽 여백(bleed) 고정값(mm) — 미리보기/PDF 동일하게 사용
   const bleedMm = DEFAULT_FRAME_BLEED_MM;
 
@@ -670,6 +736,7 @@ function DetailView({
           if (v.workOrder)   setWorkOrder(prev => ({ ...prev, ...v.workOrder, orderNo }));
           if (v.testValues)  setTestValues(prev => ({ ...prev, ...v.testValues }));
           if (v.backDefaults) setBackDefaults(prev => ({ ...prev, ...v.backDefaults }));
+          if (v.masterFont && FONT_OPTIONS.some(f => f.id === v.masterFont)) setMasterFont(v.masterFont);
           break;
         }
       }
@@ -680,7 +747,7 @@ function DetailView({
 
   const saveLayout = async () => {
     if (!userId) { toast({ title: "로그인 필요", variant: "destructive" }); return; }
-    const payload = { layoutFront, layoutBack, workOrder, testValues, backDefaults } as any;
+    const payload = { layoutFront, layoutBack, workOrder, testValues, backDefaults, masterFont } as any;
     const rows = [
       { user_id: userId, setting_key: `${SETTINGS_KEY_PREFIX}-${orderNo}`, setting_value: payload },
       { user_id: userId, setting_key: GLOBAL_LAYOUT_KEY, setting_value: payload },
@@ -699,8 +766,8 @@ function DetailView({
   const buildCardPdfBytes = async (card: CardData, opts?: { sides?: Array<"front" | "back"> }): Promise<Uint8Array> => {
     const out = await PDFDocument.create();
     out.registerFontkit(fontkit);
-    const interReg = await fetchFontBytes(INTER_TTF_URL, "reg");
-    const interBold = await fetchFontBytes(INTER_BOLD_TTF_URL, "bold");
+    const interReg = await fetchFontBytes(currentFont.ttfReg, "reg");
+    const interBold = await fetchFontBytes(currentFont.ttfBold, "bold");
     const font = interReg
       ? await out.embedFont(interReg, { subset: true })
       : await out.embedFont((await import("pdf-lib")).StandardFonts.Helvetica);
@@ -985,6 +1052,45 @@ function DetailView({
           </CardContent>
         </Card>
 
+        {/* 마스터 글자꼴 설정 — 미리보기 + PDF에 자동 적용 */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center justify-between gap-2 flex-wrap">
+              <span>마스터 글자꼴</span>
+              <span className="text-[11px] font-normal text-muted-foreground">
+                상업적 사용 가능 고딕체 · 선택 시 카드 텍스트/숫자에 자동 적용 (미리보기 + PDF)
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+              {FONT_OPTIONS.map(f => {
+                const active = masterFont === f.id;
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setMasterFont(f.id)}
+                    className={`rounded-md border p-3 text-left transition-colors ${
+                      active
+                        ? "border-primary bg-primary/10 ring-2 ring-primary/30"
+                        : "border-border hover:bg-accent"
+                    }`}
+                  >
+                    <div className="text-[11px] text-muted-foreground mb-1">{f.label}</div>
+                    <div className="text-lg leading-tight" style={{ fontFamily: f.css }}>
+                      가나다 ABC 123
+                    </div>
+                    <div className="text-xs mt-0.5 text-muted-foreground" style={{ fontFamily: f.css }}>
+                      ISSUED No. 0001
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Test values for preview */}
         <Card>
           <CardHeader className="pb-3">
@@ -1031,6 +1137,7 @@ function DetailView({
               side="front"
               frame={frames.front}
               bleedMm={bleedMm}
+              fontCss={currentFont.css}
               testImageUrl={testImages.front?.url || null}
               cardPreview={applyTestValues(cards[0], testValues)}
               layout={layoutFront}
@@ -1053,6 +1160,7 @@ function DetailView({
               side="back"
               frame={frames.back}
               bleedMm={bleedMm}
+              fontCss={currentFont.css}
               testImageUrl={testImages.back?.url || null}
               testTwincodeUrl={testTwincodeSvg?.url || null}
               cardPreview={applyTestValues(cards[0], testValues)}
@@ -1181,7 +1289,7 @@ function applyTestValues(c: CardData | undefined, tv: { cpValue: string; edition
 // ============== Card side editor (preview + per-option controls) ==============
 function CardSideEditor({
   side, frame, testImageUrl, testTwincodeUrl, cardPreview, layout, setLayout, keys, backDefaults, onTestPdf,
-  bleedMm,
+  bleedMm, fontCss,
 }: {
   side: "front" | "back";
   frame: any;
@@ -1194,6 +1302,7 @@ function CardSideEditor({
   backDefaults?: { companyName: string; centerSlogan: string; nfcEnabled: string; issuedBy: string };
   onTestPdf?: () => void | Promise<void>;
   bleedMm: number;
+  fontCss?: string;
 }) {
   const [pdfBusy, setPdfBusy] = useState(false);
   // 실제 카드 크기는 업로드된 프레임 PDF 크기를 따른다. 프레임이 없으면 기본 57×87mm.
@@ -1392,7 +1501,7 @@ function CardSideEditor({
           <CardFrame
             ref={stageRef}
             className="border-2 rounded-md shadow-md"
-            style={{ width: previewW, background: "#fff", fontFamily: "'Inter', system-ui, sans-serif" }}
+            style={{ width: previewW, background: "#fff", fontFamily: fontCss || "'Inter', system-ui, sans-serif" }}
           >
 
             {/* 열전사 디자인 공장과 동일하게 PDF를 마스크 캔버스로 변환해 디자인을 먼저 합성합니다. */}
