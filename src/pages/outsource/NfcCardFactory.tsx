@@ -1196,12 +1196,14 @@ function CardSideEditor({
   bleedMm: number;
 }) {
   const [pdfBusy, setPdfBusy] = useState(false);
-  // 실제 57×87mm 비율을 유지하되, 위치 확인을 위해 화면에서는 2배 확대.
+  // 실제 카드 크기는 업로드된 프레임 PDF 크기를 따른다. 프레임이 없으면 기본 57×87mm.
+  const cardWmm = frame?.widthPt ? frame.widthPt * 25.4 / 72 : CARD_W_MM;
+  const cardHmm = frame?.heightPt ? frame.heightPt * 25.4 / 72 : CARD_H_MM;
   const PX_PER_MM_REAL = 96 / 25.4;
   const PREVIEW_SCALE = 2;
   const pxPerMm = PX_PER_MM_REAL * PREVIEW_SCALE;
-  const previewW = CARD_W_MM * pxPerMm;
-  const previewH = CARD_H_MM * pxPerMm;
+  const previewW = cardWmm * pxPerMm;
+  const previewH = cardHmm * pxPerMm;
 
   const [selected, setSelected] = useState<OptionKey | null>(keys[0] ?? null);
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -1236,8 +1238,8 @@ function CardSideEditor({
       const dyMm = (ev.clientY - startY) / pxPerMm;
       if (mode === "move") {
         // 텍스트(autoSize)는 컨테이너 너비/높이가 가변이므로 카드 전체 범위로 클램프
-        const maxX = isImage ? CARD_W_MM - cfg.w : CARD_W_MM;
-        const maxY = isImage ? CARD_H_MM - cfg.h : CARD_H_MM;
+        const maxX = isImage ? cardWmm - cfg.w : cardWmm;
+        const maxY = isImage ? cardHmm - cfg.h : cardHmm;
         update(key, {
           x: clampMm(startMm.x + dxMm, maxX),
           y: clampMm(startMm.y + dyMm, maxY),
@@ -1247,12 +1249,12 @@ function CardSideEditor({
       } else {
         if (key === "dmBarcode") {
           // square: keep w == h
-          const size = clampMm(startMm.w + Math.max(dxMm, dyMm), Math.min(CARD_W_MM - cfg.x, CARD_H_MM - cfg.y));
+          const size = clampMm(startMm.w + Math.max(dxMm, dyMm), Math.min(cardWmm - cfg.x, cardHmm - cfg.y));
           update(key, { w: size, h: size });
         } else {
           update(key, {
-            w: clampMm(startMm.w + dxMm, CARD_W_MM - cfg.x),
-            h: clampMm(startMm.h + dyMm, CARD_H_MM - cfg.y),
+            w: clampMm(startMm.w + dxMm, cardWmm - cfg.x),
+            h: clampMm(startMm.h + dyMm, cardHmm - cfg.y),
           });
         }
       }
@@ -1361,7 +1363,7 @@ function CardSideEditor({
         <CardTitle className="text-sm flex items-center justify-between gap-3 flex-wrap">
           <span>{side === "front" ? "카드 앞면" : "카드 뒷면"} 옵션 배치</span>
           <div className="flex items-center gap-3 text-xs font-normal">
-            <span className="text-muted-foreground">실제 인쇄 크기 (57×87mm)</span>
+            <span className="text-muted-foreground">실제 인쇄 크기 ({cardWmm.toFixed(1)}×{cardHmm.toFixed(1)}mm){frame ? " · 프레임 PDF 기준" : " · 기본값"}</span>
             {onTestPdf && (
               <Button
                 type="button"
@@ -1417,8 +1419,8 @@ function CardSideEditor({
               const isImage = key === "twincode" || key === "dmBarcode";
               const isSel = selected === key;
               // PDF와 동일한 박스 기반 좌표/정렬 — 텍스트도 cfg.w 폭의 박스 안에서 정렬
-              const xMm = cfg.centerX && isImage ? (CARD_W_MM - cfg.w) / 2 : cfg.x;
-              const yMm = cfg.centerY && isImage ? (CARD_H_MM - cfg.h) / 2 : cfg.y;
+              const xMm = cfg.centerX && isImage ? (cardWmm - cfg.w) / 2 : cfg.x;
+              const yMm = cfg.centerY && isImage ? (cardHmm - cfg.h) / 2 : cfg.y;
               const boxWpx = cfg.w * pxPerMm;
               const boxHpx = isImage ? cfg.h * pxPerMm : Math.max(fontPx, 4);
               const alignClass = isImage ? "justify-center" : getAlignClass(key);
