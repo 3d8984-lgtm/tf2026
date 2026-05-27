@@ -597,6 +597,23 @@ function DetailView({
   // 카드 뒷면 기본 텍스트 (API 외 전체 카드에 공통 적용)
   const [backDefaults, setBackDefaults] = useState({ ...DEFAULT_BACK_DEFAULTS });
 
+  // 마스터 글자꼴 (선택 시 카드 텍스트/숫자 미리보기 + PDF에 자동 적용)
+  const [masterFont, setMasterFont] = useState<string>(DEFAULT_MASTER_FONT);
+  const currentFont = FONT_OPTIONS.find(f => f.id === masterFont) ?? FONT_OPTIONS[0];
+
+  // 브라우저 미리보기용: 선택 가능한 모든 폰트의 웹 CSS 를 한 번만 주입
+  useEffect(() => {
+    FONT_OPTIONS.forEach(f => {
+      const id = `nfc-font-css-${f.id}`;
+      if (document.getElementById(id)) return;
+      const link = document.createElement("link");
+      link.id = id;
+      link.rel = "stylesheet";
+      link.href = f.cssLink;
+      document.head.appendChild(link);
+    });
+  }, []);
+
   // 외곽 여백(bleed) 고정값(mm) — 미리보기/PDF 동일하게 사용
   const bleedMm = DEFAULT_FRAME_BLEED_MM;
 
