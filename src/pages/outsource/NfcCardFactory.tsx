@@ -487,7 +487,7 @@ interface OrderRow {
   quantity: number;
 }
 
-// ---------- DataMatrix via bwip-js → PNG bytes ----------
+// ---------- DataMatrix via bwip-js → PNG bytes (legacy raster, kept for fallback) ----------
 async function dataMatrixPngBytes(text: string, sizePx = 300): Promise<Uint8Array> {
   const canvas = document.createElement("canvas");
   await (bwipjs as any).toCanvas(canvas, {
@@ -498,7 +498,6 @@ async function dataMatrixPngBytes(text: string, sizePx = 300): Promise<Uint8Arra
     paddingheight: 0,
     includetext: false,
   });
-  // re-render at sizePx
   const out = document.createElement("canvas");
   out.width = sizePx; out.height = sizePx;
   const ctx = out.getContext("2d")!;
@@ -510,6 +509,18 @@ async function dataMatrixPngBytes(text: string, sizePx = 300): Promise<Uint8Arra
   const arr = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
   return arr;
+}
+
+// ---------- DataMatrix via bwip-js → SVG string (vector for PDF) ----------
+function dataMatrixSvgString(text: string): string {
+  return (bwipjs as any).toSVG({
+    bcid: "datamatrix",
+    text: text || "TWINMETA",
+    scale: 4,
+    paddingwidth: 0,
+    paddingheight: 0,
+    includetext: false,
+  });
 }
 
 async function urlToPngBytes(url: string): Promise<Uint8Array> {
