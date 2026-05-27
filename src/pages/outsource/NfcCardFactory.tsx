@@ -315,6 +315,7 @@ interface OptionLayout {
   h: number;      // mm (for images/svg); text uses fontSize
   fontSize: number; // mm (text height)
   anchor?: AnchorPoint; // 바운딩 박스 기준점 (기본: 텍스트="mc", 이미지="tl")
+  sizeAnchor?: AnchorPoint; // 바운딩 박스 내부에서 이미지(정사각 코드 등)가 정렬될 기준점 (기본: "mc")
   align?: TextAlign; // 텍스트 정렬 (왼쪽/중앙/오른쪽)
   padding?: number; // mm — DM 바코드 흰 여백 (quiet zone)
   lockAspect?: boolean; // 이미지 옵션의 비율 잠금 (서명 등)
