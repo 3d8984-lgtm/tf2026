@@ -55,28 +55,12 @@ const FONT_OPTIONS: FontOption[] = [
     ttfBold: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/public/static/Pretendard-Bold.otf",
   },
   {
-    id: "noto-sans-kr",
-    label: "Noto Sans KR",
-    css: "'Noto Sans KR', sans-serif",
-    cssLink: "https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap",
-    ttfReg: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf",
-    ttfBold: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf",
-  },
-  {
     id: "ibm-plex-sans-kr",
     label: "IBM Plex Sans KR",
     css: "'IBM Plex Sans KR', sans-serif",
     cssLink: "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;700&display=swap",
     ttfReg: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ibmplexsanskr/IBMPlexSansKR-Regular.ttf",
     ttfBold: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ibmplexsanskr/IBMPlexSansKR-Bold.ttf",
-  },
-  {
-    id: "nanum-gothic",
-    label: "Nanum Gothic (나눔고딕)",
-    css: "'Nanum Gothic', sans-serif",
-    cssLink: "https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700&display=swap",
-    ttfReg: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/nanumgothic/NanumGothic-Regular.ttf",
-    ttfBold: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/nanumgothic/NanumGothic-Bold.ttf",
   },
   {
     id: "spoqa-han-sans-neo",
@@ -86,8 +70,34 @@ const FONT_OPTIONS: FontOption[] = [
     ttfReg: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f136e75c0d75cb1cd3a5a0fa3a223e/Subset/SpoqaHanSansNeo/SpoqaHanSansNeo-Regular.otf",
     ttfBold: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f136e75c0d75cb1cd3a5a0fa3a223e/Subset/SpoqaHanSansNeo/SpoqaHanSansNeo-Bold.otf",
   },
+  {
+    id: "black-han-sans",
+    label: "Black Han Sans (블랙한산스 · Bold)",
+    css: "'Black Han Sans', sans-serif",
+    cssLink: "https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap",
+    ttfReg: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/blackhansans/BlackHanSans-Regular.ttf",
+    ttfBold: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/blackhansans/BlackHanSans-Regular.ttf",
+  },
+  {
+    id: "do-hyeon",
+    label: "Do Hyeon (도현체 · Bold)",
+    css: "'Do Hyeon', sans-serif",
+    cssLink: "https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap",
+    ttfReg: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/dohyeon/DoHyeon-Regular.ttf",
+    ttfBold: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/dohyeon/DoHyeon-Regular.ttf",
+  },
 ];
 const DEFAULT_MASTER_FONT = "pretendard";
+const FONT_WEIGHTS: { value: number; label: string }[] = [
+  { value: 300, label: "300 Light" },
+  { value: 400, label: "400 Regular" },
+  { value: 500, label: "500 Medium" },
+  { value: 600, label: "600 Semibold" },
+  { value: 700, label: "700 Bold" },
+  { value: 800, label: "800 Extrabold" },
+  { value: 900, label: "900 Black" },
+];
+const DEFAULT_MASTER_FONT_WEIGHT = 500;
 
 const _fontBytesCache = new Map<string, Uint8Array>();
 async function fetchFontBytes(url: string, _which?: "reg" | "bold"): Promise<Uint8Array | null> {
@@ -599,6 +609,7 @@ function DetailView({
 
   // 마스터 글자꼴 (선택 시 카드 텍스트/숫자 미리보기 + PDF에 자동 적용)
   const [masterFont, setMasterFont] = useState<string>(DEFAULT_MASTER_FONT);
+  const [masterFontWeight, setMasterFontWeight] = useState<number>(DEFAULT_MASTER_FONT_WEIGHT);
   const currentFont = FONT_OPTIONS.find(f => f.id === masterFont) ?? FONT_OPTIONS[0];
 
   // 브라우저 미리보기용: 선택 가능한 모든 폰트의 웹 CSS 를 한 번만 주입
@@ -737,6 +748,7 @@ function DetailView({
           if (v.testValues)  setTestValues(prev => ({ ...prev, ...v.testValues }));
           if (v.backDefaults) setBackDefaults(prev => ({ ...prev, ...v.backDefaults }));
           if (v.masterFont && FONT_OPTIONS.some(f => f.id === v.masterFont)) setMasterFont(v.masterFont);
+          if (typeof v.masterFontWeight === "number") setMasterFontWeight(v.masterFontWeight);
           break;
         }
       }
@@ -747,7 +759,7 @@ function DetailView({
 
   const saveLayout = async () => {
     if (!userId) { toast({ title: "로그인 필요", variant: "destructive" }); return; }
-    const payload = { layoutFront, layoutBack, workOrder, testValues, backDefaults, masterFont } as any;
+    const payload = { layoutFront, layoutBack, workOrder, testValues, backDefaults, masterFont, masterFontWeight } as any;
     const rows = [
       { user_id: userId, setting_key: `${SETTINGS_KEY_PREFIX}-${orderNo}`, setting_value: payload },
       { user_id: userId, setting_key: GLOBAL_LAYOUT_KEY, setting_value: payload },
@@ -868,7 +880,7 @@ function DetailView({
           const txt = getText();
           if (!txt) continue;
           const sizePt = Math.max(4, cfg.fontSize * MM);
-          const useFont = key === "grade" ? fontBold : font;
+          const useFont = (key === "grade" || masterFontWeight >= 600) ? fontBold : font;
           const textW = useFont.widthOfTextAtSize(txt, sizePt);
           const boxWpt = cfg.w * MM;
           const align = getAlign();
@@ -1062,7 +1074,7 @@ function DetailView({
               </span>
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
               {FONT_OPTIONS.map(f => {
                 const active = masterFont === f.id;
@@ -1078,18 +1090,47 @@ function DetailView({
                     }`}
                   >
                     <div className="text-[11px] text-muted-foreground mb-1">{f.label}</div>
-                    <div className="text-lg leading-tight" style={{ fontFamily: f.css }}>
+                    <div className="text-lg leading-tight" style={{ fontFamily: f.css, fontWeight: masterFontWeight }}>
                       가나다 ABC 123
                     </div>
-                    <div className="text-xs mt-0.5 text-muted-foreground" style={{ fontFamily: f.css }}>
+                    <div className="text-xs mt-0.5 text-muted-foreground" style={{ fontFamily: f.css, fontWeight: masterFontWeight }}>
                       ISSUED No. 0001
                     </div>
                   </button>
                 );
               })}
             </div>
+
+            {/* BOLD 강도 (font-weight) */}
+            <div className="flex items-center gap-3 flex-wrap pt-1">
+              <div className="text-xs text-muted-foreground min-w-[80px]">BOLD 강도</div>
+              <div className="flex flex-wrap gap-1.5">
+                {FONT_WEIGHTS.map(w => {
+                  const active = masterFontWeight === w.value;
+                  return (
+                    <button
+                      key={w.value}
+                      type="button"
+                      onClick={() => setMasterFontWeight(w.value)}
+                      className={`px-2.5 py-1 rounded-md border text-xs transition-colors ${
+                        active
+                          ? "border-primary bg-primary/10 ring-1 ring-primary/30"
+                          : "border-border hover:bg-accent"
+                      }`}
+                      style={{ fontFamily: currentFont.css, fontWeight: w.value }}
+                    >
+                      {w.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                PDF 출력 시 600 이상은 Bold, 미만은 Regular로 임베드됩니다.
+              </div>
+            </div>
           </CardContent>
         </Card>
+
 
         {/* Test values for preview */}
         <Card>
@@ -1138,6 +1179,7 @@ function DetailView({
               frame={frames.front}
               bleedMm={bleedMm}
               fontCss={currentFont.css}
+              fontWeight={masterFontWeight}
               testImageUrl={testImages.front?.url || null}
               cardPreview={applyTestValues(cards[0], testValues)}
               layout={layoutFront}
@@ -1161,6 +1203,7 @@ function DetailView({
               frame={frames.back}
               bleedMm={bleedMm}
               fontCss={currentFont.css}
+              fontWeight={masterFontWeight}
               testImageUrl={testImages.back?.url || null}
               testTwincodeUrl={testTwincodeSvg?.url || null}
               cardPreview={applyTestValues(cards[0], testValues)}
@@ -1289,7 +1332,7 @@ function applyTestValues(c: CardData | undefined, tv: { cpValue: string; edition
 // ============== Card side editor (preview + per-option controls) ==============
 function CardSideEditor({
   side, frame, testImageUrl, testTwincodeUrl, cardPreview, layout, setLayout, keys, backDefaults, onTestPdf,
-  bleedMm, fontCss,
+  bleedMm, fontCss, fontWeight,
 }: {
   side: "front" | "back";
   frame: any;
@@ -1303,6 +1346,7 @@ function CardSideEditor({
   onTestPdf?: () => void | Promise<void>;
   bleedMm: number;
   fontCss?: string;
+  fontWeight?: number;
 }) {
   const [pdfBusy, setPdfBusy] = useState(false);
   // 실제 카드 크기는 업로드된 프레임 PDF 크기를 따른다. 프레임이 없으면 기본 57×87mm.
@@ -1501,7 +1545,7 @@ function CardSideEditor({
           <CardFrame
             ref={stageRef}
             className="border-2 rounded-md shadow-md"
-            style={{ width: previewW, background: "#fff", fontFamily: fontCss || "'Inter', system-ui, sans-serif" }}
+            style={{ width: previewW, background: "#fff", fontFamily: fontCss || "'Inter', system-ui, sans-serif", fontWeight: fontWeight ?? 500 }}
           >
 
             {/* 열전사 디자인 공장과 동일하게 PDF를 마스크 캔버스로 변환해 디자인을 먼저 합성합니다. */}
