@@ -67,7 +67,7 @@ const FONT_OPTIONS: FontOption[] = [
     id: "spoqa-han-sans-neo",
     label: "Spoqa Han Sans Neo",
     css: "'Spoqa Han Sans Neo', sans-serif",
-    cssLink: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans/css/SpoqaHanSansNeo.css",
+    cssLink: "", // bundled locally via ensureSpoqaFontFace()
   },
   {
     id: "black-han-sans",
@@ -82,7 +82,7 @@ const FONT_OPTIONS: FontOption[] = [
     cssLink: "https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap",
   },
 ];
-const DEFAULT_MASTER_FONT = "pretendard";
+const DEFAULT_MASTER_FONT = "spoqa-han-sans-neo";
 const FONT_WEIGHTS: { value: number; label: string }[] = [
   { value: 300, label: "300 Light" },
   { value: 400, label: "400 Regular" },
