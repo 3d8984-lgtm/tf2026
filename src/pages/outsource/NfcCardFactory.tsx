@@ -942,21 +942,6 @@ function DetailView({
       }
     };
 
-    const alignFor = (key: OptionKey): "left" | "center" | "right" => {
-      switch (key) {
-        case "cpValue":
-        case "grade":
-        case "centerSlogan": return "center";
-        case "editionNo":
-        case "mintedOn":
-        case "nfcEnabled":   return "right";
-        case "issuedNo":
-        case "companyName":
-        case "issuedBy":     return "left";
-        default:             return "left";
-      }
-    };
-
     const drawSide = async (
       side: "front" | "back",
       layout: Record<OptionKey, OptionLayout>,
@@ -1033,17 +1018,9 @@ function DetailView({
         const txt = textFor(key);
         if (!txt) continue;
         const fontPx = Math.max(4, cfg.fontSize * pxPerMm);
-        const weight = key === "grade" ? Math.max(700, masterFontWeight) : masterFontWeight;
+        const weight = textWeightForOption(key, masterFontWeight);
         try { await (document as any).fonts?.load(`${weight} ${fontPx}px ${currentFont.css}`); } catch {}
-        ctx.font = `${weight} ${fontPx}px ${currentFont.css}`;
-        ctx.fillStyle = "#000";
-        ctx.textBaseline = "top";
-        const textW = ctx.measureText(txt).width;
-        const align = alignFor(key);
-        let drawX = x;
-        if (align === "center") drawX = x + (w - textW) / 2;
-        else if (align === "right") drawX = x + w - textW;
-        ctx.fillText(txt, drawX, y);
+        drawCanvasTextElement(ctx, txt, x, y, w, fontPx, currentFont.css, weight, alignForOption(key));
       }
 
       const png = await canvasToPngBytes(canvas);
