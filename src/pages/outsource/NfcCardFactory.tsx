@@ -66,9 +66,9 @@ const FONT_OPTIONS: FontOption[] = [
     id: "spoqa-han-sans-neo",
     label: "Spoqa Han Sans Neo",
     css: "'Spoqa Han Sans Neo', sans-serif",
-    cssLink: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f136e75c0d75cb1cd3a5a0fa3a223e/css/SpoqaHanSansNeo.css",
-    ttfReg: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f136e75c0d75cb1cd3a5a0fa3a223e/Subset/SpoqaHanSansNeo/SpoqaHanSansNeo-Regular.otf",
-    ttfBold: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f136e75c0d75cb1cd3a5a0fa3a223e/Subset/SpoqaHanSansNeo/SpoqaHanSansNeo-Bold.otf",
+    cssLink: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans/css/SpoqaHanSansNeo.css",
+    ttfReg: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans/Subset/SpoqaHanSansNeo/SpoqaHanSansNeo-Regular.otf",
+    ttfBold: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans/Subset/SpoqaHanSansNeo/SpoqaHanSansNeo-Bold.otf",
   },
   {
     id: "black-han-sans",
