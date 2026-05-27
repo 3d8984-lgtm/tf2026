@@ -938,11 +938,8 @@ function DetailView({
       layout: Record<OptionKey, OptionLayout>,
       keys: OptionKey[],
     ) => {
-      const frame = frames[side];
-      const pageWpt = frame?.widthPt ?? CARD_W_MM * MM;
-      const pageHpt = frame?.heightPt ?? CARD_H_MM * MM;
-      const cardWmm = pageWpt * 25.4 / 72;
-      const cardHmm = pageHpt * 25.4 / 72;
+      const cardWmm = cardSize.width;
+      const cardHmm = cardSize.height;
       const pxPerMm = 300 / 25.4;
       const canvas = document.createElement("canvas");
       canvas.width = Math.max(64, Math.round(cardWmm * pxPerMm));
@@ -956,15 +953,11 @@ function DetailView({
       const designUrl = testImages[side]?.url || (side === "front" ? card.frontImageUrl : card.backImageUrl);
       if (designUrl) {
         try {
-          const clipped = await composeMaskedCardCanvas(designUrl, frame?.maskCanvas ?? null, canvas.width, canvas.height);
+          const clipped = await composeMaskedCardCanvas(designUrl, null, canvas.width, canvas.height);
           ctx.drawImage(clipped, 0, 0, canvas.width, canvas.height);
         } catch (e) { console.warn("card design render failed", e); }
-      } else if (frame?.preview) {
-        try {
-          const img = await loadImage(frame.preview, null);
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        } catch (e) { console.warn("frame preview render failed", e); }
       }
+
 
       for (const key of keys) {
         const cfg = layout[key];
