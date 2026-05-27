@@ -1443,6 +1443,10 @@ function DetailView({
           </CardContent>
         </Card>
 
+        {uploadDebug && (
+          <UploadDebugPanel info={uploadDebug} onClose={() => setUploadDebug(null)} />
+        )}
+
         {/* Work order */}
         <Card className="border-dashed">
           <CardHeader className="pb-3">
