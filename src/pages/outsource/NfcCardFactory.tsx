@@ -21,7 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Download, Eye, FileText, Loader2, Upload, X, ChevronLeft, Save, Image as ImageIcon } from "lucide-react";
+import { AlertTriangle, Download, Eye, FileText, Loader2, Upload, X, ChevronLeft, Save, Image as ImageIcon } from "lucide-react";
 import { PDFDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import bwipjs from "bwip-js/browser";
@@ -43,6 +43,123 @@ const TEST_SIGNATURE_PREFIX = "nfc-card-test";
 
 interface CardSize { width: number; height: number }
 const DEFAULT_CARD_SIZE: CardSize = { width: CARD_W_MM, height: CARD_H_MM };
+
+type UploadDebugInfo = {
+  title: string;
+  bucket: string;
+  objectPath: string;
+  requestPath: string;
+  operation: string;
+  httpStatus: string;
+  storageStatusCode: string;
+  errorMessage: string;
+  errorName: string;
+  fileName: string;
+  fileType: string;
+  fileSize: string;
+  contentType: string;
+  upsert: string;
+  authState: string;
+  userId: string;
+  policyTarget: string;
+  policyHint: string;
+  likelyCause: string;
+  checkedAt: string;
+};
+
+function formatFileSize(bytes?: number) {
+  if (!Number.isFinite(bytes)) return "unknown";
+  if ((bytes ?? 0) < 1024) return `${bytes} B`;
+  if ((bytes ?? 0) < 1024 * 1024) return `${((bytes ?? 0) / 1024).toFixed(1)} KB`;
+  return `${((bytes ?? 0) / 1024 / 1024).toFixed(2)} MB`;
+}
+
+function buildUploadDebugInfo(params: {
+  title: string;
+  objectPath: string;
+  operation: string;
+  error: unknown;
+  file?: File | Blob | null;
+  fileName?: string;
+  contentType?: string;
+  userId?: string;
+}): UploadDebugInfo {
+  const error = (params.error && typeof params.error === "object") ? params.error as Record<string, unknown> : {};
+  const statusCode = String(error.statusCode || error.status || "unknown");
+  const message = String(error.message || (params.error instanceof Error ? params.error.message : "알 수 없는 업로드 오류"));
+  const isRls = /row-level security|rls|unauthorized|403/i.test(`${statusCode} ${message}`);
+
+  return {
+    title: params.title,
+    bucket: FRAME_BUCKET,
+    objectPath: params.objectPath,
+    requestPath: `/storage/v1/object/${FRAME_BUCKET}/${params.objectPath}`,
+    operation: params.operation,
+    httpStatus: statusCode === "unknown" ? "Storage API 응답 코드 확인 불가" : statusCode,
+    storageStatusCode: String(error.statusCode || "unknown"),
+    errorMessage: message,
+    errorName: String(error.name || error.error || (params.error instanceof Error ? params.error.name : "StorageError")),
+    fileName: params.fileName || (params.file instanceof File ? params.file.name : "변환된 업로드 파일"),
+    fileType: params.file instanceof File ? (params.file.type || "unknown") : "Blob",
+    fileSize: formatFileSize(params.file?.size),
+    contentType: params.contentType || "unknown",
+    upsert: "true",
+    authState: params.userId ? "로그인 사용자 토큰으로 요청" : "사용자 ID 없음 / 로그인 필요",
+    userId: params.userId || "없음",
+    policyTarget: `storage.objects 정책 + bucket_id='${FRAME_BUCKET}'`,
+    policyHint: "INSERT/UPDATE/DELETE 정책의 WITH CHECK 또는 USING 조건이 업로드 요청의 bucket_id/name/auth.uid()와 맞아야 합니다.",
+    likelyCause: isRls
+      ? "저장소 RLS 정책이 이 요청을 허용하지 않았습니다. bucket_id, object path, auth.uid(), 정책 조건을 확인해야 합니다."
+      : "Storage API 또는 파일 처리 단계에서 실패했습니다. 아래 요청 정보와 오류 메시지를 확인하세요.",
+    checkedAt: new Date().toLocaleString(),
+  };
+}
+
+function UploadDebugPanel({ info, onClose }: { info: UploadDebugInfo; onClose: () => void }) {
+  const rows: Array<[string, string]> = [
+    ["버킷", info.bucket],
+    ["오브젝트 경로", info.objectPath],
+    ["요청 경로", info.requestPath],
+    ["작업", info.operation],
+    ["HTTP/Storage 상태", `${info.httpStatus} / ${info.storageStatusCode}`],
+    ["오류명", info.errorName],
+    ["오류 메시지", info.errorMessage],
+    ["파일", `${info.fileName} · ${info.fileType} · ${info.fileSize}`],
+    ["Content-Type", info.contentType],
+    ["Upsert", info.upsert],
+    ["인증", info.authState],
+    ["사용자 ID", info.userId],
+    ["정책 대상", info.policyTarget],
+    ["정책 힌트", info.policyHint],
+    ["추정 원인", info.likelyCause],
+    ["확인 시각", info.checkedAt],
+  ];
+
+  return (
+    <Card className="border-destructive/40 bg-destructive/5">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm flex items-center justify-between gap-3">
+          <span className="flex items-center gap-2 text-destructive">
+            <AlertTriangle className="w-4 h-4" /> {info.title}
+          </span>
+          <Button size="sm" variant="ghost" onClick={onClose} className="h-7 px-2">
+            <X className="w-3 h-3" />
+          </Button>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="rounded-md border bg-background/60 overflow-hidden">
+          {rows.map(([label, value]) => (
+            <div key={label} className="grid grid-cols-1 md:grid-cols-[150px_1fr] border-b last:border-b-0">
+              <div className="px-3 py-2 text-xs font-medium bg-muted/50">{label}</div>
+              <div className="px-3 py-2 text-xs font-mono break-all whitespace-pre-wrap">{value}</div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 // ===== Master font options (상업적 사용 가능 / commercial-free Korean gothic) =====
 interface FontOption {
@@ -823,6 +940,7 @@ function DetailView({
 
   // Test signature file (server-persisted; falls back to API signatureUrl when removed)
   const [testSignature, setTestSignature] = useState<{ url: string; name: string } | null>(null);
+  const [uploadDebug, setUploadDebug] = useState<UploadDebugInfo | null>(null);
 
   // Test values for preview only (override card[0] for front/back fields)
   const [testValues, setTestValues] = useState({
@@ -923,19 +1041,43 @@ function DetailView({
         uploadName = file.name.replace(/\.pdf$/i, "") + ".png";
         contentType = "image/png";
       }
-      const safe = uploadName.replace(/[^\w.\-]+/g, "_");
+      const safe = uploadName.replace(/[^\w.-]+/g, "_");
       const path = `${TEST_IMG_PREFIX}/${side}__${safe}`;
       const { error } = await supabase.storage.from(FRAME_BUCKET)
         .upload(path, uploadFile, { upsert: true, contentType });
-      if (error) { toast({ title: "업로드 실패", description: error.message, variant: "destructive" }); return; }
+      if (error) {
+        setUploadDebug(buildUploadDebugInfo({
+          title: `${side === "front" ? "앞면" : "뒷면"} 테스트 이미지 업로드 실패`,
+          objectPath: path,
+          operation: "upload(upsert)",
+          error,
+          file: uploadFile,
+          fileName: uploadName,
+          contentType,
+          userId,
+        }));
+        toast({ title: "업로드 실패", description: error.message, variant: "destructive" });
+        return;
+      }
+      setUploadDebug(null);
       const objUrl = URL.createObjectURL(uploadFile);
       setTestImages(prev => {
         revokeTestAsset(prev[side]);
         return { ...prev, [side]: { url: objUrl, name: file.name, path, objectUrl: true } };
       });
       toast({ title: `${side === "front" ? "앞면" : "뒷면"} 테스트 이미지 등록됨`, description: isPdf ? "PDF 첫 페이지가 이미지로 변환되었습니다" : undefined });
-    } catch (e: any) {
-      toast({ title: "업로드 실패", description: e.message, variant: "destructive" });
+    } catch (e) {
+      setUploadDebug(buildUploadDebugInfo({
+        title: `${side === "front" ? "앞면" : "뒷면"} 테스트 이미지 처리 실패`,
+        objectPath: `${TEST_IMG_PREFIX}/${side}__파일명_생성_전`,
+        operation: "file processing before upload",
+        error: e,
+        file,
+        fileName: file.name,
+        contentType: file.type || "image/png",
+        userId,
+      }));
+      toast({ title: "업로드 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
   };
 
@@ -951,16 +1093,23 @@ function DetailView({
       return;
     }
     try {
-      const safe = file.name.replace(/[^\w.\-]+/g, "_");
+      const safe = file.name.replace(/[^\w.-]+/g, "_");
       const path = `${TEST_TWINCODE_PREFIX}/twincode__${safe}`;
+      const contentType = file.type || "image/svg+xml";
       const { error } = await supabase.storage.from(FRAME_BUCKET)
-        .upload(path, file, { upsert: true, contentType: file.type || "image/svg+xml" });
-      if (error) { toast({ title: "업로드 실패", description: error.message, variant: "destructive" }); return; }
+        .upload(path, file, { upsert: true, contentType });
+      if (error) {
+        setUploadDebug(buildUploadDebugInfo({ title: "트윈코드 SVG 업로드 실패", objectPath: path, operation: "upload(upsert)", error, file, fileName: file.name, contentType, userId }));
+        toast({ title: "업로드 실패", description: error.message, variant: "destructive" });
+        return;
+      }
+      setUploadDebug(null);
       const { data: pub } = supabase.storage.from(FRAME_BUCKET).getPublicUrl(path);
       setTestTwincodeSvg({ url: `${pub.publicUrl}?v=${Date.now()}`, name: file.name });
       toast({ title: "트윈코드 테스트 SVG 등록됨" });
-    } catch (e: any) {
-      toast({ title: "업로드 실패", description: e.message, variant: "destructive" });
+    } catch (e) {
+      setUploadDebug(buildUploadDebugInfo({ title: "트윈코드 SVG 처리 실패", objectPath: `${TEST_TWINCODE_PREFIX}/twincode__파일명_생성_전`, operation: "file processing before upload", error: e, file, fileName: file.name, contentType: file.type || "image/svg+xml", userId }));
+      toast({ title: "업로드 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
   };
 
@@ -992,17 +1141,23 @@ function DetailView({
       return;
     }
     try {
-      const safe = file.name.replace(/[^\w.\-]+/g, "_");
+      const safe = file.name.replace(/[^\w.-]+/g, "_");
       const path = `${TEST_SIGNATURE_PREFIX}/signature__${safe}`;
       const ct = file.type || (/\.svg$/i.test(file.name) ? "image/svg+xml" : "image/png");
       const { error } = await supabase.storage.from(FRAME_BUCKET)
         .upload(path, file, { upsert: true, contentType: ct });
-      if (error) { toast({ title: "업로드 실패", description: error.message, variant: "destructive" }); return; }
+      if (error) {
+        setUploadDebug(buildUploadDebugInfo({ title: "서명 파일 업로드 실패", objectPath: path, operation: "upload(upsert)", error, file, fileName: file.name, contentType: ct, userId }));
+        toast({ title: "업로드 실패", description: error.message, variant: "destructive" });
+        return;
+      }
+      setUploadDebug(null);
       const { data: pub } = supabase.storage.from(FRAME_BUCKET).getPublicUrl(path);
       setTestSignature({ url: `${pub.publicUrl}?v=${Date.now()}`, name: file.name });
       toast({ title: "서명 테스트 파일 등록됨" });
-    } catch (e: any) {
-      toast({ title: "업로드 실패", description: e.message, variant: "destructive" });
+    } catch (e) {
+      setUploadDebug(buildUploadDebugInfo({ title: "서명 파일 처리 실패", objectPath: `${TEST_SIGNATURE_PREFIX}/signature__파일명_생성_전`, operation: "file processing before upload", error: e, file, fileName: file.name, contentType: file.type || "image/png", userId }));
+      toast({ title: "업로드 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
   };
 
@@ -1287,6 +1442,10 @@ function DetailView({
             </div>
           </CardContent>
         </Card>
+
+        {uploadDebug && (
+          <UploadDebugPanel info={uploadDebug} onClose={() => setUploadDebug(null)} />
+        )}
 
         {/* Work order */}
         <Card className="border-dashed">
