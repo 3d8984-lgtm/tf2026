@@ -389,15 +389,8 @@ interface CardData {
   backImageUrl: string | null;
 }
 
-interface FramePdf {
-  name: string;
-  bytes: Uint8Array;
-  preview: string;
-  aspect: number;
-  maskCanvas: HTMLCanvasElement;
-  widthPt: number;
-  heightPt: number;
-}
+
+
 
 interface TestAsset {
   url: string;
