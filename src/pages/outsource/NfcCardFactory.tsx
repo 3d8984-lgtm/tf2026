@@ -331,6 +331,45 @@ const DEFAULT_LAYOUT: Record<OptionKey, OptionLayout> = {
   nfcEnabled:  { enabled: true, x: 5,  y: 82,  w: 47, h: 4,  fontSize: 2.5, centerX: true,  centerY: false },
 };
 
+function alignForOption(key: OptionKey): "left" | "center" | "right" {
+  switch (key) {
+    case "cpValue":
+    case "grade":
+    case "centerSlogan": return "center";
+    case "editionNo":
+    case "mintedOn":
+    case "nfcEnabled":   return "right";
+    default:              return "left";
+  }
+}
+
+function textWeightForOption(key: OptionKey, masterWeight: number) {
+  return key === "grade" ? Math.max(700, masterWeight) : masterWeight;
+}
+
+function drawCanvasTextElement(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  w: number,
+  fontPx: number,
+  fontCss: string,
+  weight: number,
+  align: "left" | "center" | "right",
+) {
+  ctx.save();
+  ctx.font = `${weight} ${fontPx}px ${fontCss}`;
+  ctx.fillStyle = "#000";
+  ctx.textBaseline = "top";
+  const textW = ctx.measureText(text).width;
+  let drawX = x;
+  if (align === "center") drawX = x + (w - textW) / 2;
+  else if (align === "right") drawX = x + w - textW;
+  ctx.fillText(text, drawX, y);
+  ctx.restore();
+}
+
 interface CardData {
   seq: number;
   orderNo: string;
@@ -903,21 +942,6 @@ function DetailView({
       }
     };
 
-    const alignFor = (key: OptionKey): "left" | "center" | "right" => {
-      switch (key) {
-        case "cpValue":
-        case "grade":
-        case "centerSlogan": return "center";
-        case "editionNo":
-        case "mintedOn":
-        case "nfcEnabled":   return "right";
-        case "issuedNo":
-        case "companyName":
-        case "issuedBy":     return "left";
-        default:             return "left";
-      }
-    };
-
     const drawSide = async (
       side: "front" | "back",
       layout: Record<OptionKey, OptionLayout>,
@@ -994,17 +1018,9 @@ function DetailView({
         const txt = textFor(key);
         if (!txt) continue;
         const fontPx = Math.max(4, cfg.fontSize * pxPerMm);
-        const weight = key === "grade" ? Math.max(700, masterFontWeight) : masterFontWeight;
+        const weight = textWeightForOption(key, masterFontWeight);
         try { await (document as any).fonts?.load(`${weight} ${fontPx}px ${currentFont.css}`); } catch {}
-        ctx.font = `${weight} ${fontPx}px ${currentFont.css}`;
-        ctx.fillStyle = "#000";
-        ctx.textBaseline = "top";
-        const textW = ctx.measureText(txt).width;
-        const align = alignFor(key);
-        let drawX = x;
-        if (align === "center") drawX = x + (w - textW) / 2;
-        else if (align === "right") drawX = x + w - textW;
-        ctx.fillText(txt, drawX, y);
+        drawCanvasTextElement(ctx, txt, x, y, w, fontPx, currentFont.css, weight, alignForOption(key));
       }
 
       const png = await canvasToPngBytes(canvas);
@@ -1465,6 +1481,7 @@ function CardSideEditor({
   fontWeight?: number;
 }) {
   const [pdfBusy, setPdfBusy] = useState(false);
+  const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   // 실제 카드 크기는 업로드된 프레임 PDF 크기를 따른다. 프레임이 없으면 기본 57×87mm.
   const cardWmm = frame?.widthPt ? frame.widthPt * 25.4 / 72 : CARD_W_MM;
   const cardHmm = frame?.heightPt ? frame.heightPt * 25.4 / 72 : CARD_H_MM;
@@ -1571,20 +1588,62 @@ function CardSideEditor({
     return () => { cancelled = true; };
   }, [designUrl, frame?.preview, previewW, previewH]);
 
-  const getAlignClass = (key: OptionKey): string => {
-    switch (key) {
-      case "cpValue":
-      case "grade":
-      case "centerSlogan": return "justify-center text-center";
-      case "editionNo":
-      case "mintedOn":
-      case "nfcEnabled":   return "justify-end text-right";
-      case "issuedNo":
-      case "companyName":
-      case "issuedBy":     return "justify-start text-left";
-      default:             return "justify-center text-center";
-    }
-  };
+  useEffect(() => {
+    const canvas = previewCanvasRef.current;
+    if (!canvas) return;
+    let cancelled = false;
+    const ratio = window.devicePixelRatio || 1;
+    const width = Math.max(1, Math.round(previewW * ratio));
+    const height = Math.max(1, Math.round(previewH * ratio));
+    if (canvas.width !== width) canvas.width = width;
+    if (canvas.height !== height) canvas.height = height;
+    canvas.style.width = `${previewW}px`;
+    canvas.style.height = `${previewH}px`;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.clearRect(0, 0, previewW, previewH);
+    if (!cardPreview) return;
+
+    const textFor = (key: OptionKey): string => {
+      switch (key) {
+        case "cpValue":   return cardPreview.cpValue || "-";
+        case "editionNo": return cardPreview.editionNo || "";
+        case "issuedNo":  return `ISSUED No. ${cardPreview.issuedNo || ""}`;
+        case "mintedOn":  return `Minted on ${cardPreview.mintedOn || ""}`;
+        case "grade":     return cardPreview.grade || "";
+        case "companyName":  return backDefaults?.companyName || "";
+        case "centerSlogan": return backDefaults?.centerSlogan || "";
+        case "nfcEnabled":   return backDefaults?.nfcEnabled || "";
+        case "issuedBy":     return backDefaults?.issuedBy || "";
+        default: return "";
+      }
+    };
+
+    (async () => {
+      const drawableKeys = keys.filter(key => {
+        const cfg = layout[key];
+        return !!cfg?.enabled && key !== "twincode" && key !== "dmBarcode" && !!textFor(key);
+      });
+      await Promise.all(drawableKeys.map(key => {
+        const cfg = layout[key];
+        const fontPx = Math.max(4, (cfg.fontSize || 3) * pxPerMm);
+        const weight = textWeightForOption(key, fontWeight ?? 500);
+        return (document as any).fonts?.load(`${weight} ${fontPx}px ${fontCss || "'Inter', system-ui, sans-serif"}`);
+      }));
+      if (cancelled) return;
+      ctx.clearRect(0, 0, previewW, previewH);
+      drawableKeys.forEach(key => {
+        const cfg = layout[key];
+        const xMm = cfg.centerX ? (cardWmm - cfg.w) / 2 : cfg.x;
+        const yMm = cfg.centerY ? (cardHmm - cfg.h) / 2 : cfg.y;
+        const fontPx = Math.max(4, (cfg.fontSize || 3) * pxPerMm);
+        drawCanvasTextElement(ctx, textFor(key), xMm * pxPerMm, yMm * pxPerMm, cfg.w * pxPerMm, fontPx, fontCss || "'Inter', system-ui, sans-serif", textWeightForOption(key, fontWeight ?? 500), alignForOption(key));
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [backDefaults, cardHmm, cardPreview, cardWmm, fontCss, fontWeight, keys, layout, previewH, previewW, pxPerMm]);
 
   // 글자 크기 변경 시 어느 쪽을 기준으로 자라거나 줄어들지 결정하는 앵커
   const getAnchorX = (key: OptionKey): "left" | "center" | "right" => {
@@ -1605,15 +1664,15 @@ function CardSideEditor({
   const renderOptionPreview = (key: OptionKey) => {
     if (!cardPreview) return null;
     switch (key) {
-      case "cpValue":   return <span className="leading-none">{cardPreview.cpValue || "-"}</span>;
-      case "editionNo": return <span className="leading-none">{cardPreview.editionNo}</span>;
-      case "issuedNo":  return <span className="leading-none">{`ISSUED No. ${cardPreview.issuedNo}`}</span>;
-      case "mintedOn":  return <span className="leading-none">{`Minted on ${cardPreview.mintedOn}`}</span>;
-      case "grade":     return <span className="leading-none font-bold">{cardPreview.grade}</span>;
-      case "companyName":  return <span className="leading-none">{backDefaults?.companyName || "-"}</span>;
-      case "centerSlogan": return <span className="leading-none">{backDefaults?.centerSlogan || "-"}</span>;
-      case "nfcEnabled":   return <span className="leading-none">{backDefaults?.nfcEnabled || "-"}</span>;
-      case "issuedBy":  return <span className="leading-none">{backDefaults?.issuedBy || "-"}</span>;
+      case "cpValue":
+      case "editionNo":
+      case "issuedNo":
+      case "mintedOn":
+      case "grade":
+      case "companyName":
+      case "centerSlogan":
+      case "nfcEnabled":
+      case "issuedBy":  return null;
       case "twincode":  {
         const tcUrl = testTwincodeUrl || cardPreview.twincodeSvgUrl;
         return tcUrl
@@ -1686,6 +1745,11 @@ function CardSideEditor({
                 className="absolute inset-0 w-full h-full object-fill pointer-events-none"
               />
             )}
+            <canvas
+              ref={previewCanvasRef}
+              className="absolute inset-0 pointer-events-none"
+              aria-hidden
+            />
 
             {keys.map(key => {
               const cfg = layout[key];
@@ -1698,12 +1762,11 @@ function CardSideEditor({
               const yMm = cfg.centerY ? (cardHmm - cfg.h) / 2 : cfg.y;
               const boxWpx = cfg.w * pxPerMm;
               const boxHpx = isImage ? cfg.h * pxPerMm : Math.max(fontPx, 4);
-              const alignClass = isImage ? "justify-center" : getAlignClass(key);
               return (
                 <div
                   key={key}
                   onPointerDown={e => startDrag(e, key, "move")}
-                  className={`absolute flex items-start ${alignClass} text-foreground overflow-visible select-none ${
+                  className={`absolute flex items-start justify-center text-foreground overflow-visible select-none ${
                     isSel ? "border-2 border-primary bg-primary/10 ring-2 ring-primary/30" : "border border-primary/60 bg-primary/5 hover:bg-primary/10"
                   }`}
                   style={{
