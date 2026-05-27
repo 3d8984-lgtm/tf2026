@@ -467,6 +467,9 @@ function DetailView({
   // 카드 뒷면 기본 텍스트 (API 외 전체 카드에 공통 적용)
   const [backDefaults, setBackDefaults] = useState({ ...DEFAULT_BACK_DEFAULTS });
 
+  // 외곽 여백(bleed) 보정값(mm) — 미리보기/PDF 모두에 즉시 반영
+  const [bleedMm, setBleedMm] = useState<number>(DEFAULT_FRAME_BLEED_MM);
+
   // Load test images from storage
   useEffect(() => {
     let cancelled = false;
