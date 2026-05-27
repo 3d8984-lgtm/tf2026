@@ -1662,6 +1662,12 @@ function CardSideEditor({
           // square: keep w == h
           const size = clampMm(startMm.w + Math.max(dxMm, dyMm), Math.min(cardWmm - cfg.x, cardHmm - cfg.y));
           update(key, { w: size, h: size });
+        } else if (cfg.lockAspect && startMm.w > 0 && startMm.h > 0) {
+          // 비율 유지: 너비 변화량 기준으로 높이 동기화
+          const ratio = startMm.h / startMm.w;
+          const newW = clampMm(startMm.w + dxMm, cardWmm - cfg.x);
+          const newH = clampMm(newW * ratio, cardHmm - cfg.y);
+          update(key, { w: newW, h: newH });
         } else {
           update(key, {
             w: clampMm(startMm.w + dxMm, cardWmm - cfg.x),
