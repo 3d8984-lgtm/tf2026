@@ -2372,6 +2372,39 @@ function CardSideEditor({
                     </label>
                   )}
                 </div>
+                {!isImage && (
+                  <div className="md:col-span-9 flex items-center gap-2 flex-wrap pt-1 border-t border-dashed mt-1" onClick={e => e.stopPropagation()}>
+                    <Label className="text-[10px] text-muted-foreground whitespace-nowrap">글꼴</Label>
+                    <select
+                      value={getOptionFontId(cfg)}
+                      onChange={e => update(key, { fontId: e.target.value })}
+                      className="h-7 text-xs rounded border bg-background px-2"
+                      style={{ fontFamily: getOptionFontCss(cfg), fontWeight: getOptionFontWeight(cfg) }}
+                    >
+                      {FONT_OPTIONS.map(f => (
+                        <option key={f.id} value={f.id} style={{ fontFamily: f.css }}>{f.label}</option>
+                      ))}
+                    </select>
+                    <Label className="text-[10px] text-muted-foreground whitespace-nowrap ml-2">BOLD</Label>
+                    <select
+                      value={getOptionFontWeight(cfg)}
+                      onChange={e => update(key, { fontWeight: Number(e.target.value) })}
+                      className="h-7 text-xs rounded border bg-background px-2"
+                      style={{ fontFamily: getOptionFontCss(cfg), fontWeight: getOptionFontWeight(cfg) }}
+                    >
+                      {FONT_WEIGHTS.map(w => (
+                        <option key={w.value} value={w.value} style={{ fontWeight: w.value }}>{w.label}</option>
+                      ))}
+                    </select>
+                    <span className="text-[10px] text-muted-foreground ml-2">
+                      미리보기:&nbsp;
+                      <span style={{ fontFamily: getOptionFontCss(cfg), fontWeight: getOptionFontWeight(cfg), fontSize: 14 }}>
+                        {textForOverlay(key) || "가나다 ABC 123"}
+                      </span>
+                    </span>
+                    <span className="text-[10px] text-muted-foreground ml-auto">PDF는 Spoqa 폰트로 벡터 임베드(글꼴 선택은 미리보기 전용 · BOLD 강도는 PDF에도 반영)</span>
+                  </div>
+                )}
               </div>
             );
           })}
