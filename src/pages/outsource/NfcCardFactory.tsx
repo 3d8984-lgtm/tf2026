@@ -1785,7 +1785,7 @@ function CardSideEditor({
               const family = fontCss || "'Inter', system-ui, sans-serif";
               const weight = textWeightForOption(key, fontWeight ?? 500);
               // 텍스트 옵션은 글자에 맞춰 너비/높이 자동 산출, 이미지 옵션은 사용자 지정 cfg.w/h 사용
-              const effWmm = isImage ? cfg.w : measureTextWidthMm(textFor(key), cfg.fontSize || 3, family, weight);
+              const effWmm = isImage ? cfg.w : measureTextWidthMm(textForOverlay(key), cfg.fontSize || 3, family, weight);
               const effHmm = isImage ? cfg.h : (cfg.fontSize || 3);
               const xMm = cfg.centerX ? (cardWmm - effWmm) / 2 : cfg.x;
               const yMm = cfg.centerY ? (cardHmm - effHmm) / 2 : cfg.y;
