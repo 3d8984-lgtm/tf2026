@@ -1755,7 +1755,7 @@ function CardSideEditor({
     (async () => {
       const drawableKeys = keys.filter(key => {
         const cfg = layout[key];
-        return !!cfg?.enabled && key !== "twincode" && key !== "dmBarcode" && !!textFor(key);
+        return !!cfg?.enabled && !isImageKey(key) && !!textFor(key);
       });
       await Promise.all(drawableKeys.map(key => {
         const cfg = layout[key];
