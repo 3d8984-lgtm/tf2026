@@ -1000,7 +1000,20 @@ function DetailView({
       const { error } = await supabase.storage.from(FRAME_BUCKET)
         .upload(path, uploadFile, { upsert: true, contentType });
       if (error) {
-        setUploadDebug(buildUploadDebugInfo({ title: `${side === "front" ? "앞면" : "뒷면
+        setUploadDebug(buildUploadDebugInfo({
+          title: `${side === "front" ? "앞면" : "뒷면"} 테스트 이미지 업로드 실패`,
+          objectPath: path,
+          operation: "upload(upsert)",
+          error,
+          file: uploadFile,
+          fileName: uploadName,
+          contentType,
+          userId,
+        }));
+        toast({ title: "업로드 실패", description: error.message, variant: "destructive" });
+        return;
+      }
+      setUploadDebug(null);
       const objUrl = URL.createObjectURL(uploadFile);
       setTestImages(prev => {
         revokeTestAsset(prev[side]);
@@ -1008,6 +1021,16 @@ function DetailView({
       });
       toast({ title: `${side === "front" ? "앞면" : "뒷면"} 테스트 이미지 등록됨`, description: isPdf ? "PDF 첫 페이지가 이미지로 변환되었습니다" : undefined });
     } catch (e: any) {
+      setUploadDebug(buildUploadDebugInfo({
+        title: `${side === "front" ? "앞면" : "뒷면"} 테스트 이미지 처리 실패`,
+        objectPath: `${TEST_IMG_PREFIX}/${side}__파일명_생성_전`,
+        operation: "file processing before upload",
+        error: e,
+        file,
+        fileName: file.name,
+        contentType: file.type || "image/png",
+        userId,
+      }));
       toast({ title: "업로드 실패", description: e.message, variant: "destructive" });
     }
   };
