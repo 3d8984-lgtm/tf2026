@@ -159,13 +159,20 @@ async function loadFetchedImage(url: string): Promise<{ img: HTMLImageElement; r
   }
 }
 
-function drawImageContain(ctx: CanvasRenderingContext2D, img: CanvasImageSource & { width?: number; height?: number; naturalWidth?: number; naturalHeight?: number }, x: number, y: number, w: number, h: number) {
+function drawImageContain(ctx: CanvasRenderingContext2D, img: CanvasImageSource & { width?: number; height?: number; naturalWidth?: number; naturalHeight?: number }, x: number, y: number, w: number, h: number, anchor: AnchorPoint = "mc") {
   const iw = Number(img.naturalWidth || img.width || w);
   const ih = Number(img.naturalHeight || img.height || h);
   const scale = Math.min(w / iw, h / ih);
   const dw = iw * scale;
   const dh = ih * scale;
-  ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+  const { fx, fy } = ANCHOR_FRACTIONS[anchor];
+  ctx.drawImage(img, x + (w - dw) * fx, y + (h - dh) * fy, dw, dh);
+}
+
+// CSS object-position 매핑 (sizeAnchor → "x% y%")
+function anchorToObjectPosition(anchor: AnchorPoint): string {
+  const { fx, fy } = ANCHOR_FRACTIONS[anchor];
+  return `${fx * 100}% ${fy * 100}%`;
 }
 
 function detectInsetContentRect(
@@ -315,6 +322,7 @@ interface OptionLayout {
   h: number;      // mm (for images/svg); text uses fontSize
   fontSize: number; // mm (text height)
   anchor?: AnchorPoint; // 바운딩 박스 기준점 (기본: 텍스트="mc", 이미지="tl")
+  sizeAnchor?: AnchorPoint; // 바운딩 박스 내부에서 이미지(정사각 코드 등)가 정렬될 기준점 (기본: "mc")
   align?: TextAlign; // 텍스트 정렬 (왼쪽/중앙/오른쪽)
   padding?: number; // mm — DM 바코드 흰 여백 (quiet zone)
   lockAspect?: boolean; // 이미지 옵션의 비율 잠금 (서명 등)
@@ -1085,7 +1093,7 @@ function DetailView({
               fetched = await loadFetchedImage(twincodeUrl);
               ctx.fillStyle = "#fff";
               ctx.fillRect(x, y, w, h);
-              drawImageContain(ctx, fetched.img, x, y, w, h);
+              drawImageContain(ctx, fetched.img, x, y, w, h, cfg.sizeAnchor ?? "mc");
             } catch (e) { console.warn("twincode draw fail", e); }
             finally { fetched?.revoke(); }
           }
@@ -1098,7 +1106,7 @@ function DetailView({
             let fetched: { img: HTMLImageElement; revoke: () => void } | null = null;
             try {
               fetched = await loadFetchedImage(sigUrl);
-              drawImageContain(ctx, fetched.img, x, y, w, h);
+              drawImageContain(ctx, fetched.img, x, y, w, h, cfg.sizeAnchor ?? "mc");
             } catch (e) { console.warn("signature draw fail", e); }
             finally { fetched?.revoke(); }
           }
@@ -1116,7 +1124,7 @@ function DetailView({
               const img = await loadImage(url, null);
               ctx.fillStyle = "#fff";
               ctx.fillRect(x - pad, y - pad, w + pad * 2, h + pad * 2);
-              drawImageContain(ctx, img, x, y, w, h);
+              drawImageContain(ctx, img, x, y, w, h, cfg.sizeAnchor ?? "mc");
             } finally { URL.revokeObjectURL(url); }
           } catch (e) { console.warn("DM draw fail", e); }
           continue;
@@ -1845,17 +1853,22 @@ function CardSideEditor({
       case "issuedBy":  return null;
       case "twincode":  {
         const tcUrl = testTwincodeUrl || cardPreview.twincodeSvgUrl;
+        const pos = anchorToObjectPosition(layout.twincode?.sizeAnchor ?? "mc");
         return tcUrl
-          ? <img src={tcUrl} alt="" className="w-full h-full object-contain bg-white pointer-events-none" />
+          ? <img src={tcUrl} alt="" className="w-full h-full object-contain bg-white pointer-events-none" style={{ objectPosition: pos }} />
           : <span className="text-[8px] text-muted-foreground">TWIN</span>;
       }
-      case "dmBarcode": return dmPreview
-        ? <img src={dmPreview} alt="" className="w-full h-full object-contain pointer-events-none bg-white" />
-        : <span className="text-[8px] text-muted-foreground">DM</span>;
+      case "dmBarcode": {
+        const pos = anchorToObjectPosition(layout.dmBarcode?.sizeAnchor ?? "mc");
+        return dmPreview
+          ? <img src={dmPreview} alt="" className="w-full h-full object-contain pointer-events-none bg-white" style={{ objectPosition: pos }} />
+          : <span className="text-[8px] text-muted-foreground">DM</span>;
+      }
       case "signature": {
         const sUrl = testSignatureUrl || cardPreview.signatureUrl;
+        const pos = anchorToObjectPosition(layout.signature?.sizeAnchor ?? "mc");
         return sUrl
-          ? <img src={sUrl} alt="" className="w-full h-full object-contain pointer-events-none" />
+          ? <img src={sUrl} alt="" className="w-full h-full object-contain pointer-events-none" style={{ objectPosition: pos }} />
           : <span className="text-[8px] text-muted-foreground">SIGN</span>;
       }
     }
@@ -2073,6 +2086,12 @@ function CardSideEditor({
                 <div className="md:col-span-2 flex items-center gap-2 flex-wrap">
                   <Label className="text-[10px] text-muted-foreground whitespace-nowrap">기준점</Label>
                   <AnchorPicker value={getAnchor(key, cfg)} onChange={v => update(key, { anchor: v })} />
+                  {(key === "twincode" || key === "dmBarcode" || key === "signature") && (
+                    <>
+                      <Label className="text-[10px] text-muted-foreground whitespace-nowrap ml-2">크기 기준점</Label>
+                      <AnchorPicker value={cfg.sizeAnchor ?? "mc"} onChange={v => update(key, { sizeAnchor: v })} />
+                    </>
+                  )}
                   {!isImage && (
                     <>
                       <Label className="text-[10px] text-muted-foreground whitespace-nowrap ml-2">정렬</Label>
