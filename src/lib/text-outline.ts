@@ -1,6 +1,6 @@
 // Convert text to vector outlines (paths) for PDF — same as Illustrator's "Create Outlines".
 // Glyphs become pure vector shapes; no font is embedded in the PDF.
-import opentype from "opentype.js";
+import * as opentype from "opentype.js";
 import type { PDFPage, RGB } from "pdf-lib";
 
 const fontCache = new Map<string, opentype.Font>();
