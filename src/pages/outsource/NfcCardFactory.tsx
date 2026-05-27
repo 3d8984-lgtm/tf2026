@@ -1678,7 +1678,7 @@ function CardSideEditor({
         <CardTitle className="text-sm flex items-center justify-between gap-3 flex-wrap">
           <span>{side === "front" ? "카드 앞면" : "카드 뒷면"} 옵션 배치</span>
           <div className="flex items-center gap-3 text-xs font-normal">
-            <span className="text-muted-foreground">실제 인쇄 크기 ({cardWmm.toFixed(1)}×{cardHmm.toFixed(1)}mm){frame ? " · 프레임 PDF 기준" : " · 기본값"}</span>
+            <span className="text-muted-foreground">실제 인쇄 크기 ({cardWmm.toFixed(1)}×{cardHmm.toFixed(1)}mm) · 저장된 카드 사이즈</span>
             {onTestPdf && (
               <Button
                 type="button"
