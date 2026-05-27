@@ -1047,10 +1047,10 @@ function DetailView({
         // 텍스트 박스는 글자 크기에 맞춰 너비/높이 자동 계산 (X,Y는 박스 중앙 기준)
         const autoWmm = measureTextWidthMm(txt, cfg.fontSize, currentFont.css, weight);
         const autoHmm = cfg.fontSize;
-        const cXmm = cfg.centerX ? cardWmm / 2 : cfg.x;
-        const cYmm = cfg.centerY ? cardHmm / 2 : cfg.y;
-        const tXmm = cXmm - autoWmm / 2;
-        const tYmm = cYmm - autoHmm / 2;
+        const anc2 = getAnchor(key, cfg);
+        const tl2 = anchorTopLeft(cfg.x, cfg.y, autoWmm, autoHmm, anc2);
+        const tXmm = tl2.left;
+        const tYmm = tl2.top;
         drawCanvasTextElement(ctx, txt, tXmm * pxPerMm, tYmm * pxPerMm, autoWmm * pxPerMm, fontPx, currentFont.css, weight, alignForOption(key));
       }
 
