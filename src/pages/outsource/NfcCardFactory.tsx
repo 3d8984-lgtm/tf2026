@@ -299,6 +299,8 @@ const ANCHOR_FRACTIONS: Record<AnchorPoint, { fx: number; fy: number }> = {
   bl: { fx: 0,   fy: 1 },   bc: { fx: 0.5, fy: 1 },   br: { fx: 1, fy: 1 },
 };
 
+type TextAlign = "left" | "center" | "right";
+
 interface OptionLayout {
   enabled: boolean;
   x: number;      // mm — anchor point의 카드 왼쪽 변으로부터의 거리
@@ -307,6 +309,7 @@ interface OptionLayout {
   h: number;      // mm (for images/svg); text uses fontSize
   fontSize: number; // mm (text height)
   anchor?: AnchorPoint; // 바운딩 박스 기준점 (기본: 텍스트="mc", 이미지="tl")
+  align?: TextAlign; // 텍스트 정렬 (왼쪽/중앙/오른쪽)
   padding?: number; // mm — DM 바코드 흰 여백 (quiet zone)
 }
 
