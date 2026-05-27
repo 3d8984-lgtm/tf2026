@@ -230,10 +230,15 @@ async function composeMaskedCardCanvas(
   octx.imageSmoothingQuality = "high";
 
   const img = await loadImage(designSrc);
-  const scale = Math.max(out.width / img.width, out.height / img.height);
-  const dw = img.width * scale;
-  const dh = img.height * scale;
-  octx.drawImage(img, (out.width - dw) / 2, (out.height - dh) / 2, dw, dh);
+  const crop = detectInsetContentRect(img, out.width / out.height);
+  const sx = crop?.sx ?? 0;
+  const sy = crop?.sy ?? 0;
+  const sw = crop?.sw ?? (img.naturalWidth || img.width);
+  const sh = crop?.sh ?? (img.naturalHeight || img.height);
+  const scale = Math.max(out.width / sw, out.height / sh);
+  const dw = sw * scale;
+  const dh = sh * scale;
+  octx.drawImage(img, sx, sy, sw, sh, (out.width - dw) / 2, (out.height - dh) / 2, dw, dh);
 
   if (maskCanvas) {
     const mask = document.createElement("canvas");
