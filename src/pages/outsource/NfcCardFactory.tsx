@@ -1764,6 +1764,38 @@ function CardSideEditor({
   );
 }
 
+function TestDesignThumb({ frame, imageUrl }: { frame: any; imageUrl: string | null }) {
+  const cardWmm = frame?.widthPt ? frame.widthPt * 25.4 / 72 : CARD_W_MM;
+  const cardHmm = frame?.heightPt ? frame.heightPt * 25.4 / 72 : CARD_H_MM;
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!imageUrl) { setSrc(null); return; }
+    (async () => {
+      try {
+        const canvas = await composeMaskedCardCanvas(imageUrl, frame?.maskCanvas ?? null, 240, 240 * (cardHmm / cardWmm));
+        if (!cancelled) setSrc(canvas.toDataURL("image/png"));
+      } catch {
+        if (!cancelled) setSrc(imageUrl);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [imageUrl, frame?.preview, cardWmm, cardHmm]);
+
+  return (
+    <CardFrame
+      widthClassName="w-28"
+      className="border rounded bg-muted/30 flex items-center justify-center"
+      style={{ aspectRatio: `${cardWmm} / ${cardHmm}` }}
+    >
+      {src
+        ? <img src={src} alt="" className="w-full h-full object-fill bg-white" />
+        : <span className="text-xs text-muted-foreground flex items-center gap-1"><ImageIcon className="w-3 h-3" />테스트 이미지 없음 (API 디자인 사용)</span>}
+    </CardFrame>
+  );
+}
+
 function Mini({ label, v, set, step, disabled }: { label: string; v: number; set: (v: number) => void; step?: number; disabled?: boolean }) {
   return (
     <div className="space-y-1">
