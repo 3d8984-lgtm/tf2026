@@ -127,10 +127,10 @@ function PreviewCard({
   onCommit: (id: string, patch: Partial<CardElement>) => void;
   containerWidth: number;
 }) {
-  // Scale to fit container, then enlarge 1.5x for legibility
+  // Scale to fit container, then enlarge 2x for legibility
   const cardPxAt96 = CARD_W_MM * PX_PER_MM;
   const fitScale = Math.max(1, (containerWidth - 8) / cardPxAt96);
-  const scale = fitScale * 1.5;
+  const scale = fitScale * 2;
 
 
 
