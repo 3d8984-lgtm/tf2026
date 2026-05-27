@@ -1051,15 +1051,18 @@ function DetailView({
     const out = await PDFDocument.create();
     out.registerFontkit(fontkit as any);
 
-    // Embed Spoqa weights actually in use (Regular/Medium/Bold).
+    // === Outline (vector path) fonts via opentype.js ===
+    // Text is converted to vector outlines (= Illustrator "Create Outlines").
+    // No font is embedded; each glyph becomes a pure vector shape — guaranteed identical
+    // rendering on any PDF viewer / print RIP, no font-missing risk.
     const weightsInUse = new Set<number>([masterFontWeight, textWeightForOption("grade", masterFontWeight)]);
-    const fontByWeight = new Map<number, any>();
+    const otFontByWeight = new Map<number, any>();
     for (const w of weightsInUse) {
       const bytes = await loadSpoqaFontBytes(w);
-      const f = await out.embedFont(bytes, { subset: true });
-      fontByWeight.set(w, f);
+      const otf = await loadOpentypeFont(bytes, `spoqa-${w}`);
+      otFontByWeight.set(w, otf);
     }
-    const pickFont = (weight: number) => fontByWeight.get(weight) ?? fontByWeight.values().next().value;
+    const pickFont = (weight: number) => otFontByWeight.get(weight) ?? otFontByWeight.values().next().value;
 
     const textFor = (key: OptionKey): string => {
       switch (key) {
