@@ -1294,7 +1294,7 @@ function DetailView({
           <TabsContent value="front" className="pt-3">
             <CardSideEditor
               side="front"
-              frame={frames.front}
+              cardSize={cardSize}
               bleedMm={bleedMm}
               fontCss={currentFont.css}
               fontWeight={masterFontWeight}
