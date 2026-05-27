@@ -28,6 +28,7 @@ import bwipjs from "bwip-js/browser";
 import { CardFrame, CARD_W_MM, CARD_H_MM } from "@/components/outsource/CardFrame";
 import { ensureSpoqaFontFace, loadSpoqaFontBytes, waitForSpoqaLoaded } from "@/lib/pdf-fonts";
 import { svgStringToPdfBytes, fetchSvgString, svgAspectRatio } from "@/lib/svg-to-pdf";
+import { loadOpentypeFont, measureOutlineWidthPt, outlineAscentPt, drawTextAsOutline } from "@/lib/text-outline";
 
 const MM = 2.8346456693; // 1mm in pt
 // 프레임/PDF 원본 크기 그대로 사용 — 별도 여백 보정 없음.
@@ -1050,15 +1051,18 @@ function DetailView({
     const out = await PDFDocument.create();
     out.registerFontkit(fontkit as any);
 
-    // Embed Spoqa weights actually in use (Regular/Medium/Bold).
+    // === Outline (vector path) fonts via opentype.js ===
+    // Text is converted to vector outlines (= Illustrator "Create Outlines").
+    // No font is embedded; each glyph becomes a pure vector shape — guaranteed identical
+    // rendering on any PDF viewer / print RIP, no font-missing risk.
     const weightsInUse = new Set<number>([masterFontWeight, textWeightForOption("grade", masterFontWeight)]);
-    const fontByWeight = new Map<number, any>();
+    const otFontByWeight = new Map<number, any>();
     for (const w of weightsInUse) {
       const bytes = await loadSpoqaFontBytes(w);
-      const f = await out.embedFont(bytes, { subset: true });
-      fontByWeight.set(w, f);
+      const otf = await loadOpentypeFont(bytes, `spoqa-${w}`);
+      otFontByWeight.set(w, otf);
     }
-    const pickFont = (weight: number) => fontByWeight.get(weight) ?? fontByWeight.values().next().value;
+    const pickFont = (weight: number) => otFontByWeight.get(weight) ?? otFontByWeight.values().next().value;
 
     const textFor = (key: OptionKey): string => {
       switch (key) {
@@ -1198,28 +1202,20 @@ function DetailView({
           continue;
         }
 
-        // ===== Text (vector via pdf-lib + fontkit Spoqa) =====
+        // ===== Text (vector OUTLINES via opentype.js — same as Illustrator "Create Outlines") =====
         const txt = textFor(key);
         if (!txt) continue;
         const weight = textWeightForOption(key, masterFontWeight);
-        const font = pickFont(weight);
+        const otf = pickFont(weight);
         const sizePt = cfg.fontSize * MM;
-        const textWpt = font.widthOfTextAtSize(txt, sizePt);
+        const textWpt = measureOutlineWidthPt(otf, txt, sizePt);
         const autoWmm = textWpt / MM;
         const autoHmm = cfg.fontSize;
         const anc2 = getAnchor(key, cfg);
         const tl2 = anchorTopLeft(cfg.x, cfg.y, autoWmm, autoHmm, anc2);
-        // Baseline y in PDF coords = pageH - (topMm * MM + ascentPt)
-        const ascentPt = font.heightAtSize(sizePt, { descender: false });
+        const ascentPt = outlineAscentPt(otf, sizePt);
         const baselineYpt = pageHpt - (tl2.top * MM + ascentPt);
-        // Since box width equals measured text width, align(left/center/right) has no offset
-        page.drawText(txt, {
-          x: tl2.left * MM,
-          y: baselineYpt,
-          size: sizePt,
-          font,
-          color: rgb(0, 0, 0),
-        });
+        drawTextAsOutline(page, otf, txt, tl2.left * MM, baselineYpt, sizePt, rgb(0, 0, 0));
       }
     };
 
