@@ -36,19 +36,68 @@ const SETTINGS_KEY_PREFIX = "outsource-nfc-card-v1";
 const GLOBAL_LAYOUT_KEY = "outsource-nfc-card-layout-default";
 const TEST_TWINCODE_PREFIX = "nfc-card-test";
 
-// Inter (OFL — commercially free) TTF for pdf-lib embedding
-const INTER_TTF_URL = "https://cdn.jsdelivr.net/gh/rsms/inter@v4.0/docs/font-files/Inter-Regular.ttf";
-const INTER_BOLD_TTF_URL = "https://cdn.jsdelivr.net/gh/rsms/inter@v4.0/docs/font-files/Inter-SemiBold.ttf";
-let _interBytesCache: Uint8Array | null = null;
-let _interBoldBytesCache: Uint8Array | null = null;
-async function fetchFontBytes(url: string, which: "reg" | "bold"): Promise<Uint8Array | null> {
+// ===== Master font options (상업적 사용 가능 / commercial-free Korean gothic) =====
+interface FontOption {
+  id: string;
+  label: string;
+  css: string;        // CSS font-family stack (preview)
+  cssLink: string;    // <link rel=stylesheet> href to register family in browser
+  ttfReg: string;     // TTF/OTF URL for pdf-lib embedding (Regular)
+  ttfBold: string;    // TTF/OTF URL for pdf-lib embedding (Bold)
+}
+const FONT_OPTIONS: FontOption[] = [
+  {
+    id: "pretendard",
+    label: "Pretendard",
+    css: "'Pretendard Variable', Pretendard, -apple-system, sans-serif",
+    cssLink: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css",
+    ttfReg: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/public/static/Pretendard-Regular.otf",
+    ttfBold: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/public/static/Pretendard-Bold.otf",
+  },
+  {
+    id: "noto-sans-kr",
+    label: "Noto Sans KR",
+    css: "'Noto Sans KR', sans-serif",
+    cssLink: "https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap",
+    ttfReg: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf",
+    ttfBold: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf",
+  },
+  {
+    id: "ibm-plex-sans-kr",
+    label: "IBM Plex Sans KR",
+    css: "'IBM Plex Sans KR', sans-serif",
+    cssLink: "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;700&display=swap",
+    ttfReg: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ibmplexsanskr/IBMPlexSansKR-Regular.ttf",
+    ttfBold: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ibmplexsanskr/IBMPlexSansKR-Bold.ttf",
+  },
+  {
+    id: "nanum-gothic",
+    label: "Nanum Gothic (나눔고딕)",
+    css: "'Nanum Gothic', sans-serif",
+    cssLink: "https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700&display=swap",
+    ttfReg: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/nanumgothic/NanumGothic-Regular.ttf",
+    ttfBold: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/nanumgothic/NanumGothic-Bold.ttf",
+  },
+  {
+    id: "spoqa-han-sans-neo",
+    label: "Spoqa Han Sans Neo",
+    css: "'Spoqa Han Sans Neo', sans-serif",
+    cssLink: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f136e75c0d75cb1cd3a5a0fa3a223e/css/SpoqaHanSansNeo.css",
+    ttfReg: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f136e75c0d75cb1cd3a5a0fa3a223e/Subset/SpoqaHanSansNeo/SpoqaHanSansNeo-Regular.otf",
+    ttfBold: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f136e75c0d75cb1cd3a5a0fa3a223e/Subset/SpoqaHanSansNeo/SpoqaHanSansNeo-Bold.otf",
+  },
+];
+const DEFAULT_MASTER_FONT = "pretendard";
+
+const _fontBytesCache = new Map<string, Uint8Array>();
+async function fetchFontBytes(url: string, _which?: "reg" | "bold"): Promise<Uint8Array | null> {
   try {
-    if (which === "reg" && _interBytesCache) return _interBytesCache;
-    if (which === "bold" && _interBoldBytesCache) return _interBoldBytesCache;
+    const cached = _fontBytesCache.get(url);
+    if (cached) return cached;
     const res = await fetch(url);
     if (!res.ok) return null;
     const buf = new Uint8Array(await res.arrayBuffer());
-    if (which === "reg") _interBytesCache = buf; else _interBoldBytesCache = buf;
+    _fontBytesCache.set(url, buf);
     return buf;
   } catch { return null; }
 }
