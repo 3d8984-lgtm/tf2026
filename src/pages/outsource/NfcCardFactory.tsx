@@ -1667,8 +1667,6 @@ function DetailView({
               side="front"
               cardSize={cardSize}
               bleedMm={bleedMm}
-              fontCss={currentFont.css}
-              fontWeight={masterFontWeight}
               testImageUrl={testImages.front?.url || null}
               cardPreview={applyTestValues(cards[0], testValues)}
               layout={layoutFront}
