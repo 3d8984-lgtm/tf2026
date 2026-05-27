@@ -1854,11 +1854,16 @@ function CardSideEditor({
                     <Mini label="크기(mm)" v={cfg.w} set={v => update(key, { w: v, h: v })} />
                     <Mini label="여백(mm)" v={cfg.padding ?? 0} set={v => update(key, { padding: Math.max(0, v) })} step={0.1} />
                   </>
-                ) : (
+                ) : isImage ? (
                   <>
                     <Mini label="너비(mm)" v={cfg.w} set={v => update(key, { w: v })} />
-                    <Mini label={isImage ? "높이(mm)" : "박스높이(mm)"} v={cfg.h} set={v => update(key, { h: v })} />
+                    <Mini label="높이(mm)" v={cfg.h} set={v => update(key, { h: v })} />
                   </>
+                ) : (
+                  // 텍스트 옵션: 너비/높이는 글자 크기에 자동 맞춤
+                  <div className="md:col-span-2 text-[10px] text-muted-foreground self-end">
+                    너비/높이 자동 (글자 크기 기준)
+                  </div>
                 )}
                 {!isImage && (
                   <Mini label="글자(mm)" v={cfg.fontSize} set={v => update(key, { fontSize: v })} step={0.1} />
