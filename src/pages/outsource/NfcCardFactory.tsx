@@ -1369,8 +1369,8 @@ function CardSideEditor({
               const designUrl = testImageUrl || apiUrl;
               if (!designUrl) return null;
               // PDF 출력과 동일한 bleed 보정: 양쪽으로 FRAME_BLEED_MM 확장 → 외곽 여백을 잘라낸 효과
-              const insetPctX = -(FRAME_BLEED_MM / CARD_W_MM) * 100;
-              const insetPctY = -(FRAME_BLEED_MM / CARD_H_MM) * 100;
+              const insetPctX = -(bleedMm / CARD_W_MM) * 100;
+              const insetPctY = -(bleedMm / CARD_H_MM) * 100;
               const bleedStyle: React.CSSProperties = {
                 top: `${insetPctY}%`,
                 left: `${insetPctX}%`,
