@@ -1202,28 +1202,20 @@ function DetailView({
           continue;
         }
 
-        // ===== Text (vector via pdf-lib + fontkit Spoqa) =====
+        // ===== Text (vector OUTLINES via opentype.js — same as Illustrator "Create Outlines") =====
         const txt = textFor(key);
         if (!txt) continue;
         const weight = textWeightForOption(key, masterFontWeight);
-        const font = pickFont(weight);
+        const otf = pickFont(weight);
         const sizePt = cfg.fontSize * MM;
-        const textWpt = font.widthOfTextAtSize(txt, sizePt);
+        const textWpt = measureOutlineWidthPt(otf, txt, sizePt);
         const autoWmm = textWpt / MM;
         const autoHmm = cfg.fontSize;
         const anc2 = getAnchor(key, cfg);
         const tl2 = anchorTopLeft(cfg.x, cfg.y, autoWmm, autoHmm, anc2);
-        // Baseline y in PDF coords = pageH - (topMm * MM + ascentPt)
-        const ascentPt = font.heightAtSize(sizePt, { descender: false });
+        const ascentPt = outlineAscentPt(otf, sizePt);
         const baselineYpt = pageHpt - (tl2.top * MM + ascentPt);
-        // Since box width equals measured text width, align(left/center/right) has no offset
-        page.drawText(txt, {
-          x: tl2.left * MM,
-          y: baselineYpt,
-          size: sizePt,
-          font,
-          color: rgb(0, 0, 0),
-        });
+        drawTextAsOutline(page, otf, txt, tl2.left * MM, baselineYpt, sizePt, rgb(0, 0, 0));
       }
     };
 
