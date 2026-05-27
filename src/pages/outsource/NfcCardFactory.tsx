@@ -1454,6 +1454,7 @@ function DetailView({
               fontWeight={masterFontWeight}
               testImageUrl={testImages.back?.url || null}
               testTwincodeUrl={testTwincodeSvg?.url || null}
+              testSignatureUrl={testSignature?.url || null}
               cardPreview={applyTestValues(cards[0], testValues)}
               layout={layoutBack}
               setLayout={setLayoutBack}
