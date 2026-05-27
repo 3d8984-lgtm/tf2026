@@ -467,8 +467,8 @@ function DetailView({
   // 카드 뒷면 기본 텍스트 (API 외 전체 카드에 공통 적용)
   const [backDefaults, setBackDefaults] = useState({ ...DEFAULT_BACK_DEFAULTS });
 
-  // 외곽 여백(bleed) 보정값(mm) — 미리보기/PDF 모두에 즉시 반영
-  const [bleedMm, setBleedMm] = useState<number>(DEFAULT_FRAME_BLEED_MM);
+  // 외곽 여백(bleed) 고정값(mm) — 미리보기/PDF 동일하게 사용
+  const bleedMm = DEFAULT_FRAME_BLEED_MM;
 
   // Load test images from storage
   useEffect(() => {
@@ -953,7 +953,6 @@ function DetailView({
               side="front"
               frame={frames.front}
               bleedMm={bleedMm}
-              setBleedMm={setBleedMm}
               testImageUrl={testImages.front?.url || null}
               cardPreview={applyTestValues(cards[0], testValues)}
               layout={layoutFront}
@@ -976,7 +975,6 @@ function DetailView({
               side="back"
               frame={frames.back}
               bleedMm={bleedMm}
-              setBleedMm={setBleedMm}
               testImageUrl={testImages.back?.url || null}
               testTwincodeUrl={testTwincodeSvg?.url || null}
               cardPreview={applyTestValues(cards[0], testValues)}
@@ -1105,7 +1103,7 @@ function applyTestValues(c: CardData | undefined, tv: { cpValue: string; edition
 // ============== Card side editor (preview + per-option controls) ==============
 function CardSideEditor({
   side, frame, testImageUrl, testTwincodeUrl, cardPreview, layout, setLayout, keys, backDefaults, onTestPdf,
-  bleedMm, setBleedMm,
+  bleedMm,
 }: {
   side: "front" | "back";
   frame: any;
@@ -1118,22 +1116,17 @@ function CardSideEditor({
   backDefaults?: { companyName: string; centerSlogan: string; nfcEnabled: string; issuedBy: string };
   onTestPdf?: () => void | Promise<void>;
   bleedMm: number;
-  setBleedMm: React.Dispatch<React.SetStateAction<number>>;
 }) {
   const [pdfBusy, setPdfBusy] = useState(false);
-  // Zoomable preview (px per mm). Default 10 = card ~57x87mm renders ~570x870px.
-  // 실제 크기 모드: CSS 표준 96dpi → 1mm = 3.7795px. mmScale로 화면 보정 가능.
+  // 항상 실제 인쇄 크기(1:1)로 미리보기. CSS 표준 96dpi → 1mm = 3.7795px.
   const PX_PER_MM_REAL = 96 / 25.4;
-  const [actualSize, setActualSize] = useState(false);
-  const [mmScale, setMmScale] = useState(100); // %
-  const [zoom, setZoom] = useState(10);
-  const pxPerMm = actualSize ? PX_PER_MM_REAL * (mmScale / 100) : zoom;
+  const pxPerMm = PX_PER_MM_REAL;
   const previewW = CARD_W_MM * pxPerMm;
   const previewH = CARD_H_MM * pxPerMm;
 
   const [selected, setSelected] = useState<OptionKey | null>(keys[0] ?? null);
-  const [pickMode, setPickMode] = useState(false);
   const stageRef = useRef<HTMLDivElement | null>(null);
+
 
   const update = (key: OptionKey, patch: Partial<OptionLayout>) => {
     setLayout(prev => ({ ...prev, [key]: { ...prev[key], ...patch } }));
@@ -1150,7 +1143,7 @@ function CardSideEditor({
     e.stopPropagation();
     e.preventDefault();
     setSelected(key);
-    setPickMode(false);
+    
     const startX = e.clientX;
     const startY = e.clientY;
     const cfg = layout[key];
@@ -1193,23 +1186,8 @@ function CardSideEditor({
     window.addEventListener("pointerup", onUp);
   };
 
-  // Click-to-position: when pickMode active, clicking on stage moves selected option's top-left to that point
-  const onStageClick = (e: React.MouseEvent) => {
-    if (!pickMode || !selected) return;
-    const rect = stageRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const xMm = (e.clientX - rect.left) / pxPerMm;
-    const yMm = (e.clientY - rect.top) / pxPerMm;
-    const cfg = layout[selected];
-    // Center the box on the clicked point for intuitive placement
-    update(selected, {
-      x: clampMm(xMm - cfg.w / 2, CARD_W_MM - cfg.w),
-      y: clampMm(yMm - cfg.h / 2, CARD_H_MM - cfg.h),
-      centerX: false,
-      centerY: false,
-    });
-    setPickMode(false);
-  };
+
+
 
   const [dmPreview, setDmPreview] = useState<string | null>(null);
   useEffect(() => {
@@ -1288,84 +1266,7 @@ function CardSideEditor({
         <CardTitle className="text-sm flex items-center justify-between gap-3 flex-wrap">
           <span>{side === "front" ? "카드 앞면" : "카드 뒷면"} 옵션 배치</span>
           <div className="flex items-center gap-3 text-xs font-normal">
-            <label className="flex items-center gap-1 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={actualSize}
-                onChange={e => setActualSize(e.target.checked)}
-              />
-              <span>실제 크기(1:1)</span>
-            </label>
-            {actualSize ? (
-              <div className="flex items-center gap-2">
-                <Label className="text-xs">화면보정</Label>
-                <input
-                  type="range"
-                  min={80}
-                  max={130}
-                  step={1}
-                  value={mmScale}
-                  onChange={e => setMmScale(Number(e.target.value))}
-                  className="w-24"
-                />
-                <span className="tabular-nums w-10 text-muted-foreground">{mmScale}%</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <Label className="text-xs">확대</Label>
-                <input
-                  type="range"
-                  min={4}
-                  max={16}
-                  step={1}
-                  value={zoom}
-                  onChange={e => setZoom(Number(e.target.value))}
-                  className="w-32"
-                />
-                <span className="tabular-nums w-10 text-muted-foreground">{zoom}×</span>
-              </div>
-            )}
-            <Button
-              type="button"
-              size="sm"
-              variant={pickMode ? "default" : "outline"}
-              onClick={() => setPickMode(v => !v)}
-              disabled={!selected}
-            >
-              {pickMode ? "클릭으로 위치 지정 중…" : "위치 찍기"}
-            </Button>
-            <div className="flex items-center gap-1">
-              <Label className="text-xs">여백보정</Label>
-              <input
-                type="range"
-                min={0}
-                max={8}
-                step={0.1}
-                value={bleedMm}
-                onChange={e => setBleedMm(Number(e.target.value))}
-                className="w-24"
-              />
-              <input
-                type="number"
-                min={0}
-                max={20}
-                step={0.1}
-                value={bleedMm}
-                onChange={e => setBleedMm(Number(e.target.value) || 0)}
-                className="w-14 h-7 px-1 text-xs border rounded tabular-nums"
-              />
-              <span className="text-muted-foreground">mm</span>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="h-7 px-2 text-xs"
-                onClick={() => setBleedMm(DEFAULT_FRAME_BLEED_MM)}
-                title="기본값으로 초기화"
-              >
-                리셋
-              </Button>
-            </div>
+            <span className="text-muted-foreground">실제 인쇄 크기 (57×87mm)</span>
             {onTestPdf && (
               <Button
                 type="button"
@@ -1387,17 +1288,16 @@ function CardSideEditor({
       <CardContent className="space-y-4">
         <div className="text-xs text-muted-foreground">
           박스를 드래그해 이동하거나 오른쪽 아래 모서리를 끌어 크기를 조절하세요.
-          확정된 PDF 좌표를 알면 "위치 찍기" 모드에서 미리보기를 클릭해 중심을 맞출 수 있습니다.
         </div>
 
         {/* Preview */}
         <div className="flex justify-center overflow-auto">
           <CardFrame
             ref={stageRef}
-            onClick={onStageClick}
-            className={`border-2 rounded-md shadow-md ${pickMode ? "cursor-crosshair ring-2 ring-primary" : ""}`}
+            className="border-2 rounded-md shadow-md"
             style={{ width: previewW, background: "#fff", fontFamily: "'Inter', system-ui, sans-serif" }}
           >
+
             {/* Layer order: card design (bottom, clipped by frame as mask) → options (top).
                 프레임 PDF는 일러스트의 클리핑 마스크처럼 동작하여, 프레임이 그려진 영역 안쪽에만 카드 디자인이 보입니다. */}
             {(() => {
@@ -1481,7 +1381,7 @@ function CardSideEditor({
                     fontSize: isImage ? undefined : fontPx,
                     lineHeight: 1,
                     whiteSpace: "nowrap",
-                    cursor: pickMode ? "crosshair" : "move",
+                    cursor: "move",
                     background: key === "dmBarcode" ? "#fff" : undefined,
                     boxShadow: key === "dmBarcode" ? `0 0 0 ${(cfg.padding ?? 0) * pxPerMm}px #fff` : undefined,
                   }}
