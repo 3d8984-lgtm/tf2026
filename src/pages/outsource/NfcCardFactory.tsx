@@ -364,7 +364,7 @@ const DEFAULT_LAYOUT: Record<OptionKey, OptionLayout> = {
   nfcEnabled:  { enabled: true, x: 28.5, y: 84, w: 47, h: 4,  fontSize: 2.5, anchor: "mc" },
 };
 
-function alignForOption(key: OptionKey): "left" | "center" | "right" {
+function defaultAlignForOption(key: OptionKey): TextAlign {
   switch (key) {
     case "cpValue":
     case "grade":
@@ -374,6 +374,9 @@ function alignForOption(key: OptionKey): "left" | "center" | "right" {
     case "nfcEnabled":   return "right";
     default:              return "left";
   }
+}
+function getAlign(key: OptionKey, cfg: { align?: TextAlign }): TextAlign {
+  return cfg.align ?? defaultAlignForOption(key);
 }
 
 function textWeightForOption(key: OptionKey, masterWeight: number) {
