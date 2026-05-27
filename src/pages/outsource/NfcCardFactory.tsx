@@ -357,6 +357,17 @@ interface FramePdf {
   heightPt: number;
 }
 
+interface TestAsset {
+  url: string;
+  name: string;
+  path?: string;
+  objectUrl?: boolean;
+}
+
+function revokeTestAsset(asset: TestAsset | null | undefined) {
+  if (asset?.objectUrl && asset.url.startsWith("blob:")) URL.revokeObjectURL(asset.url);
+}
+
 interface OrderRow {
   orderNo: string;
   receivedAt: string;
@@ -678,8 +689,8 @@ function DetailView({
 
   // Test images per side (server-persisted; falls back to API card image when removed)
   const [testImages, setTestImages] = useState<{
-    front: { url: string; name: string } | null;
-    back: { url: string; name: string } | null;
+    front: TestAsset | null;
+    back: TestAsset | null;
   }>({ front: null, back: null });
 
   // Test twincode SVG (server-persisted; falls back to API twincodeSvgUrl when removed)
@@ -724,9 +735,14 @@ function DetailView({
         const found = (list || []).find(f => f.name.startsWith(`${side}__`));
         if (!found) continue;
         const path = `${TEST_IMG_PREFIX}/${found.name}`;
-        const { data: pub } = supabase.storage.from(FRAME_BUCKET).getPublicUrl(path);
+        const { data: file } = await supabase.storage.from(FRAME_BUCKET).download(path);
+        if (cancelled || !file) continue;
+        const objUrl = URL.createObjectURL(file);
         const name = found.name.replace(/^(front|back)__/, "");
-        setTestImages(prev => ({ ...prev, [side]: { url: `${pub.publicUrl}?v=${Date.now()}`, name } }));
+        setTestImages(prev => {
+          revokeTestAsset(prev[side]);
+          return { ...prev, [side]: { url: objUrl, name, path, objectUrl: true } };
+        });
       }
     })();
     return () => { cancelled = true; };
@@ -755,7 +771,10 @@ function DetailView({
       .map(f => `${TEST_IMG_PREFIX}/${f.name}`);
     if (toRemove.length) await supabase.storage.from(FRAME_BUCKET).remove(toRemove);
     if (!file) {
-      setTestImages(prev => ({ ...prev, [side]: null }));
+      setTestImages(prev => {
+        revokeTestAsset(prev[side]);
+        return { ...prev, [side]: null };
+      });
       toast({ title: `${side === "front" ? "앞면" : "뒷면"} 테스트 이미지 삭제됨`, description: "원래 카드 디자인이 적용됩니다" });
       return;
     }
@@ -779,8 +798,11 @@ function DetailView({
       const { error } = await supabase.storage.from(FRAME_BUCKET)
         .upload(path, uploadFile, { upsert: true, contentType });
       if (error) { toast({ title: "업로드 실패", description: error.message, variant: "destructive" }); return; }
-      const { data: pub } = supabase.storage.from(FRAME_BUCKET).getPublicUrl(path);
-      setTestImages(prev => ({ ...prev, [side]: { url: `${pub.publicUrl}?v=${Date.now()}`, name: file.name } }));
+      const objUrl = URL.createObjectURL(uploadFile);
+      setTestImages(prev => {
+        revokeTestAsset(prev[side]);
+        return { ...prev, [side]: { url: objUrl, name: file.name, path, objectUrl: true } };
+      });
       toast({ title: `${side === "front" ? "앞면" : "뒷면"} 테스트 이미지 등록됨`, description: isPdf ? "PDF 첫 페이지가 이미지로 변환되었습니다" : undefined });
     } catch (e: any) {
       toast({ title: "업로드 실패", description: e.message, variant: "destructive" });
