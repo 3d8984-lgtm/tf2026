@@ -2033,6 +2033,38 @@ function AnchorPicker({ value, onChange }: { value: AnchorPoint; onChange: (v: A
   );
 }
 
+function AlignPicker({ value, onChange }: { value: TextAlign; onChange: (v: TextAlign) => void }) {
+  const opts: { v: TextAlign; label: string; bars: number[] }[] = [
+    { v: "left",   label: "왼쪽",   bars: [10, 7, 9] },
+    { v: "center", label: "중앙",   bars: [10, 7, 9] },
+    { v: "right",  label: "오른쪽", bars: [10, 7, 9] },
+  ];
+  return (
+    <div className="inline-flex border border-foreground/40 bg-background rounded" role="radiogroup" aria-label="텍스트 정렬">
+      {opts.map(o => {
+        const active = value === o.v;
+        return (
+          <button
+            key={o.v}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            aria-label={o.label}
+            title={o.label}
+            onClick={e => { e.stopPropagation(); onChange(o.v); }}
+            className={`flex flex-col items-end justify-center gap-[2px] px-2 py-1 transition-colors ${active ? "bg-primary/15" : "hover:bg-primary/10"}`}
+            style={{ width: 22, height: 22, alignItems: o.v === "left" ? "flex-start" : o.v === "right" ? "flex-end" : "center" }}
+          >
+            {o.bars.map((w, i) => (
+              <span key={i} className={active ? "bg-primary" : "bg-foreground/60"} style={{ width: w, height: 2, borderRadius: 1 }} />
+            ))}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function TxtField({ label, v, set, type = "text" }: { label: string; v: string; set: (v: string) => void; type?: string }) {
   return (
     <div className="space-y-1">
