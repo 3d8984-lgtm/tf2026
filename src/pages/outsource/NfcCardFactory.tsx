@@ -728,13 +728,7 @@ function DetailView({
           page.drawImage(emb, { x: 0, y: 0, width: cardWpt, height: cardHpt });
         } catch (e) { console.warn("card design embed failed", e); }
       }
-      // Layer 2: frame PDF overlay
-      if (frame?.bytes) {
-        try {
-          const [emb] = await out.embedPdf(frame.bytes);
-          page.drawPage(emb, { x: bleedX, y: bleedY, width: bleedW, height: bleedH });
-        } catch (e) { console.warn("frame embed failed", e); }
-      }
+      // PDF 프레임은 열전사 디자인 공장처럼 마스크로만 사용하고, 출력물 위에 다시 덮어 그리지 않는다.
       for (const key of keys) {
         const cfg = layout[key];
         if (!cfg?.enabled) continue;
