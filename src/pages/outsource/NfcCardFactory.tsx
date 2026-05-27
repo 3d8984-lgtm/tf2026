@@ -1093,7 +1093,7 @@ function DetailView({
               fetched = await loadFetchedImage(twincodeUrl);
               ctx.fillStyle = "#fff";
               ctx.fillRect(x, y, w, h);
-              drawImageContain(ctx, fetched.img, x, y, w, h);
+              drawImageContain(ctx, fetched.img, x, y, w, h, cfg.sizeAnchor ?? "mc");
             } catch (e) { console.warn("twincode draw fail", e); }
             finally { fetched?.revoke(); }
           }
@@ -1106,7 +1106,7 @@ function DetailView({
             let fetched: { img: HTMLImageElement; revoke: () => void } | null = null;
             try {
               fetched = await loadFetchedImage(sigUrl);
-              drawImageContain(ctx, fetched.img, x, y, w, h);
+              drawImageContain(ctx, fetched.img, x, y, w, h, cfg.sizeAnchor ?? "mc");
             } catch (e) { console.warn("signature draw fail", e); }
             finally { fetched?.revoke(); }
           }
@@ -1124,7 +1124,7 @@ function DetailView({
               const img = await loadImage(url, null);
               ctx.fillStyle = "#fff";
               ctx.fillRect(x - pad, y - pad, w + pad * 2, h + pad * 2);
-              drawImageContain(ctx, img, x, y, w, h);
+              drawImageContain(ctx, img, x, y, w, h, cfg.sizeAnchor ?? "mc");
             } finally { URL.revokeObjectURL(url); }
           } catch (e) { console.warn("DM draw fail", e); }
           continue;
