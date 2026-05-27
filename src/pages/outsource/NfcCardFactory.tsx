@@ -1689,8 +1689,6 @@ function DetailView({
               side="back"
               cardSize={cardSize}
               bleedMm={bleedMm}
-              fontCss={currentFont.css}
-              fontWeight={masterFontWeight}
               testImageUrl={testImages.back?.url || null}
               testTwincodeUrl={testTwincodeSvg?.url || null}
               testSignatureUrl={testSignature?.url || null}
