@@ -778,14 +778,16 @@ function DetailView({
   const buildCardPdfBytes = async (card: CardData, opts?: { sides?: Array<"front" | "back"> }): Promise<Uint8Array> => {
     const out = await PDFDocument.create();
     out.registerFontkit(fontkit);
-    const interReg = await fetchFontBytes(currentFont.ttfReg, "reg");
-    const interBold = await fetchFontBytes(currentFont.ttfBold, "bold");
-    const font = interReg
-      ? await out.embedFont(interReg, { subset: true })
-      : await out.embedFont((await import("pdf-lib")).StandardFonts.Helvetica);
-    const fontBold = interBold
-      ? await out.embedFont(interBold, { subset: true })
-      : font;
+    // Pretendard as a reliable Korean-capable fallback if the selected font fails to load.
+    const FALLBACK_REG = "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/public/static/Pretendard-Regular.otf";
+    const FALLBACK_BOLD = "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/public/static/Pretendard-Bold.otf";
+    let interReg = await fetchFontBytes(currentFont.ttfReg, "reg");
+    if (!interReg) interReg = await fetchFontBytes(FALLBACK_REG, "reg");
+    let interBold = await fetchFontBytes(currentFont.ttfBold, "bold");
+    if (!interBold) interBold = await fetchFontBytes(FALLBACK_BOLD, "bold");
+    if (!interReg) throw new Error("폰트 다운로드 실패 — 네트워크를 확인해주세요");
+    const font = await out.embedFont(interReg, { subset: true });
+    const fontBold = interBold ? await out.embedFont(interBold, { subset: true }) : font;
     const cardWpt = CARD_W_MM * MM;
     const cardHpt = CARD_H_MM * MM;
 
