@@ -162,6 +162,60 @@ function drawImageContain(ctx: CanvasRenderingContext2D, img: CanvasImageSource 
   ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
 }
 
+function detectInsetContentRect(
+  img: HTMLImageElement,
+  targetAspect: number,
+): { sx: number; sy: number; sw: number; sh: number } | null {
+  const iw = img.naturalWidth || img.width;
+  const ih = img.naturalHeight || img.height;
+  if (!iw || !ih) return null;
+
+  const maxProbe = 420;
+  const scale = Math.min(1, maxProbe / Math.max(iw, ih));
+  const pw = Math.max(1, Math.round(iw * scale));
+  const ph = Math.max(1, Math.round(ih * scale));
+  const probe = document.createElement("canvas");
+  probe.width = pw;
+  probe.height = ph;
+  const pctx = probe.getContext("2d", { willReadFrequently: true });
+  if (!pctx) return null;
+  pctx.drawImage(img, 0, 0, pw, ph);
+
+  let minX = pw, minY = ph, maxX = -1, maxY = -1;
+  const data = pctx.getImageData(0, 0, pw, ph).data;
+  for (let y = 0; y < ph; y += 1) {
+    for (let x = 0; x < pw; x += 1) {
+      const i = (y * pw + x) * 4;
+      const a = data[i + 3];
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      if (a > 20 && (r < 246 || g < 246 || b < 246)) {
+        minX = Math.min(minX, x); minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+      }
+    }
+  }
+  if (maxX < minX || maxY < minY) return null;
+
+  const contentW = maxX - minX + 1;
+  const contentH = maxY - minY + 1;
+  if (contentW / pw > 0.84 && contentH / ph > 0.84) return null;
+
+  const pad = Math.round(Math.max(contentW, contentH) * 0.035);
+  minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
+  maxX = Math.min(pw - 1, maxX + pad); maxY = Math.min(ph - 1, maxY + pad);
+
+  let cx = (minX + maxX) / 2;
+  let cy = (minY + maxY) / 2;
+  let cw = maxX - minX + 1;
+  let ch = maxY - minY + 1;
+  if (cw / ch > targetAspect) ch = cw / targetAspect;
+  else cw = ch * targetAspect;
+  cw = Math.min(cw, pw); ch = Math.min(ch, ph);
+  let sx = Math.max(0, Math.min(pw - cw, cx - cw / 2));
+  let sy = Math.max(0, Math.min(ph - ch, cy - ch / 2));
+  return { sx: sx / scale, sy: sy / scale, sw: cw / scale, sh: ch / scale };
+}
+
 async function composeMaskedCardCanvas(
   designSrc: string,
   maskCanvas: HTMLCanvasElement | null,
@@ -176,10 +230,15 @@ async function composeMaskedCardCanvas(
   octx.imageSmoothingQuality = "high";
 
   const img = await loadImage(designSrc);
-  const scale = Math.max(out.width / img.width, out.height / img.height);
-  const dw = img.width * scale;
-  const dh = img.height * scale;
-  octx.drawImage(img, (out.width - dw) / 2, (out.height - dh) / 2, dw, dh);
+  const crop = detectInsetContentRect(img, out.width / out.height);
+  const sx = crop?.sx ?? 0;
+  const sy = crop?.sy ?? 0;
+  const sw = crop?.sw ?? (img.naturalWidth || img.width);
+  const sh = crop?.sh ?? (img.naturalHeight || img.height);
+  const scale = Math.max(out.width / sw, out.height / sh);
+  const dw = sw * scale;
+  const dh = sh * scale;
+  octx.drawImage(img, sx, sy, sw, sh, (out.width - dw) / 2, (out.height - dh) / 2, dw, dh);
 
   if (maskCanvas) {
     const mask = document.createElement("canvas");
@@ -1036,17 +1095,7 @@ function DetailView({
                   )}
                 </div>
                 <div className="flex justify-center">
-                  <CardFrame
-                    widthClassName="w-28"
-                    className="border rounded bg-muted/30 flex items-center justify-center"
-                    style={frames[side]?.widthPt && frames[side]?.heightPt
-                      ? { aspectRatio: `${frames[side].widthPt} / ${frames[side].heightPt}` }
-                      : undefined}
-                  >
-                  {testImages[side]?.url
-                    ? <img src={testImages[side]!.url} alt="" className="w-full h-full object-contain bg-white" />
-                    : <span className="text-xs text-muted-foreground flex items-center gap-1"><ImageIcon className="w-3 h-3" />테스트 이미지 없음 (API 디자인 사용)</span>}
-                  </CardFrame>
+                  <TestDesignThumb frame={frames[side]} imageUrl={testImages[side]?.url ?? null} />
                 </div>
                 <div className="text-[11px] text-muted-foreground truncate">
                   {testImages[side]?.name || "삭제 전까지 서버에 유지됩니다"}
@@ -1712,6 +1761,38 @@ function CardSideEditor({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function TestDesignThumb({ frame, imageUrl }: { frame: any; imageUrl: string | null }) {
+  const cardWmm = frame?.widthPt ? frame.widthPt * 25.4 / 72 : CARD_W_MM;
+  const cardHmm = frame?.heightPt ? frame.heightPt * 25.4 / 72 : CARD_H_MM;
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!imageUrl) { setSrc(null); return; }
+    (async () => {
+      try {
+        const canvas = await composeMaskedCardCanvas(imageUrl, frame?.maskCanvas ?? null, 240, 240 * (cardHmm / cardWmm));
+        if (!cancelled) setSrc(canvas.toDataURL("image/png"));
+      } catch {
+        if (!cancelled) setSrc(imageUrl);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [imageUrl, frame?.preview, cardWmm, cardHmm]);
+
+  return (
+    <CardFrame
+      widthClassName="w-28"
+      className="border rounded bg-muted/30 flex items-center justify-center"
+      style={{ aspectRatio: `${cardWmm} / ${cardHmm}` }}
+    >
+      {src
+        ? <img src={src} alt="" className="w-full h-full object-fill bg-white" />
+        : <span className="text-xs text-muted-foreground flex items-center gap-1"><ImageIcon className="w-3 h-3" />테스트 이미지 없음 (API 디자인 사용)</span>}
+    </CardFrame>
   );
 }
 
