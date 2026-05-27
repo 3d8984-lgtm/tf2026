@@ -1590,7 +1590,8 @@ function CardSideEditor({
 
   useEffect(() => {
     const canvas = previewCanvasRef.current;
-    if (!canvas || !cardPreview) return;
+    if (!canvas) return;
+    let cancelled = false;
     const ratio = window.devicePixelRatio || 1;
     const width = Math.max(1, Math.round(previewW * ratio));
     const height = Math.max(1, Math.round(previewH * ratio));
@@ -1603,6 +1604,7 @@ function CardSideEditor({
     if (!ctx) return;
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.clearRect(0, 0, previewW, previewH);
+    if (!cardPreview) return;
 
     const textFor = (key: OptionKey): string => {
       switch (key) {
@@ -1619,26 +1621,28 @@ function CardSideEditor({
       }
     };
 
-    keys.forEach(key => {
-      const cfg = layout[key];
-      if (!cfg?.enabled || key === "twincode" || key === "dmBarcode") return;
-      const txt = textFor(key);
-      if (!txt) return;
-      const xMm = cfg.centerX ? (cardWmm - cfg.w) / 2 : cfg.x;
-      const yMm = cfg.centerY ? (cardHmm - cfg.h) / 2 : cfg.y;
-      const fontPx = Math.max(4, (cfg.fontSize || 3) * pxPerMm);
-      drawCanvasTextElement(
-        ctx,
-        txt,
-        xMm * pxPerMm,
-        yMm * pxPerMm,
-        cfg.w * pxPerMm,
-        fontPx,
-        fontCss || "'Inter', system-ui, sans-serif",
-        textWeightForOption(key, fontWeight ?? 500),
-        alignForOption(key),
-      );
-    });
+    (async () => {
+      const drawableKeys = keys.filter(key => {
+        const cfg = layout[key];
+        return !!cfg?.enabled && key !== "twincode" && key !== "dmBarcode" && !!textFor(key);
+      });
+      await Promise.all(drawableKeys.map(key => {
+        const cfg = layout[key];
+        const fontPx = Math.max(4, (cfg.fontSize || 3) * pxPerMm);
+        const weight = textWeightForOption(key, fontWeight ?? 500);
+        return (document as any).fonts?.load(`${weight} ${fontPx}px ${fontCss || "'Inter', system-ui, sans-serif"}`);
+      }));
+      if (cancelled) return;
+      ctx.clearRect(0, 0, previewW, previewH);
+      drawableKeys.forEach(key => {
+        const cfg = layout[key];
+        const xMm = cfg.centerX ? (cardWmm - cfg.w) / 2 : cfg.x;
+        const yMm = cfg.centerY ? (cardHmm - cfg.h) / 2 : cfg.y;
+        const fontPx = Math.max(4, (cfg.fontSize || 3) * pxPerMm);
+        drawCanvasTextElement(ctx, textFor(key), xMm * pxPerMm, yMm * pxPerMm, cfg.w * pxPerMm, fontPx, fontCss || "'Inter', system-ui, sans-serif", textWeightForOption(key, fontWeight ?? 500), alignForOption(key));
+      });
+    })();
+    return () => { cancelled = true; };
   }, [backDefaults, cardHmm, cardPreview, cardWmm, fontCss, fontWeight, keys, layout, previewH, previewW, pxPerMm]);
 
   // 글자 크기 변경 시 어느 쪽을 기준으로 자라거나 줄어들지 결정하는 앵커
