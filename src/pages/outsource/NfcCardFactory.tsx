@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -1485,6 +1487,7 @@ function CardSideEditor({
   fontWeight?: number;
 }) {
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [showGuide, setShowGuide] = useState(true);
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   // 카드 크기는 저장된 사이즈 설정을 따른다 (기본 57×87mm).
   const cardWmm = cardSize.width;
@@ -1494,6 +1497,14 @@ function CardSideEditor({
   const pxPerMm = PX_PER_MM_REAL * PREVIEW_SCALE;
   const previewW = cardWmm * pxPerMm;
   const previewH = cardHmm * pxPerMm;
+  // 인쇄에 포함되지 않는 가이드 라인 (57×87mm 정중앙 기준)
+  const GUIDE_W_MM = CARD_W_MM;
+  const GUIDE_H_MM = CARD_H_MM;
+  const guideWpx = GUIDE_W_MM * pxPerMm;
+  const guideHpx = GUIDE_H_MM * pxPerMm;
+  const guideLeftPx = ((cardWmm - GUIDE_W_MM) / 2) * pxPerMm;
+  const guideTopPx = ((cardHmm - GUIDE_H_MM) / 2) * pxPerMm;
+
 
 
   const [selected, setSelected] = useState<OptionKey | null>(keys[0] ?? null);
@@ -1721,6 +1732,10 @@ function CardSideEditor({
           <span>{side === "front" ? "카드 앞면" : "카드 뒷면"} 옵션 배치</span>
           <div className="flex items-center gap-3 text-xs font-normal">
             <span className="text-muted-foreground">실제 인쇄 크기 ({cardWmm.toFixed(1)}×{cardHmm.toFixed(1)}mm) · 저장된 카드 사이즈</span>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <Switch checked={showGuide} onCheckedChange={setShowGuide} />
+              <span className="text-muted-foreground">가이드 ({GUIDE_W_MM}×{GUIDE_H_MM}mm)</span>
+            </label>
             {onTestPdf && (
               <Button
                 type="button"
@@ -1736,6 +1751,7 @@ function CardSideEditor({
                 테스트 PDF
               </Button>
             )}
+
           </div>
         </CardTitle>
       </CardHeader>
@@ -1771,7 +1787,22 @@ function CardSideEditor({
                 테스트 이미지 또는 API 디자인이 없습니다
               </div>
             )}
+            {showGuide && (
+              <div
+                aria-hidden
+                className="absolute pointer-events-none"
+                style={{
+                  left: guideLeftPx,
+                  top: guideTopPx,
+                  width: guideWpx,
+                  height: guideHpx,
+                  border: "1px solid #ef4444",
+                  zIndex: 5,
+                }}
+              />
+            )}
             <canvas
+
               ref={previewCanvasRef}
               className="absolute inset-0 pointer-events-none"
               aria-hidden
