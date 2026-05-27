@@ -1741,6 +1741,11 @@ function CardSideEditor({
                 className="absolute inset-0 w-full h-full object-fill pointer-events-none"
               />
             )}
+            <canvas
+              ref={previewCanvasRef}
+              className="absolute inset-0 pointer-events-none"
+              aria-hidden
+            />
 
             {keys.map(key => {
               const cfg = layout[key];
@@ -1753,12 +1758,11 @@ function CardSideEditor({
               const yMm = cfg.centerY ? (cardHmm - cfg.h) / 2 : cfg.y;
               const boxWpx = cfg.w * pxPerMm;
               const boxHpx = isImage ? cfg.h * pxPerMm : Math.max(fontPx, 4);
-              const alignClass = isImage ? "justify-center" : getAlignClass(key);
               return (
                 <div
                   key={key}
                   onPointerDown={e => startDrag(e, key, "move")}
-                  className={`absolute flex items-start ${alignClass} text-foreground overflow-visible select-none ${
+                  className={`absolute flex items-start justify-center text-foreground overflow-visible select-none ${
                     isSel ? "border-2 border-primary bg-primary/10 ring-2 ring-primary/30" : "border border-primary/60 bg-primary/5 hover:bg-primary/10"
                   }`}
                   style={{
