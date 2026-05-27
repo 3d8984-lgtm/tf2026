@@ -331,6 +331,45 @@ const DEFAULT_LAYOUT: Record<OptionKey, OptionLayout> = {
   nfcEnabled:  { enabled: true, x: 5,  y: 82,  w: 47, h: 4,  fontSize: 2.5, centerX: true,  centerY: false },
 };
 
+function alignForOption(key: OptionKey): "left" | "center" | "right" {
+  switch (key) {
+    case "cpValue":
+    case "grade":
+    case "centerSlogan": return "center";
+    case "editionNo":
+    case "mintedOn":
+    case "nfcEnabled":   return "right";
+    default:              return "left";
+  }
+}
+
+function textWeightForOption(key: OptionKey, masterWeight: number) {
+  return key === "grade" ? Math.max(700, masterWeight) : masterWeight;
+}
+
+function drawCanvasTextElement(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  w: number,
+  fontPx: number,
+  fontCss: string,
+  weight: number,
+  align: "left" | "center" | "right",
+) {
+  ctx.save();
+  ctx.font = `${weight} ${fontPx}px ${fontCss}`;
+  ctx.fillStyle = "#000";
+  ctx.textBaseline = "top";
+  const textW = ctx.measureText(text).width;
+  let drawX = x;
+  if (align === "center") drawX = x + (w - textW) / 2;
+  else if (align === "right") drawX = x + w - textW;
+  ctx.fillText(text, drawX, y);
+  ctx.restore();
+}
+
 interface CardData {
   seq: number;
   orderNo: string;
