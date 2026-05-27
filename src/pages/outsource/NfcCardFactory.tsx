@@ -880,7 +880,7 @@ function DetailView({
           const txt = getText();
           if (!txt) continue;
           const sizePt = Math.max(4, cfg.fontSize * MM);
-          const useFont = key === "grade" ? fontBold : font;
+          const useFont = (key === "grade" || masterFontWeight >= 600) ? fontBold : font;
           const textW = useFont.widthOfTextAtSize(txt, sizePt);
           const boxWpt = cfg.w * MM;
           const align = getAlign();
