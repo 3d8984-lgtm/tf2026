@@ -537,8 +537,17 @@ function getAlign(key: OptionKey, cfg: { align?: TextAlign }): TextAlign {
   return cfg.align ?? defaultAlignForOption(key);
 }
 
-function textWeightForOption(key: OptionKey, masterWeight: number) {
-  return key === "grade" ? Math.max(700, masterWeight) : masterWeight;
+function getOptionFontId(cfg: { fontId?: string }): string {
+  const id = cfg.fontId ?? DEFAULT_MASTER_FONT;
+  return FONT_OPTIONS.some(f => f.id === id) ? id : DEFAULT_MASTER_FONT;
+}
+function getOptionFontCss(cfg: { fontId?: string }): string {
+  const opt = FONT_OPTIONS.find(f => f.id === getOptionFontId(cfg)) ?? FONT_OPTIONS[0];
+  return opt.css;
+}
+function getOptionFontWeight(cfg: { fontWeight?: number }): number {
+  const w = cfg.fontWeight;
+  return typeof w === "number" && w >= 100 && w <= 900 ? w : DEFAULT_MASTER_FONT_WEIGHT;
 }
 
 function drawCanvasTextElement(
