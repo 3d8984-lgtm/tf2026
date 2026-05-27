@@ -1693,7 +1693,7 @@ function CardSideEditor({
         const xMm = tl.left;
         const yMm = tl.top;
         const fontPx = Math.max(4, (cfg.fontSize || 3) * pxPerMm);
-        drawCanvasTextElement(ctx, txt, xMm * pxPerMm, yMm * pxPerMm, autoWmm * pxPerMm, fontPx, family, weight, alignForOption(key));
+        drawCanvasTextElement(ctx, txt, xMm * pxPerMm, yMm * pxPerMm, autoWmm * pxPerMm, fontPx, family, weight, getAlign(key, cfg));
       });
     })();
     return () => { cancelled = true; };
