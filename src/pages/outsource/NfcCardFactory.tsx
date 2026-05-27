@@ -1588,6 +1588,59 @@ function CardSideEditor({
     return () => { cancelled = true; };
   }, [designUrl, frame?.preview, previewW, previewH]);
 
+  useEffect(() => {
+    const canvas = previewCanvasRef.current;
+    if (!canvas || !cardPreview) return;
+    const ratio = window.devicePixelRatio || 1;
+    const width = Math.max(1, Math.round(previewW * ratio));
+    const height = Math.max(1, Math.round(previewH * ratio));
+    if (canvas.width !== width) canvas.width = width;
+    if (canvas.height !== height) canvas.height = height;
+    canvas.style.width = `${previewW}px`;
+    canvas.style.height = `${previewH}px`;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.clearRect(0, 0, previewW, previewH);
+
+    const textFor = (key: OptionKey): string => {
+      switch (key) {
+        case "cpValue":   return cardPreview.cpValue || "-";
+        case "editionNo": return cardPreview.editionNo || "";
+        case "issuedNo":  return `ISSUED No. ${cardPreview.issuedNo || ""}`;
+        case "mintedOn":  return `Minted on ${cardPreview.mintedOn || ""}`;
+        case "grade":     return cardPreview.grade || "";
+        case "companyName":  return backDefaults?.companyName || "";
+        case "centerSlogan": return backDefaults?.centerSlogan || "";
+        case "nfcEnabled":   return backDefaults?.nfcEnabled || "";
+        case "issuedBy":     return backDefaults?.issuedBy || "";
+        default: return "";
+      }
+    };
+
+    keys.forEach(key => {
+      const cfg = layout[key];
+      if (!cfg?.enabled || key === "twincode" || key === "dmBarcode") return;
+      const txt = textFor(key);
+      if (!txt) return;
+      const xMm = cfg.centerX ? (cardWmm - cfg.w) / 2 : cfg.x;
+      const yMm = cfg.centerY ? (cardHmm - cfg.h) / 2 : cfg.y;
+      const fontPx = Math.max(4, (cfg.fontSize || 3) * pxPerMm);
+      drawCanvasTextElement(
+        ctx,
+        txt,
+        xMm * pxPerMm,
+        yMm * pxPerMm,
+        cfg.w * pxPerMm,
+        fontPx,
+        fontCss || "'Inter', system-ui, sans-serif",
+        textWeightForOption(key, fontWeight ?? 500),
+        alignForOption(key),
+      );
+    });
+  }, [backDefaults, cardHmm, cardPreview, cardWmm, fontCss, fontWeight, keys, layout, previewH, previewW, pxPerMm]);
+
   // 글자 크기 변경 시 어느 쪽을 기준으로 자라거나 줄어들지 결정하는 앵커
   const getAnchorX = (key: OptionKey): "left" | "center" | "right" => {
     switch (key) {
