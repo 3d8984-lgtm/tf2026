@@ -159,13 +159,20 @@ async function loadFetchedImage(url: string): Promise<{ img: HTMLImageElement; r
   }
 }
 
-function drawImageContain(ctx: CanvasRenderingContext2D, img: CanvasImageSource & { width?: number; height?: number; naturalWidth?: number; naturalHeight?: number }, x: number, y: number, w: number, h: number) {
+function drawImageContain(ctx: CanvasRenderingContext2D, img: CanvasImageSource & { width?: number; height?: number; naturalWidth?: number; naturalHeight?: number }, x: number, y: number, w: number, h: number, anchor: AnchorPoint = "mc") {
   const iw = Number(img.naturalWidth || img.width || w);
   const ih = Number(img.naturalHeight || img.height || h);
   const scale = Math.min(w / iw, h / ih);
   const dw = iw * scale;
   const dh = ih * scale;
-  ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+  const { fx, fy } = ANCHOR_FRACTIONS[anchor];
+  ctx.drawImage(img, x + (w - dw) * fx, y + (h - dh) * fy, dw, dh);
+}
+
+// CSS object-position 매핑 (sizeAnchor → "x% y%")
+function anchorToObjectPosition(anchor: AnchorPoint): string {
+  const { fx, fy } = ANCHOR_FRACTIONS[anchor];
+  return `${fx * 100}% ${fy * 100}%`;
 }
 
 function detectInsetContentRect(
