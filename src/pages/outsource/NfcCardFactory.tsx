@@ -1481,6 +1481,7 @@ function CardSideEditor({
   fontWeight?: number;
 }) {
   const [pdfBusy, setPdfBusy] = useState(false);
+  const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   // 실제 카드 크기는 업로드된 프레임 PDF 크기를 따른다. 프레임이 없으면 기본 57×87mm.
   const cardWmm = frame?.widthPt ? frame.widthPt * 25.4 / 72 : CARD_W_MM;
   const cardHmm = frame?.heightPt ? frame.heightPt * 25.4 / 72 : CARD_H_MM;
@@ -1586,21 +1587,6 @@ function CardSideEditor({
     })();
     return () => { cancelled = true; };
   }, [designUrl, frame?.preview, previewW, previewH]);
-
-  const getAlignClass = (key: OptionKey): string => {
-    switch (key) {
-      case "cpValue":
-      case "grade":
-      case "centerSlogan": return "justify-center text-center";
-      case "editionNo":
-      case "mintedOn":
-      case "nfcEnabled":   return "justify-end text-right";
-      case "issuedNo":
-      case "companyName":
-      case "issuedBy":     return "justify-start text-left";
-      default:             return "justify-center text-center";
-    }
-  };
 
   // 글자 크기 변경 시 어느 쪽을 기준으로 자라거나 줄어들지 결정하는 앵커
   const getAnchorX = (key: OptionKey): "left" | "center" | "right" => {
