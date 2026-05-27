@@ -765,8 +765,8 @@ function DetailView({
   const buildCardPdfBytes = async (card: CardData, opts?: { sides?: Array<"front" | "back"> }): Promise<Uint8Array> => {
     const out = await PDFDocument.create();
     out.registerFontkit(fontkit);
-    const interReg = await fetchFontBytes(INTER_TTF_URL, "reg");
-    const interBold = await fetchFontBytes(INTER_BOLD_TTF_URL, "bold");
+    const interReg = await fetchFontBytes(currentFont.ttfReg, "reg");
+    const interBold = await fetchFontBytes(currentFont.ttfBold, "bold");
     const font = interReg
       ? await out.embedFont(interReg, { subset: true })
       : await out.embedFont((await import("pdf-lib")).StandardFonts.Helvetica);
