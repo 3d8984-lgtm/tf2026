@@ -978,7 +978,7 @@ function DetailView({
   // 마스터 글자꼴 (선택 시 카드 텍스트/숫자 미리보기 + PDF에 자동 적용)
   const [masterFont, setMasterFont] = useState<string>(DEFAULT_MASTER_FONT);
   const [masterFontWeight, setMasterFontWeight] = useState<number>(DEFAULT_MASTER_FONT_WEIGHT);
-  const currentFont = FONT_OPTIONS.find(f => f.id === masterFont) ?? FONT_OPTIONS[0];
+  
 
   // 브라우저 미리보기용: Spoqa는 로컬 TTF로 @font-face 등록, 나머지는 외부 CSS 링크 주입
   useEffect(() => {
