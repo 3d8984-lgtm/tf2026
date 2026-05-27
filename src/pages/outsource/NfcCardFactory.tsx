@@ -1266,84 +1266,7 @@ function CardSideEditor({
         <CardTitle className="text-sm flex items-center justify-between gap-3 flex-wrap">
           <span>{side === "front" ? "카드 앞면" : "카드 뒷면"} 옵션 배치</span>
           <div className="flex items-center gap-3 text-xs font-normal">
-            <label className="flex items-center gap-1 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={actualSize}
-                onChange={e => setActualSize(e.target.checked)}
-              />
-              <span>실제 크기(1:1)</span>
-            </label>
-            {actualSize ? (
-              <div className="flex items-center gap-2">
-                <Label className="text-xs">화면보정</Label>
-                <input
-                  type="range"
-                  min={80}
-                  max={130}
-                  step={1}
-                  value={mmScale}
-                  onChange={e => setMmScale(Number(e.target.value))}
-                  className="w-24"
-                />
-                <span className="tabular-nums w-10 text-muted-foreground">{mmScale}%</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <Label className="text-xs">확대</Label>
-                <input
-                  type="range"
-                  min={4}
-                  max={16}
-                  step={1}
-                  value={zoom}
-                  onChange={e => setZoom(Number(e.target.value))}
-                  className="w-32"
-                />
-                <span className="tabular-nums w-10 text-muted-foreground">{zoom}×</span>
-              </div>
-            )}
-            <Button
-              type="button"
-              size="sm"
-              variant={pickMode ? "default" : "outline"}
-              onClick={() => setPickMode(v => !v)}
-              disabled={!selected}
-            >
-              {pickMode ? "클릭으로 위치 지정 중…" : "위치 찍기"}
-            </Button>
-            <div className="flex items-center gap-1">
-              <Label className="text-xs">여백보정</Label>
-              <input
-                type="range"
-                min={0}
-                max={8}
-                step={0.1}
-                value={bleedMm}
-                onChange={e => setBleedMm(Number(e.target.value))}
-                className="w-24"
-              />
-              <input
-                type="number"
-                min={0}
-                max={20}
-                step={0.1}
-                value={bleedMm}
-                onChange={e => setBleedMm(Number(e.target.value) || 0)}
-                className="w-14 h-7 px-1 text-xs border rounded tabular-nums"
-              />
-              <span className="text-muted-foreground">mm</span>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="h-7 px-2 text-xs"
-                onClick={() => setBleedMm(DEFAULT_FRAME_BLEED_MM)}
-                title="기본값으로 초기화"
-              >
-                리셋
-              </Button>
-            </div>
+            <span className="text-muted-foreground">실제 인쇄 크기 (57×87mm)</span>
             {onTestPdf && (
               <Button
                 type="button"
@@ -1365,17 +1288,16 @@ function CardSideEditor({
       <CardContent className="space-y-4">
         <div className="text-xs text-muted-foreground">
           박스를 드래그해 이동하거나 오른쪽 아래 모서리를 끌어 크기를 조절하세요.
-          확정된 PDF 좌표를 알면 "위치 찍기" 모드에서 미리보기를 클릭해 중심을 맞출 수 있습니다.
         </div>
 
         {/* Preview */}
         <div className="flex justify-center overflow-auto">
           <CardFrame
             ref={stageRef}
-            onClick={onStageClick}
-            className={`border-2 rounded-md shadow-md ${pickMode ? "cursor-crosshair ring-2 ring-primary" : ""}`}
+            className="border-2 rounded-md shadow-md"
             style={{ width: previewW, background: "#fff", fontFamily: "'Inter', system-ui, sans-serif" }}
           >
+
             {/* Layer order: card design (bottom, clipped by frame as mask) → options (top).
                 프레임 PDF는 일러스트의 클리핑 마스크처럼 동작하여, 프레임이 그려진 영역 안쪽에만 카드 디자인이 보입니다. */}
             {(() => {
