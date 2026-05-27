@@ -299,6 +299,8 @@ const ANCHOR_FRACTIONS: Record<AnchorPoint, { fx: number; fy: number }> = {
   bl: { fx: 0,   fy: 1 },   bc: { fx: 0.5, fy: 1 },   br: { fx: 1, fy: 1 },
 };
 
+type TextAlign = "left" | "center" | "right";
+
 interface OptionLayout {
   enabled: boolean;
   x: number;      // mm — anchor point의 카드 왼쪽 변으로부터의 거리
@@ -307,6 +309,7 @@ interface OptionLayout {
   h: number;      // mm (for images/svg); text uses fontSize
   fontSize: number; // mm (text height)
   anchor?: AnchorPoint; // 바운딩 박스 기준점 (기본: 텍스트="mc", 이미지="tl")
+  align?: TextAlign; // 텍스트 정렬 (왼쪽/중앙/오른쪽)
   padding?: number; // mm — DM 바코드 흰 여백 (quiet zone)
 }
 
@@ -361,7 +364,7 @@ const DEFAULT_LAYOUT: Record<OptionKey, OptionLayout> = {
   nfcEnabled:  { enabled: true, x: 28.5, y: 84, w: 47, h: 4,  fontSize: 2.5, anchor: "mc" },
 };
 
-function alignForOption(key: OptionKey): "left" | "center" | "right" {
+function defaultAlignForOption(key: OptionKey): TextAlign {
   switch (key) {
     case "cpValue":
     case "grade":
@@ -371,6 +374,9 @@ function alignForOption(key: OptionKey): "left" | "center" | "right" {
     case "nfcEnabled":   return "right";
     default:              return "left";
   }
+}
+function getAlign(key: OptionKey, cfg: { align?: TextAlign }): TextAlign {
+  return cfg.align ?? defaultAlignForOption(key);
 }
 
 function textWeightForOption(key: OptionKey, masterWeight: number) {
@@ -1051,7 +1057,7 @@ function DetailView({
         const tl2 = anchorTopLeft(cfg.x, cfg.y, autoWmm, autoHmm, anc2);
         const tXmm = tl2.left;
         const tYmm = tl2.top;
-        drawCanvasTextElement(ctx, txt, tXmm * pxPerMm, tYmm * pxPerMm, autoWmm * pxPerMm, fontPx, currentFont.css, weight, alignForOption(key));
+        drawCanvasTextElement(ctx, txt, tXmm * pxPerMm, tYmm * pxPerMm, autoWmm * pxPerMm, fontPx, currentFont.css, weight, getAlign(key, cfg));
       }
 
       const png = await canvasToPngBytes(canvas);
@@ -1687,7 +1693,7 @@ function CardSideEditor({
         const xMm = tl.left;
         const yMm = tl.top;
         const fontPx = Math.max(4, (cfg.fontSize || 3) * pxPerMm);
-        drawCanvasTextElement(ctx, txt, xMm * pxPerMm, yMm * pxPerMm, autoWmm * pxPerMm, fontPx, family, weight, alignForOption(key));
+        drawCanvasTextElement(ctx, txt, xMm * pxPerMm, yMm * pxPerMm, autoWmm * pxPerMm, fontPx, family, weight, getAlign(key, cfg));
       });
     })();
     return () => { cancelled = true; };
@@ -1928,9 +1934,15 @@ function CardSideEditor({
                 {!isImage && (
                   <Mini label="글자(mm)" v={cfg.fontSize} set={v => update(key, { fontSize: v })} step={0.1} />
                 )}
-                <div className="md:col-span-2 flex items-center gap-2">
+                <div className="md:col-span-2 flex items-center gap-2 flex-wrap">
                   <Label className="text-[10px] text-muted-foreground whitespace-nowrap">기준점</Label>
                   <AnchorPicker value={getAnchor(key, cfg)} onChange={v => update(key, { anchor: v })} />
+                  {!isImage && (
+                    <>
+                      <Label className="text-[10px] text-muted-foreground whitespace-nowrap ml-2">정렬</Label>
+                      <AlignPicker value={getAlign(key, cfg)} onChange={v => update(key, { align: v })} />
+                    </>
+                  )}
                 </div>
               </div>
             );
@@ -2014,6 +2026,38 @@ function AnchorPicker({ value, onChange }: { value: AnchorPoint; onChange: (v: A
               className={active ? "bg-primary" : "bg-foreground/40"}
               style={{ width: 6, height: 6, borderRadius: 1 }}
             />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function AlignPicker({ value, onChange }: { value: TextAlign; onChange: (v: TextAlign) => void }) {
+  const opts: { v: TextAlign; label: string; bars: number[] }[] = [
+    { v: "left",   label: "왼쪽",   bars: [10, 7, 9] },
+    { v: "center", label: "중앙",   bars: [10, 7, 9] },
+    { v: "right",  label: "오른쪽", bars: [10, 7, 9] },
+  ];
+  return (
+    <div className="inline-flex border border-foreground/40 bg-background rounded" role="radiogroup" aria-label="텍스트 정렬">
+      {opts.map(o => {
+        const active = value === o.v;
+        return (
+          <button
+            key={o.v}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            aria-label={o.label}
+            title={o.label}
+            onClick={e => { e.stopPropagation(); onChange(o.v); }}
+            className={`flex flex-col items-end justify-center gap-[2px] px-2 py-1 transition-colors ${active ? "bg-primary/15" : "hover:bg-primary/10"}`}
+            style={{ width: 22, height: 22, alignItems: o.v === "left" ? "flex-start" : o.v === "right" ? "flex-end" : "center" }}
+          >
+            {o.bars.map((w, i) => (
+              <span key={i} className={active ? "bg-primary" : "bg-foreground/60"} style={{ width: w, height: 2, borderRadius: 1 }} />
+            ))}
           </button>
         );
       })}
