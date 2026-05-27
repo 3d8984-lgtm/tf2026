@@ -1642,7 +1642,7 @@ function CardSideEditor({
     const startY = e.clientY;
     const cfg = layout[key];
     const startMm = { x: cfg.x, y: cfg.y, w: cfg.w, h: cfg.h };
-    const isImage = key === "twincode" || key === "dmBarcode";
+    const isImage = isImageKey(key);
     const target = e.currentTarget as HTMLElement;
     target.setPointerCapture(e.pointerId);
 
