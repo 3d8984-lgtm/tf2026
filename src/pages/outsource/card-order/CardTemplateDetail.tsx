@@ -95,9 +95,12 @@ function PreviewCard({
   onCommit: (id: string, patch: Partial<CardElement>) => void;
   containerWidth: number;
 }) {
-  // Scale to fit container
+  // Scale to fit container, then enlarge 1.5x for legibility
   const cardPxAt96 = CARD_W_MM * PX_PER_MM;
-  const scale = Math.max(1, Math.min(4, (containerWidth - 32) / cardPxAt96));
+  const fitScale = Math.max(1, (containerWidth - 8) / cardPxAt96);
+  const scale = fitScale * 1.5;
+
+
 
   const previewUrl = side === "front" ? template.front_preview_png_url : template.back_preview_png_url;
   const visible = elements.filter((e) => e.side === side);
