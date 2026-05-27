@@ -1833,9 +1833,9 @@ function CardSideEditor({
   );
 }
 
-function TestDesignThumb({ frame, imageUrl }: { frame: any; imageUrl: string | null }) {
-  const cardWmm = frame?.widthPt ? frame.widthPt * 25.4 / 72 : CARD_W_MM;
-  const cardHmm = frame?.heightPt ? frame.heightPt * 25.4 / 72 : CARD_H_MM;
+function TestDesignThumb({ cardSize, imageUrl }: { cardSize: CardSize; imageUrl: string | null }) {
+  const cardWmm = cardSize.width;
+  const cardHmm = cardSize.height;
   const [src, setSrc] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1843,14 +1843,14 @@ function TestDesignThumb({ frame, imageUrl }: { frame: any; imageUrl: string | n
     if (!imageUrl) { setSrc(null); return; }
     (async () => {
       try {
-        const canvas = await composeMaskedCardCanvas(imageUrl, frame?.maskCanvas ?? null, 240, 240 * (cardHmm / cardWmm));
+        const canvas = await composeMaskedCardCanvas(imageUrl, null, 240, 240 * (cardHmm / cardWmm));
         if (!cancelled) setSrc(canvas.toDataURL("image/png"));
       } catch {
         if (!cancelled) setSrc(imageUrl);
       }
     })();
     return () => { cancelled = true; };
-  }, [imageUrl, frame?.preview, cardWmm, cardHmm]);
+  }, [imageUrl, cardWmm, cardHmm]);
 
   return (
     <CardFrame
