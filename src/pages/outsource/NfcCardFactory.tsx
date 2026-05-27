@@ -35,6 +35,7 @@ const SETTINGS_KEY_PREFIX = "outsource-nfc-card-v1";
 const GLOBAL_LAYOUT_KEY = "outsource-nfc-card-layout-default";
 const CARD_SIZE_KEY = "outsource-nfc-card-size";
 const TEST_TWINCODE_PREFIX = "nfc-card-test";
+const TEST_SIGNATURE_PREFIX = "nfc-card-test";
 
 interface CardSize { width: number; height: number }
 const DEFAULT_CARD_SIZE: CardSize = { width: CARD_W_MM, height: CARD_H_MM };
@@ -283,8 +284,13 @@ function tsName() {
 
 type OptionKey =
   | "cpValue" | "editionNo"
-  | "issuedNo" | "mintedOn" | "grade" | "issuedBy" | "twincode" | "dmBarcode"
+  | "issuedNo" | "mintedOn" | "grade" | "issuedBy" | "twincode" | "dmBarcode" | "signature"
   | "companyName" | "centerSlogan" | "nfcEnabled";
+
+// 이미지 형태의 옵션 (텍스트가 아닌 비트맵/SVG 렌더링)
+function isImageKey(key: OptionKey): boolean {
+  return key === "twincode" || key === "dmBarcode" || key === "signature";
+}
 
 // 바운딩 박스 내 9개 기준점 (Illustrator reference point 스타일)
 // t=top, m=middle, b=bottom / l=left, c=center, r=right
@@ -311,10 +317,11 @@ interface OptionLayout {
   anchor?: AnchorPoint; // 바운딩 박스 기준점 (기본: 텍스트="mc", 이미지="tl")
   align?: TextAlign; // 텍스트 정렬 (왼쪽/중앙/오른쪽)
   padding?: number; // mm — DM 바코드 흰 여백 (quiet zone)
+  lockAspect?: boolean; // 이미지 옵션의 비율 잠금 (서명 등)
 }
 
 const FRONT_KEYS: OptionKey[] = ["cpValue", "editionNo"];
-const BACK_KEYS: OptionKey[] = ["issuedNo", "mintedOn", "grade", "issuedBy", "twincode", "dmBarcode", "companyName", "centerSlogan", "nfcEnabled"];
+const BACK_KEYS: OptionKey[] = ["issuedNo", "mintedOn", "grade", "issuedBy", "signature", "twincode", "dmBarcode", "companyName", "centerSlogan", "nfcEnabled"];
 
 const OPTION_LABELS: Record<OptionKey, string> = {
   cpValue: "CP값",
@@ -325,6 +332,7 @@ const OPTION_LABELS: Record<OptionKey, string> = {
   issuedBy: "ISSUED BY",
   twincode: "트윈코드",
   dmBarcode: "DM 바코드",
+  signature: "서명 파일",
   companyName: "회사명",
   centerSlogan: "중앙슬로건",
   nfcEnabled: "NFC Enabled",
@@ -337,9 +345,13 @@ const DEFAULT_BACK_DEFAULTS = {
   issuedBy: "ISSUED BY",
 };
 
+// 서명 이미지의 기본 인쇄 크기 (mm) — 업로드된 이미지의 자연 비율을 모를 때 fallback
+const SIGNATURE_BASE_W_MM = 20;
+const SIGNATURE_BASE_H_MM = 8;
+
 // 텍스트/이미지 유형별 기본 anchor 보정 — 저장값에 anchor가 없으면 사용
 function defaultAnchorForKey(key: OptionKey): AnchorPoint {
-  return key === "twincode" || key === "dmBarcode" ? "tl" : "mc";
+  return isImageKey(key) ? "tl" : "mc";
 }
 function getAnchor(key: OptionKey, cfg: { anchor?: AnchorPoint }): AnchorPoint {
   return cfg.anchor ?? defaultAnchorForKey(key);
@@ -359,6 +371,7 @@ const DEFAULT_LAYOUT: Record<OptionKey, OptionLayout> = {
   issuedBy:    { enabled: true, x: 52,   y: 41, w: 25, h: 12, fontSize: 3,   anchor: "mr" },
   twincode:    { enabled: true, x: 5,    y: 25, w: 14, h: 14, fontSize: 0,   anchor: "tl" },
   dmBarcode:   { enabled: true, x: 60,   y: 18, w: 14, h: 14, fontSize: 0,   anchor: "tl", padding: 0.5 },
+  signature:   { enabled: true, x: 28.5, y: 65, w: SIGNATURE_BASE_W_MM, h: SIGNATURE_BASE_H_MM, fontSize: 0, anchor: "mc", lockAspect: true },
   companyName: { enabled: true, x: 28.5, y: 77, w: 47, h: 5,  fontSize: 3,   anchor: "mc" },
   centerSlogan:{ enabled: true, x: 28.5, y: 52, w: 47, h: 5,  fontSize: 3.5, anchor: "mc" },
   nfcEnabled:  { enabled: true, x: 28.5, y: 84, w: 47, h: 4,  fontSize: 2.5, anchor: "mc" },
@@ -436,6 +449,7 @@ interface CardData {
   grade: string;
   issuedByUrl: string | null;
   twincodeSvgUrl: string | null;
+  signatureUrl: string | null;
   frontImageUrl: string | null;
   backImageUrl: string | null;
 }
@@ -731,6 +745,7 @@ function DetailView({
         grade: String(it.grade ?? sd.grade ?? order.grade ?? "COMMON").toUpperCase(),
         issuedByUrl: it.issued_by_url ?? sd.issued_by_url ?? null,
         twincodeSvgUrl: it.twincode_svg_url ?? it.svg_url ?? sd.twincode_svg_url ?? null,
+        signatureUrl: it.signature_url ?? it.signature_svg_url ?? sd.signature_url ?? sd.signature_svg_url ?? null,
         frontImageUrl: it.card_front_url ?? sd.card_front_url ?? null,
         backImageUrl: it.card_back_url ?? sd.card_back_url ?? null,
       };
@@ -769,6 +784,9 @@ function DetailView({
 
   // Test twincode SVG (server-persisted; falls back to API twincodeSvgUrl when removed)
   const [testTwincodeSvg, setTestTwincodeSvg] = useState<{ url: string; name: string } | null>(null);
+
+  // Test signature file (server-persisted; falls back to API signatureUrl when removed)
+  const [testSignature, setTestSignature] = useState<{ url: string; name: string } | null>(null);
 
   // Test values for preview only (override card[0] for front/back fields)
   const [testValues, setTestValues] = useState({
@@ -908,6 +926,50 @@ function DetailView({
     }
   };
 
+  // Load test signature from storage
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: list } = await supabase.storage.from(FRAME_BUCKET).list(TEST_SIGNATURE_PREFIX);
+      if (cancelled) return;
+      const found = (list || []).find(f => f.name.startsWith("signature__"));
+      if (!found) return;
+      const path = `${TEST_SIGNATURE_PREFIX}/${found.name}`;
+      const { data: pub } = supabase.storage.from(FRAME_BUCKET).getPublicUrl(path);
+      const name = found.name.replace(/^signature__/, "");
+      setTestSignature({ url: `${pub.publicUrl}?v=${Date.now()}`, name });
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const onUploadTestSignature = async (file: File | null) => {
+    const { data: existing } = await supabase.storage.from(FRAME_BUCKET).list(TEST_SIGNATURE_PREFIX);
+    const toRemove = (existing || [])
+      .filter(f => f.name.startsWith("signature__"))
+      .map(f => `${TEST_SIGNATURE_PREFIX}/${f.name}`);
+    if (toRemove.length) await supabase.storage.from(FRAME_BUCKET).remove(toRemove);
+    if (!file) {
+      setTestSignature(null);
+      toast({ title: "서명 테스트 파일 삭제됨", description: "원래 API 서명파일이 적용됩니다" });
+      return;
+    }
+    try {
+      const safe = file.name.replace(/[^\w.\-]+/g, "_");
+      const path = `${TEST_SIGNATURE_PREFIX}/signature__${safe}`;
+      const ct = file.type || (/\.svg$/i.test(file.name) ? "image/svg+xml" : "image/png");
+      const { error } = await supabase.storage.from(FRAME_BUCKET)
+        .upload(path, file, { upsert: true, contentType: ct });
+      if (error) { toast({ title: "업로드 실패", description: error.message, variant: "destructive" }); return; }
+      const { data: pub } = supabase.storage.from(FRAME_BUCKET).getPublicUrl(path);
+      setTestSignature({ url: `${pub.publicUrl}?v=${Date.now()}`, name: file.name });
+      toast({ title: "서명 테스트 파일 등록됨" });
+    } catch (e: any) {
+      toast({ title: "업로드 실패", description: e.message, variant: "destructive" });
+    }
+  };
+
+
+
   // Load saved layout from user_ui_settings (per-order, fallback to global default)
   useEffect(() => {
     if (!userId) { setLoaded(true); return; }
@@ -1029,6 +1091,21 @@ function DetailView({
           }
           continue;
         }
+
+        if (key === "signature") {
+          const sigUrl = testSignature?.url || card.signatureUrl;
+          if (sigUrl) {
+            let fetched: { img: HTMLImageElement; revoke: () => void } | null = null;
+            try {
+              fetched = await loadFetchedImage(sigUrl);
+              drawImageContain(ctx, fetched.img, x, y, w, h);
+            } catch (e) { console.warn("signature draw fail", e); }
+            finally { fetched?.revoke(); }
+          }
+          continue;
+        }
+
+
 
         if (key === "dmBarcode") {
           try {
@@ -1199,9 +1276,9 @@ function DetailView({
         {/* Test twincode SVG upload */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">트윈코드 테스트 SVG (서버 저장)</CardTitle>
+            <CardTitle className="text-sm">트윈코드 / 서명 테스트 파일 (서버 저장)</CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 gap-4">
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="border rounded-md p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="font-medium text-xs">트윈코드 SVG</Label>
@@ -1227,6 +1304,37 @@ function DetailView({
                 {testTwincodeSvg && (
                   <Button size="sm" variant="destructive" className="text-xs"
                     onClick={() => { if (confirm("테스트 SVG를 삭제하고 원래 API 트윈코드를 사용할까요?")) onUploadTestTwincode(null); }}>
+                    <X className="w-3 h-3 mr-1" />삭제
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <div className="border rounded-md p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="font-medium text-xs">서명 파일 (PNG / SVG)</Label>
+                {testSignature && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600">서버 저장됨</span>
+                )}
+              </div>
+              <div className="w-full h-32 border rounded bg-muted/30 overflow-hidden flex items-center justify-center">
+                {testSignature?.url
+                  ? <img src={testSignature.url} alt="" className="w-full h-full object-contain bg-white" />
+                  : <span className="text-xs text-muted-foreground flex items-center gap-1"><ImageIcon className="w-3 h-3" />테스트 서명 없음 (API 서명파일 사용)</span>}
+              </div>
+              <div className="text-[11px] text-muted-foreground truncate">
+                {testSignature?.name || "테스트 종료 후 삭제하면 API 서명파일이 사용됩니다"}
+              </div>
+              <div className="flex gap-2">
+                <label className="flex-1 flex items-center justify-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
+                  <Upload className="w-3 h-3" />
+                  <span>{testSignature ? "변경" : "서명 업로드"}</span>
+                  <input type="file" accept="image/svg+xml,image/png,image/jpeg,image/webp" className="hidden"
+                    onChange={e => { const f = e.target.files?.[0] || null; e.currentTarget.value = ""; if (f) onUploadTestSignature(f); }} />
+                </label>
+                {testSignature && (
+                  <Button size="sm" variant="destructive" className="text-xs"
+                    onClick={() => { if (confirm("테스트 서명파일을 삭제하고 원래 API 서명을 사용할까요?")) onUploadTestSignature(null); }}>
                     <X className="w-3 h-3 mr-1" />삭제
                   </Button>
                 )}
@@ -1377,6 +1485,7 @@ function DetailView({
               fontWeight={masterFontWeight}
               testImageUrl={testImages.back?.url || null}
               testTwincodeUrl={testTwincodeSvg?.url || null}
+              testSignatureUrl={testSignature?.url || null}
               cardPreview={applyTestValues(cards[0], testValues)}
               layout={layoutBack}
               setLayout={setLayoutBack}
@@ -1502,13 +1611,14 @@ function applyTestValues(c: CardData | undefined, tv: { cpValue: string; edition
 
 // ============== Card side editor (preview + per-option controls) ==============
 function CardSideEditor({
-  side, cardSize, testImageUrl, testTwincodeUrl, cardPreview, layout, setLayout, keys, backDefaults, onTestPdf,
+  side, cardSize, testImageUrl, testTwincodeUrl, testSignatureUrl, cardPreview, layout, setLayout, keys, backDefaults, onTestPdf,
   bleedMm, fontCss, fontWeight,
 }: {
   side: "front" | "back";
   cardSize: CardSize;
   testImageUrl?: string | null;
   testTwincodeUrl?: string | null;
+  testSignatureUrl?: string | null;
   cardPreview?: CardData;
   layout: Record<OptionKey, OptionLayout>;
   setLayout: React.Dispatch<React.SetStateAction<Record<OptionKey, OptionLayout>>>;
@@ -1564,7 +1674,7 @@ function CardSideEditor({
     const startY = e.clientY;
     const cfg = layout[key];
     const startMm = { x: cfg.x, y: cfg.y, w: cfg.w, h: cfg.h };
-    const isImage = key === "twincode" || key === "dmBarcode";
+    const isImage = isImageKey(key);
     const target = e.currentTarget as HTMLElement;
     target.setPointerCapture(e.pointerId);
 
@@ -1584,6 +1694,12 @@ function CardSideEditor({
           // square: keep w == h
           const size = clampMm(startMm.w + Math.max(dxMm, dyMm), Math.min(cardWmm - cfg.x, cardHmm - cfg.y));
           update(key, { w: size, h: size });
+        } else if (cfg.lockAspect && startMm.w > 0 && startMm.h > 0) {
+          // 비율 유지: 너비 변화량 기준으로 높이 동기화
+          const ratio = startMm.h / startMm.w;
+          const newW = clampMm(startMm.w + dxMm, cardWmm - cfg.x);
+          const newH = clampMm(newW * ratio, cardHmm - cfg.y);
+          update(key, { w: newW, h: newH });
         } else {
           update(key, {
             w: clampMm(startMm.w + dxMm, cardWmm - cfg.x),
@@ -1671,7 +1787,7 @@ function CardSideEditor({
     (async () => {
       const drawableKeys = keys.filter(key => {
         const cfg = layout[key];
-        return !!cfg?.enabled && key !== "twincode" && key !== "dmBarcode" && !!textFor(key);
+        return !!cfg?.enabled && !isImageKey(key) && !!textFor(key);
       });
       await Promise.all(drawableKeys.map(key => {
         const cfg = layout[key];
@@ -1736,6 +1852,12 @@ function CardSideEditor({
       case "dmBarcode": return dmPreview
         ? <img src={dmPreview} alt="" className="w-full h-full object-contain pointer-events-none bg-white" />
         : <span className="text-[8px] text-muted-foreground">DM</span>;
+      case "signature": {
+        const sUrl = testSignatureUrl || cardPreview.signatureUrl;
+        return sUrl
+          ? <img src={sUrl} alt="" className="w-full h-full object-contain pointer-events-none" />
+          : <span className="text-[8px] text-muted-foreground">SIGN</span>;
+      }
     }
   };
 
@@ -1843,7 +1965,7 @@ function CardSideEditor({
               const cfg = layout[key];
               if (!cfg?.enabled) return null;
               const fontPx = (cfg.fontSize || 3) * pxPerMm;
-              const isImage = key === "twincode" || key === "dmBarcode";
+              const isImage = isImageKey(key);
               const isSel = selected === key;
               const family = fontCss || "'Inter', system-ui, sans-serif";
               const weight = textWeightForOption(key, fontWeight ?? 500);
@@ -1901,7 +2023,7 @@ function CardSideEditor({
         <div className="space-y-2">
           {keys.map(key => {
             const cfg = layout[key];
-            const isImage = key === "twincode" || key === "dmBarcode";
+            const isImage = isImageKey(key);
             const isSel = selected === key;
             return (
               <div
@@ -1922,8 +2044,22 @@ function CardSideEditor({
                   </>
                 ) : isImage ? (
                   <>
-                    <Mini label="너비(mm)" v={cfg.w} set={v => update(key, { w: v })} />
-                    <Mini label="높이(mm)" v={cfg.h} set={v => update(key, { h: v })} />
+                    <Mini label="너비(mm)" v={cfg.w} set={v => {
+                      if (cfg.lockAspect && cfg.w > 0 && cfg.h > 0) {
+                        const ratio = cfg.h / cfg.w;
+                        update(key, { w: v, h: Math.round(v * ratio * 10) / 10 });
+                      } else {
+                        update(key, { w: v });
+                      }
+                    }} />
+                    <Mini label="높이(mm)" v={cfg.h} set={v => {
+                      if (cfg.lockAspect && cfg.w > 0 && cfg.h > 0) {
+                        const ratio = cfg.w / cfg.h;
+                        update(key, { h: v, w: Math.round(v * ratio * 10) / 10 });
+                      } else {
+                        update(key, { h: v });
+                      }
+                    }} />
                   </>
                 ) : (
                   // 텍스트 옵션: 너비/높이는 글자 크기에 자동 맞춤
@@ -1942,6 +2078,12 @@ function CardSideEditor({
                       <Label className="text-[10px] text-muted-foreground whitespace-nowrap ml-2">정렬</Label>
                       <AlignPicker value={getAlign(key, cfg)} onChange={v => update(key, { align: v })} />
                     </>
+                  )}
+                  {key === "signature" && (
+                    <label className="flex items-center gap-1 cursor-pointer ml-2 text-[10px] text-muted-foreground">
+                      <Checkbox checked={!!cfg.lockAspect} onCheckedChange={v => update(key, { lockAspect: !!v })} />
+                      <span>비율 잠금</span>
+                    </label>
                   )}
                 </div>
               </div>
