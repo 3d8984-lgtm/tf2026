@@ -95,9 +95,12 @@ function PreviewCard({
   onCommit: (id: string, patch: Partial<CardElement>) => void;
   containerWidth: number;
 }) {
-  // Scale to fit container
+  // Scale to fit container, then enlarge 1.5x for legibility
   const cardPxAt96 = CARD_W_MM * PX_PER_MM;
-  const scale = Math.max(1, Math.min(4, (containerWidth - 32) / cardPxAt96));
+  const fitScale = Math.max(1, (containerWidth - 8) / cardPxAt96);
+  const scale = fitScale * 1.5;
+
+
 
   const previewUrl = side === "front" ? template.front_preview_png_url : template.back_preview_png_url;
   const visible = elements.filter((e) => e.side === side);
@@ -145,17 +148,18 @@ function PreviewCard({
   return (
     <div
       ref={wrapperRef}
-      className="relative bg-muted/40 rounded-md p-4 overflow-auto"
+      className="relative bg-muted/40 rounded-md p-2 overflow-auto"
       onClick={() => onSelect(null)}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
     >
       <div
         style={{
-          width: `${CARD_W_MM * scale}mm`,
-          height: `${CARD_H_MM * scale}mm`,
+          width: `calc(${CARD_W_MM}mm * ${scale})`,
+          height: `calc(${CARD_H_MM}mm * ${scale})`,
         }}
       >
+
         <div
           className="origin-top-left"
           style={{ transform: `scale(${scale})`, transformOrigin: "top left" }}
