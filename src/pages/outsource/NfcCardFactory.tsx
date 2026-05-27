@@ -115,6 +115,20 @@ function buildUploadDebugInfo(params: {
   };
 }
 
+async function uploadNfcCardAsset(path: string, file: Blob, contentType: string) {
+  const form = new FormData();
+  form.append("path", path);
+  form.append("contentType", contentType);
+  form.append("file", file);
+
+  const { data, error } = await supabase.functions.invoke("nfc-card-upload", {
+    body: form,
+  });
+  if (error) throw error;
+  if (!data?.publicUrl) throw new Error("업로드 응답에 publicUrl이 없습니다");
+  return data as { bucket: string; path: string; publicUrl: string };
+}
+
 function UploadDebugPanel({ info, onClose }: { info: UploadDebugInfo; onClose: () => void }) {
   const rows: Array<[string, string]> = [
     ["버킷", info.bucket],
