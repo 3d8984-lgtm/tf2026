@@ -252,7 +252,7 @@ export default function NfcCardFactory() {
         if (cancelled || !file) continue;
         try {
           const buf = new Uint8Array(await file.arrayBuffer());
-          const { dataUrl, aspect } = await renderPdfFirstPagePng(buf);
+          const { dataUrl, aspect, maskCanvas, widthPt, heightPt } = await renderPdfFirstPagePng(buf);
           if (cancelled) return;
           const name = found.name.replace(/^(front|back)__/, "");
           setFrames(prev => ({ ...prev, [side]: { name, bytes: buf, preview: dataUrl, aspect, maskCanvas, widthPt, heightPt } }));
