@@ -66,6 +66,60 @@ async function renderPdfFirstPagePng(bytes: Uint8Array): Promise<{ dataUrl: stri
   return { dataUrl: canvas.toDataURL("image/png"), aspect: viewport.width / viewport.height, maskCanvas: canvas, widthPt: vp1.width, heightPt: vp1.height };
 }
 
+async function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+async function composeMaskedCardCanvas(
+  designSrc: string,
+  maskCanvas: HTMLCanvasElement | null,
+  targetW: number,
+  targetH: number,
+): Promise<HTMLCanvasElement> {
+  const out = document.createElement("canvas");
+  out.width = Math.max(1, Math.round(targetW));
+  out.height = Math.max(1, Math.round(targetH));
+  const octx = out.getContext("2d")!;
+  octx.imageSmoothingEnabled = true;
+  octx.imageSmoothingQuality = "high";
+
+  const img = await loadImage(designSrc);
+  const scale = Math.max(out.width / img.width, out.height / img.height);
+  const dw = img.width * scale;
+  const dh = img.height * scale;
+  octx.drawImage(img, (out.width - dw) / 2, (out.height - dh) / 2, dw, dh);
+
+  if (maskCanvas) {
+    const mask = document.createElement("canvas");
+    mask.width = out.width;
+    mask.height = out.height;
+    const mctx = mask.getContext("2d")!;
+    mctx.imageSmoothingEnabled = true;
+    mctx.imageSmoothingQuality = "high";
+    mctx.drawImage(maskCanvas, 0, 0, out.width, out.height);
+    const md = mctx.getImageData(0, 0, out.width, out.height);
+    for (let i = 0; i < md.data.length; i += 4) {
+      const r = md.data[i], g = md.data[i + 1], b = md.data[i + 2], a = md.data[i + 3];
+      const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      const inside = (1 - lum) * (a / 255);
+      md.data[i] = 0; md.data[i + 1] = 0; md.data[i + 2] = 0;
+      md.data[i + 3] = Math.round(Math.min(1, Math.max(0, inside)) * 255);
+    }
+    mctx.putImageData(md, 0, 0);
+    octx.globalCompositeOperation = "destination-in";
+    octx.drawImage(mask, 0, 0);
+    octx.globalCompositeOperation = "source-over";
+  }
+
+  return out;
+}
+
 function fmtDate(v?: string | null): string {
   if (!v) return "";
   try { return new Date(v).toISOString().slice(0, 10); } catch { return String(v).slice(0, 10); }
