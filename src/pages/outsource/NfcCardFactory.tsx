@@ -637,7 +637,7 @@ function DetailView({
       const page = out.addPage([cardWpt, cardHpt]);
       // 프레임/디자인 외곽 여백 보정: 디자인과 프레임을 양쪽으로 FRAME_BLEED_MM 만큼 확장해 그려서,
       // 원본에 포함된 흰 여백이 페이지 바깥으로 빠지고 카드 이미지가 57×87mm 대지를 꽉 채우게 한다.
-      const bleedPt = FRAME_BLEED_MM * MM;
+      const bleedPt = bleedMm * MM;
       const bleedX = -bleedPt;
       const bleedY = -bleedPt;
       const bleedW = cardWpt + bleedPt * 2;
