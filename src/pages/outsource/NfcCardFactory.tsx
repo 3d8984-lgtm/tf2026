@@ -1907,8 +1907,8 @@ function CardSideEditor({
                   <Checkbox checked={cfg.enabled} onCheckedChange={v => update(key, { enabled: !!v })} />
                   <Label className="text-sm font-medium">{OPTION_LABELS[key]}</Label>
                 </div>
-                <Mini label={key === "twincode" || key === "dmBarcode" ? "X(mm)" : "X(mm,중앙)"} v={cfg.x} set={v => update(key, { x: v })} disabled={cfg.centerX} />
-                <Mini label={key === "twincode" || key === "dmBarcode" ? "Y(mm)" : "Y(mm,중앙)"} v={cfg.y} set={v => update(key, { y: v })} disabled={cfg.centerY} />
+                <Mini label="X(mm)" v={cfg.x} set={v => update(key, { x: v })} />
+                <Mini label="Y(mm)" v={cfg.y} set={v => update(key, { y: v })} />
                 {key === "dmBarcode" ? (
                   <>
                     <Mini label="크기(mm)" v={cfg.w} set={v => update(key, { w: v, h: v })} />
@@ -1928,13 +1928,9 @@ function CardSideEditor({
                 {!isImage && (
                   <Mini label="글자(mm)" v={cfg.fontSize} set={v => update(key, { fontSize: v })} step={0.1} />
                 )}
-                <div className="flex items-center gap-1">
-                  <Checkbox checked={cfg.centerX} onCheckedChange={v => update(key, { centerX: !!v })} />
-                  <Label className="text-xs">가로 중앙</Label>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Checkbox checked={cfg.centerY} onCheckedChange={v => update(key, { centerY: !!v })} />
-                  <Label className="text-xs">세로 중앙</Label>
+                <div className="md:col-span-2 flex items-center gap-2">
+                  <Label className="text-[10px] text-muted-foreground whitespace-nowrap">기준점</Label>
+                  <AnchorPicker value={getAnchor(key, cfg)} onChange={v => update(key, { anchor: v })} />
                 </div>
               </div>
             );
