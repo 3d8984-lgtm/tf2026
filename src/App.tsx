@@ -27,6 +27,10 @@ import SiliconFactory from "@/pages/outsource/SiliconFactory";
 import HeatTransferFactory from "@/pages/outsource/HeatTransferFactory";
 import HologramFactory from "@/pages/outsource/HologramFactory";
 import NfcCardFactory from "@/pages/outsource/NfcCardFactory";
+import CardTemplateList from "@/pages/outsource/card-order/CardTemplateList";
+import CardTemplateDetail from "@/pages/outsource/card-order/CardTemplateDetail";
+import CardOrderList from "@/pages/outsource/card-order/CardOrderList";
+import CardOrderDetail from "@/pages/outsource/card-order/CardOrderDetail";
 import LogoFactory from "@/pages/outsource/LogoFactory";
 import OutsourceHistory from "@/pages/outsource/OutsourceHistory";
 import OutsourceSettings from "@/pages/outsource/OutsourceSettings";
@@ -92,6 +96,10 @@ function ProtectedRoutes() {
         <Route path="/outsource/heat-transfer" element={<HeatTransferFactory />} />
         <Route path="/outsource/hologram" element={<HologramFactory />} />
         <Route path="/outsource/nfc-card" element={<NfcCardFactory />} />
+        <Route path="/outsource/card-order/templates" element={<CardTemplateList />} />
+        <Route path="/outsource/card-order/templates/:id" element={<CardTemplateDetail />} />
+        <Route path="/outsource/card-order/orders" element={<CardOrderList />} />
+        <Route path="/outsource/card-order/orders/:id" element={<CardOrderDetail />} />
         <Route path="/outsource/logo" element={<LogoFactory />} />
         <Route path="/outsource/history" element={<OutsourceHistory />} />
         <Route path="/outsource/settings" element={<OutsourceSettings />} />
