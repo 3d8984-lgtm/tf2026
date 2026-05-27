@@ -1304,16 +1304,14 @@ function CardSideEditor({
               const apiUrl = side === "front" ? cardPreview?.frontImageUrl : cardPreview?.backImageUrl;
               const designUrl = testImageUrl || apiUrl;
               if (!designUrl) return null;
-              // PDF 출력과 동일한 bleed 보정: 양쪽으로 FRAME_BLEED_MM 확장 → 외곽 여백을 잘라낸 효과
-              const insetPctX = -(bleedMm / CARD_W_MM) * 100;
-              const insetPctY = -(bleedMm / CARD_H_MM) * 100;
+              // PDF 출력과 동일한 bleed 보정: 양쪽으로 bleedMm 확장 → 외곽 여백을 잘라낸 효과
+              const bleedPctX = (bleedMm / CARD_W_MM) * 100;
+              const bleedPctY = (bleedMm / CARD_H_MM) * 100;
               const bleedStyle: React.CSSProperties = {
-                top: `${insetPctY}%`,
-                left: `${insetPctX}%`,
-                right: `${insetPctX}%`,
-                bottom: `${insetPctY}%`,
-                width: "auto",
-                height: "auto",
+                top: `${-bleedPctY}%`,
+                left: `${-bleedPctX}%`,
+                width: `${100 + bleedPctX * 2}%`,
+                height: `${100 + bleedPctY * 2}%`,
               };
               const maskStyle: React.CSSProperties = frame?.preview
                 ? {
@@ -1338,22 +1336,25 @@ function CardSideEditor({
             })()}
             {/* Frame overlay (same bleed expansion as PDF) — visible frame artwork over the design,
                 so the preview matches the actual PDF output. */}
-            {frame?.preview && (
-              <img
-                src={frame.preview}
-                alt=""
-                aria-hidden
-                className="absolute object-fill pointer-events-none"
-                style={{
-                  top: `${-(bleedMm / CARD_H_MM) * 100}%`,
-                  left: `${-(bleedMm / CARD_W_MM) * 100}%`,
-                  right: `${-(bleedMm / CARD_W_MM) * 100}%`,
-                  bottom: `${-(bleedMm / CARD_H_MM) * 100}%`,
-                  width: "auto",
-                  height: "auto",
-                }}
-              />
-            )}
+            {frame?.preview && (() => {
+              const bleedPctX = (bleedMm / CARD_W_MM) * 100;
+              const bleedPctY = (bleedMm / CARD_H_MM) * 100;
+              return (
+                <img
+                  src={frame.preview}
+                  alt=""
+                  aria-hidden
+                  className="absolute object-fill pointer-events-none"
+                  style={{
+                    top: `${-bleedPctY}%`,
+                    left: `${-bleedPctX}%`,
+                    width: `${100 + bleedPctX * 2}%`,
+                    height: `${100 + bleedPctY * 2}%`,
+                  }}
+                />
+              );
+            })()}
+
             {keys.map(key => {
               const cfg = layout[key];
               if (!cfg?.enabled) return null;
