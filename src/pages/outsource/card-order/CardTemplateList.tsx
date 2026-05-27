@@ -126,7 +126,12 @@ export default function CardTemplateList() {
         .single();
       if (insErr) throw insErr;
 
-      const patch: Record<string, string> = {};
+      const patch: {
+        front_pdf_url?: string;
+        front_preview_png_url?: string;
+        back_pdf_url?: string;
+        back_preview_png_url?: string;
+      } = {};
       if (frontPdf) {
         const { pdfUrl, pngUrl } = await uploadPdfAndRender(frontPdf, "front", tpl.id);
         patch.front_pdf_url = pdfUrl;
