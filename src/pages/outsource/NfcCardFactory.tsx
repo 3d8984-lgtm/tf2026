@@ -745,6 +745,7 @@ function DetailView({
         grade: String(it.grade ?? sd.grade ?? order.grade ?? "COMMON").toUpperCase(),
         issuedByUrl: it.issued_by_url ?? sd.issued_by_url ?? null,
         twincodeSvgUrl: it.twincode_svg_url ?? it.svg_url ?? sd.twincode_svg_url ?? null,
+        signatureUrl: it.signature_url ?? it.signature_svg_url ?? sd.signature_url ?? sd.signature_svg_url ?? null,
         frontImageUrl: it.card_front_url ?? sd.card_front_url ?? null,
         backImageUrl: it.card_back_url ?? sd.card_back_url ?? null,
       };
