@@ -27,8 +27,8 @@ import bwipjs from "bwip-js/browser";
 import { CardFrame, CARD_W_MM, CARD_H_MM } from "@/components/outsource/CardFrame";
 
 const MM = 2.8346456693; // 1mm in pt
-// 프레임/디자인 이미지에 포함된 외곽 여백(bleed) 기본값(mm). 화면에서 조절 가능.
-const DEFAULT_FRAME_BLEED_MM = 3;
+// 프레임/PDF 원본 크기 그대로 사용 — 별도 여백 보정 없음.
+const DEFAULT_FRAME_BLEED_MM = 0;
 const FRAME_BUCKET = "design-formats";
 const FRAME_PREFIX = "nfc-card";
 const TEST_IMG_PREFIX = "nfc-card-test";
@@ -53,16 +53,71 @@ async function fetchFontBytes(url: string, which: "reg" | "bold"): Promise<Uint8
   } catch { return null; }
 }
 
-async function renderPdfFirstPagePng(bytes: Uint8Array): Promise<{ dataUrl: string; aspect: number }> {
+async function renderPdfFirstPagePng(bytes: Uint8Array): Promise<{ dataUrl: string; aspect: number; maskCanvas: HTMLCanvasElement; widthPt: number; heightPt: number }> {
   const doc = await (pdfjsLib as any).getDocument({ data: bytes.slice(0) }).promise;
   const page = await doc.getPage(1);
-  const viewport = page.getViewport({ scale: 1.5 });
+  const vp1 = page.getViewport({ scale: 1 });
+  const viewport = page.getViewport({ scale: 2 });
   const canvas = document.createElement("canvas");
   canvas.width = viewport.width;
   canvas.height = viewport.height;
   const ctx = canvas.getContext("2d")!;
   await page.render({ canvasContext: ctx, viewport, canvas }).promise;
-  return { dataUrl: canvas.toDataURL("image/png"), aspect: viewport.width / viewport.height };
+  return { dataUrl: canvas.toDataURL("image/png"), aspect: viewport.width / viewport.height, maskCanvas: canvas, widthPt: vp1.width, heightPt: vp1.height };
+}
+
+async function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+async function composeMaskedCardCanvas(
+  designSrc: string,
+  maskCanvas: HTMLCanvasElement | null,
+  targetW: number,
+  targetH: number,
+): Promise<HTMLCanvasElement> {
+  const out = document.createElement("canvas");
+  out.width = Math.max(1, Math.round(targetW));
+  out.height = Math.max(1, Math.round(targetH));
+  const octx = out.getContext("2d")!;
+  octx.imageSmoothingEnabled = true;
+  octx.imageSmoothingQuality = "high";
+
+  const img = await loadImage(designSrc);
+  const scale = Math.max(out.width / img.width, out.height / img.height);
+  const dw = img.width * scale;
+  const dh = img.height * scale;
+  octx.drawImage(img, (out.width - dw) / 2, (out.height - dh) / 2, dw, dh);
+
+  if (maskCanvas) {
+    const mask = document.createElement("canvas");
+    mask.width = out.width;
+    mask.height = out.height;
+    const mctx = mask.getContext("2d")!;
+    mctx.imageSmoothingEnabled = true;
+    mctx.imageSmoothingQuality = "high";
+    mctx.drawImage(maskCanvas, 0, 0, out.width, out.height);
+    const md = mctx.getImageData(0, 0, out.width, out.height);
+    for (let i = 0; i < md.data.length; i += 4) {
+      const r = md.data[i], g = md.data[i + 1], b = md.data[i + 2], a = md.data[i + 3];
+      const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      const inside = (1 - lum) * (a / 255);
+      md.data[i] = 0; md.data[i + 1] = 0; md.data[i + 2] = 0;
+      md.data[i + 3] = Math.round(Math.min(1, Math.max(0, inside)) * 255);
+    }
+    mctx.putImageData(md, 0, 0);
+    octx.globalCompositeOperation = "destination-in";
+    octx.drawImage(mask, 0, 0);
+    octx.globalCompositeOperation = "source-over";
+  }
+
+  return out;
 }
 
 function fmtDate(v?: string | null): string {
@@ -147,6 +202,16 @@ interface CardData {
   backImageUrl: string | null;
 }
 
+interface FramePdf {
+  name: string;
+  bytes: Uint8Array;
+  preview: string;
+  aspect: number;
+  maskCanvas: HTMLCanvasElement;
+  widthPt: number;
+  heightPt: number;
+}
+
 interface OrderRow {
   orderNo: string;
   receivedAt: string;
@@ -209,6 +274,14 @@ async function urlToPngBytes(url: string): Promise<Uint8Array> {
   }
 }
 
+async function canvasToPngBytes(canvas: HTMLCanvasElement): Promise<Uint8Array> {
+  const dataUrl = canvas.toDataURL("image/png");
+  const bin = atob(dataUrl.split(",")[1]);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return arr;
+}
+
 function downloadBlob(bytes: Uint8Array, filename: string, mime = "application/pdf") {
   const blob = new Blob([bytes as BlobPart], { type: mime });
   const url = URL.createObjectURL(blob);
@@ -224,8 +297,8 @@ export default function NfcCardFactory() {
   const { data: ordersData, isLoading } = useOrders();
   const [detailOrderNo, setDetailOrderNo] = useState<string | null>(null);
   const [frames, setFrames] = useState<{
-    front: { name: string; bytes: Uint8Array; preview: string; aspect: number } | null;
-    back: { name: string; bytes: Uint8Array; preview: string; aspect: number } | null;
+    front: FramePdf | null;
+    back: FramePdf | null;
   }>({ front: null, back: null });
 
   // Load saved frame PDFs from storage
@@ -241,10 +314,10 @@ export default function NfcCardFactory() {
         if (cancelled || !file) continue;
         try {
           const buf = new Uint8Array(await file.arrayBuffer());
-          const { dataUrl, aspect } = await renderPdfFirstPagePng(buf);
+          const { dataUrl, aspect, maskCanvas, widthPt, heightPt } = await renderPdfFirstPagePng(buf);
           if (cancelled) return;
           const name = found.name.replace(/^(front|back)__/, "");
-          setFrames(prev => ({ ...prev, [side]: { name, bytes: buf, preview: dataUrl, aspect } }));
+          setFrames(prev => ({ ...prev, [side]: { name, bytes: buf, preview: dataUrl, aspect, maskCanvas, widthPt, heightPt } }));
         } catch (e) { console.error("frame load fail", e); }
       }
     })();
@@ -261,7 +334,7 @@ export default function NfcCardFactory() {
     if (!file) { setFrames(prev => ({ ...prev, [side]: null })); return; }
     try {
       const buf = new Uint8Array(await file.arrayBuffer());
-      const { dataUrl, aspect } = await renderPdfFirstPagePng(buf);
+      const { dataUrl, aspect, maskCanvas, widthPt, heightPt } = await renderPdfFirstPagePng(buf);
       const safe = file.name.replace(/[^\w.\-]+/g, "_");
       const path = `${FRAME_PREFIX}/${side}__${safe}`;
       const { error } = await supabase.storage.from(FRAME_BUCKET)
@@ -269,7 +342,7 @@ export default function NfcCardFactory() {
           upsert: true, contentType: "application/pdf",
         });
       if (error) { toast({ title: "PDF 저장 실패", description: error.message, variant: "destructive" }); return; }
-      setFrames(prev => ({ ...prev, [side]: { name: file.name, bytes: buf, preview: dataUrl, aspect } }));
+      setFrames(prev => ({ ...prev, [side]: { name: file.name, bytes: buf, preview: dataUrl, aspect, maskCanvas, widthPt, heightPt } }));
       toast({ title: `${side === "front" ? "앞면" : "뒷면"} 프레임 업로드 완료` });
     } catch (e: any) {
       toast({ title: "PDF 처리 실패", description: e.message, variant: "destructive" });
@@ -642,23 +715,20 @@ function DetailView({
       const bleedY = -bleedPt;
       const bleedW = cardWpt + bleedPt * 2;
       const bleedH = cardHpt + bleedPt * 2;
+      const frame = frames[side];
       // Layer 1: card design image (test override > API)
       const designUrl = testImages[side]?.url || (side === "front" ? card.frontImageUrl : card.backImageUrl);
       if (designUrl) {
         try {
-          const png = await urlToPngBytes(designUrl);
+          const targetW = Math.max(64, Math.round(frame?.widthPt ?? cardWpt));
+          const targetH = Math.max(64, Math.round(frame?.heightPt ?? cardHpt));
+          const clipped = await composeMaskedCardCanvas(designUrl, frame?.maskCanvas ?? null, targetW, targetH);
+          const png = await canvasToPngBytes(clipped);
           const emb = await out.embedPng(png);
-          page.drawImage(emb, { x: bleedX, y: bleedY, width: bleedW, height: bleedH });
+          page.drawImage(emb, { x: 0, y: 0, width: cardWpt, height: cardHpt });
         } catch (e) { console.warn("card design embed failed", e); }
       }
-      // Layer 2: frame PDF overlay
-      const frame = frames[side];
-      if (frame?.bytes) {
-        try {
-          const [emb] = await out.embedPdf(frame.bytes);
-          page.drawPage(emb, { x: bleedX, y: bleedY, width: bleedW, height: bleedH });
-        } catch (e) { console.warn("frame embed failed", e); }
-      }
+      // PDF 프레임은 열전사 디자인 공장처럼 마스크로만 사용하고, 출력물 위에 다시 덮어 그리지 않는다.
       for (const key of keys) {
         const cfg = layout[key];
         if (!cfg?.enabled) continue;
@@ -1118,9 +1188,10 @@ function CardSideEditor({
   bleedMm: number;
 }) {
   const [pdfBusy, setPdfBusy] = useState(false);
-  // 항상 실제 인쇄 크기(1:1)로 미리보기. CSS 표준 96dpi → 1mm = 3.7795px.
+  // 실제 57×87mm 비율을 유지하되, 위치 확인을 위해 화면에서는 2배 확대.
   const PX_PER_MM_REAL = 96 / 25.4;
-  const pxPerMm = PX_PER_MM_REAL;
+  const PREVIEW_SCALE = 2;
+  const pxPerMm = PX_PER_MM_REAL * PREVIEW_SCALE;
   const previewW = CARD_W_MM * pxPerMm;
   const previewH = CARD_H_MM * pxPerMm;
 
@@ -1204,6 +1275,22 @@ function CardSideEditor({
     return () => { cancelled = true; if (dmPreview) URL.revokeObjectURL(dmPreview); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardPreview?.uniqueNo, keys.join(",")]);
+
+  const designUrl = testImageUrl || (side === "front" ? cardPreview?.frontImageUrl : cardPreview?.backImageUrl) || null;
+  const [clippedPreview, setClippedPreview] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    if (!designUrl) { setClippedPreview(null); return; }
+    (async () => {
+      try {
+        const canvas = await composeMaskedCardCanvas(designUrl, frame?.maskCanvas ?? null, previewW, previewH);
+        if (!cancelled) setClippedPreview(canvas.toDataURL("image/png"));
+      } catch {
+        if (!cancelled) setClippedPreview(designUrl);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [designUrl, frame?.preview, previewW, previewH]);
 
   const getAlignClass = (key: OptionKey): string => {
     switch (key) {
@@ -1298,62 +1385,22 @@ function CardSideEditor({
             style={{ width: previewW, background: "#fff", fontFamily: "'Inter', system-ui, sans-serif" }}
           >
 
-            {/* Layer order: card design (bottom, clipped by frame as mask) → options (top).
-                프레임 PDF는 일러스트의 클리핑 마스크처럼 동작하여, 프레임이 그려진 영역 안쪽에만 카드 디자인이 보입니다. */}
-            {(() => {
-              const apiUrl = side === "front" ? cardPreview?.frontImageUrl : cardPreview?.backImageUrl;
-              const designUrl = testImageUrl || apiUrl;
-              if (!designUrl) return null;
-              // PDF 출력과 동일한 bleed 보정: 양쪽으로 bleedMm 확장 → 외곽 여백을 잘라낸 효과
-              const bleedPctX = (bleedMm / CARD_W_MM) * 100;
-              const bleedPctY = (bleedMm / CARD_H_MM) * 100;
-              const bleedStyle: React.CSSProperties = {
-                top: `${-bleedPctY}%`,
-                left: `${-bleedPctX}%`,
-                width: `${100 + bleedPctX * 2}%`,
-                height: `${100 + bleedPctY * 2}%`,
-              };
-              const maskStyle: React.CSSProperties = frame?.preview
-                ? {
-                    WebkitMaskImage: `url(${frame.preview})`,
-                    maskImage: `url(${frame.preview})`,
-                    WebkitMaskRepeat: "no-repeat",
-                    maskRepeat: "no-repeat",
-                    WebkitMaskPosition: "center",
-                    maskPosition: "center",
-                    WebkitMaskSize: "100% 100%",
-                    maskSize: "100% 100%",
-                  }
-                : {};
-              return (
-                <img
-                  src={designUrl}
-                  alt=""
-                  className="absolute object-fill pointer-events-none"
-                  style={{ ...bleedStyle, ...maskStyle }}
-                />
-              );
-            })()}
-            {/* Frame overlay (same bleed expansion as PDF) — visible frame artwork over the design,
-                so the preview matches the actual PDF output. */}
-            {frame?.preview && (() => {
-              const bleedPctX = (bleedMm / CARD_W_MM) * 100;
-              const bleedPctY = (bleedMm / CARD_H_MM) * 100;
-              return (
-                <img
-                  src={frame.preview}
-                  alt=""
-                  aria-hidden
-                  className="absolute object-fill pointer-events-none"
-                  style={{
-                    top: `${-bleedPctY}%`,
-                    left: `${-bleedPctX}%`,
-                    width: `${100 + bleedPctX * 2}%`,
-                    height: `${100 + bleedPctY * 2}%`,
-                  }}
-                />
-              );
-            })()}
+            {/* 열전사 디자인 공장과 동일하게 PDF를 마스크 캔버스로 변환해 디자인을 먼저 합성합니다. */}
+            {clippedPreview && (
+              <img
+                src={clippedPreview}
+                alt=""
+                className="absolute inset-0 w-full h-full object-fill pointer-events-none"
+              />
+            )}
+            {!clippedPreview && frame?.preview && (
+              <img
+                src={frame.preview}
+                alt=""
+                aria-hidden
+                className="absolute inset-0 w-full h-full object-fill pointer-events-none"
+              />
+            )}
 
             {keys.map(key => {
               const cfg = layout[key];
