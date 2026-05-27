@@ -22,9 +22,12 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Download, Eye, FileText, Loader2, Upload, X, ChevronLeft, Save, Image as ImageIcon } from "lucide-react";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, rgb } from "pdf-lib";
+import fontkit from "@pdf-lib/fontkit";
 import bwipjs from "bwip-js/browser";
 import { CardFrame, CARD_W_MM, CARD_H_MM } from "@/components/outsource/CardFrame";
+import { ensureSpoqaFontFace, loadSpoqaFontBytes, waitForSpoqaLoaded } from "@/lib/pdf-fonts";
+import { svgStringToPdfBytes, fetchSvgString, svgAspectRatio } from "@/lib/svg-to-pdf";
 
 const MM = 2.8346456693; // 1mm in pt
 // 프레임/PDF 원본 크기 그대로 사용 — 별도 여백 보정 없음.
