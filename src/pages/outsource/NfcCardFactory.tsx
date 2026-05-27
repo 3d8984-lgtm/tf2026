@@ -1985,7 +1985,7 @@ function CardSideEditor({
         <div className="space-y-2">
           {keys.map(key => {
             const cfg = layout[key];
-            const isImage = key === "twincode" || key === "dmBarcode";
+            const isImage = isImageKey(key);
             const isSel = selected === key;
             return (
               <div
