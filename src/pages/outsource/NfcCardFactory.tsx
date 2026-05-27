@@ -51,8 +51,8 @@ const FONT_OPTIONS: FontOption[] = [
     label: "Pretendard",
     css: "'Pretendard Variable', Pretendard, -apple-system, sans-serif",
     cssLink: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css",
-    ttfReg: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/public/static/Pretendard-Regular.otf",
-    ttfBold: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/public/static/Pretendard-Bold.otf",
+    ttfReg: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/public/static/alternative/Pretendard-Regular.ttf",
+    ttfBold: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/public/static/alternative/Pretendard-Bold.ttf",
   },
   {
     id: "ibm-plex-sans-kr",
@@ -67,8 +67,8 @@ const FONT_OPTIONS: FontOption[] = [
     label: "Spoqa Han Sans Neo",
     css: "'Spoqa Han Sans Neo', sans-serif",
     cssLink: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans/css/SpoqaHanSansNeo.css",
-    ttfReg: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans/Subset/SpoqaHanSansNeo/SpoqaHanSansNeo-Regular.otf",
-    ttfBold: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans/Subset/SpoqaHanSansNeo/SpoqaHanSansNeo-Bold.otf",
+    ttfReg: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans/Subset/SpoqaHanSansNeo/SpoqaHanSansNeo-Regular.ttf",
+    ttfBold: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans/Subset/SpoqaHanSansNeo/SpoqaHanSansNeo-Bold.ttf",
   },
   {
     id: "black-han-sans",
