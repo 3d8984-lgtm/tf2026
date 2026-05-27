@@ -1052,6 +1052,45 @@ function DetailView({
           </CardContent>
         </Card>
 
+        {/* 마스터 글자꼴 설정 — 미리보기 + PDF에 자동 적용 */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center justify-between gap-2 flex-wrap">
+              <span>마스터 글자꼴</span>
+              <span className="text-[11px] font-normal text-muted-foreground">
+                상업적 사용 가능 고딕체 · 선택 시 카드 텍스트/숫자에 자동 적용 (미리보기 + PDF)
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+              {FONT_OPTIONS.map(f => {
+                const active = masterFont === f.id;
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setMasterFont(f.id)}
+                    className={`rounded-md border p-3 text-left transition-colors ${
+                      active
+                        ? "border-primary bg-primary/10 ring-2 ring-primary/30"
+                        : "border-border hover:bg-accent"
+                    }`}
+                  >
+                    <div className="text-[11px] text-muted-foreground mb-1">{f.label}</div>
+                    <div className="text-lg leading-tight" style={{ fontFamily: f.css }}>
+                      가나다 ABC 123
+                    </div>
+                    <div className="text-xs mt-0.5 text-muted-foreground" style={{ fontFamily: f.css }}>
+                      ISSUED No. 0001
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Test values for preview */}
         <Card>
           <CardHeader className="pb-3">
