@@ -812,9 +812,11 @@ function DetailView({
   const [masterFontWeight, setMasterFontWeight] = useState<number>(DEFAULT_MASTER_FONT_WEIGHT);
   const currentFont = FONT_OPTIONS.find(f => f.id === masterFont) ?? FONT_OPTIONS[0];
 
-  // 브라우저 미리보기용: 선택 가능한 모든 폰트의 웹 CSS 를 한 번만 주입
+  // 브라우저 미리보기용: Spoqa는 로컬 TTF로 @font-face 등록, 나머지는 외부 CSS 링크 주입
   useEffect(() => {
+    ensureSpoqaFontFace();
     FONT_OPTIONS.forEach(f => {
+      if (!f.cssLink) return;
       const id = `nfc-font-css-${f.id}`;
       if (document.getElementById(id)) return;
       const link = document.createElement("link");
