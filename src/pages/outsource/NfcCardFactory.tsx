@@ -1934,9 +1934,15 @@ function CardSideEditor({
                 {!isImage && (
                   <Mini label="글자(mm)" v={cfg.fontSize} set={v => update(key, { fontSize: v })} step={0.1} />
                 )}
-                <div className="md:col-span-2 flex items-center gap-2">
+                <div className="md:col-span-2 flex items-center gap-2 flex-wrap">
                   <Label className="text-[10px] text-muted-foreground whitespace-nowrap">기준점</Label>
                   <AnchorPicker value={getAnchor(key, cfg)} onChange={v => update(key, { anchor: v })} />
+                  {!isImage && (
+                    <>
+                      <Label className="text-[10px] text-muted-foreground whitespace-nowrap ml-2">정렬</Label>
+                      <AlignPicker value={getAlign(key, cfg)} onChange={v => update(key, { align: v })} />
+                    </>
+                  )}
                 </div>
               </div>
             );
