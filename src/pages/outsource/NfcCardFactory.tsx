@@ -1009,6 +1009,8 @@ function DetailView({
 
       const png = await canvasToPngBytes(canvas);
       const emb = await out.embedPng(png);
+      const pageWpt = cardSize.width * MM;
+      const pageHpt = cardSize.height * MM;
       const page = out.addPage([pageWpt, pageHpt]);
       page.drawImage(emb, { x: 0, y: 0, width: pageWpt, height: pageHpt });
     };
