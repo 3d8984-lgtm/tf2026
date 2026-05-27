@@ -28,11 +28,14 @@ const MM = 2.8346456693; // 1mm in pt
 // 프레임/PDF 원본 크기 그대로 사용 — 별도 여백 보정 없음.
 const DEFAULT_FRAME_BLEED_MM = 0;
 const FRAME_BUCKET = "design-formats";
-const FRAME_PREFIX = "nfc-card";
 const TEST_IMG_PREFIX = "nfc-card-test";
 const SETTINGS_KEY_PREFIX = "outsource-nfc-card-v1";
 const GLOBAL_LAYOUT_KEY = "outsource-nfc-card-layout-default";
+const CARD_SIZE_KEY = "outsource-nfc-card-size";
 const TEST_TWINCODE_PREFIX = "nfc-card-test";
+
+interface CardSize { width: number; height: number }
+const DEFAULT_CARD_SIZE: CardSize = { width: CARD_W_MM, height: CARD_H_MM };
 
 // ===== Master font options (상업적 사용 가능 / commercial-free Korean gothic) =====
 interface FontOption {
