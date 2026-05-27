@@ -390,9 +390,6 @@ function measureTextWidthMm(text: string, fontSizeMm: number, fontCss: string, w
   __measureCtx.font = `${weight} ${fontPx}px ${fontCss}`;
   return __measureCtx.measureText(text).width / pxPerMm;
 }
-function isTextOption(key: OptionKey): boolean {
-  return key !== "twincode" && key !== "dmBarcode";
-}
 
 interface CardData {
   seq: number;
