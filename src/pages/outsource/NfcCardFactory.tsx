@@ -1203,6 +1203,7 @@ function DetailView({
               frame={frames.back}
               bleedMm={bleedMm}
               fontCss={currentFont.css}
+              fontWeight={masterFontWeight}
               testImageUrl={testImages.back?.url || null}
               testTwincodeUrl={testTwincodeSvg?.url || null}
               cardPreview={applyTestValues(cards[0], testValues)}
