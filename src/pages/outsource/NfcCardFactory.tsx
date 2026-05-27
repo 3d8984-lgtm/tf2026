@@ -373,6 +373,24 @@ function drawCanvasTextElement(
   ctx.restore();
 }
 
+/**
+ * 모든 텍스트 박스의 너비/높이를 글자 크기에 맞춰 자동 산출.
+ * - 너비: 실제 텍스트 측정 너비(mm)
+ * - 높이: fontSize(mm)
+ * 이미지(twincode/dmBarcode)는 사용자가 지정한 cfg.w/cfg.h 사용.
+ */
+const __measureCtx: CanvasRenderingContext2D | null =
+  typeof document !== "undefined"
+    ? (document.createElement("canvas").getContext("2d") as CanvasRenderingContext2D | null)
+    : null;
+function measureTextWidthMm(text: string, fontSizeMm: number, fontCss: string, weight: number): number {
+  if (!__measureCtx || !text) return 0;
+  const pxPerMm = 300 / 25.4;
+  const fontPx = Math.max(4, fontSizeMm * pxPerMm);
+  __measureCtx.font = `${weight} ${fontPx}px ${fontCss}`;
+  return __measureCtx.measureText(text).width / pxPerMm;
+}
+
 interface CardData {
   seq: number;
   orderNo: string;
@@ -997,7 +1015,12 @@ function DetailView({
         const fontPx = Math.max(4, cfg.fontSize * pxPerMm);
         const weight = textWeightForOption(key, masterFontWeight);
         try { await (document as any).fonts?.load(`${weight} ${fontPx}px ${currentFont.css}`); } catch {}
-        drawCanvasTextElement(ctx, txt, x, y, w, fontPx, currentFont.css, weight, alignForOption(key));
+        // 텍스트 박스는 글자 크기에 맞춰 너비/높이 자동 계산
+        const autoWmm = measureTextWidthMm(txt, cfg.fontSize, currentFont.css, weight);
+        const autoHmm = cfg.fontSize;
+        const tXmm = cfg.centerX ? (cardWmm - autoWmm) / 2 : cfg.x;
+        const tYmm = cfg.centerY ? (cardHmm - autoHmm) / 2 : cfg.y;
+        drawCanvasTextElement(ctx, txt, tXmm * pxPerMm, tYmm * pxPerMm, autoWmm * pxPerMm, fontPx, currentFont.css, weight, alignForOption(key));
       }
 
       const png = await canvasToPngBytes(canvas);
@@ -1616,10 +1639,15 @@ function CardSideEditor({
       ctx.clearRect(0, 0, previewW, previewH);
       drawableKeys.forEach(key => {
         const cfg = layout[key];
-        const xMm = cfg.centerX ? (cardWmm - cfg.w) / 2 : cfg.x;
-        const yMm = cfg.centerY ? (cardHmm - cfg.h) / 2 : cfg.y;
+        const txt = textFor(key);
+        const weight = textWeightForOption(key, fontWeight ?? 500);
+        const family = fontCss || "'Inter', system-ui, sans-serif";
+        const autoWmm = measureTextWidthMm(txt, cfg.fontSize || 3, family, weight);
+        const autoHmm = cfg.fontSize || 3;
+        const xMm = cfg.centerX ? (cardWmm - autoWmm) / 2 : cfg.x;
+        const yMm = cfg.centerY ? (cardHmm - autoHmm) / 2 : cfg.y;
         const fontPx = Math.max(4, (cfg.fontSize || 3) * pxPerMm);
-        drawCanvasTextElement(ctx, textFor(key), xMm * pxPerMm, yMm * pxPerMm, cfg.w * pxPerMm, fontPx, fontCss || "'Inter', system-ui, sans-serif", textWeightForOption(key, fontWeight ?? 500), alignForOption(key));
+        drawCanvasTextElement(ctx, txt, xMm * pxPerMm, yMm * pxPerMm, autoWmm * pxPerMm, fontPx, family, weight, alignForOption(key));
       });
     })();
     return () => { cancelled = true; };
@@ -1662,6 +1690,23 @@ function CardSideEditor({
       case "dmBarcode": return dmPreview
         ? <img src={dmPreview} alt="" className="w-full h-full object-contain pointer-events-none bg-white" />
         : <span className="text-[8px] text-muted-foreground">DM</span>;
+    }
+  };
+
+  // 오버레이 박스 자동 크기 계산용 (PDF/캔버스와 동일한 텍스트 매핑)
+  const textForOverlay = (key: OptionKey): string => {
+    if (!cardPreview) return "";
+    switch (key) {
+      case "cpValue":   return cardPreview.cpValue || "-";
+      case "editionNo": return cardPreview.editionNo || "";
+      case "issuedNo":  return `ISSUED No. ${cardPreview.issuedNo || ""}`;
+      case "mintedOn":  return `Minted on ${cardPreview.mintedOn || ""}`;
+      case "grade":     return cardPreview.grade || "";
+      case "companyName":  return backDefaults?.companyName || "";
+      case "centerSlogan": return backDefaults?.centerSlogan || "";
+      case "nfcEnabled":   return backDefaults?.nfcEnabled || "";
+      case "issuedBy":     return backDefaults?.issuedBy || "";
+      default: return "";
     }
   };
 
@@ -1734,10 +1779,14 @@ function CardSideEditor({
               const fontPx = (cfg.fontSize || 3) * pxPerMm;
               const isImage = key === "twincode" || key === "dmBarcode";
               const isSel = selected === key;
-              // PDF와 동일한 박스 기반 좌표/정렬 — 텍스트도 cfg.w 폭의 박스 안에서 정렬
-              const xMm = cfg.centerX ? (cardWmm - cfg.w) / 2 : cfg.x;
-              const yMm = cfg.centerY ? (cardHmm - cfg.h) / 2 : cfg.y;
-              const boxWpx = cfg.w * pxPerMm;
+              const family = fontCss || "'Inter', system-ui, sans-serif";
+              const weight = textWeightForOption(key, fontWeight ?? 500);
+              // 텍스트 옵션은 글자에 맞춰 너비/높이 자동 산출, 이미지 옵션은 사용자 지정 cfg.w/h 사용
+              const effWmm = isImage ? cfg.w : measureTextWidthMm(textForOverlay(key), cfg.fontSize || 3, family, weight);
+              const effHmm = isImage ? cfg.h : (cfg.fontSize || 3);
+              const xMm = cfg.centerX ? (cardWmm - effWmm) / 2 : cfg.x;
+              const yMm = cfg.centerY ? (cardHmm - effHmm) / 2 : cfg.y;
+              const boxWpx = Math.max(effWmm * pxPerMm, isImage ? 0 : 4);
               const boxHpx = isImage ? cfg.h * pxPerMm : Math.max(fontPx, 4);
               return (
                 <div
@@ -1765,12 +1814,14 @@ function CardSideEditor({
                   <span className="absolute -top-4 left-0 text-[10px] bg-primary text-primary-foreground px-1 rounded-sm whitespace-nowrap pointer-events-none">
                     {OPTION_LABELS[key]}
                   </span>
-                  {/* resize handle */}
-                  <span
-                    onPointerDown={e => startDrag(e, key, "resize")}
-                    className="absolute right-0 bottom-0 w-3 h-3 bg-primary cursor-se-resize"
-                    title="크기 조절"
-                  />
+                  {/* resize handle (이미지 옵션만 — 텍스트는 글자 크기로 자동) */}
+                  {isImage && (
+                    <span
+                      onPointerDown={e => startDrag(e, key, "resize")}
+                      className="absolute right-0 bottom-0 w-3 h-3 bg-primary cursor-se-resize"
+                      title="크기 조절"
+                    />
+                  )}
                 </div>
               );
             })}
@@ -1800,11 +1851,16 @@ function CardSideEditor({
                     <Mini label="크기(mm)" v={cfg.w} set={v => update(key, { w: v, h: v })} />
                     <Mini label="여백(mm)" v={cfg.padding ?? 0} set={v => update(key, { padding: Math.max(0, v) })} step={0.1} />
                   </>
-                ) : (
+                ) : isImage ? (
                   <>
                     <Mini label="너비(mm)" v={cfg.w} set={v => update(key, { w: v })} />
-                    <Mini label={isImage ? "높이(mm)" : "박스높이(mm)"} v={cfg.h} set={v => update(key, { h: v })} />
+                    <Mini label="높이(mm)" v={cfg.h} set={v => update(key, { h: v })} />
                   </>
+                ) : (
+                  // 텍스트 옵션: 너비/높이는 글자 크기에 자동 맞춤
+                  <div className="md:col-span-2 text-[10px] text-muted-foreground self-end">
+                    너비/높이 자동 (글자 크기 기준)
+                  </div>
                 )}
                 {!isImage && (
                   <Mini label="글자(mm)" v={cfg.fontSize} set={v => update(key, { fontSize: v })} step={0.1} />
