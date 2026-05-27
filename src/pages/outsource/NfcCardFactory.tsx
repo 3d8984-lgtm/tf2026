@@ -1248,7 +1248,10 @@ function DetailView({
     // Text is converted to vector outlines (= Illustrator "Create Outlines").
     // No font is embedded; each glyph becomes a pure vector shape — guaranteed identical
     // rendering on any PDF viewer / print RIP, no font-missing risk.
-    const weightsInUse = new Set<number>([masterFontWeight, textWeightForOption("grade", masterFontWeight)]);
+    // 각 텍스트 항목별로 설정된 BOLD 강도를 모두 수집해서 한 번씩만 로드한다.
+    const weightsInUse = new Set<number>([DEFAULT_MASTER_FONT_WEIGHT]);
+    for (const k of FRONT_KEYS) if (!isImageKey(k)) weightsInUse.add(getOptionFontWeight(layoutFront[k]));
+    for (const k of BACK_KEYS)  if (!isImageKey(k)) weightsInUse.add(getOptionFontWeight(layoutBack[k]));
     const otFontByWeight = new Map<number, any>();
     for (const w of weightsInUse) {
       const bytes = await loadSpoqaFontBytes(w);
