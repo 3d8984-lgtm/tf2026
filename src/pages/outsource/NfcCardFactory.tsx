@@ -2086,6 +2086,12 @@ function CardSideEditor({
                 <div className="md:col-span-2 flex items-center gap-2 flex-wrap">
                   <Label className="text-[10px] text-muted-foreground whitespace-nowrap">기준점</Label>
                   <AnchorPicker value={getAnchor(key, cfg)} onChange={v => update(key, { anchor: v })} />
+                  {(key === "twincode" || key === "dmBarcode" || key === "signature") && (
+                    <>
+                      <Label className="text-[10px] text-muted-foreground whitespace-nowrap ml-2">크기 기준점</Label>
+                      <AnchorPicker value={cfg.sizeAnchor ?? "mc"} onChange={v => update(key, { sizeAnchor: v })} />
+                    </>
+                  )}
                   {!isImage && (
                     <>
                       <Label className="text-[10px] text-muted-foreground whitespace-nowrap ml-2">정렬</Label>
