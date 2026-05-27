@@ -1787,7 +1787,22 @@ function CardSideEditor({
                 테스트 이미지 또는 API 디자인이 없습니다
               </div>
             )}
+            {showGuide && (
+              <div
+                aria-hidden
+                className="absolute pointer-events-none"
+                style={{
+                  left: guideLeftPx,
+                  top: guideTopPx,
+                  width: guideWpx,
+                  height: guideHpx,
+                  border: "1px solid #ef4444",
+                  zIndex: 5,
+                }}
+              />
+            )}
             <canvas
+
               ref={previewCanvasRef}
               className="absolute inset-0 pointer-events-none"
               aria-hidden
