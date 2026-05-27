@@ -1730,6 +1730,10 @@ function CardSideEditor({
           <span>{side === "front" ? "카드 앞면" : "카드 뒷면"} 옵션 배치</span>
           <div className="flex items-center gap-3 text-xs font-normal">
             <span className="text-muted-foreground">실제 인쇄 크기 ({cardWmm.toFixed(1)}×{cardHmm.toFixed(1)}mm) · 저장된 카드 사이즈</span>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <Switch checked={showGuide} onCheckedChange={setShowGuide} />
+              <span className="text-muted-foreground">가이드 ({GUIDE_W_MM}×{GUIDE_H_MM}mm)</span>
+            </label>
             {onTestPdf && (
               <Button
                 type="button"
@@ -1745,6 +1749,7 @@ function CardSideEditor({
                 테스트 PDF
               </Button>
             )}
+
           </div>
         </CardTitle>
       </CardHeader>
