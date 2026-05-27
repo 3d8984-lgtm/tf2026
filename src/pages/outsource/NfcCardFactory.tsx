@@ -2132,8 +2132,8 @@ function CardSideEditor({
               width: previewW,
               aspectRatio: `${cardWmm} / ${cardHmm}`,
               background: "#fff",
-              fontFamily: fontCss || "'Inter', system-ui, sans-serif",
-              fontWeight: fontWeight ?? 500,
+              fontFamily: "'Inter', system-ui, sans-serif",
+              fontWeight: 500,
             }}
           >
 
