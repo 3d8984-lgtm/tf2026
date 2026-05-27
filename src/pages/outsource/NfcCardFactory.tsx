@@ -736,6 +736,7 @@ function DetailView({
           if (v.workOrder)   setWorkOrder(prev => ({ ...prev, ...v.workOrder, orderNo }));
           if (v.testValues)  setTestValues(prev => ({ ...prev, ...v.testValues }));
           if (v.backDefaults) setBackDefaults(prev => ({ ...prev, ...v.backDefaults }));
+          if (v.masterFont && FONT_OPTIONS.some(f => f.id === v.masterFont)) setMasterFont(v.masterFont);
           break;
         }
       }
