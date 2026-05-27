@@ -658,11 +658,11 @@ export default function NfcCardFactory() {
 
 // ============== DETAIL VIEW ==============
 function DetailView({
-  orderNo, order, frames, onBack, userId,
+  orderNo, order, cardSize, onBack, userId,
 }: {
   orderNo: string;
   order: any;
-  frames: { front: any; back: any };
+  cardSize: CardSize;
   onBack: () => void;
   userId?: string;
 }) {
