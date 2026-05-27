@@ -461,6 +461,8 @@ interface OptionLayout {
   align?: TextAlign; // 텍스트 정렬 (왼쪽/중앙/오른쪽)
   padding?: number; // mm — DM 바코드 흰 여백 (quiet zone)
   lockAspect?: boolean; // 이미지 옵션의 비율 잠금 (서명 등)
+  fontId?: string;     // 텍스트 옵션별 글꼴 (FONT_OPTIONS.id). 미지정 시 DEFAULT_MASTER_FONT.
+  fontWeight?: number; // 텍스트 옵션별 BOLD 강도 (300~900). 미지정 시 DEFAULT_MASTER_FONT_WEIGHT.
 }
 
 const FRONT_KEYS: OptionKey[] = ["cpValue", "editionNo"];
@@ -510,7 +512,7 @@ const DEFAULT_LAYOUT: Record<OptionKey, OptionLayout> = {
   editionNo:   { enabled: true, x: 28.5, y: 43, w: 30, h: 6,  fontSize: 3.5, anchor: "mc" },
   issuedNo:    { enabled: true, x: 5,    y: 7,  w: 30, h: 5,  fontSize: 3,   anchor: "ml" },
   mintedOn:    { enabled: true, x: 5,    y: 14, w: 35, h: 5,  fontSize: 3,   anchor: "ml" },
-  grade:       { enabled: true, x: 52,   y: 8,  w: 25, h: 6,  fontSize: 4,   anchor: "mr" },
+  grade:       { enabled: true, x: 52,   y: 8,  w: 25, h: 6,  fontSize: 4,   anchor: "mr", fontWeight: 700 },
   issuedBy:    { enabled: true, x: 52,   y: 41, w: 25, h: 12, fontSize: 3,   anchor: "mr" },
   twincode:    { enabled: true, x: 5,    y: 25, w: 14, h: 14, fontSize: 0,   anchor: "tl" },
   dmBarcode:   { enabled: true, x: 60,   y: 18, w: 14, h: 14, fontSize: 0,   anchor: "tl", padding: 0.5 },
@@ -535,8 +537,17 @@ function getAlign(key: OptionKey, cfg: { align?: TextAlign }): TextAlign {
   return cfg.align ?? defaultAlignForOption(key);
 }
 
-function textWeightForOption(key: OptionKey, masterWeight: number) {
-  return key === "grade" ? Math.max(700, masterWeight) : masterWeight;
+function getOptionFontId(cfg: { fontId?: string }): string {
+  const id = cfg.fontId ?? DEFAULT_MASTER_FONT;
+  return FONT_OPTIONS.some(f => f.id === id) ? id : DEFAULT_MASTER_FONT;
+}
+function getOptionFontCss(cfg: { fontId?: string }): string {
+  const opt = FONT_OPTIONS.find(f => f.id === getOptionFontId(cfg)) ?? FONT_OPTIONS[0];
+  return opt.css;
+}
+function getOptionFontWeight(cfg: { fontWeight?: number }): number {
+  const w = cfg.fontWeight;
+  return typeof w === "number" && w >= 100 && w <= 900 ? w : DEFAULT_MASTER_FONT_WEIGHT;
 }
 
 function drawCanvasTextElement(
@@ -967,7 +978,7 @@ function DetailView({
   // 마스터 글자꼴 (선택 시 카드 텍스트/숫자 미리보기 + PDF에 자동 적용)
   const [masterFont, setMasterFont] = useState<string>(DEFAULT_MASTER_FONT);
   const [masterFontWeight, setMasterFontWeight] = useState<number>(DEFAULT_MASTER_FONT_WEIGHT);
-  const currentFont = FONT_OPTIONS.find(f => f.id === masterFont) ?? FONT_OPTIONS[0];
+  
 
   // 브라우저 미리보기용: Spoqa는 로컬 TTF로 @font-face 등록, 나머지는 외부 CSS 링크 주입
   useEffect(() => {
@@ -1237,7 +1248,10 @@ function DetailView({
     // Text is converted to vector outlines (= Illustrator "Create Outlines").
     // No font is embedded; each glyph becomes a pure vector shape — guaranteed identical
     // rendering on any PDF viewer / print RIP, no font-missing risk.
-    const weightsInUse = new Set<number>([masterFontWeight, textWeightForOption("grade", masterFontWeight)]);
+    // 각 텍스트 항목별로 설정된 BOLD 강도를 모두 수집해서 한 번씩만 로드한다.
+    const weightsInUse = new Set<number>([DEFAULT_MASTER_FONT_WEIGHT]);
+    for (const k of FRONT_KEYS) if (!isImageKey(k)) weightsInUse.add(getOptionFontWeight(layoutFront[k]));
+    for (const k of BACK_KEYS)  if (!isImageKey(k)) weightsInUse.add(getOptionFontWeight(layoutBack[k]));
     const otFontByWeight = new Map<number, any>();
     for (const w of weightsInUse) {
       const bytes = await loadSpoqaFontBytes(w);
@@ -1387,7 +1401,7 @@ function DetailView({
         // ===== Text (vector OUTLINES via opentype.js — same as Illustrator "Create Outlines") =====
         const txt = textFor(key);
         if (!txt) continue;
-        const weight = textWeightForOption(key, masterFontWeight);
+        const weight = getOptionFontWeight(cfg);
         const otf = pickFont(weight);
         const sizePt = cfg.fontSize * MM;
         const textWpt = measureOutlineWidthPt(otf, txt, sizePt);
@@ -1603,72 +1617,8 @@ function DetailView({
           </CardContent>
         </Card>
 
-        {/* 마스터 글자꼴 설정 — 미리보기 + PDF에 자동 적용 */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center justify-between gap-2 flex-wrap">
-              <span>마스터 글자꼴</span>
-              <span className="text-[11px] font-normal text-muted-foreground">
-                상업적 사용 가능 고딕체 · 선택 시 카드 텍스트/숫자에 자동 적용 (미리보기 + PDF)
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-              {FONT_OPTIONS.map(f => {
-                const active = masterFont === f.id;
-                return (
-                  <button
-                    key={f.id}
-                    type="button"
-                    onClick={() => setMasterFont(f.id)}
-                    className={`rounded-md border p-3 text-left transition-colors ${
-                      active
-                        ? "border-primary bg-primary/10 ring-2 ring-primary/30"
-                        : "border-border hover:bg-accent"
-                    }`}
-                  >
-                    <div className="text-[11px] text-muted-foreground mb-1">{f.label}</div>
-                    <div className="text-lg leading-tight" style={{ fontFamily: f.css, fontWeight: masterFontWeight }}>
-                      가나다 ABC 123
-                    </div>
-                    <div className="text-xs mt-0.5 text-muted-foreground" style={{ fontFamily: f.css, fontWeight: masterFontWeight }}>
-                      ISSUED No. 0001
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+        {/* 마스터 글자꼴 UI는 제거되었습니다 — 각 텍스트 항목에서 글꼴/BOLD 강도를 개별 설정합니다. */}
 
-            {/* BOLD 강도 (font-weight) */}
-            <div className="flex items-center gap-3 flex-wrap pt-1">
-              <div className="text-xs text-muted-foreground min-w-[80px]">BOLD 강도</div>
-              <div className="flex flex-wrap gap-1.5">
-                {FONT_WEIGHTS.map(w => {
-                  const active = masterFontWeight === w.value;
-                  return (
-                    <button
-                      key={w.value}
-                      type="button"
-                      onClick={() => setMasterFontWeight(w.value)}
-                      className={`px-2.5 py-1 rounded-md border text-xs transition-colors ${
-                        active
-                          ? "border-primary bg-primary/10 ring-1 ring-primary/30"
-                          : "border-border hover:bg-accent"
-                      }`}
-                      style={{ fontFamily: currentFont.css, fontWeight: w.value }}
-                    >
-                      {w.label}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="text-[11px] text-muted-foreground">
-                PDF 출력 시 600 이상은 Bold, 미만은 Regular로 임베드됩니다.
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
 
         {/* Test values for preview */}
@@ -1717,8 +1667,6 @@ function DetailView({
               side="front"
               cardSize={cardSize}
               bleedMm={bleedMm}
-              fontCss={currentFont.css}
-              fontWeight={masterFontWeight}
               testImageUrl={testImages.front?.url || null}
               cardPreview={applyTestValues(cards[0], testValues)}
               layout={layoutFront}
@@ -1741,8 +1689,6 @@ function DetailView({
               side="back"
               cardSize={cardSize}
               bleedMm={bleedMm}
-              fontCss={currentFont.css}
-              fontWeight={masterFontWeight}
               testImageUrl={testImages.back?.url || null}
               testTwincodeUrl={testTwincodeSvg?.url || null}
               testSignatureUrl={testSignature?.url || null}
@@ -1872,7 +1818,7 @@ function applyTestValues(c: CardData | undefined, tv: { cpValue: string; edition
 // ============== Card side editor (preview + per-option controls) ==============
 function CardSideEditor({
   side, cardSize, testImageUrl, testTwincodeUrl, testSignatureUrl, cardPreview, layout, setLayout, keys, backDefaults, onTestPdf,
-  bleedMm, fontCss, fontWeight,
+  bleedMm,
 }: {
   side: "front" | "back";
   cardSize: CardSize;
@@ -1886,8 +1832,6 @@ function CardSideEditor({
   backDefaults?: { companyName: string; centerSlogan: string; nfcEnabled: string; issuedBy: string };
   onTestPdf?: () => void | Promise<void>;
   bleedMm: number;
-  fontCss?: string;
-  fontWeight?: number;
 }) {
   const [pdfBusy, setPdfBusy] = useState(false);
   const [showGuide, setShowGuide] = useState(true);
@@ -2052,16 +1996,17 @@ function CardSideEditor({
       await Promise.all(drawableKeys.map(key => {
         const cfg = layout[key];
         const fontPx = Math.max(4, (cfg.fontSize || 3) * pxPerMm);
-        const weight = textWeightForOption(key, fontWeight ?? 500);
-        return (document as any).fonts?.load(`${weight} ${fontPx}px ${fontCss || "'Inter', system-ui, sans-serif"}`);
+        const weight = getOptionFontWeight(cfg);
+        const family = getOptionFontCss(cfg);
+        return (document as any).fonts?.load(`${weight} ${fontPx}px ${family}`);
       }));
       if (cancelled) return;
       ctx.clearRect(0, 0, previewW, previewH);
       drawableKeys.forEach(key => {
         const cfg = layout[key];
         const txt = textFor(key);
-        const weight = textWeightForOption(key, fontWeight ?? 500);
-        const family = fontCss || "'Inter', system-ui, sans-serif";
+        const weight = getOptionFontWeight(cfg);
+        const family = getOptionFontCss(cfg);
         const autoWmm = measureTextWidthMm(txt, cfg.fontSize || 3, family, weight);
         const autoHmm = cfg.fontSize || 3;
         const anc = getAnchor(key, cfg);
@@ -2073,7 +2018,7 @@ function CardSideEditor({
       });
     })();
     return () => { cancelled = true; };
-  }, [backDefaults, cardHmm, cardPreview, cardWmm, fontCss, fontWeight, keys, layout, previewH, previewW, pxPerMm]);
+  }, [backDefaults, cardHmm, cardPreview, cardWmm, keys, layout, previewH, previewW, pxPerMm]);
 
   // 글자 크기 변경 시 어느 쪽을 기준으로 자라거나 줄어들지 결정하는 앵커
   const getAnchorX = (key: OptionKey): "left" | "center" | "right" => {
@@ -2187,8 +2132,8 @@ function CardSideEditor({
               width: previewW,
               aspectRatio: `${cardWmm} / ${cardHmm}`,
               background: "#fff",
-              fontFamily: fontCss || "'Inter', system-ui, sans-serif",
-              fontWeight: fontWeight ?? 500,
+              fontFamily: "'Inter', system-ui, sans-serif",
+              fontWeight: 500,
             }}
           >
 
@@ -2232,8 +2177,8 @@ function CardSideEditor({
               const fontPx = (cfg.fontSize || 3) * pxPerMm;
               const isImage = isImageKey(key);
               const isSel = selected === key;
-              const family = fontCss || "'Inter', system-ui, sans-serif";
-              const weight = textWeightForOption(key, fontWeight ?? 500);
+              const family = isImage ? "'Inter', system-ui, sans-serif" : getOptionFontCss(cfg);
+              const weight = isImage ? 500 : getOptionFontWeight(cfg);
               // 텍스트 옵션은 글자에 맞춰 너비/높이 자동 산출, 이미지 옵션은 사용자 지정 cfg.w/h 사용
               // (X,Y)는 anchor 지점의 카드 내 좌표
               const effWmm = isImage ? cfg.w : measureTextWidthMm(textForOverlay(key), cfg.fontSize || 3, family, weight);
@@ -2357,6 +2302,39 @@ function CardSideEditor({
                     </label>
                   )}
                 </div>
+                {!isImage && (
+                  <div className="md:col-span-9 flex items-center gap-2 flex-wrap pt-1 border-t border-dashed mt-1" onClick={e => e.stopPropagation()}>
+                    <Label className="text-[10px] text-muted-foreground whitespace-nowrap">글꼴</Label>
+                    <select
+                      value={getOptionFontId(cfg)}
+                      onChange={e => update(key, { fontId: e.target.value })}
+                      className="h-7 text-xs rounded border bg-background px-2"
+                      style={{ fontFamily: getOptionFontCss(cfg), fontWeight: getOptionFontWeight(cfg) }}
+                    >
+                      {FONT_OPTIONS.map(f => (
+                        <option key={f.id} value={f.id} style={{ fontFamily: f.css }}>{f.label}</option>
+                      ))}
+                    </select>
+                    <Label className="text-[10px] text-muted-foreground whitespace-nowrap ml-2">BOLD</Label>
+                    <select
+                      value={getOptionFontWeight(cfg)}
+                      onChange={e => update(key, { fontWeight: Number(e.target.value) })}
+                      className="h-7 text-xs rounded border bg-background px-2"
+                      style={{ fontFamily: getOptionFontCss(cfg), fontWeight: getOptionFontWeight(cfg) }}
+                    >
+                      {FONT_WEIGHTS.map(w => (
+                        <option key={w.value} value={w.value} style={{ fontWeight: w.value }}>{w.label}</option>
+                      ))}
+                    </select>
+                    <span className="text-[10px] text-muted-foreground ml-2">
+                      미리보기:&nbsp;
+                      <span style={{ fontFamily: getOptionFontCss(cfg), fontWeight: getOptionFontWeight(cfg), fontSize: 14 }}>
+                        {textForOverlay(key) || "가나다 ABC 123"}
+                      </span>
+                    </span>
+                    <span className="text-[10px] text-muted-foreground ml-auto">PDF는 Spoqa 폰트로 벡터 임베드(글꼴 선택은 미리보기 전용 · BOLD 강도는 PDF에도 반영)</span>
+                  </div>
+                )}
               </div>
             );
           })}
