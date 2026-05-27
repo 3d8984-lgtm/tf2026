@@ -1186,23 +1186,8 @@ function CardSideEditor({
     window.addEventListener("pointerup", onUp);
   };
 
-  // Click-to-position: when pickMode active, clicking on stage moves selected option's top-left to that point
-  const onStageClick = (e: React.MouseEvent) => {
-    if (!pickMode || !selected) return;
-    const rect = stageRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const xMm = (e.clientX - rect.left) / pxPerMm;
-    const yMm = (e.clientY - rect.top) / pxPerMm;
-    const cfg = layout[selected];
-    // Center the box on the clicked point for intuitive placement
-    update(selected, {
-      x: clampMm(xMm - cfg.w / 2, CARD_W_MM - cfg.w),
-      y: clampMm(yMm - cfg.h / 2, CARD_H_MM - cfg.h),
-      centerX: false,
-      centerY: false,
-    });
-    setPickMode(false);
-  };
+
+
 
   const [dmPreview, setDmPreview] = useState<string | null>(null);
   useEffect(() => {
