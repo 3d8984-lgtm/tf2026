@@ -1103,7 +1103,7 @@ function applyTestValues(c: CardData | undefined, tv: { cpValue: string; edition
 // ============== Card side editor (preview + per-option controls) ==============
 function CardSideEditor({
   side, frame, testImageUrl, testTwincodeUrl, cardPreview, layout, setLayout, keys, backDefaults, onTestPdf,
-  bleedMm, setBleedMm,
+  bleedMm,
 }: {
   side: "front" | "back";
   frame: any;
@@ -1116,22 +1116,17 @@ function CardSideEditor({
   backDefaults?: { companyName: string; centerSlogan: string; nfcEnabled: string; issuedBy: string };
   onTestPdf?: () => void | Promise<void>;
   bleedMm: number;
-  setBleedMm: React.Dispatch<React.SetStateAction<number>>;
 }) {
   const [pdfBusy, setPdfBusy] = useState(false);
-  // Zoomable preview (px per mm). Default 10 = card ~57x87mm renders ~570x870px.
-  // 실제 크기 모드: CSS 표준 96dpi → 1mm = 3.7795px. mmScale로 화면 보정 가능.
+  // 항상 실제 인쇄 크기(1:1)로 미리보기. CSS 표준 96dpi → 1mm = 3.7795px.
   const PX_PER_MM_REAL = 96 / 25.4;
-  const [actualSize, setActualSize] = useState(false);
-  const [mmScale, setMmScale] = useState(100); // %
-  const [zoom, setZoom] = useState(10);
-  const pxPerMm = actualSize ? PX_PER_MM_REAL * (mmScale / 100) : zoom;
+  const pxPerMm = PX_PER_MM_REAL;
   const previewW = CARD_W_MM * pxPerMm;
   const previewH = CARD_H_MM * pxPerMm;
 
   const [selected, setSelected] = useState<OptionKey | null>(keys[0] ?? null);
-  const [pickMode, setPickMode] = useState(false);
   const stageRef = useRef<HTMLDivElement | null>(null);
+
 
   const update = (key: OptionKey, patch: Partial<OptionLayout>) => {
     setLayout(prev => ({ ...prev, [key]: { ...prev[key], ...patch } }));
