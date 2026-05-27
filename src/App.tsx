@@ -96,6 +96,10 @@ function ProtectedRoutes() {
         <Route path="/outsource/heat-transfer" element={<HeatTransferFactory />} />
         <Route path="/outsource/hologram" element={<HologramFactory />} />
         <Route path="/outsource/nfc-card" element={<NfcCardFactory />} />
+        <Route path="/outsource/card-order/templates" element={<CardTemplateList />} />
+        <Route path="/outsource/card-order/templates/:id" element={<CardTemplateDetail />} />
+        <Route path="/outsource/card-order/orders" element={<CardOrderList />} />
+        <Route path="/outsource/card-order/orders/:id" element={<CardOrderDetail />} />
         <Route path="/outsource/logo" element={<LogoFactory />} />
         <Route path="/outsource/history" element={<OutsourceHistory />} />
         <Route path="/outsource/settings" element={<OutsourceSettings />} />
