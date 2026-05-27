@@ -1000,8 +1000,10 @@ function DetailView({
       for (const key of keys) {
         const cfg = layout[key];
         if (!cfg?.enabled) continue;
-        const xMm = cfg.centerX ? (cardWmm - cfg.w) / 2 : cfg.x;
-        const yMm = cfg.centerY ? (cardHmm - cfg.h) / 2 : cfg.y;
+        const anc = getAnchor(key, cfg);
+        const tl = anchorTopLeft(cfg.x, cfg.y, cfg.w, cfg.h, anc);
+        const xMm = tl.left;
+        const yMm = tl.top;
         const x = xMm * pxPerMm;
         const y = yMm * pxPerMm;
         const w = cfg.w * pxPerMm;
