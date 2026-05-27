@@ -1101,6 +1101,7 @@ function applyTestValues(c: CardData | undefined, tv: { cpValue: string; edition
 // ============== Card side editor (preview + per-option controls) ==============
 function CardSideEditor({
   side, frame, testImageUrl, testTwincodeUrl, cardPreview, layout, setLayout, keys, backDefaults, onTestPdf,
+  bleedMm, setBleedMm,
 }: {
   side: "front" | "back";
   frame: any;
@@ -1112,6 +1113,8 @@ function CardSideEditor({
   keys: OptionKey[];
   backDefaults?: { companyName: string; centerSlogan: string; nfcEnabled: string; issuedBy: string };
   onTestPdf?: () => void | Promise<void>;
+  bleedMm: number;
+  setBleedMm: React.Dispatch<React.SetStateAction<number>>;
 }) {
   const [pdfBusy, setPdfBusy] = useState(false);
   // Zoomable preview (px per mm). Default 10 = card ~57x87mm renders ~570x870px.
