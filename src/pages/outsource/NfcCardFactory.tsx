@@ -274,6 +274,14 @@ async function urlToPngBytes(url: string): Promise<Uint8Array> {
   }
 }
 
+async function canvasToPngBytes(canvas: HTMLCanvasElement): Promise<Uint8Array> {
+  const dataUrl = canvas.toDataURL("image/png");
+  const bin = atob(dataUrl.split(",")[1]);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return arr;
+}
+
 function downloadBlob(bytes: Uint8Array, filename: string, mime = "application/pdf") {
   const blob = new Blob([bytes as BlobPart], { type: mime });
   const url = URL.createObjectURL(blob);
