@@ -1143,7 +1143,7 @@ function CardSideEditor({
     e.stopPropagation();
     e.preventDefault();
     setSelected(key);
-    setPickMode(false);
+    
     const startX = e.clientX;
     const startY = e.clientY;
     const cfg = layout[key];
