@@ -1092,6 +1092,21 @@ function DetailView({
           continue;
         }
 
+        if (key === "signature") {
+          const sigUrl = testSignature?.url || card.signatureUrl;
+          if (sigUrl) {
+            let fetched: { img: HTMLImageElement; revoke: () => void } | null = null;
+            try {
+              fetched = await loadFetchedImage(sigUrl);
+              drawImageContain(ctx, fetched.img, x, y, w, h);
+            } catch (e) { console.warn("signature draw fail", e); }
+            finally { fetched?.revoke(); }
+          }
+          continue;
+        }
+
+
+
         if (key === "dmBarcode") {
           try {
             const pad = Math.max(0, cfg.padding ?? 0) * pxPerMm;
