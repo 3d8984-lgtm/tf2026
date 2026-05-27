@@ -894,6 +894,7 @@ function DetailView({
 
   // Test signature file (server-persisted; falls back to API signatureUrl when removed)
   const [testSignature, setTestSignature] = useState<{ url: string; name: string } | null>(null);
+  const [uploadDebug, setUploadDebug] = useState<UploadDebugInfo | null>(null);
 
   // Test values for preview only (override card[0] for front/back fields)
   const [testValues, setTestValues] = useState({
@@ -998,7 +999,8 @@ function DetailView({
       const path = `${TEST_IMG_PREFIX}/${side}__${safe}`;
       const { error } = await supabase.storage.from(FRAME_BUCKET)
         .upload(path, uploadFile, { upsert: true, contentType });
-      if (error) { toast({ title: "업로드 실패", description: error.message, variant: "destructive" }); return; }
+      if (error) {
+        setUploadDebug(buildUploadDebugInfo({ title: `${side === "front" ? "앞면" : "뒷면
       const objUrl = URL.createObjectURL(uploadFile);
       setTestImages(prev => {
         revokeTestAsset(prev[side]);
