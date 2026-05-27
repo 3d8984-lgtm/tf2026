@@ -74,6 +74,47 @@ function formatFileSize(bytes?: number) {
   return `${((bytes ?? 0) / 1024 / 1024).toFixed(2)} MB`;
 }
 
+function buildUploadDebugInfo(params: {
+  title: string;
+  objectPath: string;
+  operation: string;
+  error: any;
+  file?: File | Blob | null;
+  fileName?: string;
+  contentType?: string;
+  userId?: string;
+}): UploadDebugInfo {
+  const error = params.error || {};
+  const statusCode = String(error.statusCode || error.status || "unknown");
+  const message = String(error.message || "알 수 없는 업로드 오류");
+  const isRls = /row-level security|rls|unauthorized|403/i.test(`${statusCode} ${message}`);
+
+  return {
+    title: params.title,
+    bucket: FRAME_BUCKET,
+    objectPath: params.objectPath,
+    requestPath: `/storage/v1/object/${FRAME_BUCKET}/${params.objectPath}`,
+    operation: params.operation,
+    httpStatus: statusCode === "unknown" ? "Storage API 응답 코드 확인 불가" : statusCode,
+    storageStatusCode: String(error.statusCode || "unknown"),
+    errorMessage: message,
+    errorName: String(error.name || error.error || "StorageError"),
+    fileName: params.fileName || (params.file instanceof File ? params.file.name : "변환된 업로드 파일"),
+    fileType: params.file instanceof File ? (params.file.type || "unknown") : "Blob",
+    fileSize: formatFileSize(params.file?.size),
+    contentType: params.contentType || "unknown",
+    upsert: "true",
+    authState: params.userId ? "로그인 사용자 토큰으로 요청" : "사용자 ID 없음 / 로그인 필요",
+    userId: params.userId || "없음",
+    policyTarget: `storage.objects 정책 + bucket_id='${FRAME_BUCKET}'`,
+    policyHint: "INSERT/UPDATE/DELETE 정책의 WITH CHECK 또는 USING 조건이 업로드 요청의 bucket_id/name/auth.uid()와 맞아야 합니다.",
+    likelyCause: isRls
+      ? "저장소 RLS 정책이 이 요청을 허용하지 않았습니다. bucket_id, object path, auth.uid(), 정책 조건을 확인해야 합니다."
+      : "Storage API 또는 파일 처리 단계에서 실패했습니다. 아래 요청 정보와 오류 메시지를 확인하세요.",
+    checkedAt: new Date().toLocaleString(),
+  };
+}
+
 // ===== Master font options (상업적 사용 가능 / commercial-free Korean gothic) =====
 interface FontOption {
   id: string;
