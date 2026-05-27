@@ -1765,10 +1765,14 @@ function CardSideEditor({
               const fontPx = (cfg.fontSize || 3) * pxPerMm;
               const isImage = key === "twincode" || key === "dmBarcode";
               const isSel = selected === key;
-              // PDF와 동일한 박스 기반 좌표/정렬 — 텍스트도 cfg.w 폭의 박스 안에서 정렬
-              const xMm = cfg.centerX ? (cardWmm - cfg.w) / 2 : cfg.x;
-              const yMm = cfg.centerY ? (cardHmm - cfg.h) / 2 : cfg.y;
-              const boxWpx = cfg.w * pxPerMm;
+              const family = fontCss || "'Inter', system-ui, sans-serif";
+              const weight = textWeightForOption(key, fontWeight ?? 500);
+              // 텍스트 옵션은 글자에 맞춰 너비/높이 자동 산출, 이미지 옵션은 사용자 지정 cfg.w/h 사용
+              const effWmm = isImage ? cfg.w : measureTextWidthMm(textFor(key), cfg.fontSize || 3, family, weight);
+              const effHmm = isImage ? cfg.h : (cfg.fontSize || 3);
+              const xMm = cfg.centerX ? (cardWmm - effWmm) / 2 : cfg.x;
+              const yMm = cfg.centerY ? (cardHmm - effHmm) / 2 : cfg.y;
+              const boxWpx = Math.max(effWmm * pxPerMm, isImage ? 0 : 4);
               const boxHpx = isImage ? cfg.h * pxPerMm : Math.max(fontPx, 4);
               return (
                 <div
@@ -1796,12 +1800,14 @@ function CardSideEditor({
                   <span className="absolute -top-4 left-0 text-[10px] bg-primary text-primary-foreground px-1 rounded-sm whitespace-nowrap pointer-events-none">
                     {OPTION_LABELS[key]}
                   </span>
-                  {/* resize handle */}
-                  <span
-                    onPointerDown={e => startDrag(e, key, "resize")}
-                    className="absolute right-0 bottom-0 w-3 h-3 bg-primary cursor-se-resize"
-                    title="크기 조절"
-                  />
+                  {/* resize handle (이미지 옵션만 — 텍스트는 글자 크기로 자동) */}
+                  {isImage && (
+                    <span
+                      onPointerDown={e => startDrag(e, key, "resize")}
+                      className="absolute right-0 bottom-0 w-3 h-3 bg-primary cursor-se-resize"
+                      title="크기 조절"
+                    />
+                  )}
                 </div>
               );
             })}
