@@ -560,7 +560,7 @@ export default function NfcCardFactory() {
       <DetailView
         orderNo={detailOrderNo}
         order={(ordersData as any[])?.find(o => o.external_order_id === detailOrderNo)}
-        frames={frames}
+        cardSize={cardSize}
         onBack={() => setDetailOrderNo(null)}
         userId={user?.id}
       />
@@ -569,54 +569,47 @@ export default function NfcCardFactory() {
 
   return (
     <div>
-      <PageHeader title="NFC 카드 공장" description="카드 앞/뒷면 프레임 업로드 및 옵션 배치 · PDF 발주" />
+      <PageHeader title="NFC 카드 공장" description="카드 사이즈 설정 및 옵션 배치 · PDF 발주" />
       <div className="p-6 space-y-4">
-        {/* Frame upload */}
+        {/* Card size setting */}
         <Card>
-          <CardHeader><CardTitle className="text-base">카드 PDF 프레임 업로드</CardTitle></CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {(["front", "back"] as const).map(side => (
-              <div key={side} className="border rounded-md p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="font-medium">{side === "front" ? "카드 앞면 프레임" : "카드 뒷면 프레임"}</Label>
-                  {frames[side] && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600">서버 저장됨</span>
-                  )}
-                </div>
-                <div className="flex justify-center">
-                  <CardFrame widthClassName="w-32" className="border rounded bg-white flex items-center justify-center">
-                    {frames[side]?.preview
-                      ? <img src={frames[side]!.preview} alt="" className="w-full h-full object-fill" />
-                      : <span className="text-[11px] text-muted-foreground px-2 text-center">업로드된 프레임 없음</span>}
-                  </CardFrame>
-                </div>
-                <div className="text-xs text-muted-foreground truncate">
-                  {frames[side]?.name || "파일 없음 (삭제/변경 전까지 서버에 유지됩니다)"}
-                </div>
-                {frames[side] && (
-                  <div className="text-xs font-medium text-foreground">
-                    실제 크기: {(frames[side]!.widthPt * 25.4 / 72).toFixed(1)} × {(frames[side]!.heightPt * 25.4 / 72).toFixed(1)} mm
-                    <span className="ml-2 text-muted-foreground">({frames[side]!.widthPt.toFixed(1)} × {frames[side]!.heightPt.toFixed(1)} pt)</span>
-                  </div>
-                )}
-                <div className="flex gap-2">
-                  <label className="flex-1 flex items-center justify-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
-                    <Upload className="w-3 h-3" />
-                    <span>{frames[side] ? "변경" : "PDF 업로드"}</span>
-                    <input type="file" accept="application/pdf" className="hidden"
-                      onChange={e => { const f = e.target.files?.[0] || null; e.currentTarget.value = ""; if (f) onUploadFrame(side, f); }} />
-                  </label>
-                  {frames[side] && (
-                    <Button size="sm" variant="destructive" className="text-xs"
-                      onClick={() => { if (confirm("서버에서 프레임 PDF를 삭제할까요?")) onUploadFrame(side, null); }}>
-                      <X className="w-3 h-3 mr-1" />삭제
-                    </Button>
-                  )}
-                </div>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center justify-between flex-wrap gap-2">
+              <span>카드 사이즈 설정</span>
+              <span className="text-[11px] font-normal text-muted-foreground">
+                현재 적용: <span className="font-mono text-foreground">{cardSize.width} × {cardSize.height} mm</span>
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+              <div className="space-y-1">
+                <Label className="text-xs">가로 (mm)</Label>
+                <Input
+                  type="number" step="0.1" min="1"
+                  value={sizeDraft.width}
+                  onChange={e => setSizeDraft(p => ({ ...p, width: e.target.value }))}
+                />
               </div>
-            ))}
+              <div className="space-y-1">
+                <Label className="text-xs">세로 (mm)</Label>
+                <Input
+                  type="number" step="0.1" min="1"
+                  value={sizeDraft.height}
+                  onChange={e => setSizeDraft(p => ({ ...p, height: e.target.value }))}
+                />
+              </div>
+              <Button onClick={saveCardSize} disabled={sizeSaving}>
+                {sizeSaving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+                저장
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              저장한 사이즈가 주문 상세의 카드 미리보기 · PDF 출력 크기에 적용됩니다.
+            </p>
           </CardContent>
         </Card>
+
 
         {/* Order list */}
         <Card>
