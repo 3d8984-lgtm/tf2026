@@ -20,9 +20,7 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Download, Eye, FileText, Loader2, Upload, X, ChevronLeft, Save, Image as ImageIcon } from "lucide-react";
-import { PDFDocument, rgb } from "pdf-lib";
-import fontkit from "@pdf-lib/fontkit";
-import QRCode from "qrcode";
+import { PDFDocument } from "pdf-lib";
 import bwipjs from "bwip-js/browser";
 import { CardFrame, CARD_W_MM, CARD_H_MM } from "@/components/outsource/CardFrame";
 
@@ -129,14 +127,51 @@ async function renderPdfFirstPagePng(bytes: Uint8Array): Promise<{ dataUrl: stri
   return { dataUrl: canvas.toDataURL("image/png"), aspect: viewport.width / viewport.height, maskCanvas: canvas, widthPt: vp1.width, heightPt: vp1.height };
 }
 
-async function loadImage(src: string): Promise<HTMLImageElement> {
+async function loadImage(src: string, crossOrigin: string | null = "anonymous"): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = "anonymous";
+    if (crossOrigin) img.crossOrigin = crossOrigin;
     img.onload = () => resolve(img);
     img.onerror = reject;
     img.src = src;
   });
+}
+
+function inferImageMime(url: string, bytes: Uint8Array, contentType?: string | null): string {
+  const ct = (contentType || "").split(";")[0].trim().toLowerCase();
+  if (ct.startsWith("image/")) return ct;
+  const lower = url.toLowerCase().split("?")[0];
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return "image/png";
+  if (bytes[0] === 0xff && bytes[1] === 0xd8) return "image/jpeg";
+  if (lower.endsWith(".svg") || new TextDecoder().decode(bytes.slice(0, 160)).trimStart().match(/^<\?xml|^<svg/i)) {
+    return "image/svg+xml;charset=utf-8";
+  }
+  if (lower.endsWith(".webp")) return "image/webp";
+  return "image/png";
+}
+
+async function loadFetchedImage(url: string): Promise<{ img: HTMLImageElement; revoke: () => void }> {
+  const res = await fetch(url, { mode: "cors" });
+  if (!res.ok) throw new Error(`image fetch failed: ${res.status}`);
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  const mime = inferImageMime(url, bytes, res.headers.get("content-type"));
+  const objUrl = URL.createObjectURL(new Blob([bytes as BlobPart], { type: mime }));
+  try {
+    const img = await loadImage(objUrl, null);
+    return { img, revoke: () => URL.revokeObjectURL(objUrl) };
+  } catch (e) {
+    URL.revokeObjectURL(objUrl);
+    throw e;
+  }
+}
+
+function drawImageContain(ctx: CanvasRenderingContext2D, img: CanvasImageSource & { width?: number; height?: number; naturalWidth?: number; naturalHeight?: number }, x: number, y: number, w: number, h: number) {
+  const iw = Number(img.naturalWidth || img.width || w);
+  const ih = Number(img.naturalHeight || img.height || h);
+  const scale = Math.min(w / iw, h / ih);
+  const dw = iw * scale;
+  const dh = ih * scale;
+  ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
 }
 
 async function composeMaskedCardCanvas(
@@ -311,13 +346,13 @@ async function dataMatrixPngBytes(text: string, sizePx = 300): Promise<Uint8Arra
 async function urlToPngBytes(url: string): Promise<Uint8Array> {
   const res = await fetch(url);
   const buf = new Uint8Array(await res.arrayBuffer());
-  // If it's already PNG, return as is. Otherwise re-render via canvas.
-  const blob = new Blob([buf]);
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return buf;
+  // If it is SVG/JPG/WebP/etc, re-render via canvas with a proper MIME type.
+  const blob = new Blob([buf as BlobPart], { type: inferImageMime(url, buf, res.headers.get("content-type")) });
   const objUrl = URL.createObjectURL(blob);
   try {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
       const i = new Image();
-      i.crossOrigin = "anonymous";
       i.onload = () => resolve(i);
       i.onerror = () => reject(new Error("img decode failed"));
       i.src = objUrl;
