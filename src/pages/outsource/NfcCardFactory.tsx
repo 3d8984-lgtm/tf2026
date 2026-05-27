@@ -1041,7 +1041,7 @@ function DetailView({
         uploadName = file.name.replace(/\.pdf$/i, "") + ".png";
         contentType = "image/png";
       }
-      const safe = uploadName.replace(/[^\w.\-]+/g, "_");
+      const safe = uploadName.replace(/[^\w.-]+/g, "_");
       const path = `${TEST_IMG_PREFIX}/${side}__${safe}`;
       const { error } = await supabase.storage.from(FRAME_BUCKET)
         .upload(path, uploadFile, { upsert: true, contentType });
@@ -1093,7 +1093,7 @@ function DetailView({
       return;
     }
     try {
-      const safe = file.name.replace(/[^\w.\-]+/g, "_");
+      const safe = file.name.replace(/[^\w.-]+/g, "_");
       const path = `${TEST_TWINCODE_PREFIX}/twincode__${safe}`;
       const contentType = file.type || "image/svg+xml";
       const { error } = await supabase.storage.from(FRAME_BUCKET)
@@ -1141,7 +1141,7 @@ function DetailView({
       return;
     }
     try {
-      const safe = file.name.replace(/[^\w.\-]+/g, "_");
+      const safe = file.name.replace(/[^\w.-]+/g, "_");
       const path = `${TEST_SIGNATURE_PREFIX}/signature__${safe}`;
       const ct = file.type || (/\.svg$/i.test(file.name) ? "image/svg+xml" : "image/png");
       const { error } = await supabase.storage.from(FRAME_BUCKET)
