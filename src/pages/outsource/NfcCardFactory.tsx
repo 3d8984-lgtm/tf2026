@@ -1074,7 +1074,7 @@ function DetailView({
               </span>
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
               {FONT_OPTIONS.map(f => {
                 const active = masterFont === f.id;
@@ -1090,18 +1090,47 @@ function DetailView({
                     }`}
                   >
                     <div className="text-[11px] text-muted-foreground mb-1">{f.label}</div>
-                    <div className="text-lg leading-tight" style={{ fontFamily: f.css }}>
+                    <div className="text-lg leading-tight" style={{ fontFamily: f.css, fontWeight: masterFontWeight }}>
                       가나다 ABC 123
                     </div>
-                    <div className="text-xs mt-0.5 text-muted-foreground" style={{ fontFamily: f.css }}>
+                    <div className="text-xs mt-0.5 text-muted-foreground" style={{ fontFamily: f.css, fontWeight: masterFontWeight }}>
                       ISSUED No. 0001
                     </div>
                   </button>
                 );
               })}
             </div>
+
+            {/* BOLD 강도 (font-weight) */}
+            <div className="flex items-center gap-3 flex-wrap pt-1">
+              <div className="text-xs text-muted-foreground min-w-[80px]">BOLD 강도</div>
+              <div className="flex flex-wrap gap-1.5">
+                {FONT_WEIGHTS.map(w => {
+                  const active = masterFontWeight === w.value;
+                  return (
+                    <button
+                      key={w.value}
+                      type="button"
+                      onClick={() => setMasterFontWeight(w.value)}
+                      className={`px-2.5 py-1 rounded-md border text-xs transition-colors ${
+                        active
+                          ? "border-primary bg-primary/10 ring-1 ring-primary/30"
+                          : "border-border hover:bg-accent"
+                      }`}
+                      style={{ fontFamily: currentFont.css, fontWeight: w.value }}
+                    >
+                      {w.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                PDF 출력 시 600 이상은 Bold, 미만은 Regular로 임베드됩니다.
+              </div>
+            </div>
           </CardContent>
         </Card>
+
 
         {/* Test values for preview */}
         <Card>
