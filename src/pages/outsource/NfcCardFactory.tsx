@@ -21,7 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Download, Eye, FileText, Loader2, Upload, X, ChevronLeft, Save, Image as ImageIcon } from "lucide-react";
+import { AlertTriangle, Download, Eye, FileText, Loader2, Upload, X, ChevronLeft, Save, Image as ImageIcon } from "lucide-react";
 import { PDFDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import bwipjs from "bwip-js/browser";
@@ -43,6 +43,36 @@ const TEST_SIGNATURE_PREFIX = "nfc-card-test";
 
 interface CardSize { width: number; height: number }
 const DEFAULT_CARD_SIZE: CardSize = { width: CARD_W_MM, height: CARD_H_MM };
+
+type UploadDebugInfo = {
+  title: string;
+  bucket: string;
+  objectPath: string;
+  requestPath: string;
+  operation: string;
+  httpStatus: string;
+  storageStatusCode: string;
+  errorMessage: string;
+  errorName: string;
+  fileName: string;
+  fileType: string;
+  fileSize: string;
+  contentType: string;
+  upsert: string;
+  authState: string;
+  userId: string;
+  policyTarget: string;
+  policyHint: string;
+  likelyCause: string;
+  checkedAt: string;
+};
+
+function formatFileSize(bytes?: number) {
+  if (!Number.isFinite(bytes)) return "unknown";
+  if ((bytes ?? 0) < 1024) return `${bytes} B`;
+  if ((bytes ?? 0) < 1024 * 1024) return `${((bytes ?? 0) / 1024).toFixed(1)} KB`;
+  return `${((bytes ?? 0) / 1024 / 1024).toFixed(2)} MB`;
+}
 
 // ===== Master font options (상업적 사용 가능 / commercial-free Korean gothic) =====
 interface FontOption {
