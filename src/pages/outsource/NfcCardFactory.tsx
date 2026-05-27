@@ -2066,16 +2066,17 @@ function CardSideEditor({
       await Promise.all(drawableKeys.map(key => {
         const cfg = layout[key];
         const fontPx = Math.max(4, (cfg.fontSize || 3) * pxPerMm);
-        const weight = textWeightForOption(key, fontWeight ?? 500);
-        return (document as any).fonts?.load(`${weight} ${fontPx}px ${fontCss || "'Inter', system-ui, sans-serif"}`);
+        const weight = getOptionFontWeight(cfg);
+        const family = getOptionFontCss(cfg);
+        return (document as any).fonts?.load(`${weight} ${fontPx}px ${family}`);
       }));
       if (cancelled) return;
       ctx.clearRect(0, 0, previewW, previewH);
       drawableKeys.forEach(key => {
         const cfg = layout[key];
         const txt = textFor(key);
-        const weight = textWeightForOption(key, fontWeight ?? 500);
-        const family = fontCss || "'Inter', system-ui, sans-serif";
+        const weight = getOptionFontWeight(cfg);
+        const family = getOptionFontCss(cfg);
         const autoWmm = measureTextWidthMm(txt, cfg.fontSize || 3, family, weight);
         const autoHmm = cfg.fontSize || 3;
         const anc = getAnchor(key, cfg);
@@ -2087,7 +2088,7 @@ function CardSideEditor({
       });
     })();
     return () => { cancelled = true; };
-  }, [backDefaults, cardHmm, cardPreview, cardWmm, fontCss, fontWeight, keys, layout, previewH, previewW, pxPerMm]);
+  }, [backDefaults, cardHmm, cardPreview, cardWmm, keys, layout, previewH, previewW, pxPerMm]);
 
   // 글자 크기 변경 시 어느 쪽을 기준으로 자라거나 줄어들지 결정하는 앵커
   const getAnchorX = (key: OptionKey): "left" | "center" | "right" => {
