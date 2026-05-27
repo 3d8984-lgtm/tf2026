@@ -1842,13 +1842,13 @@ function CardSideEditor({
               const family = fontCss || "'Inter', system-ui, sans-serif";
               const weight = textWeightForOption(key, fontWeight ?? 500);
               // 텍스트 옵션은 글자에 맞춰 너비/높이 자동 산출, 이미지 옵션은 사용자 지정 cfg.w/h 사용
-              // 텍스트의 X,Y는 박스 중앙 기준, 이미지의 X,Y는 박스 좌상단 기준
+              // (X,Y)는 anchor 지점의 카드 내 좌표
               const effWmm = isImage ? cfg.w : measureTextWidthMm(textForOverlay(key), cfg.fontSize || 3, family, weight);
               const effHmm = isImage ? cfg.h : (cfg.fontSize || 3);
-              const cXmm = cfg.centerX ? cardWmm / 2 : cfg.x;
-              const cYmm = cfg.centerY ? cardHmm / 2 : cfg.y;
-              const xMm = isImage ? (cfg.centerX ? (cardWmm - effWmm) / 2 : cfg.x) : (cXmm - effWmm / 2);
-              const yMm = isImage ? (cfg.centerY ? (cardHmm - effHmm) / 2 : cfg.y) : (cYmm - effHmm / 2);
+              const anc = getAnchor(key, cfg);
+              const tl = anchorTopLeft(cfg.x, cfg.y, effWmm, effHmm, anc);
+              const xMm = tl.left;
+              const yMm = tl.top;
               const boxWpx = Math.max(effWmm * pxPerMm, isImage ? 0 : 4);
               const boxHpx = isImage ? cfg.h * pxPerMm : Math.max(fontPx, 4);
               return (
