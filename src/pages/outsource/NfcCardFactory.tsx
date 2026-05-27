@@ -2044,8 +2044,22 @@ function CardSideEditor({
                   </>
                 ) : isImage ? (
                   <>
-                    <Mini label="너비(mm)" v={cfg.w} set={v => update(key, { w: v })} />
-                    <Mini label="높이(mm)" v={cfg.h} set={v => update(key, { h: v })} />
+                    <Mini label="너비(mm)" v={cfg.w} set={v => {
+                      if (cfg.lockAspect && cfg.w > 0 && cfg.h > 0) {
+                        const ratio = cfg.h / cfg.w;
+                        update(key, { w: v, h: Math.round(v * ratio * 10) / 10 });
+                      } else {
+                        update(key, { w: v });
+                      }
+                    }} />
+                    <Mini label="높이(mm)" v={cfg.h} set={v => {
+                      if (cfg.lockAspect && cfg.w > 0 && cfg.h > 0) {
+                        const ratio = cfg.w / cfg.h;
+                        update(key, { h: v, w: Math.round(v * ratio * 10) / 10 });
+                      } else {
+                        update(key, { h: v });
+                      }
+                    }} />
                   </>
                 ) : (
                   // 텍스트 옵션: 너비/높이는 글자 크기에 자동 맞춤
@@ -2064,6 +2078,12 @@ function CardSideEditor({
                       <Label className="text-[10px] text-muted-foreground whitespace-nowrap ml-2">정렬</Label>
                       <AlignPicker value={getAlign(key, cfg)} onChange={v => update(key, { align: v })} />
                     </>
+                  )}
+                  {key === "signature" && (
+                    <label className="flex items-center gap-1 cursor-pointer ml-2 text-[10px] text-muted-foreground">
+                      <Checkbox checked={!!cfg.lockAspect} onCheckedChange={v => update(key, { lockAspect: !!v })} />
+                      <span>비율 잠금</span>
+                    </label>
                   )}
                 </div>
               </div>
