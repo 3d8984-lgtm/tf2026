@@ -90,7 +90,8 @@ export default function CardOrderDetail() {
       setOrder({ ...order, status: "completed" });
     }
     setBulk(false);
-    toast[fail ? "warning" : "success"](`완료: ${ok}장, 실패: ${fail}장`);
+    if (fail === 0) toast.success(`완료: ${ok}장`);
+    else toast.error(`완료: ${ok}장, 실패: ${fail}장`);
   };
 
   if (loading || !order) {
