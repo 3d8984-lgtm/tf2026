@@ -1381,7 +1381,7 @@ function CardSideEditor({
                     fontSize: isImage ? undefined : fontPx,
                     lineHeight: 1,
                     whiteSpace: "nowrap",
-                    cursor: pickMode ? "crosshair" : "move",
+                    cursor: "move",
                     background: key === "dmBarcode" ? "#fff" : undefined,
                     boxShadow: key === "dmBarcode" ? `0 0 0 ${(cfg.padding ?? 0) * pxPerMm}px #fff` : undefined,
                   }}
