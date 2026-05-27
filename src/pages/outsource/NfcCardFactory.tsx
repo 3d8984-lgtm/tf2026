@@ -40,8 +40,6 @@ interface FontOption {
   label: string;
   css: string;        // CSS font-family stack (preview)
   cssLink: string;    // <link rel=stylesheet> href to register family in browser
-  ttfReg: string;     // TTF/OTF URL for pdf-lib embedding (Regular)
-  ttfBold: string;    // TTF/OTF URL for pdf-lib embedding (Bold)
 }
 const FONT_OPTIONS: FontOption[] = [
   {
@@ -49,24 +47,18 @@ const FONT_OPTIONS: FontOption[] = [
     label: "Pretendard",
     css: "'Pretendard Variable', Pretendard, -apple-system, sans-serif",
     cssLink: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css",
-    ttfReg: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/public/static/alternative/Pretendard-Regular.ttf",
-    ttfBold: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/public/static/alternative/Pretendard-Bold.ttf",
   },
   {
     id: "ibm-plex-sans-kr",
     label: "IBM Plex Sans KR",
     css: "'IBM Plex Sans KR', sans-serif",
     cssLink: "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;700&display=swap",
-    ttfReg: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ibmplexsanskr/IBMPlexSansKR-Regular.ttf",
-    ttfBold: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ibmplexsanskr/IBMPlexSansKR-Bold.ttf",
   },
   {
     id: "spoqa-han-sans-neo",
     label: "Spoqa Han Sans Neo",
     css: "'Spoqa Han Sans Neo', sans-serif",
     cssLink: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans/css/SpoqaHanSansNeo.css",
-    ttfReg: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans/Subset/SpoqaHanSansNeo/SpoqaHanSansNeo-Regular.ttf",
-    ttfBold: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans/Subset/SpoqaHanSansNeo/SpoqaHanSansNeo-Bold.ttf",
   },
   {
     id: "black-han-sans",
