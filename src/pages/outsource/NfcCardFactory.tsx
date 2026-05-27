@@ -283,8 +283,13 @@ function tsName() {
 
 type OptionKey =
   | "cpValue" | "editionNo"
-  | "issuedNo" | "mintedOn" | "grade" | "issuedBy" | "twincode" | "dmBarcode"
+  | "issuedNo" | "mintedOn" | "grade" | "issuedBy" | "twincode" | "dmBarcode" | "signature"
   | "companyName" | "centerSlogan" | "nfcEnabled";
+
+// 이미지 형태의 옵션 (텍스트가 아닌 비트맵/SVG 렌더링)
+function isImageKey(key: OptionKey): boolean {
+  return key === "twincode" || key === "dmBarcode" || key === "signature";
+}
 
 // 바운딩 박스 내 9개 기준점 (Illustrator reference point 스타일)
 // t=top, m=middle, b=bottom / l=left, c=center, r=right
@@ -311,10 +316,11 @@ interface OptionLayout {
   anchor?: AnchorPoint; // 바운딩 박스 기준점 (기본: 텍스트="mc", 이미지="tl")
   align?: TextAlign; // 텍스트 정렬 (왼쪽/중앙/오른쪽)
   padding?: number; // mm — DM 바코드 흰 여백 (quiet zone)
+  lockAspect?: boolean; // 이미지 옵션의 비율 잠금 (서명 등)
 }
 
 const FRONT_KEYS: OptionKey[] = ["cpValue", "editionNo"];
-const BACK_KEYS: OptionKey[] = ["issuedNo", "mintedOn", "grade", "issuedBy", "twincode", "dmBarcode", "companyName", "centerSlogan", "nfcEnabled"];
+const BACK_KEYS: OptionKey[] = ["issuedNo", "mintedOn", "grade", "issuedBy", "signature", "twincode", "dmBarcode", "companyName", "centerSlogan", "nfcEnabled"];
 
 const OPTION_LABELS: Record<OptionKey, string> = {
   cpValue: "CP값",
@@ -325,6 +331,7 @@ const OPTION_LABELS: Record<OptionKey, string> = {
   issuedBy: "ISSUED BY",
   twincode: "트윈코드",
   dmBarcode: "DM 바코드",
+  signature: "서명 파일",
   companyName: "회사명",
   centerSlogan: "중앙슬로건",
   nfcEnabled: "NFC Enabled",
@@ -337,9 +344,13 @@ const DEFAULT_BACK_DEFAULTS = {
   issuedBy: "ISSUED BY",
 };
 
+// 서명 이미지의 기본 인쇄 크기 (mm) — 업로드된 이미지의 자연 비율을 모를 때 fallback
+const SIGNATURE_BASE_W_MM = 20;
+const SIGNATURE_BASE_H_MM = 8;
+
 // 텍스트/이미지 유형별 기본 anchor 보정 — 저장값에 anchor가 없으면 사용
 function defaultAnchorForKey(key: OptionKey): AnchorPoint {
-  return key === "twincode" || key === "dmBarcode" ? "tl" : "mc";
+  return isImageKey(key) ? "tl" : "mc";
 }
 function getAnchor(key: OptionKey, cfg: { anchor?: AnchorPoint }): AnchorPoint {
   return cfg.anchor ?? defaultAnchorForKey(key);
@@ -359,6 +370,7 @@ const DEFAULT_LAYOUT: Record<OptionKey, OptionLayout> = {
   issuedBy:    { enabled: true, x: 52,   y: 41, w: 25, h: 12, fontSize: 3,   anchor: "mr" },
   twincode:    { enabled: true, x: 5,    y: 25, w: 14, h: 14, fontSize: 0,   anchor: "tl" },
   dmBarcode:   { enabled: true, x: 60,   y: 18, w: 14, h: 14, fontSize: 0,   anchor: "tl", padding: 0.5 },
+  signature:   { enabled: true, x: 28.5, y: 65, w: SIGNATURE_BASE_W_MM, h: SIGNATURE_BASE_H_MM, fontSize: 0, anchor: "mc", lockAspect: true },
   companyName: { enabled: true, x: 28.5, y: 77, w: 47, h: 5,  fontSize: 3,   anchor: "mc" },
   centerSlogan:{ enabled: true, x: 28.5, y: 52, w: 47, h: 5,  fontSize: 3.5, anchor: "mc" },
   nfcEnabled:  { enabled: true, x: 28.5, y: 84, w: 47, h: 4,  fontSize: 2.5, anchor: "mc" },
