@@ -1036,9 +1036,15 @@ function DetailView({
                   )}
                 </div>
                 <div className="flex justify-center">
-                  <CardFrame widthClassName="w-28" className="border rounded bg-muted/30 flex items-center justify-center">
+                  <CardFrame
+                    widthClassName="w-28"
+                    className="border rounded bg-muted/30 flex items-center justify-center"
+                    style={frames[side]?.widthPt && frames[side]?.heightPt
+                      ? { aspectRatio: `${frames[side].widthPt} / ${frames[side].heightPt}` }
+                      : undefined}
+                  >
                   {testImages[side]?.url
-                    ? <img src={testImages[side]!.url} alt="" className="w-full h-full object-fill bg-white" />
+                    ? <img src={testImages[side]!.url} alt="" className="w-full h-full object-contain bg-white" />
                     : <span className="text-xs text-muted-foreground flex items-center gap-1"><ImageIcon className="w-3 h-3" />테스트 이미지 없음 (API 디자인 사용)</span>}
                   </CardFrame>
                 </div>
@@ -1584,7 +1590,13 @@ function CardSideEditor({
           <CardFrame
             ref={stageRef}
             className="border-2 rounded-md shadow-md"
-            style={{ width: previewW, background: "#fff", fontFamily: fontCss || "'Inter', system-ui, sans-serif", fontWeight: fontWeight ?? 500 }}
+            style={{
+              width: previewW,
+              aspectRatio: `${cardWmm} / ${cardHmm}`,
+              background: "#fff",
+              fontFamily: fontCss || "'Inter', system-ui, sans-serif",
+              fontWeight: fontWeight ?? 500,
+            }}
           >
 
             {/* 열전사 디자인 공장과 동일하게 PDF를 마스크 캔버스로 변환해 디자인을 먼저 합성합니다. */}
