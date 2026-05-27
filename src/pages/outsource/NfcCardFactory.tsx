@@ -357,6 +357,17 @@ interface FramePdf {
   heightPt: number;
 }
 
+interface TestAsset {
+  url: string;
+  name: string;
+  path?: string;
+  objectUrl?: boolean;
+}
+
+function revokeTestAsset(asset: TestAsset | null | undefined) {
+  if (asset?.objectUrl && asset.url.startsWith("blob:")) URL.revokeObjectURL(asset.url);
+}
+
 interface OrderRow {
   orderNo: string;
   receivedAt: string;
