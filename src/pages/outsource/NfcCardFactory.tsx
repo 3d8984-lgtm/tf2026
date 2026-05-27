@@ -1682,10 +1682,10 @@ function CardSideEditor({
         const family = fontCss || "'Inter', system-ui, sans-serif";
         const autoWmm = measureTextWidthMm(txt, cfg.fontSize || 3, family, weight);
         const autoHmm = cfg.fontSize || 3;
-        const cXmm = cfg.centerX ? cardWmm / 2 : cfg.x;
-        const cYmm = cfg.centerY ? cardHmm / 2 : cfg.y;
-        const xMm = cXmm - autoWmm / 2;
-        const yMm = cYmm - autoHmm / 2;
+        const anc = getAnchor(key, cfg);
+        const tl = anchorTopLeft(cfg.x, cfg.y, autoWmm, autoHmm, anc);
+        const xMm = tl.left;
+        const yMm = tl.top;
         const fontPx = Math.max(4, (cfg.fontSize || 3) * pxPerMm);
         drawCanvasTextElement(ctx, txt, xMm * pxPerMm, yMm * pxPerMm, autoWmm * pxPerMm, fontPx, family, weight, alignForOption(key));
       });
