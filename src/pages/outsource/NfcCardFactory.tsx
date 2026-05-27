@@ -28,11 +28,14 @@ const MM = 2.8346456693; // 1mm in pt
 // 프레임/PDF 원본 크기 그대로 사용 — 별도 여백 보정 없음.
 const DEFAULT_FRAME_BLEED_MM = 0;
 const FRAME_BUCKET = "design-formats";
-const FRAME_PREFIX = "nfc-card";
 const TEST_IMG_PREFIX = "nfc-card-test";
 const SETTINGS_KEY_PREFIX = "outsource-nfc-card-v1";
 const GLOBAL_LAYOUT_KEY = "outsource-nfc-card-layout-default";
+const CARD_SIZE_KEY = "outsource-nfc-card-size";
 const TEST_TWINCODE_PREFIX = "nfc-card-test";
+
+interface CardSize { width: number; height: number }
+const DEFAULT_CARD_SIZE: CardSize = { width: CARD_W_MM, height: CARD_H_MM };
 
 // ===== Master font options (상업적 사용 가능 / commercial-free Korean gothic) =====
 interface FontOption {
@@ -386,15 +389,8 @@ interface CardData {
   backImageUrl: string | null;
 }
 
-interface FramePdf {
-  name: string;
-  bytes: Uint8Array;
-  preview: string;
-  aspect: number;
-  maskCanvas: HTMLCanvasElement;
-  widthPt: number;
-  heightPt: number;
-}
+
+
 
 interface TestAsset {
   url: string;
@@ -491,59 +487,54 @@ export default function NfcCardFactory() {
   const { user } = useAuth();
   const { data: ordersData, isLoading } = useOrders();
   const [detailOrderNo, setDetailOrderNo] = useState<string | null>(null);
-  const [frames, setFrames] = useState<{
-    front: FramePdf | null;
-    back: FramePdf | null;
-  }>({ front: null, back: null });
+  const [cardSize, setCardSize] = useState<CardSize>(DEFAULT_CARD_SIZE);
+  const [sizeDraft, setSizeDraft] = useState<{ width: string; height: string }>({
+    width: String(DEFAULT_CARD_SIZE.width),
+    height: String(DEFAULT_CARD_SIZE.height),
+  });
+  const [sizeSaving, setSizeSaving] = useState(false);
 
-  // Load saved frame PDFs from storage
+  // Load saved card size from user_ui_settings
   useEffect(() => {
+    if (!user?.id) return;
     let cancelled = false;
     (async () => {
-      for (const side of ["front", "back"] as const) {
-        const { data: list } = await supabase.storage.from(FRAME_BUCKET).list(FRAME_PREFIX);
-        const found = (list || []).find(f => f.name.startsWith(`${side}__`));
-        if (!found) continue;
-        const path = `${FRAME_PREFIX}/${found.name}`;
-        const { data: file } = await supabase.storage.from(FRAME_BUCKET).download(path);
-        if (cancelled || !file) continue;
-        try {
-          const buf = new Uint8Array(await file.arrayBuffer());
-          const { dataUrl, aspect, maskCanvas, widthPt, heightPt } = await renderPdfFirstPagePng(buf);
-          if (cancelled) return;
-          const name = found.name.replace(/^(front|back)__/, "");
-          setFrames(prev => ({ ...prev, [side]: { name, bytes: buf, preview: dataUrl, aspect, maskCanvas, widthPt, heightPt } }));
-        } catch (e) { console.error("frame load fail", e); }
+      const { data } = await supabase
+        .from("user_ui_settings")
+        .select("setting_value")
+        .eq("user_id", user.id)
+        .eq("setting_key", CARD_SIZE_KEY)
+        .maybeSingle();
+      if (cancelled) return;
+      const v = data?.setting_value as any;
+      if (v && Number(v.width) > 0 && Number(v.height) > 0) {
+        const sz = { width: Number(v.width), height: Number(v.height) };
+        setCardSize(sz);
+        setSizeDraft({ width: String(sz.width), height: String(sz.height) });
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [user?.id]);
 
-  const onUploadFrame = async (side: "front" | "back", file: File | null) => {
+  const saveCardSize = async () => {
     if (!user?.id) { toast({ title: "로그인 필요", variant: "destructive" }); return; }
-    const { data: existing } = await supabase.storage.from(FRAME_BUCKET).list(FRAME_PREFIX);
-    const toRemove = (existing || [])
-      .filter(f => f.name.startsWith(`${side}__`))
-      .map(f => `${FRAME_PREFIX}/${f.name}`);
-    if (toRemove.length) await supabase.storage.from(FRAME_BUCKET).remove(toRemove);
-    if (!file) { setFrames(prev => ({ ...prev, [side]: null })); return; }
-    try {
-      const buf = new Uint8Array(await file.arrayBuffer());
-      const { dataUrl, aspect, maskCanvas, widthPt, heightPt } = await renderPdfFirstPagePng(buf);
-      const safe = file.name.replace(/[^\w.\-]+/g, "_");
-      const path = `${FRAME_PREFIX}/${side}__${safe}`;
-      const { error } = await supabase.storage.from(FRAME_BUCKET)
-        .upload(path, new Blob([buf as BlobPart], { type: "application/pdf" }), {
-          upsert: true, contentType: "application/pdf",
-        });
-      if (error) { toast({ title: "PDF 저장 실패", description: error.message, variant: "destructive" }); return; }
-      setFrames(prev => ({ ...prev, [side]: { name: file.name, bytes: buf, preview: dataUrl, aspect, maskCanvas, widthPt, heightPt } }));
-      const wMm = (widthPt * 25.4 / 72).toFixed(1);
-      const hMm = (heightPt * 25.4 / 72).toFixed(1);
-      toast({ title: `${side === "front" ? "앞면" : "뒷면"} 프레임 업로드 완료`, description: `실제 크기: ${wMm} × ${hMm} mm` });
-    } catch (e: any) {
-      toast({ title: "PDF 처리 실패", description: e.message, variant: "destructive" });
+    const w = Number(sizeDraft.width);
+    const h = Number(sizeDraft.height);
+    if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
+      toast({ title: "유효한 가로/세로(mm) 값을 입력하세요", variant: "destructive" });
+      return;
     }
+    setSizeSaving(true);
+    const { error } = await supabase
+      .from("user_ui_settings")
+      .upsert(
+        [{ user_id: user.id, setting_key: CARD_SIZE_KEY, setting_value: { width: w, height: h } }],
+        { onConflict: "user_id,setting_key" },
+      );
+    setSizeSaving(false);
+    if (error) { toast({ title: "저장 실패", description: error.message, variant: "destructive" }); return; }
+    setCardSize({ width: w, height: h });
+    toast({ title: "카드 사이즈 저장됨", description: `${w} × ${h} mm` });
   };
 
   const rows: OrderRow[] = useMemo(() => {
@@ -562,7 +553,7 @@ export default function NfcCardFactory() {
       <DetailView
         orderNo={detailOrderNo}
         order={(ordersData as any[])?.find(o => o.external_order_id === detailOrderNo)}
-        frames={frames}
+        cardSize={cardSize}
         onBack={() => setDetailOrderNo(null)}
         userId={user?.id}
       />
@@ -571,54 +562,47 @@ export default function NfcCardFactory() {
 
   return (
     <div>
-      <PageHeader title="NFC 카드 공장" description="카드 앞/뒷면 프레임 업로드 및 옵션 배치 · PDF 발주" />
+      <PageHeader title="NFC 카드 공장" description="카드 사이즈 설정 및 옵션 배치 · PDF 발주" />
       <div className="p-6 space-y-4">
-        {/* Frame upload */}
+        {/* Card size setting */}
         <Card>
-          <CardHeader><CardTitle className="text-base">카드 PDF 프레임 업로드</CardTitle></CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {(["front", "back"] as const).map(side => (
-              <div key={side} className="border rounded-md p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="font-medium">{side === "front" ? "카드 앞면 프레임" : "카드 뒷면 프레임"}</Label>
-                  {frames[side] && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600">서버 저장됨</span>
-                  )}
-                </div>
-                <div className="flex justify-center">
-                  <CardFrame widthClassName="w-32" className="border rounded bg-white flex items-center justify-center">
-                    {frames[side]?.preview
-                      ? <img src={frames[side]!.preview} alt="" className="w-full h-full object-fill" />
-                      : <span className="text-[11px] text-muted-foreground px-2 text-center">업로드된 프레임 없음</span>}
-                  </CardFrame>
-                </div>
-                <div className="text-xs text-muted-foreground truncate">
-                  {frames[side]?.name || "파일 없음 (삭제/변경 전까지 서버에 유지됩니다)"}
-                </div>
-                {frames[side] && (
-                  <div className="text-xs font-medium text-foreground">
-                    실제 크기: {(frames[side]!.widthPt * 25.4 / 72).toFixed(1)} × {(frames[side]!.heightPt * 25.4 / 72).toFixed(1)} mm
-                    <span className="ml-2 text-muted-foreground">({frames[side]!.widthPt.toFixed(1)} × {frames[side]!.heightPt.toFixed(1)} pt)</span>
-                  </div>
-                )}
-                <div className="flex gap-2">
-                  <label className="flex-1 flex items-center justify-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
-                    <Upload className="w-3 h-3" />
-                    <span>{frames[side] ? "변경" : "PDF 업로드"}</span>
-                    <input type="file" accept="application/pdf" className="hidden"
-                      onChange={e => { const f = e.target.files?.[0] || null; e.currentTarget.value = ""; if (f) onUploadFrame(side, f); }} />
-                  </label>
-                  {frames[side] && (
-                    <Button size="sm" variant="destructive" className="text-xs"
-                      onClick={() => { if (confirm("서버에서 프레임 PDF를 삭제할까요?")) onUploadFrame(side, null); }}>
-                      <X className="w-3 h-3 mr-1" />삭제
-                    </Button>
-                  )}
-                </div>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center justify-between flex-wrap gap-2">
+              <span>카드 사이즈 설정</span>
+              <span className="text-[11px] font-normal text-muted-foreground">
+                현재 적용: <span className="font-mono text-foreground">{cardSize.width} × {cardSize.height} mm</span>
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+              <div className="space-y-1">
+                <Label className="text-xs">가로 (mm)</Label>
+                <Input
+                  type="number" step="0.1" min="1"
+                  value={sizeDraft.width}
+                  onChange={e => setSizeDraft(p => ({ ...p, width: e.target.value }))}
+                />
               </div>
-            ))}
+              <div className="space-y-1">
+                <Label className="text-xs">세로 (mm)</Label>
+                <Input
+                  type="number" step="0.1" min="1"
+                  value={sizeDraft.height}
+                  onChange={e => setSizeDraft(p => ({ ...p, height: e.target.value }))}
+                />
+              </div>
+              <Button onClick={saveCardSize} disabled={sizeSaving}>
+                {sizeSaving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+                저장
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              저장한 사이즈가 주문 상세의 카드 미리보기 · PDF 출력 크기에 적용됩니다.
+            </p>
           </CardContent>
         </Card>
+
 
         {/* Order list */}
         <Card>
@@ -667,11 +651,11 @@ export default function NfcCardFactory() {
 
 // ============== DETAIL VIEW ==============
 function DetailView({
-  orderNo, order, frames, onBack, userId,
+  orderNo, order, cardSize, onBack, userId,
 }: {
   orderNo: string;
   order: any;
-  frames: { front: any; back: any };
+  cardSize: CardSize;
   onBack: () => void;
   userId?: string;
 }) {
@@ -947,11 +931,8 @@ function DetailView({
       layout: Record<OptionKey, OptionLayout>,
       keys: OptionKey[],
     ) => {
-      const frame = frames[side];
-      const pageWpt = frame?.widthPt ?? CARD_W_MM * MM;
-      const pageHpt = frame?.heightPt ?? CARD_H_MM * MM;
-      const cardWmm = pageWpt * 25.4 / 72;
-      const cardHmm = pageHpt * 25.4 / 72;
+      const cardWmm = cardSize.width;
+      const cardHmm = cardSize.height;
       const pxPerMm = 300 / 25.4;
       const canvas = document.createElement("canvas");
       canvas.width = Math.max(64, Math.round(cardWmm * pxPerMm));
@@ -965,15 +946,11 @@ function DetailView({
       const designUrl = testImages[side]?.url || (side === "front" ? card.frontImageUrl : card.backImageUrl);
       if (designUrl) {
         try {
-          const clipped = await composeMaskedCardCanvas(designUrl, frame?.maskCanvas ?? null, canvas.width, canvas.height);
+          const clipped = await composeMaskedCardCanvas(designUrl, null, canvas.width, canvas.height);
           ctx.drawImage(clipped, 0, 0, canvas.width, canvas.height);
         } catch (e) { console.warn("card design render failed", e); }
-      } else if (frame?.preview) {
-        try {
-          const img = await loadImage(frame.preview, null);
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        } catch (e) { console.warn("frame preview render failed", e); }
       }
+
 
       for (const key of keys) {
         const cfg = layout[key];
@@ -1025,6 +1002,8 @@ function DetailView({
 
       const png = await canvasToPngBytes(canvas);
       const emb = await out.embedPng(png);
+      const pageWpt = cardSize.width * MM;
+      const pageHpt = cardSize.height * MM;
       const page = out.addPage([pageWpt, pageHpt]);
       page.drawImage(emb, { x: 0, y: 0, width: pageWpt, height: pageHpt });
     };
@@ -1133,7 +1112,7 @@ function DetailView({
                   )}
                 </div>
                 <div className="flex justify-center">
-                  <TestDesignThumb frame={frames[side]} imageUrl={testImages[side]?.url ?? null} />
+                  <TestDesignThumb cardSize={cardSize} imageUrl={testImages[side]?.url ?? null} />
                 </div>
                 <div className="text-[11px] text-muted-foreground truncate">
                   {testImages[side]?.name || "삭제 전까지 서버에 유지됩니다"}
@@ -1308,7 +1287,7 @@ function DetailView({
           <TabsContent value="front" className="pt-3">
             <CardSideEditor
               side="front"
-              frame={frames.front}
+              cardSize={cardSize}
               bleedMm={bleedMm}
               fontCss={currentFont.css}
               fontWeight={masterFontWeight}
@@ -1332,7 +1311,7 @@ function DetailView({
           <TabsContent value="back" className="pt-3">
             <CardSideEditor
               side="back"
-              frame={frames.back}
+              cardSize={cardSize}
               bleedMm={bleedMm}
               fontCss={currentFont.css}
               fontWeight={masterFontWeight}
@@ -1463,11 +1442,11 @@ function applyTestValues(c: CardData | undefined, tv: { cpValue: string; edition
 
 // ============== Card side editor (preview + per-option controls) ==============
 function CardSideEditor({
-  side, frame, testImageUrl, testTwincodeUrl, cardPreview, layout, setLayout, keys, backDefaults, onTestPdf,
+  side, cardSize, testImageUrl, testTwincodeUrl, cardPreview, layout, setLayout, keys, backDefaults, onTestPdf,
   bleedMm, fontCss, fontWeight,
 }: {
   side: "front" | "back";
-  frame: any;
+  cardSize: CardSize;
   testImageUrl?: string | null;
   testTwincodeUrl?: string | null;
   cardPreview?: CardData;
@@ -1482,14 +1461,15 @@ function CardSideEditor({
 }) {
   const [pdfBusy, setPdfBusy] = useState(false);
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  // 실제 카드 크기는 업로드된 프레임 PDF 크기를 따른다. 프레임이 없으면 기본 57×87mm.
-  const cardWmm = frame?.widthPt ? frame.widthPt * 25.4 / 72 : CARD_W_MM;
-  const cardHmm = frame?.heightPt ? frame.heightPt * 25.4 / 72 : CARD_H_MM;
+  // 카드 크기는 저장된 사이즈 설정을 따른다 (기본 57×87mm).
+  const cardWmm = cardSize.width;
+  const cardHmm = cardSize.height;
   const PX_PER_MM_REAL = 96 / 25.4;
   const PREVIEW_SCALE = 2;
   const pxPerMm = PX_PER_MM_REAL * PREVIEW_SCALE;
   const previewW = cardWmm * pxPerMm;
   const previewH = cardHmm * pxPerMm;
+
 
   const [selected, setSelected] = useState<OptionKey | null>(keys[0] ?? null);
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -1579,14 +1559,14 @@ function CardSideEditor({
     if (!designUrl) { setClippedPreview(null); return; }
     (async () => {
       try {
-        const canvas = await composeMaskedCardCanvas(designUrl, frame?.maskCanvas ?? null, previewW, previewH);
+        const canvas = await composeMaskedCardCanvas(designUrl, null, previewW, previewH);
         if (!cancelled) setClippedPreview(canvas.toDataURL("image/png"));
       } catch {
         if (!cancelled) setClippedPreview(designUrl);
       }
     })();
     return () => { cancelled = true; };
-  }, [designUrl, frame?.preview, previewW, previewH]);
+  }, [designUrl, previewW, previewH]);
 
   useEffect(() => {
     const canvas = previewCanvasRef.current;
@@ -1691,7 +1671,7 @@ function CardSideEditor({
         <CardTitle className="text-sm flex items-center justify-between gap-3 flex-wrap">
           <span>{side === "front" ? "카드 앞면" : "카드 뒷면"} 옵션 배치</span>
           <div className="flex items-center gap-3 text-xs font-normal">
-            <span className="text-muted-foreground">실제 인쇄 크기 ({cardWmm.toFixed(1)}×{cardHmm.toFixed(1)}mm){frame ? " · 프레임 PDF 기준" : " · 기본값"}</span>
+            <span className="text-muted-foreground">실제 인쇄 크기 ({cardWmm.toFixed(1)}×{cardHmm.toFixed(1)}mm) · 저장된 카드 사이즈</span>
             {onTestPdf && (
               <Button
                 type="button"
@@ -1737,13 +1717,10 @@ function CardSideEditor({
                 className="absolute inset-0 w-full h-full object-fill pointer-events-none"
               />
             )}
-            {!clippedPreview && frame?.preview && (
-              <img
-                src={frame.preview}
-                alt=""
-                aria-hidden
-                className="absolute inset-0 w-full h-full object-fill pointer-events-none"
-              />
+            {!clippedPreview && (
+              <div className="absolute inset-0 flex items-center justify-center text-[11px] text-muted-foreground pointer-events-none">
+                테스트 이미지 또는 API 디자인이 없습니다
+              </div>
             )}
             <canvas
               ref={previewCanvasRef}
@@ -1849,9 +1826,9 @@ function CardSideEditor({
   );
 }
 
-function TestDesignThumb({ frame, imageUrl }: { frame: any; imageUrl: string | null }) {
-  const cardWmm = frame?.widthPt ? frame.widthPt * 25.4 / 72 : CARD_W_MM;
-  const cardHmm = frame?.heightPt ? frame.heightPt * 25.4 / 72 : CARD_H_MM;
+function TestDesignThumb({ cardSize, imageUrl }: { cardSize: CardSize; imageUrl: string | null }) {
+  const cardWmm = cardSize.width;
+  const cardHmm = cardSize.height;
   const [src, setSrc] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1859,14 +1836,14 @@ function TestDesignThumb({ frame, imageUrl }: { frame: any; imageUrl: string | n
     if (!imageUrl) { setSrc(null); return; }
     (async () => {
       try {
-        const canvas = await composeMaskedCardCanvas(imageUrl, frame?.maskCanvas ?? null, 240, 240 * (cardHmm / cardWmm));
+        const canvas = await composeMaskedCardCanvas(imageUrl, null, 240, 240 * (cardHmm / cardWmm));
         if (!cancelled) setSrc(canvas.toDataURL("image/png"));
       } catch {
         if (!cancelled) setSrc(imageUrl);
       }
     })();
     return () => { cancelled = true; };
-  }, [imageUrl, frame?.preview, cardWmm, cardHmm]);
+  }, [imageUrl, cardWmm, cardHmm]);
 
   return (
     <CardFrame
