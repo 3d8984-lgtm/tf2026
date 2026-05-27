@@ -1642,10 +1642,15 @@ function CardSideEditor({
       ctx.clearRect(0, 0, previewW, previewH);
       drawableKeys.forEach(key => {
         const cfg = layout[key];
-        const xMm = cfg.centerX ? (cardWmm - cfg.w) / 2 : cfg.x;
-        const yMm = cfg.centerY ? (cardHmm - cfg.h) / 2 : cfg.y;
+        const txt = textFor(key);
+        const weight = textWeightForOption(key, fontWeight ?? 500);
+        const family = fontCss || "'Inter', system-ui, sans-serif";
+        const autoWmm = measureTextWidthMm(txt, cfg.fontSize || 3, family, weight);
+        const autoHmm = cfg.fontSize || 3;
+        const xMm = cfg.centerX ? (cardWmm - autoWmm) / 2 : cfg.x;
+        const yMm = cfg.centerY ? (cardHmm - autoHmm) / 2 : cfg.y;
         const fontPx = Math.max(4, (cfg.fontSize || 3) * pxPerMm);
-        drawCanvasTextElement(ctx, textFor(key), xMm * pxPerMm, yMm * pxPerMm, cfg.w * pxPerMm, fontPx, fontCss || "'Inter', system-ui, sans-serif", textWeightForOption(key, fontWeight ?? 500), alignForOption(key));
+        drawCanvasTextElement(ctx, txt, xMm * pxPerMm, yMm * pxPerMm, autoWmm * pxPerMm, fontPx, family, weight, alignForOption(key));
       });
     })();
     return () => { cancelled = true; };
