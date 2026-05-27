@@ -20,10 +20,42 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { ArrowLeft, Plus, Trash2, Image, Type, QrCode, Barcode, Loader2, FileDown } from "lucide-react";
+import * as pdfjsLib from "pdfjs-dist";
+// @ts-ignore
+import PdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?worker";
+(pdfjsLib as any).GlobalWorkerOptions.workerPort = new PdfWorker();
 
 const CARD_W_MM = 57;
 const CARD_H_MM = 87;
 const PX_PER_MM = 3.7795275591; // 96dpi
+
+/**
+ * 열전사 디자인 공장과 동일한 방식:
+ * PDF를 브라우저에서 직접 렌더링해 투명 배경을 그대로 살린 PNG를
+ * 카드 실제 인쇄 크기(57×87mm)에 정확히 맞춰 오버레이로 사용.
+ */
+async function renderPdfToTransparentPng(
+  url: string,
+  targetCssPxW: number,
+): Promise<string> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`PDF fetch failed: ${res.status}`);
+  const bytes = await res.arrayBuffer();
+  const doc = await (pdfjsLib as any).getDocument({ data: new Uint8Array(bytes).slice(0) }).promise;
+  const page = await doc.getPage(1);
+  const vp1 = page.getViewport({ scale: 1 });
+  // 카드 폭 픽셀에 맞춰 스케일 산정 (선명도용 2x 보정)
+  const scale = (targetCssPxW * 2) / vp1.width;
+  const viewport = page.getViewport({ scale });
+  const canvas = document.createElement("canvas");
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  const ctx = canvas.getContext("2d")!;
+  // 투명 배경 유지를 위해 clearRect (배경 흰색 채우지 않음)
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  await page.render({ canvasContext: ctx, viewport, canvas, background: "rgba(0,0,0,0)" } as any).promise;
+  return canvas.toDataURL("image/png");
+}
 
 type Side = "front" | "back";
 type ElType = "image" | "text" | "qr" | "barcode";
@@ -102,7 +134,26 @@ function PreviewCard({
 
 
 
-  const previewUrl = side === "front" ? template.front_preview_png_url : template.back_preview_png_url;
+  const previewPngFallback = side === "front" ? template.front_preview_png_url : template.back_preview_png_url;
+  const pdfUrl = side === "front" ? template.front_pdf_url : template.back_pdf_url;
+  const [framePng, setFramePng] = useState<string | null>(null);
+  const [frameLoading, setFrameLoading] = useState(false);
+
+  // PDF를 브라우저에서 직접 렌더링 → 투명 배경의 PNG 데이터 URL 획득
+  useEffect(() => {
+    let cancelled = false;
+    setFramePng(null);
+    if (!pdfUrl) return;
+    setFrameLoading(true);
+    const cardPxAt96 = CARD_W_MM * PX_PER_MM;
+    renderPdfToTransparentPng(pdfUrl, cardPxAt96)
+      .then((png) => { if (!cancelled) setFramePng(png); })
+      .catch((e) => { console.error("PDF render failed", e); })
+      .finally(() => { if (!cancelled) setFrameLoading(false); });
+    return () => { cancelled = true; };
+  }, [pdfUrl]);
+
+  const frameSrc = framePng ?? previewPngFallback;
   const visible = elements.filter((e) => e.side === side);
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -219,9 +270,9 @@ function PreviewCard({
             })}
 
             {/* Layer 2: 프레임 PNG — 클리핑 마스크 역할 (투명 영역으로 아래 레이어 비침) */}
-            {previewUrl && (
+            {frameSrc && (
               <img
-                src={previewUrl}
+                src={frameSrc}
                 alt={side}
                 draggable={false}
                 style={{
