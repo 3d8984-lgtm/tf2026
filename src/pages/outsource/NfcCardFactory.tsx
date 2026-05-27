@@ -343,7 +343,9 @@ export default function NfcCardFactory() {
         });
       if (error) { toast({ title: "PDF 저장 실패", description: error.message, variant: "destructive" }); return; }
       setFrames(prev => ({ ...prev, [side]: { name: file.name, bytes: buf, preview: dataUrl, aspect, maskCanvas, widthPt, heightPt } }));
-      toast({ title: `${side === "front" ? "앞면" : "뒷면"} 프레임 업로드 완료` });
+      const wMm = (widthPt * 25.4 / 72).toFixed(1);
+      const hMm = (heightPt * 25.4 / 72).toFixed(1);
+      toast({ title: `${side === "front" ? "앞면" : "뒷면"} 프레임 업로드 완료`, description: `실제 크기: ${wMm} × ${hMm} mm` });
     } catch (e: any) {
       toast({ title: "PDF 처리 실패", description: e.message, variant: "destructive" });
     }
