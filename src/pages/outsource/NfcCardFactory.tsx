@@ -1545,7 +1545,7 @@ function CardSideEditor({
           <CardFrame
             ref={stageRef}
             className="border-2 rounded-md shadow-md"
-            style={{ width: previewW, background: "#fff", fontFamily: fontCss || "'Inter', system-ui, sans-serif" }}
+            style={{ width: previewW, background: "#fff", fontFamily: fontCss || "'Inter', system-ui, sans-serif", fontWeight: fontWeight ?? 500 }}
           >
 
             {/* 열전사 디자인 공장과 동일하게 PDF를 마스크 캔버스로 변환해 디자인을 먼저 합성합니다. */}
