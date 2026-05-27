@@ -55,28 +55,12 @@ const FONT_OPTIONS: FontOption[] = [
     ttfBold: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/public/static/Pretendard-Bold.otf",
   },
   {
-    id: "noto-sans-kr",
-    label: "Noto Sans KR",
-    css: "'Noto Sans KR', sans-serif",
-    cssLink: "https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap",
-    ttfReg: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf",
-    ttfBold: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf",
-  },
-  {
     id: "ibm-plex-sans-kr",
     label: "IBM Plex Sans KR",
     css: "'IBM Plex Sans KR', sans-serif",
     cssLink: "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;700&display=swap",
     ttfReg: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ibmplexsanskr/IBMPlexSansKR-Regular.ttf",
     ttfBold: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ibmplexsanskr/IBMPlexSansKR-Bold.ttf",
-  },
-  {
-    id: "nanum-gothic",
-    label: "Nanum Gothic (나눔고딕)",
-    css: "'Nanum Gothic', sans-serif",
-    cssLink: "https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700&display=swap",
-    ttfReg: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/nanumgothic/NanumGothic-Regular.ttf",
-    ttfBold: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/nanumgothic/NanumGothic-Bold.ttf",
   },
   {
     id: "spoqa-han-sans-neo",
@@ -86,8 +70,34 @@ const FONT_OPTIONS: FontOption[] = [
     ttfReg: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f136e75c0d75cb1cd3a5a0fa3a223e/Subset/SpoqaHanSansNeo/SpoqaHanSansNeo-Regular.otf",
     ttfBold: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f136e75c0d75cb1cd3a5a0fa3a223e/Subset/SpoqaHanSansNeo/SpoqaHanSansNeo-Bold.otf",
   },
+  {
+    id: "black-han-sans",
+    label: "Black Han Sans (블랙한산스 · Bold)",
+    css: "'Black Han Sans', sans-serif",
+    cssLink: "https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap",
+    ttfReg: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/blackhansans/BlackHanSans-Regular.ttf",
+    ttfBold: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/blackhansans/BlackHanSans-Regular.ttf",
+  },
+  {
+    id: "do-hyeon",
+    label: "Do Hyeon (도현체 · Bold)",
+    css: "'Do Hyeon', sans-serif",
+    cssLink: "https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap",
+    ttfReg: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/dohyeon/DoHyeon-Regular.ttf",
+    ttfBold: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/dohyeon/DoHyeon-Regular.ttf",
+  },
 ];
 const DEFAULT_MASTER_FONT = "pretendard";
+const FONT_WEIGHTS: { value: number; label: string }[] = [
+  { value: 300, label: "300 Light" },
+  { value: 400, label: "400 Regular" },
+  { value: 500, label: "500 Medium" },
+  { value: 600, label: "600 Semibold" },
+  { value: 700, label: "700 Bold" },
+  { value: 800, label: "800 Extrabold" },
+  { value: 900, label: "900 Black" },
+];
+const DEFAULT_MASTER_FONT_WEIGHT = 500;
 
 const _fontBytesCache = new Map<string, Uint8Array>();
 async function fetchFontBytes(url: string, _which?: "reg" | "bold"): Promise<Uint8Array | null> {
