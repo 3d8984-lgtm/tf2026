@@ -1572,8 +1572,6 @@ function CardSideEditor({
         update(key, {
           x: clampMm(startMm.x + dxMm, maxX),
           y: clampMm(startMm.y + dyMm, maxY),
-          centerX: false,
-          centerY: false,
         });
       } else {
         if (key === "dmBarcode") {
