@@ -2247,8 +2247,8 @@ function CardSideEditor({
               const fontPx = (cfg.fontSize || 3) * pxPerMm;
               const isImage = isImageKey(key);
               const isSel = selected === key;
-              const family = fontCss || "'Inter', system-ui, sans-serif";
-              const weight = textWeightForOption(key, fontWeight ?? 500);
+              const family = isImage ? "'Inter', system-ui, sans-serif" : getOptionFontCss(cfg);
+              const weight = isImage ? 500 : getOptionFontWeight(cfg);
               // 텍스트 옵션은 글자에 맞춰 너비/높이 자동 산출, 이미지 옵션은 사용자 지정 cfg.w/h 사용
               // (X,Y)는 anchor 지점의 카드 내 좌표
               const effWmm = isImage ? cfg.w : measureTextWidthMm(textForOverlay(key), cfg.fontSize || 3, family, weight);
