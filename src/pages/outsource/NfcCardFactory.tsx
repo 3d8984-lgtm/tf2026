@@ -20,9 +20,7 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Download, Eye, FileText, Loader2, Upload, X, ChevronLeft, Save, Image as ImageIcon } from "lucide-react";
-import { PDFDocument, rgb } from "pdf-lib";
-import fontkit from "@pdf-lib/fontkit";
-import QRCode from "qrcode";
+import { PDFDocument } from "pdf-lib";
 import bwipjs from "bwip-js/browser";
 import { CardFrame, CARD_W_MM, CARD_H_MM } from "@/components/outsource/CardFrame";
 
@@ -42,8 +40,6 @@ interface FontOption {
   label: string;
   css: string;        // CSS font-family stack (preview)
   cssLink: string;    // <link rel=stylesheet> href to register family in browser
-  ttfReg: string;     // TTF/OTF URL for pdf-lib embedding (Regular)
-  ttfBold: string;    // TTF/OTF URL for pdf-lib embedding (Bold)
 }
 const FONT_OPTIONS: FontOption[] = [
   {
@@ -51,40 +47,30 @@ const FONT_OPTIONS: FontOption[] = [
     label: "Pretendard",
     css: "'Pretendard Variable', Pretendard, -apple-system, sans-serif",
     cssLink: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css",
-    ttfReg: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/public/static/alternative/Pretendard-Regular.ttf",
-    ttfBold: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/public/static/alternative/Pretendard-Bold.ttf",
   },
   {
     id: "ibm-plex-sans-kr",
     label: "IBM Plex Sans KR",
     css: "'IBM Plex Sans KR', sans-serif",
     cssLink: "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;700&display=swap",
-    ttfReg: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ibmplexsanskr/IBMPlexSansKR-Regular.ttf",
-    ttfBold: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ibmplexsanskr/IBMPlexSansKR-Bold.ttf",
   },
   {
     id: "spoqa-han-sans-neo",
     label: "Spoqa Han Sans Neo",
     css: "'Spoqa Han Sans Neo', sans-serif",
     cssLink: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans/css/SpoqaHanSansNeo.css",
-    ttfReg: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans/Subset/SpoqaHanSansNeo/SpoqaHanSansNeo-Regular.ttf",
-    ttfBold: "https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans/Subset/SpoqaHanSansNeo/SpoqaHanSansNeo-Bold.ttf",
   },
   {
     id: "black-han-sans",
     label: "Black Han Sans (블랙한산스 · Bold)",
     css: "'Black Han Sans', sans-serif",
     cssLink: "https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap",
-    ttfReg: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/blackhansans/BlackHanSans-Regular.ttf",
-    ttfBold: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/blackhansans/BlackHanSans-Regular.ttf",
   },
   {
     id: "do-hyeon",
     label: "Do Hyeon (도현체 · Bold)",
     css: "'Do Hyeon', sans-serif",
     cssLink: "https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap",
-    ttfReg: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/dohyeon/DoHyeon-Regular.ttf",
-    ttfBold: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/dohyeon/DoHyeon-Regular.ttf",
   },
 ];
 const DEFAULT_MASTER_FONT = "pretendard";
@@ -129,14 +115,51 @@ async function renderPdfFirstPagePng(bytes: Uint8Array): Promise<{ dataUrl: stri
   return { dataUrl: canvas.toDataURL("image/png"), aspect: viewport.width / viewport.height, maskCanvas: canvas, widthPt: vp1.width, heightPt: vp1.height };
 }
 
-async function loadImage(src: string): Promise<HTMLImageElement> {
+async function loadImage(src: string, crossOrigin: string | null = "anonymous"): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = "anonymous";
+    if (crossOrigin) img.crossOrigin = crossOrigin;
     img.onload = () => resolve(img);
     img.onerror = reject;
     img.src = src;
   });
+}
+
+function inferImageMime(url: string, bytes: Uint8Array, contentType?: string | null): string {
+  const ct = (contentType || "").split(";")[0].trim().toLowerCase();
+  if (ct.startsWith("image/")) return ct;
+  const lower = url.toLowerCase().split("?")[0];
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return "image/png";
+  if (bytes[0] === 0xff && bytes[1] === 0xd8) return "image/jpeg";
+  if (lower.endsWith(".svg") || new TextDecoder().decode(bytes.slice(0, 160)).trimStart().match(/^<\?xml|^<svg/i)) {
+    return "image/svg+xml;charset=utf-8";
+  }
+  if (lower.endsWith(".webp")) return "image/webp";
+  return "image/png";
+}
+
+async function loadFetchedImage(url: string): Promise<{ img: HTMLImageElement; revoke: () => void }> {
+  const res = await fetch(url, { mode: "cors" });
+  if (!res.ok) throw new Error(`image fetch failed: ${res.status}`);
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  const mime = inferImageMime(url, bytes, res.headers.get("content-type"));
+  const objUrl = URL.createObjectURL(new Blob([bytes as BlobPart], { type: mime }));
+  try {
+    const img = await loadImage(objUrl, null);
+    return { img, revoke: () => URL.revokeObjectURL(objUrl) };
+  } catch (e) {
+    URL.revokeObjectURL(objUrl);
+    throw e;
+  }
+}
+
+function drawImageContain(ctx: CanvasRenderingContext2D, img: CanvasImageSource & { width?: number; height?: number; naturalWidth?: number; naturalHeight?: number }, x: number, y: number, w: number, h: number) {
+  const iw = Number(img.naturalWidth || img.width || w);
+  const ih = Number(img.naturalHeight || img.height || h);
+  const scale = Math.min(w / iw, h / ih);
+  const dw = iw * scale;
+  const dh = ih * scale;
+  ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
 }
 
 async function composeMaskedCardCanvas(
@@ -311,13 +334,13 @@ async function dataMatrixPngBytes(text: string, sizePx = 300): Promise<Uint8Arra
 async function urlToPngBytes(url: string): Promise<Uint8Array> {
   const res = await fetch(url);
   const buf = new Uint8Array(await res.arrayBuffer());
-  // If it's already PNG, return as is. Otherwise re-render via canvas.
-  const blob = new Blob([buf]);
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return buf;
+  // If it is SVG/JPG/WebP/etc, re-render via canvas with a proper MIME type.
+  const blob = new Blob([buf as BlobPart], { type: inferImageMime(url, buf, res.headers.get("content-type")) });
   const objUrl = URL.createObjectURL(blob);
   try {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
       const i = new Image();
-      i.crossOrigin = "anonymous";
       i.onload = () => resolve(i);
       i.onerror = () => reject(new Error("img decode failed"));
       i.src = objUrl;
@@ -779,124 +802,134 @@ function DetailView({
   };
 
   // ====== Build single-card PDF (2 pages: front + back) ======
+  // 미리보기와 PDF가 서로 다른 엔진(pdf-lib 텍스트/브라우저 DOM)을 쓰며 위치·폰트·SVG 해석이 달라졌기 때문에,
+  // 다운로드도 미리보기와 같은 브라우저 캔버스 합성 결과를 PDF 한 페이지 이미지로 넣는다.
   const buildCardPdfBytes = async (card: CardData, opts?: { sides?: Array<"front" | "back"> }): Promise<Uint8Array> => {
     const out = await PDFDocument.create();
-    out.registerFontkit(fontkit);
-    // Pretendard as a reliable Korean-capable fallback if the selected font fails to load.
-    const FALLBACK_REG = "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/public/static/alternative/Pretendard-Regular.ttf";
-    const FALLBACK_BOLD = "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/public/static/alternative/Pretendard-Bold.ttf";
-    let interReg = await fetchFontBytes(currentFont.ttfReg, "reg");
-    if (!interReg) interReg = await fetchFontBytes(FALLBACK_REG, "reg");
-    let interBold = await fetchFontBytes(currentFont.ttfBold, "bold");
-    if (!interBold) interBold = await fetchFontBytes(FALLBACK_BOLD, "bold");
-    if (!interReg) throw new Error("폰트 다운로드 실패 — 네트워크를 확인해주세요");
-    const font = await out.embedFont(interReg, { subset: true });
-    const fontBold = interBold ? await out.embedFont(interBold, { subset: true }) : font;
-    const cardWpt = CARD_W_MM * MM;
-    const cardHpt = CARD_H_MM * MM;
+
+    const textFor = (key: OptionKey): string => {
+      switch (key) {
+        case "cpValue":   return card.cpValue ?? "";
+        case "editionNo": return card.editionNo ?? "";
+        case "issuedNo":  return `ISSUED No. ${card.issuedNo ?? ""}`;
+        case "mintedOn":  return `Minted on ${card.mintedOn ?? ""}`;
+        case "grade":     return card.grade ?? "";
+        case "companyName":  return backDefaults.companyName ?? "";
+        case "centerSlogan": return backDefaults.centerSlogan ?? "";
+        case "nfcEnabled":   return backDefaults.nfcEnabled ?? "";
+        case "issuedBy":     return backDefaults.issuedBy ?? "";
+        default: return "";
+      }
+    };
+
+    const alignFor = (key: OptionKey): "left" | "center" | "right" => {
+      switch (key) {
+        case "cpValue":
+        case "grade":
+        case "centerSlogan": return "center";
+        case "editionNo":
+        case "mintedOn":
+        case "nfcEnabled":   return "right";
+        case "issuedNo":
+        case "companyName":
+        case "issuedBy":     return "left";
+        default:             return "left";
+      }
+    };
 
     const drawSide = async (
       side: "front" | "back",
       layout: Record<OptionKey, OptionLayout>,
       keys: OptionKey[],
     ) => {
-      const page = out.addPage([cardWpt, cardHpt]);
-      // 프레임/디자인 외곽 여백 보정: 디자인과 프레임을 양쪽으로 FRAME_BLEED_MM 만큼 확장해 그려서,
-      // 원본에 포함된 흰 여백이 페이지 바깥으로 빠지고 카드 이미지가 57×87mm 대지를 꽉 채우게 한다.
-      const bleedPt = bleedMm * MM;
-      const bleedX = -bleedPt;
-      const bleedY = -bleedPt;
-      const bleedW = cardWpt + bleedPt * 2;
-      const bleedH = cardHpt + bleedPt * 2;
       const frame = frames[side];
-      // Layer 1: card design image (test override > API)
+      const pageWpt = frame?.widthPt ?? CARD_W_MM * MM;
+      const pageHpt = frame?.heightPt ?? CARD_H_MM * MM;
+      const cardWmm = pageWpt * 25.4 / 72;
+      const cardHmm = pageHpt * 25.4 / 72;
+      const pxPerMm = 300 / 25.4;
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(64, Math.round(cardWmm * pxPerMm));
+      canvas.height = Math.max(64, Math.round(cardHmm * pxPerMm));
+      const ctx = canvas.getContext("2d")!;
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+
       const designUrl = testImages[side]?.url || (side === "front" ? card.frontImageUrl : card.backImageUrl);
       if (designUrl) {
         try {
-          const targetW = Math.max(64, Math.round(frame?.widthPt ?? cardWpt));
-          const targetH = Math.max(64, Math.round(frame?.heightPt ?? cardHpt));
-          const clipped = await composeMaskedCardCanvas(designUrl, frame?.maskCanvas ?? null, targetW, targetH);
-          const png = await canvasToPngBytes(clipped);
-          const emb = await out.embedPng(png);
-          page.drawImage(emb, { x: 0, y: 0, width: cardWpt, height: cardHpt });
-        } catch (e) { console.warn("card design embed failed", e); }
+          const clipped = await composeMaskedCardCanvas(designUrl, frame?.maskCanvas ?? null, canvas.width, canvas.height);
+          ctx.drawImage(clipped, 0, 0, canvas.width, canvas.height);
+        } catch (e) { console.warn("card design render failed", e); }
+      } else if (frame?.preview) {
+        try {
+          const img = await loadImage(frame.preview, null);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        } catch (e) { console.warn("frame preview render failed", e); }
       }
-      // PDF 프레임은 열전사 디자인 공장처럼 마스크로만 사용하고, 출력물 위에 다시 덮어 그리지 않는다.
+
       for (const key of keys) {
         const cfg = layout[key];
         if (!cfg?.enabled) continue;
-        // pdf-lib origin = bottom-left. Our y is from top.
-        const xMm = cfg.centerX ? (CARD_W_MM - cfg.w) / 2 : cfg.x;
-        const yMm = cfg.centerY ? (CARD_H_MM - cfg.h) / 2 : cfg.y;
-        const xPt = xMm * MM;
-        const yPtBottom = (CARD_H_MM - yMm - cfg.h) * MM;
-
-        const getText = (): string => {
-          switch (key) {
-            case "cpValue":   return card.cpValue ?? "";
-            case "editionNo": return card.editionNo ?? "";
-            case "issuedNo":  return `ISSUED No. ${card.issuedNo ?? ""}`;
-            case "mintedOn":  return `Minted on ${card.mintedOn ?? ""}`;
-            case "grade":     return card.grade ?? "";
-            case "companyName":  return backDefaults.companyName ?? "";
-            case "centerSlogan": return backDefaults.centerSlogan ?? "";
-            case "nfcEnabled":   return backDefaults.nfcEnabled ?? "";
-            case "issuedBy":     return backDefaults.issuedBy ?? "";
-            default: return "";
-          }
-        };
-        const getAlign = (): "left" | "center" | "right" => {
-          switch (key) {
-            case "cpValue":
-            case "grade":
-            case "centerSlogan": return "center";
-            case "editionNo":
-            case "mintedOn":
-            case "nfcEnabled":   return "right";
-            case "issuedNo":
-            case "companyName":
-            case "issuedBy":     return "left";
-            default:             return "left";
-          }
-        };
+        const xMm = cfg.centerX ? (cardWmm - cfg.w) / 2 : cfg.x;
+        const yMm = cfg.centerY ? (cardHmm - cfg.h) / 2 : cfg.y;
+        const x = xMm * pxPerMm;
+        const y = yMm * pxPerMm;
+        const w = cfg.w * pxPerMm;
+        const h = cfg.h * pxPerMm;
 
         if (key === "twincode") {
           const twincodeUrl = testTwincodeSvg?.url || card.twincodeSvgUrl;
           if (twincodeUrl) {
+            let fetched: { img: HTMLImageElement; revoke: () => void } | null = null;
             try {
-              const png = await urlToPngBytes(twincodeUrl);
-              const emb = await out.embedPng(png);
-              page.drawImage(emb, { x: xPt, y: yPtBottom, width: cfg.w * MM, height: cfg.h * MM });
+              fetched = await loadFetchedImage(twincodeUrl);
+              ctx.fillStyle = "#fff";
+              ctx.fillRect(x, y, w, h);
+              drawImageContain(ctx, fetched.img, x, y, w, h);
             } catch (e) { console.warn("twincode draw fail", e); }
+            finally { fetched?.revoke(); }
           }
-        } else if (key === "dmBarcode") {
-          try {
-            const dmText = `${card.uniqueNo}|${card.uid}|${card.editionNo}`;
-            const png = await dataMatrixPngBytes(dmText, 400);
-            const emb = await out.embedPng(png);
-            const padMm = Math.max(0, cfg.padding ?? 0);
-            const padPt = padMm * MM;
-            const boxWpt = cfg.w * MM;
-            const boxHpt = cfg.h * MM;
-            // white quiet zone OUTSIDE the outline (box w/h = barcode size)
-            page.drawRectangle({ x: xPt - padPt, y: yPtBottom - padPt, width: boxWpt + padPt * 2, height: boxHpt + padPt * 2, color: rgb(1, 1, 1) });
-            page.drawImage(emb, { x: xPt, y: yPtBottom, width: boxWpt, height: boxHpt });
-          } catch (e) { console.warn("DM draw fail", e); }
-        } else {
-          const txt = getText();
-          if (!txt) continue;
-          const sizePt = Math.max(4, cfg.fontSize * MM);
-          const useFont = (key === "grade" || masterFontWeight >= 600) ? fontBold : font;
-          const textW = useFont.widthOfTextAtSize(txt, sizePt);
-          const boxWpt = cfg.w * MM;
-          const align = getAlign();
-          let drawX = xPt;
-          if (align === "center") drawX = xPt + (boxWpt - textW) / 2;
-          else if (align === "right") drawX = xPt + boxWpt - textW;
-          const drawY = (CARD_H_MM - yMm - cfg.fontSize) * MM;
-          page.drawText(txt, { x: drawX, y: drawY, size: sizePt, font: useFont, color: rgb(0, 0, 0) });
+          continue;
         }
+
+        if (key === "dmBarcode") {
+          try {
+            const pad = Math.max(0, cfg.padding ?? 0) * pxPerMm;
+            const png = await dataMatrixPngBytes(`${card.uniqueNo}|${card.uid}|${card.editionNo}`, Math.max(160, Math.round(Math.max(w, h) * 2)));
+            const url = URL.createObjectURL(new Blob([png as BlobPart], { type: "image/png" }));
+            try {
+              const img = await loadImage(url, null);
+              ctx.fillStyle = "#fff";
+              ctx.fillRect(x - pad, y - pad, w + pad * 2, h + pad * 2);
+              drawImageContain(ctx, img, x, y, w, h);
+            } finally { URL.revokeObjectURL(url); }
+          } catch (e) { console.warn("DM draw fail", e); }
+          continue;
+        }
+
+        const txt = textFor(key);
+        if (!txt) continue;
+        const fontPx = Math.max(4, cfg.fontSize * pxPerMm);
+        const weight = key === "grade" ? Math.max(700, masterFontWeight) : masterFontWeight;
+        try { await (document as any).fonts?.load(`${weight} ${fontPx}px ${currentFont.css}`); } catch {}
+        ctx.font = `${weight} ${fontPx}px ${currentFont.css}`;
+        ctx.fillStyle = "#000";
+        ctx.textBaseline = "top";
+        const textW = ctx.measureText(txt).width;
+        const align = alignFor(key);
+        let drawX = x;
+        if (align === "center") drawX = x + (w - textW) / 2;
+        else if (align === "right") drawX = x + w - textW;
+        ctx.fillText(txt, drawX, y);
       }
+
+      const png = await canvasToPngBytes(canvas);
+      const emb = await out.embedPng(png);
+      const page = out.addPage([pageWpt, pageHpt]);
+      page.drawImage(emb, { x: 0, y: 0, width: pageWpt, height: pageHpt });
     };
 
     const sides = opts?.sides ?? ["front", "back"];
