@@ -56,6 +56,183 @@ export type Database = {
         }
         Relationships: []
       }
+      card_element: {
+        Row: {
+          created_at: string
+          element_type: string
+          field_name: string
+          font_color: string | null
+          font_family: string | null
+          font_size_pt: number | null
+          height_mm: number
+          id: string
+          rotation_deg: number
+          side: string
+          template_id: string
+          text_align: string | null
+          updated_at: string
+          width_mm: number
+          x_mm: number
+          y_mm: number
+          z_index: number
+        }
+        Insert: {
+          created_at?: string
+          element_type: string
+          field_name: string
+          font_color?: string | null
+          font_family?: string | null
+          font_size_pt?: number | null
+          height_mm?: number
+          id?: string
+          rotation_deg?: number
+          side: string
+          template_id: string
+          text_align?: string | null
+          updated_at?: string
+          width_mm?: number
+          x_mm?: number
+          y_mm?: number
+          z_index?: number
+        }
+        Update: {
+          created_at?: string
+          element_type?: string
+          field_name?: string
+          font_color?: string | null
+          font_family?: string | null
+          font_size_pt?: number | null
+          height_mm?: number
+          id?: string
+          rotation_deg?: number
+          side?: string
+          template_id?: string
+          text_align?: string | null
+          updated_at?: string
+          width_mm?: number
+          x_mm?: number
+          y_mm?: number
+          z_index?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "card_element_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "card_template"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      card_order: {
+        Row: {
+          created_at: string
+          id: string
+          order_name: string
+          status: string
+          template_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          order_name: string
+          status?: string
+          template_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          order_name?: string
+          status?: string
+          template_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "card_order_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "card_template"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      card_order_item: {
+        Row: {
+          created_at: string
+          data: Json
+          id: string
+          order_id: string
+          pdf_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          data?: Json
+          id?: string
+          order_id: string
+          pdf_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          id?: string
+          order_id?: string
+          pdf_url?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "card_order_item_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "card_order"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      card_template: {
+        Row: {
+          back_pdf_url: string | null
+          back_preview_png_url: string | null
+          created_at: string
+          front_pdf_url: string | null
+          front_preview_png_url: string | null
+          height_mm: number
+          id: string
+          name: string
+          updated_at: string
+          width_mm: number
+        }
+        Insert: {
+          back_pdf_url?: string | null
+          back_preview_png_url?: string | null
+          created_at?: string
+          front_pdf_url?: string | null
+          front_preview_png_url?: string | null
+          height_mm?: number
+          id?: string
+          name: string
+          updated_at?: string
+          width_mm?: number
+        }
+        Update: {
+          back_pdf_url?: string | null
+          back_preview_png_url?: string | null
+          created_at?: string
+          front_pdf_url?: string | null
+          front_preview_png_url?: string | null
+          height_mm?: number
+          id?: string
+          name?: string
+          updated_at?: string
+          width_mm?: number
+        }
+        Relationships: []
+      }
       orders: {
         Row: {
           created_at: string
