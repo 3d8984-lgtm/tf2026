@@ -1049,13 +1049,20 @@ function DetailView({
     try {
       const safe = file.name.replace(/[^\w.\-]+/g, "_");
       const path = `${TEST_TWINCODE_PREFIX}/twincode__${safe}`;
+      const contentType = file.type || "image/svg+xml";
       const { error } = await supabase.storage.from(FRAME_BUCKET)
-        .upload(path, file, { upsert: true, contentType: file.type || "image/svg+xml" });
-      if (error) { toast({ title: "업로드 실패", description: error.message, variant: "destructive" }); return; }
+        .upload(path, file, { upsert: true, contentType });
+      if (error) {
+        setUploadDebug(buildUploadDebugInfo({ title: "트윈코드 SVG 업로드 실패", objectPath: path, operation: "upload(upsert)", error, file, fileName: file.name, contentType, userId }));
+        toast({ title: "업로드 실패", description: error.message, variant: "destructive" });
+        return;
+      }
+      setUploadDebug(null);
       const { data: pub } = supabase.storage.from(FRAME_BUCKET).getPublicUrl(path);
       setTestTwincodeSvg({ url: `${pub.publicUrl}?v=${Date.now()}`, name: file.name });
       toast({ title: "트윈코드 테스트 SVG 등록됨" });
     } catch (e: any) {
+      setUploadDebug(buildUploadDebugInfo({ title: "트윈코드 SVG 처리 실패", objectPath: `${TEST_TWINCODE_PREFIX}/twincode__파일명_생성_전`, operation: "file processing before upload", error: e, file, fileName: file.name, contentType: file.type || "image/svg+xml", userId }));
       toast({ title: "업로드 실패", description: e.message, variant: "destructive" });
     }
   };
@@ -1093,11 +1100,17 @@ function DetailView({
       const ct = file.type || (/\.svg$/i.test(file.name) ? "image/svg+xml" : "image/png");
       const { error } = await supabase.storage.from(FRAME_BUCKET)
         .upload(path, file, { upsert: true, contentType: ct });
-      if (error) { toast({ title: "업로드 실패", description: error.message, variant: "destructive" }); return; }
+      if (error) {
+        setUploadDebug(buildUploadDebugInfo({ title: "서명 파일 업로드 실패", objectPath: path, operation: "upload(upsert)", error, file, fileName: file.name, contentType: ct, userId }));
+        toast({ title: "업로드 실패", description: error.message, variant: "destructive" });
+        return;
+      }
+      setUploadDebug(null);
       const { data: pub } = supabase.storage.from(FRAME_BUCKET).getPublicUrl(path);
       setTestSignature({ url: `${pub.publicUrl}?v=${Date.now()}`, name: file.name });
       toast({ title: "서명 테스트 파일 등록됨" });
     } catch (e: any) {
+      setUploadDebug(buildUploadDebugInfo({ title: "서명 파일 처리 실패", objectPath: `${TEST_SIGNATURE_PREFIX}/signature__파일명_생성_전`, operation: "file processing before upload", error: e, file, fileName: file.name, contentType: file.type || "image/png", userId }));
       toast({ title: "업로드 실패", description: e.message, variant: "destructive" });
     }
   };
