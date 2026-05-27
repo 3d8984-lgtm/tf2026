@@ -1194,9 +1194,10 @@ function CardSideEditor({
   bleedMm: number;
 }) {
   const [pdfBusy, setPdfBusy] = useState(false);
-  // 항상 실제 인쇄 크기(1:1)로 미리보기. CSS 표준 96dpi → 1mm = 3.7795px.
+  // 실제 57×87mm 비율을 유지하되, 위치 확인을 위해 화면에서는 2배 확대.
   const PX_PER_MM_REAL = 96 / 25.4;
-  const pxPerMm = PX_PER_MM_REAL;
+  const PREVIEW_SCALE = 2;
+  const pxPerMm = PX_PER_MM_REAL * PREVIEW_SCALE;
   const previewW = CARD_W_MM * pxPerMm;
   const previewH = CARD_H_MM * pxPerMm;
 
