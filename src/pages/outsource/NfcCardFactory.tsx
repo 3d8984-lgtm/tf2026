@@ -715,6 +715,7 @@ function DetailView({
       const bleedY = -bleedPt;
       const bleedW = cardWpt + bleedPt * 2;
       const bleedH = cardHpt + bleedPt * 2;
+      const frame = frames[side];
       // Layer 1: card design image (test override > API)
       const designUrl = testImages[side]?.url || (side === "front" ? card.frontImageUrl : card.backImageUrl);
       if (designUrl) {
@@ -728,7 +729,6 @@ function DetailView({
         } catch (e) { console.warn("card design embed failed", e); }
       }
       // Layer 2: frame PDF overlay
-      const frame = frames[side];
       if (frame?.bytes) {
         try {
           const [emb] = await out.embedPdf(frame.bytes);
