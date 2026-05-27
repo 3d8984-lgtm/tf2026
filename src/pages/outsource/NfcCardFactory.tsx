@@ -78,15 +78,15 @@ function buildUploadDebugInfo(params: {
   title: string;
   objectPath: string;
   operation: string;
-  error: any;
+  error: unknown;
   file?: File | Blob | null;
   fileName?: string;
   contentType?: string;
   userId?: string;
 }): UploadDebugInfo {
-  const error = params.error || {};
+  const error = (params.error && typeof params.error === "object") ? params.error as Record<string, unknown> : {};
   const statusCode = String(error.statusCode || error.status || "unknown");
-  const message = String(error.message || "알 수 없는 업로드 오류");
+  const message = String(error.message || (params.error instanceof Error ? params.error.message : "알 수 없는 업로드 오류"));
   const isRls = /row-level security|rls|unauthorized|403/i.test(`${statusCode} ${message}`);
 
   return {
@@ -98,7 +98,7 @@ function buildUploadDebugInfo(params: {
     httpStatus: statusCode === "unknown" ? "Storage API 응답 코드 확인 불가" : statusCode,
     storageStatusCode: String(error.statusCode || "unknown"),
     errorMessage: message,
-    errorName: String(error.name || error.error || "StorageError"),
+    errorName: String(error.name || error.error || (params.error instanceof Error ? params.error.name : "StorageError")),
     fileName: params.fileName || (params.file instanceof File ? params.file.name : "변환된 업로드 파일"),
     fileType: params.file instanceof File ? (params.file.type || "unknown") : "Blob",
     fileSize: formatFileSize(params.file?.size),
