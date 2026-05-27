@@ -1607,15 +1607,15 @@ function CardSideEditor({
   const renderOptionPreview = (key: OptionKey) => {
     if (!cardPreview) return null;
     switch (key) {
-      case "cpValue":   return <span className="leading-none">{cardPreview.cpValue || "-"}</span>;
-      case "editionNo": return <span className="leading-none">{cardPreview.editionNo}</span>;
-      case "issuedNo":  return <span className="leading-none">{`ISSUED No. ${cardPreview.issuedNo}`}</span>;
-      case "mintedOn":  return <span className="leading-none">{`Minted on ${cardPreview.mintedOn}`}</span>;
-      case "grade":     return <span className="leading-none font-bold">{cardPreview.grade}</span>;
-      case "companyName":  return <span className="leading-none">{backDefaults?.companyName || "-"}</span>;
-      case "centerSlogan": return <span className="leading-none">{backDefaults?.centerSlogan || "-"}</span>;
-      case "nfcEnabled":   return <span className="leading-none">{backDefaults?.nfcEnabled || "-"}</span>;
-      case "issuedBy":  return <span className="leading-none">{backDefaults?.issuedBy || "-"}</span>;
+      case "cpValue":
+      case "editionNo":
+      case "issuedNo":
+      case "mintedOn":
+      case "grade":
+      case "companyName":
+      case "centerSlogan":
+      case "nfcEnabled":
+      case "issuedBy":  return null;
       case "twincode":  {
         const tcUrl = testTwincodeUrl || cardPreview.twincodeSvgUrl;
         return tcUrl
