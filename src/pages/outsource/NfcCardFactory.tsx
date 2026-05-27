@@ -461,6 +461,8 @@ interface OptionLayout {
   align?: TextAlign; // 텍스트 정렬 (왼쪽/중앙/오른쪽)
   padding?: number; // mm — DM 바코드 흰 여백 (quiet zone)
   lockAspect?: boolean; // 이미지 옵션의 비율 잠금 (서명 등)
+  fontId?: string;     // 텍스트 옵션별 글꼴 (FONT_OPTIONS.id). 미지정 시 DEFAULT_MASTER_FONT.
+  fontWeight?: number; // 텍스트 옵션별 BOLD 강도 (300~900). 미지정 시 DEFAULT_MASTER_FONT_WEIGHT.
 }
 
 const FRONT_KEYS: OptionKey[] = ["cpValue", "editionNo"];
