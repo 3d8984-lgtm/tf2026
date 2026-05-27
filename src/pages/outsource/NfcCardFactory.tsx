@@ -1066,7 +1066,7 @@ function DetailView({
         return { ...prev, [side]: { url: objUrl, name: file.name, path, objectUrl: true } };
       });
       toast({ title: `${side === "front" ? "앞면" : "뒷면"} 테스트 이미지 등록됨`, description: isPdf ? "PDF 첫 페이지가 이미지로 변환되었습니다" : undefined });
-    } catch (e: any) {
+    } catch (e) {
       setUploadDebug(buildUploadDebugInfo({
         title: `${side === "front" ? "앞면" : "뒷면"} 테스트 이미지 처리 실패`,
         objectPath: `${TEST_IMG_PREFIX}/${side}__파일명_생성_전`,
@@ -1077,7 +1077,7 @@ function DetailView({
         contentType: file.type || "image/png",
         userId,
       }));
-      toast({ title: "업로드 실패", description: e.message, variant: "destructive" });
+      toast({ title: "업로드 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
   };
 
@@ -1107,9 +1107,9 @@ function DetailView({
       const { data: pub } = supabase.storage.from(FRAME_BUCKET).getPublicUrl(path);
       setTestTwincodeSvg({ url: `${pub.publicUrl}?v=${Date.now()}`, name: file.name });
       toast({ title: "트윈코드 테스트 SVG 등록됨" });
-    } catch (e: any) {
+    } catch (e) {
       setUploadDebug(buildUploadDebugInfo({ title: "트윈코드 SVG 처리 실패", objectPath: `${TEST_TWINCODE_PREFIX}/twincode__파일명_생성_전`, operation: "file processing before upload", error: e, file, fileName: file.name, contentType: file.type || "image/svg+xml", userId }));
-      toast({ title: "업로드 실패", description: e.message, variant: "destructive" });
+      toast({ title: "업로드 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
   };
 
@@ -1155,9 +1155,9 @@ function DetailView({
       const { data: pub } = supabase.storage.from(FRAME_BUCKET).getPublicUrl(path);
       setTestSignature({ url: `${pub.publicUrl}?v=${Date.now()}`, name: file.name });
       toast({ title: "서명 테스트 파일 등록됨" });
-    } catch (e: any) {
+    } catch (e) {
       setUploadDebug(buildUploadDebugInfo({ title: "서명 파일 처리 실패", objectPath: `${TEST_SIGNATURE_PREFIX}/signature__파일명_생성_전`, operation: "file processing before upload", error: e, file, fileName: file.name, contentType: file.type || "image/png", userId }));
-      toast({ title: "업로드 실패", description: e.message, variant: "destructive" });
+      toast({ title: "업로드 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
   };
 
