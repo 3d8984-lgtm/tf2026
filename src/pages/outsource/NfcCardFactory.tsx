@@ -27,8 +27,8 @@ import bwipjs from "bwip-js/browser";
 import { CardFrame, CARD_W_MM, CARD_H_MM } from "@/components/outsource/CardFrame";
 
 const MM = 2.8346456693; // 1mm in pt
-// 프레임/디자인 이미지에 포함된 외곽 여백(bleed) 기본값(mm). 화면에서 조절 가능.
-const DEFAULT_FRAME_BLEED_MM = 3;
+// 프레임/PDF 원본 크기 그대로 사용 — 별도 여백 보정 없음.
+const DEFAULT_FRAME_BLEED_MM = 0;
 const FRAME_BUCKET = "design-formats";
 const FRAME_PREFIX = "nfc-card";
 const TEST_IMG_PREFIX = "nfc-card-test";
@@ -53,16 +53,17 @@ async function fetchFontBytes(url: string, which: "reg" | "bold"): Promise<Uint8
   } catch { return null; }
 }
 
-async function renderPdfFirstPagePng(bytes: Uint8Array): Promise<{ dataUrl: string; aspect: number }> {
+async function renderPdfFirstPagePng(bytes: Uint8Array): Promise<{ dataUrl: string; aspect: number; maskCanvas: HTMLCanvasElement; widthPt: number; heightPt: number }> {
   const doc = await (pdfjsLib as any).getDocument({ data: bytes.slice(0) }).promise;
   const page = await doc.getPage(1);
-  const viewport = page.getViewport({ scale: 1.5 });
+  const vp1 = page.getViewport({ scale: 1 });
+  const viewport = page.getViewport({ scale: 2 });
   const canvas = document.createElement("canvas");
   canvas.width = viewport.width;
   canvas.height = viewport.height;
   const ctx = canvas.getContext("2d")!;
   await page.render({ canvasContext: ctx, viewport, canvas }).promise;
-  return { dataUrl: canvas.toDataURL("image/png"), aspect: viewport.width / viewport.height };
+  return { dataUrl: canvas.toDataURL("image/png"), aspect: viewport.width / viewport.height, maskCanvas: canvas, widthPt: vp1.width, heightPt: vp1.height };
 }
 
 function fmtDate(v?: string | null): string {
