@@ -573,7 +573,7 @@ function downloadBlob(bytes: Uint8Array, filename: string, mime = "application/p
 export default function NfcCardFactory() {
   const { t } = useLang();
   const { user } = useAuth();
-  const { data: ordersData, isLoading } = useOrders();
+  const { data: ordersData, isLoading, isFetching, error: ordersError, refetch: refetchOrders } = useOrders();
   const [detailOrderNo, setDetailOrderNo] = useState<string | null>(null);
   const [cardSize, setCardSize] = useState<CardSize>(DEFAULT_CARD_SIZE);
   const [sizeDraft, setSizeDraft] = useState<{ width: string; height: string }>({
@@ -711,7 +711,20 @@ export default function NfcCardFactory() {
                 {isLoading && (
                   <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">로딩 중...</TableCell></TableRow>
                 )}
-                {!isLoading && rows.length === 0 && (
+                {!isLoading && ordersError && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-destructive">
+                      <div className="flex flex-col items-center gap-2">
+                        <span>주문 조회 권한 오류가 발생했습니다</span>
+                        <Button size="sm" variant="outline" onClick={() => refetchOrders()} disabled={isFetching}>
+                          {isFetching ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+                          다시 불러오기
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!isLoading && !ordersError && rows.length === 0 && (
                   <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">주문 데이터가 없습니다</TableCell></TableRow>
                 )}
                 {rows.map(r => (
