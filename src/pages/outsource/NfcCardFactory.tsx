@@ -1282,6 +1282,22 @@ function CardSideEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardPreview?.uniqueNo, keys.join(",")]);
 
+  const designUrl = testImageUrl || (side === "front" ? cardPreview?.frontImageUrl : cardPreview?.backImageUrl) || null;
+  const [clippedPreview, setClippedPreview] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    if (!designUrl) { setClippedPreview(null); return; }
+    (async () => {
+      try {
+        const canvas = await composeMaskedCardCanvas(designUrl, frame?.maskCanvas ?? null, previewW, previewH);
+        if (!cancelled) setClippedPreview(canvas.toDataURL("image/png"));
+      } catch {
+        if (!cancelled) setClippedPreview(designUrl);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [designUrl, frame?.preview, previewW, previewH]);
+
   const getAlignClass = (key: OptionKey): string => {
     switch (key) {
       case "cpValue":
