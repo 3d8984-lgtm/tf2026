@@ -1851,8 +1851,8 @@ function CardSideEditor({
                   <Checkbox checked={cfg.enabled} onCheckedChange={v => update(key, { enabled: !!v })} />
                   <Label className="text-sm font-medium">{OPTION_LABELS[key]}</Label>
                 </div>
-                <Mini label="X(mm)" v={cfg.x} set={v => update(key, { x: v })} disabled={cfg.centerX} />
-                <Mini label="Y(mm)" v={cfg.y} set={v => update(key, { y: v })} disabled={cfg.centerY} />
+                <Mini label={key === "twincode" || key === "dmBarcode" ? "X(mm)" : "X(mm,중앙)"} v={cfg.x} set={v => update(key, { x: v })} disabled={cfg.centerX} />
+                <Mini label={key === "twincode" || key === "dmBarcode" ? "Y(mm)" : "Y(mm,중앙)"} v={cfg.y} set={v => update(key, { y: v })} disabled={cfg.centerY} />
                 {key === "dmBarcode" ? (
                   <>
                     <Mini label="크기(mm)" v={cfg.w} set={v => update(key, { w: v, h: v })} />
