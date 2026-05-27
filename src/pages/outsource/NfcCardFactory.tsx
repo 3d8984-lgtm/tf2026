@@ -1393,7 +1393,7 @@ function CardSideEditor({
                 className="absolute inset-0 w-full h-full object-fill pointer-events-none"
               />
             )}
-            {frame?.preview && (
+            {!clippedPreview && frame?.preview && (
               <img
                 src={frame.preview}
                 alt=""
