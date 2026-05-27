@@ -373,6 +373,27 @@ function drawCanvasTextElement(
   ctx.restore();
 }
 
+/**
+ * 모든 텍스트 박스의 너비/높이를 글자 크기에 맞춰 자동 산출.
+ * - 너비: 실제 텍스트 측정 너비(mm)
+ * - 높이: fontSize(mm)
+ * 이미지(twincode/dmBarcode)는 사용자가 지정한 cfg.w/cfg.h 사용.
+ */
+const __measureCtx: CanvasRenderingContext2D | null =
+  typeof document !== "undefined"
+    ? (document.createElement("canvas").getContext("2d") as CanvasRenderingContext2D | null)
+    : null;
+function measureTextWidthMm(text: string, fontSizeMm: number, fontCss: string, weight: number): number {
+  if (!__measureCtx || !text) return 0;
+  const pxPerMm = 300 / 25.4;
+  const fontPx = Math.max(4, fontSizeMm * pxPerMm);
+  __measureCtx.font = `${weight} ${fontPx}px ${fontCss}`;
+  return __measureCtx.measureText(text).width / pxPerMm;
+}
+function isTextOption(key: OptionKey): boolean {
+  return key !== "twincode" && key !== "dmBarcode";
+}
+
 interface CardData {
   seq: number;
   orderNo: string;
