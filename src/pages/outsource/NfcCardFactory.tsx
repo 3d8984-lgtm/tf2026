@@ -1853,17 +1853,22 @@ function CardSideEditor({
       case "issuedBy":  return null;
       case "twincode":  {
         const tcUrl = testTwincodeUrl || cardPreview.twincodeSvgUrl;
+        const pos = anchorToObjectPosition(layout.twincode?.sizeAnchor ?? "mc");
         return tcUrl
-          ? <img src={tcUrl} alt="" className="w-full h-full object-contain bg-white pointer-events-none" />
+          ? <img src={tcUrl} alt="" className="w-full h-full object-contain bg-white pointer-events-none" style={{ objectPosition: pos }} />
           : <span className="text-[8px] text-muted-foreground">TWIN</span>;
       }
-      case "dmBarcode": return dmPreview
-        ? <img src={dmPreview} alt="" className="w-full h-full object-contain pointer-events-none bg-white" />
-        : <span className="text-[8px] text-muted-foreground">DM</span>;
+      case "dmBarcode": {
+        const pos = anchorToObjectPosition(layout.dmBarcode?.sizeAnchor ?? "mc");
+        return dmPreview
+          ? <img src={dmPreview} alt="" className="w-full h-full object-contain pointer-events-none bg-white" style={{ objectPosition: pos }} />
+          : <span className="text-[8px] text-muted-foreground">DM</span>;
+      }
       case "signature": {
         const sUrl = testSignatureUrl || cardPreview.signatureUrl;
+        const pos = anchorToObjectPosition(layout.signature?.sizeAnchor ?? "mc");
         return sUrl
-          ? <img src={sUrl} alt="" className="w-full h-full object-contain pointer-events-none" />
+          ? <img src={sUrl} alt="" className="w-full h-full object-contain pointer-events-none" style={{ objectPosition: pos }} />
           : <span className="text-[8px] text-muted-foreground">SIGN</span>;
       }
     }
