@@ -1724,13 +1724,10 @@ function CardSideEditor({
                 className="absolute inset-0 w-full h-full object-fill pointer-events-none"
               />
             )}
-            {!clippedPreview && frame?.preview && (
-              <img
-                src={frame.preview}
-                alt=""
-                aria-hidden
-                className="absolute inset-0 w-full h-full object-fill pointer-events-none"
-              />
+            {!clippedPreview && (
+              <div className="absolute inset-0 flex items-center justify-center text-[11px] text-muted-foreground pointer-events-none">
+                테스트 이미지 또는 API 디자인이 없습니다
+              </div>
             )}
             <canvas
               ref={previewCanvasRef}
