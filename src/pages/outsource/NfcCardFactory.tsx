@@ -1015,11 +1015,13 @@ function DetailView({
         const fontPx = Math.max(4, cfg.fontSize * pxPerMm);
         const weight = textWeightForOption(key, masterFontWeight);
         try { await (document as any).fonts?.load(`${weight} ${fontPx}px ${currentFont.css}`); } catch {}
-        // 텍스트 박스는 글자 크기에 맞춰 너비/높이 자동 계산
+        // 텍스트 박스는 글자 크기에 맞춰 너비/높이 자동 계산 (X,Y는 박스 중앙 기준)
         const autoWmm = measureTextWidthMm(txt, cfg.fontSize, currentFont.css, weight);
         const autoHmm = cfg.fontSize;
-        const tXmm = cfg.centerX ? (cardWmm - autoWmm) / 2 : cfg.x;
-        const tYmm = cfg.centerY ? (cardHmm - autoHmm) / 2 : cfg.y;
+        const cXmm = cfg.centerX ? cardWmm / 2 : cfg.x;
+        const cYmm = cfg.centerY ? cardHmm / 2 : cfg.y;
+        const tXmm = cXmm - autoWmm / 2;
+        const tYmm = cYmm - autoHmm / 2;
         drawCanvasTextElement(ctx, txt, tXmm * pxPerMm, tYmm * pxPerMm, autoWmm * pxPerMm, fontPx, currentFont.css, weight, alignForOption(key));
       }
 
