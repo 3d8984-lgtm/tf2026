@@ -1927,7 +1927,7 @@ function CardSideEditor({
               const cfg = layout[key];
               if (!cfg?.enabled) return null;
               const fontPx = (cfg.fontSize || 3) * pxPerMm;
-              const isImage = key === "twincode" || key === "dmBarcode";
+              const isImage = isImageKey(key);
               const isSel = selected === key;
               const family = fontCss || "'Inter', system-ui, sans-serif";
               const weight = textWeightForOption(key, fontWeight ?? 500);
