@@ -286,15 +286,27 @@ type OptionKey =
   | "issuedNo" | "mintedOn" | "grade" | "issuedBy" | "twincode" | "dmBarcode"
   | "companyName" | "centerSlogan" | "nfcEnabled";
 
+// 바운딩 박스 내 9개 기준점 (Illustrator reference point 스타일)
+// t=top, m=middle, b=bottom / l=left, c=center, r=right
+export type AnchorPoint =
+  | "tl" | "tc" | "tr"
+  | "ml" | "mc" | "mr"
+  | "bl" | "bc" | "br";
+
+const ANCHOR_FRACTIONS: Record<AnchorPoint, { fx: number; fy: number }> = {
+  tl: { fx: 0,   fy: 0 },   tc: { fx: 0.5, fy: 0 },   tr: { fx: 1, fy: 0 },
+  ml: { fx: 0,   fy: 0.5 }, mc: { fx: 0.5, fy: 0.5 }, mr: { fx: 1, fy: 0.5 },
+  bl: { fx: 0,   fy: 1 },   bc: { fx: 0.5, fy: 1 },   br: { fx: 1, fy: 1 },
+};
+
 interface OptionLayout {
   enabled: boolean;
-  x: number;      // mm from left
-  y: number;      // mm from top
+  x: number;      // mm — anchor point의 카드 왼쪽 변으로부터의 거리
+  y: number;      // mm — anchor point의 카드 위쪽 변으로부터의 거리
   w: number;      // mm
   h: number;      // mm (for images/svg); text uses fontSize
   fontSize: number; // mm (text height)
-  centerX: boolean; // 가로정렬(중앙)
-  centerY: boolean; // 세로정렬(중앙)
+  anchor?: AnchorPoint; // 바운딩 박스 기준점 (기본: 텍스트="mc", 이미지="tl")
   padding?: number; // mm — DM 바코드 흰 여백 (quiet zone)
 }
 
@@ -322,18 +334,31 @@ const DEFAULT_BACK_DEFAULTS = {
   issuedBy: "ISSUED BY",
 };
 
+// 텍스트/이미지 유형별 기본 anchor 보정 — 저장값에 anchor가 없으면 사용
+function defaultAnchorForKey(key: OptionKey): AnchorPoint {
+  return key === "twincode" || key === "dmBarcode" ? "tl" : "mc";
+}
+function getAnchor(key: OptionKey, cfg: { anchor?: AnchorPoint }): AnchorPoint {
+  return cfg.anchor ?? defaultAnchorForKey(key);
+}
+// 박스 좌상단 좌표 계산: (x,y)는 anchor 지점이므로 anchor fraction만큼 빼준다
+function anchorTopLeft(x: number, y: number, w: number, h: number, anchor: AnchorPoint) {
+  const { fx, fy } = ANCHOR_FRACTIONS[anchor];
+  return { left: x - w * fx, top: y - h * fy };
+}
+
 const DEFAULT_LAYOUT: Record<OptionKey, OptionLayout> = {
-  cpValue:     { enabled: true, x: 10, y: 10,  w: 30, h: 8,  fontSize: 4, centerX: false, centerY: false },
-  editionNo:   { enabled: true, x: 10, y: 40,  w: 30, h: 6,  fontSize: 3.5, centerX: false, centerY: false },
-  issuedNo:    { enabled: true, x: 5,  y: 5,   w: 30, h: 5,  fontSize: 3,   centerX: false, centerY: false },
-  mintedOn:    { enabled: true, x: 5,  y: 12,  w: 35, h: 5,  fontSize: 3,   centerX: false, centerY: false },
-  grade:       { enabled: true, x: 55, y: 5,   w: 25, h: 6,  fontSize: 4,   centerX: false, centerY: false },
-  issuedBy:    { enabled: true, x: 55, y: 35,  w: 25, h: 12, fontSize: 3, centerX: false, centerY: false },
-  twincode:    { enabled: true, x: 5,  y: 25,  w: 14, h: 14, fontSize: 0,   centerX: false, centerY: false },
-  dmBarcode:   { enabled: true, x: 60, y: 18,  w: 14, h: 14, fontSize: 0,   centerX: false, centerY: false, padding: 0.5 },
-  companyName: { enabled: true, x: 5,  y: 75,  w: 47, h: 5,  fontSize: 3,   centerX: true,  centerY: false },
-  centerSlogan:{ enabled: true, x: 5,  y: 50,  w: 47, h: 5,  fontSize: 3.5, centerX: true,  centerY: false },
-  nfcEnabled:  { enabled: true, x: 5,  y: 82,  w: 47, h: 4,  fontSize: 2.5, centerX: true,  centerY: false },
+  cpValue:     { enabled: true, x: 28.5, y: 14, w: 30, h: 8,  fontSize: 4,   anchor: "mc" },
+  editionNo:   { enabled: true, x: 28.5, y: 43, w: 30, h: 6,  fontSize: 3.5, anchor: "mc" },
+  issuedNo:    { enabled: true, x: 5,    y: 7,  w: 30, h: 5,  fontSize: 3,   anchor: "ml" },
+  mintedOn:    { enabled: true, x: 5,    y: 14, w: 35, h: 5,  fontSize: 3,   anchor: "ml" },
+  grade:       { enabled: true, x: 52,   y: 8,  w: 25, h: 6,  fontSize: 4,   anchor: "mr" },
+  issuedBy:    { enabled: true, x: 52,   y: 41, w: 25, h: 12, fontSize: 3,   anchor: "mr" },
+  twincode:    { enabled: true, x: 5,    y: 25, w: 14, h: 14, fontSize: 0,   anchor: "tl" },
+  dmBarcode:   { enabled: true, x: 60,   y: 18, w: 14, h: 14, fontSize: 0,   anchor: "tl", padding: 0.5 },
+  companyName: { enabled: true, x: 28.5, y: 77, w: 47, h: 5,  fontSize: 3,   anchor: "mc" },
+  centerSlogan:{ enabled: true, x: 28.5, y: 52, w: 47, h: 5,  fontSize: 3.5, anchor: "mc" },
+  nfcEnabled:  { enabled: true, x: 28.5, y: 84, w: 47, h: 4,  fontSize: 2.5, anchor: "mc" },
 };
 
 function alignForOption(key: OptionKey): "left" | "center" | "right" {
