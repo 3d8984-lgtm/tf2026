@@ -115,6 +115,52 @@ function buildUploadDebugInfo(params: {
   };
 }
 
+function UploadDebugPanel({ info, onClose }: { info: UploadDebugInfo; onClose: () => void }) {
+  const rows: Array<[string, string]> = [
+    ["버킷", info.bucket],
+    ["오브젝트 경로", info.objectPath],
+    ["요청 경로", info.requestPath],
+    ["작업", info.operation],
+    ["HTTP/Storage 상태", `${info.httpStatus} / ${info.storageStatusCode}`],
+    ["오류명", info.errorName],
+    ["오류 메시지", info.errorMessage],
+    ["파일", `${info.fileName} · ${info.fileType} · ${info.fileSize}`],
+    ["Content-Type", info.contentType],
+    ["Upsert", info.upsert],
+    ["인증", info.authState],
+    ["사용자 ID", info.userId],
+    ["정책 대상", info.policyTarget],
+    ["정책 힌트", info.policyHint],
+    ["추정 원인", info.likelyCause],
+    ["확인 시각", info.checkedAt],
+  ];
+
+  return (
+    <Card className="border-destructive/40 bg-destructive/5">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm flex items-center justify-between gap-3">
+          <span className="flex items-center gap-2 text-destructive">
+            <AlertTriangle className="w-4 h-4" /> {info.title}
+          </span>
+          <Button size="sm" variant="ghost" onClick={onClose} className="h-7 px-2">
+            <X className="w-3 h-3" />
+          </Button>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="rounded-md border bg-background/60 overflow-hidden">
+          {rows.map(([label, value]) => (
+            <div key={label} className="grid grid-cols-1 md:grid-cols-[150px_1fr] border-b last:border-b-0">
+              <div className="px-3 py-2 text-xs font-medium bg-muted/50">{label}</div>
+              <div className="px-3 py-2 text-xs font-mono break-all whitespace-pre-wrap">{value}</div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ===== Master font options (상업적 사용 가능 / commercial-free Korean gothic) =====
 interface FontOption {
   id: string;
