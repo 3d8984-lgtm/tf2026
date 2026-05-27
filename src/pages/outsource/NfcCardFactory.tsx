@@ -745,7 +745,7 @@ function DetailView({
         });
       }
     })();
-    return () => { cancelled = true; setTestImages(prev => { revokeTestAsset(prev.front); revokeTestAsset(prev.back); return prev; }); };
+    return () => { cancelled = true; };
   }, []);
 
   // Load test twincode SVG from storage
@@ -771,7 +771,10 @@ function DetailView({
       .map(f => `${TEST_IMG_PREFIX}/${f.name}`);
     if (toRemove.length) await supabase.storage.from(FRAME_BUCKET).remove(toRemove);
     if (!file) {
-      setTestImages(prev => ({ ...prev, [side]: null }));
+      setTestImages(prev => {
+        revokeTestAsset(prev[side]);
+        return { ...prev, [side]: null };
+      });
       toast({ title: `${side === "front" ? "앞면" : "뒷면"} 테스트 이미지 삭제됨`, description: "원래 카드 디자인이 적용됩니다" });
       return;
     }
