@@ -39,6 +39,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "menu.outHeatTransfer": "열전사 디자인 공장",
     "menu.outHologram": "홀로그램 스티커 공장",
     "menu.outNfcCard": "NFC 카드 공장",
+    "menu.outCardOrder": "카드 발주 시스템",
     "menu.outLogo": "LOGO 공장",
     "menu.outHistory": "발주 이력 관리",
     "menu.outSettings": "시스템 설정",
