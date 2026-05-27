@@ -719,9 +719,12 @@ function DetailView({
       const designUrl = testImages[side]?.url || (side === "front" ? card.frontImageUrl : card.backImageUrl);
       if (designUrl) {
         try {
-          const png = await urlToPngBytes(designUrl);
+          const targetW = Math.max(64, Math.round(frame?.widthPt ?? cardWpt));
+          const targetH = Math.max(64, Math.round(frame?.heightPt ?? cardHpt));
+          const clipped = await composeMaskedCardCanvas(designUrl, frame?.maskCanvas ?? null, targetW, targetH);
+          const png = await canvasToPngBytes(clipped);
           const emb = await out.embedPng(png);
-          page.drawImage(emb, { x: bleedX, y: bleedY, width: bleedW, height: bleedH });
+          page.drawImage(emb, { x: 0, y: 0, width: cardWpt, height: cardHpt });
         } catch (e) { console.warn("card design embed failed", e); }
       }
       // Layer 2: frame PDF overlay
