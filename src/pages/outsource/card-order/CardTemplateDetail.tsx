@@ -154,6 +154,10 @@ function PreviewCard({
   }, [pdfUrl]);
 
   const frameSrc = framePng ?? previewPngFallback;
+  const visible = elements.filter((e) => e.side === side);
+
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const [drag, setDrag] = useState<null | {
     id: string;
     mode: "move" | "resize";
     startX: number;
