@@ -975,7 +975,6 @@ function DetailView({
               side="back"
               frame={frames.back}
               bleedMm={bleedMm}
-              setBleedMm={setBleedMm}
               testImageUrl={testImages.back?.url || null}
               testTwincodeUrl={testTwincodeSvg?.url || null}
               cardPreview={applyTestValues(cards[0], testValues)}
