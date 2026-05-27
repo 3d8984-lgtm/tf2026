@@ -27,8 +27,8 @@ import bwipjs from "bwip-js/browser";
 import { CardFrame, CARD_W_MM, CARD_H_MM } from "@/components/outsource/CardFrame";
 
 const MM = 2.8346456693; // 1mm in pt
-// 프레임/디자인 이미지에 포함된 외곽 여백(bleed)을 보정해 카드 이미지가 57×87mm 대지를 꽉 채우도록 함.
-const FRAME_BLEED_MM = 3;
+// 프레임/디자인 이미지에 포함된 외곽 여백(bleed) 기본값(mm). 화면에서 조절 가능.
+const DEFAULT_FRAME_BLEED_MM = 3;
 const FRAME_BUCKET = "design-formats";
 const FRAME_PREFIX = "nfc-card";
 const TEST_IMG_PREFIX = "nfc-card-test";
@@ -467,6 +467,9 @@ function DetailView({
   // 카드 뒷면 기본 텍스트 (API 외 전체 카드에 공통 적용)
   const [backDefaults, setBackDefaults] = useState({ ...DEFAULT_BACK_DEFAULTS });
 
+  // 외곽 여백(bleed) 보정값(mm) — 미리보기/PDF 모두에 즉시 반영
+  const [bleedMm, setBleedMm] = useState<number>(DEFAULT_FRAME_BLEED_MM);
+
   // Load test images from storage
   useEffect(() => {
     let cancelled = false;
@@ -634,7 +637,7 @@ function DetailView({
       const page = out.addPage([cardWpt, cardHpt]);
       // 프레임/디자인 외곽 여백 보정: 디자인과 프레임을 양쪽으로 FRAME_BLEED_MM 만큼 확장해 그려서,
       // 원본에 포함된 흰 여백이 페이지 바깥으로 빠지고 카드 이미지가 57×87mm 대지를 꽉 채우게 한다.
-      const bleedPt = FRAME_BLEED_MM * MM;
+      const bleedPt = bleedMm * MM;
       const bleedX = -bleedPt;
       const bleedY = -bleedPt;
       const bleedW = cardWpt + bleedPt * 2;
@@ -949,6 +952,8 @@ function DetailView({
             <CardSideEditor
               side="front"
               frame={frames.front}
+              bleedMm={bleedMm}
+              setBleedMm={setBleedMm}
               testImageUrl={testImages.front?.url || null}
               cardPreview={applyTestValues(cards[0], testValues)}
               layout={layoutFront}
@@ -970,6 +975,8 @@ function DetailView({
             <CardSideEditor
               side="back"
               frame={frames.back}
+              bleedMm={bleedMm}
+              setBleedMm={setBleedMm}
               testImageUrl={testImages.back?.url || null}
               testTwincodeUrl={testTwincodeSvg?.url || null}
               cardPreview={applyTestValues(cards[0], testValues)}
@@ -1098,6 +1105,7 @@ function applyTestValues(c: CardData | undefined, tv: { cpValue: string; edition
 // ============== Card side editor (preview + per-option controls) ==============
 function CardSideEditor({
   side, frame, testImageUrl, testTwincodeUrl, cardPreview, layout, setLayout, keys, backDefaults, onTestPdf,
+  bleedMm, setBleedMm,
 }: {
   side: "front" | "back";
   frame: any;
@@ -1109,6 +1117,8 @@ function CardSideEditor({
   keys: OptionKey[];
   backDefaults?: { companyName: string; centerSlogan: string; nfcEnabled: string; issuedBy: string };
   onTestPdf?: () => void | Promise<void>;
+  bleedMm: number;
+  setBleedMm: React.Dispatch<React.SetStateAction<number>>;
 }) {
   const [pdfBusy, setPdfBusy] = useState(false);
   // Zoomable preview (px per mm). Default 10 = card ~57x87mm renders ~570x870px.
@@ -1324,6 +1334,38 @@ function CardSideEditor({
             >
               {pickMode ? "클릭으로 위치 지정 중…" : "위치 찍기"}
             </Button>
+            <div className="flex items-center gap-1">
+              <Label className="text-xs">여백보정</Label>
+              <input
+                type="range"
+                min={0}
+                max={8}
+                step={0.1}
+                value={bleedMm}
+                onChange={e => setBleedMm(Number(e.target.value))}
+                className="w-24"
+              />
+              <input
+                type="number"
+                min={0}
+                max={20}
+                step={0.1}
+                value={bleedMm}
+                onChange={e => setBleedMm(Number(e.target.value) || 0)}
+                className="w-14 h-7 px-1 text-xs border rounded tabular-nums"
+              />
+              <span className="text-muted-foreground">mm</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs"
+                onClick={() => setBleedMm(DEFAULT_FRAME_BLEED_MM)}
+                title="기본값으로 초기화"
+              >
+                리셋
+              </Button>
+            </div>
             {onTestPdf && (
               <Button
                 type="button"
@@ -1363,8 +1405,8 @@ function CardSideEditor({
               const designUrl = testImageUrl || apiUrl;
               if (!designUrl) return null;
               // PDF 출력과 동일한 bleed 보정: 양쪽으로 FRAME_BLEED_MM 확장 → 외곽 여백을 잘라낸 효과
-              const insetPctX = -(FRAME_BLEED_MM / CARD_W_MM) * 100;
-              const insetPctY = -(FRAME_BLEED_MM / CARD_H_MM) * 100;
+              const insetPctX = -(bleedMm / CARD_W_MM) * 100;
+              const insetPctY = -(bleedMm / CARD_H_MM) * 100;
               const bleedStyle: React.CSSProperties = {
                 top: `${insetPctY}%`,
                 left: `${insetPctX}%`,
@@ -1403,10 +1445,10 @@ function CardSideEditor({
                 aria-hidden
                 className="absolute object-fill pointer-events-none"
                 style={{
-                  top: `${-(FRAME_BLEED_MM / CARD_H_MM) * 100}%`,
-                  left: `${-(FRAME_BLEED_MM / CARD_W_MM) * 100}%`,
-                  right: `${-(FRAME_BLEED_MM / CARD_W_MM) * 100}%`,
-                  bottom: `${-(FRAME_BLEED_MM / CARD_H_MM) * 100}%`,
+                  top: `${-(bleedMm / CARD_H_MM) * 100}%`,
+                  left: `${-(bleedMm / CARD_W_MM) * 100}%`,
+                  right: `${-(bleedMm / CARD_W_MM) * 100}%`,
+                  bottom: `${-(bleedMm / CARD_H_MM) * 100}%`,
                   width: "auto",
                   height: "auto",
                 }}
