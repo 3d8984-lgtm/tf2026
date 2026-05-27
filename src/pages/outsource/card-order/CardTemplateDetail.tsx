@@ -171,9 +171,54 @@ function PreviewCard({
               position: "relative",
               background: "white",
               boxShadow: "0 1px 4px hsl(var(--foreground) / 0.15)",
+              overflow: "hidden",
             }}
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Layer 1: 요소 채움(이미지/텍스트) — 프레임 아래 */}
+            {visible.map((el) => {
+              const live = drag?.id === el.id ? { ...el, ...drag.current } : el;
+              const Icn = ICONS[el.element_type];
+              const isText = el.element_type === "text";
+              return (
+                <div
+                  key={`fill-${el.id}`}
+                  style={{
+                    position: "absolute",
+                    left: `${live.x_mm}mm`,
+                    top: `${live.y_mm}mm`,
+                    width: `${live.width_mm}mm`,
+                    height: `${live.height_mm}mm`,
+                    transform: el.rotation_deg ? `rotate(${el.rotation_deg}deg)` : undefined,
+                    transformOrigin: "center",
+                    pointerEvents: "none",
+                    overflow: "hidden",
+                    background: isText
+                      ? "transparent"
+                      : "repeating-linear-gradient(45deg, hsl(var(--muted)) 0 6px, hsl(var(--muted-foreground) / 0.15) 6px 12px)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: el.text_align === "right" ? "flex-end" : el.text_align === "center" ? "center" : "flex-start",
+                    color: el.font_color ?? "#000",
+                    fontSize: isText ? `${(el.font_size_pt ?? 10) * 1.333}px` : undefined,
+                    fontFamily: el.font_family ?? undefined,
+                    padding: isText ? 0 : 2,
+                    boxSizing: "border-box",
+                  }}
+                >
+                  {isText ? (
+                    <span style={{ whiteSpace: "nowrap" }}>{`{${el.field_name}}`}</span>
+                  ) : (
+                    <div className="flex items-center gap-1 text-[8px] text-muted-foreground bg-background/70 px-1 rounded">
+                      <Icn className="w-2.5 h-2.5" />
+                      {el.field_name}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Layer 2: 프레임 PNG — 클리핑 마스크 역할 (투명 영역으로 아래 레이어 비침) */}
             {previewUrl && (
               <img
                 src={previewUrl}
@@ -190,13 +235,15 @@ function PreviewCard({
                 }}
               />
             )}
+
+            {/* Layer 3: 편집용 핸들 — 프레임 위 (클릭/드래그 가능) */}
             {visible.map((el) => {
               const live = drag?.id === el.id ? { ...el, ...drag.current } : el;
               const selected = selectedId === el.id;
               const Icn = ICONS[el.element_type];
               return (
                 <div
-                  key={el.id}
+                  key={`handle-${el.id}`}
                   onPointerDown={(e) => onPointerDown(e, live as CardElement, "move")}
                   style={{
                     position: "absolute",
