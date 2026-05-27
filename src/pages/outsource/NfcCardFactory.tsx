@@ -1119,7 +1119,7 @@ function DetailView({
                   )}
                 </div>
                 <div className="flex justify-center">
-                  <TestDesignThumb frame={frames[side]} imageUrl={testImages[side]?.url ?? null} />
+                  <TestDesignThumb cardSize={cardSize} imageUrl={testImages[side]?.url ?? null} />
                 </div>
                 <div className="text-[11px] text-muted-foreground truncate">
                   {testImages[side]?.name || "삭제 전까지 서버에 유지됩니다"}
