@@ -1057,7 +1057,7 @@ function DetailView({
         const tl2 = anchorTopLeft(cfg.x, cfg.y, autoWmm, autoHmm, anc2);
         const tXmm = tl2.left;
         const tYmm = tl2.top;
-        drawCanvasTextElement(ctx, txt, tXmm * pxPerMm, tYmm * pxPerMm, autoWmm * pxPerMm, fontPx, currentFont.css, weight, alignForOption(key));
+        drawCanvasTextElement(ctx, txt, tXmm * pxPerMm, tYmm * pxPerMm, autoWmm * pxPerMm, fontPx, currentFont.css, weight, getAlign(key, cfg));
       }
 
       const png = await canvasToPngBytes(canvas);
