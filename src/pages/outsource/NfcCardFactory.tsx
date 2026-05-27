@@ -1579,13 +1579,14 @@ function applyTestValues(c: CardData | undefined, tv: { cpValue: string; edition
 
 // ============== Card side editor (preview + per-option controls) ==============
 function CardSideEditor({
-  side, cardSize, testImageUrl, testTwincodeUrl, cardPreview, layout, setLayout, keys, backDefaults, onTestPdf,
+  side, cardSize, testImageUrl, testTwincodeUrl, testSignatureUrl, cardPreview, layout, setLayout, keys, backDefaults, onTestPdf,
   bleedMm, fontCss, fontWeight,
 }: {
   side: "front" | "back";
   cardSize: CardSize;
   testImageUrl?: string | null;
   testTwincodeUrl?: string | null;
+  testSignatureUrl?: string | null;
   cardPreview?: CardData;
   layout: Record<OptionKey, OptionLayout>;
   setLayout: React.Dispatch<React.SetStateAction<Record<OptionKey, OptionLayout>>>;
