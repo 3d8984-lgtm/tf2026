@@ -134,11 +134,26 @@ function PreviewCard({
 
 
 
-  const previewUrl = side === "front" ? template.front_preview_png_url : template.back_preview_png_url;
-  const visible = elements.filter((e) => e.side === side);
+  const previewPngFallback = side === "front" ? template.front_preview_png_url : template.back_preview_png_url;
+  const pdfUrl = side === "front" ? template.front_pdf_url : template.back_pdf_url;
+  const [framePng, setFramePng] = useState<string | null>(null);
+  const [frameLoading, setFrameLoading] = useState(false);
 
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const [drag, setDrag] = useState<null | {
+  // PDF를 브라우저에서 직접 렌더링 → 투명 배경의 PNG 데이터 URL 획득
+  useEffect(() => {
+    let cancelled = false;
+    setFramePng(null);
+    if (!pdfUrl) return;
+    setFrameLoading(true);
+    const cardPxAt96 = CARD_W_MM * PX_PER_MM;
+    renderPdfToTransparentPng(pdfUrl, cardPxAt96)
+      .then((png) => { if (!cancelled) setFramePng(png); })
+      .catch((e) => { console.error("PDF render failed", e); })
+      .finally(() => { if (!cancelled) setFrameLoading(false); });
+    return () => { cancelled = true; };
+  }, [pdfUrl]);
+
+  const frameSrc = framePng ?? previewPngFallback;
     id: string;
     mode: "move" | "resize";
     startX: number;
