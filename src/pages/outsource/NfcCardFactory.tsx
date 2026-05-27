@@ -1334,6 +1334,38 @@ function CardSideEditor({
             >
               {pickMode ? "클릭으로 위치 지정 중…" : "위치 찍기"}
             </Button>
+            <div className="flex items-center gap-1">
+              <Label className="text-xs">여백보정</Label>
+              <input
+                type="range"
+                min={0}
+                max={8}
+                step={0.1}
+                value={bleedMm}
+                onChange={e => setBleedMm(Number(e.target.value))}
+                className="w-24"
+              />
+              <input
+                type="number"
+                min={0}
+                max={20}
+                step={0.1}
+                value={bleedMm}
+                onChange={e => setBleedMm(Number(e.target.value) || 0)}
+                className="w-14 h-7 px-1 text-xs border rounded tabular-nums"
+              />
+              <span className="text-muted-foreground">mm</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs"
+                onClick={() => setBleedMm(DEFAULT_FRAME_BLEED_MM)}
+                title="기본값으로 초기화"
+              >
+                리셋
+              </Button>
+            </div>
             {onTestPdf && (
               <Button
                 type="button"
