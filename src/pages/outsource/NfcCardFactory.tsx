@@ -926,6 +926,50 @@ function DetailView({
     }
   };
 
+  // Load test signature from storage
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: list } = await supabase.storage.from(FRAME_BUCKET).list(TEST_SIGNATURE_PREFIX);
+      if (cancelled) return;
+      const found = (list || []).find(f => f.name.startsWith("signature__"));
+      if (!found) return;
+      const path = `${TEST_SIGNATURE_PREFIX}/${found.name}`;
+      const { data: pub } = supabase.storage.from(FRAME_BUCKET).getPublicUrl(path);
+      const name = found.name.replace(/^signature__/, "");
+      setTestSignature({ url: `${pub.publicUrl}?v=${Date.now()}`, name });
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const onUploadTestSignature = async (file: File | null) => {
+    const { data: existing } = await supabase.storage.from(FRAME_BUCKET).list(TEST_SIGNATURE_PREFIX);
+    const toRemove = (existing || [])
+      .filter(f => f.name.startsWith("signature__"))
+      .map(f => `${TEST_SIGNATURE_PREFIX}/${f.name}`);
+    if (toRemove.length) await supabase.storage.from(FRAME_BUCKET).remove(toRemove);
+    if (!file) {
+      setTestSignature(null);
+      toast({ title: "서명 테스트 파일 삭제됨", description: "원래 API 서명파일이 적용됩니다" });
+      return;
+    }
+    try {
+      const safe = file.name.replace(/[^\w.\-]+/g, "_");
+      const path = `${TEST_SIGNATURE_PREFIX}/signature__${safe}`;
+      const ct = file.type || (/\.svg$/i.test(file.name) ? "image/svg+xml" : "image/png");
+      const { error } = await supabase.storage.from(FRAME_BUCKET)
+        .upload(path, file, { upsert: true, contentType: ct });
+      if (error) { toast({ title: "업로드 실패", description: error.message, variant: "destructive" }); return; }
+      const { data: pub } = supabase.storage.from(FRAME_BUCKET).getPublicUrl(path);
+      setTestSignature({ url: `${pub.publicUrl}?v=${Date.now()}`, name: file.name });
+      toast({ title: "서명 테스트 파일 등록됨" });
+    } catch (e: any) {
+      toast({ title: "업로드 실패", description: e.message, variant: "destructive" });
+    }
+  };
+
+
+
   // Load saved layout from user_ui_settings (per-order, fallback to global default)
   useEffect(() => {
     if (!userId) { setLoaded(true); return; }
