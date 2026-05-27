@@ -1238,8 +1238,8 @@ function CardSideEditor({
       const dyMm = (ev.clientY - startY) / pxPerMm;
       if (mode === "move") {
         // 텍스트(autoSize)는 컨테이너 너비/높이가 가변이므로 카드 전체 범위로 클램프
-        const maxX = isImage ? CARD_W_MM - cfg.w : CARD_W_MM;
-        const maxY = isImage ? CARD_H_MM - cfg.h : CARD_H_MM;
+        const maxX = isImage ? cardWmm - cfg.w : cardWmm;
+        const maxY = isImage ? cardHmm - cfg.h : cardHmm;
         update(key, {
           x: clampMm(startMm.x + dxMm, maxX),
           y: clampMm(startMm.y + dyMm, maxY),
@@ -1249,12 +1249,12 @@ function CardSideEditor({
       } else {
         if (key === "dmBarcode") {
           // square: keep w == h
-          const size = clampMm(startMm.w + Math.max(dxMm, dyMm), Math.min(CARD_W_MM - cfg.x, CARD_H_MM - cfg.y));
+          const size = clampMm(startMm.w + Math.max(dxMm, dyMm), Math.min(cardWmm - cfg.x, cardHmm - cfg.y));
           update(key, { w: size, h: size });
         } else {
           update(key, {
-            w: clampMm(startMm.w + dxMm, CARD_W_MM - cfg.x),
-            h: clampMm(startMm.h + dyMm, CARD_H_MM - cfg.y),
+            w: clampMm(startMm.w + dxMm, cardWmm - cfg.x),
+            h: clampMm(startMm.h + dyMm, cardHmm - cfg.y),
           });
         }
       }
