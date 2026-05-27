@@ -1449,11 +1449,11 @@ function applyTestValues(c: CardData | undefined, tv: { cpValue: string; edition
 
 // ============== Card side editor (preview + per-option controls) ==============
 function CardSideEditor({
-  side, frame, testImageUrl, testTwincodeUrl, cardPreview, layout, setLayout, keys, backDefaults, onTestPdf,
+  side, cardSize, testImageUrl, testTwincodeUrl, cardPreview, layout, setLayout, keys, backDefaults, onTestPdf,
   bleedMm, fontCss, fontWeight,
 }: {
   side: "front" | "back";
-  frame: any;
+  cardSize: CardSize;
   testImageUrl?: string | null;
   testTwincodeUrl?: string | null;
   cardPreview?: CardData;
@@ -1468,14 +1468,15 @@ function CardSideEditor({
 }) {
   const [pdfBusy, setPdfBusy] = useState(false);
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  // 실제 카드 크기는 업로드된 프레임 PDF 크기를 따른다. 프레임이 없으면 기본 57×87mm.
-  const cardWmm = frame?.widthPt ? frame.widthPt * 25.4 / 72 : CARD_W_MM;
-  const cardHmm = frame?.heightPt ? frame.heightPt * 25.4 / 72 : CARD_H_MM;
+  // 카드 크기는 저장된 사이즈 설정을 따른다 (기본 57×87mm).
+  const cardWmm = cardSize.width;
+  const cardHmm = cardSize.height;
   const PX_PER_MM_REAL = 96 / 25.4;
   const PREVIEW_SCALE = 2;
   const pxPerMm = PX_PER_MM_REAL * PREVIEW_SCALE;
   const previewW = cardWmm * pxPerMm;
   const previewH = cardHmm * pxPerMm;
+
 
   const [selected, setSelected] = useState<OptionKey | null>(keys[0] ?? null);
   const stageRef = useRef<HTMLDivElement | null>(null);
