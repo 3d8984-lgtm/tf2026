@@ -1485,6 +1485,7 @@ function CardSideEditor({
   fontWeight?: number;
 }) {
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [showGuide, setShowGuide] = useState(true);
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   // 카드 크기는 저장된 사이즈 설정을 따른다 (기본 57×87mm).
   const cardWmm = cardSize.width;
@@ -1494,6 +1495,14 @@ function CardSideEditor({
   const pxPerMm = PX_PER_MM_REAL * PREVIEW_SCALE;
   const previewW = cardWmm * pxPerMm;
   const previewH = cardHmm * pxPerMm;
+  // 인쇄에 포함되지 않는 가이드 라인 (57×87mm 정중앙 기준)
+  const GUIDE_W_MM = CARD_W_MM;
+  const GUIDE_H_MM = CARD_H_MM;
+  const guideWpx = GUIDE_W_MM * pxPerMm;
+  const guideHpx = GUIDE_H_MM * pxPerMm;
+  const guideLeftPx = ((cardWmm - GUIDE_W_MM) / 2) * pxPerMm;
+  const guideTopPx = ((cardHmm - GUIDE_H_MM) / 2) * pxPerMm;
+
 
 
   const [selected, setSelected] = useState<OptionKey | null>(keys[0] ?? null);
