@@ -785,6 +785,9 @@ function DetailView({
   // Test twincode SVG (server-persisted; falls back to API twincodeSvgUrl when removed)
   const [testTwincodeSvg, setTestTwincodeSvg] = useState<{ url: string; name: string } | null>(null);
 
+  // Test signature file (server-persisted; falls back to API signatureUrl when removed)
+  const [testSignature, setTestSignature] = useState<{ url: string; name: string } | null>(null);
+
   // Test values for preview only (override card[0] for front/back fields)
   const [testValues, setTestValues] = useState({
     cpValue: "", editionNo: "", issuedNo: "", mintedOn: "", grade: "",
