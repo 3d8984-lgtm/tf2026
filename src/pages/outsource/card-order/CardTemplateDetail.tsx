@@ -270,9 +270,9 @@ function PreviewCard({
             })}
 
             {/* Layer 2: 프레임 PNG — 클리핑 마스크 역할 (투명 영역으로 아래 레이어 비침) */}
-            {previewUrl && (
+            {frameSrc && (
               <img
-                src={previewUrl}
+                src={frameSrc}
                 alt={side}
                 draggable={false}
                 style={{
