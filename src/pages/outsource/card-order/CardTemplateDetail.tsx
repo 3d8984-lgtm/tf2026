@@ -148,17 +148,18 @@ function PreviewCard({
   return (
     <div
       ref={wrapperRef}
-      className="relative bg-muted/40 rounded-md p-4 overflow-auto"
+      className="relative bg-muted/40 rounded-md p-2 overflow-auto"
       onClick={() => onSelect(null)}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
     >
       <div
         style={{
-          width: `${CARD_W_MM * scale}mm`,
-          height: `${CARD_H_MM * scale}mm`,
+          width: `calc(${CARD_W_MM}mm * ${scale})`,
+          height: `calc(${CARD_H_MM}mm * ${scale})`,
         }}
       >
+
         <div
           className="origin-top-left"
           style={{ transform: `scale(${scale})`, transformOrigin: "top left" }}
