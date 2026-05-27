@@ -1042,11 +1042,23 @@ function DetailView({
     toast({ title: "저장 완료", description: "옵션 위치/크기/테스트값이 서버에 저장되었습니다" });
   };
 
-  // ====== Build single-card PDF (2 pages: front + back) ======
-  // 미리보기와 PDF가 서로 다른 엔진(pdf-lib 텍스트/브라우저 DOM)을 쓰며 위치·폰트·SVG 해석이 달라졌기 때문에,
-  // 다운로드도 미리보기와 같은 브라우저 캔버스 합성 결과를 PDF 한 페이지 이미지로 넣는다.
+  // ====== Build single-card PDF (2 pages: front + back) — VECTOR OUTPUT ======
+  // - 텍스트: pdf-lib drawText + fontkit(Spoqa Han Sans Neo) 벡터 임베드
+  // - 트윈코드 SVG, DM 바코드(SVG): jsPDF + svg2pdf.js로 벡터 PDF 변환 후 embedPdf
+  // - 배경(카드 디자인), 서명 파일: PNG/JPEG 비트맵 그대로 embedImage
   const buildCardPdfBytes = async (card: CardData, opts?: { sides?: Array<"front" | "back"> }): Promise<Uint8Array> => {
     const out = await PDFDocument.create();
+    out.registerFontkit(fontkit as any);
+
+    // Embed Spoqa weights actually in use (Regular/Medium/Bold).
+    const weightsInUse = new Set<number>([masterFontWeight, textWeightForOption("grade", masterFontWeight)]);
+    const fontByWeight = new Map<number, any>();
+    for (const w of weightsInUse) {
+      const bytes = await loadSpoqaFontBytes(w);
+      const f = await out.embedFont(bytes, { subset: true });
+      fontByWeight.set(w, f);
+    }
+    const pickFont = (weight: number) => fontByWeight.get(weight) ?? fontByWeight.values().next().value;
 
     const textFor = (key: OptionKey): string => {
       switch (key) {
@@ -1063,31 +1075,56 @@ function DetailView({
       }
     };
 
+    const pageWpt = cardSize.width * MM;
+    const pageHpt = cardSize.height * MM;
+
+    // Embed an SVG string at the requested position with sizeAnchor-aware contain layout.
+    // boxX/boxY/boxW/boxH are in mm (card-top-left coords). Returns the actual drawn rect (mm).
+    const embedSvgVector = async (
+      page: any,
+      svgString: string,
+      boxXmm: number, boxYmm: number, boxWmm: number, boxHmm: number,
+      sizeAnchor: AnchorPoint,
+    ): Promise<{ drawXmm: number; drawYmm: number; drawWmm: number; drawHmm: number }> => {
+      const aspect = svgAspectRatio(svgString) || 1;
+      const boxAspect = boxWmm / boxHmm;
+      let drawWmm: number, drawHmm: number;
+      if (aspect > boxAspect) { drawWmm = boxWmm; drawHmm = boxWmm / aspect; }
+      else                    { drawHmm = boxHmm; drawWmm = boxHmm * aspect; }
+      const { fx, fy } = ANCHOR_FRACTIONS[sizeAnchor];
+      const drawXmm = boxXmm + (boxWmm - drawWmm) * fx;
+      const drawYmm = boxYmm + (boxHmm - drawHmm) * fy;
+      const subBytes = await svgStringToPdfBytes(svgString, drawWmm * MM, drawHmm * MM);
+      const [embedded] = await out.embedPdf(subBytes, [0]);
+      page.drawPage(embedded, {
+        x: drawXmm * MM,
+        y: pageHpt - (drawYmm + drawHmm) * MM,
+        width: drawWmm * MM,
+        height: drawHmm * MM,
+      });
+      return { drawXmm, drawYmm, drawWmm, drawHmm };
+    };
+
     const drawSide = async (
       side: "front" | "back",
       layout: Record<OptionKey, OptionLayout>,
       keys: OptionKey[],
     ) => {
-      const cardWmm = cardSize.width;
-      const cardHmm = cardSize.height;
-      const pxPerMm = 300 / 25.4;
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.max(64, Math.round(cardWmm * pxPerMm));
-      canvas.height = Math.max(64, Math.round(cardHmm * pxPerMm));
-      const ctx = canvas.getContext("2d")!;
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
+      const page = out.addPage([pageWpt, pageHpt]);
 
+      // === Background (raster PNG) ===
       const designUrl = testImages[side]?.url || (side === "front" ? card.frontImageUrl : card.backImageUrl);
       if (designUrl) {
         try {
-          const clipped = await composeMaskedCardCanvas(designUrl, null, canvas.width, canvas.height);
-          ctx.drawImage(clipped, 0, 0, canvas.width, canvas.height);
+          const pxPerMm = 300 / 25.4;
+          const bgW = Math.max(64, Math.round(cardSize.width * pxPerMm));
+          const bgH = Math.max(64, Math.round(cardSize.height * pxPerMm));
+          const clipped = await composeMaskedCardCanvas(designUrl, null, bgW, bgH);
+          const pngBytes = await canvasToPngBytes(clipped);
+          const bgImg = await out.embedPng(pngBytes);
+          page.drawImage(bgImg, { x: 0, y: 0, width: pageWpt, height: pageHpt });
         } catch (e) { console.warn("card design render failed", e); }
       }
-
 
       for (const key of keys) {
         const cfg = layout[key];
@@ -1096,77 +1133,94 @@ function DetailView({
         const tl = anchorTopLeft(cfg.x, cfg.y, cfg.w, cfg.h, anc);
         const xMm = tl.left;
         const yMm = tl.top;
-        const x = xMm * pxPerMm;
-        const y = yMm * pxPerMm;
-        const w = cfg.w * pxPerMm;
-        const h = cfg.h * pxPerMm;
 
+        // ===== Twincode (SVG vector) =====
         if (key === "twincode") {
           const twincodeUrl = testTwincodeSvg?.url || card.twincodeSvgUrl;
-          if (twincodeUrl) {
-            let fetched: { img: HTMLImageElement; revoke: () => void } | null = null;
-            try {
-              fetched = await loadFetchedImage(twincodeUrl);
-              ctx.fillStyle = "#fff";
-              ctx.fillRect(x, y, w, h);
-              drawImageContain(ctx, fetched.img, x, y, w, h, cfg.sizeAnchor ?? "mc");
-            } catch (e) { console.warn("twincode draw fail", e); }
-            finally { fetched?.revoke(); }
-          }
+          if (!twincodeUrl) continue;
+          try {
+            // 흰색 박스 배경 (기존 미리보기/PDF와 동일)
+            page.drawRectangle({
+              x: xMm * MM,
+              y: pageHpt - (yMm + cfg.h) * MM,
+              width: cfg.w * MM,
+              height: cfg.h * MM,
+              color: rgb(1, 1, 1),
+            });
+            const svgStr = await fetchSvgString(twincodeUrl);
+            await embedSvgVector(page, svgStr, xMm, yMm, cfg.w, cfg.h, cfg.sizeAnchor ?? "mc");
+          } catch (e) { console.warn("twincode vector embed fail", e); }
           continue;
         }
 
-        if (key === "signature") {
-          const sigUrl = testSignature?.url || card.signatureUrl;
-          if (sigUrl) {
-            let fetched: { img: HTMLImageElement; revoke: () => void } | null = null;
-            try {
-              fetched = await loadFetchedImage(sigUrl);
-              drawImageContain(ctx, fetched.img, x, y, w, h, cfg.sizeAnchor ?? "mc");
-            } catch (e) { console.warn("signature draw fail", e); }
-            finally { fetched?.revoke(); }
-          }
-          continue;
-        }
-
-
-
+        // ===== DM Barcode (SVG vector) =====
         if (key === "dmBarcode") {
           try {
-            const pad = Math.max(0, cfg.padding ?? 0) * pxPerMm;
-            const png = await dataMatrixPngBytes(`${card.uniqueNo}|${card.uid}|${card.editionNo}`, Math.max(160, Math.round(Math.max(w, h) * 2)));
-            const url = URL.createObjectURL(new Blob([png as BlobPart], { type: "image/png" }));
-            try {
-              const img = await loadImage(url, null);
-              ctx.fillStyle = "#fff";
-              ctx.fillRect(x - pad, y - pad, w + pad * 2, h + pad * 2);
-              drawImageContain(ctx, img, x, y, w, h, cfg.sizeAnchor ?? "mc");
-            } finally { URL.revokeObjectURL(url); }
-          } catch (e) { console.warn("DM draw fail", e); }
+            const pad = Math.max(0, cfg.padding ?? 0);
+            // Quiet zone (white box) including padding
+            page.drawRectangle({
+              x: (xMm - pad) * MM,
+              y: pageHpt - (yMm + cfg.h + pad) * MM,
+              width: (cfg.w + pad * 2) * MM,
+              height: (cfg.h + pad * 2) * MM,
+              color: rgb(1, 1, 1),
+            });
+            const svgStr = dataMatrixSvgString(`${card.uniqueNo}|${card.uid}|${card.editionNo}`);
+            await embedSvgVector(page, svgStr, xMm, yMm, cfg.w, cfg.h, cfg.sizeAnchor ?? "mc");
+          } catch (e) { console.warn("DM vector embed fail", e); }
           continue;
         }
 
+        // ===== Signature (PNG/JPEG, sizeAnchor-aware contain) =====
+        if (key === "signature") {
+          const sigUrl = testSignature?.url || card.signatureUrl;
+          if (!sigUrl) continue;
+          try {
+            const pngBytes = await urlToPngBytes(sigUrl);
+            const sigImg = await out.embedPng(pngBytes);
+            const iw = sigImg.width;
+            const ih = sigImg.height;
+            const aspect = iw / ih;
+            const boxAspect = cfg.w / cfg.h;
+            let drawWmm: number, drawHmm: number;
+            if (aspect > boxAspect) { drawWmm = cfg.w; drawHmm = cfg.w / aspect; }
+            else                    { drawHmm = cfg.h; drawWmm = cfg.h * aspect; }
+            const { fx, fy } = ANCHOR_FRACTIONS[cfg.sizeAnchor ?? "mc"];
+            const drawXmm = xMm + (cfg.w - drawWmm) * fx;
+            const drawYmm = yMm + (cfg.h - drawHmm) * fy;
+            page.drawImage(sigImg, {
+              x: drawXmm * MM,
+              y: pageHpt - (drawYmm + drawHmm) * MM,
+              width: drawWmm * MM,
+              height: drawHmm * MM,
+            });
+          } catch (e) { console.warn("signature embed fail", e); }
+          continue;
+        }
+
+        // ===== Text (vector via pdf-lib + fontkit Spoqa) =====
         const txt = textFor(key);
         if (!txt) continue;
-        const fontPx = Math.max(4, cfg.fontSize * pxPerMm);
         const weight = textWeightForOption(key, masterFontWeight);
-        try { await (document as any).fonts?.load(`${weight} ${fontPx}px ${currentFont.css}`); } catch {}
-        // 텍스트 박스는 글자 크기에 맞춰 너비/높이 자동 계산 (X,Y는 박스 중앙 기준)
-        const autoWmm = measureTextWidthMm(txt, cfg.fontSize, currentFont.css, weight);
+        const font = pickFont(weight);
+        const sizePt = cfg.fontSize * MM;
+        const textWpt = font.widthOfTextAtSize(txt, sizePt);
+        const autoWmm = textWpt / MM;
         const autoHmm = cfg.fontSize;
         const anc2 = getAnchor(key, cfg);
         const tl2 = anchorTopLeft(cfg.x, cfg.y, autoWmm, autoHmm, anc2);
-        const tXmm = tl2.left;
-        const tYmm = tl2.top;
-        drawCanvasTextElement(ctx, txt, tXmm * pxPerMm, tYmm * pxPerMm, autoWmm * pxPerMm, fontPx, currentFont.css, weight, getAlign(key, cfg));
+        // Baseline y in PDF coords = pageH - (topMm * MM + ascentPt)
+        const ascentPt = font.heightAtSize(sizePt, { descender: false });
+        const baselineYpt = pageHpt - (tl2.top * MM + ascentPt);
+        // Since box width equals measured text width, align(left/center/right) has no offset
+        page.drawText(txt, {
+          x: tl2.left * MM,
+          y: baselineYpt,
+          size: sizePt,
+          font,
+          color: rgb(0, 0, 0),
+        });
       }
-
-      const png = await canvasToPngBytes(canvas);
-      const emb = await out.embedPng(png);
-      const pageWpt = cardSize.width * MM;
-      const pageHpt = cardSize.height * MM;
-      const page = out.addPage([pageWpt, pageHpt]);
-      page.drawImage(emb, { x: 0, y: 0, width: pageWpt, height: pageHpt });
     };
 
     const sides = opts?.sides ?? ["front", "back"];
