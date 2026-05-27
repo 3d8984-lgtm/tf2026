@@ -65,16 +65,12 @@ const FONT_OPTIONS: FontOption[] = [
     label: "Black Han Sans (블랙한산스 · Bold)",
     css: "'Black Han Sans', sans-serif",
     cssLink: "https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap",
-    ttfReg: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/blackhansans/BlackHanSans-Regular.ttf",
-    ttfBold: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/blackhansans/BlackHanSans-Regular.ttf",
   },
   {
     id: "do-hyeon",
     label: "Do Hyeon (도현체 · Bold)",
     css: "'Do Hyeon', sans-serif",
     cssLink: "https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap",
-    ttfReg: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/dohyeon/DoHyeon-Regular.ttf",
-    ttfBold: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/dohyeon/DoHyeon-Regular.ttf",
   },
 ];
 const DEFAULT_MASTER_FONT = "pretendard";
