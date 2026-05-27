@@ -148,6 +148,16 @@ interface CardData {
   backImageUrl: string | null;
 }
 
+interface FramePdf {
+  name: string;
+  bytes: Uint8Array;
+  preview: string;
+  aspect: number;
+  maskCanvas: HTMLCanvasElement;
+  widthPt: number;
+  heightPt: number;
+}
+
 interface OrderRow {
   orderNo: string;
   receivedAt: string;
@@ -225,8 +235,8 @@ export default function NfcCardFactory() {
   const { data: ordersData, isLoading } = useOrders();
   const [detailOrderNo, setDetailOrderNo] = useState<string | null>(null);
   const [frames, setFrames] = useState<{
-    front: { name: string; bytes: Uint8Array; preview: string; aspect: number } | null;
-    back: { name: string; bytes: Uint8Array; preview: string; aspect: number } | null;
+    front: FramePdf | null;
+    back: FramePdf | null;
   }>({ front: null, back: null });
 
   // Load saved frame PDFs from storage
@@ -245,7 +255,7 @@ export default function NfcCardFactory() {
           const { dataUrl, aspect } = await renderPdfFirstPagePng(buf);
           if (cancelled) return;
           const name = found.name.replace(/^(front|back)__/, "");
-          setFrames(prev => ({ ...prev, [side]: { name, bytes: buf, preview: dataUrl, aspect } }));
+          setFrames(prev => ({ ...prev, [side]: { name, bytes: buf, preview: dataUrl, aspect, maskCanvas, widthPt, heightPt } }));
         } catch (e) { console.error("frame load fail", e); }
       }
     })();
@@ -262,7 +272,7 @@ export default function NfcCardFactory() {
     if (!file) { setFrames(prev => ({ ...prev, [side]: null })); return; }
     try {
       const buf = new Uint8Array(await file.arrayBuffer());
-      const { dataUrl, aspect } = await renderPdfFirstPagePng(buf);
+      const { dataUrl, aspect, maskCanvas, widthPt, heightPt } = await renderPdfFirstPagePng(buf);
       const safe = file.name.replace(/[^\w.\-]+/g, "_");
       const path = `${FRAME_PREFIX}/${side}__${safe}`;
       const { error } = await supabase.storage.from(FRAME_BUCKET)
@@ -270,7 +280,7 @@ export default function NfcCardFactory() {
           upsert: true, contentType: "application/pdf",
         });
       if (error) { toast({ title: "PDF 저장 실패", description: error.message, variant: "destructive" }); return; }
-      setFrames(prev => ({ ...prev, [side]: { name: file.name, bytes: buf, preview: dataUrl, aspect } }));
+      setFrames(prev => ({ ...prev, [side]: { name: file.name, bytes: buf, preview: dataUrl, aspect, maskCanvas, widthPt, heightPt } }));
       toast({ title: `${side === "front" ? "앞면" : "뒷면"} 프레임 업로드 완료` });
     } catch (e: any) {
       toast({ title: "PDF 처리 실패", description: e.message, variant: "destructive" });
