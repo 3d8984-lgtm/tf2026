@@ -449,6 +449,7 @@ interface CardData {
   grade: string;
   issuedByUrl: string | null;
   twincodeSvgUrl: string | null;
+  signatureUrl: string | null;
   frontImageUrl: string | null;
   backImageUrl: string | null;
 }
