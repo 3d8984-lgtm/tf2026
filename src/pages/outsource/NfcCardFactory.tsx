@@ -343,7 +343,9 @@ export default function NfcCardFactory() {
         });
       if (error) { toast({ title: "PDF 저장 실패", description: error.message, variant: "destructive" }); return; }
       setFrames(prev => ({ ...prev, [side]: { name: file.name, bytes: buf, preview: dataUrl, aspect, maskCanvas, widthPt, heightPt } }));
-      toast({ title: `${side === "front" ? "앞면" : "뒷면"} 프레임 업로드 완료` });
+      const wMm = (widthPt * 25.4 / 72).toFixed(1);
+      const hMm = (heightPt * 25.4 / 72).toFixed(1);
+      toast({ title: `${side === "front" ? "앞면" : "뒷면"} 프레임 업로드 완료`, description: `실제 크기: ${wMm} × ${hMm} mm` });
     } catch (e: any) {
       toast({ title: "PDF 처리 실패", description: e.message, variant: "destructive" });
     }
@@ -398,6 +400,12 @@ export default function NfcCardFactory() {
                 <div className="text-xs text-muted-foreground truncate">
                   {frames[side]?.name || "파일 없음 (삭제/변경 전까지 서버에 유지됩니다)"}
                 </div>
+                {frames[side] && (
+                  <div className="text-xs font-medium text-foreground">
+                    실제 크기: {(frames[side]!.widthPt * 25.4 / 72).toFixed(1)} × {(frames[side]!.heightPt * 25.4 / 72).toFixed(1)} mm
+                    <span className="ml-2 text-muted-foreground">({frames[side]!.widthPt.toFixed(1)} × {frames[side]!.heightPt.toFixed(1)} pt)</span>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <label className="flex-1 flex items-center justify-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
                     <Upload className="w-3 h-3" />
