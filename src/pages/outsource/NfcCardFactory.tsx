@@ -1419,8 +1419,8 @@ function CardSideEditor({
               const isImage = key === "twincode" || key === "dmBarcode";
               const isSel = selected === key;
               // PDF와 동일한 박스 기반 좌표/정렬 — 텍스트도 cfg.w 폭의 박스 안에서 정렬
-              const xMm = cfg.centerX && isImage ? (cardWmm - cfg.w) / 2 : cfg.x;
-              const yMm = cfg.centerY && isImage ? (cardHmm - cfg.h) / 2 : cfg.y;
+              const xMm = cfg.centerX ? (cardWmm - cfg.w) / 2 : cfg.x;
+              const yMm = cfg.centerY ? (cardHmm - cfg.h) / 2 : cfg.y;
               const boxWpx = cfg.w * pxPerMm;
               const boxHpx = isImage ? cfg.h * pxPerMm : Math.max(fontPx, 4);
               const alignClass = isImage ? "justify-center" : getAlignClass(key);
