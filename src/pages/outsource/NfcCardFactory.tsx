@@ -1566,14 +1566,14 @@ function CardSideEditor({
     if (!designUrl) { setClippedPreview(null); return; }
     (async () => {
       try {
-        const canvas = await composeMaskedCardCanvas(designUrl, frame?.maskCanvas ?? null, previewW, previewH);
+        const canvas = await composeMaskedCardCanvas(designUrl, null, previewW, previewH);
         if (!cancelled) setClippedPreview(canvas.toDataURL("image/png"));
       } catch {
         if (!cancelled) setClippedPreview(designUrl);
       }
     })();
     return () => { cancelled = true; };
-  }, [designUrl, frame?.preview, previewW, previewH]);
+  }, [designUrl, previewW, previewH]);
 
   useEffect(() => {
     const canvas = previewCanvasRef.current;
