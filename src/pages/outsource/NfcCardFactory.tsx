@@ -1820,6 +1820,12 @@ function CardSideEditor({
       case "dmBarcode": return dmPreview
         ? <img src={dmPreview} alt="" className="w-full h-full object-contain pointer-events-none bg-white" />
         : <span className="text-[8px] text-muted-foreground">DM</span>;
+      case "signature": {
+        const sUrl = testSignatureUrl || cardPreview.signatureUrl;
+        return sUrl
+          ? <img src={sUrl} alt="" className="w-full h-full object-contain pointer-events-none" />
+          : <span className="text-[8px] text-muted-foreground">SIGN</span>;
+      }
     }
   };
 
