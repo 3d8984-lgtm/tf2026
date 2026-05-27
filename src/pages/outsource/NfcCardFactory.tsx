@@ -1095,17 +1095,7 @@ function DetailView({
                   )}
                 </div>
                 <div className="flex justify-center">
-                  <CardFrame
-                    widthClassName="w-28"
-                    className="border rounded bg-muted/30 flex items-center justify-center"
-                    style={frames[side]?.widthPt && frames[side]?.heightPt
-                      ? { aspectRatio: `${frames[side].widthPt} / ${frames[side].heightPt}` }
-                      : undefined}
-                  >
-                  {testImages[side]?.url
-                    ? <img src={testImages[side]!.url} alt="" className="w-full h-full object-contain bg-white" />
-                    : <span className="text-xs text-muted-foreground flex items-center gap-1"><ImageIcon className="w-3 h-3" />테스트 이미지 없음 (API 디자인 사용)</span>}
-                  </CardFrame>
+                  <TestDesignThumb frame={frames[side]} imageUrl={testImages[side]?.url ?? null} />
                 </div>
                 <div className="text-[11px] text-muted-foreground truncate">
                   {testImages[side]?.name || "삭제 전까지 서버에 유지됩니다"}
