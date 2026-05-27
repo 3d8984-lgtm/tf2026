@@ -162,6 +162,60 @@ function drawImageContain(ctx: CanvasRenderingContext2D, img: CanvasImageSource 
   ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
 }
 
+function detectInsetContentRect(
+  img: HTMLImageElement,
+  targetAspect: number,
+): { sx: number; sy: number; sw: number; sh: number } | null {
+  const iw = img.naturalWidth || img.width;
+  const ih = img.naturalHeight || img.height;
+  if (!iw || !ih) return null;
+
+  const maxProbe = 420;
+  const scale = Math.min(1, maxProbe / Math.max(iw, ih));
+  const pw = Math.max(1, Math.round(iw * scale));
+  const ph = Math.max(1, Math.round(ih * scale));
+  const probe = document.createElement("canvas");
+  probe.width = pw;
+  probe.height = ph;
+  const pctx = probe.getContext("2d", { willReadFrequently: true });
+  if (!pctx) return null;
+  pctx.drawImage(img, 0, 0, pw, ph);
+
+  let minX = pw, minY = ph, maxX = -1, maxY = -1;
+  const data = pctx.getImageData(0, 0, pw, ph).data;
+  for (let y = 0; y < ph; y += 1) {
+    for (let x = 0; x < pw; x += 1) {
+      const i = (y * pw + x) * 4;
+      const a = data[i + 3];
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      if (a > 20 && (r < 246 || g < 246 || b < 246)) {
+        minX = Math.min(minX, x); minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+      }
+    }
+  }
+  if (maxX < minX || maxY < minY) return null;
+
+  const contentW = maxX - minX + 1;
+  const contentH = maxY - minY + 1;
+  if (contentW / pw > 0.84 && contentH / ph > 0.84) return null;
+
+  const pad = Math.round(Math.max(contentW, contentH) * 0.035);
+  minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
+  maxX = Math.min(pw - 1, maxX + pad); maxY = Math.min(ph - 1, maxY + pad);
+
+  let cx = (minX + maxX) / 2;
+  let cy = (minY + maxY) / 2;
+  let cw = maxX - minX + 1;
+  let ch = maxY - minY + 1;
+  if (cw / ch > targetAspect) ch = cw / targetAspect;
+  else cw = ch * targetAspect;
+  cw = Math.min(cw, pw); ch = Math.min(ch, ph);
+  let sx = Math.max(0, Math.min(pw - cw, cx - cw / 2));
+  let sy = Math.max(0, Math.min(ph - ch, cy - ch / 2));
+  return { sx: sx / scale, sy: sy / scale, sw: cw / scale, sh: ch / scale };
+}
+
 async function composeMaskedCardCanvas(
   designSrc: string,
   maskCanvas: HTMLCanvasElement | null,
