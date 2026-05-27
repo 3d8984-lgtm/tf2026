@@ -1015,11 +1015,13 @@ function DetailView({
         const fontPx = Math.max(4, cfg.fontSize * pxPerMm);
         const weight = textWeightForOption(key, masterFontWeight);
         try { await (document as any).fonts?.load(`${weight} ${fontPx}px ${currentFont.css}`); } catch {}
-        // 텍스트 박스는 글자 크기에 맞춰 너비/높이 자동 계산
+        // 텍스트 박스는 글자 크기에 맞춰 너비/높이 자동 계산 (X,Y는 박스 중앙 기준)
         const autoWmm = measureTextWidthMm(txt, cfg.fontSize, currentFont.css, weight);
         const autoHmm = cfg.fontSize;
-        const tXmm = cfg.centerX ? (cardWmm - autoWmm) / 2 : cfg.x;
-        const tYmm = cfg.centerY ? (cardHmm - autoHmm) / 2 : cfg.y;
+        const cXmm = cfg.centerX ? cardWmm / 2 : cfg.x;
+        const cYmm = cfg.centerY ? cardHmm / 2 : cfg.y;
+        const tXmm = cXmm - autoWmm / 2;
+        const tYmm = cYmm - autoHmm / 2;
         drawCanvasTextElement(ctx, txt, tXmm * pxPerMm, tYmm * pxPerMm, autoWmm * pxPerMm, fontPx, currentFont.css, weight, alignForOption(key));
       }
 
@@ -1644,8 +1646,10 @@ function CardSideEditor({
         const family = fontCss || "'Inter', system-ui, sans-serif";
         const autoWmm = measureTextWidthMm(txt, cfg.fontSize || 3, family, weight);
         const autoHmm = cfg.fontSize || 3;
-        const xMm = cfg.centerX ? (cardWmm - autoWmm) / 2 : cfg.x;
-        const yMm = cfg.centerY ? (cardHmm - autoHmm) / 2 : cfg.y;
+        const cXmm = cfg.centerX ? cardWmm / 2 : cfg.x;
+        const cYmm = cfg.centerY ? cardHmm / 2 : cfg.y;
+        const xMm = cXmm - autoWmm / 2;
+        const yMm = cYmm - autoHmm / 2;
         const fontPx = Math.max(4, (cfg.fontSize || 3) * pxPerMm);
         drawCanvasTextElement(ctx, txt, xMm * pxPerMm, yMm * pxPerMm, autoWmm * pxPerMm, fontPx, family, weight, alignForOption(key));
       });
@@ -1782,10 +1786,13 @@ function CardSideEditor({
               const family = fontCss || "'Inter', system-ui, sans-serif";
               const weight = textWeightForOption(key, fontWeight ?? 500);
               // 텍스트 옵션은 글자에 맞춰 너비/높이 자동 산출, 이미지 옵션은 사용자 지정 cfg.w/h 사용
+              // 텍스트의 X,Y는 박스 중앙 기준, 이미지의 X,Y는 박스 좌상단 기준
               const effWmm = isImage ? cfg.w : measureTextWidthMm(textForOverlay(key), cfg.fontSize || 3, family, weight);
               const effHmm = isImage ? cfg.h : (cfg.fontSize || 3);
-              const xMm = cfg.centerX ? (cardWmm - effWmm) / 2 : cfg.x;
-              const yMm = cfg.centerY ? (cardHmm - effHmm) / 2 : cfg.y;
+              const cXmm = cfg.centerX ? cardWmm / 2 : cfg.x;
+              const cYmm = cfg.centerY ? cardHmm / 2 : cfg.y;
+              const xMm = isImage ? (cfg.centerX ? (cardWmm - effWmm) / 2 : cfg.x) : (cXmm - effWmm / 2);
+              const yMm = isImage ? (cfg.centerY ? (cardHmm - effHmm) / 2 : cfg.y) : (cYmm - effHmm / 2);
               const boxWpx = Math.max(effWmm * pxPerMm, isImage ? 0 : 4);
               const boxHpx = isImage ? cfg.h * pxPerMm : Math.max(fontPx, 4);
               return (
@@ -1844,8 +1851,8 @@ function CardSideEditor({
                   <Checkbox checked={cfg.enabled} onCheckedChange={v => update(key, { enabled: !!v })} />
                   <Label className="text-sm font-medium">{OPTION_LABELS[key]}</Label>
                 </div>
-                <Mini label="X(mm)" v={cfg.x} set={v => update(key, { x: v })} disabled={cfg.centerX} />
-                <Mini label="Y(mm)" v={cfg.y} set={v => update(key, { y: v })} disabled={cfg.centerY} />
+                <Mini label={key === "twincode" || key === "dmBarcode" ? "X(mm)" : "X(mm,중앙)"} v={cfg.x} set={v => update(key, { x: v })} disabled={cfg.centerX} />
+                <Mini label={key === "twincode" || key === "dmBarcode" ? "Y(mm)" : "Y(mm,중앙)"} v={cfg.y} set={v => update(key, { y: v })} disabled={cfg.centerY} />
                 {key === "dmBarcode" ? (
                   <>
                     <Mini label="크기(mm)" v={cfg.w} set={v => update(key, { w: v, h: v })} />
