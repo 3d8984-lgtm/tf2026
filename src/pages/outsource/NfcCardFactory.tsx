@@ -1401,7 +1401,7 @@ function DetailView({
         // ===== Text (vector OUTLINES via opentype.js — same as Illustrator "Create Outlines") =====
         const txt = textFor(key);
         if (!txt) continue;
-        const weight = textWeightForOption(key, masterFontWeight);
+        const weight = getOptionFontWeight(cfg);
         const otf = pickFont(weight);
         const sizePt = cfg.fontSize * MM;
         const textWpt = measureOutlineWidthPt(otf, txt, sizePt);
