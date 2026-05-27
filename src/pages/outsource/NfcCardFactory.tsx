@@ -1391,62 +1391,22 @@ function CardSideEditor({
             style={{ width: previewW, background: "#fff", fontFamily: "'Inter', system-ui, sans-serif" }}
           >
 
-            {/* Layer order: card design (bottom, clipped by frame as mask) → options (top).
-                프레임 PDF는 일러스트의 클리핑 마스크처럼 동작하여, 프레임이 그려진 영역 안쪽에만 카드 디자인이 보입니다. */}
-            {(() => {
-              const apiUrl = side === "front" ? cardPreview?.frontImageUrl : cardPreview?.backImageUrl;
-              const designUrl = testImageUrl || apiUrl;
-              if (!designUrl) return null;
-              // PDF 출력과 동일한 bleed 보정: 양쪽으로 bleedMm 확장 → 외곽 여백을 잘라낸 효과
-              const bleedPctX = (bleedMm / CARD_W_MM) * 100;
-              const bleedPctY = (bleedMm / CARD_H_MM) * 100;
-              const bleedStyle: React.CSSProperties = {
-                top: `${-bleedPctY}%`,
-                left: `${-bleedPctX}%`,
-                width: `${100 + bleedPctX * 2}%`,
-                height: `${100 + bleedPctY * 2}%`,
-              };
-              const maskStyle: React.CSSProperties = frame?.preview
-                ? {
-                    WebkitMaskImage: `url(${frame.preview})`,
-                    maskImage: `url(${frame.preview})`,
-                    WebkitMaskRepeat: "no-repeat",
-                    maskRepeat: "no-repeat",
-                    WebkitMaskPosition: "center",
-                    maskPosition: "center",
-                    WebkitMaskSize: "100% 100%",
-                    maskSize: "100% 100%",
-                  }
-                : {};
-              return (
-                <img
-                  src={designUrl}
-                  alt=""
-                  className="absolute object-fill pointer-events-none"
-                  style={{ ...bleedStyle, ...maskStyle }}
-                />
-              );
-            })()}
-            {/* Frame overlay (same bleed expansion as PDF) — visible frame artwork over the design,
-                so the preview matches the actual PDF output. */}
-            {frame?.preview && (() => {
-              const bleedPctX = (bleedMm / CARD_W_MM) * 100;
-              const bleedPctY = (bleedMm / CARD_H_MM) * 100;
-              return (
-                <img
-                  src={frame.preview}
-                  alt=""
-                  aria-hidden
-                  className="absolute object-fill pointer-events-none"
-                  style={{
-                    top: `${-bleedPctY}%`,
-                    left: `${-bleedPctX}%`,
-                    width: `${100 + bleedPctX * 2}%`,
-                    height: `${100 + bleedPctY * 2}%`,
-                  }}
-                />
-              );
-            })()}
+            {/* 열전사 디자인 공장과 동일하게 PDF를 마스크 캔버스로 변환해 디자인을 먼저 합성합니다. */}
+            {clippedPreview && (
+              <img
+                src={clippedPreview}
+                alt=""
+                className="absolute inset-0 w-full h-full object-fill pointer-events-none"
+              />
+            )}
+            {frame?.preview && (
+              <img
+                src={frame.preview}
+                alt=""
+                aria-hidden
+                className="absolute inset-0 w-full h-full object-fill pointer-events-none"
+              />
+            )}
 
             {keys.map(key => {
               const cfg = layout[key];
