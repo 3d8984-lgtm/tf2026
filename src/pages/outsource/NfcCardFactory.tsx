@@ -286,15 +286,27 @@ type OptionKey =
   | "issuedNo" | "mintedOn" | "grade" | "issuedBy" | "twincode" | "dmBarcode"
   | "companyName" | "centerSlogan" | "nfcEnabled";
 
+// 바운딩 박스 내 9개 기준점 (Illustrator reference point 스타일)
+// t=top, m=middle, b=bottom / l=left, c=center, r=right
+export type AnchorPoint =
+  | "tl" | "tc" | "tr"
+  | "ml" | "mc" | "mr"
+  | "bl" | "bc" | "br";
+
+const ANCHOR_FRACTIONS: Record<AnchorPoint, { fx: number; fy: number }> = {
+  tl: { fx: 0,   fy: 0 },   tc: { fx: 0.5, fy: 0 },   tr: { fx: 1, fy: 0 },
+  ml: { fx: 0,   fy: 0.5 }, mc: { fx: 0.5, fy: 0.5 }, mr: { fx: 1, fy: 0.5 },
+  bl: { fx: 0,   fy: 1 },   bc: { fx: 0.5, fy: 1 },   br: { fx: 1, fy: 1 },
+};
+
 interface OptionLayout {
   enabled: boolean;
-  x: number;      // mm from left
-  y: number;      // mm from top
+  x: number;      // mm — anchor point의 카드 왼쪽 변으로부터의 거리
+  y: number;      // mm — anchor point의 카드 위쪽 변으로부터의 거리
   w: number;      // mm
   h: number;      // mm (for images/svg); text uses fontSize
   fontSize: number; // mm (text height)
-  centerX: boolean; // 가로정렬(중앙)
-  centerY: boolean; // 세로정렬(중앙)
+  anchor?: AnchorPoint; // 바운딩 박스 기준점 (기본: 텍스트="mc", 이미지="tl")
   padding?: number; // mm — DM 바코드 흰 여백 (quiet zone)
 }
 
@@ -322,18 +334,31 @@ const DEFAULT_BACK_DEFAULTS = {
   issuedBy: "ISSUED BY",
 };
 
+// 텍스트/이미지 유형별 기본 anchor 보정 — 저장값에 anchor가 없으면 사용
+function defaultAnchorForKey(key: OptionKey): AnchorPoint {
+  return key === "twincode" || key === "dmBarcode" ? "tl" : "mc";
+}
+function getAnchor(key: OptionKey, cfg: { anchor?: AnchorPoint }): AnchorPoint {
+  return cfg.anchor ?? defaultAnchorForKey(key);
+}
+// 박스 좌상단 좌표 계산: (x,y)는 anchor 지점이므로 anchor fraction만큼 빼준다
+function anchorTopLeft(x: number, y: number, w: number, h: number, anchor: AnchorPoint) {
+  const { fx, fy } = ANCHOR_FRACTIONS[anchor];
+  return { left: x - w * fx, top: y - h * fy };
+}
+
 const DEFAULT_LAYOUT: Record<OptionKey, OptionLayout> = {
-  cpValue:     { enabled: true, x: 10, y: 10,  w: 30, h: 8,  fontSize: 4, centerX: false, centerY: false },
-  editionNo:   { enabled: true, x: 10, y: 40,  w: 30, h: 6,  fontSize: 3.5, centerX: false, centerY: false },
-  issuedNo:    { enabled: true, x: 5,  y: 5,   w: 30, h: 5,  fontSize: 3,   centerX: false, centerY: false },
-  mintedOn:    { enabled: true, x: 5,  y: 12,  w: 35, h: 5,  fontSize: 3,   centerX: false, centerY: false },
-  grade:       { enabled: true, x: 55, y: 5,   w: 25, h: 6,  fontSize: 4,   centerX: false, centerY: false },
-  issuedBy:    { enabled: true, x: 55, y: 35,  w: 25, h: 12, fontSize: 3, centerX: false, centerY: false },
-  twincode:    { enabled: true, x: 5,  y: 25,  w: 14, h: 14, fontSize: 0,   centerX: false, centerY: false },
-  dmBarcode:   { enabled: true, x: 60, y: 18,  w: 14, h: 14, fontSize: 0,   centerX: false, centerY: false, padding: 0.5 },
-  companyName: { enabled: true, x: 5,  y: 75,  w: 47, h: 5,  fontSize: 3,   centerX: true,  centerY: false },
-  centerSlogan:{ enabled: true, x: 5,  y: 50,  w: 47, h: 5,  fontSize: 3.5, centerX: true,  centerY: false },
-  nfcEnabled:  { enabled: true, x: 5,  y: 82,  w: 47, h: 4,  fontSize: 2.5, centerX: true,  centerY: false },
+  cpValue:     { enabled: true, x: 28.5, y: 14, w: 30, h: 8,  fontSize: 4,   anchor: "mc" },
+  editionNo:   { enabled: true, x: 28.5, y: 43, w: 30, h: 6,  fontSize: 3.5, anchor: "mc" },
+  issuedNo:    { enabled: true, x: 5,    y: 7,  w: 30, h: 5,  fontSize: 3,   anchor: "ml" },
+  mintedOn:    { enabled: true, x: 5,    y: 14, w: 35, h: 5,  fontSize: 3,   anchor: "ml" },
+  grade:       { enabled: true, x: 52,   y: 8,  w: 25, h: 6,  fontSize: 4,   anchor: "mr" },
+  issuedBy:    { enabled: true, x: 52,   y: 41, w: 25, h: 12, fontSize: 3,   anchor: "mr" },
+  twincode:    { enabled: true, x: 5,    y: 25, w: 14, h: 14, fontSize: 0,   anchor: "tl" },
+  dmBarcode:   { enabled: true, x: 60,   y: 18, w: 14, h: 14, fontSize: 0,   anchor: "tl", padding: 0.5 },
+  companyName: { enabled: true, x: 28.5, y: 77, w: 47, h: 5,  fontSize: 3,   anchor: "mc" },
+  centerSlogan:{ enabled: true, x: 28.5, y: 52, w: 47, h: 5,  fontSize: 3.5, anchor: "mc" },
+  nfcEnabled:  { enabled: true, x: 28.5, y: 84, w: 47, h: 4,  fontSize: 2.5, anchor: "mc" },
 };
 
 function alignForOption(key: OptionKey): "left" | "center" | "right" {
@@ -975,8 +1000,10 @@ function DetailView({
       for (const key of keys) {
         const cfg = layout[key];
         if (!cfg?.enabled) continue;
-        const xMm = cfg.centerX ? (cardWmm - cfg.w) / 2 : cfg.x;
-        const yMm = cfg.centerY ? (cardHmm - cfg.h) / 2 : cfg.y;
+        const anc = getAnchor(key, cfg);
+        const tl = anchorTopLeft(cfg.x, cfg.y, cfg.w, cfg.h, anc);
+        const xMm = tl.left;
+        const yMm = tl.top;
         const x = xMm * pxPerMm;
         const y = yMm * pxPerMm;
         const w = cfg.w * pxPerMm;
@@ -1020,10 +1047,10 @@ function DetailView({
         // 텍스트 박스는 글자 크기에 맞춰 너비/높이 자동 계산 (X,Y는 박스 중앙 기준)
         const autoWmm = measureTextWidthMm(txt, cfg.fontSize, currentFont.css, weight);
         const autoHmm = cfg.fontSize;
-        const cXmm = cfg.centerX ? cardWmm / 2 : cfg.x;
-        const cYmm = cfg.centerY ? cardHmm / 2 : cfg.y;
-        const tXmm = cXmm - autoWmm / 2;
-        const tYmm = cYmm - autoHmm / 2;
+        const anc2 = getAnchor(key, cfg);
+        const tl2 = anchorTopLeft(cfg.x, cfg.y, autoWmm, autoHmm, anc2);
+        const tXmm = tl2.left;
+        const tYmm = tl2.top;
         drawCanvasTextElement(ctx, txt, tXmm * pxPerMm, tYmm * pxPerMm, autoWmm * pxPerMm, fontPx, currentFont.css, weight, alignForOption(key));
       }
 
@@ -1545,8 +1572,6 @@ function CardSideEditor({
         update(key, {
           x: clampMm(startMm.x + dxMm, maxX),
           y: clampMm(startMm.y + dyMm, maxY),
-          centerX: false,
-          centerY: false,
         });
       } else {
         if (key === "dmBarcode") {
@@ -1657,10 +1682,10 @@ function CardSideEditor({
         const family = fontCss || "'Inter', system-ui, sans-serif";
         const autoWmm = measureTextWidthMm(txt, cfg.fontSize || 3, family, weight);
         const autoHmm = cfg.fontSize || 3;
-        const cXmm = cfg.centerX ? cardWmm / 2 : cfg.x;
-        const cYmm = cfg.centerY ? cardHmm / 2 : cfg.y;
-        const xMm = cXmm - autoWmm / 2;
-        const yMm = cYmm - autoHmm / 2;
+        const anc = getAnchor(key, cfg);
+        const tl = anchorTopLeft(cfg.x, cfg.y, autoWmm, autoHmm, anc);
+        const xMm = tl.left;
+        const yMm = tl.top;
         const fontPx = Math.max(4, (cfg.fontSize || 3) * pxPerMm);
         drawCanvasTextElement(ctx, txt, xMm * pxPerMm, yMm * pxPerMm, autoWmm * pxPerMm, fontPx, family, weight, alignForOption(key));
       });
@@ -1817,13 +1842,13 @@ function CardSideEditor({
               const family = fontCss || "'Inter', system-ui, sans-serif";
               const weight = textWeightForOption(key, fontWeight ?? 500);
               // 텍스트 옵션은 글자에 맞춰 너비/높이 자동 산출, 이미지 옵션은 사용자 지정 cfg.w/h 사용
-              // 텍스트의 X,Y는 박스 중앙 기준, 이미지의 X,Y는 박스 좌상단 기준
+              // (X,Y)는 anchor 지점의 카드 내 좌표
               const effWmm = isImage ? cfg.w : measureTextWidthMm(textForOverlay(key), cfg.fontSize || 3, family, weight);
               const effHmm = isImage ? cfg.h : (cfg.fontSize || 3);
-              const cXmm = cfg.centerX ? cardWmm / 2 : cfg.x;
-              const cYmm = cfg.centerY ? cardHmm / 2 : cfg.y;
-              const xMm = isImage ? (cfg.centerX ? (cardWmm - effWmm) / 2 : cfg.x) : (cXmm - effWmm / 2);
-              const yMm = isImage ? (cfg.centerY ? (cardHmm - effHmm) / 2 : cfg.y) : (cYmm - effHmm / 2);
+              const anc = getAnchor(key, cfg);
+              const tl = anchorTopLeft(cfg.x, cfg.y, effWmm, effHmm, anc);
+              const xMm = tl.left;
+              const yMm = tl.top;
               const boxWpx = Math.max(effWmm * pxPerMm, isImage ? 0 : 4);
               const boxHpx = isImage ? cfg.h * pxPerMm : Math.max(fontPx, 4);
               return (
@@ -1882,8 +1907,8 @@ function CardSideEditor({
                   <Checkbox checked={cfg.enabled} onCheckedChange={v => update(key, { enabled: !!v })} />
                   <Label className="text-sm font-medium">{OPTION_LABELS[key]}</Label>
                 </div>
-                <Mini label={key === "twincode" || key === "dmBarcode" ? "X(mm)" : "X(mm,중앙)"} v={cfg.x} set={v => update(key, { x: v })} disabled={cfg.centerX} />
-                <Mini label={key === "twincode" || key === "dmBarcode" ? "Y(mm)" : "Y(mm,중앙)"} v={cfg.y} set={v => update(key, { y: v })} disabled={cfg.centerY} />
+                <Mini label="X(mm)" v={cfg.x} set={v => update(key, { x: v })} />
+                <Mini label="Y(mm)" v={cfg.y} set={v => update(key, { y: v })} />
                 {key === "dmBarcode" ? (
                   <>
                     <Mini label="크기(mm)" v={cfg.w} set={v => update(key, { w: v, h: v })} />
@@ -1903,13 +1928,9 @@ function CardSideEditor({
                 {!isImage && (
                   <Mini label="글자(mm)" v={cfg.fontSize} set={v => update(key, { fontSize: v })} step={0.1} />
                 )}
-                <div className="flex items-center gap-1">
-                  <Checkbox checked={cfg.centerX} onCheckedChange={v => update(key, { centerX: !!v })} />
-                  <Label className="text-xs">가로 중앙</Label>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Checkbox checked={cfg.centerY} onCheckedChange={v => update(key, { centerY: !!v })} />
-                  <Label className="text-xs">세로 중앙</Label>
+                <div className="md:col-span-2 flex items-center gap-2">
+                  <Label className="text-[10px] text-muted-foreground whitespace-nowrap">기준점</Label>
+                  <AnchorPicker value={getAnchor(key, cfg)} onChange={v => update(key, { anchor: v })} />
                 </div>
               </div>
             );
@@ -1958,6 +1979,44 @@ function Mini({ label, v, set, step, disabled }: { label: string; v: number; set
       <Label className="text-[10px] text-muted-foreground">{label}</Label>
       <Input type="number" step={step ?? 0.5} value={v} disabled={disabled}
         onChange={e => set(Number(e.target.value) || 0)} className="h-8 text-xs" />
+    </div>
+  );
+}
+
+// 일러스트레이터 스타일 3×3 기준점 선택기
+function AnchorPicker({ value, onChange }: { value: AnchorPoint; onChange: (v: AnchorPoint) => void }) {
+  const rows: AnchorPoint[][] = [
+    ["tl", "tc", "tr"],
+    ["ml", "mc", "mr"],
+    ["bl", "bc", "br"],
+  ];
+  return (
+    <div
+      className="inline-grid grid-cols-3 gap-0 border border-foreground/40 bg-background"
+      style={{ width: 42, height: 42 }}
+      role="radiogroup"
+      aria-label="기준점 선택"
+    >
+      {rows.flat().map(p => {
+        const active = value === p;
+        return (
+          <button
+            key={p}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            aria-label={`기준점 ${p}`}
+            onClick={e => { e.stopPropagation(); onChange(p); }}
+            className="flex items-center justify-center hover:bg-primary/10 transition-colors"
+            style={{ width: 14, height: 14 }}
+          >
+            <span
+              className={active ? "bg-primary" : "bg-foreground/40"}
+              style={{ width: 6, height: 6, borderRadius: 1 }}
+            />
+          </button>
+        );
+      })}
     </div>
   );
 }
