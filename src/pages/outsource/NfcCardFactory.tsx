@@ -494,59 +494,54 @@ export default function NfcCardFactory() {
   const { user } = useAuth();
   const { data: ordersData, isLoading } = useOrders();
   const [detailOrderNo, setDetailOrderNo] = useState<string | null>(null);
-  const [frames, setFrames] = useState<{
-    front: FramePdf | null;
-    back: FramePdf | null;
-  }>({ front: null, back: null });
+  const [cardSize, setCardSize] = useState<CardSize>(DEFAULT_CARD_SIZE);
+  const [sizeDraft, setSizeDraft] = useState<{ width: string; height: string }>({
+    width: String(DEFAULT_CARD_SIZE.width),
+    height: String(DEFAULT_CARD_SIZE.height),
+  });
+  const [sizeSaving, setSizeSaving] = useState(false);
 
-  // Load saved frame PDFs from storage
+  // Load saved card size from user_ui_settings
   useEffect(() => {
+    if (!user?.id) return;
     let cancelled = false;
     (async () => {
-      for (const side of ["front", "back"] as const) {
-        const { data: list } = await supabase.storage.from(FRAME_BUCKET).list(FRAME_PREFIX);
-        const found = (list || []).find(f => f.name.startsWith(`${side}__`));
-        if (!found) continue;
-        const path = `${FRAME_PREFIX}/${found.name}`;
-        const { data: file } = await supabase.storage.from(FRAME_BUCKET).download(path);
-        if (cancelled || !file) continue;
-        try {
-          const buf = new Uint8Array(await file.arrayBuffer());
-          const { dataUrl, aspect, maskCanvas, widthPt, heightPt } = await renderPdfFirstPagePng(buf);
-          if (cancelled) return;
-          const name = found.name.replace(/^(front|back)__/, "");
-          setFrames(prev => ({ ...prev, [side]: { name, bytes: buf, preview: dataUrl, aspect, maskCanvas, widthPt, heightPt } }));
-        } catch (e) { console.error("frame load fail", e); }
+      const { data } = await supabase
+        .from("user_ui_settings")
+        .select("setting_value")
+        .eq("user_id", user.id)
+        .eq("setting_key", CARD_SIZE_KEY)
+        .maybeSingle();
+      if (cancelled) return;
+      const v = data?.setting_value as any;
+      if (v && Number(v.width) > 0 && Number(v.height) > 0) {
+        const sz = { width: Number(v.width), height: Number(v.height) };
+        setCardSize(sz);
+        setSizeDraft({ width: String(sz.width), height: String(sz.height) });
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [user?.id]);
 
-  const onUploadFrame = async (side: "front" | "back", file: File | null) => {
+  const saveCardSize = async () => {
     if (!user?.id) { toast({ title: "로그인 필요", variant: "destructive" }); return; }
-    const { data: existing } = await supabase.storage.from(FRAME_BUCKET).list(FRAME_PREFIX);
-    const toRemove = (existing || [])
-      .filter(f => f.name.startsWith(`${side}__`))
-      .map(f => `${FRAME_PREFIX}/${f.name}`);
-    if (toRemove.length) await supabase.storage.from(FRAME_BUCKET).remove(toRemove);
-    if (!file) { setFrames(prev => ({ ...prev, [side]: null })); return; }
-    try {
-      const buf = new Uint8Array(await file.arrayBuffer());
-      const { dataUrl, aspect, maskCanvas, widthPt, heightPt } = await renderPdfFirstPagePng(buf);
-      const safe = file.name.replace(/[^\w.\-]+/g, "_");
-      const path = `${FRAME_PREFIX}/${side}__${safe}`;
-      const { error } = await supabase.storage.from(FRAME_BUCKET)
-        .upload(path, new Blob([buf as BlobPart], { type: "application/pdf" }), {
-          upsert: true, contentType: "application/pdf",
-        });
-      if (error) { toast({ title: "PDF 저장 실패", description: error.message, variant: "destructive" }); return; }
-      setFrames(prev => ({ ...prev, [side]: { name: file.name, bytes: buf, preview: dataUrl, aspect, maskCanvas, widthPt, heightPt } }));
-      const wMm = (widthPt * 25.4 / 72).toFixed(1);
-      const hMm = (heightPt * 25.4 / 72).toFixed(1);
-      toast({ title: `${side === "front" ? "앞면" : "뒷면"} 프레임 업로드 완료`, description: `실제 크기: ${wMm} × ${hMm} mm` });
-    } catch (e: any) {
-      toast({ title: "PDF 처리 실패", description: e.message, variant: "destructive" });
+    const w = Number(sizeDraft.width);
+    const h = Number(sizeDraft.height);
+    if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
+      toast({ title: "유효한 가로/세로(mm) 값을 입력하세요", variant: "destructive" });
+      return;
     }
+    setSizeSaving(true);
+    const { error } = await supabase
+      .from("user_ui_settings")
+      .upsert(
+        [{ user_id: user.id, setting_key: CARD_SIZE_KEY, setting_value: { width: w, height: h } }],
+        { onConflict: "user_id,setting_key" },
+      );
+    setSizeSaving(false);
+    if (error) { toast({ title: "저장 실패", description: error.message, variant: "destructive" }); return; }
+    setCardSize({ width: w, height: h });
+    toast({ title: "카드 사이즈 저장됨", description: `${w} × ${h} mm` });
   };
 
   const rows: OrderRow[] = useMemo(() => {
