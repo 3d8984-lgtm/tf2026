@@ -1332,7 +1332,7 @@ function applyTestValues(c: CardData | undefined, tv: { cpValue: string; edition
 // ============== Card side editor (preview + per-option controls) ==============
 function CardSideEditor({
   side, frame, testImageUrl, testTwincodeUrl, cardPreview, layout, setLayout, keys, backDefaults, onTestPdf,
-  bleedMm, fontCss,
+  bleedMm, fontCss, fontWeight,
 }: {
   side: "front" | "back";
   frame: any;
@@ -1346,6 +1346,7 @@ function CardSideEditor({
   onTestPdf?: () => void | Promise<void>;
   bleedMm: number;
   fontCss?: string;
+  fontWeight?: number;
 }) {
   const [pdfBusy, setPdfBusy] = useState(false);
   // 실제 카드 크기는 업로드된 프레임 PDF 크기를 따른다. 프레임이 없으면 기본 57×87mm.
