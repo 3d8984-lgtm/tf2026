@@ -1209,7 +1209,7 @@ function DetailView({
 
   // Vectorizer.AI를 사용해서 현재 서명파일(API 또는 테스트)을 SVG로 변환하여 저장
   const onVectorizeSignature = async () => {
-    const srcUrl = testSignature?.url || (cardPreview?.signatureUrl ?? null);
+    const srcUrl = testSignature?.url || (cards[0]?.signatureUrl ?? null);
     if (!srcUrl) {
       toast({ title: "서명 파일이 없습니다", description: "먼저 서명 파일을 업로드하거나 API 서명이 있는 카드를 선택하세요.", variant: "destructive" });
       return;
