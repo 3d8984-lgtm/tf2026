@@ -44,8 +44,41 @@ export default function OutsourceSettings() {
       : "TWINMETA FACTORY\n外协管理团队\nops@twinmeta.xyz"
   );
 
-  const update = (key: Factory, patch: Partial<FactoryEmail>) =>
-    setList(prev => prev.map(it => it.key === key ? { ...it, ...patch } : it));
+  // Vectorizer.AI 설정
+  const [vecMode, setVecMode] = useState<VectorizerMode>(() => {
+    const v = (typeof window !== "undefined" && localStorage.getItem(VECTORIZER_MODE_KEY)) as VectorizerMode | null;
+    return v === "production" || v === "preview" || v === "test" ? v : "test";
+  });
+  const [vecTesting, setVecTesting] = useState(false);
+  useEffect(() => { localStorage.setItem(VECTORIZER_MODE_KEY, vecMode); }, [vecMode]);
+
+  const testVectorizer = async () => {
+    setVecTesting(true);
+    try {
+      // 1x1 흰색 PNG (테스트 이미지)
+      const tinyPng =
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgAAIAAAUAAeImBZsAAAAASUVORK5CYII=";
+      const { data, error } = await supabase.functions.invoke("vectorize-image", {
+        body: { imageBase64: tinyPng, mode: "test" },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      toast({
+        title: lang === "ko" ? "Vectorizer.AI 연결 성공" : "Vectorizer.AI 连接成功",
+        description: lang === "ko"
+          ? `테스트 모드 응답 수신 (크레딧: ${(data as any)?.credits ?? "-"})`
+          : `测试模式响应已接收 (积分: ${(data as any)?.credits ?? "-"})`,
+      });
+    } catch (e) {
+      toast({
+        title: lang === "ko" ? "Vectorizer.AI 연결 실패" : "Vectorizer.AI 连接失败",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+    } finally {
+      setVecTesting(false);
+    }
+  };
 
   const save = () => {
     toast({ title: lang === "ko" ? "저장되었습니다" : "已保存", description: lang === "ko" ? "공장별 이메일 설정이 저장되었습니다." : "工厂邮箱设置已保存。" });
