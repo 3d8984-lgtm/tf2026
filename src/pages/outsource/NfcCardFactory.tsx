@@ -29,6 +29,7 @@ import { CardFrame, CARD_W_MM, CARD_H_MM } from "@/components/outsource/CardFram
 import { ensureSpoqaFontFace, loadSpoqaFontBytes, waitForSpoqaLoaded } from "@/lib/pdf-fonts";
 import { svgStringToPdfBytes, fetchSvgString, svgAspectRatio } from "@/lib/svg-to-pdf";
 import { loadOpentypeFont, measureOutlineWidthPt, outlineAscentPt, drawTextAsOutline } from "@/lib/text-outline";
+import { vectorizeSignature, VECTOR_METHOD_LABELS, type VectorMethod } from "@/lib/signature-vectorize";
 
 const MM = 2.8346456693; // 1mm in pt
 // 프레임/PDF 원본 크기 그대로 사용 — 별도 여백 보정 없음.
@@ -983,6 +984,11 @@ function DetailView({
 
   // Test signature file (server-persisted; falls back to API signatureUrl when removed)
   const [testSignature, setTestSignature] = useState<{ url: string; name: string } | null>(null);
+  // Vectorized signature SVG (used for PDF embedding instead of PNG when present)
+  const [signatureVectorSvg, setSignatureVectorSvg] = useState<string | null>(null);
+  const [signatureVectorMethod, setSignatureVectorMethod] = useState<import("@/lib/signature-vectorize").VectorMethod>("potrace");
+  const [signatureVectorBusy, setSignatureVectorBusy] = useState(false);
+  const [signatureVectorThreshold, setSignatureVectorThreshold] = useState(160);
   const [uploadDebug, setUploadDebug] = useState<UploadDebugInfo | null>(null);
 
   // Test values for preview only (override card[0] for front/back fields)
@@ -1180,6 +1186,7 @@ function DetailView({
     if (toRemove.length) await supabase.storage.from(FRAME_BUCKET).remove(toRemove);
     if (!file) {
       setTestSignature(null);
+      setSignatureVectorSvg(null);
       toast({ title: "서명 테스트 파일 삭제됨", description: "원래 API 서명파일이 적용됩니다" });
       return;
     }
@@ -1197,7 +1204,8 @@ function DetailView({
       }
       setUploadDebug(null);
       setTestSignature({ url: `${uploaded.publicUrl}?v=${Date.now()}`, name: file.name });
-      toast({ title: "서명 테스트 파일 등록됨" });
+      setSignatureVectorSvg(null);
+      toast({ title: "서명 테스트 파일 등록됨", description: "벡터 변환 패널에서 변환 후 PDF에 적용됩니다" });
     } catch (e) {
       setUploadDebug(buildUploadDebugInfo({ title: "서명 파일 처리 실패", objectPath: `${TEST_SIGNATURE_PREFIX}/signature__파일명_생성_전`, operation: "file processing before upload", error: e, file, fileName: file.name, contentType: file.type || "image/png", userId }));
       toast({ title: "업로드 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
@@ -1418,10 +1426,26 @@ function DetailView({
           continue;
         }
 
-        // ===== Signature (PNG/JPEG, sizeAnchor-aware contain) =====
+        // ===== Signature: vector SVG (preferred) → fallback PNG =====
         if (key === "signature") {
+          // 1) If user already vectorized the test signature, embed as vector PDF (lossless)
+          if (signatureVectorSvg) {
+            try {
+              await embedSvgVector(page, signatureVectorSvg, xMm, yMm, cfg.w, cfg.h, cfg.sizeAnchor ?? "mc");
+            } catch (e) { console.warn("signature vector embed fail", e); }
+            continue;
+          }
           const sigUrl = testSignature?.url || card.signatureUrl;
           if (!sigUrl) continue;
+          // 2) If the signature URL is an SVG, embed it as vector directly
+          if (/\.svg(\?|$)/i.test(sigUrl)) {
+            try {
+              const svgStr = await fetchSvgString(sigUrl);
+              await embedSvgVector(page, svgStr, xMm, yMm, cfg.w, cfg.h, cfg.sizeAnchor ?? "mc");
+              continue;
+            } catch (e) { console.warn("signature svg embed fail", e); }
+          }
+          // 3) Raster fallback (PNG) — original behaviour
           try {
             const pngBytes = await urlToPngBytes(sigUrl);
             const sigImg = await out.embedPng(pngBytes);
@@ -1444,6 +1468,7 @@ function DetailView({
           } catch (e) { console.warn("signature embed fail", e); }
           continue;
         }
+
 
         // ===== Text (vector outlines via opentype.js) =====
         // 미리보기와 동일한 anchor/위치를 사용하되, 글리프를 벡터 패스로 변환해 PDF에 임베드한다.
@@ -1679,7 +1704,79 @@ function DetailView({
                   </Button>
                 )}
               </div>
+
+              {/* ===== Signature vectorization (PNG → SVG vector for PDF) ===== */}
+              {(testSignature?.url || cards[0]?.signatureUrl) && (
+                <div className="mt-2 pt-2 border-t space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-medium">PDF용 벡터 변환</Label>
+                    {signatureVectorSvg && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600">벡터 적용됨</span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-1">
+                    {(["bezier", "imagetracer", "potrace"] as VectorMethod[]).map(m => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setSignatureVectorMethod(m)}
+                        className={`text-[11px] px-2 py-1.5 rounded border transition-colors ${
+                          signatureVectorMethod === m
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background hover:bg-accent"
+                        }`}
+                      >
+                        {VECTOR_METHOD_LABELS[m]}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[11px] w-24 shrink-0">임계값 {signatureVectorThreshold}</Label>
+                    <input
+                      type="range" min={60} max={220} step={5}
+                      value={signatureVectorThreshold}
+                      onChange={e => setSignatureVectorThreshold(Number(e.target.value))}
+                      className="flex-1"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm" className="flex-1 text-xs"
+                      disabled={signatureVectorBusy}
+                      onClick={async () => {
+                        const url = testSignature?.url || cards[0]?.signatureUrl;
+                        if (!url) return;
+                        setSignatureVectorBusy(true);
+                        try {
+                          const svg = await vectorizeSignature(url, signatureVectorMethod, { threshold: signatureVectorThreshold });
+                          setSignatureVectorSvg(svg);
+                          toast({ title: "벡터 변환 완료", description: `방식: ${VECTOR_METHOD_LABELS[signatureVectorMethod]}` });
+                        } catch (e) {
+                          toast({ title: "벡터 변환 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+                        } finally {
+                          setSignatureVectorBusy(false);
+                        }
+                      }}
+                    >
+                      {signatureVectorBusy ? "변환 중…" : "변환"}
+                    </Button>
+                    {signatureVectorSvg && (
+                      <Button
+                        size="sm" variant="outline" className="text-xs"
+                        onClick={() => setSignatureVectorSvg(null)}
+                      >원본(PNG) 사용</Button>
+                    )}
+                  </div>
+                  <div className="w-full h-32 border rounded bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22><rect width=%228%22 height=%228%22 fill=%22%23e5e7eb%22/><rect x=%228%22 y=%228%22 width=%228%22 height=%228%22 fill=%22%23e5e7eb%22/></svg>')] overflow-hidden flex items-center justify-center">
+                    {signatureVectorSvg
+                      ? <div className="w-full h-full p-1 flex items-center justify-center [&_svg]:max-w-full [&_svg]:max-h-full"
+                          dangerouslySetInnerHTML={{ __html: signatureVectorSvg }} />
+                      : <span className="text-[11px] text-muted-foreground">변환 후 결과가 여기에 미리보기 됩니다 (투명 배경 · 검정 단색)</span>}
+                  </div>
+                </div>
+              )}
             </div>
+
           </CardContent>
         </Card>
 
