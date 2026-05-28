@@ -1445,20 +1445,59 @@ function DetailView({
           continue;
         }
 
-        // ===== Text (vector OUTLINES via opentype.js — same as Illustrator "Create Outlines") =====
-        const txt = textFor(key);
-        if (!txt) continue;
-        const weight = getOptionFontWeight(cfg);
-        const otf = await pickFont(cfg);
-        const sizePt = cfg.fontSize * MM;
-        const textWpt = measureOutlineWidthPt(otf, txt, sizePt);
-        const autoWmm = textWpt / MM;
-        const autoHmm = cfg.fontSize;
-        const anc2 = getAnchor(key, cfg);
-        const tl2 = anchorTopLeft(cfg.x, cfg.y, autoWmm, autoHmm, anc2);
-        const ascentPt = outlineAscentPt(otf, sizePt);
-        const baselineYpt = pageHpt - (tl2.top * MM + ascentPt);
-        drawTextAsOutline(page, otf, txt, tl2.left * MM, baselineYpt, sizePt, rgb(0, 0, 0));
+        // ===== Text: skip here — text is rasterized as a single overlay below =====
+      }
+
+      // ===== Text overlay (rasterized via canvas — pixel-identical to preview) =====
+      // PDF 미리보기와 출력물 위치/글꼴 불일치를 막기 위해 텍스트는 preview와 동일한
+      // canvas API(drawCanvasTextElement)로 300dpi 투명 PNG에 그려 페이지 위에 얹는다.
+      try {
+        const dpi = 300;
+        const pxPerMmHi = dpi / 25.4;
+        const overlay = document.createElement("canvas");
+        overlay.width = Math.max(1, Math.round(cardSize.width * pxPerMmHi));
+        overlay.height = Math.max(1, Math.round(cardSize.height * pxPerMmHi));
+        const octx = overlay.getContext("2d")!;
+        octx.clearRect(0, 0, overlay.width, overlay.height);
+
+        // Ensure all (family, weight, size) combos are loaded into the document font set.
+        const textKeys = keys.filter(k => !isImageKey(k) && layout[k]?.enabled && !!textFor(k));
+        await Promise.all(textKeys.map(k => {
+          const cfg = layout[k];
+          const fontPx = Math.max(4, (cfg.fontSize || 3) * pxPerMmHi);
+          const weight = getOptionFontWeight(cfg);
+          const family = getOptionFontCss(cfg);
+          return (document as any).fonts?.load?.(`${weight} ${fontPx}px ${family}`);
+        }));
+
+        for (const key of textKeys) {
+          const cfg = layout[key];
+          const txt = textFor(key);
+          const weight = getOptionFontWeight(cfg);
+          const family = getOptionFontCss(cfg);
+          const autoWmm = measureTextWidthMm(txt, cfg.fontSize || 3, family, weight);
+          const autoHmm = cfg.fontSize || 3;
+          const anc = getAnchor(key, cfg);
+          const tl = anchorTopLeft(cfg.x, cfg.y, autoWmm, autoHmm, anc);
+          const fontPx = Math.max(4, (cfg.fontSize || 3) * pxPerMmHi);
+          drawCanvasTextElement(
+            octx,
+            txt,
+            tl.left * pxPerMmHi,
+            tl.top * pxPerMmHi,
+            autoWmm * pxPerMmHi,
+            fontPx,
+            family,
+            weight,
+            getAlign(key, cfg),
+          );
+        }
+
+        const pngBytes = await canvasToPngBytes(overlay);
+        const overlayImg = await out.embedPng(pngBytes);
+        page.drawImage(overlayImg, { x: 0, y: 0, width: pageWpt, height: pageHpt });
+      } catch (e) {
+        console.warn("text overlay rasterize failed", e);
       }
     };
 
