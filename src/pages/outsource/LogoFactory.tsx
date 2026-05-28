@@ -635,14 +635,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       canvas.height = Math.round(px * ar);
       const ctx = canvas.getContext("2d")!;
 
-      // Background per work type
-      const bg =
-        workType === "heat-transfer" ? "#1f2937"
-        : workType === "embroidery" ? "#f3eee0"
-        : workType === "laser" ? "#9ca3af"
-        : "#ffffff";
-      ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Transparent background — do not fill
 
       // Apply effect filter (best-effort match of CSS preview)
       let filter = "none";
