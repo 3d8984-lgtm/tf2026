@@ -2259,6 +2259,8 @@ function CardSideEditor({
               );
             })}
           </CardFrame>
+          </div>
+          </div>
         </div>
 
         {/* Per-option controls */}
