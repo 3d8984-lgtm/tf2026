@@ -983,6 +983,11 @@ function DetailView({
 
   // Test signature file (server-persisted; falls back to API signatureUrl when removed)
   const [testSignature, setTestSignature] = useState<{ url: string; name: string } | null>(null);
+  // Vectorized signature SVG (used for PDF embedding instead of PNG when present)
+  const [signatureVectorSvg, setSignatureVectorSvg] = useState<string | null>(null);
+  const [signatureVectorMethod, setSignatureVectorMethod] = useState<import("@/lib/signature-vectorize").VectorMethod>("potrace");
+  const [signatureVectorBusy, setSignatureVectorBusy] = useState(false);
+  const [signatureVectorThreshold, setSignatureVectorThreshold] = useState(160);
   const [uploadDebug, setUploadDebug] = useState<UploadDebugInfo | null>(null);
 
   // Test values for preview only (override card[0] for front/back fields)
