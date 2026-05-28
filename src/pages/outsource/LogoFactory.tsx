@@ -873,7 +873,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
 
             {/* Settings row */}
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-2 items-end">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-2 items-end">
               <div className="space-y-1">
                 <Label className="text-xs">작업종류</Label>
                 <Select value={workType} onValueChange={(v) => setWorkType(v as WorkType)}>
@@ -922,12 +922,6 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 </Button>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">벡터 변환 (로컬)</Label>
-                <Button size="sm" variant="outline" className="w-full h-9" onClick={handleVectorize} disabled={!sourceLogo || !!busy}>
-                  <Wand2 className="w-3 h-3 mr-1" /> 실행
-                </Button>
-              </div>
-              <div className="space-y-1">
                 <Label className="text-xs">AI 벡터화 (Vectorizer.AI)</Label>
                 <Button
                   size="sm"
@@ -940,49 +934,6 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 </Button>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-2 items-end">
-              <div className="space-y-1">
-                <Label className="text-xs">벡터 품질 프리셋</Label>
-                <Select value={vectorPreset} onValueChange={(v) => setVectorPreset(v as typeof vectorPreset)}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(Object.keys(VECTOR_PRESETS) as Array<keyof typeof VECTOR_PRESETS>).map((k) => (
-                      <SelectItem key={k} value={k}>
-                        <span className="font-medium">{VECTOR_PRESETS[k].label}</span>
-                        <span className="text-muted-foreground"> — {VECTOR_PRESETS[k].desc}</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center gap-2 pb-2">
-                <label className="flex items-center gap-1.5 cursor-pointer select-none text-xs text-muted-foreground">
-                  <input
-                    type="checkbox"
-                    checked={forceMonochrome}
-                    onChange={(e) => setForceMonochrome(e.target.checked)}
-                    className="h-3.5 w-3.5 accent-primary"
-                  />
-                  단순 로고: 2색(흑백) 강제
-                </label>
-              </div>
-              <div className="text-[10px] text-muted-foreground md:max-w-[280px]">
-                현재: <span className="font-medium text-foreground">{VECTOR_PRESETS[vectorPreset].label}</span>
-                {forceMonochrome && <span className="ml-1 text-primary font-medium">· 2색 강제</span>}<br />
-                {VECTOR_PRESETS[vectorPreset].desc}
-                {vectorPreset === "auto" && autoAnalysis && (
-                  <div className="mt-1 rounded border bg-muted/40 p-1.5 font-mono text-[10px] leading-snug text-foreground/80">
-                    분석결과 · 색상≈{autoAnalysis.numberofcolors} · 엣지밀도 {(autoAnalysis.edgeDensity * 100).toFixed(1)}% · 선명도 {(autoAnalysis.sharpness * 100).toFixed(0)}%<br />
-                    ltres={autoAnalysis.ltres} · qtres={autoAnalysis.qtres} · pathomit={autoAnalysis.pathomit} · blur×{autoAnalysis.blurMul}
-                  </div>
-                )}
-              </div>
-            </div>
-            <p className="text-[10px] text-muted-foreground">
-              ※ 프리셋을 선택한 뒤 '벡터 변환'을 실행하세요. 결과가 마음에 들지 않으면 다른 프리셋으로 다시 변환할 수 있습니다. PDF는 벡터 변환 상태에서 벡터 경로를 그대로 임베드합니다.
-            </p>
 
             {busy && <div className="text-xs text-muted-foreground">{busy}</div>}
 
