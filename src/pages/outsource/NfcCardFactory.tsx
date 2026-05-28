@@ -1459,29 +1459,36 @@ function DetailView({
           continue;
         }
 
-        // ===== Signature (PNG/JPEG, sizeAnchor-aware contain) =====
+        // ===== Signature (SVG vector if available, otherwise PNG/JPEG raster) =====
         if (key === "signature") {
           const sigUrl = testSignature?.url || card.signatureUrl;
           if (!sigUrl) continue;
+          const isSvg = /\.svg(\?|$)/i.test(sigUrl) || (testSignature?.name || "").toLowerCase().endsWith(".svg");
           try {
-            const pngBytes = await urlToPngBytes(sigUrl);
-            const sigImg = await out.embedPng(pngBytes);
-            const iw = sigImg.width;
-            const ih = sigImg.height;
-            const aspect = iw / ih;
-            const boxAspect = cfg.w / cfg.h;
-            let drawWmm: number, drawHmm: number;
-            if (aspect > boxAspect) { drawWmm = cfg.w; drawHmm = cfg.w / aspect; }
-            else                    { drawHmm = cfg.h; drawWmm = cfg.h * aspect; }
-            const { fx, fy } = ANCHOR_FRACTIONS[cfg.sizeAnchor ?? "mc"];
-            const drawXmm = xMm + (cfg.w - drawWmm) * fx;
-            const drawYmm = yMm + (cfg.h - drawHmm) * fy;
-            page.drawImage(sigImg, {
-              x: drawXmm * MM,
-              y: pageHpt - (drawYmm + drawHmm) * MM,
-              width: drawWmm * MM,
-              height: drawHmm * MM,
-            });
+            if (isSvg) {
+              // 벡터 임베드 — Vectorizer.AI로 변환된 SVG를 그대로 PDF에 벡터로 박는다
+              const svgStr = await fetchSvgString(sigUrl);
+              await embedSvgVector(page, svgStr, xMm, yMm, cfg.w, cfg.h, cfg.sizeAnchor ?? "mc");
+            } else {
+              const pngBytes = await urlToPngBytes(sigUrl);
+              const sigImg = await out.embedPng(pngBytes);
+              const iw = sigImg.width;
+              const ih = sigImg.height;
+              const aspect = iw / ih;
+              const boxAspect = cfg.w / cfg.h;
+              let drawWmm: number, drawHmm: number;
+              if (aspect > boxAspect) { drawWmm = cfg.w; drawHmm = cfg.w / aspect; }
+              else                    { drawHmm = cfg.h; drawWmm = cfg.h * aspect; }
+              const { fx, fy } = ANCHOR_FRACTIONS[cfg.sizeAnchor ?? "mc"];
+              const drawXmm = xMm + (cfg.w - drawWmm) * fx;
+              const drawYmm = yMm + (cfg.h - drawHmm) * fy;
+              page.drawImage(sigImg, {
+                x: drawXmm * MM,
+                y: pageHpt - (drawYmm + drawHmm) * MM,
+                width: drawWmm * MM,
+                height: drawHmm * MM,
+              });
+            }
           } catch (e) { console.warn("signature embed fail", e); }
           continue;
         }
