@@ -179,6 +179,74 @@ export default function OutsourceSettings() {
           </Button>
         </div>
       </Card>
+
+      {/* Vectorizer.AI 설정 */}
+      <Card className="p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold flex items-center gap-2">
+            <Wand2 className="w-4 h-4" />
+            {lang === "ko" ? "Vectorizer.AI (AI 벡터 변환)" : "Vectorizer.AI (AI 矢量化)"}
+          </h3>
+          <a
+            href="https://vectorizer.ai/account"
+            target="_blank" rel="noreferrer"
+            className="text-xs text-primary flex items-center gap-1 hover:underline"
+          >
+            {lang === "ko" ? "계정 / 크레딧 확인" : "账户 / 积分查看"}
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {lang === "ko"
+            ? "LOGO 공장의 로고파일과 NFC 카드 공장의 서명파일을 고품질 SVG 벡터로 변환합니다. API ID/Secret은 안전한 서버 환경변수로 저장되어 있습니다."
+            : "将 LOGO 工厂的徽标和 NFC 卡片工厂的签名转换为高质量 SVG 矢量。API ID/Secret 已安全存储在服务器环境变量中。"}
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="space-y-1.5 md:col-span-2">
+            <Label>{lang === "ko" ? "변환 모드" : "转换模式"}</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {(["test", "preview", "production"] as VectorizerMode[]).map(m => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setVecMode(m)}
+                  className={`rounded-md border px-3 py-2 text-left transition ${
+                    vecMode === m ? "border-primary bg-primary/10" : "hover:bg-accent"
+                  }`}
+                >
+                  <div className="text-xs font-semibold uppercase">{m}</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5 leading-snug">
+                    {m === "test" && (lang === "ko" ? "무료 · 워터마크" : "免费 · 水印")}
+                    {m === "preview" && (lang === "ko" ? "0.2 크레딧 · 미리보기" : "0.2 积分 · 预览")}
+                    {m === "production" && (lang === "ko" ? "1.0 크레딧 · 최종" : "1.0 积分 · 最终")}
+                  </div>
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {lang === "ko"
+                ? "Test: 개발/검증용 (무료). Production: 실제 발주용 SVG (워터마크 없음)."
+                : "Test: 开发/验证用 (免费)。Production: 实际发货用 SVG (无水印)。"}
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="opacity-0 hidden md:block">&nbsp;</Label>
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full gap-1"
+              onClick={testVectorizer}
+              disabled={vecTesting}
+            >
+              {vecTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+              {lang === "ko" ? "연결 테스트" : "连接测试"}
+            </Button>
+            <Badge variant="secondary" className="w-full justify-center text-[10px]">
+              {lang === "ko" ? "현재 모드" : "当前模式"}: {vecMode}
+            </Badge>
+          </div>
+        </div>
+      </Card>
     </div>
   );
 }
