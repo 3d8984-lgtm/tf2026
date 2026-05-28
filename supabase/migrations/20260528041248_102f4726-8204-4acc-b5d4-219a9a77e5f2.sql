@@ -1,0 +1,2 @@
+DROP POLICY IF EXISTS "Anyone can read design-formats" ON storage.objects;
+CREATE POLICY "Authenticated can list design-formats" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'design-formats');
