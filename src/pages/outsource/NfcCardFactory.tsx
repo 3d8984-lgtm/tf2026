@@ -1761,10 +1761,27 @@ function DetailView({
                       {signatureVectorBusy ? "변환 중…" : "변환"}
                     </Button>
                     {signatureVectorSvg && (
-                      <Button
-                        size="sm" variant="outline" className="text-xs"
-                        onClick={() => setSignatureVectorSvg(null)}
-                      >원본(PNG) 사용</Button>
+                      <>
+                        <Button
+                          size="sm" variant="outline" className="text-xs"
+                          onClick={() => {
+                            const blob = new Blob([signatureVectorSvg], { type: "image/svg+xml;charset=utf-8" });
+                            const link = document.createElement("a");
+                            link.href = URL.createObjectURL(blob);
+                            link.download = `signature-vector-${signatureVectorMethod}.svg`;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            URL.revokeObjectURL(link.href);
+                          }}
+                        >
+                          <Download className="w-3 h-3 mr-1" />SVG 다운로드
+                        </Button>
+                        <Button
+                          size="sm" variant="outline" className="text-xs"
+                          onClick={() => setSignatureVectorSvg(null)}
+                        >원본(PNG) 사용</Button>
+                      </>
                     )}
                   </div>
                   <div className="w-full h-32 border rounded bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22><rect width=%228%22 height=%228%22 fill=%22%23e5e7eb%22/><rect x=%228%22 y=%228%22 width=%228%22 height=%228%22 fill=%22%23e5e7eb%22/></svg>')] overflow-hidden flex items-center justify-center">
