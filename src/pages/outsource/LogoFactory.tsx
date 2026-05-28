@@ -476,23 +476,41 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
   const handleUpscale = async () => {
     if (!sourceLogo) return;
-    setBusy("로고 업스케일링 중 (edge-preserving)...");
+    const mode = (localStorage.getItem(VECTORIZER_MODE_KEY) as "test" | "preview" | "production" | null) || "test";
+    setBusy(`Vectorizer.AI 업스케일링 중 (${mode})...`);
     try {
       const src = sourceLogo!;
       const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
       const img = await loadImage(dataUrl);
-      // Preview: 2× edge-preserving upscale of the source.
-      const targetW = img.naturalWidth * 2;
-      const targetH = img.naturalHeight * 2;
-      const canvas = edgePreservingUpscale(img, targetW, targetH);
+
+      // Call Vectorizer.AI to get a high-quality SVG, then rasterize at 2× for the upscaled PNG.
+      const { data, error } = await supabase.functions.invoke("vectorize-image", {
+        body: { imageBase64: dataUrl, mode },
+      });
+      if (error) throw error;
+      const svgDataUrl = (data as any)?.svgDataUrl as string | undefined;
+      if (!svgDataUrl) throw new Error((data as any)?.error || "Vectorizer.AI 응답이 비어있습니다");
+
+      const targetW = Math.max(1, img.naturalWidth * 2);
+      const targetH = Math.max(1, img.naturalHeight * 2);
+      const svgImg = await loadImage(svgDataUrl);
+      const canvas = document.createElement("canvas");
+      canvas.width = targetW;
+      canvas.height = targetH;
+      const ctx = canvas.getContext("2d")!;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.clearRect(0, 0, targetW, targetH);
+      ctx.drawImage(svgImg, 0, 0, targetW, targetH);
       const up = canvas.toDataURL("image/png");
+
       setUpscaledDataUrl(up);
       setProcessedDataUrl(up);
       setProcessedKind("upscaled");
       setCompareTarget("upscaled");
       toast({
-        title: "업스케일 완료",
-        description: `${img.naturalWidth}×${img.naturalHeight} → ${canvas.width}×${canvas.height} · edge-preserving + unsharp`,
+        title: "업스케일 완료 (Vectorizer.AI)",
+        description: `${img.naturalWidth}×${img.naturalHeight} → ${targetW}×${targetH} · SVG 기반 무손실 확대 (${mode}${(data as any)?.credits ? `, 크레딧: ${(data as any).credits}` : ""})`,
       });
     } catch (e: any) {
       toast({ title: "업스케일 실패", description: e.message, variant: "destructive" });
