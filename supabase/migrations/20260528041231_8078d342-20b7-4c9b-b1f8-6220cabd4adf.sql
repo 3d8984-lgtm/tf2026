@@ -1,0 +1,1 @@
+CREATE POLICY "Anyone can read design-formats" ON storage.objects FOR SELECT USING (bucket_id = 'design-formats');
