@@ -78,6 +78,8 @@ export default function OutsourceSettings() {
     } finally {
       setVecTesting(false);
     }
+  };
+
 
   const update = (key: Factory, patch: Partial<FactoryEmail>) =>
     setList(prev => prev.map(it => it.key === key ? { ...it, ...patch } : it));
