@@ -78,7 +78,10 @@ export default function OutsourceSettings() {
     } finally {
       setVecTesting(false);
     }
-  };
+
+  const update = (key: Factory, patch: Partial<FactoryEmail>) =>
+    setList(prev => prev.map(it => it.key === key ? { ...it, ...patch } : it));
+
 
   const save = () => {
     toast({ title: lang === "ko" ? "저장되었습니다" : "已保存", description: lang === "ko" ? "공장별 이메일 설정이 저장되었습니다." : "工厂邮箱设置已保存。" });
