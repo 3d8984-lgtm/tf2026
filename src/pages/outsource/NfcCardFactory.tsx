@@ -1186,6 +1186,7 @@ function DetailView({
     if (toRemove.length) await supabase.storage.from(FRAME_BUCKET).remove(toRemove);
     if (!file) {
       setTestSignature(null);
+      setSignatureVectorSvg(null);
       toast({ title: "서명 테스트 파일 삭제됨", description: "원래 API 서명파일이 적용됩니다" });
       return;
     }
