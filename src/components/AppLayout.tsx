@@ -66,10 +66,6 @@ const menuKeys: MenuItem[] = [
   { path: "/outsource/heat-transfer", icon: Printer, key: "menu.outHeatTransfer", section: "outsource" },
   { path: "/outsource/hologram", icon: Sparkles, key: "menu.outHologram", section: "outsource" },
   { path: "/outsource/nfc-card", icon: CreditCard, key: "menu.outNfcCard", section: "outsource" },
-  { path: "/outsource/card-order/templates", icon: ClipboardList, key: "menu.outCardOrder", section: "outsource", children: [
-    { label: { ko: "카드 템플릿", zh: "卡片模板" }, tab: "templates" },
-    { label: { ko: "주문 목록", zh: "订单列表" }, tab: "orders" },
-  ]},
   { path: "/outsource/logo", icon: ImageIcon, key: "menu.outLogo", section: "outsource" },
   { path: "/outsource/history", icon: History, key: "menu.outHistory", section: "outsource" },
   { path: "/outsource/settings", icon: Cog, key: "menu.outSettings", section: "outsource" },
