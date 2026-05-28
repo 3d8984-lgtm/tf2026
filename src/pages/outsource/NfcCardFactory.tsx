@@ -21,7 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { AlertTriangle, Download, Eye, FileText, Loader2, Upload, X, ChevronLeft, Save, Image as ImageIcon } from "lucide-react";
+import { AlertTriangle, Download, Eye, FileText, Loader2, Upload, X, ChevronLeft, Save, Image as ImageIcon, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import { PDFDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import bwipjs from "bwip-js/browser";
@@ -1856,6 +1856,8 @@ function CardSideEditor({
 
   const [selected, setSelected] = useState<OptionKey | null>(keys[0] ?? null);
   const stageRef = useRef<HTMLDivElement | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const clampZoom = (z: number) => Math.max(0.5, Math.min(4, Math.round(z * 100) / 100));
 
 
   const update = (key: OptionKey, patch: Partial<OptionLayout>) => {
@@ -1883,8 +1885,8 @@ function CardSideEditor({
     target.setPointerCapture(e.pointerId);
 
     const onMove = (ev: PointerEvent) => {
-      const dxMm = (ev.clientX - startX) / pxPerMm;
-      const dyMm = (ev.clientY - startY) / pxPerMm;
+      const dxMm = (ev.clientX - startX) / (pxPerMm * zoom);
+      const dyMm = (ev.clientY - startY) / (pxPerMm * zoom);
       if (mode === "move") {
         // 텍스트(autoSize)는 컨테이너 너비/높이가 가변이므로 카드 전체 범위로 클램프
         const maxX = isImage ? cardWmm - cfg.w : cardWmm;
@@ -2123,8 +2125,38 @@ function CardSideEditor({
           박스를 드래그해 이동하거나 오른쪽 아래 모서리를 끌어 크기를 조절하세요.
         </div>
 
+        {/* Zoom controls */}
+        <div className="flex items-center justify-center gap-2 text-xs">
+          <Button type="button" variant="outline" size="icon" className="h-7 w-7" onClick={() => setZoom(z => clampZoom(z - 0.25))} title="축소"><ZoomOut className="h-3.5 w-3.5" /></Button>
+          <input
+            type="range"
+            min={50}
+            max={400}
+            step={5}
+            value={Math.round(zoom * 100)}
+            onChange={e => setZoom(clampZoom(Number(e.target.value) / 100))}
+            className="w-40 accent-primary"
+          />
+          <Button type="button" variant="outline" size="icon" className="h-7 w-7" onClick={() => setZoom(z => clampZoom(z + 0.25))} title="확대"><ZoomIn className="h-3.5 w-3.5" /></Button>
+          <span className="tabular-nums w-12 text-center text-muted-foreground">{Math.round(zoom * 100)}%</span>
+          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(1)} title="100%"><Maximize2 className="h-3.5 w-3.5" /></Button>
+        </div>
+
         {/* Preview */}
         <div className="flex justify-center overflow-auto">
+          <div
+            style={{
+              width: previewW * zoom,
+              height: previewH * zoom,
+            }}
+          >
+          <div
+            style={{
+              width: previewW,
+              transform: `scale(${zoom})`,
+              transformOrigin: "top left",
+            }}
+          >
           <CardFrame
             ref={stageRef}
             className="border-2 rounded-md shadow-md"
@@ -2227,6 +2259,8 @@ function CardSideEditor({
               );
             })}
           </CardFrame>
+          </div>
+          </div>
         </div>
 
         {/* Per-option controls */}
