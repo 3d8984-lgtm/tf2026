@@ -1885,8 +1885,8 @@ function CardSideEditor({
     target.setPointerCapture(e.pointerId);
 
     const onMove = (ev: PointerEvent) => {
-      const dxMm = (ev.clientX - startX) / pxPerMm;
-      const dyMm = (ev.clientY - startY) / pxPerMm;
+      const dxMm = (ev.clientX - startX) / (pxPerMm * zoom);
+      const dyMm = (ev.clientY - startY) / (pxPerMm * zoom);
       if (mode === "move") {
         // 텍스트(autoSize)는 컨테이너 너비/높이가 가변이므로 카드 전체 범위로 클램프
         const maxX = isImage ? cardWmm - cfg.w : cardWmm;
