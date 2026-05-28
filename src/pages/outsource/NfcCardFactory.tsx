@@ -1459,29 +1459,36 @@ function DetailView({
           continue;
         }
 
-        // ===== Signature (PNG/JPEG, sizeAnchor-aware contain) =====
+        // ===== Signature (SVG vector if available, otherwise PNG/JPEG raster) =====
         if (key === "signature") {
           const sigUrl = testSignature?.url || card.signatureUrl;
           if (!sigUrl) continue;
+          const isSvg = /\.svg(\?|$)/i.test(sigUrl) || (testSignature?.name || "").toLowerCase().endsWith(".svg");
           try {
-            const pngBytes = await urlToPngBytes(sigUrl);
-            const sigImg = await out.embedPng(pngBytes);
-            const iw = sigImg.width;
-            const ih = sigImg.height;
-            const aspect = iw / ih;
-            const boxAspect = cfg.w / cfg.h;
-            let drawWmm: number, drawHmm: number;
-            if (aspect > boxAspect) { drawWmm = cfg.w; drawHmm = cfg.w / aspect; }
-            else                    { drawHmm = cfg.h; drawWmm = cfg.h * aspect; }
-            const { fx, fy } = ANCHOR_FRACTIONS[cfg.sizeAnchor ?? "mc"];
-            const drawXmm = xMm + (cfg.w - drawWmm) * fx;
-            const drawYmm = yMm + (cfg.h - drawHmm) * fy;
-            page.drawImage(sigImg, {
-              x: drawXmm * MM,
-              y: pageHpt - (drawYmm + drawHmm) * MM,
-              width: drawWmm * MM,
-              height: drawHmm * MM,
-            });
+            if (isSvg) {
+              // 벡터 임베드 — Vectorizer.AI로 변환된 SVG를 그대로 PDF에 벡터로 박는다
+              const svgStr = await fetchSvgString(sigUrl);
+              await embedSvgVector(page, svgStr, xMm, yMm, cfg.w, cfg.h, cfg.sizeAnchor ?? "mc");
+            } else {
+              const pngBytes = await urlToPngBytes(sigUrl);
+              const sigImg = await out.embedPng(pngBytes);
+              const iw = sigImg.width;
+              const ih = sigImg.height;
+              const aspect = iw / ih;
+              const boxAspect = cfg.w / cfg.h;
+              let drawWmm: number, drawHmm: number;
+              if (aspect > boxAspect) { drawWmm = cfg.w; drawHmm = cfg.w / aspect; }
+              else                    { drawHmm = cfg.h; drawWmm = cfg.h * aspect; }
+              const { fx, fy } = ANCHOR_FRACTIONS[cfg.sizeAnchor ?? "mc"];
+              const drawXmm = xMm + (cfg.w - drawWmm) * fx;
+              const drawYmm = yMm + (cfg.h - drawHmm) * fy;
+              page.drawImage(sigImg, {
+                x: drawXmm * MM,
+                y: pageHpt - (drawYmm + drawHmm) * MM,
+                width: drawWmm * MM,
+                height: drawHmm * MM,
+              });
+            }
           } catch (e) { console.warn("signature embed fail", e); }
           continue;
         }
@@ -1720,17 +1727,45 @@ function DetailView({
                   </Button>
                 )}
               </div>
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full text-xs gap-1"
-                onClick={onVectorizeSignature}
-                disabled={vectorizingSig}
-                title="Vectorizer.AI로 SVG 벡터로 변환 · 시스템 설정에서 모드 선택"
-              >
-                {vectorizingSig ? <Loader2 className="w-3 h-3 animate-spin" /> : <Cloud className="w-3 h-3" />}
-                AI 벡터 변환 (Vectorizer.AI)
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 text-xs gap-1"
+                  onClick={onVectorizeSignature}
+                  disabled={vectorizingSig}
+                  title="Vectorizer.AI로 SVG 벡터로 변환 · 시스템 설정에서 모드 선택"
+                >
+                  {vectorizingSig ? <Loader2 className="w-3 h-3 animate-spin" /> : <Cloud className="w-3 h-3" />}
+                  AI 벡터 변환 (Vectorizer.AI)
+                </Button>
+                {testSignature?.url && (/\.svg(\?|$)/i.test(testSignature.url) || (testSignature.name || "").toLowerCase().endsWith(".svg")) && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="text-xs gap-1"
+                    title="벡터 변환된 SVG 다운로드"
+                    onClick={async () => {
+                      try {
+                        const r = await fetch(testSignature.url!);
+                        if (!r.ok) throw new Error(`다운로드 실패: ${r.status}`);
+                        const blob = await r.blob();
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = testSignature.name || `signature_vector_${Date.now()}.svg`;
+                        document.body.appendChild(a); a.click(); a.remove();
+                        URL.revokeObjectURL(url);
+                      } catch (e) {
+                        toast({ title: "다운로드 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+                      }
+                    }}
+                  >
+                    <Download className="w-3 h-3" />
+                    SVG 다운로드
+                  </Button>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
