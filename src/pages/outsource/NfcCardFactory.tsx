@@ -1856,6 +1856,8 @@ function CardSideEditor({
 
   const [selected, setSelected] = useState<OptionKey | null>(keys[0] ?? null);
   const stageRef = useRef<HTMLDivElement | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const clampZoom = (z: number) => Math.max(0.5, Math.min(4, Math.round(z * 100) / 100));
 
 
   const update = (key: OptionKey, patch: Partial<OptionLayout>) => {
