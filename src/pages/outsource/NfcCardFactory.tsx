@@ -1752,7 +1752,8 @@ function DetailView({
                           setSignatureVectorSvg(svg);
                           toast({ title: "벡터 변환 완료", description: `방식: ${VECTOR_METHOD_LABELS[signatureVectorMethod]}` });
                         } catch (e) {
-                          toast({ title: "벡터 변환 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+                          console.error("[vectorize] failed:", e);
+                          toast({ title: "벡터 변환 실패", description: e instanceof Error ? `${e.message}` : String(e), variant: "destructive" });
                         } finally {
                           setSignatureVectorBusy(false);
                         }
