@@ -1704,7 +1704,79 @@ function DetailView({
                   </Button>
                 )}
               </div>
+
+              {/* ===== Signature vectorization (PNG → SVG vector for PDF) ===== */}
+              {(testSignature?.url || cardPreview.signatureUrl) && (
+                <div className="mt-2 pt-2 border-t space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-medium">PDF용 벡터 변환</Label>
+                    {signatureVectorSvg && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600">벡터 적용됨</span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-1">
+                    {(["bezier", "imagetracer", "potrace"] as VectorMethod[]).map(m => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setSignatureVectorMethod(m)}
+                        className={`text-[11px] px-2 py-1.5 rounded border transition-colors ${
+                          signatureVectorMethod === m
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background hover:bg-accent"
+                        }`}
+                      >
+                        {VECTOR_METHOD_LABELS[m]}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[11px] w-24 shrink-0">임계값 {signatureVectorThreshold}</Label>
+                    <input
+                      type="range" min={60} max={220} step={5}
+                      value={signatureVectorThreshold}
+                      onChange={e => setSignatureVectorThreshold(Number(e.target.value))}
+                      className="flex-1"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm" className="flex-1 text-xs"
+                      disabled={signatureVectorBusy}
+                      onClick={async () => {
+                        const url = testSignature?.url || cardPreview.signatureUrl;
+                        if (!url) return;
+                        setSignatureVectorBusy(true);
+                        try {
+                          const svg = await vectorizeSignature(url, signatureVectorMethod, { threshold: signatureVectorThreshold });
+                          setSignatureVectorSvg(svg);
+                          toast({ title: "벡터 변환 완료", description: `방식: ${VECTOR_METHOD_LABELS[signatureVectorMethod]}` });
+                        } catch (e) {
+                          toast({ title: "벡터 변환 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+                        } finally {
+                          setSignatureVectorBusy(false);
+                        }
+                      }}
+                    >
+                      {signatureVectorBusy ? "변환 중…" : "변환"}
+                    </Button>
+                    {signatureVectorSvg && (
+                      <Button
+                        size="sm" variant="outline" className="text-xs"
+                        onClick={() => setSignatureVectorSvg(null)}
+                      >원본(PNG) 사용</Button>
+                    )}
+                  </div>
+                  <div className="w-full h-32 border rounded bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22><rect width=%228%22 height=%228%22 fill=%22%23e5e7eb%22/><rect x=%228%22 y=%228%22 width=%228%22 height=%228%22 fill=%22%23e5e7eb%22/></svg>')] overflow-hidden flex items-center justify-center">
+                    {signatureVectorSvg
+                      ? <div className="w-full h-full p-1 flex items-center justify-center [&_svg]:max-w-full [&_svg]:max-h-full"
+                          dangerouslySetInnerHTML={{ __html: signatureVectorSvg }} />
+                      : <span className="text-[11px] text-muted-foreground">변환 후 결과가 여기에 미리보기 됩니다 (투명 배경 · 검정 단색)</span>}
+                  </div>
+                </div>
+              )}
             </div>
+
           </CardContent>
         </Card>
 
