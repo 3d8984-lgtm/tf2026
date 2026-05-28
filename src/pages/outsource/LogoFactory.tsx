@@ -11,10 +11,12 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Eye, ImageOff, ChevronLeft, FileText, Download, Sparkles, Wand2, Upload, Trash2 } from "lucide-react";
+import { Eye, ImageOff, ChevronLeft, FileText, Download, Sparkles, Wand2, Upload, Trash2, Cloud } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { jsPDF } from "jspdf";
 import { svg2pdf } from "svg2pdf.js";
+import { supabase } from "@/integrations/supabase/client";
+import { VECTORIZER_MODE_KEY } from "./OutsourceSettings";
 // @ts-ignore - no types
 import ImageTracer from "imagetracerjs";
 
@@ -769,6 +771,36 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     } finally { setBusy(null); }
   };
 
+  // Vectorizer.AI 클라우드 벡터화 (고품질)
+  const handleVectorizeAI = async () => {
+    if (!sourceLogo) { toast({ title: "로고가 없습니다", variant: "destructive" }); return; }
+    const mode = (localStorage.getItem(VECTORIZER_MODE_KEY) as "test" | "preview" | "production" | null) || "test";
+    setBusy(`Vectorizer.AI 처리 중 (${mode})...`);
+    try {
+      let payload: { imageBase64?: string; imageUrl?: string; mode: string };
+      if (sourceLogo.startsWith("data:")) {
+        payload = { imageBase64: sourceLogo, mode };
+      } else {
+        payload = { imageUrl: sourceLogo, mode };
+      }
+      const { data, error } = await supabase.functions.invoke("vectorize-image", { body: payload });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const svgDataUrl: string = (data as any).svgDataUrl;
+      setVectorDataUrl(svgDataUrl);
+      setProcessedDataUrl(svgDataUrl);
+      setProcessedKind("vector");
+      toast({
+        title: "Vectorizer.AI 벡터 변환 완료",
+        description: `모드: ${mode} · 크레딧: ${(data as any).credits ?? "-"}`,
+      });
+    } catch (e: any) {
+      toast({ title: "Vectorizer.AI 변환 실패", description: e?.message || String(e), variant: "destructive" });
+    } finally { setBusy(null); }
+  };
+
+
+
 
 
   const downloadVectorSvg = () => {
@@ -1057,7 +1089,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
 
             {/* Settings row */}
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-2 items-end">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-2 items-end">
               <div className="space-y-1">
                 <Label className="text-xs">작업종류</Label>
                 <Select value={workType} onValueChange={(v) => setWorkType(v as WorkType)}>
@@ -1106,9 +1138,21 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 </Button>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">벡터 변환</Label>
+                <Label className="text-xs">벡터 변환 (로컬)</Label>
                 <Button size="sm" variant="outline" className="w-full h-9" onClick={handleVectorize} disabled={!sourceLogo || !!busy}>
                   <Wand2 className="w-3 h-3 mr-1" /> 실행
+                </Button>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">AI 벡터화 (Vectorizer.AI)</Label>
+                <Button
+                  size="sm"
+                  className="w-full h-9"
+                  onClick={handleVectorizeAI}
+                  disabled={!sourceLogo || !!busy}
+                  title="고품질 SVG · 시스템 설정에서 모드 선택"
+                >
+                  <Cloud className="w-3 h-3 mr-1" /> AI 변환
                 </Button>
               </div>
             </div>

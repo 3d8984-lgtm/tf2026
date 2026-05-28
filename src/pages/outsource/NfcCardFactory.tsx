@@ -21,7 +21,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { AlertTriangle, Download, Eye, FileText, Loader2, Upload, X, ChevronLeft, Save, Image as ImageIcon, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
+import { AlertTriangle, Download, Eye, FileText, Loader2, Upload, X, ChevronLeft, Save, Image as ImageIcon, ZoomIn, ZoomOut, Maximize2, Cloud } from "lucide-react";
+import { VECTORIZER_MODE_KEY } from "./OutsourceSettings";
 import { PDFDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import bwipjs from "bwip-js/browser";
@@ -1204,6 +1205,46 @@ function DetailView({
     }
   };
 
+  const [vectorizingSig, setVectorizingSig] = useState(false);
+
+  // Vectorizer.AI를 사용해서 현재 서명파일(API 또는 테스트)을 SVG로 변환하여 저장
+  const onVectorizeSignature = async () => {
+    const srcUrl = testSignature?.url || (cards[0]?.signatureUrl ?? null);
+    if (!srcUrl) {
+      toast({ title: "서명 파일이 없습니다", description: "먼저 서명 파일을 업로드하거나 API 서명이 있는 카드를 선택하세요.", variant: "destructive" });
+      return;
+    }
+    if (/\.svg(\?|$)/i.test(srcUrl)) {
+      toast({ title: "이미 SVG 벡터입니다", description: "변환이 필요하지 않습니다." });
+      return;
+    }
+    const mode = (localStorage.getItem(VECTORIZER_MODE_KEY) as "test" | "preview" | "production" | null) || "test";
+    setVectorizingSig(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("vectorize-image", {
+        body: { imageUrl: srcUrl, mode },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const svgDataUrl: string = (data as any).svgDataUrl;
+      // svgDataUrl -> Blob -> File -> upload via onUploadTestSignature
+      const res = await fetch(svgDataUrl);
+      const blob = await res.blob();
+      const file = new File([blob], `signature_vectorized_${Date.now()}.svg`, { type: "image/svg+xml" });
+      await onUploadTestSignature(file);
+      toast({
+        title: "AI 벡터 변환 완료",
+        description: `모드: ${mode} · 크레딧: ${(data as any).credits ?? "-"} · 테스트 서명에 저장됨`,
+      });
+    } catch (e) {
+      toast({ title: "Vectorizer.AI 변환 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    } finally {
+      setVectorizingSig(false);
+    }
+  };
+
+
+
 
 
   // Load saved layout from user_ui_settings (per-order, fallback to global default)
@@ -1679,6 +1720,17 @@ function DetailView({
                   </Button>
                 )}
               </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full text-xs gap-1"
+                onClick={onVectorizeSignature}
+                disabled={vectorizingSig}
+                title="Vectorizer.AI로 SVG 벡터로 변환 · 시스템 설정에서 모드 선택"
+              >
+                {vectorizingSig ? <Loader2 className="w-3 h-3 animate-spin" /> : <Cloud className="w-3 h-3" />}
+                AI 벡터 변환 (Vectorizer.AI)
+              </Button>
             </div>
           </CardContent>
         </Card>
