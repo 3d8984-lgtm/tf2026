@@ -1204,7 +1204,8 @@ function DetailView({
       }
       setUploadDebug(null);
       setTestSignature({ url: `${uploaded.publicUrl}?v=${Date.now()}`, name: file.name });
-      toast({ title: "서명 테스트 파일 등록됨" });
+      setSignatureVectorSvg(null);
+      toast({ title: "서명 테스트 파일 등록됨", description: "벡터 변환 패널에서 변환 후 PDF에 적용됩니다" });
     } catch (e) {
       setUploadDebug(buildUploadDebugInfo({ title: "서명 파일 처리 실패", objectPath: `${TEST_SIGNATURE_PREFIX}/signature__파일명_생성_전`, operation: "file processing before upload", error: e, file, fileName: file.name, contentType: file.type || "image/png", userId }));
       toast({ title: "업로드 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
