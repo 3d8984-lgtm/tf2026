@@ -1445,59 +1445,39 @@ function DetailView({
           continue;
         }
 
-        // ===== Text: skip here — text is rasterized as a single overlay below =====
-      }
-
-      // ===== Text overlay (rasterized via canvas — pixel-identical to preview) =====
-      // PDF 미리보기와 출력물 위치/글꼴 불일치를 막기 위해 텍스트는 preview와 동일한
-      // canvas API(drawCanvasTextElement)로 300dpi 투명 PNG에 그려 페이지 위에 얹는다.
-      try {
-        const dpi = 300;
-        const pxPerMmHi = dpi / 25.4;
-        const overlay = document.createElement("canvas");
-        overlay.width = Math.max(1, Math.round(cardSize.width * pxPerMmHi));
-        overlay.height = Math.max(1, Math.round(cardSize.height * pxPerMmHi));
-        const octx = overlay.getContext("2d")!;
-        octx.clearRect(0, 0, overlay.width, overlay.height);
-
-        // Ensure all (family, weight, size) combos are loaded into the document font set.
-        const textKeys = keys.filter(k => !isImageKey(k) && layout[k]?.enabled && !!textFor(k));
-        await Promise.all(textKeys.map(k => {
-          const cfg = layout[k];
-          const fontPx = Math.max(4, (cfg.fontSize || 3) * pxPerMmHi);
-          const weight = getOptionFontWeight(cfg);
-          const family = getOptionFontCss(cfg);
-          return (document as any).fonts?.load?.(`${weight} ${fontPx}px ${family}`);
-        }));
-
-        for (const key of textKeys) {
-          const cfg = layout[key];
+        // ===== Text (vector outlines via opentype.js) =====
+        // 미리보기와 동일한 anchor/위치를 사용하되, 글리프를 벡터 패스로 변환해 PDF에 임베드한다.
+        // (Illustrator "Create Outlines"와 동일 — 글꼴 임베드/누락 위험 없음)
+        if (!isImageKey(key)) {
           const txt = textFor(key);
-          const weight = getOptionFontWeight(cfg);
-          const family = getOptionFontCss(cfg);
-          const autoWmm = measureTextWidthMm(txt, cfg.fontSize || 3, family, weight);
-          const autoHmm = cfg.fontSize || 3;
-          const anc = getAnchor(key, cfg);
-          const tl = anchorTopLeft(cfg.x, cfg.y, autoWmm, autoHmm, anc);
-          const fontPx = Math.max(4, (cfg.fontSize || 3) * pxPerMmHi);
-          drawCanvasTextElement(
-            octx,
-            txt,
-            tl.left * pxPerMmHi,
-            tl.top * pxPerMmHi,
-            autoWmm * pxPerMmHi,
-            fontPx,
-            family,
-            weight,
-            getAlign(key, cfg),
-          );
+          if (!txt) continue;
+          try {
+            const weight = getOptionFontWeight(cfg);
+            const family = getOptionFontCss(cfg);
+            const fontSizeMm = cfg.fontSize || 3;
+            const fontSizePt = fontSizeMm * MM;
+            // 미리보기와 동일한 canvas 측정 기반 너비/높이로 anchor 계산 → 위치 일치 보장
+            const autoWmm = measureTextWidthMm(txt, fontSizeMm, family, weight);
+            const autoHmm = fontSizeMm;
+            const anc2 = getAnchor(key, cfg);
+            const tl2 = anchorTopLeft(cfg.x, cfg.y, autoWmm, autoHmm, anc2);
+            // 정렬: 박스 너비(autoWmm) 안에서 left/center/right 보정
+            const otf = await pickFont(cfg);
+            const glyphWidthPt = measureOutlineWidthPt(otf, txt, fontSizePt);
+            const boxWpt = autoWmm * MM;
+            const align = getAlign(key, cfg);
+            let drawXpt = tl2.left * MM;
+            if (align === "center") drawXpt += (boxWpt - glyphWidthPt) / 2;
+            else if (align === "right") drawXpt += boxWpt - glyphWidthPt;
+            // 베이스라인 = top + ascender
+            const ascentPt = outlineAscentPt(otf, fontSizePt);
+            const topYpt = pageHpt - tl2.top * MM;
+            const baselineYpt = topYpt - ascentPt;
+            drawTextAsOutline(page, otf, txt, drawXpt, baselineYpt, fontSizePt, rgb(0, 0, 0));
+          } catch (e) {
+            console.warn(`text outline draw failed for ${key}`, e);
+          }
         }
-
-        const pngBytes = await canvasToPngBytes(overlay);
-        const overlayImg = await out.embedPng(pngBytes);
-        page.drawImage(overlayImg, { x: 0, y: 0, width: pageWpt, height: pageHpt });
-      } catch (e) {
-        console.warn("text overlay rasterize failed", e);
       }
     };
 
