@@ -1426,10 +1426,26 @@ function DetailView({
           continue;
         }
 
-        // ===== Signature (PNG/JPEG, sizeAnchor-aware contain) =====
+        // ===== Signature: vector SVG (preferred) → fallback PNG =====
         if (key === "signature") {
+          // 1) If user already vectorized the test signature, embed as vector PDF (lossless)
+          if (signatureVectorSvg) {
+            try {
+              await embedSvgVector(page, signatureVectorSvg, xMm, yMm, cfg.w, cfg.h, cfg.sizeAnchor ?? "mc");
+            } catch (e) { console.warn("signature vector embed fail", e); }
+            continue;
+          }
           const sigUrl = testSignature?.url || card.signatureUrl;
           if (!sigUrl) continue;
+          // 2) If the signature URL is an SVG, embed it as vector directly
+          if (/\.svg(\?|$)/i.test(sigUrl)) {
+            try {
+              const svgStr = await fetchSvgString(sigUrl);
+              await embedSvgVector(page, svgStr, xMm, yMm, cfg.w, cfg.h, cfg.sizeAnchor ?? "mc");
+              continue;
+            } catch (e) { console.warn("signature svg embed fail", e); }
+          }
+          // 3) Raster fallback (PNG) — original behaviour
           try {
             const pngBytes = await urlToPngBytes(sigUrl);
             const sigImg = await out.embedPng(pngBytes);
@@ -1452,6 +1468,7 @@ function DetailView({
           } catch (e) { console.warn("signature embed fail", e); }
           continue;
         }
+
 
         // ===== Text (vector outlines via opentype.js) =====
         // 미리보기와 동일한 anchor/위치를 사용하되, 글리프를 벡터 패스로 변환해 PDF에 임베드한다.
