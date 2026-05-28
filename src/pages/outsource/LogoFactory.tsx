@@ -771,6 +771,36 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     } finally { setBusy(null); }
   };
 
+  // Vectorizer.AI 클라우드 벡터화 (고품질)
+  const handleVectorizeAI = async () => {
+    if (!sourceLogo) { toast({ title: "로고가 없습니다", variant: "destructive" }); return; }
+    const mode = (localStorage.getItem(VECTORIZER_MODE_KEY) as "test" | "preview" | "production" | null) || "test";
+    setBusy(`Vectorizer.AI 처리 중 (${mode})...`);
+    try {
+      let payload: { imageBase64?: string; imageUrl?: string; mode: string };
+      if (sourceLogo.startsWith("data:")) {
+        payload = { imageBase64: sourceLogo, mode };
+      } else {
+        payload = { imageUrl: sourceLogo, mode };
+      }
+      const { data, error } = await supabase.functions.invoke("vectorize-image", { body: payload });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const svgDataUrl: string = (data as any).svgDataUrl;
+      setVectorDataUrl(svgDataUrl);
+      setProcessedDataUrl(svgDataUrl);
+      setProcessedKind("vector");
+      toast({
+        title: "Vectorizer.AI 벡터 변환 완료",
+        description: `모드: ${mode} · 크레딧: ${(data as any).credits ?? "-"}`,
+      });
+    } catch (e: any) {
+      toast({ title: "Vectorizer.AI 변환 실패", description: e?.message || String(e), variant: "destructive" });
+    } finally { setBusy(null); }
+  };
+
+
+
 
 
   const downloadVectorSvg = () => {
