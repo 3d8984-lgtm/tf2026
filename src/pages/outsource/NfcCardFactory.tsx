@@ -181,19 +181,35 @@ interface FontOption {
   label: string;
   css: string;        // CSS font-family stack (preview)
   cssLink: string;    // <link rel=stylesheet> href to register family in browser
+  /** Returns a TTF/OTF/WOFF URL for the given weight. Used to embed the same font in PDF outlines. */
+  pdfFontUrl?: (weight: number) => string;
 }
+// Pretendard exposes per-weight TTFs on jsDelivr (orioncactus/pretendard repo)
+const pretendardWeightName = (w: number): string => {
+  if (w >= 850) return "Black";
+  if (w >= 750) return "ExtraBold";
+  if (w >= 650) return "Bold";
+  if (w >= 550) return "SemiBold";
+  if (w >= 450) return "Medium";
+  if (w >= 350) return "Regular";
+  if (w >= 250) return "Light";
+  if (w >= 150) return "ExtraLight";
+  return "Thin";
+};
 const FONT_OPTIONS: FontOption[] = [
   {
     id: "pretendard",
     label: "Pretendard",
     css: "'Pretendard Variable', Pretendard, -apple-system, sans-serif",
     cssLink: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css",
+    pdfFontUrl: (w) => `https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/public/static/Pretendard-${pretendardWeightName(w)}.otf`,
   },
   {
     id: "ibm-plex-sans-kr",
     label: "IBM Plex Sans KR",
     css: "'IBM Plex Sans KR', sans-serif",
     cssLink: "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;700&display=swap",
+    pdfFontUrl: (w) => `https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-sans-kr/files/ibm-plex-sans-kr-korean-${w >= 650 ? 700 : 400}-normal.woff`,
   },
   {
     id: "spoqa-han-sans-neo",
@@ -206,12 +222,14 @@ const FONT_OPTIONS: FontOption[] = [
     label: "Black Han Sans (블랙한산스 · Bold)",
     css: "'Black Han Sans', sans-serif",
     cssLink: "https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap",
+    pdfFontUrl: () => `https://cdn.jsdelivr.net/npm/@fontsource/black-han-sans/files/black-han-sans-korean-400-normal.woff`,
   },
   {
     id: "do-hyeon",
     label: "Do Hyeon (도현체 · Bold)",
     css: "'Do Hyeon', sans-serif",
     cssLink: "https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap",
+    pdfFontUrl: () => `https://cdn.jsdelivr.net/npm/@fontsource/do-hyeon/files/do-hyeon-korean-400-normal.woff`,
   },
 ];
 const DEFAULT_MASTER_FONT = "spoqa-han-sans-neo";
