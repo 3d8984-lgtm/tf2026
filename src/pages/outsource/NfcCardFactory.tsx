@@ -1720,6 +1720,17 @@ function DetailView({
                   </Button>
                 )}
               </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full text-xs gap-1"
+                onClick={onVectorizeSignature}
+                disabled={vectorizingSig}
+                title="Vectorizer.AI로 SVG 벡터로 변환 · 시스템 설정에서 모드 선택"
+              >
+                {vectorizingSig ? <Loader2 className="w-3 h-3 animate-spin" /> : <Cloud className="w-3 h-3" />}
+                AI 벡터 변환 (Vectorizer.AI)
+              </Button>
             </div>
           </CardContent>
         </Card>
