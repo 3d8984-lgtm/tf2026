@@ -1727,17 +1727,45 @@ function DetailView({
                   </Button>
                 )}
               </div>
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full text-xs gap-1"
-                onClick={onVectorizeSignature}
-                disabled={vectorizingSig}
-                title="Vectorizer.AI로 SVG 벡터로 변환 · 시스템 설정에서 모드 선택"
-              >
-                {vectorizingSig ? <Loader2 className="w-3 h-3 animate-spin" /> : <Cloud className="w-3 h-3" />}
-                AI 벡터 변환 (Vectorizer.AI)
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 text-xs gap-1"
+                  onClick={onVectorizeSignature}
+                  disabled={vectorizingSig}
+                  title="Vectorizer.AI로 SVG 벡터로 변환 · 시스템 설정에서 모드 선택"
+                >
+                  {vectorizingSig ? <Loader2 className="w-3 h-3 animate-spin" /> : <Cloud className="w-3 h-3" />}
+                  AI 벡터 변환 (Vectorizer.AI)
+                </Button>
+                {testSignature?.url && (/\.svg(\?|$)/i.test(testSignature.url) || (testSignature.name || "").toLowerCase().endsWith(".svg")) && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="text-xs gap-1"
+                    title="벡터 변환된 SVG 다운로드"
+                    onClick={async () => {
+                      try {
+                        const r = await fetch(testSignature.url!);
+                        if (!r.ok) throw new Error(`다운로드 실패: ${r.status}`);
+                        const blob = await r.blob();
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = testSignature.name || `signature_vector_${Date.now()}.svg`;
+                        document.body.appendChild(a); a.click(); a.remove();
+                        URL.revokeObjectURL(url);
+                      } catch (e) {
+                        toast({ title: "다운로드 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+                      }
+                    }}
+                  >
+                    <Download className="w-3 h-3" />
+                    SVG 다운로드
+                  </Button>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
