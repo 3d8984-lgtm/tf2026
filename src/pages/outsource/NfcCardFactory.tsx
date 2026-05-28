@@ -1706,7 +1706,7 @@ function DetailView({
               </div>
 
               {/* ===== Signature vectorization (PNG → SVG vector for PDF) ===== */}
-              {(testSignature?.url || cardPreview.signatureUrl) && (
+              {(testSignature?.url || cards[0]?.signatureUrl) && (
                 <div className="mt-2 pt-2 border-t space-y-2">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-medium">PDF용 벡터 변환</Label>
@@ -1744,7 +1744,7 @@ function DetailView({
                       size="sm" className="flex-1 text-xs"
                       disabled={signatureVectorBusy}
                       onClick={async () => {
-                        const url = testSignature?.url || cardPreview.signatureUrl;
+                        const url = testSignature?.url || cards[0]?.signatureUrl;
                         if (!url) return;
                         setSignatureVectorBusy(true);
                         try {
