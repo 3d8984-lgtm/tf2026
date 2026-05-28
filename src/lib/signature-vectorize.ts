@@ -146,19 +146,23 @@ function normalizeSvg(rawSvg: string, fallbackW: number, fallbackH: number): str
 
 async function vectorizePotrace(prepared: Prepared): Promise<string> {
   await potraceInit();
-  // Create a bitmap from our binarized canvas to feed potrace
+  // Feed potrace an ImageBitmap built from the cleaned canvas.
   const blob: Blob = await new Promise((res, rej) =>
     prepared.canvas.toBlob(b => (b ? res(b) : rej(new Error("blob failed"))), "image/png"),
   );
   const bitmap = await createImageBitmap(blob);
+  // NOTE: esm-potrace-wasm only supports the option keys below.
+  // `color` / `background` are NOT valid here — passing them silently breaks output.
   const svg = await potrace(bitmap, {
-    turdsize: 4,
+    turdsize: 2,
     turnpolicy: 4,
-    alphamax: 1.0,
+    alphamax: 1,
     opticurve: 1,
-    opttolerance: 0.4,
-    color: "#000000",
-    background: "transparent",
+    opttolerance: 0.2,
+    pathonly: false,
+    extractcolors: false,
+    posterizelevel: 1,
+    posterizationalgorithm: 0,
   } as any);
   return normalizeSvg(svg, prepared.width, prepared.height);
 }
