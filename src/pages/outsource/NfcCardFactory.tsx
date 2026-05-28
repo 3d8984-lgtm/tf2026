@@ -181,19 +181,35 @@ interface FontOption {
   label: string;
   css: string;        // CSS font-family stack (preview)
   cssLink: string;    // <link rel=stylesheet> href to register family in browser
+  /** Returns a TTF/OTF/WOFF URL for the given weight. Used to embed the same font in PDF outlines. */
+  pdfFontUrl?: (weight: number) => string;
 }
+// Pretendard exposes per-weight TTFs on jsDelivr (orioncactus/pretendard repo)
+const pretendardWeightName = (w: number): string => {
+  if (w >= 850) return "Black";
+  if (w >= 750) return "ExtraBold";
+  if (w >= 650) return "Bold";
+  if (w >= 550) return "SemiBold";
+  if (w >= 450) return "Medium";
+  if (w >= 350) return "Regular";
+  if (w >= 250) return "Light";
+  if (w >= 150) return "ExtraLight";
+  return "Thin";
+};
 const FONT_OPTIONS: FontOption[] = [
   {
     id: "pretendard",
     label: "Pretendard",
     css: "'Pretendard Variable', Pretendard, -apple-system, sans-serif",
     cssLink: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css",
+    pdfFontUrl: (w) => `https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/public/static/Pretendard-${pretendardWeightName(w)}.otf`,
   },
   {
     id: "ibm-plex-sans-kr",
     label: "IBM Plex Sans KR",
     css: "'IBM Plex Sans KR', sans-serif",
     cssLink: "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;700&display=swap",
+    pdfFontUrl: (w) => `https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-sans-kr/files/ibm-plex-sans-kr-korean-${w >= 650 ? 700 : 400}-normal.woff`,
   },
   {
     id: "spoqa-han-sans-neo",
@@ -206,12 +222,14 @@ const FONT_OPTIONS: FontOption[] = [
     label: "Black Han Sans (블랙한산스 · Bold)",
     css: "'Black Han Sans', sans-serif",
     cssLink: "https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap",
+    pdfFontUrl: () => `https://cdn.jsdelivr.net/npm/@fontsource/black-han-sans/files/black-han-sans-korean-400-normal.woff`,
   },
   {
     id: "do-hyeon",
     label: "Do Hyeon (도현체 · Bold)",
     css: "'Do Hyeon', sans-serif",
     cssLink: "https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap",
+    pdfFontUrl: () => `https://cdn.jsdelivr.net/npm/@fontsource/do-hyeon/files/do-hyeon-korean-400-normal.woff`,
   },
 ];
 const DEFAULT_MASTER_FONT = "spoqa-han-sans-neo";
@@ -1248,17 +1266,46 @@ function DetailView({
     // Text is converted to vector outlines (= Illustrator "Create Outlines").
     // No font is embedded; each glyph becomes a pure vector shape — guaranteed identical
     // rendering on any PDF viewer / print RIP, no font-missing risk.
-    // 각 텍스트 항목별로 설정된 BOLD 강도를 모두 수집해서 한 번씩만 로드한다.
-    const weightsInUse = new Set<number>([DEFAULT_MASTER_FONT_WEIGHT]);
-    for (const k of FRONT_KEYS) if (!isImageKey(k)) weightsInUse.add(getOptionFontWeight(layoutFront[k]));
-    for (const k of BACK_KEYS)  if (!isImageKey(k)) weightsInUse.add(getOptionFontWeight(layoutBack[k]));
-    const otFontByWeight = new Map<number, any>();
-    for (const w of weightsInUse) {
-      const bytes = await loadSpoqaFontBytes(w);
-      const otf = await loadOpentypeFont(bytes, `spoqa-${w}`);
-      otFontByWeight.set(w, otf);
-    }
-    const pickFont = (weight: number) => otFontByWeight.get(weight) ?? otFontByWeight.values().next().value;
+    // 각 텍스트 항목별로 선택된 (fontId, weight) 조합을 모두 수집해서 실제 글꼴 파일을 로드한다.
+    // → 미리보기와 동일한 글꼴/너비/위치가 PDF에 반영된다.
+    const otFontCache = new Map<string, any>();
+    const loadOtf = async (fontId: string, weight: number): Promise<any> => {
+      const key = `${fontId}@${weight}`;
+      const hit = otFontCache.get(key);
+      if (hit) return hit;
+      try {
+        if (fontId === "spoqa-han-sans-neo") {
+          const bytes = await loadSpoqaFontBytes(weight);
+          const otf = await loadOpentypeFont(bytes, `spoqa-${weight}`);
+          otFontCache.set(key, otf);
+          return otf;
+        }
+        const opt = FONT_OPTIONS.find(f => f.id === fontId);
+        const url = opt?.pdfFontUrl?.(weight);
+        if (url) {
+          const res = await fetch(url);
+          if (res.ok) {
+            const bytes = new Uint8Array(await res.arrayBuffer());
+            const otf = await loadOpentypeFont(bytes, key);
+            otFontCache.set(key, otf);
+            return otf;
+          }
+        }
+      } catch (e) {
+        console.warn(`PDF font load failed (${key}), falling back to Spoqa`, e);
+      }
+      // Fallback to Spoqa Medium so PDF generation never fails
+      const fbBytes = await loadSpoqaFontBytes(weight);
+      const fb = await loadOpentypeFont(fbBytes, `spoqa-${weight}`);
+      otFontCache.set(key, fb);
+      return fb;
+    };
+
+    // Pre-load every (fontId, weight) combination referenced by enabled text options.
+    const pickFont = async (cfg: { fontId?: string; fontWeight?: number }) =>
+      loadOtf(getOptionFontId(cfg), getOptionFontWeight(cfg));
+    for (const k of FRONT_KEYS) if (!isImageKey(k) && layoutFront[k]?.enabled) await pickFont(layoutFront[k]);
+    for (const k of BACK_KEYS)  if (!isImageKey(k) && layoutBack[k]?.enabled)  await pickFont(layoutBack[k]);
 
     const textFor = (key: OptionKey): string => {
       switch (key) {
@@ -1402,7 +1449,7 @@ function DetailView({
         const txt = textFor(key);
         if (!txt) continue;
         const weight = getOptionFontWeight(cfg);
-        const otf = pickFont(weight);
+        const otf = await pickFont(cfg);
         const sizePt = cfg.fontSize * MM;
         const textWpt = measureOutlineWidthPt(otf, txt, sizePt);
         const autoWmm = textWpt / MM;
