@@ -59,14 +59,14 @@ function binarize(src: ImageData, threshold: number): ImageData {
   for (let i = 0; i < s.length; i += 4) {
     const r = s[i], g = s[i + 1], b = s[i + 2], a = s[i + 3];
     if (a < 32) {
-      d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 255;
+      d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 0;
       continue;
     }
     const lum = 0.299 * r + 0.587 * g + 0.114 * b;
     if (lum < threshold) {
       d[i] = 0; d[i + 1] = 0; d[i + 2] = 0; d[i + 3] = 255;
     } else {
-      d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 255;
+      d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 0;
     }
   }
   return out;
@@ -85,7 +85,7 @@ function denoise(src: ImageData): ImageData {
           const xx = x + dx, yy = y + dy;
           if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
           const j = (yy * w + xx) * 4;
-          if (s[j] === 0) ink++;
+          if (s[j + 3] > 0 && s[j] === 0) ink++;
           total++;
         }
       }
@@ -93,7 +93,7 @@ function denoise(src: ImageData): ImageData {
       d[i] = isInk ? 0 : 255;
       d[i + 1] = d[i];
       d[i + 2] = d[i];
-      d[i + 3] = 255;
+      d[i + 3] = isInk ? 255 : 0;
     }
   }
   return out;
@@ -111,10 +111,21 @@ function normalizeSvg(rawSvg: string, fallbackW: number, fallbackH: number): str
     if (p.length === 4 && p[2] > 0 && p[3] > 0) { w = p[2]; h = p[3]; }
   }
   const paths: string[] = [];
-  const re = /<path\b[^>]*\bd\s*=\s*"([^"]+)"[^>]*\/?>/gi;
+  const tagRe = /<path\b[^>]*\/?>/gi;
+  const attr = (tag: string, name: string) => tag.match(new RegExp(`\\b${name}\\s*=\\s*"([^"]*)"`, "i"))?.[1] ?? "";
+  const isInkPath = (tag: string) => {
+    const fill = attr(tag, "fill").replace(/\s+/g, "").toLowerCase();
+    const opacity = Number(attr(tag, "opacity") || "1");
+    const visible = Number.isFinite(opacity) ? opacity > 0.01 : true;
+    return visible && (fill === "#000" || fill === "#000000" || fill === "black" || fill === "rgb(0,0,0)");
+  };
   let m: RegExpExecArray | null;
-  while ((m = re.exec(rawSvg))) {
-    paths.push(`<path d="${m[1]}" fill="#000" stroke="none"/>`);
+  while ((m = tagRe.exec(rawSvg))) {
+    const tag = m[0];
+    const d = attr(tag, "d");
+    if (d && isInkPath(tag)) {
+      paths.push(`<path d="${d}" fill="#000" stroke="none"/>`);
+    }
   }
   if (!paths.length) {
     throw new Error("벡터화 결과가 비어 있습니다. 임계값(threshold)을 조정해 보세요.");
