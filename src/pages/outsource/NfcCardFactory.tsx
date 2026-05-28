@@ -29,6 +29,7 @@ import { CardFrame, CARD_W_MM, CARD_H_MM } from "@/components/outsource/CardFram
 import { ensureSpoqaFontFace, loadSpoqaFontBytes, waitForSpoqaLoaded } from "@/lib/pdf-fonts";
 import { svgStringToPdfBytes, fetchSvgString, svgAspectRatio } from "@/lib/svg-to-pdf";
 import { loadOpentypeFont, measureOutlineWidthPt, outlineAscentPt, drawTextAsOutline } from "@/lib/text-outline";
+import { vectorizeSignature, VECTOR_METHOD_LABELS, type VectorMethod } from "@/lib/signature-vectorize";
 
 const MM = 2.8346456693; // 1mm in pt
 // 프레임/PDF 원본 크기 그대로 사용 — 별도 여백 보정 없음.
