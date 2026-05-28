@@ -1138,9 +1138,21 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 </Button>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">벡터 변환</Label>
+                <Label className="text-xs">벡터 변환 (로컬)</Label>
                 <Button size="sm" variant="outline" className="w-full h-9" onClick={handleVectorize} disabled={!sourceLogo || !!busy}>
                   <Wand2 className="w-3 h-3 mr-1" /> 실행
+                </Button>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">AI 벡터화 (Vectorizer.AI)</Label>
+                <Button
+                  size="sm"
+                  className="w-full h-9"
+                  onClick={handleVectorizeAI}
+                  disabled={!sourceLogo || !!busy}
+                  title="고품질 SVG · 시스템 설정에서 모드 선택"
+                >
+                  <Cloud className="w-3 h-3 mr-1" /> AI 변환
                 </Button>
               </div>
             </div>
