@@ -967,7 +967,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                   <Badge>{WORK_TYPES.find(w => w.value === workType)?.label}</Badge>
                 </div>
                 <div className="aspect-square w-full border rounded flex items-center justify-center overflow-hidden relative"
-                  style={{ background: workType === "heat-transfer" ? "#1f2937" : workType === "embroidery" ? "#f3eee0" : workType === "laser" ? "#9ca3af" : "#fff" }}>
+                  style={{ background: "repeating-conic-gradient(#e5e7eb 0% 25%, #ffffff 0% 50%) 50% / 16px 16px" }}>
                   {displayedLogo ? (
                     <div className="relative flex items-center justify-center" style={{ width: `${Math.min(80, logoWidthMm * 1.2)}%`, height: `${Math.min(80, logoHeightMm * 1.2)}%` }}>
                       <img
