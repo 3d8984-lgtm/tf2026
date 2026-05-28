@@ -1,8 +1,7 @@
-// Signature image vectorization.
-// 3 methods: "bezier" (cubic/quadratic-biased), "imagetracer" (AI-ish detail),
-// "potrace" (Potrace-style: heavy smoothing, minimal nodes).
-// All built on ImageTracer for a single, reliable runtime (no WASM init required).
-// Output SVG: transparent background, single black fill, tight viewBox.
+// Signature image vectorization (browser-only, no WASM).
+// Pipeline: supersample 2x -> Gaussian blur -> hysteresis threshold ->
+// morphological cleanup -> ImageTracer with bezier-biased params ->
+// extract ink paths -> emit transparent SVG with single black fill.
 // @ts-ignore - no types
 import ImageTracer from "imagetracerjs";
 
@@ -15,20 +14,29 @@ export const VECTOR_METHOD_LABELS: Record<VectorMethod, string> = {
 };
 
 export interface VectorizeOptions {
-  /** 0-255. Pixels with luminance below this become ink (black). */
+  /** 0-255. Pixels darker than this are definitely ink. */
   threshold?: number;
-  /** Optional max width to downsample to before tracing (perf). */
+  /** Max width of the *original* before supersampling (perf cap). */
   maxWidth?: number;
+  /** Supersample factor (1-3). Higher = smoother but slower. */
+  supersample?: number;
 }
 
 interface Prepared {
   imageData: ImageData;
   width: number;
   height: number;
+  /** Original (pre-supersample) dimensions, used for output viewBox. */
+  origWidth: number;
+  origHeight: number;
   canvas: HTMLCanvasElement;
 }
 
-async function loadToCanvas(url: string, maxWidth = 1200): Promise<Prepared> {
+async function loadToCanvas(
+  url: string,
+  maxWidth: number,
+  supersample: number,
+): Promise<Prepared> {
   const img = new Image();
   img.crossOrigin = "anonymous";
   await new Promise<void>((res, rej) => {
@@ -43,57 +51,128 @@ async function loadToCanvas(url: string, maxWidth = 1200): Promise<Prepared> {
     w = Math.round(w * k);
     h = Math.round(h * k);
   }
+  const origW = w, origH = h;
+  // Supersample: trace at higher resolution so the curves are smoother.
+  const sw = Math.round(w * supersample);
+  const sh = Math.round(h * supersample);
   const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
+  canvas.width = sw;
+  canvas.height = sh;
   const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
-  ctx.drawImage(img, 0, 0, w, h);
-  const imageData = ctx.getImageData(0, 0, w, h);
-  return { imageData, width: w, height: h, canvas };
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, 0, 0, sw, sh);
+  const imageData = ctx.getImageData(0, 0, sw, sh);
+  return { imageData, width: sw, height: sh, origWidth: origW, origHeight: origH, canvas };
 }
 
-function binarize(src: ImageData, threshold: number): ImageData {
-  const out = new ImageData(src.width, src.height);
-  const s = src.data;
-  const d = out.data;
-  for (let i = 0; i < s.length; i += 4) {
-    const r = s[i], g = s[i + 1], b = s[i + 2], a = s[i + 3];
-    if (a < 32) {
-      d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 0;
-      continue;
+/** Separable Gaussian blur on luminance only; returns an ImageData of luminance in R. */
+function toLuminanceBlurred(src: ImageData, radius = 1): ImageData {
+  const { width: w, height: h, data } = src;
+  const lum = new Float32Array(w * h);
+  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+    const a = data[i + 3];
+    // Treat fully transparent as paper-white so it never becomes ink.
+    if (a < 8) { lum[p] = 255; continue; }
+    lum[p] = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+  }
+  // 1D Gaussian kernel
+  const sigma = Math.max(0.6, radius);
+  const r = Math.max(1, Math.ceil(sigma * 2));
+  const kernel = new Float32Array(r * 2 + 1);
+  let sum = 0;
+  for (let i = -r; i <= r; i++) {
+    const v = Math.exp(-(i * i) / (2 * sigma * sigma));
+    kernel[i + r] = v;
+    sum += v;
+  }
+  for (let i = 0; i < kernel.length; i++) kernel[i] /= sum;
+
+  const tmp = new Float32Array(w * h);
+  // horizontal
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let acc = 0;
+      for (let k = -r; k <= r; k++) {
+        const xx = Math.min(w - 1, Math.max(0, x + k));
+        acc += lum[y * w + xx] * kernel[k + r];
+      }
+      tmp[y * w + x] = acc;
     }
-    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-    if (lum < threshold) {
-      d[i] = 0; d[i + 1] = 0; d[i + 2] = 0; d[i + 3] = 255;
-    } else {
-      d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 0;
+  }
+  // vertical
+  const out = new ImageData(w, h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let acc = 0;
+      for (let k = -r; k <= r; k++) {
+        const yy = Math.min(h - 1, Math.max(0, y + k));
+        acc += tmp[yy * w + x] * kernel[k + r];
+      }
+      const i = (y * w + x) * 4;
+      const v = Math.round(acc);
+      out.data[i] = v; out.data[i + 1] = v; out.data[i + 2] = v; out.data[i + 3] = 255;
     }
   }
   return out;
 }
 
-function denoise(src: ImageData): ImageData {
-  const { width: w, height: h, data: s } = src;
-  const out = new ImageData(w, h);
-  const d = out.data;
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const i = (y * w + x) * 4;
-      let ink = 0, total = 0;
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          const xx = x + dx, yy = y + dy;
-          if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
-          const j = (yy * w + xx) * 4;
-          if (s[j + 3] > 0 && s[j] === 0) ink++;
-          total++;
-        }
+/** Hysteresis thresholding: strong ink + connected weak ink. */
+function hysteresisThreshold(src: ImageData, hi: number, lo: number): ImageData {
+  const { width: w, height: h, data } = src;
+  const n = w * h;
+  const strong = new Uint8Array(n);
+  const weak = new Uint8Array(n);
+  for (let p = 0, i = 0; p < n; p++, i += 4) {
+    const v = data[i];
+    if (v < lo) strong[p] = 1;
+    else if (v < hi) weak[p] = 1;
+  }
+  // Flood-fill weak pixels connected to strong ones.
+  const stack: number[] = [];
+  for (let p = 0; p < n; p++) if (strong[p]) stack.push(p);
+  while (stack.length) {
+    const p = stack.pop()!;
+    const x = p % w, y = (p / w) | 0;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        const xx = x + dx, yy = y + dy;
+        if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+        const q = yy * w + xx;
+        if (weak[q] && !strong[q]) { strong[q] = 1; stack.push(q); }
       }
-      const isInk = ink * 2 > total;
-      d[i] = isInk ? 0 : 255;
-      d[i + 1] = d[i];
-      d[i + 2] = d[i];
-      d[i + 3] = isInk ? 255 : 0;
+    }
+  }
+  const out = new ImageData(w, h);
+  for (let p = 0, i = 0; p < n; p++, i += 4) {
+    if (strong[p]) {
+      out.data[i] = 0; out.data[i + 1] = 0; out.data[i + 2] = 0; out.data[i + 3] = 255;
+    } else {
+      out.data[i] = 255; out.data[i + 1] = 255; out.data[i + 2] = 255; out.data[i + 3] = 0;
+    }
+  }
+  return out;
+}
+
+/** Remove isolated ink specks (< minNeighbors of 8). */
+function removeSpecks(src: ImageData, minNeighbors = 2): ImageData {
+  const { width: w, height: h, data } = src;
+  const out = new ImageData(w, h);
+  out.data.set(data);
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const i = (y * w + x) * 4;
+      if (data[i + 3] === 0) continue;
+      let n = 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        const j = ((y + dy) * w + (x + dx)) * 4;
+        if (data[j + 3] > 0) n++;
+      }
+      if (n < minNeighbors) {
+        out.data[i] = 255; out.data[i + 1] = 255; out.data[i + 2] = 255; out.data[i + 3] = 0;
+      }
     }
   }
   return out;
@@ -103,34 +182,30 @@ function wrapSvg(pathsXml: string, width: number, height: number): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" fill="#000" stroke="none">${pathsXml}</svg>`;
 }
 
-function normalizeSvg(rawSvg: string, fallbackW: number, fallbackH: number): string {
-  const vb = rawSvg.match(/viewBox\s*=\s*"([^"]+)"/i);
-  let w = fallbackW, h = fallbackH;
-  if (vb) {
-    const p = vb[1].trim().split(/[\s,]+/).map(Number);
-    if (p.length === 4 && p[2] > 0 && p[3] > 0) { w = p[2]; h = p[3]; }
-  }
+function normalizeSvg(rawSvg: string, viewW: number, viewH: number): string {
   const paths: string[] = [];
   const tagRe = /<path\b[^>]*\/?>/gi;
-  const attr = (tag: string, name: string) => tag.match(new RegExp(`\\b${name}\\s*=\\s*"([^"]*)"`, "i"))?.[1] ?? "";
+  const attr = (tag: string, name: string) =>
+    tag.match(new RegExp(`\\b${name}\\s*=\\s*"([^"]*)"`, "i"))?.[1] ?? "";
   const isInkPath = (tag: string) => {
     const fill = attr(tag, "fill").replace(/\s+/g, "").toLowerCase();
     const opacity = Number(attr(tag, "opacity") || "1");
     const visible = Number.isFinite(opacity) ? opacity > 0.01 : true;
-    return visible && (fill === "#000" || fill === "#000000" || fill === "black" || fill === "rgb(0,0,0)");
+    return (
+      visible &&
+      (fill === "#000" || fill === "#000000" || fill === "black" || fill === "rgb(0,0,0)")
+    );
   };
   let m: RegExpExecArray | null;
   while ((m = tagRe.exec(rawSvg))) {
     const tag = m[0];
     const d = attr(tag, "d");
-    if (d && isInkPath(tag)) {
-      paths.push(`<path d="${d}" fill="#000" stroke="none"/>`);
-    }
+    if (d && isInkPath(tag)) paths.push(`<path d="${d}" fill="#000" stroke="none"/>`);
   }
   if (!paths.length) {
     throw new Error("벡터화 결과가 비어 있습니다. 임계값(threshold)을 조정해 보세요.");
   }
-  return wrapSvg(paths.join(""), w, h);
+  return wrapSvg(paths.join(""), viewW, viewH);
 }
 
 function vectorizeImageTracer(prepared: Prepared, opts: any): string {
@@ -146,14 +221,16 @@ function vectorizeImageTracer(prepared: Prepared, opts: any): string {
     blurradius: 0,
     blurdelta: 20,
     strokewidth: 0,
-    linefilter: false,
-    scale: 1,
-    roundcoords: 1,
+    linefilter: true,
+    // We supersampled by `supersample`; scaling here reverses it so the path
+    // coordinates land in the original image's coordinate system.
+    scale: prepared.origWidth / prepared.width,
+    roundcoords: 2,
     viewbox: true,
     desc: false,
     ...opts,
   });
-  return normalizeSvg(svg, prepared.width, prepared.height);
+  return normalizeSvg(svg, prepared.origWidth, prepared.origHeight);
 }
 
 export async function vectorizeSignature(
@@ -163,37 +240,53 @@ export async function vectorizeSignature(
 ): Promise<string> {
   const threshold = opts.threshold ?? 160;
   const maxWidth = opts.maxWidth ?? 1200;
-  const raw = await loadToCanvas(url, maxWidth);
-  const bin = binarize(raw.imageData, threshold);
-  const clean = denoise(bin);
-  const ctx = raw.canvas.getContext("2d")!;
-  ctx.putImageData(clean, 0, 0);
-  const prepared: Prepared = { imageData: clean, width: raw.width, height: raw.height, canvas: raw.canvas };
+  const supersample = Math.max(1, Math.min(3, opts.supersample ?? 2));
+
+  const raw = await loadToCanvas(url, maxWidth, supersample);
+
+  // 1) Luminance + Gaussian blur (soft edges -> smoother traced curves).
+  const blurred = toLuminanceBlurred(raw.imageData, 1.2);
+
+  // 2) Hysteresis threshold: hi = main, lo = hi+30 to recover thin strokes.
+  const hi = threshold;
+  const lo = Math.min(230, threshold + 35);
+  const inked = hysteresisThreshold(blurred, hi, lo);
+
+  // 3) Drop isolated specks but keep fine ink connected to strong pixels.
+  const cleaned = removeSpecks(inked, 2);
+
+  const prepared: Prepared = {
+    imageData: cleaned,
+    width: raw.width,
+    height: raw.height,
+    origWidth: raw.origWidth,
+    origHeight: raw.origHeight,
+    canvas: raw.canvas,
+  };
 
   if (method === "potrace") {
-    // Potrace-style: aggressive node reduction, smooth curves, strong noise rejection
+    // Potrace-like: minimal nodes, very smooth curves.
     return vectorizeImageTracer(prepared, {
-      ltres: 1.5,
-      qtres: 1.5,
-      pathomit: 16,
+      ltres: 2.5,
+      qtres: 0.5,
+      pathomit: 20,
       rightangleenhance: false,
-      roundcoords: 2,
     });
   }
   if (method === "imagetracer") {
-    // Detail-preserving handwriting feel
+    // Detail-preserving handwriting feel.
     return vectorizeImageTracer(prepared, {
       ltres: 1,
-      qtres: 1,
+      qtres: 0.6,
       pathomit: 8,
       rightangleenhance: false,
     });
   }
-  // bezier: bias toward smooth cubic/quadratic curves
+  // Bezier: strongly bias toward quadratic/cubic curves (high ltres, low qtres).
   return vectorizeImageTracer(prepared, {
-    ltres: 0.1,
-    qtres: 0.1,
-    pathomit: 4,
+    ltres: 4,
+    qtres: 0.3,
+    pathomit: 12,
     rightangleenhance: false,
   });
 }
