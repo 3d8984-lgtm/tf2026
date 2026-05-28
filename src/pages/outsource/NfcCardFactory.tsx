@@ -1449,7 +1449,7 @@ function DetailView({
         const txt = textFor(key);
         if (!txt) continue;
         const weight = getOptionFontWeight(cfg);
-        const otf = pickFont(weight);
+        const otf = await pickFont(cfg);
         const sizePt = cfg.fontSize * MM;
         const textWpt = measureOutlineWidthPt(otf, txt, sizePt);
         const autoWmm = textWpt / MM;
