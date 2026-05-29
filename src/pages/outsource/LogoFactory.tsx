@@ -17,6 +17,7 @@ import { jsPDF } from "jspdf";
 import { svg2pdf } from "svg2pdf.js";
 import { supabase } from "@/integrations/supabase/client";
 import { VECTORIZER_MODE_KEY } from "./OutsourceSettings";
+import { smartUpscale, edgePreservingUpscale, type UpscaleMode, type ImageAnalysis } from "@/lib/upscale";
 
 function fmtDate(v?: string | null): string {
   if (!v) return "";
