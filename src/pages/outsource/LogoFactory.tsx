@@ -727,8 +727,6 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
         pdf.addImage(pngUrl, "PNG", x, y, logoWidthMm, logoHeightMm, undefined, "FAST");
       }
 
-      pdf.setFontSize(8);
-      pdf.text(`Logo source: ${processedKind} · Effect: ${WORK_TYPES.find(w => w.value === workType)?.label}`, 14, pageH - 10);
 
       pdf.save(`logo_${orderNo}_${workType}.pdf`);
       toast({ title: "PDF 다운로드 완료", description: processedKind === "vector" ? "벡터 변환본을 PDF에 직접 적용했습니다." : "벡터가 필요하면 먼저 벡터 변환을 실행하세요." });
