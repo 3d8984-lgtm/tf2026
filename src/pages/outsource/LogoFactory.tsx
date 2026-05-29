@@ -436,10 +436,14 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
         const src = (processedKind === "upscaled" && upscaledDataUrl) ? upscaledDataUrl : sourceLogo!;
         const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
         const img = await loadImage(dataUrl);
-        logoCanvas = edgePreservingUpscale(img, logoW, logoH);
+        const { canvas: c, method } = smartUpscale(img, logoW, logoH, {
+          mode: upscaleMode,
+          sharpness: upscaleSharpness,
+        });
+        logoCanvas = c;
         modeLabel = (processedKind === "upscaled" && upscaledDataUrl)
-          ? "업스케일 소스 → 인쇄사이즈 리샘플"
-          : "edge-preserving sharp upscale";
+          ? `업스케일 소스 → ${method}`
+          : method;
       }
 
       const blob: Blob = await new Promise((resolve, reject) =>
