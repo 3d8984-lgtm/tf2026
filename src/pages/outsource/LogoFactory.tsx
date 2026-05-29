@@ -721,11 +721,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
       const x = (pageW - logoWidthMm) / 2;
       const y = (pageH - logoHeightMm) / 2;
-      // Background swatch matching effect preview
-      pdf.setFillColor(bg);
-      pdf.rect(x - 2, y - 2, logoWidthMm + 4, logoHeightMm + 4, "F");
-      pdf.setDrawColor(80);
-      pdf.rect(x - 2, y - 2, logoWidthMm + 4, logoHeightMm + 4);
+      // No background/border — keep output clean to match preview
       if (processedKind === "vector" && processedDataUrl?.startsWith("data:image/svg+xml")) {
         const svgText = svgDataUrlToText(processedDataUrl);
         const svgDoc = new DOMParser().parseFromString(svgText, "image/svg+xml");
