@@ -372,24 +372,27 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
   const handleUpscale = async () => {
     if (!sourceLogo) return;
-    setBusy("로고 업스케일링 중 (edge-preserving)...");
+    setBusy("로고 업스케일링 중 (smart Lanczos3)...");
     try {
       const src = sourceLogo!;
       const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
-
-      // Edge-preserving 2x upscale (local)
       const img = await loadImage(dataUrl);
       const targetW = img.naturalWidth * 2;
       const targetH = img.naturalHeight * 2;
-      const canvas = edgePreservingUpscale(img, targetW, targetH);
+      const { canvas, analysis, method } = smartUpscale(img, targetW, targetH, {
+        mode: upscaleMode,
+        sharpness: upscaleSharpness,
+      });
       const up = canvas.toDataURL("image/png");
       setUpscaledDataUrl(up);
       setProcessedDataUrl(up);
       setProcessedKind("upscaled");
       setCompareTarget("upscaled");
+      setLastAnalysis(analysis);
+      setLastMethod(method);
       toast({
         title: "업스케일 완료",
-        description: `${img.naturalWidth}×${img.naturalHeight} → ${canvas.width}×${canvas.height} · edge-preserving`,
+        description: `${img.naturalWidth}×${img.naturalHeight} → ${canvas.width}×${canvas.height} · ${method}`,
       });
     } catch (e: any) {
       toast({ title: "업스케일 실패", description: e.message, variant: "destructive" });
