@@ -8,18 +8,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useLang } from "@/contexts/LangContext";
 import { toast } from "@/hooks/use-toast";
-import { Mail, Save, Send, Wand2, ExternalLink, Loader2, Sparkles } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
+import { Mail, Save, Send, Wand2, ExternalLink, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 export const VECTORIZER_MODE_KEY = "vectorizer.ai.mode.v1";
 export type VectorizerMode = "test" | "preview" | "production";
-
-export const CLAID_ENABLED_KEY = "claid.ai.enabled.v1";
-export const CLAID_SCALE_KEY = "claid.ai.scale.v1";
-export const CLAID_UPSCALE_KEY = "claid.ai.upscale.v1";
-export type ClaidScale = "2" | "4";
-export type ClaidUpscale = "smart_enhance" | "smart_resize" | "faces";
 
 type Factory = "silicon" | "heat" | "hologram" | "nfc" | "logo";
 
