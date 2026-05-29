@@ -476,41 +476,12 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
   const handleUpscale = async () => {
     if (!sourceLogo) return;
-    const claidEnabled = (localStorage.getItem(CLAID_ENABLED_KEY) ?? "true") === "true";
-
-    setBusy(claidEnabled ? "Claid.ai 업스케일링 중..." : "로고 업스케일링 중 (edge-preserving)...");
+    setBusy("로고 업스케일링 중 (edge-preserving)...");
     try {
       const src = sourceLogo!;
       const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
 
-      if (claidEnabled) {
-        try {
-          const { data, error } = await supabase.functions.invoke("claid-upscale", {
-            body: { imageBase64: dataUrl, scale: claidScale, upscale: claidUpscale, format: "png" },
-          });
-          if (error) throw error;
-          if ((data as any)?.error) throw new Error((data as any).error);
-          const up = (data as any).dataUrl as string;
-          const img2 = await loadImage(up);
-          setUpscaledDataUrl(up);
-          setProcessedDataUrl(up);
-          setProcessedKind("upscaled");
-          setCompareTarget("upscaled");
-          toast({
-            title: "Claid.ai 업스케일 완료",
-            description: `${claidScale}× · ${claidUpscale} → ${img2.naturalWidth}×${img2.naturalHeight}`,
-          });
-          return;
-        } catch (claidErr: any) {
-          toast({
-            title: "Claid.ai 실패, 로컬 업스케일로 전환",
-            description: claidErr?.message ?? String(claidErr),
-            variant: "destructive",
-          });
-        }
-      }
-
-      // Local fallback: edge-preserving 2x upscale
+      // Edge-preserving 2x upscale (local)
       const img = await loadImage(dataUrl);
       const targetW = img.naturalWidth * 2;
       const targetH = img.naturalHeight * 2;
@@ -521,13 +492,14 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       setProcessedKind("upscaled");
       setCompareTarget("upscaled");
       toast({
-        title: "업스케일 완료 (로컬)",
+        title: "업스케일 완료",
         description: `${img.naturalWidth}×${img.naturalHeight} → ${canvas.width}×${canvas.height} · edge-preserving`,
       });
     } catch (e: any) {
       toast({ title: "업스케일 실패", description: e.message, variant: "destructive" });
     } finally { setBusy(null); }
   };
+
 
   /**
    * Generate a print-ready PNG at the requested DPI and trigger download.
