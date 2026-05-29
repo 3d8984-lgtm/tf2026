@@ -257,6 +257,11 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   // Persist each processed result independently so the comparator can switch between them.
   const [upscaledDataUrl, setUpscaledDataUrl] = useState<string | null>(null);
   const [vectorDataUrl, setVectorDataUrl] = useState<string | null>(null);
+  // Smart-upscale controls (decision-matrix-driven, see src/lib/upscale.ts)
+  const [upscaleMode, setUpscaleMode] = useState<UpscaleMode>("auto");
+  const [upscaleSharpness, setUpscaleSharpness] = useState<number>(50);
+  const [lastAnalysis, setLastAnalysis] = useState<ImageAnalysis | null>(null);
+  const [lastMethod, setLastMethod] = useState<string | null>(null);
 
   // Logo size as % of canvas longest side — convenience slider
   const canvasLongest = Math.max(canvasWidthMm, canvasHeightMm) || 1;
