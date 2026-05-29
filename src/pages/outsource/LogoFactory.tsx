@@ -548,38 +548,59 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       toast({ title: "출력 크기(mm)를 먼저 입력하세요", variant: "destructive" });
       return;
     }
+    if (!canvasWidthMm || !canvasHeightMm) {
+      toast({ title: "인쇄영역(mm)을 먼저 입력하세요", variant: "destructive" });
+      return;
+    }
     setBusy(`PNG ${dpi}dpi 생성 중...`);
     try {
-      const targetW = mmToPx(logoWidthMm, dpi);
-      const targetH = mmToPx(logoHeightMm, dpi);
+      // Full print area in pixels at target DPI
+      const canvasW = mmToPx(canvasWidthMm, dpi);
+      const canvasH = mmToPx(canvasHeightMm, dpi);
+      // Logo size in pixels at target DPI
+      const logoW = mmToPx(logoWidthMm, dpi);
+      const logoH = mmToPx(logoHeightMm, dpi);
 
-      let canvas: HTMLCanvasElement;
+      // Rasterize the source (vector preferred) at the logo target size
+      let logoCanvas: HTMLCanvasElement;
       let modeLabel: string;
       if (vectorDataUrl && processedKind === "vector") {
-        canvas = await rasterizeSvgAt(vectorDataUrl, targetW, targetH);
+        logoCanvas = await rasterizeSvgAt(vectorDataUrl, logoW, logoH);
         modeLabel = "벡터 래스터화";
       } else {
         const src = sourceLogo!;
         const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
         const img = await loadImage(dataUrl);
-        canvas = edgePreservingUpscale(img, targetW, targetH);
+        logoCanvas = edgePreservingUpscale(img, logoW, logoH);
         modeLabel = "edge-preserving sharp upscale";
       }
 
+      // Compose onto print-area canvas with transparent background + offset
+      const out = document.createElement("canvas");
+      out.width = canvasW;
+      out.height = canvasH;
+      const ctx = out.getContext("2d")!;
+      ctx.clearRect(0, 0, canvasW, canvasH);
+      const offXPx = (clampedOffsetX / canvasWidthMm) * canvasW;
+      const offYPx = (clampedOffsetY / canvasHeightMm) * canvasH;
+      const dx = Math.round((canvasW - logoW) / 2 + offXPx);
+      const dy = Math.round((canvasH - logoH) / 2 + offYPx);
+      ctx.drawImage(logoCanvas, dx, dy, logoW, logoH);
+
       const blob: Blob = await new Promise((resolve, reject) =>
-        canvas.toBlob(b => b ? resolve(b) : reject(new Error("PNG 인코딩 실패")), "image/png"),
+        out.toBlob(b => b ? resolve(b) : reject(new Error("PNG 인코딩 실패")), "image/png"),
       );
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `logo_${orderNo}_${workType}_${logoWidthMm}x${logoHeightMm}mm_${dpi}dpi.png`;
+      a.download = `logo_${orderNo}_${workType}_${canvasWidthMm}x${canvasHeightMm}mm_${dpi}dpi.png`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       toast({
         title: `PNG ${dpi}dpi 다운로드 완료`,
-        description: `${targetW}×${targetH}px · ${logoWidthMm}×${logoHeightMm}mm · ${modeLabel}`,
+        description: `인쇄영역 ${canvasW}×${canvasH}px · ${canvasWidthMm}×${canvasHeightMm}mm · 로고 ${logoWidthMm}×${logoHeightMm}mm · ${modeLabel}`,
       });
     } catch (e: any) {
       toast({ title: `PNG ${dpi}dpi 다운로드 실패`, description: e?.message || String(e), variant: "destructive" });
@@ -587,6 +608,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       setBusy(null);
     }
   };
+
 
   // Vectorizer.AI 클라우드 벡터화 (고품질)
   const handleVectorizeAI = async () => {
@@ -833,15 +855,6 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                   title={`인쇄용 PNG · ${logoWidthMm}×${logoHeightMm}mm @ 300dpi (${mmToPx(logoWidthMm, 300)}×${mmToPx(logoHeightMm, 300)}px). 벡터 변환 결과가 있으면 SVG에서 직접 래스터화합니다.`}
                 >
                   <Download className="w-4 h-4 mr-1" /> PNG 300dpi
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={downloadVectorSvg}
-                  disabled={processedKind !== "vector" || !!busy}
-                  title={processedKind !== "vector" ? "먼저 '벡터 변환'을 실행하세요" : "확대해도 깨지지 않는 SVG 벡터 파일"}
-                >
-                  <Download className="w-4 h-4 mr-1" /> SVG 벡터 다운로드
                 </Button>
                 <Button size="sm" onClick={downloadResultPdf} disabled={!sourceLogo || !!busy}>
                   <Download className="w-4 h-4 mr-1" /> 작업결과물 다운로드 (PDF)
