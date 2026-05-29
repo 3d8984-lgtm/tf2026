@@ -896,7 +896,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
             </div>
 
 
-            {/* Settings row */}
+            {/* Settings row 1: 작업종류 + 인쇄영역 */}
             <div className="grid grid-cols-1 md:grid-cols-5 gap-2 items-end">
               <div className="space-y-1">
                 <Label className="text-xs">작업종류</Label>
@@ -908,32 +908,28 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 </Select>
               </div>
               <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs">가로 (mm)</Label>
-                  <label className="text-[10px] text-muted-foreground flex items-center gap-1 cursor-pointer">
-                    <input type="checkbox" checked={lockAspect} onChange={(e) => setLockAspect(e.target.checked)} className="h-3 w-3" />
-                    비율
-                  </label>
-                </div>
+                <Label className="text-xs">인쇄영역 가로 (mm)</Label>
                 <div className="relative">
                   <Input
                     type="number"
-                    step="0.5"
-                    value={logoWidthMm}
-                    onChange={(e) => handleWidthChange(Number(e.target.value) || 0)}
+                    step="1"
+                    min={1}
+                    value={canvasWidthMm}
+                    onChange={(e) => setCanvasWidthMm(Math.max(1, Number(e.target.value) || 0))}
                     className="h-9 pr-10"
                   />
                   <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">mm</span>
                 </div>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">세로 (mm)</Label>
+                <Label className="text-xs">인쇄영역 세로 (mm)</Label>
                 <div className="relative">
                   <Input
                     type="number"
-                    step="0.5"
-                    value={logoHeightMm}
-                    onChange={(e) => handleHeightChange(Number(e.target.value) || 0)}
+                    step="1"
+                    min={1}
+                    value={canvasHeightMm}
+                    onChange={(e) => setCanvasHeightMm(Math.max(1, Number(e.target.value) || 0))}
                     className="h-9 pr-10"
                   />
                   <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">mm</span>
@@ -956,6 +952,74 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 >
                   <Cloud className="w-3 h-3 mr-1" /> AI 변환
                 </Button>
+              </div>
+            </div>
+
+            {/* Settings row 2: 로고 크기 + 위치 */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end p-3 rounded-md border bg-muted/20">
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">로고 가로 (mm)</Label>
+                  <label className="text-[10px] text-muted-foreground flex items-center gap-1 cursor-pointer">
+                    <input type="checkbox" checked={lockAspect} onChange={(e) => setLockAspect(e.target.checked)} className="h-3 w-3" />
+                    비율
+                  </label>
+                </div>
+                <div className="relative">
+                  <Input
+                    type="number"
+                    step="0.5"
+                    value={logoWidthMm}
+                    onChange={(e) => handleWidthChange(Number(e.target.value) || 0)}
+                    className="h-9 pr-10"
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">mm</span>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">로고 세로 (mm)</Label>
+                <div className="relative">
+                  <Input
+                    type="number"
+                    step="0.5"
+                    value={logoHeightMm}
+                    onChange={(e) => handleHeightChange(Number(e.target.value) || 0)}
+                    className="h-9 pr-10"
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">mm</span>
+                </div>
+              </div>
+              <div className="space-y-1 md:col-span-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">로고 크기 (인쇄영역 대비 {logoScalePct}%)</Label>
+                  <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => { setOffsetXMm(0); setOffsetYMm(0); setLogoScalePct(50); }}>
+                    중앙·50%
+                  </Button>
+                </div>
+                <Slider min={1} max={100} step={1} value={[logoScalePct]} onValueChange={(v) => setLogoScalePct(v[0])} />
+              </div>
+
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-xs">가로 위치 X ({clampedOffsetX.toFixed(1)} mm · 중앙 기준)</Label>
+                <Slider
+                  min={-maxOffsetX}
+                  max={maxOffsetX}
+                  step={0.5}
+                  value={[clampedOffsetX]}
+                  onValueChange={(v) => setOffsetXMm(v[0])}
+                  disabled={maxOffsetX === 0}
+                />
+              </div>
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-xs">세로 위치 Y ({clampedOffsetY.toFixed(1)} mm · 중앙 기준)</Label>
+                <Slider
+                  min={-maxOffsetY}
+                  max={maxOffsetY}
+                  step={0.5}
+                  value={[clampedOffsetY]}
+                  onValueChange={(v) => setOffsetYMm(v[0])}
+                  disabled={maxOffsetY === 0}
+                />
               </div>
             </div>
 
@@ -987,29 +1051,54 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
               <div className="border rounded-md p-4 space-y-2">
                 <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold">최종 적용효과 미리보기</div>
+                  <div className="text-sm font-semibold">인쇄영역 미리보기 (실제 비율)</div>
                   <Badge>{WORK_TYPES.find(w => w.value === workType)?.label}</Badge>
                 </div>
-                <div className="aspect-square w-full border rounded flex items-center justify-center overflow-hidden relative"
-                  style={{ background: "repeating-conic-gradient(#e5e7eb 0% 25%, #ffffff 0% 50%) 50% / 16px 16px" }}>
-                  {displayedLogo ? (
-                    <div className="relative flex items-center justify-center" style={{ width: `${Math.min(80, logoWidthMm * 1.2)}%`, height: `${Math.min(80, logoHeightMm * 1.2)}%` }}>
+                {/* Canvas frame at real aspect ratio of 인쇄영역 */}
+                <div
+                  className="w-full border-2 border-dashed border-primary/60 rounded relative overflow-hidden"
+                  style={{
+                    aspectRatio: `${canvasWidthMm} / ${canvasHeightMm}`,
+                    background: "repeating-conic-gradient(hsl(var(--muted)) 0% 25%, hsl(var(--background)) 0% 50%) 50% / 16px 16px",
+                  }}
+                >
+                  {/* Center cross-hair guide */}
+                  <div className="absolute inset-0 pointer-events-none">
+                    <div className="absolute left-1/2 top-0 bottom-0 w-px bg-primary/20" />
+                    <div className="absolute top-1/2 left-0 right-0 h-px bg-primary/20" />
+                  </div>
+                  {/* Canvas size label */}
+                  <div className="absolute top-1 left-1 text-[10px] px-1.5 py-0.5 rounded bg-background/80 border font-mono">
+                    {canvasWidthMm} × {canvasHeightMm} mm
+                  </div>
+                  {displayedLogo && logoWidthMm > 0 && logoHeightMm > 0 && (
+                    <div
+                      className="absolute"
+                      style={{
+                        width: `${Math.min(100, (logoWidthMm / canvasWidthMm) * 100)}%`,
+                        height: `${Math.min(100, (logoHeightMm / canvasHeightMm) * 100)}%`,
+                        left: `calc(50% + ${(clampedOffsetX / canvasWidthMm) * 100}% - ${Math.min(100, (logoWidthMm / canvasWidthMm) * 100) / 2}%)`,
+                        top: `calc(50% + ${(clampedOffsetY / canvasHeightMm) * 100}% - ${Math.min(100, (logoHeightMm / canvasHeightMm) * 100) / 2}%)`,
+                      }}
+                    >
                       <img
                         src={displayedLogo}
-                        alt="effect preview"
-                        className={`max-w-full max-h-full object-contain ${effectClass[workType]}`}
+                        alt="logo on canvas"
+                        className={`w-full h-full object-contain ${effectClass[workType]}`}
                         referrerPolicy="no-referrer"
+                        draggable={false}
                       />
                     </div>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">로고 없음</span>
                   )}
                 </div>
-                <div className="text-[11px] text-muted-foreground">
-                  적용 크기: {logoWidthMm} × {logoHeightMm} mm · 수량: {total} EA
+                <div className="text-[11px] text-muted-foreground space-y-0.5">
+                  <div>인쇄영역: <span className="font-mono">{canvasWidthMm} × {canvasHeightMm} mm</span></div>
+                  <div>로고 크기: <span className="font-mono">{logoWidthMm} × {logoHeightMm} mm</span> (영역 대비 {logoScalePct}%)</div>
+                  <div>로고 위치: X <span className="font-mono">{clampedOffsetX.toFixed(1)}</span> · Y <span className="font-mono">{clampedOffsetY.toFixed(1)}</span> mm · 수량 {total} EA</div>
                 </div>
               </div>
             </div>
+
 
             {/* Compare viewer: original vs processed (vector) */}
             {sourceLogo && (
