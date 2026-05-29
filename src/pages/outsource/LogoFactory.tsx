@@ -945,9 +945,30 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 </div>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">업스케일 (2×)</Label>
-                <Button size="sm" variant="outline" className="w-full h-9" onClick={handleUpscale} disabled={!sourceLogo || !!busy}>
-                  <Sparkles className="w-3 h-3 mr-1" /> 실행
+                <Label className="text-xs">배율 (Claid.ai)</Label>
+                <Select value={String(claidScale)} onValueChange={(v) => setClaidScale(Number(v) as 2 | 4)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="2">2×</SelectItem>
+                    <SelectItem value="4">4×</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">엔진 (Claid.ai)</Label>
+                <Select value={claidUpscale} onValueChange={(v) => setClaidUpscale(v as typeof claidUpscale)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="smart_enhance">Smart Enhance</SelectItem>
+                    <SelectItem value="smart_resize">Smart Resize</SelectItem>
+                    <SelectItem value="faces">Faces</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">업스케일 (Claid.ai)</Label>
+                <Button size="sm" variant="outline" className="w-full h-9" onClick={handleUpscale} disabled={!sourceLogo || !!busy} title={`Claid.ai · ${claidScale}× · ${claidUpscale}`}>
+                  <Sparkles className="w-3 h-3 mr-1" /> 실행 (Claid.ai)
                 </Button>
               </div>
               <div className="space-y-1">
