@@ -18,6 +18,7 @@ import { ChevronLeft, Upload, X, Download, FileText, Loader2, QrCode as QrCodeIc
 import { useLang } from "@/contexts/LangContext";
 import { useOrders } from "@/hooks/useDbData";
 import { toast } from "@/hooks/use-toast";
+import { edgePreservingUpscale } from "@/lib/upscale";
 import { supabase } from "@/integrations/supabase/client";
 import QRCode from "qrcode";
 import JSZip from "jszip";
@@ -46,87 +47,7 @@ async function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-/**
- * Edge-preserving sharp upscale for logo / text / line-art designs.
- * Iterative 2× bilinear upscale then final fit + unsharp mask on RGB
- * (alpha untouched, binary alpha re-hardened). No invented detail.
- */
-function edgePreservingUpscale(img: HTMLImageElement | HTMLCanvasElement, targetW: number, targetH: number): HTMLCanvasElement {
-  const srcW = (img as HTMLImageElement).naturalWidth ?? (img as HTMLCanvasElement).width;
-  const srcH = (img as HTMLImageElement).naturalHeight ?? (img as HTMLCanvasElement).height;
-  if (srcW === 0 || srcH === 0) throw new Error("이미지 크기가 0입니다");
-  let canvas = document.createElement("canvas");
-  canvas.width = srcW; canvas.height = srcH;
-  let ctx = canvas.getContext("2d", { willReadFrequently: true })!;
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(img as CanvasImageSource, 0, 0);
-  while (canvas.width * 2 <= targetW && canvas.height * 2 <= targetH) {
-    const next = document.createElement("canvas");
-    next.width = canvas.width * 2; next.height = canvas.height * 2;
-    const nctx = next.getContext("2d")!;
-    nctx.imageSmoothingEnabled = true; nctx.imageSmoothingQuality = "high";
-    nctx.drawImage(canvas, 0, 0, next.width, next.height);
-    canvas = next;
-  }
-  if (canvas.width !== targetW || canvas.height !== targetH) {
-    const final = document.createElement("canvas");
-    final.width = targetW; final.height = targetH;
-    const fctx = final.getContext("2d")!;
-    fctx.imageSmoothingEnabled = true; fctx.imageSmoothingQuality = "high";
-    fctx.drawImage(canvas, 0, 0, targetW, targetH);
-    canvas = final;
-  }
-  ctx = canvas.getContext("2d", { willReadFrequently: true })!;
-  const W = canvas.width, H = canvas.height;
-  const data = ctx.getImageData(0, 0, W, H);
-  const px = data.data;
-  // detect binary-ish alpha on source
-  let srcBinaryAlpha = false;
-  try {
-    const sc = document.createElement("canvas"); sc.width = srcW; sc.height = srcH;
-    const sctx = sc.getContext("2d")!; sctx.drawImage(img as CanvasImageSource, 0, 0);
-    const sd = sctx.getImageData(0, 0, srcW, srcH).data;
-    let mid = 0, edge = 0, hasAlpha = false;
-    for (let i = 3; i < sd.length; i += 4) {
-      const a = sd[i];
-      if (a > 0 && a < 255) { if (a > 24 && a < 232) mid++; else edge++; }
-      else if (a === 0) hasAlpha = true;
-    }
-    srcBinaryAlpha = hasAlpha && mid * 8 < edge + 1;
-  } catch { /* tainted */ }
-  // unsharp mask via 3x3 box blur
-  const blurred = new Uint8ClampedArray(px.length);
-  blurred.set(px);
-  for (let y = 1; y < H - 1; y++) {
-    for (let x = 1; x < W - 1; x++) {
-      const idx = (y * W + x) * 4;
-      for (let c = 0; c < 3; c++) {
-        const sum =
-          px[idx - W * 4 - 4 + c] + px[idx - W * 4 + c] + px[idx - W * 4 + 4 + c] +
-          px[idx - 4 + c]         + px[idx + c]         + px[idx + 4 + c] +
-          px[idx + W * 4 - 4 + c] + px[idx + W * 4 + c] + px[idx + W * 4 + 4 + c];
-        blurred[idx + c] = sum / 9;
-      }
-    }
-  }
-  const AMOUNT = 0.85, NOISE = 4;
-  for (let i = 0; i < px.length; i += 4) {
-    for (let c = 0; c < 3; c++) {
-      const o = px[i + c], b = blurred[i + c], d = o - b;
-      if (d > -NOISE && d < NOISE) continue;
-      const v = o + AMOUNT * d;
-      px[i + c] = v < 0 ? 0 : v > 255 ? 255 : v;
-    }
-  }
-  if (srcBinaryAlpha) {
-    for (let i = 3; i < px.length; i += 4) {
-      const a = px[i];
-      if (a < 24) px[i] = 0; else if (a > 232) px[i] = 255;
-    }
-  }
-  ctx.putImageData(data, 0, 0);
-  return canvas;
-}
+// Smart upscale (Lanczos3 + auto image-type pipeline). See src/lib/upscale.ts.
 
 /**
  * Analyze a design image to recommend the best print-quality preset.

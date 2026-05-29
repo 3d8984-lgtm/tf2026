@@ -17,6 +17,7 @@ import { jsPDF } from "jspdf";
 import { svg2pdf } from "svg2pdf.js";
 import { supabase } from "@/integrations/supabase/client";
 import { VECTORIZER_MODE_KEY } from "./OutsourceSettings";
+import { smartUpscale, type UpscaleMode, type ImageAnalysis } from "@/lib/upscale";
 
 function fmtDate(v?: string | null): string {
   if (!v) return "";
@@ -73,152 +74,11 @@ function svgDataUrlToText(dataUrl: string): string {
   return dataUrl;
 }
 
-/**
- * Edge-preserving sharp upscale for logo / text / icon / line-art images.
- *
- * Strategy (NO photo-style smoothing, NO AI re-draw):
- *  1. Iterative 2× bilinear upscale (high quality) until the image is at-or-above target.
- *     Step-wise 2× preserves edges far better than a single large bicubic jump.
- *  2. Final fit to exact target size with high-quality resampling.
- *  3. Unsharp-mask on RGB only to restore edge crispness lost during resampling.
- *  4. Alpha channel is kept untouched (preserves transparent background).
- *     If the source alpha is binary-ish, edges are re-thresholded to avoid
- *     soft halos around logos.
- *  5. Tiny low-contrast noise is suppressed without touching strong edges.
- *
- * The function never invents new detail; it only resamples and re-sharpens
- * what is already in the source image.
- */
-function edgePreservingUpscale(
-  img: HTMLImageElement,
-  targetW: number,
-  targetH: number,
-): HTMLCanvasElement {
-  const srcW = img.naturalWidth;
-  const srcH = img.naturalHeight;
-  if (srcW === 0 || srcH === 0) throw new Error("이미지 크기가 0입니다");
+// Smart upscale (Lanczos3 + auto image-type pipeline) lives in src/lib/upscale.ts.
+// The local `edgePreservingUpscale` was removed in favour of the shared helper,
+// which auto-selects Nearest / Lanczos3 + per-type sharpening based on input
+// content (pixel-art / logo / text / illustration / photo).
 
-  // Step 1+2: iterative 2× upscale then final fit.
-  let canvas = document.createElement("canvas");
-  canvas.width = srcW;
-  canvas.height = srcH;
-  let ctx = canvas.getContext("2d", { willReadFrequently: true })!;
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(img, 0, 0);
-
-  while (canvas.width * 2 <= targetW && canvas.height * 2 <= targetH) {
-    const next = document.createElement("canvas");
-    next.width = canvas.width * 2;
-    next.height = canvas.height * 2;
-    const nctx = next.getContext("2d")!;
-    nctx.imageSmoothingEnabled = true;
-    nctx.imageSmoothingQuality = "high";
-    nctx.drawImage(canvas, 0, 0, next.width, next.height);
-    canvas = next;
-  }
-
-  if (canvas.width !== targetW || canvas.height !== targetH) {
-    const final = document.createElement("canvas");
-    final.width = targetW;
-    final.height = targetH;
-    const fctx = final.getContext("2d")!;
-    fctx.imageSmoothingEnabled = true;
-    fctx.imageSmoothingQuality = "high";
-    fctx.drawImage(canvas, 0, 0, targetW, targetH);
-    canvas = final;
-  }
-
-  ctx = canvas.getContext("2d", { willReadFrequently: true })!;
-  const W = canvas.width;
-  const H = canvas.height;
-  const imgData = ctx.getImageData(0, 0, W, H);
-  const px = imgData.data;
-  const N = W * H;
-
-  // ----- Detect whether source alpha is binary-ish (logo with transparency).
-  // Sample original pixels (before resample) to decide thresholding policy.
-  let srcBinaryAlpha = false;
-  let srcHasAlpha = false;
-  try {
-    const sc = document.createElement("canvas");
-    sc.width = srcW;
-    sc.height = srcH;
-    const sctx = sc.getContext("2d")!;
-    sctx.drawImage(img, 0, 0);
-    const sd = sctx.getImageData(0, 0, srcW, srcH).data;
-    let mid = 0;
-    let edge = 0;
-    for (let i = 3; i < sd.length; i += 4) {
-      const a = sd[i];
-      if (a > 0 && a < 255) {
-        if (a > 24 && a < 232) mid++;
-        else edge++;
-      } else if (a === 0) {
-        srcHasAlpha = true;
-      }
-    }
-    if (srcHasAlpha || mid + edge > 0) srcHasAlpha = srcHasAlpha || mid + edge > 0;
-    // Binary-ish: many fully-on/off, few mid-tones
-    srcBinaryAlpha = srcHasAlpha && mid * 8 < edge + 1;
-  } catch {
-    /* tainted canvas — skip detection */
-  }
-
-  // ----- Step 3: Unsharp mask on RGB. Alpha is untouched.
-  // Build a 3×3 box-blur as the "blurred" copy, then sharpen = orig + amount*(orig - blur).
-  const blurred = new Uint8ClampedArray(px.length);
-  // Edge rows/cols: copy directly to avoid out-of-bounds.
-  blurred.set(px);
-  for (let y = 1; y < H - 1; y++) {
-    for (let x = 1; x < W - 1; x++) {
-      const idx = (y * W + x) * 4;
-      for (let c = 0; c < 3; c++) {
-        let sum = 0;
-        // 3×3 box
-        sum += px[idx - W * 4 - 4 + c];
-        sum += px[idx - W * 4 + c];
-        sum += px[idx - W * 4 + 4 + c];
-        sum += px[idx - 4 + c];
-        sum += px[idx + c];
-        sum += px[idx + 4 + c];
-        sum += px[idx + W * 4 - 4 + c];
-        sum += px[idx + W * 4 + c];
-        sum += px[idx + W * 4 + 4 + c];
-        blurred[idx + c] = sum / 9;
-      }
-    }
-  }
-
-  // Sharpen amount tuned for logo / line-art (strong but not ringing).
-  const AMOUNT = 0.85;
-  // Threshold: skip very small differences to avoid amplifying compression noise.
-  const NOISE_THRESH = 4;
-  for (let i = 0; i < px.length; i += 4) {
-    for (let c = 0; c < 3; c++) {
-      const o = px[i + c];
-      const b = blurred[i + c];
-      const d = o - b;
-      if (d > -NOISE_THRESH && d < NOISE_THRESH) continue;
-      const v = o + AMOUNT * d;
-      px[i + c] = v < 0 ? 0 : v > 255 ? 255 : v;
-    }
-  }
-
-  // ----- Step 4: Alpha cleanup for transparent-background logos.
-  // If the source had a clean binary alpha, restore hard edges so the upscaled
-  // result does not show a soft halo around the logo.
-  if (srcBinaryAlpha) {
-    for (let i = 3; i < px.length; i += 4) {
-      const a = px[i];
-      if (a < 24) px[i] = 0;
-      else if (a > 232) px[i] = 255;
-      // mid-tones (true anti-alias) left alone
-    }
-  }
-
-  ctx.putImageData(imgData, 0, 0);
-  return canvas;
-}
 
 /** Convert mm + dpi → integer pixel count. */
 function mmToPx(mm: number, dpi: number): number {
@@ -397,6 +257,11 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   // Persist each processed result independently so the comparator can switch between them.
   const [upscaledDataUrl, setUpscaledDataUrl] = useState<string | null>(null);
   const [vectorDataUrl, setVectorDataUrl] = useState<string | null>(null);
+  // Smart-upscale controls (decision-matrix-driven, see src/lib/upscale.ts)
+  const [upscaleMode, setUpscaleMode] = useState<UpscaleMode>("auto");
+  const [upscaleSharpness, setUpscaleSharpness] = useState<number>(50);
+  const [lastAnalysis, setLastAnalysis] = useState<ImageAnalysis | null>(null);
+  const [lastMethod, setLastMethod] = useState<string | null>(null);
 
   // Logo size as % of canvas longest side — convenience slider
   const canvasLongest = Math.max(canvasWidthMm, canvasHeightMm) || 1;
@@ -507,24 +372,27 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
   const handleUpscale = async () => {
     if (!sourceLogo) return;
-    setBusy("로고 업스케일링 중 (edge-preserving)...");
+    setBusy("로고 업스케일링 중 (smart Lanczos3)...");
     try {
       const src = sourceLogo!;
       const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
-
-      // Edge-preserving 2x upscale (local)
       const img = await loadImage(dataUrl);
       const targetW = img.naturalWidth * 2;
       const targetH = img.naturalHeight * 2;
-      const canvas = edgePreservingUpscale(img, targetW, targetH);
+      const { canvas, analysis, method } = smartUpscale(img, targetW, targetH, {
+        mode: upscaleMode,
+        sharpness: upscaleSharpness,
+      });
       const up = canvas.toDataURL("image/png");
       setUpscaledDataUrl(up);
       setProcessedDataUrl(up);
       setProcessedKind("upscaled");
       setCompareTarget("upscaled");
+      setLastAnalysis(analysis);
+      setLastMethod(method);
       toast({
         title: "업스케일 완료",
-        description: `${img.naturalWidth}×${img.naturalHeight} → ${canvas.width}×${canvas.height} · edge-preserving`,
+        description: `${img.naturalWidth}×${img.naturalHeight} → ${canvas.width}×${canvas.height} · ${method}`,
       });
     } catch (e: any) {
       toast({ title: "업스케일 실패", description: e.message, variant: "destructive" });
@@ -568,10 +436,14 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
         const src = (processedKind === "upscaled" && upscaledDataUrl) ? upscaledDataUrl : sourceLogo!;
         const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
         const img = await loadImage(dataUrl);
-        logoCanvas = edgePreservingUpscale(img, logoW, logoH);
+        const { canvas: c, method } = smartUpscale(img, logoW, logoH, {
+          mode: upscaleMode,
+          sharpness: upscaleSharpness,
+        });
+        logoCanvas = c;
         modeLabel = (processedKind === "upscaled" && upscaledDataUrl)
-          ? "업스케일 소스 → 인쇄사이즈 리샘플"
-          : "edge-preserving sharp upscale";
+          ? `업스케일 소스 → ${method}`
+          : method;
       }
 
       const blob: Blob = await new Promise((resolve, reject) =>
@@ -912,9 +784,39 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">업스케일</Label>
-                <Button size="sm" variant="outline" className="w-full h-9" onClick={handleUpscale} disabled={!sourceLogo || !!busy} title="edge-preserving 2× upscale">
+                <Button size="sm" variant="outline" className="w-full h-9" onClick={handleUpscale} disabled={!sourceLogo || !!busy} title="Smart Lanczos3 + 이미지 유형별 샤프닝">
                   <Sparkles className="w-3 h-3 mr-1" /> 실행
                 </Button>
+              </div>
+            </div>
+
+            {/* Smart upscale tuning: image-type mode + sharpness */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end p-3 rounded-md border bg-muted/10">
+              <div className="space-y-1 md:col-span-1">
+                <Label className="text-xs">업스케일 모드</Label>
+                <Select value={upscaleMode} onValueChange={(v) => setUpscaleMode(v as UpscaleMode)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">자동 (이미지 자동 분석)</SelectItem>
+                    <SelectItem value="logo">로고 / 라인아트</SelectItem>
+                    <SelectItem value="text">문서 / 텍스트</SelectItem>
+                    <SelectItem value="illustration">일러스트 / 애니</SelectItem>
+                    <SelectItem value="photo">사진</SelectItem>
+                    <SelectItem value="pixel">픽셀아트</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1 md:col-span-2">
+                <div className="flex justify-between"><Label className="text-xs">샤프니스</Label><span className="text-[10px] text-muted-foreground">{upscaleSharpness}</span></div>
+                <Slider value={[upscaleSharpness]} min={0} max={100} step={5} onValueChange={(v) => setUpscaleSharpness(v[0])} />
+              </div>
+              <div className="space-y-1 md:col-span-1">
+                <Label className="text-xs">최근 분석</Label>
+                <div className="h-9 px-2 rounded-md border bg-background text-[11px] flex items-center text-muted-foreground truncate" title={lastMethod ?? ""}>
+                  {lastAnalysis
+                    ? `${lastAnalysis.kind}${lastAnalysis.transparent ? " · α" : ""}`
+                    : "—"}
+                </div>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">AI 벡터화 (Vectorizer.AI)</Label>
