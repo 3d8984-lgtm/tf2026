@@ -554,22 +554,17 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     }
     setBusy(`PNG ${dpi}dpi 생성 중...`);
     try {
-      // Full print area in pixels at target DPI
-      const canvasW = mmToPx(canvasWidthMm, dpi);
-      const canvasH = mmToPx(canvasHeightMm, dpi);
-      // Logo size in pixels at target DPI
+      // Output PNG = logo size only (matches print width × height in mm)
       const logoW = mmToPx(logoWidthMm, dpi);
       const logoH = mmToPx(logoHeightMm, dpi);
 
-      // Rasterize the source (vector preferred) at the logo target size
+      // Rasterize the source (vector preferred) at the exact logo target size
       let logoCanvas: HTMLCanvasElement;
       let modeLabel: string;
       if (vectorDataUrl && processedKind === "vector") {
         logoCanvas = await rasterizeSvgAt(vectorDataUrl, logoW, logoH);
         modeLabel = "벡터 래스터화";
       } else {
-        // Prefer the already-upscaled raster when available so quality is preserved,
-        // but always fit to the configured print size (logoW × logoH).
         const src = (processedKind === "upscaled" && upscaledDataUrl) ? upscaledDataUrl : sourceLogo!;
         const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
         const img = await loadImage(dataUrl);
@@ -579,33 +574,22 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
           : "edge-preserving sharp upscale";
       }
 
-      // Compose onto print-area canvas with transparent background + offset
-      const out = document.createElement("canvas");
-      out.width = canvasW;
-      out.height = canvasH;
-      const ctx = out.getContext("2d")!;
-      ctx.clearRect(0, 0, canvasW, canvasH);
-      const offXPx = (clampedOffsetX / canvasWidthMm) * canvasW;
-      const offYPx = (clampedOffsetY / canvasHeightMm) * canvasH;
-      const dx = Math.round((canvasW - logoW) / 2 + offXPx);
-      const dy = Math.round((canvasH - logoH) / 2 + offYPx);
-      ctx.drawImage(logoCanvas, dx, dy, logoW, logoH);
-
       const blob: Blob = await new Promise((resolve, reject) =>
-        out.toBlob(b => b ? resolve(b) : reject(new Error("PNG 인코딩 실패")), "image/png"),
+        logoCanvas.toBlob(b => b ? resolve(b) : reject(new Error("PNG 인코딩 실패")), "image/png"),
       );
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `logo_${orderNo}_${workType}_${canvasWidthMm}x${canvasHeightMm}mm_${dpi}dpi.png`;
+      a.download = `logo_${orderNo}_${workType}_${logoWidthMm}x${logoHeightMm}mm_${dpi}dpi.png`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       toast({
         title: `PNG ${dpi}dpi 다운로드 완료`,
-        description: `인쇄영역 ${canvasW}×${canvasH}px · ${canvasWidthMm}×${canvasHeightMm}mm · 로고 ${logoWidthMm}×${logoHeightMm}mm · ${modeLabel}`,
+        description: `로고 ${logoW}×${logoH}px · ${logoWidthMm}×${logoHeightMm}mm · ${modeLabel}`,
       });
+
     } catch (e: any) {
       toast({ title: `PNG ${dpi}dpi 다운로드 실패`, description: e?.message || String(e), variant: "destructive" });
     } finally {
