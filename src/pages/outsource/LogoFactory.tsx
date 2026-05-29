@@ -392,6 +392,14 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   // Persist each processed result independently so the comparator can switch between them.
   const [upscaledDataUrl, setUpscaledDataUrl] = useState<string | null>(null);
   const [vectorDataUrl, setVectorDataUrl] = useState<string | null>(null);
+  // Claid.ai upscale options (default from OutsourceSettings localStorage)
+  const [claidScale, setClaidScale] = useState<2 | 4>(
+    () => (Number(localStorage.getItem(CLAID_SCALE_KEY) ?? "2") as 2 | 4)
+  );
+  const [claidUpscale, setClaidUpscale] = useState<"smart_enhance" | "smart_resize" | "faces">(
+    () => (localStorage.getItem(CLAID_UPSCALE_KEY) ?? "smart_enhance") as
+      | "smart_enhance" | "smart_resize" | "faces"
+  );
 
   useEffect(() => {
     setProcessedDataUrl(null);
