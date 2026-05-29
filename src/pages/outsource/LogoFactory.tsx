@@ -485,9 +485,6 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const handleUpscale = async () => {
     if (!sourceLogo) return;
     const claidEnabled = (localStorage.getItem(CLAID_ENABLED_KEY) ?? "true") === "true";
-    const claidScale = Number(localStorage.getItem(CLAID_SCALE_KEY) ?? "2") as 2 | 4;
-    const claidUpscale = (localStorage.getItem(CLAID_UPSCALE_KEY) ?? "smart_enhance") as
-      | "smart_enhance" | "smart_resize" | "faces";
 
     setBusy(claidEnabled ? "Claid.ai 업스케일링 중..." : "로고 업스케일링 중 (edge-preserving)...");
     try {
