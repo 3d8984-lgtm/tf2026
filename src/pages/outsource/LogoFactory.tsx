@@ -16,7 +16,7 @@ import { toast } from "@/hooks/use-toast";
 import { jsPDF } from "jspdf";
 import { svg2pdf } from "svg2pdf.js";
 import { supabase } from "@/integrations/supabase/client";
-import { VECTORIZER_MODE_KEY, CLAID_ENABLED_KEY, CLAID_SCALE_KEY, CLAID_UPSCALE_KEY } from "./OutsourceSettings";
+import { VECTORIZER_MODE_KEY } from "./OutsourceSettings";
 
 function fmtDate(v?: string | null): string {
   if (!v) return "";
