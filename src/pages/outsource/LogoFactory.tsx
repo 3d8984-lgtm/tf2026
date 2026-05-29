@@ -784,9 +784,39 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">업스케일</Label>
-                <Button size="sm" variant="outline" className="w-full h-9" onClick={handleUpscale} disabled={!sourceLogo || !!busy} title="edge-preserving 2× upscale">
+                <Button size="sm" variant="outline" className="w-full h-9" onClick={handleUpscale} disabled={!sourceLogo || !!busy} title="Smart Lanczos3 + 이미지 유형별 샤프닝">
                   <Sparkles className="w-3 h-3 mr-1" /> 실행
                 </Button>
+              </div>
+            </div>
+
+            {/* Smart upscale tuning: image-type mode + sharpness */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end p-3 rounded-md border bg-muted/10">
+              <div className="space-y-1 md:col-span-1">
+                <Label className="text-xs">업스케일 모드</Label>
+                <Select value={upscaleMode} onValueChange={(v) => setUpscaleMode(v as UpscaleMode)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">자동 (이미지 자동 분석)</SelectItem>
+                    <SelectItem value="logo">로고 / 라인아트</SelectItem>
+                    <SelectItem value="text">문서 / 텍스트</SelectItem>
+                    <SelectItem value="illustration">일러스트 / 애니</SelectItem>
+                    <SelectItem value="photo">사진</SelectItem>
+                    <SelectItem value="pixel">픽셀아트</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1 md:col-span-2">
+                <div className="flex justify-between"><Label className="text-xs">샤프니스</Label><span className="text-[10px] text-muted-foreground">{upscaleSharpness}</span></div>
+                <Slider value={[upscaleSharpness]} min={0} max={100} step={5} onValueChange={(v) => setUpscaleSharpness(v[0])} />
+              </div>
+              <div className="space-y-1 md:col-span-1">
+                <Label className="text-xs">최근 분석</Label>
+                <div className="h-9 px-2 rounded-md border bg-background text-[11px] flex items-center text-muted-foreground truncate" title={lastMethod ?? ""}>
+                  {lastAnalysis
+                    ? `${lastAnalysis.kind}${lastAnalysis.transparent ? " · α" : ""}`
+                    : "—"}
+                </div>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">AI 벡터화 (Vectorizer.AI)</Label>
