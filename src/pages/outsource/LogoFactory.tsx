@@ -837,15 +837,6 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => downloadPrintPng(600)}
-                  disabled={!sourceLogo || !!busy}
-                  title={`인쇄용 PNG · ${logoWidthMm}×${logoHeightMm}mm @ 600dpi (${mmToPx(logoWidthMm, 600)}×${mmToPx(logoHeightMm, 600)}px). 벡터 변환 결과가 있으면 SVG에서 직접 래스터화합니다.`}
-                >
-                  <Download className="w-4 h-4 mr-1" /> PNG 600dpi
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
                   onClick={downloadVectorSvg}
                   disabled={processedKind !== "vector" || !!busy}
                   title={processedKind !== "vector" ? "먼저 '벡터 변환'을 실행하세요" : "확대해도 깨지지 않는 SVG 벡터 파일"}
