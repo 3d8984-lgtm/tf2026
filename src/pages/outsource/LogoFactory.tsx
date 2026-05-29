@@ -568,11 +568,15 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
         logoCanvas = await rasterizeSvgAt(vectorDataUrl, logoW, logoH);
         modeLabel = "벡터 래스터화";
       } else {
-        const src = sourceLogo!;
+        // Prefer the already-upscaled raster when available so quality is preserved,
+        // but always fit to the configured print size (logoW × logoH).
+        const src = (processedKind === "upscaled" && upscaledDataUrl) ? upscaledDataUrl : sourceLogo!;
         const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
         const img = await loadImage(dataUrl);
         logoCanvas = edgePreservingUpscale(img, logoW, logoH);
-        modeLabel = "edge-preserving sharp upscale";
+        modeLabel = (processedKind === "upscaled" && upscaledDataUrl)
+          ? "업스케일 소스 → 인쇄사이즈 리샘플"
+          : "edge-preserving sharp upscale";
       }
 
       // Compose onto print-area canvas with transparent background + offset
