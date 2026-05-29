@@ -8,18 +8,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useLang } from "@/contexts/LangContext";
 import { toast } from "@/hooks/use-toast";
-import { Mail, Save, Send, Wand2, ExternalLink, Loader2, Sparkles } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
+import { Mail, Save, Send, Wand2, ExternalLink, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 export const VECTORIZER_MODE_KEY = "vectorizer.ai.mode.v1";
 export type VectorizerMode = "test" | "preview" | "production";
-
-export const CLAID_ENABLED_KEY = "claid.ai.enabled.v1";
-export const CLAID_SCALE_KEY = "claid.ai.scale.v1";
-export const CLAID_UPSCALE_KEY = "claid.ai.upscale.v1";
-export type ClaidScale = "2" | "4";
-export type ClaidUpscale = "smart_enhance" | "smart_resize" | "faces";
 
 type Factory = "silicon" | "heat" | "hologram" | "nfc" | "logo";
 
@@ -59,57 +52,7 @@ export default function OutsourceSettings() {
   const [vecTesting, setVecTesting] = useState(false);
   useEffect(() => { localStorage.setItem(VECTORIZER_MODE_KEY, vecMode); }, [vecMode]);
 
-  // Claid.ai 설정
-  const [claidEnabled, setClaidEnabled] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    const v = localStorage.getItem(CLAID_ENABLED_KEY);
-    return v === null ? true : v === "true";
-  });
-  const [claidScale, setClaidScale] = useState<ClaidScale>(() => {
-    const v = (typeof window !== "undefined" && localStorage.getItem(CLAID_SCALE_KEY)) as ClaidScale | null;
-    return v === "4" ? "4" : "2";
-  });
-  const [claidUpscale, setClaidUpscale] = useState<ClaidUpscale>(() => {
-    const v = (typeof window !== "undefined" && localStorage.getItem(CLAID_UPSCALE_KEY)) as ClaidUpscale | null;
-    return v === "smart_resize" || v === "faces" ? v : "smart_enhance";
-  });
-  const [claidTesting, setClaidTesting] = useState(false);
-  useEffect(() => { localStorage.setItem(CLAID_ENABLED_KEY, String(claidEnabled)); }, [claidEnabled]);
-  useEffect(() => { localStorage.setItem(CLAID_SCALE_KEY, claidScale); }, [claidScale]);
-  useEffect(() => { localStorage.setItem(CLAID_UPSCALE_KEY, claidUpscale); }, [claidUpscale]);
 
-  const testClaid = async () => {
-    setClaidTesting(true);
-    try {
-      // Generate a 128x128 sample PNG (Claid rejects tiny test images with error 2002)
-      const canvas = document.createElement("canvas");
-      canvas.width = 128; canvas.height = 128;
-      const ctx = canvas.getContext("2d")!;
-      const grad = ctx.createLinearGradient(0, 0, 128, 128);
-      grad.addColorStop(0, "#3b82f6"); grad.addColorStop(1, "#ef4444");
-      ctx.fillStyle = grad; ctx.fillRect(0, 0, 128, 128);
-      ctx.fillStyle = "#fff"; ctx.font = "bold 28px sans-serif";
-      ctx.fillText("TEST", 28, 78);
-      const sample = canvas.toDataURL("image/png");
-      const { data, error } = await supabase.functions.invoke("claid-upscale", {
-        body: { imageBase64: sample, scale: Number(claidScale), upscale: claidUpscale },
-      });
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
-      toast({
-        title: lang === "ko" ? "Claid.ai 연결 성공" : "Claid.ai 连接成功",
-        description: lang === "ko" ? "업스케일 응답 수신 완료" : "已收到放大响应",
-      });
-    } catch (e) {
-      toast({
-        title: lang === "ko" ? "Claid.ai 연결 실패" : "Claid.ai 连接失败",
-        description: e instanceof Error ? e.message : String(e),
-        variant: "destructive",
-      });
-    } finally {
-      setClaidTesting(false);
-    }
-  };
 
   const testVectorizer = async () => {
     setVecTesting(true);
@@ -307,103 +250,6 @@ export default function OutsourceSettings() {
         </div>
       </Card>
 
-      {/* Claid.ai 설정 */}
-      <Card className="p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold flex items-center gap-2">
-            <Sparkles className="w-4 h-4" />
-            {lang === "ko" ? "Claid.ai (AI 이미지 업스케일)" : "Claid.ai (AI 图像放大)"}
-          </h3>
-          <a
-            href="https://app.claid.ai/"
-            target="_blank" rel="noreferrer"
-            className="text-xs text-primary flex items-center gap-1 hover:underline"
-          >
-            {lang === "ko" ? "계정 / 사용량 확인" : "账户 / 用量查看"}
-            <ExternalLink className="w-3 h-3" />
-          </a>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          {lang === "ko"
-            ? "LOGO 공장의 업스케일 버튼이 Let's Enhance와 동일 엔진(Claid.ai)을 사용해 고품질 업스케일을 수행합니다. API 키는 서버 환경변수로 안전하게 저장됩니다."
-            : "LOGO 工厂的放大按钮使用与 Let's Enhance 同源引擎(Claid.ai)进行高质量放大。API 密钥已安全存储在服务器环境变量中。"}
-        </p>
-
-        <div className="flex items-center justify-between rounded-md border p-3">
-          <div>
-            <Label className="text-sm">
-              {lang === "ko" ? "Claid.ai 업스케일 사용" : "启用 Claid.ai 放大"}
-            </Label>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {lang === "ko"
-                ? "끄면 기존 로컬(edge-preserving) 업스케일로 동작합니다."
-                : "关闭后将使用本地(edge-preserving)放大。"}
-            </p>
-          </div>
-          <Switch checked={claidEnabled} onCheckedChange={setClaidEnabled} />
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="space-y-1.5 md:col-span-1">
-            <Label>{lang === "ko" ? "배율" : "倍率"}</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {(["2", "4"] as ClaidScale[]).map(s => (
-                <button
-                  key={s}
-                  type="button"
-                  disabled={!claidEnabled}
-                  onClick={() => setClaidScale(s)}
-                  className={`rounded-md border px-3 py-2 text-sm font-semibold transition ${
-                    claidScale === s ? "border-primary bg-primary/10" : "hover:bg-accent"
-                  } ${!claidEnabled ? "opacity-50 cursor-not-allowed" : ""}`}
-                >
-                  {s}×
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-1.5 md:col-span-1">
-            <Label>{lang === "ko" ? "업스케일 엔진" : "放大引擎"}</Label>
-            <div className="grid grid-cols-1 gap-2">
-              {([
-                { v: "smart_enhance", ko: "Smart Enhance (권장)", zh: "Smart Enhance (推荐)" },
-                { v: "smart_resize", ko: "Smart Resize (사진)", zh: "Smart Resize (照片)" },
-                { v: "faces", ko: "Faces (인물)", zh: "Faces (人像)" },
-              ] as { v: ClaidUpscale; ko: string; zh: string }[]).map(opt => (
-                <button
-                  key={opt.v}
-                  type="button"
-                  disabled={!claidEnabled}
-                  onClick={() => setClaidUpscale(opt.v)}
-                  className={`rounded-md border px-3 py-2 text-left text-xs transition ${
-                    claidUpscale === opt.v ? "border-primary bg-primary/10" : "hover:bg-accent"
-                  } ${!claidEnabled ? "opacity-50 cursor-not-allowed" : ""}`}
-                >
-                  {lang === "ko" ? opt.ko : opt.zh}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-1.5 md:col-span-1">
-            <Label className="opacity-0 hidden md:block">&nbsp;</Label>
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full gap-1"
-              onClick={testClaid}
-              disabled={claidTesting || !claidEnabled}
-            >
-              {claidTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-              {lang === "ko" ? "연결 테스트" : "连接测试"}
-            </Button>
-            <Badge variant="secondary" className="w-full justify-center text-[10px]">
-              {claidEnabled ? `${claidScale}× · ${claidUpscale}` : (lang === "ko" ? "사용 안 함" : "未启用")}
-            </Badge>
-          </div>
-        </div>
-      </Card>
     </div>
   );
 }

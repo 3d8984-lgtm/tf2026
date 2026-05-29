@@ -16,7 +16,7 @@ import { toast } from "@/hooks/use-toast";
 import { jsPDF } from "jspdf";
 import { svg2pdf } from "svg2pdf.js";
 import { supabase } from "@/integrations/supabase/client";
-import { VECTORIZER_MODE_KEY, CLAID_ENABLED_KEY, CLAID_SCALE_KEY, CLAID_UPSCALE_KEY } from "./OutsourceSettings";
+import { VECTORIZER_MODE_KEY } from "./OutsourceSettings";
 
 function fmtDate(v?: string | null): string {
   if (!v) return "";
@@ -392,14 +392,6 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   // Persist each processed result independently so the comparator can switch between them.
   const [upscaledDataUrl, setUpscaledDataUrl] = useState<string | null>(null);
   const [vectorDataUrl, setVectorDataUrl] = useState<string | null>(null);
-  // Claid.ai upscale options (default from OutsourceSettings localStorage)
-  const [claidScale, setClaidScale] = useState<2 | 4>(
-    () => (Number(localStorage.getItem(CLAID_SCALE_KEY) ?? "2") as 2 | 4)
-  );
-  const [claidUpscale, setClaidUpscale] = useState<"smart_enhance" | "smart_resize" | "faces">(
-    () => (localStorage.getItem(CLAID_UPSCALE_KEY) ?? "smart_enhance") as
-      | "smart_enhance" | "smart_resize" | "faces"
-  );
 
   useEffect(() => {
     setProcessedDataUrl(null);
@@ -484,41 +476,12 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
   const handleUpscale = async () => {
     if (!sourceLogo) return;
-    const claidEnabled = (localStorage.getItem(CLAID_ENABLED_KEY) ?? "true") === "true";
-
-    setBusy(claidEnabled ? "Claid.ai 업스케일링 중..." : "로고 업스케일링 중 (edge-preserving)...");
+    setBusy("로고 업스케일링 중 (edge-preserving)...");
     try {
       const src = sourceLogo!;
       const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
 
-      if (claidEnabled) {
-        try {
-          const { data, error } = await supabase.functions.invoke("claid-upscale", {
-            body: { imageBase64: dataUrl, scale: claidScale, upscale: claidUpscale, format: "png" },
-          });
-          if (error) throw error;
-          if ((data as any)?.error) throw new Error((data as any).error);
-          const up = (data as any).dataUrl as string;
-          const img2 = await loadImage(up);
-          setUpscaledDataUrl(up);
-          setProcessedDataUrl(up);
-          setProcessedKind("upscaled");
-          setCompareTarget("upscaled");
-          toast({
-            title: "Claid.ai 업스케일 완료",
-            description: `${claidScale}× · ${claidUpscale} → ${img2.naturalWidth}×${img2.naturalHeight}`,
-          });
-          return;
-        } catch (claidErr: any) {
-          toast({
-            title: "Claid.ai 실패, 로컬 업스케일로 전환",
-            description: claidErr?.message ?? String(claidErr),
-            variant: "destructive",
-          });
-        }
-      }
-
-      // Local fallback: edge-preserving 2x upscale
+      // Edge-preserving 2x upscale (local)
       const img = await loadImage(dataUrl);
       const targetW = img.naturalWidth * 2;
       const targetH = img.naturalHeight * 2;
@@ -529,13 +492,14 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       setProcessedKind("upscaled");
       setCompareTarget("upscaled");
       toast({
-        title: "업스케일 완료 (로컬)",
+        title: "업스케일 완료",
         description: `${img.naturalWidth}×${img.naturalHeight} → ${canvas.width}×${canvas.height} · edge-preserving`,
       });
     } catch (e: any) {
       toast({ title: "업스케일 실패", description: e.message, variant: "destructive" });
     } finally { setBusy(null); }
   };
+
 
   /**
    * Generate a print-ready PNG at the requested DPI and trigger download.
@@ -902,7 +866,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
 
             {/* Settings row */}
-            <div className="grid grid-cols-1 md:grid-cols-7 gap-2 items-end">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-2 items-end">
               <div className="space-y-1">
                 <Label className="text-xs">작업종류</Label>
                 <Select value={workType} onValueChange={(v) => setWorkType(v as WorkType)}>
@@ -945,30 +909,9 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 </div>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">배율 (Claid.ai)</Label>
-                <Select value={String(claidScale)} onValueChange={(v) => setClaidScale(Number(v) as 2 | 4)}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="2">2×</SelectItem>
-                    <SelectItem value="4">4×</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">엔진 (Claid.ai)</Label>
-                <Select value={claidUpscale} onValueChange={(v) => setClaidUpscale(v as typeof claidUpscale)}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="smart_enhance">Smart Enhance</SelectItem>
-                    <SelectItem value="smart_resize">Smart Resize</SelectItem>
-                    <SelectItem value="faces">Faces</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">업스케일 (Claid.ai)</Label>
-                <Button size="sm" variant="outline" className="w-full h-9" onClick={handleUpscale} disabled={!sourceLogo || !!busy} title={`Claid.ai · ${claidScale}× · ${claidUpscale}`}>
-                  <Sparkles className="w-3 h-3 mr-1" /> 실행 (Claid.ai)
+                <Label className="text-xs">업스케일</Label>
+                <Button size="sm" variant="outline" className="w-full h-9" onClick={handleUpscale} disabled={!sourceLogo || !!busy} title="edge-preserving 2× upscale">
+                  <Sparkles className="w-3 h-3 mr-1" /> 실행
                 </Button>
               </div>
               <div className="space-y-1">
