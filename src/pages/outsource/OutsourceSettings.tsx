@@ -52,57 +52,7 @@ export default function OutsourceSettings() {
   const [vecTesting, setVecTesting] = useState(false);
   useEffect(() => { localStorage.setItem(VECTORIZER_MODE_KEY, vecMode); }, [vecMode]);
 
-  // Claid.ai 설정
-  const [claidEnabled, setClaidEnabled] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    const v = localStorage.getItem(CLAID_ENABLED_KEY);
-    return v === null ? true : v === "true";
-  });
-  const [claidScale, setClaidScale] = useState<ClaidScale>(() => {
-    const v = (typeof window !== "undefined" && localStorage.getItem(CLAID_SCALE_KEY)) as ClaidScale | null;
-    return v === "4" ? "4" : "2";
-  });
-  const [claidUpscale, setClaidUpscale] = useState<ClaidUpscale>(() => {
-    const v = (typeof window !== "undefined" && localStorage.getItem(CLAID_UPSCALE_KEY)) as ClaidUpscale | null;
-    return v === "smart_resize" || v === "faces" ? v : "smart_enhance";
-  });
-  const [claidTesting, setClaidTesting] = useState(false);
-  useEffect(() => { localStorage.setItem(CLAID_ENABLED_KEY, String(claidEnabled)); }, [claidEnabled]);
-  useEffect(() => { localStorage.setItem(CLAID_SCALE_KEY, claidScale); }, [claidScale]);
-  useEffect(() => { localStorage.setItem(CLAID_UPSCALE_KEY, claidUpscale); }, [claidUpscale]);
 
-  const testClaid = async () => {
-    setClaidTesting(true);
-    try {
-      // Generate a 128x128 sample PNG (Claid rejects tiny test images with error 2002)
-      const canvas = document.createElement("canvas");
-      canvas.width = 128; canvas.height = 128;
-      const ctx = canvas.getContext("2d")!;
-      const grad = ctx.createLinearGradient(0, 0, 128, 128);
-      grad.addColorStop(0, "#3b82f6"); grad.addColorStop(1, "#ef4444");
-      ctx.fillStyle = grad; ctx.fillRect(0, 0, 128, 128);
-      ctx.fillStyle = "#fff"; ctx.font = "bold 28px sans-serif";
-      ctx.fillText("TEST", 28, 78);
-      const sample = canvas.toDataURL("image/png");
-      const { data, error } = await supabase.functions.invoke("claid-upscale", {
-        body: { imageBase64: sample, scale: Number(claidScale), upscale: claidUpscale },
-      });
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
-      toast({
-        title: lang === "ko" ? "Claid.ai 연결 성공" : "Claid.ai 连接成功",
-        description: lang === "ko" ? "업스케일 응답 수신 완료" : "已收到放大响应",
-      });
-    } catch (e) {
-      toast({
-        title: lang === "ko" ? "Claid.ai 연결 실패" : "Claid.ai 连接失败",
-        description: e instanceof Error ? e.message : String(e),
-        variant: "destructive",
-      });
-    } finally {
-      setClaidTesting(false);
-    }
-  };
 
   const testVectorizer = async () => {
     setVecTesting(true);
