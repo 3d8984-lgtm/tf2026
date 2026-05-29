@@ -81,10 +81,18 @@ export default function OutsourceSettings() {
   const testClaid = async () => {
     setClaidTesting(true);
     try {
-      const tinyPng =
-        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgAAIAAAUAAeImBZsAAAAASUVORK5CYII=";
+      // Generate a 128x128 sample PNG (Claid rejects tiny test images with error 2002)
+      const canvas = document.createElement("canvas");
+      canvas.width = 128; canvas.height = 128;
+      const ctx = canvas.getContext("2d")!;
+      const grad = ctx.createLinearGradient(0, 0, 128, 128);
+      grad.addColorStop(0, "#3b82f6"); grad.addColorStop(1, "#ef4444");
+      ctx.fillStyle = grad; ctx.fillRect(0, 0, 128, 128);
+      ctx.fillStyle = "#fff"; ctx.font = "bold 28px sans-serif";
+      ctx.fillText("TEST", 28, 78);
+      const sample = canvas.toDataURL("image/png");
       const { data, error } = await supabase.functions.invoke("claid-upscale", {
-        body: { imageBase64: tinyPng, scale: Number(claidScale), upscale: claidUpscale },
+        body: { imageBase64: sample, scale: Number(claidScale), upscale: claidUpscale },
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
