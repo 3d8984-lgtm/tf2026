@@ -834,15 +834,6 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 >
                   <Download className="w-4 h-4 mr-1" /> PNG 300dpi
                 </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={downloadVectorSvg}
-                  disabled={processedKind !== "vector" || !!busy}
-                  title={processedKind !== "vector" ? "먼저 '벡터 변환'을 실행하세요" : "확대해도 깨지지 않는 SVG 벡터 파일"}
-                >
-                  <Download className="w-4 h-4 mr-1" /> SVG 벡터 다운로드
-                </Button>
                 <Button size="sm" onClick={downloadResultPdf} disabled={!sourceLogo || !!busy}>
                   <Download className="w-4 h-4 mr-1" /> 작업결과물 다운로드 (PDF)
                 </Button>
