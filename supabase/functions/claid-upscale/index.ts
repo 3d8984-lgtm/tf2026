@@ -68,12 +68,19 @@ Deno.serve(async (req) => {
     const upscaleType = body.upscale ?? "smart_enhance";
     const format = body.format ?? "png";
 
+    // Claid's `restorations.upscale` already increases resolution (typically 2×).
+    // Combining it with a `resizing` operation often triggers a generic 2002 error,
+    // so we only request 4× via an extra resizing step (no `fit`, just width %).
+    const operations: Record<string, unknown> = {
+      restorations: { upscale: upscaleType },
+    };
+    if (scale === 4) {
+      operations.resizing = { width: "200%" }; // upscale gives 2×, this doubles again
+    }
+
     const claidPayload = {
       input: inputUrl,
-      operations: {
-        restorations: { upscale: upscaleType },
-        resizing: { width: `${scale * 100}%`, fit: "bounds" },
-      },
+      operations,
       output: { format: { type: format, compression: "optimal" } },
     };
 
