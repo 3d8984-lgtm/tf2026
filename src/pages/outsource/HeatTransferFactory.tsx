@@ -18,6 +18,7 @@ import { ChevronLeft, Upload, X, Download, FileText, Loader2, QrCode as QrCodeIc
 import { useLang } from "@/contexts/LangContext";
 import { useOrders } from "@/hooks/useDbData";
 import { toast } from "@/hooks/use-toast";
+import { edgePreservingUpscale } from "@/lib/upscale";
 import { supabase } from "@/integrations/supabase/client";
 import QRCode from "qrcode";
 import JSZip from "jszip";
