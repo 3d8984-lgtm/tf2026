@@ -47,7 +47,6 @@ async function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 // Smart upscale (Lanczos3 + auto image-type pipeline). See src/lib/upscale.ts.
-import { edgePreservingUpscale } from "@/lib/upscale";
 
 /**
  * Analyze a design image to recommend the best print-quality preset.
