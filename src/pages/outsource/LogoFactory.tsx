@@ -714,10 +714,6 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
       const pdf = new jsPDF({ unit: "mm", format: "a4" });
       const pageW = 210, pageH = 297;
-      pdf.setFontSize(14);
-      pdf.text(`Work Order: ${orderNo}`, 14, 16);
-      pdf.setFontSize(10);
-      pdf.text(`Type: ${WORK_TYPES.find(w => w.value === workType)?.label} | Size: ${logoWidthMm}×${logoHeightMm}mm | Qty: ${total} (base ${qty} + 5% ${surplus})`, 14, 23);
 
       const x = (pageW - logoWidthMm) / 2;
       const y = (pageH - logoHeightMm) / 2;
