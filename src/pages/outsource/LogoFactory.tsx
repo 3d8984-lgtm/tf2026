@@ -902,7 +902,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
 
             {/* Settings row */}
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-2 items-end">
+            <div className="grid grid-cols-1 md:grid-cols-7 gap-2 items-end">
               <div className="space-y-1">
                 <Label className="text-xs">작업종류</Label>
                 <Select value={workType} onValueChange={(v) => setWorkType(v as WorkType)}>
