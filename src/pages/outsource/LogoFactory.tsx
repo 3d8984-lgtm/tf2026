@@ -372,8 +372,13 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   // Logo settings
   const [workType, setWorkType] = useState<WorkType>("heat-transfer");
   const DEFAULT_BASE_MM = 50;
+  const DEFAULT_CANVAS_MM = 100;
+  const [canvasWidthMm, setCanvasWidthMm] = useState<number>(DEFAULT_CANVAS_MM);
+  const [canvasHeightMm, setCanvasHeightMm] = useState<number>(DEFAULT_CANVAS_MM);
   const [logoWidthMm, setLogoWidthMm] = useState<number>(DEFAULT_BASE_MM);
   const [logoHeightMm, setLogoHeightMm] = useState<number>(DEFAULT_BASE_MM);
+  const [offsetXMm, setOffsetXMm] = useState<number>(0);
+  const [offsetYMm, setOffsetYMm] = useState<number>(0);
   const [lockAspect, setLockAspect] = useState<boolean>(true);
   const [naturalAspect, setNaturalAspect] = useState<number>(1); // width / height
   const [processedDataUrl, setProcessedDataUrl] = useState<string | null>(null); // upscaled or vectorized
@@ -392,6 +397,32 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   // Persist each processed result independently so the comparator can switch between them.
   const [upscaledDataUrl, setUpscaledDataUrl] = useState<string | null>(null);
   const [vectorDataUrl, setVectorDataUrl] = useState<string | null>(null);
+
+  // Logo size as % of canvas longest side — convenience slider
+  const canvasLongest = Math.max(canvasWidthMm, canvasHeightMm) || 1;
+  const logoLongest = Math.max(logoWidthMm, logoHeightMm) || 0;
+  const logoScalePct = Math.min(100, Math.round((logoLongest / canvasLongest) * 100));
+
+  const setLogoScalePct = (pct: number) => {
+    const p = Math.max(1, Math.min(100, pct));
+    const longest = (canvasLongest * p) / 100;
+    const ar = naturalAspect || 1;
+    if (ar >= 1) {
+      const w = Math.round(longest * 10) / 10;
+      setLogoWidthMm(w);
+      setLogoHeightMm(Math.round((w / ar) * 10) / 10);
+    } else {
+      const h = Math.round(longest * 10) / 10;
+      setLogoHeightMm(h);
+      setLogoWidthMm(Math.round(h * ar * 10) / 10);
+    }
+  };
+
+  // Clamp offsets so the logo stays within the canvas
+  const maxOffsetX = Math.max(0, (canvasWidthMm - logoWidthMm) / 2);
+  const maxOffsetY = Math.max(0, (canvasHeightMm - logoHeightMm) / 2);
+  const clampedOffsetX = Math.max(-maxOffsetX, Math.min(maxOffsetX, offsetXMm));
+  const clampedOffsetY = Math.max(-maxOffsetY, Math.min(maxOffsetY, offsetYMm));
 
   useEffect(() => {
     setProcessedDataUrl(null);
