@@ -377,7 +377,7 @@ export default function HologramFactory() {
                 </TableHeader>
                 <TableBody>
                   {detailItems.map(it => (
-                    <TableRow key={it.uniqueNo}>
+                    <TableRow key={`${it.uniqueNo}-${it.editionNo}`}>
                       <TableCell>{it.seq}</TableCell>
                       <TableCell className="font-mono">{it.uniqueNo}</TableCell>
                       <TableCell>#{String(it.editionNo).padStart(4, "0")}</TableCell>
