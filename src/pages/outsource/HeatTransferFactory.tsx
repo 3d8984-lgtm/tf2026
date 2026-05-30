@@ -1059,12 +1059,23 @@ function DesignTab({
     setTestDesign(url); setTestName(f.name);
   };
 
-  const resolveFormat = (d: DesignDetail): OutlineFormat | null =>
-    pickFormatForSize(formats, d.tshirtSize, outline);
+  const [logs, setLogs] = useState<Array<{ ts: string; level: "info" | "warn" | "error"; msg: string }>>([]);
+  const pushLog = (level: "info" | "warn" | "error", msg: string) =>
+    setLogs((prev) => [{ ts: new Date().toLocaleTimeString(), level, msg }, ...prev].slice(0, 200));
+
+  const resolveStrictFormat = (d: DesignDetail): OutlineFormat | null => {
+    const target = normalizeSize(d.tshirtSize);
+    if (!target) return null;
+    return formats.find((f) => normalizeSize(f.sizeLabel) === target) || null;
+  };
 
   const downloadOne = async (d: DesignDetail) => {
-    const fmt = resolveFormat(d);
-    if (!fmt) { toast({ title: "외곽선 PDF를 먼저 업로드하세요", variant: "destructive" }); return; }
+    const fmt = resolveStrictFormat(d) || outline;
+    if (!fmt) {
+      pushLog("error", `사이즈 "${d.tshirtSize || "?"}"에 해당하는 디자인 포맷이 없습니다 (${d.designUid})`);
+      toast({ title: "디자인 포맷 없음", description: `사이즈 "${d.tshirtSize || "?"}" 포맷을 먼저 등록하세요`, variant: "destructive" });
+      return;
+    }
     const src = testDesign || d.designSrc;
     if (!src) { toast({ title: "디자인 소스가 없습니다", variant: "destructive" }); return; }
     setBusy(true);
@@ -1076,40 +1087,61 @@ function DesignTab({
   };
 
   const downloadAll = async () => {
-    if (!outline && formats.length === 0) { toast({ title: "외곽선 PDF를 먼저 업로드하세요", variant: "destructive" }); return; }
+    if (formats.length === 0) {
+      pushLog("error", "등록된 디자인 포맷이 없습니다");
+      toast({ title: "디자인 포맷 없음", description: "사이즈별 디자인 포맷을 먼저 등록하세요", variant: "destructive" });
+      return;
+    }
     setBusy(true);
+    const startedAt = new Date().toLocaleTimeString();
+    pushLog("info", `일괄 다운로드 시작 · ${details.length}개 · ${dpi}dpi`);
     try {
       const zip = new JSZip();
       const folder = zip.folder(`design_${order.orderNo}_${dpi}dpi`)!;
       let matched = 0;
-      let missing = 0;
-      const unmatched: string[] = [];
+      let skipped = 0;
+      const skippedItems: string[] = [];
       for (const d of details) {
         const src = testDesign || d.designSrc;
-        if (!src) continue;
-        const fmt = resolveFormat(d);
-        if (!fmt) { missing++; unmatched.push(`${d.designUid}(${d.tshirtSize || "?"})`); continue; }
-        // Track whether size-specific format was matched (not just fallback to selected outline)
-        const sizeMatched = formats.some(
-          (f) => normalizeSize(f.sizeLabel) === normalizeSize(d.tshirtSize) && d.tshirtSize,
-        );
-        if (sizeMatched) matched++;
-        const sizeFolder = d.tshirtSize
-          ? folder.folder(d.tshirtSize) || folder
-          : folder;
+        if (!src) {
+          skipped++;
+          skippedItems.push(`${d.designUid} (디자인 소스 없음)`);
+          pushLog("warn", `건너뜀: ${d.designUid} — 디자인 소스 없음`);
+          continue;
+        }
+        const fmt = resolveStrictFormat(d);
+        if (!fmt) {
+          skipped++;
+          const label = `${d.designUid} (사이즈: ${d.tshirtSize || "미지정"})`;
+          skippedItems.push(label);
+          pushLog("warn", `건너뜀: ${label} — 매칭되는 디자인 포맷 없음`);
+          continue;
+        }
+        const sizeFolder = d.tshirtSize ? folder.folder(d.tshirtSize) || folder : folder;
         const c = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
         const b = await pngWithDpi(await canvasToBlob(c), dpi);
         sizeFolder.file(`${d.designUid}.png`, b);
+        matched++;
+      }
+      if (matched === 0) {
+        pushLog("error", "생성된 파일이 없습니다 — 모든 항목에서 사이즈 매칭 실패");
+        toast({ title: "일괄 다운로드 실패", description: "사이즈에 맞는 포맷이 하나도 없습니다", variant: "destructive" });
+        return;
       }
       const zipBlob = await zip.generateAsync({ type: "blob" });
       triggerDownload(zipBlob, `design_${order.orderNo}_${dpi}dpi.zip`);
-      const fallbackCount = details.length - matched - missing;
+      pushLog(
+        skipped > 0 ? "warn" : "info",
+        `일괄 다운로드 완료 (${startedAt} 시작) · 성공 ${matched}개${skipped ? ` · 건너뜀 ${skipped}개` : ""}`,
+      );
       toast({
-        title: "일괄 다운로드 완료",
-        description: `총 ${details.length}개 · 사이즈 매칭 ${matched}개${fallbackCount ? ` · 기본 포맷 ${fallbackCount}개` : ""}${missing ? ` · 누락 ${missing}개` : ""}`,
+        title: skipped > 0 ? "일부만 다운로드됨" : "일괄 다운로드 완료",
+        description: `성공 ${matched}개${skipped ? ` · 건너뜀 ${skipped}개 (상단 로그 확인)` : ""}`,
+        variant: skipped > 0 ? "destructive" : "default",
       });
     } finally { setBusy(false); }
   };
+
 
 
   return (
