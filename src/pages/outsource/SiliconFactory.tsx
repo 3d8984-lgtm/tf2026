@@ -345,7 +345,7 @@ export default function SiliconFactory() {
       }
     }
     const status = error?.statusCode ?? error?.status ?? error?.originalError?.status ?? error?.context?.status ?? responseBody?.statusCode ?? null;
-    const message = responseBody?.error ?? responseBody?.message ?? error?.message ?? String(error);
+    const message = responseBody?.error ?? responseBody?.message ?? error?.error ?? error?.message ?? String(error);
     const code = responseBody?.code ?? error?.error ?? error?.name ?? null;
     const detail = [
       message,
