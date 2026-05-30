@@ -291,7 +291,7 @@ export default function HologramFactory() {
 
   const orderRows = useMemo(() => {
     const list = (ordersData || []) as any[];
-    const rows = list.map((o, idx) => {
+    return list.map((o, idx) => {
       const items: any[] = Array.isArray(o.source_data?.items) ? o.source_data.items : [];
       const qty = o.quantity || items.length || 0;
       return {
@@ -303,8 +303,6 @@ export default function HologramFactory() {
         qty,
       };
     }).sort((a, b) => a.orderNo.localeCompare(b.orderNo)).map((r, i) => ({ ...r, seq: i + 1 }));
-    console.log("[Hologram] orderRows", { listLen: list.length, rows, raw: list });
-    return rows;
   }, [ordersData]);
 
   const detailOrder = useMemo(() => {
