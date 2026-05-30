@@ -334,9 +334,17 @@ export default function SiliconFactory() {
     error: any,
     extra: Record<string, any> = {},
   ) => {
-    const status = error?.statusCode ?? error?.status ?? error?.originalError?.status ?? null;
-    const message = error?.message ?? String(error);
-    const code = error?.error ?? error?.name ?? null;
+    let responseBody: any = null;
+    if (error?.context instanceof Response) {
+      try {
+        responseBody = await error.context.clone().json();
+      } catch {
+        try { responseBody = { error: await error.context.clone().text() }; } catch {}
+      }
+    }
+    const status = error?.statusCode ?? error?.status ?? error?.originalError?.status ?? error?.context?.status ?? responseBody?.statusCode ?? null;
+    const message = responseBody?.error ?? responseBody?.message ?? error?.message ?? String(error);
+    const code = responseBody?.code ?? error?.error ?? error?.name ?? null;
     const detail = [
       message,
       status ? `HTTP ${status}` : null,
@@ -355,6 +363,7 @@ export default function SiliconFactory() {
           http_status: status,
           supabase_code: code,
           supabase_message: message,
+          response_body: responseBody,
           user_id: user?.id ?? null,
           ...extra,
         },
