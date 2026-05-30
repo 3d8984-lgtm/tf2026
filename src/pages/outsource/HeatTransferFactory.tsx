@@ -478,7 +478,7 @@ export default function HeatTransferFactory() {
 // ============ design format box ============
 
 function DesignFormatBox({
-  formats, selectedId, onSelect, loading, onAdd, onRemove,
+  formats, selectedId, onSelect, loading, onAdd, onRemove, onRename,
 }: {
   formats: Array<{ id: string; sizeLabel: string; name: string; previewUrl: string; widthPt: number; heightPt: number }>;
   selectedId: string | null;
@@ -486,7 +486,10 @@ function DesignFormatBox({
   loading: boolean;
   onAdd: (sizeLabel: string, f: File) => void;
   onRemove: (id: string) => void;
+  onRename: (id: string, newSizeLabel: string) => void;
 }) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const [newSize, setNewSize] = useState("");
   const [adding, setAdding] = useState(false);
