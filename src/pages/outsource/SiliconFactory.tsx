@@ -1380,10 +1380,10 @@ function ProofBox({
       const totalW = idW + sepW + colorW;
       const startX = (cellXmm + effCellWmm / 2) * MM - totalW / 2;
       const textYpt = pageHpt - baselineYmm * MM;
-      page.drawText(idText, { x: startX, y: yPt, size: fontPt, font: helv, color: rgb(0, 0, 0) });
+      page.drawText(idText, { x: startX, y: textYpt, size: fontPt, font: helv, color: rgb(0, 0, 0) });
       if (colorName) {
-        page.drawText(sepText, { x: startX + idW, y: yPt, size: fontPt, font: helv, color: rgb(0, 0, 0) });
-        page.drawText(colorName, { x: startX + idW + sepW, y: yPt, size: colorFontPt, font: colorFont, color: rgb(0, 0, 0) });
+        page.drawText(sepText, { x: startX + idW, y: textYpt, size: fontPt, font: helv, color: rgb(0, 0, 0) });
+        page.drawText(colorName, { x: startX + idW + sepW, y: textYpt, size: colorFontPt, font: colorFont, color: rgb(0, 0, 0) });
       }
     }
 
