@@ -17,6 +17,10 @@ function safeFileName(name: string) {
   return name.replace(/[^\w.-]+/g, "_") || "template.pdf";
 }
 
+function uniqueTemplateName(grade: string, fileName: string) {
+  return `${grade}__${Date.now()}__${crypto.randomUUID()}__${fileName}`;
+}
+
 async function logFailure(adminClient: ReturnType<typeof createClient>, payload: JsonBody) {
   try {
     await adminClient.from("webhook_logs").insert({
@@ -141,11 +145,11 @@ Deno.serve(async (req) => {
     }
 
     const fileName = safeFileName(file.name);
-    const path = `${prefix}${grade}__${fileName}`;
+    const path = `${prefix}${uniqueTemplateName(grade, fileName)}`;
     const { error: uploadError } = await adminClient.storage.from(BUCKET).upload(path, file, {
-      upsert: true,
+      upsert: false,
       contentType: "application/pdf",
-      cacheControl: "3600",
+      cacheControl: "0",
     });
 
     if (uploadError) {
