@@ -229,6 +229,10 @@ export default function OutsourceHistory() {
               ))}
             </SelectContent>
           </Select>
+          <Button variant="outline" size="sm" onClick={() => setHooksOpen(true)}>
+            <Settings2 className="w-4 h-4 mr-1" />
+            {lang === "ko" ? "위챗 Webhook 설정" : "企业微信 Webhook 设置"}
+          </Button>
         </div>
 
         <div className="rounded-md border overflow-x-auto">
