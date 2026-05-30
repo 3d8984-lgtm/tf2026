@@ -1488,26 +1488,56 @@ function ProofBox({
                 <Button size="sm" variant="default" onClick={() => {
                   try {
                     localStorage.setItem(GRADE_COLOR_LS_KEY, JSON.stringify(gradeColorNames));
+                    localStorage.setItem(GRADE_COLOR_STYLE_LS_KEY, JSON.stringify(gradeColorStyle));
                     toast({ title: "등급별 색상명 저장됨" });
                   } catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" }); }
                 }}>저장</Button>
               </div>
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {(["COMMON","RARE","EPIC","LEGEND"] as Grade[]).map(g => (
-              <div key={g} className="space-y-1">
-                <Label className="text-xs flex items-center gap-2">
-                  <Badge variant="outline" className="font-mono">{g}</Badge>
-                </Label>
-                <Input
-                  value={gradeColorNames[g]}
-                  onChange={e => setGradeColor(g, e.target.value)}
-                  placeholder="예: 화이트 / 红色 / Black"
-                  className="h-9"
+          <CardContent className="space-y-4">
+            {/* 일괄 타이포그래피 컨트롤 */}
+            <div className="rounded-md border bg-muted/30 p-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">글자 크기 (모든 등급 일괄)</Label>
+                  <span className="text-xs font-mono text-muted-foreground">{gradeColorStyle.fontSize}pt</span>
+                </div>
+                <Slider
+                  min={6} max={36} step={1}
+                  value={[gradeColorStyle.fontSize]}
+                  onValueChange={([v]) => setGradeColorStyle(s => ({ ...s, fontSize: v }))}
                 />
               </div>
-            ))}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Bold 강도 (모든 등급 일괄)</Label>
+                  <span className="text-xs font-mono text-muted-foreground">{gradeColorStyle.fontWeight}</span>
+                </div>
+                <Slider
+                  min={100} max={900} step={100}
+                  value={[gradeColorStyle.fontWeight]}
+                  onValueChange={([v]) => setGradeColorStyle(s => ({ ...s, fontWeight: v }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {(["COMMON","RARE","EPIC","LEGEND"] as Grade[]).map(g => (
+                <div key={g} className="space-y-1">
+                  <Label className="text-xs flex items-center gap-2">
+                    <Badge variant="outline" className="font-mono">{g}</Badge>
+                  </Label>
+                  <Input
+                    value={gradeColorNames[g]}
+                    onChange={e => setGradeColor(g, e.target.value)}
+                    placeholder="예: 화이트 / 红色 / Black"
+                    className="h-9"
+                    style={{ fontSize: `${gradeColorStyle.fontSize}px`, fontWeight: gradeColorStyle.fontWeight }}
+                  />
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
 
