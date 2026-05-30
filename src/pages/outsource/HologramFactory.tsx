@@ -374,6 +374,7 @@ export default function HologramFactory() {
                     <TableHead>스티커 고유번호</TableHead>
                     <TableHead>에디션 넘버</TableHead>
                     <TableHead>등급</TableHead>
+                    <TableHead>회사명</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -383,10 +384,11 @@ export default function HologramFactory() {
                       <TableCell className="font-mono">{it.uniqueNo}</TableCell>
                       <TableCell>#{String(it.editionNo).padStart(4, "0")}</TableCell>
                       <TableCell><Badge variant="outline">{it.grade}</Badge></TableCell>
+                      <TableCell>TWINMETA</TableCell>
                     </TableRow>
                   ))}
                   {detailItems.length === 0 && (
-                    <TableRow><TableCell colSpan={4} className="text-center py-8 text-sm text-muted-foreground">—</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-sm text-muted-foreground">—</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
