@@ -338,9 +338,10 @@ export default function HologramFactory() {
         "스티커 고유번호": it.uniqueNo,
         "에디션 넘버": `#${String(it.editionNo).padStart(4, "0")}`,
         "등급": it.grade,
+        "회사명": "TWINMETA",
       }));
       const ws = XLSX.utils.json_to_sheet(rows);
-      ws["!cols"] = [{ wch: 6 }, { wch: 22 }, { wch: 14 }, { wch: 10 }];
+      ws["!cols"] = [{ wch: 6 }, { wch: 22 }, { wch: 14 }, { wch: 10 }, { wch: 14 }];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Hologram");
       XLSX.writeFile(wb, `hologram_${activeOrderNo}.xlsx`);
