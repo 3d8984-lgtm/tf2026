@@ -1360,6 +1360,7 @@ function ProofBox({
                 placeholder="특이사항을 입력하세요"
               />
             </div>
+          </CardContent>
         </Card>
 
         {/* ============== 등급별 색상명 설정 ============== */}
