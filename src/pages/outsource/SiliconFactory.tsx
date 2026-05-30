@@ -327,19 +327,73 @@ export default function SiliconFactory() {
     return () => { cancelled = true; };
   }, [user?.id]);
 
+  const logStorageError = async (
+    action: "upload" | "delete" | "list",
+    grade: Grade,
+    path: string,
+    error: any,
+    extra: Record<string, any> = {},
+  ) => {
+    const status = error?.statusCode ?? error?.status ?? error?.originalError?.status ?? null;
+    const message = error?.message ?? String(error);
+    const code = error?.error ?? error?.name ?? null;
+    const detail = [
+      message,
+      status ? `HTTP ${status}` : null,
+      code,
+    ].filter(Boolean).join(" · ");
+    console.error(`[SiliconFactory] ${action} failed`, { grade, path, status, code, message, ...extra });
+    try {
+      await supabase.from("webhook_logs").insert({
+        source: "silicon_factory",
+        event_type: `storage_${action}_failed`,
+        status: "error",
+        error_message: detail,
+        payload: {
+          grade,
+          path,
+          http_status: status,
+          supabase_code: code,
+          supabase_message: message,
+          user_id: user?.id ?? null,
+          ...extra,
+        },
+      });
+    } catch (logErr) {
+      console.error("[SiliconFactory] failed to write admin log", logErr);
+    }
+    return detail;
+  };
+
   const onUploadTemplate = async (grade: Grade, file: File | null) => {
     if (!user?.id) {
       toast({ title: "로그인 필요", variant: "destructive" });
       return;
     }
     // Always clear any existing files for this grade
-    const { data: existing } = await supabase.storage.from("silicon-templates").list(user.id);
+    const { data: existing, error: listErr } = await supabase.storage.from("silicon-templates").list(user.id);
+    if (listErr) {
+      const detail = await logStorageError("list", grade, `${user.id}/`, listErr);
+      toast({ title: "PDF 목록 조회 실패", description: detail, variant: "destructive" });
+      return;
+    }
     const toRemove = (existing || [])
       .filter(f => f.name.startsWith(`${grade}__`))
       .map(f => `${user.id}/${f.name}`);
-    if (toRemove.length) await supabase.storage.from("silicon-templates").remove(toRemove);
+    if (toRemove.length) {
+      const { error: rmErr } = await supabase.storage.from("silicon-templates").remove(toRemove);
+      if (rmErr) {
+        const detail = await logStorageError("delete", grade, toRemove.join(","), rmErr);
+        toast({ title: "PDF 삭제 실패", description: detail, variant: "destructive" });
+        return;
+      }
+    }
 
-    if (!file) { setTemplates(prev => ({ ...prev, [grade]: null })); return; }
+    if (!file) {
+      setTemplates(prev => ({ ...prev, [grade]: null }));
+      if (toRemove.length) toast({ title: "PDF 삭제 완료", description: `${grade} 등급` });
+      return;
+    }
     try {
       const buf = new Uint8Array(await file.arrayBuffer());
       const { dataUrl, aspect } = await renderPdfFirstPagePng(buf);
@@ -354,15 +408,8 @@ export default function SiliconFactory() {
           contentType: "application/pdf",
         });
       if (error) {
-        const anyErr = error as any;
-        const detail = [
-          anyErr?.message,
-          anyErr?.statusCode ? `status ${anyErr.statusCode}` : null,
-          anyErr?.error,
-          `파일 크기: ${sizeMb}MB`,
-        ].filter(Boolean).join(" · ");
-        console.error("[SiliconFactory] PDF upload failed", { path, sizeMb, error });
-        toast({ title: "PDF 저장 실패", description: detail, variant: "destructive" });
+        const detail = await logStorageError("upload", grade, path, error, { size_mb: sizeMb, file_name: file.name });
+        toast({ title: "PDF 저장 실패", description: `${detail} · 파일 ${sizeMb}MB`, variant: "destructive" });
       } else {
         toast({ title: "PDF 저장 완료", description: `${file.name} (${sizeMb}MB)` });
       }
