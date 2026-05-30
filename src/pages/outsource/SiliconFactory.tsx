@@ -1360,8 +1360,45 @@ function ProofBox({
                 placeholder="특이사항을 입력하세요"
               />
             </div>
+        </Card>
+
+        {/* ============== 등급별 색상명 설정 ============== */}
+        <Card className="border-dashed">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center justify-between">
+              <span>등급별 색상명 설정</span>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="ghost" onClick={() => {
+                  setGradeColorNames(DEFAULT_GRADE_COLOR_NAMES);
+                  try { localStorage.removeItem(GRADE_COLOR_LS_KEY); } catch {}
+                  toast({ title: "색상명 초기화됨" });
+                }}>초기화</Button>
+                <Button size="sm" variant="default" onClick={() => {
+                  try {
+                    localStorage.setItem(GRADE_COLOR_LS_KEY, JSON.stringify(gradeColorNames));
+                    toast({ title: "등급별 색상명 저장됨" });
+                  } catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" }); }
+                }}>저장</Button>
+              </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {(["COMMON","RARE","EPIC","LEGEND"] as Grade[]).map(g => (
+              <div key={g} className="space-y-1">
+                <Label className="text-xs flex items-center gap-2">
+                  <Badge variant="outline" className="font-mono">{g}</Badge>
+                </Label>
+                <Input
+                  value={gradeColorNames[g]}
+                  onChange={e => setGradeColor(g, e.target.value)}
+                  placeholder="예: 화이트 / 红色 / Black"
+                  className="h-9"
+                />
+              </div>
+            ))}
           </CardContent>
         </Card>
+
 
         <Tabs defaultValue="twin">
           <TabsList>
