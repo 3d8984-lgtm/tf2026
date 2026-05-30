@@ -1160,7 +1160,8 @@ function DesignTab({
     if (!src) { toast({ title: "디자인 소스가 없습니다", variant: "destructive" }); return; }
     setBusy(true);
     try {
-      const c = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
+      const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
+      const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer);
       const b = await pngWithDpi(await canvasToBlob(c), dpi);
       triggerDownload(b, `${d.designUid}_${d.tshirtSize || "size"}_${dpi}dpi.png`);
     } finally { setBusy(false); }
