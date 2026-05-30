@@ -25,6 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -1021,9 +1022,13 @@ function TxtField({ label, v, set, type = "text" }: { label: string; v: string; 
 
 const PROOF_LS_KEY = "silicon.proofSettings.v1";
 const GRADE_COLOR_LS_KEY = "silicon.gradeColorNames.v1";
+const GRADE_COLOR_STYLE_LS_KEY = "silicon.gradeColorStyle.v1";
 
 type GradeColorNames = Record<Grade, string>;
 const DEFAULT_GRADE_COLOR_NAMES: GradeColorNames = { COMMON: "", RARE: "", EPIC: "", LEGEND: "" };
+
+interface GradeColorStyle { fontSize: number; fontWeight: number; }
+const DEFAULT_GRADE_COLOR_STYLE: GradeColorStyle = { fontSize: 14, fontWeight: 700 };
 
 interface WorkOrderData {
   company: string; orderNo: string; orderDate: string; deliveryDate: string;
@@ -1035,16 +1040,20 @@ function printWorkOrder(
   wo: WorkOrderData,
   templates: Record<Grade, { name: string; bytes: Uint8Array; preview: string; aspect: number } | null>,
   colorNames: GradeColorNames = DEFAULT_GRADE_COLOR_NAMES,
+  colorStyle: GradeColorStyle = DEFAULT_GRADE_COLOR_STYLE,
 ) {
   const esc = (s: any) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
   const today = new Date().toISOString().slice(0, 10);
-  const gradeLabel = (g: Grade) => colorNames[g] ? `${g} · ${colorNames[g]}` : g;
+  const styleAttr = `style="font-size:${colorStyle.fontSize}pt;font-weight:${colorStyle.fontWeight};"`;
+  const gradeLabel = (g: Grade) => colorNames[g]
+    ? `${g} · <span class="g-color" ${styleAttr}>${esc(colorNames[g])}</span>`
+    : g;
   const gradeRow = (g: Grade) => {
     const t = templates[g];
     const img = t?.preview
       ? `<img src="${t.preview}" alt="${g}" />`
       : `<div class="ph">未上传</div>`;
-    return `<div class="g-cell"><div class="g-name">${esc(gradeLabel(g))}</div><div class="g-img">${img}</div></div>`;
+    return `<div class="g-cell"><div class="g-name">${gradeLabel(g)}</div><div class="g-img">${img}</div></div>`;
   };
   const html = `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8" />
@@ -1086,7 +1095,7 @@ function printWorkOrder(
   </table>
   <h2>各等级数量</h2>
   <table class="qty">
-    <tr><th>${esc(gradeLabel("COMMON"))}</th><th>${esc(gradeLabel("RARE"))}</th><th>${esc(gradeLabel("EPIC"))}</th><th>${esc(gradeLabel("LEGEND"))}</th><th>总数量</th></tr>
+    <tr><th>${gradeLabel("COMMON")}</th><th>${gradeLabel("RARE")}</th><th>${gradeLabel("EPIC")}</th><th>${gradeLabel("LEGEND")}</th><th>总数量</th></tr>
     <tr><td>${esc(wo.common)}</td><td>${esc(wo.rare)}</td><td>${esc(wo.epic)}</td><td>${esc(wo.legend)}</td><td><strong>${esc(wo.total)}</strong></td></tr>
   </table>
   <h2>订单特殊事项</h2>
@@ -1198,6 +1207,13 @@ function ProofBox({
     return DEFAULT_GRADE_COLOR_NAMES;
   });
   const setGradeColor = (g: Grade, v: string) => setGradeColorNames(prev => ({ ...prev, [g]: v }));
+  const [gradeColorStyle, setGradeColorStyle] = useState<GradeColorStyle>(() => {
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem(GRADE_COLOR_STYLE_LS_KEY) : null;
+      if (raw) return { ...DEFAULT_GRADE_COLOR_STYLE, ...JSON.parse(raw) };
+    } catch {}
+    return DEFAULT_GRADE_COLOR_STYLE;
+  });
   const labelFor = (it: ProofItem) => {
     const c = gradeColorNames[it.grade];
     return c ? `${it.uniqueNo} · ${c}` : it.uniqueNo;
@@ -1421,7 +1437,7 @@ function ProofBox({
                     toast({ title: "작업지시서 저장됨" });
                   } catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" }); }
                 }}>저장</Button>
-                <Button size="sm" variant="outline" onClick={() => printWorkOrder({ ...workOrder, total: woTotal }, templates, gradeColorNames)}>
+                <Button size="sm" variant="outline" onClick={() => printWorkOrder({ ...workOrder, total: woTotal }, templates, gradeColorNames, gradeColorStyle)}>
                   <FileText className="w-4 h-4 mr-1" />작업지시서 출력
                 </Button>
               </div>
@@ -1473,26 +1489,56 @@ function ProofBox({
                 <Button size="sm" variant="default" onClick={() => {
                   try {
                     localStorage.setItem(GRADE_COLOR_LS_KEY, JSON.stringify(gradeColorNames));
+                    localStorage.setItem(GRADE_COLOR_STYLE_LS_KEY, JSON.stringify(gradeColorStyle));
                     toast({ title: "등급별 색상명 저장됨" });
                   } catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" }); }
                 }}>저장</Button>
               </div>
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {(["COMMON","RARE","EPIC","LEGEND"] as Grade[]).map(g => (
-              <div key={g} className="space-y-1">
-                <Label className="text-xs flex items-center gap-2">
-                  <Badge variant="outline" className="font-mono">{g}</Badge>
-                </Label>
-                <Input
-                  value={gradeColorNames[g]}
-                  onChange={e => setGradeColor(g, e.target.value)}
-                  placeholder="예: 화이트 / 红色 / Black"
-                  className="h-9"
+          <CardContent className="space-y-4">
+            {/* 일괄 타이포그래피 컨트롤 */}
+            <div className="rounded-md border bg-muted/30 p-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">글자 크기 (모든 등급 일괄)</Label>
+                  <span className="text-xs font-mono text-muted-foreground">{gradeColorStyle.fontSize}pt</span>
+                </div>
+                <Slider
+                  min={6} max={36} step={1}
+                  value={[gradeColorStyle.fontSize]}
+                  onValueChange={([v]) => setGradeColorStyle(s => ({ ...s, fontSize: v }))}
                 />
               </div>
-            ))}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Bold 강도 (모든 등급 일괄)</Label>
+                  <span className="text-xs font-mono text-muted-foreground">{gradeColorStyle.fontWeight}</span>
+                </div>
+                <Slider
+                  min={100} max={900} step={100}
+                  value={[gradeColorStyle.fontWeight]}
+                  onValueChange={([v]) => setGradeColorStyle(s => ({ ...s, fontWeight: v }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {(["COMMON","RARE","EPIC","LEGEND"] as Grade[]).map(g => (
+                <div key={g} className="space-y-1">
+                  <Label className="text-xs flex items-center gap-2">
+                    <Badge variant="outline" className="font-mono">{g}</Badge>
+                  </Label>
+                  <Input
+                    value={gradeColorNames[g]}
+                    onChange={e => setGradeColor(g, e.target.value)}
+                    placeholder="예: 화이트 / 红色 / Black"
+                    className="h-9"
+                    style={{ fontSize: `${gradeColorStyle.fontSize}px`, fontWeight: gradeColorStyle.fontWeight }}
+                  />
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
 
