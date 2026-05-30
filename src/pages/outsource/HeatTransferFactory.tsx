@@ -448,6 +448,39 @@ export default function HeatTransferFactory() {
     }
   };
 
+  const handleReplaceFormat = async (id: string, f: File) => {
+    const entry = formats.find((x) => x.id === id);
+    if (!entry) return;
+    setFormatsLoading(true);
+    try {
+      const buf = await readFileAsArrayBuffer(f);
+      const r = await loadPdfOutline(buf);
+      const form = new FormData();
+      form.append("action", "upload");
+      form.append("sizeLabel", entry.sizeLabel);
+      form.append("file", f, f.name);
+      const result = await runDesignFormatStorageAction(form);
+      const newId = result.id;
+      if (!newId) throw new Error("저장된 파일 정보를 확인할 수 없습니다.");
+      try {
+        const del = new FormData();
+        del.append("action", "delete");
+        del.append("id", id);
+        await runDesignFormatStorageAction(del);
+      } catch (e) {
+        console.warn("[design-format] old file cleanup failed:", e);
+      }
+      setFormats((prev) => prev.map((x) => x.id === id ? { id: newId, sizeLabel: entry.sizeLabel, name: f.name, ...r } : x));
+      if (selectedFormatId === id) setSelectedFormatId(newId);
+      toast({ title: "파일 변경됨", description: `${entry.sizeLabel} · ${f.name}` });
+    } catch (e: any) {
+      console.error("[design-format] replace failed:", e);
+      toast({ title: "파일 변경 실패", description: e?.message || String(e), variant: "destructive" });
+    } finally {
+      setFormatsLoading(false);
+    }
+  };
+
   const outline = formats.find((f) => f.id === selectedFormatId) || null;
 
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
