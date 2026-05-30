@@ -312,57 +312,72 @@ export default function HeatTransferFactory() {
     return out;
   }, [dbOrders]);
 
-  // global outline PDF (applied to all orders unless replaced inside detail by test upload)
-  const [outline, setOutline] = useState<{
+  // Multiple size-based design formats.
+  // Filename convention: `fmt__{encodedSizeLabel}__{ts}__{safeName}.pdf`
+  type FormatEntry = {
+    id: string;
+    sizeLabel: string;
+    name: string;
     previewUrl: string;
     maskCanvas: HTMLCanvasElement;
     widthPt: number;
     heightPt: number;
-    name: string;
-  } | null>(null);
-  const [outlineLoading, setOutlineLoading] = useState(false);
+  };
+  const [formats, setFormats] = useState<FormatEntry[]>([]);
+  const [selectedFormatId, setSelectedFormatId] = useState<string | null>(null);
+  const [formatsLoading, setFormatsLoading] = useState(false);
 
-  // Load persisted outline on mount
+  const parseSizeFromName = (storageName: string): { sizeLabel: string; original: string } => {
+    const parts = storageName.split("__");
+    if (parts.length >= 4 && parts[0] === "fmt") {
+      try {
+        return { sizeLabel: decodeURIComponent(parts[1]), original: parts.slice(3).join("__") };
+      } catch {
+        return { sizeLabel: parts[1], original: parts.slice(3).join("__") };
+      }
+    }
+    return { sizeLabel: "기본", original: storageName };
+  };
+
   useEffect(() => {
     (async () => {
+      setFormatsLoading(true);
       try {
         const { data: list, error } = await supabase.storage
           .from(DESIGN_FORMAT_BUCKET)
-          .list(DESIGN_FORMAT_FOLDER, { limit: 1, sortBy: { column: "created_at", order: "desc" } });
-        if (error || !list || list.length === 0) return;
-        const fileName = list[0].name;
-        setOutlineLoading(true);
-        const { data: blob, error: dlErr } = await supabase.storage
-          .from(DESIGN_FORMAT_BUCKET)
-          .download(`${DESIGN_FORMAT_FOLDER}/${fileName}`);
-        if (dlErr || !blob) return;
-        const buf = await blob.arrayBuffer();
-        const r = await loadPdfOutline(buf);
-        setOutline({ ...r, name: fileName });
-      } catch (e) {
-        // ignore
+          .list(DESIGN_FORMAT_FOLDER, { limit: 100, sortBy: { column: "created_at", order: "asc" } });
+        if (error || !list || list.length === 0) { setFormats([]); return; }
+        const loaded: FormatEntry[] = [];
+        for (const item of list) {
+          const fileName = item.name;
+          const { data: blob, error: dlErr } = await supabase.storage
+            .from(DESIGN_FORMAT_BUCKET)
+            .download(`${DESIGN_FORMAT_FOLDER}/${fileName}`);
+          if (dlErr || !blob) continue;
+          try {
+            const buf = await blob.arrayBuffer();
+            const r = await loadPdfOutline(buf);
+            const { sizeLabel, original } = parseSizeFromName(fileName);
+            loaded.push({ id: fileName, sizeLabel, name: original, ...r });
+          } catch { /* skip */ }
+        }
+        setFormats(loaded);
+        if (loaded.length > 0) setSelectedFormatId((prev) => prev || loaded[0].id);
       } finally {
-        setOutlineLoading(false);
+        setFormatsLoading(false);
       }
     })();
   }, []);
 
-  const handleOutlineUpload = async (f: File) => {
-    setOutlineLoading(true);
+  const handleAddFormat = async (sizeLabel: string, f: File) => {
+    const label = sizeLabel.trim();
+    if (!label) { toast({ title: "사이즈를 입력하세요", variant: "destructive" }); return; }
+    setFormatsLoading(true);
     try {
       const buf = await readFileAsArrayBuffer(f);
       const r = await loadPdfOutline(buf);
-      // clear existing files in folder so the latest upload is the single source of truth
-      const { data: existing } = await supabase.storage
-        .from(DESIGN_FORMAT_BUCKET)
-        .list(DESIGN_FORMAT_FOLDER);
-      if (existing && existing.length > 0) {
-        await supabase.storage
-          .from(DESIGN_FORMAT_BUCKET)
-          .remove(existing.map((o) => `${DESIGN_FORMAT_FOLDER}/${o.name}`));
-      }
       const safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const storedName = `format_${Date.now()}_${safeName}`;
+      const storedName = `fmt__${encodeURIComponent(label)}__${Date.now()}__${safeName}`;
       const { error: upErr } = await supabase.storage
         .from(DESIGN_FORMAT_BUCKET)
         .upload(`${DESIGN_FORMAT_FOLDER}/${storedName}`, f, {
@@ -370,32 +385,35 @@ export default function HeatTransferFactory() {
           upsert: true,
         });
       if (upErr) throw upErr;
-      setOutline({ ...r, name: f.name });
-      toast({ title: "디자인 포맷 저장 완료", description: f.name });
+      const entry: FormatEntry = { id: storedName, sizeLabel: label, name: f.name, ...r };
+      setFormats((prev) => [...prev, entry]);
+      setSelectedFormatId(storedName);
+      toast({ title: "디자인 포맷 추가됨", description: `${label} · ${f.name}` });
     } catch (e: any) {
       toast({ title: "저장 실패", description: e?.message || "관리자만 변경할 수 있습니다.", variant: "destructive" });
     } finally {
-      setOutlineLoading(false);
+      setFormatsLoading(false);
     }
   };
 
-  const handleOutlineClear = async () => {
+  const handleRemoveFormat = async (id: string) => {
     try {
-      const { data: existing } = await supabase.storage
+      const { error: rmErr } = await supabase.storage
         .from(DESIGN_FORMAT_BUCKET)
-        .list(DESIGN_FORMAT_FOLDER);
-      if (existing && existing.length > 0) {
-        const { error: rmErr } = await supabase.storage
-          .from(DESIGN_FORMAT_BUCKET)
-          .remove(existing.map((o) => `${DESIGN_FORMAT_FOLDER}/${o.name}`));
-        if (rmErr) throw rmErr;
-      }
-      setOutline(null);
+        .remove([`${DESIGN_FORMAT_FOLDER}/${id}`]);
+      if (rmErr) throw rmErr;
+      setFormats((prev) => {
+        const next = prev.filter((x) => x.id !== id);
+        if (selectedFormatId === id) setSelectedFormatId(next[0]?.id || null);
+        return next;
+      });
       toast({ title: "디자인 포맷 삭제됨" });
     } catch (e: any) {
       toast({ title: "삭제 실패", description: e?.message || "관리자만 삭제할 수 있습니다.", variant: "destructive" });
     }
   };
+
+  const outline = formats.find((f) => f.id === selectedFormatId) || null;
 
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const activeOrder = orders.find((o) => o.id === activeOrderId) || null;
@@ -407,10 +425,12 @@ export default function HeatTransferFactory() {
         {!activeOrder ? (
           <>
             <DesignFormatBox
-              outline={outline}
-              loading={outlineLoading}
-              onUpload={handleOutlineUpload}
-              onClear={handleOutlineClear}
+              formats={formats}
+              selectedId={selectedFormatId}
+              onSelect={setSelectedFormatId}
+              loading={formatsLoading}
+              onAdd={handleAddFormat}
+              onRemove={handleRemoveFormat}
             />
             <OrderListCard orders={orders} onOpen={setActiveOrderId} />
           </>
