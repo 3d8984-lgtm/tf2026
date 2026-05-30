@@ -998,12 +998,14 @@ function WorkOrderInfoBox({ order, outlinePreview }: { order: OrderRow; outlineP
 // ============ design tab ============
 
 function DesignTab({
-  order, details, outline,
+  order, details, outline, formats,
 }: {
   order: OrderRow;
   details: DesignDetail[];
-  outline: { previewUrl: string; maskCanvas: HTMLCanvasElement; widthPt: number; heightPt: number; name: string } | null;
+  outline: OutlineFormat | null;
+  formats: SizedFormat[];
 }) {
+
   const [testDesign, setTestDesign] = useState<string | null>(null);
   const [testName, setTestName] = useState<string>("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
