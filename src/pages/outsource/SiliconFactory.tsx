@@ -1325,7 +1325,7 @@ function ProofBox({
                     toast({ title: "작업지시서 저장됨" });
                   } catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" }); }
                 }}>저장</Button>
-                <Button size="sm" variant="outline" onClick={() => printWorkOrder({ ...workOrder, total: woTotal }, templates)}>
+                <Button size="sm" variant="outline" onClick={() => printWorkOrder({ ...workOrder, total: woTotal }, templates, gradeColorNames)}>
                   <FileText className="w-4 h-4 mr-1" />작업지시서 출력
                 </Button>
               </div>
