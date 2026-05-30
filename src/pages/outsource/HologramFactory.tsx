@@ -334,11 +334,11 @@ export default function HologramFactory() {
   if (activeOrderNo && detailOrder) {
     const downloadExcel = () => {
       const rows = detailItems.map(it => ({
-        "순번": it.seq,
-        "스티커 고유번호": it.uniqueNo,
-        "에디션 넘버": `#${String(it.editionNo).padStart(4, "0")}`,
-        "등급": it.grade,
-        "회사명": "TWINMETA",
+        "序号": it.seq,
+        "贴纸唯一编号": it.uniqueNo,
+        "版本编号": `#${String(it.editionNo).padStart(4, "0")}`,
+        "等级": it.grade,
+        "公司名称": "TWINMETA",
       }));
       const ws = XLSX.utils.json_to_sheet(rows);
       ws["!cols"] = [{ wch: 6 }, { wch: 22 }, { wch: 14 }, { wch: 10 }, { wch: 14 }];
