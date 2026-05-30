@@ -302,7 +302,12 @@ export default function SiliconFactory() {
       const nameByGrade = new Map<Grade, string>();
       (list || []).forEach(f => {
         const m = f.name.match(/^([A-Z]+)__(.+)\.pdf$/);
-        if (m && (GRADES as string[]).includes(m[1])) nameByGrade.set(m[1] as Grade, f.name);
+        if (!m || !(GRADES as string[]).includes(m[1])) return;
+        const grade = m[1] as Grade;
+        const current = nameByGrade.get(grade);
+        if (!current || new Date(f.updated_at || f.created_at || 0).getTime() > new Date((list || []).find(item => item.name === current)?.updated_at || (list || []).find(item => item.name === current)?.created_at || 0).getTime()) {
+          nameByGrade.set(grade, f.name);
+        }
       });
       for (const g of GRADES) {
         const stored = nameByGrade.get(g);
@@ -316,7 +321,7 @@ export default function SiliconFactory() {
           const buf = new Uint8Array(await file.arrayBuffer());
           const { dataUrl, aspect } = await renderPdfFirstPagePng(buf);
           if (cancelled) return;
-          const origName = stored.replace(/^[A-Z]+__/, "");
+          const origName = stored.replace(/^[A-Z]+__(?:\d+__[-\w]+__)?/, "");
           setTemplates(prev => ({
             ...prev,
             [g]: { name: origName, bytes: buf, preview: dataUrl, aspect },
