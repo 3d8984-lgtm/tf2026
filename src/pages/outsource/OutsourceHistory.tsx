@@ -249,6 +249,7 @@ export default function OutsourceHistory() {
                 <TableHead className="min-w-[140px]">{lang === "ko" ? "발송일" : "发货日期"}</TableHead>
                 <TableHead className="min-w-[260px]">{lang === "ko" ? "송장번호" : "运单号"}</TableHead>
                 <TableHead className="text-right min-w-[140px]">{lang === "ko" ? "수령확인" : "确认收货"}</TableHead>
+                <TableHead className="text-right min-w-[120px]">{lang === "ko" ? "위챗 발송" : "微信发送"}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
