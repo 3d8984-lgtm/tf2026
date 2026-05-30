@@ -327,6 +327,13 @@ export default function HeatTransferFactory() {
   const [selectedFormatId, setSelectedFormatId] = useState<string | null>(null);
   const [formatsLoading, setFormatsLoading] = useState(false);
 
+  const runDesignFormatStorageAction = async (form: FormData) => {
+    const { data, error } = await supabase.functions.invoke("design-format-storage", { body: form });
+    if (error) throw error;
+    if (!data?.ok) throw new Error(data?.error || "디자인 포맷 저장소 작업에 실패했습니다.");
+    return data as { ok: true; id?: string; newId?: string; path?: string; removed?: unknown[] };
+  };
+
   const parseSizeFromName = (storageName: string): { sizeLabel: string; original: string } => {
     const parts = storageName.split("__");
     if (parts.length >= 4 && parts[0] === "fmt") {
@@ -376,15 +383,13 @@ export default function HeatTransferFactory() {
     try {
       const buf = await readFileAsArrayBuffer(f);
       const r = await loadPdfOutline(buf);
-      const safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const storedName = `fmt__${encodeURIComponent(label)}__${Date.now()}__${safeName}`;
-      const { error: upErr } = await supabase.storage
-        .from(DESIGN_FORMAT_BUCKET)
-        .upload(`${DESIGN_FORMAT_FOLDER}/${storedName}`, f, {
-          contentType: "application/pdf",
-          upsert: true,
-        });
-      if (upErr) throw upErr;
+      const form = new FormData();
+      form.append("action", "upload");
+      form.append("sizeLabel", label);
+      form.append("file", f, f.name);
+      const result = await runDesignFormatStorageAction(form);
+      const storedName = result.id;
+      if (!storedName) throw new Error("저장된 파일 정보를 확인할 수 없습니다.");
       const entry: FormatEntry = { id: storedName, sizeLabel: label, name: f.name, ...r };
       setFormats((prev) => [...prev, entry]);
       setSelectedFormatId(storedName);
@@ -397,19 +402,12 @@ export default function HeatTransferFactory() {
   };
 
   const handleRemoveFormat = async (id: string) => {
-    const path = `${DESIGN_FORMAT_FOLDER}/${id}`;
-    console.log("[design-format] remove →", path);
     setFormatsLoading(true);
     try {
-      const { data, error: rmErr } = await supabase.storage
-        .from(DESIGN_FORMAT_BUCKET)
-        .remove([path]);
-      console.log("[design-format] remove result:", { data, rmErr });
-      if (rmErr) throw rmErr;
-      if (!data || data.length === 0) {
-        // Storage RLS silently filters out rows the user isn't allowed to delete.
-        throw new Error("파일을 찾을 수 없거나 삭제 권한이 없습니다.");
-      }
+      const form = new FormData();
+      form.append("action", "delete");
+      form.append("id", id);
+      await runDesignFormatStorageAction(form);
       setFormats((prev) => {
         const next = prev.filter((x) => x.id !== id);
         if (selectedFormatId === id) setSelectedFormatId(next[0]?.id || null);
@@ -430,43 +428,15 @@ export default function HeatTransferFactory() {
     const entry = formats.find((f) => f.id === id);
     if (!entry) return;
     if (entry.sizeLabel === label) return;
-    // Build a fresh, ASCII-safe filename (avoid % characters from encodeURIComponent
-    // which historically caused move/list issues on some storage backends).
-    const ts = Date.now();
-    const slug = label
-      .replace(/[^a-zA-Z0-9가-힣._-]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 40) || "size";
-    const parts = id.split("__");
-    let safeName = entry.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    if (parts.length >= 4 && parts[0] === "fmt") {
-      safeName = parts.slice(3).join("__");
-    }
-    if (!/\.pdf$/i.test(safeName)) safeName = `${safeName}.pdf`;
-    const newId = `fmt__${encodeURIComponent(slug)}__${ts}__${safeName}`;
-    const fromPath = `${DESIGN_FORMAT_FOLDER}/${id}`;
-    const toPath = `${DESIGN_FORMAT_FOLDER}/${newId}`;
-    console.log("[design-format] rename →", { fromPath, toPath, label });
     setFormatsLoading(true);
     try {
-      const { error: mvErr } = await supabase.storage
-        .from(DESIGN_FORMAT_BUCKET)
-        .move(fromPath, toPath);
-      if (mvErr) {
-        // Fallback: copy + delete (some legacy filenames fail with move).
-        console.warn("[design-format] move failed, trying copy+delete:", mvErr);
-        const { error: cpErr } = await supabase.storage
-          .from(DESIGN_FORMAT_BUCKET)
-          .copy(fromPath, toPath);
-        if (cpErr) throw cpErr;
-        const { error: rmErr } = await supabase.storage
-          .from(DESIGN_FORMAT_BUCKET)
-          .remove([fromPath]);
-        if (rmErr) {
-          // Best-effort cleanup; surface a warning but keep new file.
-          console.warn("[design-format] cleanup of old file failed:", rmErr);
-        }
-      }
+      const form = new FormData();
+      form.append("action", "rename");
+      form.append("id", id);
+      form.append("sizeLabel", label);
+      const result = await runDesignFormatStorageAction(form);
+      const newId = result.newId;
+      if (!newId) throw new Error("변경된 파일 정보를 확인할 수 없습니다.");
       setFormats((prev) => prev.map((f) => f.id === id ? { ...f, id: newId, sizeLabel: label } : f));
       if (selectedFormatId === id) setSelectedFormatId(newId);
       toast({ title: "사이즈 변경됨", description: label });
