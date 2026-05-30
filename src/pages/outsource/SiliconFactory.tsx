@@ -34,6 +34,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database, Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { Download, Eye, FileText, AlertTriangle, Loader2, QrCode, Upload, X, ChevronLeft } from "lucide-react";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
@@ -176,6 +177,7 @@ const PREVIEW_SETTINGS_KEY = "outsource-silicon-preview";
 
 type Grade = "COMMON" | "RARE" | "EPIC" | "LEGEND";
 const GRADES: Grade[] = ["COMMON", "RARE", "EPIC", "LEGEND"];
+type WebhookLogInsert = Database["public"]["Tables"]["webhook_logs"]["Insert"];
 
 function tsName() {
   const d = new Date();
@@ -334,9 +336,17 @@ export default function SiliconFactory() {
     error: any,
     extra: Record<string, any> = {},
   ) => {
-    const status = error?.statusCode ?? error?.status ?? error?.originalError?.status ?? null;
-    const message = error?.message ?? String(error);
-    const code = error?.error ?? error?.name ?? null;
+    let responseBody: Record<string, unknown> | null = null;
+    if (error?.context instanceof Response) {
+      try {
+        responseBody = await error.context.clone().json();
+      } catch {
+        try { responseBody = { error: await error.context.clone().text() }; } catch (parseTextError) { console.error("[SiliconFactory] failed to parse error response", parseTextError); }
+      }
+    }
+    const status = error?.statusCode ?? error?.status ?? error?.originalError?.status ?? error?.context?.status ?? responseBody?.statusCode ?? null;
+    const message = responseBody?.error ?? responseBody?.message ?? error?.error ?? error?.message ?? String(error);
+    const code = responseBody?.code ?? error?.error ?? error?.name ?? null;
     const detail = [
       message,
       status ? `HTTP ${status}` : null,
@@ -344,7 +354,7 @@ export default function SiliconFactory() {
     ].filter(Boolean).join(" · ");
     console.error(`[SiliconFactory] ${action} failed`, { grade, path, status, code, message, ...extra });
     try {
-      await supabase.from("webhook_logs").insert({
+      const logRow: WebhookLogInsert = {
         source: "silicon_factory",
         event_type: `storage_${action}_failed`,
         status: "error",
@@ -355,14 +365,23 @@ export default function SiliconFactory() {
           http_status: status,
           supabase_code: code,
           supabase_message: message,
+          response_body: responseBody as Json,
           user_id: user?.id ?? null,
           ...extra,
         },
-      });
+      };
+      await supabase.from("webhook_logs").insert(logRow);
     } catch (logErr) {
       console.error("[SiliconFactory] failed to write admin log", logErr);
     }
     return detail;
+  };
+
+  const runTemplateStorageAction = async (form: FormData) => {
+    const { data, error } = await supabase.functions.invoke("silicon-template-storage", { body: form });
+    if (error) throw error;
+    if (!data?.ok) throw data;
+    return data as { ok: true; path?: string; removed?: string[] };
   };
 
   const onUploadTemplate = async (grade: Grade, file: File | null) => {
@@ -370,51 +389,40 @@ export default function SiliconFactory() {
       toast({ title: "로그인 필요", variant: "destructive" });
       return;
     }
-    // Always clear any existing files for this grade
-    const { data: existing, error: listErr } = await supabase.storage.from("silicon-templates").list(user.id);
-    if (listErr) {
-      const detail = await logStorageError("list", grade, `${user.id}/`, listErr);
-      toast({ title: "PDF 목록 조회 실패", description: detail, variant: "destructive" });
-      return;
-    }
-    const toRemove = (existing || [])
-      .filter(f => f.name.startsWith(`${grade}__`))
-      .map(f => `${user.id}/${f.name}`);
-    if (toRemove.length) {
-      const { error: rmErr } = await supabase.storage.from("silicon-templates").remove(toRemove);
-      if (rmErr) {
-        const detail = await logStorageError("delete", grade, toRemove.join(","), rmErr);
-        toast({ title: "PDF 삭제 실패", description: detail, variant: "destructive" });
-        return;
-      }
-    }
 
     if (!file) {
-      setTemplates(prev => ({ ...prev, [grade]: null }));
-      if (toRemove.length) toast({ title: "PDF 삭제 완료", description: `${grade} 등급` });
+      const form = new FormData();
+      form.append("action", "delete");
+      form.append("grade", grade);
+      try {
+        await runTemplateStorageAction(form);
+        setTemplates(prev => ({ ...prev, [grade]: null }));
+        toast({ title: "PDF 삭제 완료", description: `${grade} 등급` });
+      } catch (e: any) {
+        const detail = await logStorageError("delete", grade, `${user.id}/${grade}__*.pdf`, e);
+        toast({ title: "PDF 삭제 실패", description: detail, variant: "destructive" });
+      }
       return;
     }
     try {
       const buf = new Uint8Array(await file.arrayBuffer());
       const { dataUrl, aspect } = await renderPdfFirstPagePng(buf);
-      setTemplates(prev => ({ ...prev, [grade]: { name: file.name, bytes: buf, preview: dataUrl, aspect } }));
-      const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+      const safeName = file.name.replace(/[^\w.-]+/g, "_");
       const path = `${user.id}/${grade}__${safeName}`;
       const sizeMb = (buf.byteLength / (1024 * 1024)).toFixed(2);
-      const { error } = await supabase.storage
-        .from("silicon-templates")
-        .upload(path, new Blob([buf as BlobPart], { type: "application/pdf" }), {
-          upsert: true,
-          contentType: "application/pdf",
-        });
-      if (error) {
-        const detail = await logStorageError("upload", grade, path, error, { size_mb: sizeMb, file_name: file.name });
-        toast({ title: "PDF 저장 실패", description: `${detail} · 파일 ${sizeMb}MB`, variant: "destructive" });
-      } else {
-        toast({ title: "PDF 저장 완료", description: `${file.name} (${sizeMb}MB)` });
-      }
+      const form = new FormData();
+      form.append("action", "upload");
+      form.append("grade", grade);
+      form.append("file", new Blob([buf as BlobPart], { type: "application/pdf" }), file.name);
+      await runTemplateStorageAction(form);
+      setTemplates(prev => ({ ...prev, [grade]: { name: file.name, bytes: buf, preview: dataUrl, aspect } }));
+      toast({ title: "PDF 저장 완료", description: `${file.name} (${sizeMb}MB)` });
     } catch (e: any) {
-      toast({ title: "PDF 미리보기 실패", description: e.message, variant: "destructive" });
+      const safeName = file.name.replace(/[^\w.-]+/g, "_");
+      const path = `${user.id}/${grade}__${safeName}`;
+      const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
+      const detail = await logStorageError("upload", grade, path, e, { size_mb: sizeMb, file_name: file.name });
+      toast({ title: "PDF 저장 실패", description: `${detail} · 파일 ${sizeMb}MB`, variant: "destructive" });
     }
   };
 
