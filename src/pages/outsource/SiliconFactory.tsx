@@ -1107,6 +1107,10 @@ function ProofBox({
     return DEFAULT_GRADE_COLOR_NAMES;
   });
   const setGradeColor = (g: Grade, v: string) => setGradeColorNames(prev => ({ ...prev, [g]: v }));
+  const labelFor = (it: ProofItem) => {
+    const c = gradeColorNames[it.grade];
+    return c ? `${it.uniqueNo} · ${c}` : it.uniqueNo;
+  };
 
   // ===== 트윈코드 테스트 SVG (업로드 시 모든 마크에 동일 적용) =====
   const [testTwinSvg, setTestTwinSvg] = useState<{ url: string; name: string } | null>(null);
@@ -1250,8 +1254,9 @@ function ProofBox({
       const fontPt = Math.max(4, proof.twinTextSize * MM);
       // Baseline = bottom of glyph row. Place glyphs in the textBlock area beneath mark.
       const baselineYmm = cellYmm + effCellHmm + proof.twinTextGap + textHmm;
-      const textWidth = helv.widthOfTextAtSize(it.uniqueNo, fontPt);
-      page.drawText(it.uniqueNo, {
+      const labelText = labelFor(it);
+      const textWidth = helv.widthOfTextAtSize(labelText, fontPt);
+      page.drawText(labelText, {
         x: (cellXmm + effCellWmm / 2) * MM - textWidth / 2,
         y: pageHpt - baselineYmm * MM,
         size: fontPt,
@@ -1550,7 +1555,7 @@ function ProofBox({
                             className="absolute left-0 right-0 text-center font-mono text-foreground leading-none"
                             style={{ top: h + proof.twinTextGap * fitPx, fontSize: Math.max(6, proof.twinTextSize * fitPx) }}
                           >
-                            {it.uniqueNo}
+                            {labelFor(it)}
                           </div>
                         </div>
                       );
@@ -1618,7 +1623,7 @@ function ProofBox({
                         className="font-mono text-foreground leading-none"
                         style={{ fontSize: labelPx, marginTop: gapPx }}
                       >
-                        {it.uniqueNo}
+                        {labelFor(it)}
                       </div>
                     </div>
                   );
