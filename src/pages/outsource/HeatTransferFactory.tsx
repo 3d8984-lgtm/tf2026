@@ -284,6 +284,9 @@ interface DesignDetail {
   orderNo: string;
   designUid: string;        // "{orderNo}-{idx+1}"
   designSrc: string | null;
+  tshirtType: string;
+  tshirtColor: string;
+  tshirtSize: string;
 }
 
 // ============ page ============
@@ -755,11 +758,15 @@ function OrderDetail({
     const arr: DesignDetail[] = [];
     const n = Math.max(order.items.length, 1);
     for (let i = 0; i < n; i++) {
+      const it: any = order.items[i] || {};
       arr.push({
         serial: i + 1,
         orderNo: order.orderNo,
-        designUid: `${order.orderNo}-2`,
+        designUid: `${order.orderNo}-${i + 1}`,
         designSrc: order.logoUrl,
+        tshirtType: String(it.tshirt_type ?? "").trim(),
+        tshirtColor: String(it.tshirt_color ?? "").trim(),
+        tshirtSize: String(it.tshirt_size ?? "").trim(),
       });
     }
     return arr;
@@ -1313,6 +1320,9 @@ function OrderDetailList({
               <TableHead className="w-12">순번</TableHead>
               <TableHead>주문번호</TableHead>
               <TableHead>디자인고유번호</TableHead>
+              <TableHead>티셔츠 종류</TableHead>
+              <TableHead>티셔츠 컬러</TableHead>
+              <TableHead>티셔츠 사이즈</TableHead>
               <TableHead>디자인</TableHead>
               <TableHead>QR코드</TableHead>
             </TableRow>
@@ -1323,12 +1333,15 @@ function OrderDetailList({
                 <TableCell>{d.serial}</TableCell>
                 <TableCell className="font-mono">{d.orderNo}</TableCell>
                 <TableCell className="font-mono">{d.designUid}</TableCell>
+                <TableCell>{d.tshirtType || "—"}</TableCell>
+                <TableCell>{d.tshirtColor || "—"}</TableCell>
+                <TableCell>{d.tshirtSize || "—"}</TableCell>
                 <TableCell><DesignThumb detail={d} outline={outline} /></TableCell>
                 <TableCell><QrThumb value={d.designUid} /></TableCell>
               </TableRow>
             ))}
             {details.length === 0 && (
-              <TableRow><TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">—</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">—</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
