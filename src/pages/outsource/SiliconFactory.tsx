@@ -1039,16 +1039,20 @@ function printWorkOrder(
   wo: WorkOrderData,
   templates: Record<Grade, { name: string; bytes: Uint8Array; preview: string; aspect: number } | null>,
   colorNames: GradeColorNames = DEFAULT_GRADE_COLOR_NAMES,
+  colorStyle: GradeColorStyle = DEFAULT_GRADE_COLOR_STYLE,
 ) {
   const esc = (s: any) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
   const today = new Date().toISOString().slice(0, 10);
-  const gradeLabel = (g: Grade) => colorNames[g] ? `${g} · ${colorNames[g]}` : g;
+  const styleAttr = `style="font-size:${colorStyle.fontSize}pt;font-weight:${colorStyle.fontWeight};"`;
+  const gradeLabel = (g: Grade) => colorNames[g]
+    ? `${g} · <span class="g-color" ${styleAttr}>${esc(colorNames[g])}</span>`
+    : g;
   const gradeRow = (g: Grade) => {
     const t = templates[g];
     const img = t?.preview
       ? `<img src="${t.preview}" alt="${g}" />`
       : `<div class="ph">未上传</div>`;
-    return `<div class="g-cell"><div class="g-name">${esc(gradeLabel(g))}</div><div class="g-img">${img}</div></div>`;
+    return `<div class="g-cell"><div class="g-name">${gradeLabel(g)}</div><div class="g-img">${img}</div></div>`;
   };
   const html = `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8" />
