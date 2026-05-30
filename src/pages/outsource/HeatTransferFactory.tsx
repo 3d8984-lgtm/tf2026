@@ -679,6 +679,19 @@ function DesignFormatBox({
             })}
           </div>
         )}
+        <input
+          ref={replaceInputRef}
+          type="file"
+          accept="application/pdf"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            const id = replaceTargetId;
+            if (f && id) onReplace(id, f);
+            setReplaceTargetId(null);
+            e.target.value = "";
+          }}
+        />
       </CardContent>
     </Card>
   );
