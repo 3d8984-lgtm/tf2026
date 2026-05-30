@@ -648,16 +648,28 @@ function DesignFormatBox({
                       <div className="text-[11px] text-muted-foreground mt-1 truncate" title={f.name}>{f.name}</div>
                       <div className="text-[11px] font-mono text-muted-foreground mt-0.5">{wMm}×{hMm}mm</div>
                     </div>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7 shrink-0"
-                      onClick={(e) => { e.stopPropagation(); onRemove(f.id); }}
-                      disabled={loading}
-                      title="삭제"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                    </Button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={(e) => { e.stopPropagation(); setReplaceTargetId(f.id); replaceInputRef.current?.click(); }}
+                        disabled={loading}
+                        title="파일 변경"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={(e) => { e.stopPropagation(); onRemove(f.id); }}
+                        disabled={loading}
+                        title="삭제"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                      </Button>
+                    </div>
                   </div>
                   <div className="mt-2 w-full h-32 rounded bg-muted/30 flex items-center justify-center overflow-hidden">
                     <img src={f.previewUrl} alt={f.sizeLabel} className="max-w-full max-h-full object-contain" />
