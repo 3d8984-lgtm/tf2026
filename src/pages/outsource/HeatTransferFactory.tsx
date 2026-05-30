@@ -206,6 +206,75 @@ function canvasToBlob(c: HTMLCanvasElement): Promise<Blob> {
   });
 }
 
+// ============ footer (UID + QR) ============
+
+export interface FooterCfg {
+  enabled: boolean;
+  qrSizeMm: number;        // QR 한 변 (mm)
+  textSizeMm: number;      // 고유번호 텍스트 높이 (mm)
+  offsetXPct: number;      // 수평 정렬 -100(좌) ~ 0(중앙) ~ 100(우)
+  bottomPaddingMm: number; // 하단 여백 (mm)
+  gapMm: number;           // QR-텍스트 간격 (mm)
+}
+
+export const DEFAULT_FOOTER_CFG: FooterCfg = {
+  enabled: true,
+  qrSizeMm: 10,
+  textSizeMm: 4,
+  offsetXPct: 0,
+  bottomPaddingMm: 2,
+  gapMm: 3,
+};
+
+/**
+ * Append a footer band (QR + design UID text, horizontally aligned) underneath
+ * a composed design canvas. Returns a new canvas with the same width.
+ */
+async function composeWithFooter(
+  base: HTMLCanvasElement,
+  widthPt: number,
+  _dpi: number,
+  designUid: string,
+  cfg: FooterCfg,
+): Promise<HTMLCanvasElement> {
+  if (!cfg.enabled) return base;
+  const widthMm = (widthPt / 72) * 25.4;
+  const pxPerMm = base.width / widthMm;
+  const qrPx = Math.max(1, Math.round(cfg.qrSizeMm * pxPerMm));
+  const textPx = Math.max(1, Math.round(cfg.textSizeMm * pxPerMm));
+  const gapPx = Math.max(0, Math.round(cfg.gapMm * pxPerMm));
+  const padPx = Math.max(0, Math.round(cfg.bottomPaddingMm * pxPerMm));
+  const bandH = Math.max(qrPx, textPx) + padPx * 2;
+
+  const qrCanvas = document.createElement("canvas");
+  await QRCode.toCanvas(qrCanvas, designUid || " ", { width: qrPx, margin: 0 });
+
+  const out = document.createElement("canvas");
+  out.width = base.width;
+  out.height = base.height + bandH;
+  const ctx = out.getContext("2d")!;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, out.width, out.height);
+  ctx.drawImage(base, 0, 0);
+
+  ctx.fillStyle = "#000000";
+  ctx.font = `${textPx}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`;
+  ctx.textBaseline = "middle";
+  const textW = Math.ceil(ctx.measureText(designUid || "").width);
+  const groupW = qrPx + gapPx + textW;
+
+  const freeX = Math.max(0, out.width - groupW);
+  const t = (cfg.offsetXPct + 100) / 200;
+  const groupX = Math.round(freeX * t);
+  const bandTop = base.height + padPx;
+  const groupCenterY = bandTop + Math.max(qrPx, textPx) / 2;
+
+  ctx.drawImage(qrCanvas, groupX, Math.round(groupCenterY - qrPx / 2));
+  ctx.fillText(designUid || "", groupX + qrPx + gapPx, groupCenterY);
+
+  return out;
+}
+
 // CRC32 for PNG chunk
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);
@@ -1018,6 +1087,13 @@ function DesignTab({
   const [designScale, setDesignScale] = useState(1);
   const transform = { offsetXPct: offsetX, offsetYPct: offsetY, scale: designScale };
 
+  // Footer (UID + QR) config
+  const [footer, setFooter] = useState<FooterCfg>(DEFAULT_FOOTER_CFG);
+  const [testUid, setTestUid] = useState<string>("");
+
+
+
+
   const first = details[0];
   const effectiveDesign = testDesign || first?.designSrc || null;
 
@@ -1038,6 +1114,8 @@ function DesignTab({
   const dpi = presetCfg.dpi;
   const sharpen = presetCfg.sharpen;
 
+  const previewUid = (testUid.trim() || first?.designUid || "");
+
   // regenerate preview when inputs change (use 96dpi for screen preview)
   useEffect(() => {
     let cancelled = false;
@@ -1045,12 +1123,14 @@ function DesignTab({
       if (!outline || !effectiveDesign) { setPreviewUrl(null); return; }
       try {
         const canvas = await composeClippedDesign(effectiveDesign, outline.maskCanvas, outline.widthPt, outline.heightPt, 96, transform, { sharpen });
-        if (!cancelled) setPreviewUrl(canvas.toDataURL("image/png"));
+        const withFooter = await composeWithFooter(canvas, outline.widthPt, 96, previewUid, footer);
+        if (!cancelled) setPreviewUrl(withFooter.toDataURL("image/png"));
       } catch (e) { /* ignore */ }
     }
     run();
     return () => { cancelled = true; };
-  }, [outline, effectiveDesign, offsetX, offsetY, designScale, sharpen]);
+  }, [outline, effectiveDesign, offsetX, offsetY, designScale, sharpen, previewUid, footer.enabled, footer.qrSizeMm, footer.textSizeMm, footer.offsetXPct, footer.bottomPaddingMm, footer.gapMm]);
+
 
   const handleTestUpload = async (f: File) => {
     const url = await new Promise<string>((resolve) => {
@@ -1080,7 +1160,8 @@ function DesignTab({
     if (!src) { toast({ title: "디자인 소스가 없습니다", variant: "destructive" }); return; }
     setBusy(true);
     try {
-      const c = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
+      const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
+      const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer);
       const b = await pngWithDpi(await canvasToBlob(c), dpi);
       triggerDownload(b, `${d.designUid}_${d.tshirtSize || "size"}_${dpi}dpi.png`);
     } finally { setBusy(false); }
@@ -1118,7 +1199,8 @@ function DesignTab({
           continue;
         }
         const sizeFolder = d.tshirtSize ? folder.folder(d.tshirtSize) || folder : folder;
-        const c = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
+        const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
+        const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer);
         const b = await pngWithDpi(await canvasToBlob(c), dpi);
         sizeFolder.file(`${d.designUid}.png`, b);
         matched++;
@@ -1209,6 +1291,12 @@ function DesignTab({
                 </Button>
               )}
             </div>
+            <Input
+              placeholder={`테스트 디자인 고유번호 (기본: ${first?.designUid || "—"})`}
+              value={testUid}
+              onChange={(e) => setTestUid(e.target.value)}
+              className="h-9 text-xs"
+            />
           </div>
           <div className="space-y-1 min-w-[220px]">
             <Label className="text-xs">인쇄 품질 프리셋</Label>
@@ -1276,6 +1364,50 @@ function DesignTab({
             <Input type="number" value={offsetY} step={1} onChange={(e) => setOffsetY(Number(e.target.value) || 0)} className="h-8 text-xs" />
             <Input type="number" value={designScale} step={0.05} min={0.1} max={5} onChange={(e) => setDesignScale(Math.max(0.1, Number(e.target.value) || 1))} className="h-8 text-xs" />
           </div>
+        </div>
+
+        {/* Footer (UID + QR) config */}
+        <div className="rounded border p-3 space-y-3 bg-muted/20">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs font-semibold flex items-center gap-2">
+              <QrCodeIcon className="w-3.5 h-3.5" /> 하단 고유번호 · QR코드 설정
+            </Label>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1 text-xs cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={footer.enabled}
+                  onChange={(e) => setFooter({ ...footer, enabled: e.target.checked })}
+                />
+                포함
+              </label>
+              <Button size="sm" variant="ghost" className="h-7 text-xs"
+                onClick={() => setFooter(DEFAULT_FOOTER_CFG)}>초기화</Button>
+            </div>
+          </div>
+          <div className="grid md:grid-cols-5 gap-3">
+            <NumField label="QR 크기 (mm)" v={footer.qrSizeMm}
+              set={(v) => setFooter({ ...footer, qrSizeMm: v })} min={3} max={80} step={0.5} />
+            <NumField label="고유번호 크기 (mm)" v={footer.textSizeMm}
+              set={(v) => setFooter({ ...footer, textSizeMm: v })} min={1} max={40} step={0.1} />
+            <NumField label="QR-고유번호 간격 (mm)" v={footer.gapMm}
+              set={(v) => setFooter({ ...footer, gapMm: v })} min={0} max={30} step={0.1} />
+            <NumField label="하단 여백 (mm)" v={footer.bottomPaddingMm}
+              set={(v) => setFooter({ ...footer, bottomPaddingMm: v })} min={0} max={30} step={0.1} />
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs">
+                <span>수평 위치</span>
+                <span className="font-mono">
+                  {footer.offsetXPct === 0 ? "중앙" : footer.offsetXPct < 0 ? `좌 ${Math.abs(footer.offsetXPct)}%` : `우 ${footer.offsetXPct}%`}
+                </span>
+              </div>
+              <Slider value={[footer.offsetXPct]} min={-100} max={100} step={1}
+                onValueChange={(v) => setFooter({ ...footer, offsetXPct: v[0] })} />
+            </div>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            미리보기·다운로드 모두 적용됩니다. 고유번호 텍스트는 입력한 "테스트 디자인 고유번호"로 미리 확인할 수 있고, 일괄/개별 다운로드에서는 각 항목의 실제 디자인 고유번호가 사용됩니다.
+          </p>
         </div>
 
 
