@@ -1291,6 +1291,12 @@ function DesignTab({
                 </Button>
               )}
             </div>
+            <Input
+              placeholder={`테스트 디자인 고유번호 (기본: ${first?.designUid || "—"})`}
+              value={testUid}
+              onChange={(e) => setTestUid(e.target.value)}
+              className="h-9 text-xs"
+            />
           </div>
           <div className="space-y-1 min-w-[220px]">
             <Label className="text-xs">인쇄 품질 프리셋</Label>
