@@ -493,6 +493,9 @@ function DesignFormatBox({
   const inputRef = useRef<HTMLInputElement>(null);
   const [newSize, setNewSize] = useState("");
   const [adding, setAdding] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [newSize, setNewSize] = useState("");
+  const [adding, setAdding] = useState(false);
   return (
     <Card>
       <CardHeader>
