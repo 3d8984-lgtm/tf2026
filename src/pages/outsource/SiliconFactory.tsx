@@ -1514,32 +1514,69 @@ function ProofBox({
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="ghost" onClick={() => {
                   setGradeColorNames(DEFAULT_GRADE_COLOR_NAMES);
-                  try { localStorage.removeItem(GRADE_COLOR_LS_KEY); } catch {}
+                  setGradeColorStyles(DEFAULT_GRADE_COLOR_STYLES);
+                  try {
+                    localStorage.removeItem(GRADE_COLOR_LS_KEY);
+                    localStorage.removeItem(GRADE_COLOR_STYLE_LS_KEY);
+                  } catch {}
                   toast({ title: "색상명 초기화됨" });
                 }}>초기화</Button>
                 <Button size="sm" variant="default" onClick={() => {
                   try {
                     localStorage.setItem(GRADE_COLOR_LS_KEY, JSON.stringify(gradeColorNames));
+                    localStorage.setItem(GRADE_COLOR_STYLE_LS_KEY, JSON.stringify(gradeColorStyles));
                     toast({ title: "등급별 색상명 저장됨" });
                   } catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" }); }
                 }}>저장</Button>
               </div>
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {(["COMMON","RARE","EPIC","LEGEND"] as Grade[]).map(g => (
-              <div key={g} className="space-y-1">
-                <Label className="text-xs flex items-center gap-2">
-                  <Badge variant="outline" className="font-mono">{g}</Badge>
-                </Label>
-                <Input
-                  value={gradeColorNames[g]}
-                  onChange={e => setGradeColor(g, e.target.value)}
-                  placeholder="예: 화이트 / 红色 / Black"
-                  className="h-9"
-                />
-              </div>
-            ))}
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {(["COMMON","RARE","EPIC","LEGEND"] as Grade[]).map(g => {
+              const s = gradeColorStyles[g] ?? DEFAULT_GRADE_COLOR_STYLES[g];
+              return (
+                <div key={g} className="rounded-md border p-3 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <Badge variant="outline" className="font-mono">{g}</Badge>
+                    <span
+                      className="text-xs text-muted-foreground truncate"
+                      style={{ fontSize: `${s.sizeScale * 100}%`, fontWeight: s.weight }}
+                      title="미리보기"
+                    >
+                      {gradeColorNames[g] || "(색상명 없음)"}
+                    </span>
+                  </div>
+                  <Input
+                    value={gradeColorNames[g]}
+                    onChange={e => setGradeColor(g, e.target.value)}
+                    placeholder="예: 화이트 / 红色 / Black"
+                    className="h-9"
+                  />
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                      <span>글자 크기</span>
+                      <span className="font-mono">{Math.round(s.sizeScale * 100)}%</span>
+                    </div>
+                    <Slider
+                      min={50} max={250} step={5}
+                      value={[Math.round(s.sizeScale * 100)]}
+                      onValueChange={([v]) => setGradeStyle(g, { sizeScale: v / 100 })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                      <span>Bold 강도</span>
+                      <span className="font-mono">{s.weight}</span>
+                    </div>
+                    <Slider
+                      min={100} max={900} step={100}
+                      value={[s.weight]}
+                      onValueChange={([v]) => setGradeStyle(g, { weight: v })}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
 
