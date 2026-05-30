@@ -1216,6 +1216,15 @@ function ProofBox({
   });
   const labelFor = (it: ProofItem) => {
     const c = gradeColorNames[it.grade];
+    if (!c) return <>{it.uniqueNo}</>;
+    return (
+      <>
+        {it.uniqueNo} · <span style={{ fontSize: `${gradeColorStyle.fontSize}px`, fontWeight: gradeColorStyle.fontWeight }}>{c}</span>
+      </>
+    );
+  };
+  const labelText = (it: ProofItem) => {
+    const c = gradeColorNames[it.grade];
     return c ? `${it.uniqueNo} · ${c}` : it.uniqueNo;
   };
 
@@ -1245,6 +1254,7 @@ function ProofBox({
   const buildTwinPdfBytesForPage = async (pageIdx: number): Promise<Uint8Array> => {
     const out = await PDFDocument.create();
     const helv = await out.embedFont(StandardFonts.Helvetica);
+    const helvBold = await out.embedFont(StandardFonts.HelveticaBold);
 
     const pageItems = items.slice(pageIdx * perPageT, pageIdx * perPageT + perPageT);
 
@@ -1359,17 +1369,23 @@ function ProofBox({
 
       // Text BELOW mark, inside the page (margin guarantees no overflow).
       const fontPt = Math.max(4, proof.twinTextSize * MM);
-      // Baseline = bottom of glyph row. Place glyphs in the textBlock area beneath mark.
       const baselineYmm = cellYmm + effCellHmm + proof.twinTextGap + textHmm;
-      const labelText = labelFor(it);
-      const textWidth = helv.widthOfTextAtSize(labelText, fontPt);
-      page.drawText(labelText, {
-        x: (cellXmm + effCellWmm / 2) * MM - textWidth / 2,
-        y: pageHpt - baselineYmm * MM,
-        size: fontPt,
-        font: helv,
-        color: rgb(0, 0, 0),
-      });
+      const colorName = gradeColorNames[it.grade] || "";
+      const idText = it.uniqueNo;
+      const sepText = colorName ? " · " : "";
+      const colorFontPt = gradeColorStyle.fontSize; // already in pt for print parity
+      const colorFont = gradeColorStyle.fontWeight >= 650 ? helvBold : helv;
+      const idW = helv.widthOfTextAtSize(idText, fontPt);
+      const sepW = helv.widthOfTextAtSize(sepText, fontPt);
+      const colorW = colorName ? colorFont.widthOfTextAtSize(colorName, colorFontPt) : 0;
+      const totalW = idW + sepW + colorW;
+      const startX = (cellXmm + effCellWmm / 2) * MM - totalW / 2;
+      const textYpt = pageHpt - baselineYmm * MM;
+      page.drawText(idText, { x: startX, y: textYpt, size: fontPt, font: helv, color: rgb(0, 0, 0) });
+      if (colorName) {
+        page.drawText(sepText, { x: startX + idW, y: textYpt, size: fontPt, font: helv, color: rgb(0, 0, 0) });
+        page.drawText(colorName, { x: startX + idW + sepW, y: textYpt, size: colorFontPt, font: colorFont, color: rgb(0, 0, 0) });
+      }
     }
 
     return await out.save();
