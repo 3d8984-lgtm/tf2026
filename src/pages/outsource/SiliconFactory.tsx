@@ -334,12 +334,12 @@ export default function SiliconFactory() {
     error: any,
     extra: Record<string, any> = {},
   ) => {
-    let responseBody: any = null;
+    let responseBody: Record<string, unknown> | null = null;
     if (error?.context instanceof Response) {
       try {
         responseBody = await error.context.clone().json();
       } catch {
-        try { responseBody = { error: await error.context.clone().text() }; } catch {}
+        try { responseBody = { error: await error.context.clone().text() }; } catch (parseTextError) { console.error("[SiliconFactory] failed to parse error response", parseTextError); }
       }
     }
     const status = error?.statusCode ?? error?.status ?? error?.originalError?.status ?? error?.context?.status ?? responseBody?.statusCode ?? null;
@@ -404,7 +404,7 @@ export default function SiliconFactory() {
     try {
       const buf = new Uint8Array(await file.arrayBuffer());
       const { dataUrl, aspect } = await renderPdfFirstPagePng(buf);
-      const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+      const safeName = file.name.replace(/[^\w.-]+/g, "_");
       const path = `${user.id}/${grade}__${safeName}`;
       const sizeMb = (buf.byteLength / (1024 * 1024)).toFixed(2);
       const form = new FormData();
@@ -415,7 +415,7 @@ export default function SiliconFactory() {
       setTemplates(prev => ({ ...prev, [grade]: { name: file.name, bytes: buf, preview: dataUrl, aspect } }));
       toast({ title: "PDF 저장 완료", description: `${file.name} (${sizeMb}MB)` });
     } catch (e: any) {
-      const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+      const safeName = file.name.replace(/[^\w.-]+/g, "_");
       const path = `${user.id}/${grade}__${safeName}`;
       const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
       const detail = await logStorageError("upload", grade, path, e, { size_mb: sizeMb, file_name: file.name });
