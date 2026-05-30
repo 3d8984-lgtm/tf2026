@@ -449,63 +449,115 @@ export default function HeatTransferFactory() {
 // ============ design format box ============
 
 function DesignFormatBox({
-  outline, loading, onUpload, onClear,
+  formats, selectedId, onSelect, loading, onAdd, onRemove,
 }: {
-  outline: { previewUrl: string; widthPt: number; heightPt: number; name: string } | null;
+  formats: Array<{ id: string; sizeLabel: string; name: string; previewUrl: string; widthPt: number; heightPt: number }>;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
   loading: boolean;
-  onUpload: (f: File) => void;
-  onClear: () => void;
+  onAdd: (sizeLabel: string, f: File) => void;
+  onRemove: (id: string) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [newSize, setNewSize] = useState("");
+  const [adding, setAdding] = useState(false);
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2"><FileText className="w-4 h-4" /> 디자인 포맷 설정</CardTitle>
+        <CardTitle className="text-base flex items-center gap-2"><FileText className="w-4 h-4" /> 디자인 포맷 설정 (사이즈별)</CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="grid md:grid-cols-[1fr_auto] gap-4">
-          <div className="space-y-2">
-            <Label className="text-xs">디자인 외곽선 (PDF) · 서버 저장</Label>
-            <input
-              ref={inputRef}
-              type="file"
-              accept="application/pdf"
-              className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f); e.target.value = ""; }}
-            />
-            <div className="flex gap-2">
-              {!outline ? (
-                <Button size="sm" onClick={() => inputRef.current?.click()} disabled={loading}>
-                  <Upload className="w-4 h-4 mr-1" /> 업로드
-                </Button>
-              ) : (
-                <>
-                  <Button size="sm" variant="outline" onClick={() => inputRef.current?.click()} disabled={loading}>
-                    <Upload className="w-4 h-4 mr-1" /> 변경
-                  </Button>
-                  <Button size="sm" variant="destructive" onClick={onClear} disabled={loading}>
-                    <X className="w-4 h-4 mr-1" /> 삭제
-                  </Button>
-                </>
-              )}
+      <CardContent className="space-y-4">
+        {/* Add row */}
+        <div className="rounded border border-dashed p-3 space-y-2 bg-muted/20">
+          <Label className="text-xs">새 사이즈 추가</Label>
+          {!adding ? (
+            <Button size="sm" variant="outline" onClick={() => setAdding(true)} disabled={loading}>
+              <Plus className="w-4 h-4 mr-1" /> 추가
+            </Button>
+          ) : (
+            <div className="flex flex-wrap gap-2 items-center">
+              <Input
+                placeholder="사이즈 (예: S, M, L, 100×120mm)"
+                value={newSize}
+                onChange={(e) => setNewSize(e.target.value)}
+                className="h-9 w-64"
+              />
+              <input
+                ref={inputRef}
+                type="file"
+                accept="application/pdf"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) {
+                    onAdd(newSize, f);
+                    setNewSize("");
+                    setAdding(false);
+                  }
+                  e.target.value = "";
+                }}
+              />
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (!newSize.trim()) { toast({ title: "사이즈를 입력하세요", variant: "destructive" }); return; }
+                  inputRef.current?.click();
+                }}
+                disabled={loading}
+              >
+                <Upload className="w-4 h-4 mr-1" /> PDF 업로드
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => { setAdding(false); setNewSize(""); }}>취소</Button>
             </div>
-            {outline && (
-              <div className="text-xs text-muted-foreground">
-                {outline.name} · {(outline.widthPt / 72 * 25.4).toFixed(1)}×{(outline.heightPt / 72 * 25.4).toFixed(1)}mm · {outline.widthPt.toFixed(0)}×{outline.heightPt.toFixed(0)}pt
-              </div>
-            )}
-            {!outline && (
-              <p className="text-xs text-muted-foreground">PDF의 첫 페이지가 외곽선으로 사용됩니다. 업로드한 파일은 서버에 저장되어 변경/삭제 전까지 디자인 포맷으로 유지됩니다.</p>
-            )}
-          </div>
-          <div className="flex items-center justify-center">
-            <div className="w-48 h-48 rounded border bg-muted/30 flex items-center justify-center overflow-hidden">
-              {loading ? <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /> :
-                outline ? <img src={outline.previewUrl} alt="외곽선" className="max-w-full max-h-full object-contain" /> :
-                <span className="text-xs text-muted-foreground">미리보기 없음</span>}
-            </div>
-          </div>
+          )}
+          <p className="text-[11px] text-muted-foreground">사이즈별로 외곽선 PDF를 등록하세요. 각 PDF의 첫 페이지가 외곽선으로 사용됩니다.</p>
         </div>
+
+        {/* Format list */}
+        {loading && formats.length === 0 ? (
+          <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+        ) : formats.length === 0 ? (
+          <p className="text-xs text-muted-foreground">등록된 포맷이 없습니다. 위에서 추가해 주세요.</p>
+        ) : (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {formats.map((f) => {
+              const selected = f.id === selectedId;
+              const wMm = (f.widthPt / 72 * 25.4).toFixed(1);
+              const hMm = (f.heightPt / 72 * 25.4).toFixed(1);
+              return (
+                <div
+                  key={f.id}
+                  onClick={() => onSelect(f.id)}
+                  className={`relative rounded border p-3 cursor-pointer transition-colors ${selected ? "border-primary ring-2 ring-primary/30 bg-primary/5" : "hover:bg-muted/40"}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={selected ? "default" : "secondary"}>{f.sizeLabel}</Badge>
+                        {selected && <span className="text-[10px] text-primary font-medium">선택됨</span>}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-1 truncate" title={f.name}>{f.name}</div>
+                      <div className="text-[11px] font-mono text-muted-foreground mt-0.5">{wMm}×{hMm}mm</div>
+                    </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 shrink-0"
+                      onClick={(e) => { e.stopPropagation(); onRemove(f.id); }}
+                      disabled={loading}
+                      title="삭제"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                    </Button>
+                  </div>
+                  <div className="mt-2 w-full h-32 rounded bg-muted/30 flex items-center justify-center overflow-hidden">
+                    <img src={f.previewUrl} alt={f.sizeLabel} className="max-w-full max-h-full object-contain" />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
