@@ -165,7 +165,7 @@ export default function OutsourceHistory() {
                 <TableHead className="text-right">{lang === "ko" ? "수량" : "数量"}</TableHead>
                 <TableHead>{lang === "ko" ? "발주일" : "发单日期"}</TableHead>
                 <TableHead className="min-w-[140px]">{lang === "ko" ? "제작 착수" : "开始制作"}</TableHead>
-                <TableHead className="min-w-[140px]">{lang === "ko" ? "예상 완료일" : "预计完成日"}</TableHead>
+                <TableHead className="min-w-[140px]">{lang === "ko" ? "예상 제작 완료일" : "预计制作完成日"}</TableHead>
                 <TableHead className="min-w-[140px]">{lang === "ko" ? "제작완료" : "制作完成"}</TableHead>
                 <TableHead className="min-w-[140px]">{lang === "ko" ? "발송일" : "发货日期"}</TableHead>
                 <TableHead className="min-w-[260px]">{lang === "ko" ? "송장번호" : "运单号"}</TableHead>
