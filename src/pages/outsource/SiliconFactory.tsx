@@ -995,7 +995,7 @@ function printWorkOrder(
   </table>
   <h2>各等级数量</h2>
   <table class="qty">
-    <tr><th>COMMON</th><th>RARE</th><th>EPIC</th><th>LEGEND</th><th>总数量</th></tr>
+    <tr><th>${esc(gradeLabel("COMMON"))}</th><th>${esc(gradeLabel("RARE"))}</th><th>${esc(gradeLabel("EPIC"))}</th><th>${esc(gradeLabel("LEGEND"))}</th><th>总数量</th></tr>
     <tr><td>${esc(wo.common)}</td><td>${esc(wo.rare)}</td><td>${esc(wo.epic)}</td><td>${esc(wo.legend)}</td><td><strong>${esc(wo.total)}</strong></td></tr>
   </table>
   <h2>订单特殊事项</h2>
