@@ -1216,6 +1216,15 @@ function ProofBox({
   });
   const labelFor = (it: ProofItem) => {
     const c = gradeColorNames[it.grade];
+    if (!c) return <>{it.uniqueNo}</>;
+    return (
+      <>
+        {it.uniqueNo} · <span style={{ fontSize: `${gradeColorStyle.fontSize}px`, fontWeight: gradeColorStyle.fontWeight }}>{c}</span>
+      </>
+    );
+  };
+  const labelText = (it: ProofItem) => {
+    const c = gradeColorNames[it.grade];
     return c ? `${it.uniqueNo} · ${c}` : it.uniqueNo;
   };
 
