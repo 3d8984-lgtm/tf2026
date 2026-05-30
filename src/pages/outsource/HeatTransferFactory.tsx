@@ -534,8 +534,10 @@ export default function HeatTransferFactory() {
           <OrderDetail
             order={activeOrder}
             outline={outline}
+            formats={formats}
             onBack={() => setActiveOrderId(null)}
           />
+
         )}
       </div>
     </div>
