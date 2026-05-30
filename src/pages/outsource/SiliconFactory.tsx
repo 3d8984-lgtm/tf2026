@@ -1730,7 +1730,7 @@ function ProofBox({
                             className="absolute left-0 right-0 text-center font-mono text-foreground leading-none"
                             style={{ top: h + proof.twinTextGap * fitPx, fontSize: Math.max(6, proof.twinTextSize * fitPx) }}
                           >
-                            {labelFor(it)}
+                            {renderLabel(it)}
                           </div>
                         </div>
                       );
