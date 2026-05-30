@@ -1091,13 +1091,8 @@ function DesignTab({
   const [footer, setFooter] = useState<FooterCfg>(DEFAULT_FOOTER_CFG);
   const [testUid, setTestUid] = useState<string>("");
 
-  const [quality, setQuality] = useState<QualityPresetKey>("auto");
-  const [autoResolved, setAutoResolved] = useState<{ preset: Exclude<QualityPresetKey, "auto">; reason: string } | null>(null);
-  // design transform within fixed format (offset in %, scale relative to cover-fit)
-  const [offsetX, setOffsetX] = useState(0);
-  const [offsetY, setOffsetY] = useState(0);
-  const [designScale, setDesignScale] = useState(1);
-  const transform = { offsetXPct: offsetX, offsetYPct: offsetY, scale: designScale };
+
+
 
   const first = details[0];
   const effectiveDesign = testDesign || first?.designSrc || null;
