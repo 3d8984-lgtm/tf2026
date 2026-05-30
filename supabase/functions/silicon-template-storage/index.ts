@@ -14,7 +14,7 @@ function json(body: JsonBody, status = 200) {
 }
 
 function safeFileName(name: string) {
-  return name.replace(/[^\w.\-]+/g, "_") || "template.pdf";
+  return name.replace(/[^\w.-]+/g, "_") || "template.pdf";
 }
 
 async function logFailure(adminClient: ReturnType<typeof createClient>, payload: JsonBody) {

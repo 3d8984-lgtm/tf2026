@@ -367,7 +367,7 @@ export default function SiliconFactory() {
           user_id: user?.id ?? null,
           ...extra,
         },
-      });
+      } as any);
     } catch (logErr) {
       console.error("[SiliconFactory] failed to write admin log", logErr);
     }
