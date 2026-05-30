@@ -1379,7 +1379,7 @@ function ProofBox({
       const colorW = colorName ? colorFont.widthOfTextAtSize(colorName, colorFontPt) : 0;
       const totalW = idW + sepW + colorW;
       const startX = (cellXmm + effCellWmm / 2) * MM - totalW / 2;
-      const yPt = pageHpt - baselineYmm * MM;
+      const textYpt = pageHpt - baselineYmm * MM;
       page.drawText(idText, { x: startX, y: yPt, size: fontPt, font: helv, color: rgb(0, 0, 0) });
       if (colorName) {
         page.drawText(sepText, { x: startX + idW, y: yPt, size: fontPt, font: helv, color: rgb(0, 0, 0) });
