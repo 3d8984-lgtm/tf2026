@@ -397,11 +397,19 @@ export default function HeatTransferFactory() {
   };
 
   const handleRemoveFormat = async (id: string) => {
+    const path = `${DESIGN_FORMAT_FOLDER}/${id}`;
+    console.log("[design-format] remove →", path);
+    setFormatsLoading(true);
     try {
-      const { error: rmErr } = await supabase.storage
+      const { data, error: rmErr } = await supabase.storage
         .from(DESIGN_FORMAT_BUCKET)
-        .remove([`${DESIGN_FORMAT_FOLDER}/${id}`]);
+        .remove([path]);
+      console.log("[design-format] remove result:", { data, rmErr });
       if (rmErr) throw rmErr;
+      if (!data || data.length === 0) {
+        // Storage RLS silently filters out rows the user isn't allowed to delete.
+        throw new Error("파일을 찾을 수 없거나 삭제 권한이 없습니다.");
+      }
       setFormats((prev) => {
         const next = prev.filter((x) => x.id !== id);
         if (selectedFormatId === id) setSelectedFormatId(next[0]?.id || null);
@@ -409,7 +417,10 @@ export default function HeatTransferFactory() {
       });
       toast({ title: "디자인 포맷 삭제됨" });
     } catch (e: any) {
-      toast({ title: "삭제 실패", description: e?.message || "관리자만 삭제할 수 있습니다.", variant: "destructive" });
+      console.error("[design-format] remove failed:", e);
+      toast({ title: "삭제 실패", description: e?.message || String(e), variant: "destructive" });
+    } finally {
+      setFormatsLoading(false);
     }
   };
 
@@ -419,25 +430,51 @@ export default function HeatTransferFactory() {
     const entry = formats.find((f) => f.id === id);
     if (!entry) return;
     if (entry.sizeLabel === label) return;
-    // Rebuild filename keeping ts + original safe name when present
+    // Build a fresh, ASCII-safe filename (avoid % characters from encodeURIComponent
+    // which historically caused move/list issues on some storage backends).
+    const ts = Date.now();
+    const slug = label
+      .replace(/[^a-zA-Z0-9가-힣._-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40) || "size";
     const parts = id.split("__");
-    let ts = String(Date.now());
     let safeName = entry.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     if (parts.length >= 4 && parts[0] === "fmt") {
-      ts = parts[2];
       safeName = parts.slice(3).join("__");
     }
-    const newId = `fmt__${encodeURIComponent(label)}__${ts}__${safeName}`;
+    if (!/\.pdf$/i.test(safeName)) safeName = `${safeName}.pdf`;
+    const newId = `fmt__${encodeURIComponent(slug)}__${ts}__${safeName}`;
+    const fromPath = `${DESIGN_FORMAT_FOLDER}/${id}`;
+    const toPath = `${DESIGN_FORMAT_FOLDER}/${newId}`;
+    console.log("[design-format] rename →", { fromPath, toPath, label });
+    setFormatsLoading(true);
     try {
       const { error: mvErr } = await supabase.storage
         .from(DESIGN_FORMAT_BUCKET)
-        .move(`${DESIGN_FORMAT_FOLDER}/${id}`, `${DESIGN_FORMAT_FOLDER}/${newId}`);
-      if (mvErr) throw mvErr;
+        .move(fromPath, toPath);
+      if (mvErr) {
+        // Fallback: copy + delete (some legacy filenames fail with move).
+        console.warn("[design-format] move failed, trying copy+delete:", mvErr);
+        const { error: cpErr } = await supabase.storage
+          .from(DESIGN_FORMAT_BUCKET)
+          .copy(fromPath, toPath);
+        if (cpErr) throw cpErr;
+        const { error: rmErr } = await supabase.storage
+          .from(DESIGN_FORMAT_BUCKET)
+          .remove([fromPath]);
+        if (rmErr) {
+          // Best-effort cleanup; surface a warning but keep new file.
+          console.warn("[design-format] cleanup of old file failed:", rmErr);
+        }
+      }
       setFormats((prev) => prev.map((f) => f.id === id ? { ...f, id: newId, sizeLabel: label } : f));
       if (selectedFormatId === id) setSelectedFormatId(newId);
       toast({ title: "사이즈 변경됨", description: label });
     } catch (e: any) {
-      toast({ title: "변경 실패", description: e?.message || "관리자만 변경할 수 있습니다.", variant: "destructive" });
+      console.error("[design-format] rename failed:", e);
+      toast({ title: "변경 실패", description: e?.message || String(e), variant: "destructive" });
+    } finally {
+      setFormatsLoading(false);
     }
   };
 
