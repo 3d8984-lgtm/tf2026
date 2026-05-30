@@ -11,7 +11,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { useLang } from "@/contexts/LangContext";
-import { CheckCircle2, Clock, Search, Truck } from "lucide-react";
+import { CheckCircle2, Search, ExternalLink } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 type Factory = "silicon" | "heat" | "hologram" | "nfc" | "logo";
@@ -49,8 +49,19 @@ const FACTORY_LABEL_ZH: Record<Factory, string> = {
   logo: "LOGO工厂",
 };
 
+// 중국 주요 택배사
+const CARRIERS: { value: string; labelKo: string; labelZh: string; trackUrl: (no: string) => string }[] = [
+  { value: "SF",   labelKo: "순펑(SF Express)", labelZh: "顺丰速运", trackUrl: (n) => `https://www.sf-express.com/chn/sc/dynamic_function/waybill/#search/bill-number/${n}` },
+  { value: "YTO",  labelKo: "위엔통(YTO)",      labelZh: "圆通速递", trackUrl: (n) => `https://www.yto.net.cn/Track/?wb=${n}` },
+  { value: "ZTO",  labelKo: "쫑통(ZTO)",        labelZh: "中通快递", trackUrl: (n) => `https://www.zto.com/express/expressCheck.html?txtbill=${n}` },
+  { value: "STO",  labelKo: "션통(STO)",        labelZh: "申通快递", trackUrl: (n) => `https://www.sto.cn/chaxun/index.html?bills=${n}` },
+  { value: "YUNDA",labelKo: "윈다(YUNDA)",      labelZh: "韵达快递", trackUrl: (n) => `https://www.yundaex.com/cn/index.php?moduleName=Track&number=${n}` },
+  { value: "JD",   labelKo: "징동(JD)",         labelZh: "京东物流", trackUrl: (n) => `https://www.jdl.com/orderSearch/?waybillCodes=${n}` },
+  { value: "EMS",  labelKo: "EMS",              labelZh: "中国邮政EMS", trackUrl: (n) => `https://www.ems.com.cn/queryList?mailNum=${n}` },
+];
+
 const SAMPLE: HistoryRow[] = [
-  { id: "H001", factory: "silicon", orderNo: "TM-2026-0001", orderedAt: "2026-05-12", qty: 220, productCode: "TS-RED-100", startedAt: "2026-05-12", expectedAt: "2026-05-14", producedAt: "2026-05-14", shippedAt: "2026-05-14", trackingNo: "SF1234567890", carrier: "SF Express", receivedAt: "2026-05-17", status: "received" },
+  { id: "H001", factory: "silicon", orderNo: "TM-2026-0001", orderedAt: "2026-05-12", qty: 220, productCode: "TS-RED-100", startedAt: "2026-05-12", expectedAt: "2026-05-14", producedAt: "2026-05-14", shippedAt: "2026-05-14", trackingNo: "SF1234567890", carrier: "SF", receivedAt: "2026-05-17", status: "received" },
   { id: "H002", factory: "heat", orderNo: "TM-2026-0001", orderedAt: "2026-05-12", qty: 220, productCode: "TS-RED-100", startedAt: "2026-05-12", expectedAt: "2026-05-15", producedAt: "2026-05-15", shippedAt: "2026-05-15", trackingNo: "YT9988776655", carrier: "YTO", status: "shipped" },
   { id: "H003", factory: "hologram", orderNo: "TM-2026-0002", orderedAt: "2026-05-13", qty: 330, productCode: "TS-BLU-200", startedAt: "2026-05-13", expectedAt: "2026-05-16", status: "ordered" },
   { id: "H004", factory: "nfc", orderNo: "TM-2026-0002", orderedAt: "2026-05-13", qty: 330, productCode: "TS-BLU-200", startedAt: "2026-05-13", expectedAt: "2026-05-16", producedAt: "2026-05-16", shippedAt: "2026-05-16", trackingNo: "ZTO11223344", carrier: "ZTO", status: "shipped" },
@@ -63,16 +74,14 @@ export default function OutsourceHistory() {
   const { lang } = useLang();
   const [rows, setRows] = useState<HistoryRow[]>(SAMPLE);
   const [factoryFilter, setFactoryFilter] = useState<Factory | "all">("all");
-  const [statusFilter, setStatusFilter] = useState<Status | "all">("all");
   const [q, setQ] = useState("");
 
   const factoryLabel = lang === "ko" ? FACTORY_LABEL_KO : FACTORY_LABEL_ZH;
 
   const filtered = useMemo(() => rows.filter(r =>
     (factoryFilter === "all" || r.factory === factoryFilter) &&
-    (statusFilter === "all" || r.status === statusFilter) &&
     (!q || r.orderNo.toLowerCase().includes(q.toLowerCase()) || (r.trackingNo ?? "").toLowerCase().includes(q.toLowerCase()))
-  ), [rows, factoryFilter, statusFilter, q]);
+  ), [rows, factoryFilter, q]);
 
   const stats = useMemo(() => ({
     total: rows.length,
@@ -81,24 +90,23 @@ export default function OutsourceHistory() {
     received: rows.filter(r => r.status === "received").length,
   }), [rows]);
 
+  const updateRow = (id: string, patch: Partial<HistoryRow>) => {
+    setRows(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
+  };
+
   const confirmReceived = (id: string) => {
-    setRows(prev => prev.map(r => r.id === id ? { ...r, status: "received", receivedAt: new Date().toISOString().slice(0, 10) } : r));
+    updateRow(id, { status: "received", receivedAt: new Date().toISOString().slice(0, 10) });
     toast({ title: lang === "ko" ? "수령 확인 완료" : "已确认收货" });
   };
 
-  const statusBadge = (s: Status) => {
-    const map: Record<Status, { label: string; cls: string; icon: typeof Clock }> = {
-      ordered: { label: lang === "ko" ? "발주" : "已发单", cls: "bg-muted text-muted-foreground", icon: Clock },
-      shipped: { label: lang === "ko" ? "발송" : "已发货", cls: "bg-primary/15 text-primary", icon: Truck },
-      received: { label: lang === "ko" ? "수령 완료" : "已收货", cls: "bg-success/15 text-success", icon: CheckCircle2 },
-    };
-    const it = map[s];
-    const Icon = it.icon;
-    return (
-      <Badge variant="outline" className={`gap-1 ${it.cls}`}>
-        <Icon className="w-3 h-3" />{it.label}
-      </Badge>
-    );
+  const openTracking = (carrier?: string, no?: string) => {
+    if (!carrier || !no) return;
+    const c = CARRIERS.find(x => x.value === carrier);
+    if (!c) {
+      window.open(`https://t.17track.net/zh-cn#nums=${no}`, "_blank");
+      return;
+    }
+    window.open(c.trackUrl(no), "_blank");
   };
 
   return (
@@ -146,17 +154,6 @@ export default function OutsourceHistory() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={statusFilter} onValueChange={v => setStatusFilter(v as Status | "all")}>
-            <SelectTrigger className="w-[160px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{lang === "ko" ? "전체 상태" : "全部状态"}</SelectItem>
-              <SelectItem value="ordered">{lang === "ko" ? "발주" : "已发单"}</SelectItem>
-              <SelectItem value="shipped">{lang === "ko" ? "발송" : "已发货"}</SelectItem>
-              <SelectItem value="received">{lang === "ko" ? "수령 완료" : "已收货"}</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
 
         <div className="rounded-md border overflow-x-auto">
@@ -167,14 +164,12 @@ export default function OutsourceHistory() {
                 <TableHead>{lang === "ko" ? "작업번호" : "作业号"}</TableHead>
                 <TableHead className="text-right">{lang === "ko" ? "수량" : "数量"}</TableHead>
                 <TableHead>{lang === "ko" ? "발주일" : "发单日期"}</TableHead>
-                <TableHead>{lang === "ko" ? "수령일" : "收货日期"}</TableHead>
-                <TableHead>{lang === "ko" ? "상태" : "状态"}</TableHead>
-                <TableHead>{lang === "ko" ? "제작 착수" : "开始制作"}</TableHead>
-                <TableHead>{lang === "ko" ? "예상 완료일" : "预计完成日"}</TableHead>
-                <TableHead>{lang === "ko" ? "제작완료" : "制作完成"}</TableHead>
-                <TableHead>{lang === "ko" ? "발송일" : "发货日期"}</TableHead>
-                <TableHead>{lang === "ko" ? "송장번호" : "运单号"}</TableHead>
-                <TableHead className="text-right">{lang === "ko" ? "동작" : "操作"}</TableHead>
+                <TableHead className="min-w-[140px]">{lang === "ko" ? "제작 착수" : "开始制作"}</TableHead>
+                <TableHead className="min-w-[140px]">{lang === "ko" ? "예상 완료일" : "预计完成日"}</TableHead>
+                <TableHead className="min-w-[140px]">{lang === "ko" ? "제작완료" : "制作完成"}</TableHead>
+                <TableHead className="min-w-[140px]">{lang === "ko" ? "발송일" : "发货日期"}</TableHead>
+                <TableHead className="min-w-[260px]">{lang === "ko" ? "송장번호" : "运单号"}</TableHead>
+                <TableHead className="text-right min-w-[140px]">{lang === "ko" ? "수령확인" : "确认收货"}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -186,24 +181,90 @@ export default function OutsourceHistory() {
                   <TableCell className="font-medium">{r.orderNo}</TableCell>
                   <TableCell className="text-right">{r.qty.toLocaleString()}</TableCell>
                   <TableCell>{r.orderedAt}</TableCell>
-                  <TableCell>{r.receivedAt ?? "-"}</TableCell>
-                  <TableCell>{statusBadge(r.status)}</TableCell>
-                  <TableCell>{r.startedAt ?? "-"}</TableCell>
-                  <TableCell>{r.expectedAt ?? "-"}</TableCell>
-                  <TableCell>{r.producedAt ?? "-"}</TableCell>
-                  <TableCell>{r.shippedAt ?? "-"}</TableCell>
                   <TableCell>
-                    {r.trackingNo ? (
-                      <div className="text-xs">
-                        <p className="font-mono">{r.trackingNo}</p>
-                        <p className="text-muted-foreground">{r.carrier}</p>
-                      </div>
-                    ) : "-"}
+                    <Input
+                      type="date"
+                      value={r.startedAt ?? ""}
+                      onChange={e => updateRow(r.id, { startedAt: e.target.value })}
+                      className="h-8"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="date"
+                      value={r.expectedAt ?? ""}
+                      onChange={e => updateRow(r.id, { expectedAt: e.target.value })}
+                      className="h-8"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="date"
+                      value={r.producedAt ?? ""}
+                      onChange={e => updateRow(r.id, { producedAt: e.target.value })}
+                      className="h-8"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="date"
+                      value={r.shippedAt ?? ""}
+                      onChange={e => {
+                        const v = e.target.value;
+                        updateRow(r.id, {
+                          shippedAt: v,
+                          status: v && r.status === "ordered" ? "shipped" : r.status,
+                        });
+                      }}
+                      className="h-8"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-1 items-center">
+                      <Select
+                        value={r.carrier ?? ""}
+                        onValueChange={v => updateRow(r.id, { carrier: v })}
+                      >
+                        <SelectTrigger className="h-8 w-[110px]">
+                          <SelectValue placeholder={lang === "ko" ? "택배사" : "快递"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CARRIERS.map(c => (
+                            <SelectItem key={c.value} value={c.value}>
+                              {lang === "ko" ? c.labelKo : c.labelZh}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        value={r.trackingNo ?? ""}
+                        onChange={e => updateRow(r.id, { trackingNo: e.target.value })}
+                        placeholder={lang === "ko" ? "송장번호" : "运单号"}
+                        className="h-8 flex-1 min-w-[110px]"
+                      />
+                      {r.trackingNo && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 shrink-0"
+                          title={lang === "ko" ? "운송상태 조회" : "查询物流"}
+                          onClick={() => openTracking(r.carrier, r.trackingNo)}
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
-                    {r.status === "shipped" && (
+                    {r.status === "received" ? (
+                      <Badge variant="outline" className="gap-1 bg-success/15 text-success">
+                        <CheckCircle2 className="w-3 h-3" />
+                        {lang === "ko" ? "수령 완료" : "已收货"}
+                        {r.receivedAt && <span className="ml-1 text-[10px] opacity-70">{r.receivedAt}</span>}
+                      </Badge>
+                    ) : (
                       <Button size="sm" variant="outline" onClick={() => confirmReceived(r.id)}>
-                        {lang === "ko" ? "수령 확인" : "确认收货"}
+                        {lang === "ko" ? "수령확인" : "确认收货"}
                       </Button>
                     )}
                   </TableCell>
@@ -211,7 +272,7 @@ export default function OutsourceHistory() {
               ))}
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                     {lang === "ko" ? "조회된 발주 이력이 없습니다." : "暂无发货历史。"}
                   </TableCell>
                 </TableRow>
