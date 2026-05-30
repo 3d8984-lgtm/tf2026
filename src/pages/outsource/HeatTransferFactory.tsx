@@ -413,6 +413,34 @@ export default function HeatTransferFactory() {
     }
   };
 
+  const handleRenameFormat = async (id: string, newSizeLabel: string) => {
+    const label = newSizeLabel.trim();
+    if (!label) { toast({ title: "사이즈를 입력하세요", variant: "destructive" }); return; }
+    const entry = formats.find((f) => f.id === id);
+    if (!entry) return;
+    if (entry.sizeLabel === label) return;
+    // Rebuild filename keeping ts + original safe name when present
+    const parts = id.split("__");
+    let ts = String(Date.now());
+    let safeName = entry.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    if (parts.length >= 4 && parts[0] === "fmt") {
+      ts = parts[2];
+      safeName = parts.slice(3).join("__");
+    }
+    const newId = `fmt__${encodeURIComponent(label)}__${ts}__${safeName}`;
+    try {
+      const { error: mvErr } = await supabase.storage
+        .from(DESIGN_FORMAT_BUCKET)
+        .move(`${DESIGN_FORMAT_FOLDER}/${id}`, `${DESIGN_FORMAT_FOLDER}/${newId}`);
+      if (mvErr) throw mvErr;
+      setFormats((prev) => prev.map((f) => f.id === id ? { ...f, id: newId, sizeLabel: label } : f));
+      if (selectedFormatId === id) setSelectedFormatId(newId);
+      toast({ title: "사이즈 변경됨", description: label });
+    } catch (e: any) {
+      toast({ title: "변경 실패", description: e?.message || "관리자만 변경할 수 있습니다.", variant: "destructive" });
+    }
+  };
+
   const outline = formats.find((f) => f.id === selectedFormatId) || null;
 
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
