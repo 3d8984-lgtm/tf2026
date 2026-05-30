@@ -1114,6 +1114,8 @@ function DesignTab({
   const dpi = presetCfg.dpi;
   const sharpen = presetCfg.sharpen;
 
+  const previewUid = (testUid.trim() || first?.designUid || "");
+
   // regenerate preview when inputs change (use 96dpi for screen preview)
   useEffect(() => {
     let cancelled = false;
@@ -1121,12 +1123,14 @@ function DesignTab({
       if (!outline || !effectiveDesign) { setPreviewUrl(null); return; }
       try {
         const canvas = await composeClippedDesign(effectiveDesign, outline.maskCanvas, outline.widthPt, outline.heightPt, 96, transform, { sharpen });
-        if (!cancelled) setPreviewUrl(canvas.toDataURL("image/png"));
+        const withFooter = await composeWithFooter(canvas, outline.widthPt, 96, previewUid, footer);
+        if (!cancelled) setPreviewUrl(withFooter.toDataURL("image/png"));
       } catch (e) { /* ignore */ }
     }
     run();
     return () => { cancelled = true; };
-  }, [outline, effectiveDesign, offsetX, offsetY, designScale, sharpen]);
+  }, [outline, effectiveDesign, offsetX, offsetY, designScale, sharpen, previewUid, footer.enabled, footer.qrSizeMm, footer.textSizeMm, footer.offsetXPct, footer.bottomPaddingMm, footer.gapMm]);
+
 
   const handleTestUpload = async (f: File) => {
     const url = await new Promise<string>((resolve) => {
