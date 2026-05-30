@@ -1798,7 +1798,7 @@ function ProofBox({
                         className="font-mono text-foreground leading-none"
                         style={{ fontSize: labelPx, marginTop: gapPx }}
                       >
-                        {labelFor(it)}
+                        {renderLabel(it)}
                       </div>
                     </div>
                   );
