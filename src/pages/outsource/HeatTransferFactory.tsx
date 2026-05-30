@@ -1366,6 +1366,50 @@ function DesignTab({
           </div>
         </div>
 
+        {/* Footer (UID + QR) config */}
+        <div className="rounded border p-3 space-y-3 bg-muted/20">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs font-semibold flex items-center gap-2">
+              <QrCodeIcon className="w-3.5 h-3.5" /> 하단 고유번호 · QR코드 설정
+            </Label>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1 text-xs cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={footer.enabled}
+                  onChange={(e) => setFooter({ ...footer, enabled: e.target.checked })}
+                />
+                포함
+              </label>
+              <Button size="sm" variant="ghost" className="h-7 text-xs"
+                onClick={() => setFooter(DEFAULT_FOOTER_CFG)}>초기화</Button>
+            </div>
+          </div>
+          <div className="grid md:grid-cols-5 gap-3">
+            <NumField label="QR 크기 (mm)" v={footer.qrSizeMm}
+              set={(v) => setFooter({ ...footer, qrSizeMm: v })} min={3} max={80} step={0.5} />
+            <NumField label="고유번호 크기 (mm)" v={footer.textSizeMm}
+              set={(v) => setFooter({ ...footer, textSizeMm: v })} min={1} max={40} step={0.1} />
+            <NumField label="QR-고유번호 간격 (mm)" v={footer.gapMm}
+              set={(v) => setFooter({ ...footer, gapMm: v })} min={0} max={30} step={0.1} />
+            <NumField label="하단 여백 (mm)" v={footer.bottomPaddingMm}
+              set={(v) => setFooter({ ...footer, bottomPaddingMm: v })} min={0} max={30} step={0.1} />
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs">
+                <span>수평 위치</span>
+                <span className="font-mono">
+                  {footer.offsetXPct === 0 ? "중앙" : footer.offsetXPct < 0 ? `좌 ${Math.abs(footer.offsetXPct)}%` : `우 ${footer.offsetXPct}%`}
+                </span>
+              </div>
+              <Slider value={[footer.offsetXPct]} min={-100} max={100} step={1}
+                onValueChange={(v) => setFooter({ ...footer, offsetXPct: v[0] })} />
+            </div>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            미리보기·다운로드 모두 적용됩니다. 고유번호 텍스트는 입력한 "테스트 디자인 고유번호"로 미리 확인할 수 있고, 일괄/개별 다운로드에서는 각 항목의 실제 디자인 고유번호가 사용됩니다.
+          </p>
+        </div>
+
 
 
         {(() => {
