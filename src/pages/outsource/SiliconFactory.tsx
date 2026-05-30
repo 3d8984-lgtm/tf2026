@@ -768,11 +768,6 @@ export default function SiliconFactory() {
                     <div key={g} className={`border rounded-md p-3 space-y-2 ${previewEdit ? "ring-1 ring-primary/40" : ""}`}>
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-medium">{g}</Label>
-                        {templates[g] && (
-                          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => onUploadTemplate(g, null)}>
-                            <X className="w-3 h-3" />
-                          </Button>
-                        )}
                       </div>
                       <div
                         className="w-full border rounded bg-muted/30 overflow-hidden flex items-center justify-center"
@@ -792,16 +787,39 @@ export default function SiliconFactory() {
                           <span className="text-xs text-muted-foreground">미리보기 없음</span>
                         )}
                       </div>
-                      <label className="flex items-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
-                        <Upload className="w-3 h-3" />
-                        <span className="truncate">{templates[g]?.name || "PDF 업로드"}</span>
-                        <input
-                          type="file"
-                          accept="application/pdf"
-                          className="hidden"
-                          onChange={e => onUploadTemplate(g, e.target.files?.[0] || null)}
-                        />
-                      </label>
+                      {templates[g] ? (
+                        <div className="flex items-center gap-2">
+                          <label className="flex-1 flex items-center justify-center gap-1 cursor-pointer text-xs px-3 py-2 border rounded hover:bg-accent">
+                            <Upload className="w-3 h-3" />
+                            <span>변경</span>
+                            <input
+                              type="file"
+                              accept="application/pdf"
+                              className="hidden"
+                              onChange={e => onUploadTemplate(g, e.target.files?.[0] || null)}
+                            />
+                          </label>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-xs px-3 py-2 h-auto"
+                            onClick={() => onUploadTemplate(g, null)}
+                          >
+                            삭제
+                          </Button>
+                        </div>
+                      ) : (
+                        <label className="flex items-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
+                          <Upload className="w-3 h-3" />
+                          <span className="truncate">PDF 업로드</span>
+                          <input
+                            type="file"
+                            accept="application/pdf"
+                            className="hidden"
+                            onChange={e => onUploadTemplate(g, e.target.files?.[0] || null)}
+                          />
+                        </label>
+                      )}
                     </div>
                   ))}
                 </div>
