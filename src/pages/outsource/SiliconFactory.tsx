@@ -1254,8 +1254,9 @@ function ProofBox({
       const fontPt = Math.max(4, proof.twinTextSize * MM);
       // Baseline = bottom of glyph row. Place glyphs in the textBlock area beneath mark.
       const baselineYmm = cellYmm + effCellHmm + proof.twinTextGap + textHmm;
-      const textWidth = helv.widthOfTextAtSize(it.uniqueNo, fontPt);
-      page.drawText(it.uniqueNo, {
+      const labelText = labelFor(it);
+      const textWidth = helv.widthOfTextAtSize(labelText, fontPt);
+      page.drawText(labelText, {
         x: (cellXmm + effCellWmm / 2) * MM - textWidth / 2,
         y: pageHpt - baselineYmm * MM,
         size: fontPt,
