@@ -1059,36 +1059,58 @@ function DesignTab({
     setTestDesign(url); setTestName(f.name);
   };
 
+  const resolveFormat = (d: DesignDetail): OutlineFormat | null =>
+    pickFormatForSize(formats, d.tshirtSize, outline);
+
   const downloadOne = async (d: DesignDetail) => {
-    if (!outline) { toast({ title: "외곽선 PDF를 먼저 업로드하세요", variant: "destructive" }); return; }
+    const fmt = resolveFormat(d);
+    if (!fmt) { toast({ title: "외곽선 PDF를 먼저 업로드하세요", variant: "destructive" }); return; }
     const src = testDesign || d.designSrc;
     if (!src) { toast({ title: "디자인 소스가 없습니다", variant: "destructive" }); return; }
     setBusy(true);
     try {
-      const c = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, dpi, transform, { sharpen });
+      const c = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
       const b = await pngWithDpi(await canvasToBlob(c), dpi);
-      triggerDownload(b, `${d.designUid}_${dpi}dpi.png`);
+      triggerDownload(b, `${d.designUid}_${d.tshirtSize || "size"}_${dpi}dpi.png`);
     } finally { setBusy(false); }
   };
 
   const downloadAll = async () => {
-    if (!outline) { toast({ title: "외곽선 PDF를 먼저 업로드하세요", variant: "destructive" }); return; }
+    if (!outline && formats.length === 0) { toast({ title: "외곽선 PDF를 먼저 업로드하세요", variant: "destructive" }); return; }
     setBusy(true);
     try {
       const zip = new JSZip();
       const folder = zip.folder(`design_${order.orderNo}_${dpi}dpi`)!;
+      let matched = 0;
+      let missing = 0;
+      const unmatched: string[] = [];
       for (const d of details) {
         const src = testDesign || d.designSrc;
         if (!src) continue;
-        const c = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, dpi, transform, { sharpen });
+        const fmt = resolveFormat(d);
+        if (!fmt) { missing++; unmatched.push(`${d.designUid}(${d.tshirtSize || "?"})`); continue; }
+        // Track whether size-specific format was matched (not just fallback to selected outline)
+        const sizeMatched = formats.some(
+          (f) => normalizeSize(f.sizeLabel) === normalizeSize(d.tshirtSize) && d.tshirtSize,
+        );
+        if (sizeMatched) matched++;
+        const sizeFolder = d.tshirtSize
+          ? folder.folder(d.tshirtSize) || folder
+          : folder;
+        const c = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
         const b = await pngWithDpi(await canvasToBlob(c), dpi);
-        folder.file(`${d.designUid}.png`, b);
+        sizeFolder.file(`${d.designUid}.png`, b);
       }
       const zipBlob = await zip.generateAsync({ type: "blob" });
       triggerDownload(zipBlob, `design_${order.orderNo}_${dpi}dpi.zip`);
-      toast({ title: "일괄 다운로드 완료", description: `${details.length}개` });
+      const fallbackCount = details.length - matched - missing;
+      toast({
+        title: "일괄 다운로드 완료",
+        description: `총 ${details.length}개 · 사이즈 매칭 ${matched}개${fallbackCount ? ` · 기본 포맷 ${fallbackCount}개` : ""}${missing ? ` · 누락 ${missing}개` : ""}`,
+      });
     } finally { setBusy(false); }
   };
+
 
   return (
     <Card>
