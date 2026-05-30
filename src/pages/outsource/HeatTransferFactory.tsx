@@ -772,11 +772,33 @@ function OrderListCard({ orders, onOpen }: { orders: OrderRow[]; onOpen: (id: st
 
 // ============ order detail ============
 
+type OutlineFormat = { previewUrl: string; maskCanvas: HTMLCanvasElement; widthPt: number; heightPt: number; name: string };
+type SizedFormat = OutlineFormat & { id: string; sizeLabel: string };
+
+function normalizeSize(s: string) {
+  return (s || "").toString().trim().toUpperCase().replace(/\s+/g, "");
+}
+
+export function pickFormatForSize(formats: SizedFormat[], size: string, fallback: OutlineFormat | null): OutlineFormat | null {
+  const target = normalizeSize(size);
+  if (target) {
+    const exact = formats.find((f) => normalizeSize(f.sizeLabel) === target);
+    if (exact) return exact;
+    const partial = formats.find((f) => {
+      const lbl = normalizeSize(f.sizeLabel);
+      return lbl && (lbl === target || lbl.includes(target) || target.includes(lbl));
+    });
+    if (partial) return partial;
+  }
+  return fallback;
+}
+
 function OrderDetail({
-  order, outline, onBack,
+  order, outline, formats, onBack,
 }: {
   order: OrderRow;
-  outline: { previewUrl: string; maskCanvas: HTMLCanvasElement; widthPt: number; heightPt: number; name: string } | null;
+  outline: OutlineFormat | null;
+  formats: SizedFormat[];
   onBack: () => void;
 }) {
   const details: DesignDetail[] = useMemo(() => {
@@ -812,7 +834,7 @@ function OrderDetail({
           <TabsTrigger value="qr">큐알코드 시안</TabsTrigger>
         </TabsList>
         <TabsContent value="design">
-          <DesignTab order={order} details={details} outline={outline} />
+          <DesignTab order={order} details={details} outline={outline} formats={formats} />
         </TabsContent>
         <TabsContent value="qr">
           <QrTab details={details} />
@@ -823,6 +845,7 @@ function OrderDetail({
     </div>
   );
 }
+
 
 interface HtWorkOrderData {
   company: string; orderNo: string; orderDate: string; deliveryDate: string;
