@@ -350,33 +350,56 @@ export default function HeatTransferFactory() {
   };
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       setFormatsLoading(true);
       try {
         const { data: list, error } = await supabase.storage
           .from(DESIGN_FORMAT_BUCKET)
           .list(DESIGN_FORMAT_FOLDER, { limit: 100, sortBy: { column: "created_at", order: "asc" } });
+        if (cancelled) return;
         if (error || !list || list.length === 0) { setFormats([]); return; }
-        const loaded: FormatEntry[] = [];
-        for (const item of list) {
-          const fileName = item.name;
-          const { data: blob, error: dlErr } = await supabase.storage
-            .from(DESIGN_FORMAT_BUCKET)
-            .download(`${DESIGN_FORMAT_FOLDER}/${fileName}`);
-          if (dlErr || !blob) continue;
+
+        const loadOne = async (fileName: string): Promise<FormatEntry | null> => {
           try {
+            const { data: blob, error: dlErr } = await supabase.storage
+              .from(DESIGN_FORMAT_BUCKET)
+              .download(`${DESIGN_FORMAT_FOLDER}/${fileName}`);
+            if (dlErr || !blob) return null;
             const buf = await blob.arrayBuffer();
             const r = await loadPdfOutline(buf);
             const { sizeLabel, original } = parseSizeFromName(fileName);
-            loaded.push({ id: fileName, sizeLabel, name: original, ...r });
-          } catch { /* skip */ }
-        }
-        setFormats(loaded);
-        if (loaded.length > 0) setSelectedFormatId((prev) => prev || loaded[0].id);
+            return { id: fileName, sizeLabel, name: original, ...r };
+          } catch {
+            return null;
+          }
+        };
+
+        // Parallel load with bounded concurrency; stream results into state as they arrive.
+        const CONCURRENCY = 6;
+        const queue = list.map((it) => it.name);
+        let firstSelected = false;
+        const worker = async () => {
+          while (!cancelled) {
+            const name = queue.shift();
+            if (!name) return;
+            const entry = await loadOne(name);
+            if (cancelled || !entry) continue;
+            setFormats((prev) => [...prev, entry]);
+            if (!firstSelected) {
+              firstSelected = true;
+              setSelectedFormatId((prev) => prev || entry.id);
+            }
+          }
+        };
+        // Reset before streaming
+        setFormats([]);
+        await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queue.length) }, worker));
       } finally {
-        setFormatsLoading(false);
+        if (!cancelled) setFormatsLoading(false);
       }
     })();
+    return () => { cancelled = true; };
   }, []);
 
   const handleAddFormat = async (sizeLabel: string, f: File) => {
