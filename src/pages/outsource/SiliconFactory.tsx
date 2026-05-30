@@ -1254,6 +1254,7 @@ function ProofBox({
   const buildTwinPdfBytesForPage = async (pageIdx: number): Promise<Uint8Array> => {
     const out = await PDFDocument.create();
     const helv = await out.embedFont(StandardFonts.Helvetica);
+    const helvBold = await out.embedFont(StandardFonts.HelveticaBold);
 
     const pageItems = items.slice(pageIdx * perPageT, pageIdx * perPageT + perPageT);
 
