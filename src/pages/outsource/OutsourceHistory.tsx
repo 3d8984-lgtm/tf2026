@@ -1,18 +1,23 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import PageHeader from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription,
+} from "@/components/ui/dialog";
 import { useLang } from "@/contexts/LangContext";
-import { CheckCircle2, Search, ExternalLink } from "lucide-react";
+import { CheckCircle2, Search, ExternalLink, Send, Settings2, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 type Factory = "silicon" | "heat" | "hologram" | "nfc" | "logo";
 type Status = "ordered" | "shipped" | "received";
@@ -70,11 +75,31 @@ const SAMPLE: HistoryRow[] = [
   { id: "H007", factory: "logo", orderNo: "TM-2026-0004", orderedAt: "2026-05-15", qty: 110, productCode: "LOGO-B", startedAt: "2026-05-15", expectedAt: "2026-05-16", producedAt: "2026-05-16", shippedAt: "2026-05-16", trackingNo: "EMS998877665", carrier: "EMS", status: "shipped" },
 ];
 
+const WECHAT_HOOKS_STORAGE_KEY = "outsource.wechatWebhooks.v1";
+
 export default function OutsourceHistory() {
   const { lang } = useLang();
   const [rows, setRows] = useState<HistoryRow[]>(SAMPLE);
   const [factoryFilter, setFactoryFilter] = useState<Factory | "all">("all");
   const [q, setQ] = useState("");
+  const [hooks, setHooks] = useState<Record<Factory, string>>({
+    silicon: "", heat: "", hologram: "", nfc: "", logo: "",
+  });
+  const [hooksOpen, setHooksOpen] = useState(false);
+  const [sendingId, setSendingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(WECHAT_HOOKS_STORAGE_KEY);
+      if (raw) setHooks({ silicon: "", heat: "", hologram: "", nfc: "", logo: "", ...JSON.parse(raw) });
+    } catch { /* ignore */ }
+  }, []);
+
+  const saveHooks = (next: Record<Factory, string>) => {
+    setHooks(next);
+    try { localStorage.setItem(WECHAT_HOOKS_STORAGE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+    toast({ title: lang === "ko" ? "위챗 Webhook 저장 완료" : "已保存企业微信 Webhook" });
+  };
 
   const factoryLabel = lang === "ko" ? FACTORY_LABEL_KO : FACTORY_LABEL_ZH;
 
@@ -107,6 +132,56 @@ export default function OutsourceHistory() {
       return;
     }
     window.open(c.trackUrl(no), "_blank");
+  };
+
+  const buildOrderMessage = (r: HistoryRow) => {
+    const factoryZh = FACTORY_LABEL_ZH[r.factory];
+    const lines = [
+      `【TWINMETA 发货通知 / 발주】`,
+      `工厂 / 공장: ${factoryZh}`,
+      `订单号 / 작업번호: ${r.orderNo}`,
+      `产品编号 / 제품코드: ${r.productCode}`,
+      `数量 / 수량: ${r.qty.toLocaleString()}`,
+      `发单日期 / 발주일: ${r.orderedAt}`,
+      r.startedAt && `开始制作 / 제작착수: ${r.startedAt}`,
+      r.expectedAt && `预计制作完成日 / 예상 제작 완료일: ${r.expectedAt}`,
+      `——`,
+      `请确认并按时交付。감사합니다.`,
+    ].filter(Boolean);
+    return lines.join("\n");
+  };
+
+  const sendToWeChat = async (r: HistoryRow) => {
+    const url = hooks[r.factory]?.trim();
+    if (!url) {
+      toast({
+        title: lang === "ko" ? "Webhook 미설정" : "未设置 Webhook",
+        description: lang === "ko"
+          ? `${FACTORY_LABEL_KO[r.factory]}의 위챗 Webhook을 먼저 등록하세요.`
+          : `请先为 ${FACTORY_LABEL_ZH[r.factory]} 配置企业微信 Webhook。`,
+        variant: "destructive",
+      });
+      setHooksOpen(true);
+      return;
+    }
+    setSendingId(r.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("wechat-send", {
+        body: { webhookUrl: url, message: buildOrderMessage(r) },
+      });
+      if (error || (data as any)?.error) {
+        throw new Error(error?.message ?? (data as any)?.error ?? "Unknown error");
+      }
+      toast({ title: lang === "ko" ? "위챗 발송 완료" : "已发送到企业微信" });
+    } catch (e: any) {
+      toast({
+        title: lang === "ko" ? "위챗 발송 실패" : "发送失败",
+        description: e?.message ?? String(e),
+        variant: "destructive",
+      });
+    } finally {
+      setSendingId(null);
+    }
   };
 
   return (
@@ -154,6 +229,10 @@ export default function OutsourceHistory() {
               ))}
             </SelectContent>
           </Select>
+          <Button variant="outline" size="sm" onClick={() => setHooksOpen(true)}>
+            <Settings2 className="w-4 h-4 mr-1" />
+            {lang === "ko" ? "위챗 Webhook 설정" : "企业微信 Webhook 设置"}
+          </Button>
         </div>
 
         <div className="rounded-md border overflow-x-auto">
@@ -170,6 +249,7 @@ export default function OutsourceHistory() {
                 <TableHead className="min-w-[140px]">{lang === "ko" ? "발송일" : "发货日期"}</TableHead>
                 <TableHead className="min-w-[260px]">{lang === "ko" ? "송장번호" : "运单号"}</TableHead>
                 <TableHead className="text-right min-w-[140px]">{lang === "ko" ? "수령확인" : "确认收货"}</TableHead>
+                <TableHead className="text-right min-w-[120px]">{lang === "ko" ? "위챗 발송" : "微信发送"}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -268,11 +348,24 @@ export default function OutsourceHistory() {
                       </Button>
                     )}
                   </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={sendingId === r.id}
+                      onClick={() => sendToWeChat(r)}
+                    >
+                      {sendingId === r.id
+                        ? <Loader2 className="w-4 h-4 animate-spin" />
+                        : <Send className="w-4 h-4 mr-1" />}
+                      {lang === "ko" ? "위챗 발송" : "发送微信"}
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                     {lang === "ko" ? "조회된 발주 이력이 없습니다." : "暂无发货历史。"}
                   </TableCell>
                 </TableRow>
@@ -281,6 +374,39 @@ export default function OutsourceHistory() {
           </Table>
         </div>
       </Card>
+
+      <Dialog open={hooksOpen} onOpenChange={setHooksOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{lang === "ko" ? "공장별 위챗 Webhook 설정" : "工厂企业微信 Webhook 设置"}</DialogTitle>
+            <DialogDescription>
+              {lang === "ko"
+                ? "기업위챗(企业微信) 그룹채팅에서 '그룹봇 추가'로 발급받은 Webhook URL을 각 공장별로 등록하세요. URL 예: https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxx"
+                : "在企业微信群聊中添加群机器人后获取 Webhook URL,按工厂分别填写。示例: https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxx"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+            {(Object.keys(FACTORY_LABEL_KO) as Factory[]).map(f => (
+              <div key={f} className="space-y-1.5">
+                <Label className="text-xs">{factoryLabel[f]}</Label>
+                <Input
+                  value={hooks[f] ?? ""}
+                  onChange={e => setHooks(prev => ({ ...prev, [f]: e.target.value }))}
+                  placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..."
+                />
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setHooksOpen(false)}>
+              {lang === "ko" ? "취소" : "取消"}
+            </Button>
+            <Button onClick={() => { saveHooks(hooks); setHooksOpen(false); }}>
+              {lang === "ko" ? "저장" : "保存"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
