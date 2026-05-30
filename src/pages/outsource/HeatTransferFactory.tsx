@@ -758,11 +758,15 @@ function OrderDetail({
     const arr: DesignDetail[] = [];
     const n = Math.max(order.items.length, 1);
     for (let i = 0; i < n; i++) {
+      const it: any = order.items[i] || {};
       arr.push({
         serial: i + 1,
         orderNo: order.orderNo,
-        designUid: `${order.orderNo}-2`,
+        designUid: `${order.orderNo}-${i + 1}`,
         designSrc: order.logoUrl,
+        tshirtType: String(it.tshirt_type ?? "").trim(),
+        tshirtColor: String(it.tshirt_color ?? "").trim(),
+        tshirtSize: String(it.tshirt_size ?? "").trim(),
       });
     }
     return arr;
