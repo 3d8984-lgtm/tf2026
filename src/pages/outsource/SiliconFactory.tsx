@@ -1372,18 +1372,21 @@ function ProofBox({
       const baselineYmm = cellYmm + effCellHmm + proof.twinTextGap + textHmm;
       const colorName = gradeColorNames[it.grade] || "";
       const idText = it.uniqueNo;
-      const sepText = colorName ? " · " : "";
-      const colorFontPt = gradeColorStyle.fontSize; // already in pt for print parity
+      const colorFontPt = gradeColorStyle.fontSize; // pt
       const colorFont = gradeColorStyle.fontWeight >= 650 ? helvBold : helv;
+      // Draw separator at the LARGER size so spacing scales with color font; add extra padding.
+      const sepText = colorName ? "  ·  " : "";
+      const sepFontPt = colorName ? Math.max(fontPt, colorFontPt) : fontPt;
+      const sepFont = colorFont;
       const idW = helv.widthOfTextAtSize(idText, fontPt);
-      const sepW = helv.widthOfTextAtSize(sepText, fontPt);
+      const sepW = colorName ? sepFont.widthOfTextAtSize(sepText, sepFontPt) : 0;
       const colorW = colorName ? colorFont.widthOfTextAtSize(colorName, colorFontPt) : 0;
       const totalW = idW + sepW + colorW;
       const startX = (cellXmm + effCellWmm / 2) * MM - totalW / 2;
       const textYpt = pageHpt - baselineYmm * MM;
       page.drawText(idText, { x: startX, y: textYpt, size: fontPt, font: helv, color: rgb(0, 0, 0) });
       if (colorName) {
-        page.drawText(sepText, { x: startX + idW, y: textYpt, size: fontPt, font: helv, color: rgb(0, 0, 0) });
+        page.drawText(sepText, { x: startX + idW, y: textYpt, size: sepFontPt, font: sepFont, color: rgb(0, 0, 0) });
         page.drawText(colorName, { x: startX + idW + sepW, y: textYpt, size: colorFontPt, font: colorFont, color: rgb(0, 0, 0) });
       }
     }
