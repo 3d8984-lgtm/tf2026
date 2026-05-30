@@ -253,8 +253,8 @@ async function composeWithFooter(
   out.width = base.width;
   out.height = base.height + bandH;
   const ctx = out.getContext("2d")!;
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, out.width, out.height);
+  // 바탕은 투명 유지 (이미지/푸터 외 모든 영역 transparent)
+  ctx.clearRect(0, 0, out.width, out.height);
   ctx.drawImage(base, 0, 0);
 
   ctx.fillStyle = "#000000";
