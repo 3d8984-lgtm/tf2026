@@ -34,6 +34,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { Download, Eye, FileText, AlertTriangle, Loader2, QrCode, Upload, X, ChevronLeft } from "lucide-react";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
@@ -176,6 +177,7 @@ const PREVIEW_SETTINGS_KEY = "outsource-silicon-preview";
 
 type Grade = "COMMON" | "RARE" | "EPIC" | "LEGEND";
 const GRADES: Grade[] = ["COMMON", "RARE", "EPIC", "LEGEND"];
+type WebhookLogInsert = Database["public"]["Tables"]["webhook_logs"]["Insert"];
 
 function tsName() {
   const d = new Date();
@@ -352,7 +354,7 @@ export default function SiliconFactory() {
     ].filter(Boolean).join(" · ");
     console.error(`[SiliconFactory] ${action} failed`, { grade, path, status, code, message, ...extra });
     try {
-      await supabase.from("webhook_logs").insert({
+      const logRow: WebhookLogInsert = {
         source: "silicon_factory",
         event_type: `storage_${action}_failed`,
         status: "error",
@@ -367,7 +369,8 @@ export default function SiliconFactory() {
           user_id: user?.id ?? null,
           ...extra,
         },
-      } as any);
+      };
+      await supabase.from("webhook_logs").insert(logRow);
     } catch (logErr) {
       console.error("[SiliconFactory] failed to write admin log", logErr);
     }
