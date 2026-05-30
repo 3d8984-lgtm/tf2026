@@ -1098,6 +1098,16 @@ function ProofBox({
   const setWO = (patch: Partial<typeof workOrder>) => setWorkOrder(prev => ({ ...prev, ...patch }));
   const woTotal = (Number(workOrder.common) || 0) + (Number(workOrder.rare) || 0) + (Number(workOrder.epic) || 0) + (Number(workOrder.legend) || 0);
 
+  // ===== 등급별 색상명 (전역 설정) =====
+  const [gradeColorNames, setGradeColorNames] = useState<GradeColorNames>(() => {
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem(GRADE_COLOR_LS_KEY) : null;
+      if (raw) return { ...DEFAULT_GRADE_COLOR_NAMES, ...JSON.parse(raw) };
+    } catch {}
+    return DEFAULT_GRADE_COLOR_NAMES;
+  });
+  const setGradeColor = (g: Grade, v: string) => setGradeColorNames(prev => ({ ...prev, [g]: v }));
+
   // ===== 트윈코드 테스트 SVG (업로드 시 모든 마크에 동일 적용) =====
   const [testTwinSvg, setTestTwinSvg] = useState<{ url: string; name: string } | null>(null);
   useEffect(() => () => { if (testTwinSvg?.url) URL.revokeObjectURL(testTwinSvg.url); }, [testTwinSvg]);
