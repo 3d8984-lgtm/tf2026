@@ -348,11 +348,24 @@ export default function OutsourceHistory() {
                       </Button>
                     )}
                   </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={sendingId === r.id}
+                      onClick={() => sendToWeChat(r)}
+                    >
+                      {sendingId === r.id
+                        ? <Loader2 className="w-4 h-4 animate-spin" />
+                        : <Send className="w-4 h-4 mr-1" />}
+                      {lang === "ko" ? "위챗 발송" : "发送微信"}
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                     {lang === "ko" ? "조회된 발주 이력이 없습니다." : "暂无发货历史。"}
                   </TableCell>
                 </TableRow>
@@ -361,6 +374,39 @@ export default function OutsourceHistory() {
           </Table>
         </div>
       </Card>
+
+      <Dialog open={hooksOpen} onOpenChange={setHooksOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{lang === "ko" ? "공장별 위챗 Webhook 설정" : "工厂企业微信 Webhook 设置"}</DialogTitle>
+            <DialogDescription>
+              {lang === "ko"
+                ? "기업위챗(企业微信) 그룹채팅에서 '그룹봇 추가'로 발급받은 Webhook URL을 각 공장별로 등록하세요. URL 예: https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxx"
+                : "在企业微信群聊中添加群机器人后获取 Webhook URL,按工厂分别填写。示例: https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxx"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+            {(Object.keys(FACTORY_LABEL_KO) as Factory[]).map(f => (
+              <div key={f} className="space-y-1.5">
+                <Label className="text-xs">{factoryLabel[f]}</Label>
+                <Input
+                  value={hooks[f] ?? ""}
+                  onChange={e => setHooks(prev => ({ ...prev, [f]: e.target.value }))}
+                  placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..."
+                />
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setHooksOpen(false)}>
+              {lang === "ko" ? "취소" : "取消"}
+            </Button>
+            <Button onClick={() => { saveHooks(hooks); setHooksOpen(false); }}>
+              {lang === "ko" ? "저장" : "保存"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
