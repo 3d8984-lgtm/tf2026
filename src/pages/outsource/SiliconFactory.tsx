@@ -346,13 +346,26 @@ export default function SiliconFactory() {
       setTemplates(prev => ({ ...prev, [grade]: { name: file.name, bytes: buf, preview: dataUrl, aspect } }));
       const safeName = file.name.replace(/[^\w.\-]+/g, "_");
       const path = `${user.id}/${grade}__${safeName}`;
+      const sizeMb = (buf.byteLength / (1024 * 1024)).toFixed(2);
       const { error } = await supabase.storage
         .from("silicon-templates")
         .upload(path, new Blob([buf as BlobPart], { type: "application/pdf" }), {
           upsert: true,
           contentType: "application/pdf",
         });
-      if (error) toast({ title: "PDF 저장 실패", description: error.message, variant: "destructive" });
+      if (error) {
+        const anyErr = error as any;
+        const detail = [
+          anyErr?.message,
+          anyErr?.statusCode ? `status ${anyErr.statusCode}` : null,
+          anyErr?.error,
+          `파일 크기: ${sizeMb}MB`,
+        ].filter(Boolean).join(" · ");
+        console.error("[SiliconFactory] PDF upload failed", { path, sizeMb, error });
+        toast({ title: "PDF 저장 실패", description: detail, variant: "destructive" });
+      } else {
+        toast({ title: "PDF 저장 완료", description: `${file.name} (${sizeMb}MB)` });
+      }
     } catch (e: any) {
       toast({ title: "PDF 미리보기 실패", description: e.message, variant: "destructive" });
     }
