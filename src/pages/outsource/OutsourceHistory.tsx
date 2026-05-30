@@ -75,11 +75,31 @@ const SAMPLE: HistoryRow[] = [
   { id: "H007", factory: "logo", orderNo: "TM-2026-0004", orderedAt: "2026-05-15", qty: 110, productCode: "LOGO-B", startedAt: "2026-05-15", expectedAt: "2026-05-16", producedAt: "2026-05-16", shippedAt: "2026-05-16", trackingNo: "EMS998877665", carrier: "EMS", status: "shipped" },
 ];
 
+const WECHAT_HOOKS_STORAGE_KEY = "outsource.wechatWebhooks.v1";
+
 export default function OutsourceHistory() {
   const { lang } = useLang();
   const [rows, setRows] = useState<HistoryRow[]>(SAMPLE);
   const [factoryFilter, setFactoryFilter] = useState<Factory | "all">("all");
   const [q, setQ] = useState("");
+  const [hooks, setHooks] = useState<Record<Factory, string>>({
+    silicon: "", heat: "", hologram: "", nfc: "", logo: "",
+  });
+  const [hooksOpen, setHooksOpen] = useState(false);
+  const [sendingId, setSendingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(WECHAT_HOOKS_STORAGE_KEY);
+      if (raw) setHooks({ silicon: "", heat: "", hologram: "", nfc: "", logo: "", ...JSON.parse(raw) });
+    } catch { /* ignore */ }
+  }, []);
+
+  const saveHooks = (next: Record<Factory, string>) => {
+    setHooks(next);
+    try { localStorage.setItem(WECHAT_HOOKS_STORAGE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+    toast({ title: lang === "ko" ? "위챗 Webhook 저장 완료" : "已保存企业微信 Webhook" });
+  };
 
   const factoryLabel = lang === "ko" ? FACTORY_LABEL_KO : FACTORY_LABEL_ZH;
 
@@ -112,6 +132,56 @@ export default function OutsourceHistory() {
       return;
     }
     window.open(c.trackUrl(no), "_blank");
+  };
+
+  const buildOrderMessage = (r: HistoryRow) => {
+    const factoryZh = FACTORY_LABEL_ZH[r.factory];
+    const lines = [
+      `【TWINMETA 发货通知 / 발주】`,
+      `工厂 / 공장: ${factoryZh}`,
+      `订单号 / 작업번호: ${r.orderNo}`,
+      `产品编号 / 제품코드: ${r.productCode}`,
+      `数量 / 수량: ${r.qty.toLocaleString()}`,
+      `发单日期 / 발주일: ${r.orderedAt}`,
+      r.startedAt && `开始制作 / 제작착수: ${r.startedAt}`,
+      r.expectedAt && `预计制作完成日 / 예상 제작 완료일: ${r.expectedAt}`,
+      `——`,
+      `请确认并按时交付。감사합니다.`,
+    ].filter(Boolean);
+    return lines.join("\n");
+  };
+
+  const sendToWeChat = async (r: HistoryRow) => {
+    const url = hooks[r.factory]?.trim();
+    if (!url) {
+      toast({
+        title: lang === "ko" ? "Webhook 미설정" : "未设置 Webhook",
+        description: lang === "ko"
+          ? `${FACTORY_LABEL_KO[r.factory]}의 위챗 Webhook을 먼저 등록하세요.`
+          : `请先为 ${FACTORY_LABEL_ZH[r.factory]} 配置企业微信 Webhook。`,
+        variant: "destructive",
+      });
+      setHooksOpen(true);
+      return;
+    }
+    setSendingId(r.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("wechat-send", {
+        body: { webhookUrl: url, message: buildOrderMessage(r) },
+      });
+      if (error || (data as any)?.error) {
+        throw new Error(error?.message ?? (data as any)?.error ?? "Unknown error");
+      }
+      toast({ title: lang === "ko" ? "위챗 발송 완료" : "已发送到企业微信" });
+    } catch (e: any) {
+      toast({
+        title: lang === "ko" ? "위챗 발송 실패" : "发送失败",
+        description: e?.message ?? String(e),
+        variant: "destructive",
+      });
+    } finally {
+      setSendingId(null);
+    }
   };
 
   return (
