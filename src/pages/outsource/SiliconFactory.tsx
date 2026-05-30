@@ -1021,9 +1021,13 @@ function TxtField({ label, v, set, type = "text" }: { label: string; v: string; 
 
 const PROOF_LS_KEY = "silicon.proofSettings.v1";
 const GRADE_COLOR_LS_KEY = "silicon.gradeColorNames.v1";
+const GRADE_COLOR_STYLE_LS_KEY = "silicon.gradeColorStyle.v1";
 
 type GradeColorNames = Record<Grade, string>;
 const DEFAULT_GRADE_COLOR_NAMES: GradeColorNames = { COMMON: "", RARE: "", EPIC: "", LEGEND: "" };
+
+interface GradeColorStyle { fontSize: number; fontWeight: number; }
+const DEFAULT_GRADE_COLOR_STYLE: GradeColorStyle = { fontSize: 14, fontWeight: 700 };
 
 interface WorkOrderData {
   company: string; orderNo: string; orderDate: string; deliveryDate: string;
