@@ -534,8 +534,10 @@ export default function HeatTransferFactory() {
           <OrderDetail
             order={activeOrder}
             outline={outline}
+            formats={formats}
             onBack={() => setActiveOrderId(null)}
           />
+
         )}
       </div>
     </div>
@@ -770,11 +772,33 @@ function OrderListCard({ orders, onOpen }: { orders: OrderRow[]; onOpen: (id: st
 
 // ============ order detail ============
 
+type OutlineFormat = { previewUrl: string; maskCanvas: HTMLCanvasElement; widthPt: number; heightPt: number; name: string };
+type SizedFormat = OutlineFormat & { id: string; sizeLabel: string };
+
+function normalizeSize(s: string) {
+  return (s || "").toString().trim().toUpperCase().replace(/\s+/g, "");
+}
+
+export function pickFormatForSize(formats: SizedFormat[], size: string, fallback: OutlineFormat | null): OutlineFormat | null {
+  const target = normalizeSize(size);
+  if (target) {
+    const exact = formats.find((f) => normalizeSize(f.sizeLabel) === target);
+    if (exact) return exact;
+    const partial = formats.find((f) => {
+      const lbl = normalizeSize(f.sizeLabel);
+      return lbl && (lbl === target || lbl.includes(target) || target.includes(lbl));
+    });
+    if (partial) return partial;
+  }
+  return fallback;
+}
+
 function OrderDetail({
-  order, outline, onBack,
+  order, outline, formats, onBack,
 }: {
   order: OrderRow;
-  outline: { previewUrl: string; maskCanvas: HTMLCanvasElement; widthPt: number; heightPt: number; name: string } | null;
+  outline: OutlineFormat | null;
+  formats: SizedFormat[];
   onBack: () => void;
 }) {
   const details: DesignDetail[] = useMemo(() => {
@@ -810,7 +834,7 @@ function OrderDetail({
           <TabsTrigger value="qr">큐알코드 시안</TabsTrigger>
         </TabsList>
         <TabsContent value="design">
-          <DesignTab order={order} details={details} outline={outline} />
+          <DesignTab order={order} details={details} outline={outline} formats={formats} />
         </TabsContent>
         <TabsContent value="qr">
           <QrTab details={details} />
@@ -821,6 +845,7 @@ function OrderDetail({
     </div>
   );
 }
+
 
 interface HtWorkOrderData {
   company: string; orderNo: string; orderDate: string; deliveryDate: string;
@@ -973,12 +998,14 @@ function WorkOrderInfoBox({ order, outlinePreview }: { order: OrderRow; outlineP
 // ============ design tab ============
 
 function DesignTab({
-  order, details, outline,
+  order, details, outline, formats,
 }: {
   order: OrderRow;
   details: DesignDetail[];
-  outline: { previewUrl: string; maskCanvas: HTMLCanvasElement; widthPt: number; heightPt: number; name: string } | null;
+  outline: OutlineFormat | null;
+  formats: SizedFormat[];
 }) {
+
   const [testDesign, setTestDesign] = useState<string | null>(null);
   const [testName, setTestName] = useState<string>("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -1032,36 +1059,58 @@ function DesignTab({
     setTestDesign(url); setTestName(f.name);
   };
 
+  const resolveFormat = (d: DesignDetail): OutlineFormat | null =>
+    pickFormatForSize(formats, d.tshirtSize, outline);
+
   const downloadOne = async (d: DesignDetail) => {
-    if (!outline) { toast({ title: "외곽선 PDF를 먼저 업로드하세요", variant: "destructive" }); return; }
+    const fmt = resolveFormat(d);
+    if (!fmt) { toast({ title: "외곽선 PDF를 먼저 업로드하세요", variant: "destructive" }); return; }
     const src = testDesign || d.designSrc;
     if (!src) { toast({ title: "디자인 소스가 없습니다", variant: "destructive" }); return; }
     setBusy(true);
     try {
-      const c = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, dpi, transform, { sharpen });
+      const c = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
       const b = await pngWithDpi(await canvasToBlob(c), dpi);
-      triggerDownload(b, `${d.designUid}_${dpi}dpi.png`);
+      triggerDownload(b, `${d.designUid}_${d.tshirtSize || "size"}_${dpi}dpi.png`);
     } finally { setBusy(false); }
   };
 
   const downloadAll = async () => {
-    if (!outline) { toast({ title: "외곽선 PDF를 먼저 업로드하세요", variant: "destructive" }); return; }
+    if (!outline && formats.length === 0) { toast({ title: "외곽선 PDF를 먼저 업로드하세요", variant: "destructive" }); return; }
     setBusy(true);
     try {
       const zip = new JSZip();
       const folder = zip.folder(`design_${order.orderNo}_${dpi}dpi`)!;
+      let matched = 0;
+      let missing = 0;
+      const unmatched: string[] = [];
       for (const d of details) {
         const src = testDesign || d.designSrc;
         if (!src) continue;
-        const c = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, dpi, transform, { sharpen });
+        const fmt = resolveFormat(d);
+        if (!fmt) { missing++; unmatched.push(`${d.designUid}(${d.tshirtSize || "?"})`); continue; }
+        // Track whether size-specific format was matched (not just fallback to selected outline)
+        const sizeMatched = formats.some(
+          (f) => normalizeSize(f.sizeLabel) === normalizeSize(d.tshirtSize) && d.tshirtSize,
+        );
+        if (sizeMatched) matched++;
+        const sizeFolder = d.tshirtSize
+          ? folder.folder(d.tshirtSize) || folder
+          : folder;
+        const c = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
         const b = await pngWithDpi(await canvasToBlob(c), dpi);
-        folder.file(`${d.designUid}.png`, b);
+        sizeFolder.file(`${d.designUid}.png`, b);
       }
       const zipBlob = await zip.generateAsync({ type: "blob" });
       triggerDownload(zipBlob, `design_${order.orderNo}_${dpi}dpi.zip`);
-      toast({ title: "일괄 다운로드 완료", description: `${details.length}개` });
+      const fallbackCount = details.length - matched - missing;
+      toast({
+        title: "일괄 다운로드 완료",
+        description: `총 ${details.length}개 · 사이즈 매칭 ${matched}개${fallbackCount ? ` · 기본 포맷 ${fallbackCount}개` : ""}${missing ? ` · 누락 ${missing}개` : ""}`,
+      });
     } finally { setBusy(false); }
   };
+
 
   return (
     <Card>
