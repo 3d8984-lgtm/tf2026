@@ -327,7 +327,6 @@ export default function HologramFactory() {
         editionNo,
         grade: gradeFromCode(it.card_grade),
         qrValue,
-        tshirtSize: (it.tshirt_size as string) || (it.size as string) || "",
       };
     });
   }, [detailOrder]);
@@ -339,10 +338,9 @@ export default function HologramFactory() {
         "스티커 고유번호": it.uniqueNo,
         "에디션 넘버": `#${String(it.editionNo).padStart(4, "0")}`,
         "등급": it.grade,
-        "티셔츠 사이즈": it.tshirtSize,
       }));
       const ws = XLSX.utils.json_to_sheet(rows);
-      ws["!cols"] = [{ wch: 6 }, { wch: 22 }, { wch: 14 }, { wch: 10 }, { wch: 12 }];
+      ws["!cols"] = [{ wch: 6 }, { wch: 22 }, { wch: 14 }, { wch: 10 }];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Hologram");
       XLSX.writeFile(wb, `hologram_${activeOrderNo}.xlsx`);
@@ -375,7 +373,6 @@ export default function HologramFactory() {
                     <TableHead>스티커 고유번호</TableHead>
                     <TableHead>에디션 넘버</TableHead>
                     <TableHead>등급</TableHead>
-                    <TableHead>티셔츠 사이즈</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -385,11 +382,10 @@ export default function HologramFactory() {
                       <TableCell className="font-mono">{it.uniqueNo}</TableCell>
                       <TableCell>#{String(it.editionNo).padStart(4, "0")}</TableCell>
                       <TableCell><Badge variant="outline">{it.grade}</Badge></TableCell>
-                      <TableCell>{it.tshirtSize || "—"}</TableCell>
                     </TableRow>
                   ))}
                   {detailItems.length === 0 && (
-                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-sm text-muted-foreground">—</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={4} className="text-center py-8 text-sm text-muted-foreground">—</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
