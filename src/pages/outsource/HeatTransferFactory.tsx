@@ -448,6 +448,39 @@ export default function HeatTransferFactory() {
     }
   };
 
+  const handleReplaceFormat = async (id: string, f: File) => {
+    const entry = formats.find((x) => x.id === id);
+    if (!entry) return;
+    setFormatsLoading(true);
+    try {
+      const buf = await readFileAsArrayBuffer(f);
+      const r = await loadPdfOutline(buf);
+      const form = new FormData();
+      form.append("action", "upload");
+      form.append("sizeLabel", entry.sizeLabel);
+      form.append("file", f, f.name);
+      const result = await runDesignFormatStorageAction(form);
+      const newId = result.id;
+      if (!newId) throw new Error("저장된 파일 정보를 확인할 수 없습니다.");
+      try {
+        const del = new FormData();
+        del.append("action", "delete");
+        del.append("id", id);
+        await runDesignFormatStorageAction(del);
+      } catch (e) {
+        console.warn("[design-format] old file cleanup failed:", e);
+      }
+      setFormats((prev) => prev.map((x) => x.id === id ? { id: newId, sizeLabel: entry.sizeLabel, name: f.name, ...r } : x));
+      if (selectedFormatId === id) setSelectedFormatId(newId);
+      toast({ title: "파일 변경됨", description: `${entry.sizeLabel} · ${f.name}` });
+    } catch (e: any) {
+      console.error("[design-format] replace failed:", e);
+      toast({ title: "파일 변경 실패", description: e?.message || String(e), variant: "destructive" });
+    } finally {
+      setFormatsLoading(false);
+    }
+  };
+
   const outline = formats.find((f) => f.id === selectedFormatId) || null;
 
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
@@ -467,6 +500,7 @@ export default function HeatTransferFactory() {
               onAdd={handleAddFormat}
               onRemove={handleRemoveFormat}
               onRename={handleRenameFormat}
+              onReplace={handleReplaceFormat}
             />
             <OrderListCard orders={orders} onOpen={setActiveOrderId} />
           </>
@@ -485,7 +519,7 @@ export default function HeatTransferFactory() {
 // ============ design format box ============
 
 function DesignFormatBox({
-  formats, selectedId, onSelect, loading, onAdd, onRemove, onRename,
+  formats, selectedId, onSelect, loading, onAdd, onRemove, onRename, onReplace,
 }: {
   formats: Array<{ id: string; sizeLabel: string; name: string; previewUrl: string; widthPt: number; heightPt: number }>;
   selectedId: string | null;
@@ -494,10 +528,13 @@ function DesignFormatBox({
   onAdd: (sizeLabel: string, f: File) => void;
   onRemove: (id: string) => void;
   onRename: (id: string, newSizeLabel: string) => void;
+  onReplace: (id: string, f: File) => void;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const replaceInputRef = useRef<HTMLInputElement>(null);
+  const [replaceTargetId, setReplaceTargetId] = useState<string | null>(null);
   const [newSize, setNewSize] = useState("");
   const [adding, setAdding] = useState(false);
   return (
@@ -611,16 +648,28 @@ function DesignFormatBox({
                       <div className="text-[11px] text-muted-foreground mt-1 truncate" title={f.name}>{f.name}</div>
                       <div className="text-[11px] font-mono text-muted-foreground mt-0.5">{wMm}×{hMm}mm</div>
                     </div>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7 shrink-0"
-                      onClick={(e) => { e.stopPropagation(); onRemove(f.id); }}
-                      disabled={loading}
-                      title="삭제"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                    </Button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={(e) => { e.stopPropagation(); setReplaceTargetId(f.id); replaceInputRef.current?.click(); }}
+                        disabled={loading}
+                        title="파일 변경"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={(e) => { e.stopPropagation(); onRemove(f.id); }}
+                        disabled={loading}
+                        title="삭제"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                      </Button>
+                    </div>
                   </div>
                   <div className="mt-2 w-full h-32 rounded bg-muted/30 flex items-center justify-center overflow-hidden">
                     <img src={f.previewUrl} alt={f.sizeLabel} className="max-w-full max-h-full object-contain" />
@@ -630,6 +679,19 @@ function DesignFormatBox({
             })}
           </div>
         )}
+        <input
+          ref={replaceInputRef}
+          type="file"
+          accept="application/pdf"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            const id = replaceTargetId;
+            if (f && id) onReplace(id, f);
+            setReplaceTargetId(null);
+            e.target.value = "";
+          }}
+        />
       </CardContent>
     </Card>
   );
