@@ -1107,6 +1107,10 @@ function ProofBox({
     return DEFAULT_GRADE_COLOR_NAMES;
   });
   const setGradeColor = (g: Grade, v: string) => setGradeColorNames(prev => ({ ...prev, [g]: v }));
+  const labelFor = (it: ProofItem) => {
+    const c = gradeColorNames[it.grade];
+    return c ? `${it.uniqueNo} · ${c}` : it.uniqueNo;
+  };
 
   // ===== 트윈코드 테스트 SVG (업로드 시 모든 마크에 동일 적용) =====
   const [testTwinSvg, setTestTwinSvg] = useState<{ url: string; name: string } | null>(null);
