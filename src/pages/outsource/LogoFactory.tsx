@@ -788,6 +788,18 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                   <Sparkles className="w-3 h-3 mr-1" /> 실행
                 </Button>
               </div>
+              <div className="space-y-1">
+                <Label className="text-xs">벡터 변환 (Vectorizer.AI)</Label>
+                <Button
+                  size="sm"
+                  className="w-full h-9"
+                  onClick={handleVectorizeAI}
+                  disabled={!sourceLogo || !!busy}
+                  title="고품질 SVG · 시스템 설정에서 모드 선택"
+                >
+                  <Cloud className="w-3 h-3 mr-1" /> 벡터 변환
+                </Button>
+              </div>
             </div>
 
             {/* Smart upscale tuning: image-type mode + sharpness */}
@@ -817,18 +829,6 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                     ? `${lastAnalysis.kind}${lastAnalysis.transparent ? " · α" : ""}`
                     : "—"}
                 </div>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">AI 벡터화 (Vectorizer.AI)</Label>
-                <Button
-                  size="sm"
-                  className="w-full h-9"
-                  onClick={handleVectorizeAI}
-                  disabled={!sourceLogo || !!busy}
-                  title="고품질 SVG · 시스템 설정에서 모드 선택"
-                >
-                  <Cloud className="w-3 h-3 mr-1" /> AI 변환
-                </Button>
               </div>
             </div>
 
