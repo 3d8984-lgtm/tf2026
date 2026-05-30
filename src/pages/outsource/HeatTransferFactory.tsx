@@ -563,11 +563,44 @@ function DesignFormatBox({
                   className={`relative rounded border p-3 cursor-pointer transition-colors ${selected ? "border-primary ring-2 ring-primary/30 bg-primary/5" : "hover:bg-muted/40"}`}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <Badge variant={selected ? "default" : "secondary"}>{f.sizeLabel}</Badge>
-                        {selected && <span className="text-[10px] text-primary font-medium">선택됨</span>}
-                      </div>
+                    <div className="min-w-0 flex-1">
+                      {editingId === f.id ? (
+                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          <Input
+                            autoFocus
+                            value={editingValue}
+                            onChange={(e) => setEditingValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                onRename(f.id, editingValue);
+                                setEditingId(null);
+                              } else if (e.key === "Escape") {
+                                setEditingId(null);
+                              }
+                            }}
+                            className="h-7 text-xs"
+                          />
+                          <Button size="sm" variant="default" className="h-7 px-2 text-xs"
+                            onClick={() => { onRename(f.id, editingValue); setEditingId(null); }}>저장</Button>
+                          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs"
+                            onClick={() => setEditingId(null)}>취소</Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Badge variant={selected ? "default" : "secondary"}>{f.sizeLabel}</Badge>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-6 w-6"
+                            onClick={(e) => { e.stopPropagation(); setEditingId(f.id); setEditingValue(f.sizeLabel); }}
+                            disabled={loading}
+                            title="사이즈 변경"
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </Button>
+                          {selected && <span className="text-[10px] text-primary font-medium">선택됨</span>}
+                        </div>
+                      )}
                       <div className="text-[11px] text-muted-foreground mt-1 truncate" title={f.name}>{f.name}</div>
                       <div className="text-[11px] font-mono text-muted-foreground mt-0.5">{wMm}×{hMm}mm</div>
                     </div>
