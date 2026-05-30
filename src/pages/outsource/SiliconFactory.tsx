@@ -1206,6 +1206,13 @@ function ProofBox({
     return DEFAULT_GRADE_COLOR_NAMES;
   });
   const setGradeColor = (g: Grade, v: string) => setGradeColorNames(prev => ({ ...prev, [g]: v }));
+  const [gradeColorStyle, setGradeColorStyle] = useState<GradeColorStyle>(() => {
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem(GRADE_COLOR_STYLE_LS_KEY) : null;
+      if (raw) return { ...DEFAULT_GRADE_COLOR_STYLE, ...JSON.parse(raw) };
+    } catch {}
+    return DEFAULT_GRADE_COLOR_STYLE;
+  });
   const labelFor = (it: ProofItem) => {
     const c = gradeColorNames[it.grade];
     return c ? `${it.uniqueNo} · ${c}` : it.uniqueNo;
