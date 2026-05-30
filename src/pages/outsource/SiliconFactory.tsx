@@ -34,7 +34,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database, Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { Download, Eye, FileText, AlertTriangle, Loader2, QrCode, Upload, X, ChevronLeft } from "lucide-react";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
@@ -365,7 +365,7 @@ export default function SiliconFactory() {
           http_status: status,
           supabase_code: code,
           supabase_message: message,
-          response_body: responseBody,
+          response_body: responseBody as Json,
           user_id: user?.id ?? null,
           ...extra,
         },
