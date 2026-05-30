@@ -500,6 +500,7 @@ export default function HeatTransferFactory() {
               onAdd={handleAddFormat}
               onRemove={handleRemoveFormat}
               onRename={handleRenameFormat}
+              onReplace={handleReplaceFormat}
             />
             <OrderListCard orders={orders} onOpen={setActiveOrderId} />
           </>
