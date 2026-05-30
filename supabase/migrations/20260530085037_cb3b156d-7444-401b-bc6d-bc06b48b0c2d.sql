@@ -1,0 +1,1 @@
+DROP TRIGGER IF EXISTS protect_objects_delete ON storage.objects;
