@@ -1215,9 +1215,38 @@ function ProofBox({
     return DEFAULT_GRADE_COLOR_NAMES;
   });
   const setGradeColor = (g: Grade, v: string) => setGradeColorNames(prev => ({ ...prev, [g]: v }));
+
+  const [gradeColorStyles, setGradeColorStyles] = useState<GradeColorStyles>(() => {
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem(GRADE_COLOR_STYLE_LS_KEY) : null;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return {
+          COMMON: { ...DEFAULT_GRADE_COLOR_STYLES.COMMON, ...(parsed.COMMON || {}) },
+          RARE:   { ...DEFAULT_GRADE_COLOR_STYLES.RARE,   ...(parsed.RARE   || {}) },
+          EPIC:   { ...DEFAULT_GRADE_COLOR_STYLES.EPIC,   ...(parsed.EPIC   || {}) },
+          LEGEND: { ...DEFAULT_GRADE_COLOR_STYLES.LEGEND, ...(parsed.LEGEND || {}) },
+        };
+      }
+    } catch {}
+    return DEFAULT_GRADE_COLOR_STYLES;
+  });
+  const setGradeStyle = (g: Grade, patch: Partial<GradeColorStyle>) =>
+    setGradeColorStyles(prev => ({ ...prev, [g]: { ...prev[g], ...patch } }));
+
   const labelFor = (it: ProofItem) => {
     const c = gradeColorNames[it.grade];
     return c ? `${it.uniqueNo} · ${c}` : it.uniqueNo;
+  };
+  const renderLabel = (it: ProofItem) => {
+    const c = gradeColorNames[it.grade];
+    if (!c) return <>{it.uniqueNo}</>;
+    const s = gradeColorStyles[it.grade] ?? { sizeScale: 1, weight: 400 };
+    return (
+      <>
+        {it.uniqueNo} · <span style={{ fontSize: `${s.sizeScale * 100}%`, fontWeight: s.weight }}>{c}</span>
+      </>
+    );
   };
 
   // ===== 트윈코드 테스트 SVG (업로드 시 모든 마크에 동일 적용) =====
