@@ -1623,7 +1623,7 @@ function ProofBox({
                         className="font-mono text-foreground leading-none"
                         style={{ fontSize: labelPx, marginTop: gapPx }}
                       >
-                        {it.uniqueNo}
+                        {labelFor(it)}
                       </div>
                     </div>
                   );
