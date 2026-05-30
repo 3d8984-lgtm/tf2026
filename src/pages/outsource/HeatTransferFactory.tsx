@@ -1150,11 +1150,48 @@ function DesignTab({
         <CardTitle className="text-base">디자인 시안 설정</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {!outline && (
-          <div className="rounded border border-dashed p-4 text-sm text-muted-foreground">
-            상단의 "디자인 포맷 설정"에서 외곽선 PDF를 먼저 업로드하세요.
+        {logs.length > 0 && (
+          <div className="rounded border bg-muted/30">
+            <div className="flex items-center justify-between px-3 py-2 border-b">
+              <div className="text-xs font-semibold flex items-center gap-2">
+                <span>다운로드 로그</span>
+                <Badge variant="outline" className="text-[10px]">{logs.length}</Badge>
+                {logs.some((l) => l.level === "error") && (
+                  <Badge variant="destructive" className="text-[10px]">오류</Badge>
+                )}
+                {logs.some((l) => l.level === "warn") && !logs.some((l) => l.level === "error") && (
+                  <Badge className="text-[10px] bg-amber-500 hover:bg-amber-500">경고</Badge>
+                )}
+              </div>
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setLogs([])}>
+                <X className="w-3 h-3 mr-1" /> 지우기
+              </Button>
+            </div>
+            <div className="max-h-40 overflow-auto px-3 py-2 space-y-1 font-mono text-[11px]">
+              {logs.map((l, i) => (
+                <div
+                  key={i}
+                  className={
+                    l.level === "error" ? "text-destructive" :
+                    l.level === "warn" ? "text-amber-600 dark:text-amber-400" :
+                    "text-muted-foreground"
+                  }
+                >
+                  <span className="opacity-60">[{l.ts}]</span>{" "}
+                  <span className="uppercase">{l.level}</span>{" — "}{l.msg}
+                </div>
+              ))}
+            </div>
           </div>
         )}
+
+        {!outline && formats.length === 0 && (
+          <div className="rounded border border-dashed p-4 text-sm text-muted-foreground">
+            상단의 "디자인 포맷 설정"에서 사이즈별 외곽선 PDF를 먼저 업로드하세요.
+          </div>
+        )}
+
+
 
         <div className="grid md:grid-cols-[1fr_auto_auto_auto] gap-3 items-end">
           <div className="space-y-1">
