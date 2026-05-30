@@ -14,7 +14,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, Upload, X, Download, FileText, Loader2, QrCode as QrCodeIcon } from "lucide-react";
+import { ChevronLeft, Upload, X, Download, FileText, Loader2, QrCode as QrCodeIcon, Plus, Trash2 } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { useOrders } from "@/hooks/useDbData";
 import { toast } from "@/hooks/use-toast";
@@ -312,57 +312,72 @@ export default function HeatTransferFactory() {
     return out;
   }, [dbOrders]);
 
-  // global outline PDF (applied to all orders unless replaced inside detail by test upload)
-  const [outline, setOutline] = useState<{
+  // Multiple size-based design formats.
+  // Filename convention: `fmt__{encodedSizeLabel}__{ts}__{safeName}.pdf`
+  type FormatEntry = {
+    id: string;
+    sizeLabel: string;
+    name: string;
     previewUrl: string;
     maskCanvas: HTMLCanvasElement;
     widthPt: number;
     heightPt: number;
-    name: string;
-  } | null>(null);
-  const [outlineLoading, setOutlineLoading] = useState(false);
+  };
+  const [formats, setFormats] = useState<FormatEntry[]>([]);
+  const [selectedFormatId, setSelectedFormatId] = useState<string | null>(null);
+  const [formatsLoading, setFormatsLoading] = useState(false);
 
-  // Load persisted outline on mount
+  const parseSizeFromName = (storageName: string): { sizeLabel: string; original: string } => {
+    const parts = storageName.split("__");
+    if (parts.length >= 4 && parts[0] === "fmt") {
+      try {
+        return { sizeLabel: decodeURIComponent(parts[1]), original: parts.slice(3).join("__") };
+      } catch {
+        return { sizeLabel: parts[1], original: parts.slice(3).join("__") };
+      }
+    }
+    return { sizeLabel: "기본", original: storageName };
+  };
+
   useEffect(() => {
     (async () => {
+      setFormatsLoading(true);
       try {
         const { data: list, error } = await supabase.storage
           .from(DESIGN_FORMAT_BUCKET)
-          .list(DESIGN_FORMAT_FOLDER, { limit: 1, sortBy: { column: "created_at", order: "desc" } });
-        if (error || !list || list.length === 0) return;
-        const fileName = list[0].name;
-        setOutlineLoading(true);
-        const { data: blob, error: dlErr } = await supabase.storage
-          .from(DESIGN_FORMAT_BUCKET)
-          .download(`${DESIGN_FORMAT_FOLDER}/${fileName}`);
-        if (dlErr || !blob) return;
-        const buf = await blob.arrayBuffer();
-        const r = await loadPdfOutline(buf);
-        setOutline({ ...r, name: fileName });
-      } catch (e) {
-        // ignore
+          .list(DESIGN_FORMAT_FOLDER, { limit: 100, sortBy: { column: "created_at", order: "asc" } });
+        if (error || !list || list.length === 0) { setFormats([]); return; }
+        const loaded: FormatEntry[] = [];
+        for (const item of list) {
+          const fileName = item.name;
+          const { data: blob, error: dlErr } = await supabase.storage
+            .from(DESIGN_FORMAT_BUCKET)
+            .download(`${DESIGN_FORMAT_FOLDER}/${fileName}`);
+          if (dlErr || !blob) continue;
+          try {
+            const buf = await blob.arrayBuffer();
+            const r = await loadPdfOutline(buf);
+            const { sizeLabel, original } = parseSizeFromName(fileName);
+            loaded.push({ id: fileName, sizeLabel, name: original, ...r });
+          } catch { /* skip */ }
+        }
+        setFormats(loaded);
+        if (loaded.length > 0) setSelectedFormatId((prev) => prev || loaded[0].id);
       } finally {
-        setOutlineLoading(false);
+        setFormatsLoading(false);
       }
     })();
   }, []);
 
-  const handleOutlineUpload = async (f: File) => {
-    setOutlineLoading(true);
+  const handleAddFormat = async (sizeLabel: string, f: File) => {
+    const label = sizeLabel.trim();
+    if (!label) { toast({ title: "사이즈를 입력하세요", variant: "destructive" }); return; }
+    setFormatsLoading(true);
     try {
       const buf = await readFileAsArrayBuffer(f);
       const r = await loadPdfOutline(buf);
-      // clear existing files in folder so the latest upload is the single source of truth
-      const { data: existing } = await supabase.storage
-        .from(DESIGN_FORMAT_BUCKET)
-        .list(DESIGN_FORMAT_FOLDER);
-      if (existing && existing.length > 0) {
-        await supabase.storage
-          .from(DESIGN_FORMAT_BUCKET)
-          .remove(existing.map((o) => `${DESIGN_FORMAT_FOLDER}/${o.name}`));
-      }
       const safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const storedName = `format_${Date.now()}_${safeName}`;
+      const storedName = `fmt__${encodeURIComponent(label)}__${Date.now()}__${safeName}`;
       const { error: upErr } = await supabase.storage
         .from(DESIGN_FORMAT_BUCKET)
         .upload(`${DESIGN_FORMAT_FOLDER}/${storedName}`, f, {
@@ -370,32 +385,35 @@ export default function HeatTransferFactory() {
           upsert: true,
         });
       if (upErr) throw upErr;
-      setOutline({ ...r, name: f.name });
-      toast({ title: "디자인 포맷 저장 완료", description: f.name });
+      const entry: FormatEntry = { id: storedName, sizeLabel: label, name: f.name, ...r };
+      setFormats((prev) => [...prev, entry]);
+      setSelectedFormatId(storedName);
+      toast({ title: "디자인 포맷 추가됨", description: `${label} · ${f.name}` });
     } catch (e: any) {
       toast({ title: "저장 실패", description: e?.message || "관리자만 변경할 수 있습니다.", variant: "destructive" });
     } finally {
-      setOutlineLoading(false);
+      setFormatsLoading(false);
     }
   };
 
-  const handleOutlineClear = async () => {
+  const handleRemoveFormat = async (id: string) => {
     try {
-      const { data: existing } = await supabase.storage
+      const { error: rmErr } = await supabase.storage
         .from(DESIGN_FORMAT_BUCKET)
-        .list(DESIGN_FORMAT_FOLDER);
-      if (existing && existing.length > 0) {
-        const { error: rmErr } = await supabase.storage
-          .from(DESIGN_FORMAT_BUCKET)
-          .remove(existing.map((o) => `${DESIGN_FORMAT_FOLDER}/${o.name}`));
-        if (rmErr) throw rmErr;
-      }
-      setOutline(null);
+        .remove([`${DESIGN_FORMAT_FOLDER}/${id}`]);
+      if (rmErr) throw rmErr;
+      setFormats((prev) => {
+        const next = prev.filter((x) => x.id !== id);
+        if (selectedFormatId === id) setSelectedFormatId(next[0]?.id || null);
+        return next;
+      });
       toast({ title: "디자인 포맷 삭제됨" });
     } catch (e: any) {
       toast({ title: "삭제 실패", description: e?.message || "관리자만 삭제할 수 있습니다.", variant: "destructive" });
     }
   };
+
+  const outline = formats.find((f) => f.id === selectedFormatId) || null;
 
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const activeOrder = orders.find((o) => o.id === activeOrderId) || null;
@@ -407,10 +425,12 @@ export default function HeatTransferFactory() {
         {!activeOrder ? (
           <>
             <DesignFormatBox
-              outline={outline}
-              loading={outlineLoading}
-              onUpload={handleOutlineUpload}
-              onClear={handleOutlineClear}
+              formats={formats}
+              selectedId={selectedFormatId}
+              onSelect={setSelectedFormatId}
+              loading={formatsLoading}
+              onAdd={handleAddFormat}
+              onRemove={handleRemoveFormat}
             />
             <OrderListCard orders={orders} onOpen={setActiveOrderId} />
           </>
@@ -429,63 +449,115 @@ export default function HeatTransferFactory() {
 // ============ design format box ============
 
 function DesignFormatBox({
-  outline, loading, onUpload, onClear,
+  formats, selectedId, onSelect, loading, onAdd, onRemove,
 }: {
-  outline: { previewUrl: string; widthPt: number; heightPt: number; name: string } | null;
+  formats: Array<{ id: string; sizeLabel: string; name: string; previewUrl: string; widthPt: number; heightPt: number }>;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
   loading: boolean;
-  onUpload: (f: File) => void;
-  onClear: () => void;
+  onAdd: (sizeLabel: string, f: File) => void;
+  onRemove: (id: string) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [newSize, setNewSize] = useState("");
+  const [adding, setAdding] = useState(false);
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2"><FileText className="w-4 h-4" /> 디자인 포맷 설정</CardTitle>
+        <CardTitle className="text-base flex items-center gap-2"><FileText className="w-4 h-4" /> 디자인 포맷 설정 (사이즈별)</CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="grid md:grid-cols-[1fr_auto] gap-4">
-          <div className="space-y-2">
-            <Label className="text-xs">디자인 외곽선 (PDF) · 서버 저장</Label>
-            <input
-              ref={inputRef}
-              type="file"
-              accept="application/pdf"
-              className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f); e.target.value = ""; }}
-            />
-            <div className="flex gap-2">
-              {!outline ? (
-                <Button size="sm" onClick={() => inputRef.current?.click()} disabled={loading}>
-                  <Upload className="w-4 h-4 mr-1" /> 업로드
-                </Button>
-              ) : (
-                <>
-                  <Button size="sm" variant="outline" onClick={() => inputRef.current?.click()} disabled={loading}>
-                    <Upload className="w-4 h-4 mr-1" /> 변경
-                  </Button>
-                  <Button size="sm" variant="destructive" onClick={onClear} disabled={loading}>
-                    <X className="w-4 h-4 mr-1" /> 삭제
-                  </Button>
-                </>
-              )}
+      <CardContent className="space-y-4">
+        {/* Add row */}
+        <div className="rounded border border-dashed p-3 space-y-2 bg-muted/20">
+          <Label className="text-xs">새 사이즈 추가</Label>
+          {!adding ? (
+            <Button size="sm" variant="outline" onClick={() => setAdding(true)} disabled={loading}>
+              <Plus className="w-4 h-4 mr-1" /> 추가
+            </Button>
+          ) : (
+            <div className="flex flex-wrap gap-2 items-center">
+              <Input
+                placeholder="사이즈 (예: S, M, L, 100×120mm)"
+                value={newSize}
+                onChange={(e) => setNewSize(e.target.value)}
+                className="h-9 w-64"
+              />
+              <input
+                ref={inputRef}
+                type="file"
+                accept="application/pdf"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) {
+                    onAdd(newSize, f);
+                    setNewSize("");
+                    setAdding(false);
+                  }
+                  e.target.value = "";
+                }}
+              />
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (!newSize.trim()) { toast({ title: "사이즈를 입력하세요", variant: "destructive" }); return; }
+                  inputRef.current?.click();
+                }}
+                disabled={loading}
+              >
+                <Upload className="w-4 h-4 mr-1" /> PDF 업로드
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => { setAdding(false); setNewSize(""); }}>취소</Button>
             </div>
-            {outline && (
-              <div className="text-xs text-muted-foreground">
-                {outline.name} · {(outline.widthPt / 72 * 25.4).toFixed(1)}×{(outline.heightPt / 72 * 25.4).toFixed(1)}mm · {outline.widthPt.toFixed(0)}×{outline.heightPt.toFixed(0)}pt
-              </div>
-            )}
-            {!outline && (
-              <p className="text-xs text-muted-foreground">PDF의 첫 페이지가 외곽선으로 사용됩니다. 업로드한 파일은 서버에 저장되어 변경/삭제 전까지 디자인 포맷으로 유지됩니다.</p>
-            )}
-          </div>
-          <div className="flex items-center justify-center">
-            <div className="w-48 h-48 rounded border bg-muted/30 flex items-center justify-center overflow-hidden">
-              {loading ? <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /> :
-                outline ? <img src={outline.previewUrl} alt="외곽선" className="max-w-full max-h-full object-contain" /> :
-                <span className="text-xs text-muted-foreground">미리보기 없음</span>}
-            </div>
-          </div>
+          )}
+          <p className="text-[11px] text-muted-foreground">사이즈별로 외곽선 PDF를 등록하세요. 각 PDF의 첫 페이지가 외곽선으로 사용됩니다.</p>
         </div>
+
+        {/* Format list */}
+        {loading && formats.length === 0 ? (
+          <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+        ) : formats.length === 0 ? (
+          <p className="text-xs text-muted-foreground">등록된 포맷이 없습니다. 위에서 추가해 주세요.</p>
+        ) : (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {formats.map((f) => {
+              const selected = f.id === selectedId;
+              const wMm = (f.widthPt / 72 * 25.4).toFixed(1);
+              const hMm = (f.heightPt / 72 * 25.4).toFixed(1);
+              return (
+                <div
+                  key={f.id}
+                  onClick={() => onSelect(f.id)}
+                  className={`relative rounded border p-3 cursor-pointer transition-colors ${selected ? "border-primary ring-2 ring-primary/30 bg-primary/5" : "hover:bg-muted/40"}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={selected ? "default" : "secondary"}>{f.sizeLabel}</Badge>
+                        {selected && <span className="text-[10px] text-primary font-medium">선택됨</span>}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-1 truncate" title={f.name}>{f.name}</div>
+                      <div className="text-[11px] font-mono text-muted-foreground mt-0.5">{wMm}×{hMm}mm</div>
+                    </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 shrink-0"
+                      onClick={(e) => { e.stopPropagation(); onRemove(f.id); }}
+                      disabled={loading}
+                      title="삭제"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                    </Button>
+                  </div>
+                  <div className="mt-2 w-full h-32 rounded bg-muted/30 flex items-center justify-center overflow-hidden">
+                    <img src={f.previewUrl} alt={f.sizeLabel} className="max-w-full max-h-full object-contain" />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
