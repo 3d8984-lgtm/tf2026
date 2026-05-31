@@ -780,7 +780,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
 
   // Effect preview overlay style based on work type
-  const effectClass: Record<WorkType, string> = {
+  const effectClass: Record<string, string> = {
     "heat-transfer": "",
     "hologram": "mix-blend-screen drop-shadow-[0_0_8px_rgba(168,85,247,0.6)]",
     "laser": "grayscale contrast-125 brightness-90",
