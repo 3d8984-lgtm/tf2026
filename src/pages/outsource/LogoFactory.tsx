@@ -1101,28 +1101,20 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
               </div>
             )}
               </TabsContent>
-              <TabsContent value="upscale" className="mt-4 space-y-3">
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div className="text-sm text-muted-foreground">
-                    외부 AI 업스케일링 서비스(Let's Enhance)를 이 페이지 안에서 바로 사용할 수 있습니다.
+              <TabsContent value="upscale" className="mt-4">
+                <div className="flex flex-col items-center justify-center gap-6 py-16 border rounded-md bg-muted/10">
+                  <Sparkles className="w-12 h-12 text-primary/60" />
+                  <div className="text-center space-y-2">
+                    <div className="text-lg font-semibold">Let's Enhance 업스케일링</div>
+                    <div className="text-sm text-muted-foreground max-w-sm">
+                      외부 AI 업스케일링 서비스를 새 창에서 열어 사용할 수 있습니다.<br />
+                      작업 완료 후 결과 파일을 다운로드하여 다시 업로드하세요.
+                    </div>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => window.open("https://letsenhance.io/ko/boost", "_blank", "noopener,noreferrer")}>
-                    <ExternalLink className="w-3 h-3 mr-1" /> 새 창에서 열기
+                  <Button size="lg" onClick={() => window.open("https://letsenhance.io/ko/boost", "_blank", "noopener,noreferrer")}>
+                    <ExternalLink className="w-4 h-4 mr-2" /> Let's Enhance 새 창에서 열기
                   </Button>
                 </div>
-                <div className="border rounded-md overflow-hidden bg-muted/20" style={{ height: "75vh" }}>
-                  <iframe
-                    src="https://letsenhance.io/ko/boost"
-                    title="Let's Enhance 업스케일링"
-                    className="w-full h-full"
-                    style={{ border: 0 }}
-                    allow="clipboard-read; clipboard-write; fullscreen"
-                    referrerPolicy="no-referrer"
-                  />
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  ※ 일부 외부 사이트는 보안 정책(X-Frame-Options/CSP)으로 인해 프레임 내 표시를 차단할 수 있습니다. 화면이 비어 있으면 우측 상단 "새 창에서 열기"를 이용하세요.
-                </p>
               </TabsContent>
             </Tabs>
           </CardContent>
