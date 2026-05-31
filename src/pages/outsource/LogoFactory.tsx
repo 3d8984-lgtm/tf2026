@@ -809,7 +809,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
           <CardContent className="space-y-4">
             {(() => {
               const STEPS = [
-                { id: 1, label: "업로드" },
+                { id: 1, label: "로고확인" },
                 { id: 2, label: "타입 확인" },
                 { id: 3, label: "업스케일" },
                 { id: 7, label: "업스케일 업로드" },
@@ -871,24 +871,24 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                     <div className="text-xs text-muted-foreground px-3 py-2 rounded bg-muted/30 border">{busy}</div>
                   )}
 
-                  {/* ============ STEP 1: 업로드 ============ */}
+                  {/* ============ STEP 1: 로고확인 ============ */}
                   {currentStep === 1 && (
                     <div className="space-y-3">
                       <div className="text-sm text-muted-foreground">
-                        원본 로고를 업로드하세요. 업로드 즉시 시스템이 자동 분석하여 다음 단계에서 적합한 처리 방식을 추천합니다.
+                        원본 로고를 확인하세요. 확인 즉시 시스템이 자동 분석하여 다음 단계에서 적합한 처리 방식을 추천합니다.
                         <span className="block mt-1">⚠️ LOGO 이외에는 <b>배경이 투명</b>이어야 합니다.</span>
                       </div>
                       <div className="flex items-center justify-between gap-3 p-3 rounded-md border border-dashed bg-muted/20">
                         <div className="flex items-center gap-3 min-w-0">
                           <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
                           <div className="min-w-0">
-                            <div className="text-sm font-medium">로고 업로드</div>
+                            <div className="text-sm font-medium">로고 확인</div>
                             <div className="text-[11px] text-muted-foreground truncate">
                               {testLogoDataUrl
                                 ? <>현재 적용됨: <span className="font-mono">{testLogoName}</span></>
                                 : sourceLogo
-                                  ? "원본 로고(주문 첨부)가 적용되어 있습니다. 교체하려면 업로드하세요."
-                                  : "PNG/JPG/SVG 파일을 업로드하세요"}
+                                   ? "원본 로고(주문 첨부)가 적용되어 있습니다. 교체하려면 다시 확인하세요."
+                                  : "PNG/JPG/SVG 파일을 확인하세요"}
                             </div>
                           </div>
                         </div>
@@ -905,7 +905,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                             }}
                           />
                           <Button size="sm" variant="outline" onClick={() => { if (testLogoInputRef.current) { testLogoInputRef.current.value = ""; testLogoInputRef.current.click(); } }}>
-                            <Upload className="w-3 h-3 mr-1" /> {testLogoDataUrl ? "교체" : "업로드"}
+                            <Upload className="w-3 h-3 mr-1" /> {testLogoDataUrl ? "교체" : "로고확인"}
                           </Button>
                           {testLogoDataUrl && (
                             <Button size="sm" variant="ghost" onClick={handleRemoveTestLogo}>
@@ -1345,7 +1345,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                       ← 이전
                     </Button>
                     <div className="text-[11px] text-muted-foreground">
-                      {currentStep === 1 && !step1Done && "로고를 업로드하세요"}
+                      {currentStep === 1 && !step1Done && "로고를 확인하세요"}
                       {currentStep === 2 && !step2Done && "로고 타입을 선택하세요"}
                       {currentStep === 3 && !step3Done && (logoType === "color" ? "업스케일을 완료하세요" : "업스케일을 실행하거나 건너뛰세요")}
                       {currentStep === 7 && !upscaledUploadName && "외부 업스케일 파일을 업로드하거나 건너뛰세요"}
