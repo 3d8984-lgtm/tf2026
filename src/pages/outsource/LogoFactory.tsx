@@ -318,9 +318,84 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   // PDF 다운로드 활성화는 현재 주문 화면에서 '완료' 버튼을 눌러야만 가능하도록 저장/복원하지 않음
   const [workCompleted, setWorkCompleted] = useState<boolean>(false);
 
+  // ── 작업 상태 자동 저장/복원 (orderNo 별) ────────────────────────────
+  const skipAutoFitRef = useRef<boolean>(false);
+  const restoringRef = useRef<boolean>(false);
+  const restoredOrderRef = useRef<string | null>(null);
+
+  // 복원: orderNo 가 바뀌면 저장된 작업 스냅샷을 적용
   useEffect(() => {
-    setWorkCompleted(false);
+    restoringRef.current = true;
+    try {
+      const raw = localStorage.getItem(`logo.work.v1.${orderNo}`);
+      if (raw) {
+        const s = JSON.parse(raw);
+        if (typeof s.workType === "string") setWorkType(s.workType);
+        if (typeof s.canvasWidthMm === "number") setCanvasWidthMm(s.canvasWidthMm);
+        if (typeof s.canvasHeightMm === "number") setCanvasHeightMm(s.canvasHeightMm);
+        if (typeof s.logoWidthMm === "number") setLogoWidthMm(s.logoWidthMm);
+        if (typeof s.logoHeightMm === "number") setLogoHeightMm(s.logoHeightMm);
+        if (typeof s.offsetXMm === "number") setOffsetXMm(s.offsetXMm);
+        if (typeof s.offsetYMm === "number") setOffsetYMm(s.offsetYMm);
+        if (typeof s.lockAspect === "boolean") setLockAspect(s.lockAspect);
+        if (typeof s.naturalAspect === "number") setNaturalAspect(s.naturalAspect);
+        if (typeof s.processedDataUrl === "string" || s.processedDataUrl === null) setProcessedDataUrl(s.processedDataUrl ?? null);
+        if (typeof s.processedKind === "string") setProcessedKind(s.processedKind);
+        if (typeof s.testLogoDataUrl === "string" || s.testLogoDataUrl === null) setTestLogoDataUrl(s.testLogoDataUrl ?? null);
+        if (typeof s.testLogoName === "string" || s.testLogoName === null) setTestLogoName(s.testLogoName ?? null);
+        if (typeof s.upscaledDataUrl === "string" || s.upscaledDataUrl === null) setUpscaledDataUrl(s.upscaledDataUrl ?? null);
+        if (typeof s.vectorDataUrl === "string" || s.vectorDataUrl === null) setVectorDataUrl(s.vectorDataUrl ?? null);
+        if (typeof s.upscaledUploadName === "string" || s.upscaledUploadName === null) setUpscaledUploadName(s.upscaledUploadName ?? null);
+        if (typeof s.upscaleMode === "string") setUpscaleMode(s.upscaleMode);
+        if (typeof s.upscaleSharpness === "number") setUpscaleSharpness(s.upscaleSharpness);
+        if (typeof s.currentStep === "number") setCurrentStep(s.currentStep);
+        if (s.logoType === "color" || s.logoType === "mono" || s.logoType === null) setLogoType(s.logoType);
+        if (s.recommendedType === "color" || s.recommendedType === "mono" || s.recommendedType === null) setRecommendedType(s.recommendedType);
+        if (typeof s.analyzedSrc === "string" || s.analyzedSrc === null) setAnalyzedSrc(s.analyzedSrc ?? null);
+        if (typeof s.upscaleSkipped === "boolean") setUpscaleSkipped(s.upscaleSkipped);
+        if (typeof s.printAreaSaved === "boolean") setPrintAreaSaved(s.printAreaSaved);
+        if (typeof s.workCompleted === "boolean") setWorkCompleted(s.workCompleted);
+        skipAutoFitRef.current = true; // 저장된 사이즈가 자동 fit 으로 덮어써지지 않도록
+      } else {
+        setWorkCompleted(false);
+      }
+    } catch { setWorkCompleted(false); }
+    restoredOrderRef.current = orderNo;
+    const id = setTimeout(() => { restoringRef.current = false; }, 0);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderNo]);
+
+  // 저장: 관련 상태가 바뀔 때마다 스냅샷 기록
+  useEffect(() => {
+    if (restoringRef.current) return;
+    if (restoredOrderRef.current !== orderNo) return;
+    try {
+      const snapshot = {
+        workType, canvasWidthMm, canvasHeightMm,
+        logoWidthMm, logoHeightMm, offsetXMm, offsetYMm,
+        lockAspect, naturalAspect,
+        processedDataUrl, processedKind,
+        testLogoDataUrl, testLogoName,
+        upscaledDataUrl, vectorDataUrl, upscaledUploadName,
+        upscaleMode, upscaleSharpness,
+        currentStep, logoType, recommendedType, analyzedSrc,
+        upscaleSkipped, printAreaSaved, workCompleted,
+      };
+      localStorage.setItem(`logo.work.v1.${orderNo}`, JSON.stringify(snapshot));
+    } catch { /* quota 초과 등 무시 */ }
+  }, [
+    orderNo,
+    workType, canvasWidthMm, canvasHeightMm,
+    logoWidthMm, logoHeightMm, offsetXMm, offsetYMm,
+    lockAspect, naturalAspect,
+    processedDataUrl, processedKind,
+    testLogoDataUrl, testLogoName,
+    upscaledDataUrl, vectorDataUrl, upscaledUploadName,
+    upscaleMode, upscaleSharpness,
+    currentStep, logoType, recommendedType, analyzedSrc,
+    upscaleSkipped, printAreaSaved, workCompleted,
+  ]);
 
   // Logo size as % of canvas longest side — convenience slider
   const canvasLongest = Math.max(canvasWidthMm, canvasHeightMm) || 1;
