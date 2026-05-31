@@ -1826,3 +1826,18 @@ LOGO 크기: ${logoWidthMm} × ${logoHeightMm} mm
     </Card>
   );
 }
+
+function QrThumb({ value }: { value: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    QRCode.toDataURL(value, { errorCorrectionLevel: "M", margin: 1, width: 80 })
+      .then(d => { if (!cancelled) setSrc(d); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [value]);
+  return src
+    ? <img src={src} alt="qr" className="w-12 h-12 border rounded bg-white" />
+    : <div className="w-12 h-12 border rounded bg-muted" />;
+}
+
