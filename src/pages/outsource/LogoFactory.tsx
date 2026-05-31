@@ -814,7 +814,28 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 <Button size="sm" variant="outline" className="w-full h-9" onClick={handleUpscale} disabled={!sourceLogo || !!busy} title="Smart Lanczos3 + 이미지 유형별 샤프닝">
                   <Sparkles className="w-3 h-3 mr-1" /> 실행
                 </Button>
-              </div>
+            </div>
+
+            {/* 인쇄영역 설정 저장 */}
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  try {
+                    localStorage.setItem(
+                      PRINT_AREA_LS_KEY,
+                      JSON.stringify({ w: canvasWidthMm, h: canvasHeightMm }),
+                    );
+                    toast({ title: "인쇄영역 설정이 저장되었습니다", description: `${canvasWidthMm} × ${canvasHeightMm} mm` });
+                  } catch {
+                    toast({ title: "저장 실패", variant: "destructive" });
+                  }
+                }}
+              >
+                인쇄영역 설정 저장
+              </Button>
+            </div>
               <div className="space-y-1">
                 <Label className="text-xs">벡터 변환 (Vectorizer.AI)</Label>
                 <Button
