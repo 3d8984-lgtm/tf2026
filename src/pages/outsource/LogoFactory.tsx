@@ -351,6 +351,34 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     return () => { cancelled = true; };
   }, [logoUrl, testLogoDataUrl]);
 
+  // Auto-analyze source logo whenever it changes → recommend 컬러/단색 type
+  useEffect(() => {
+    const src = testLogoDataUrl || logoUrl;
+    if (!src || src === analyzedSrc) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
+        const img = await loadImage(dataUrl);
+        if (cancelled) return;
+        const analysis = analyzeImage(img);
+        setLastAnalysis(analysis);
+        // 단순/단색 휴리스틱: 고유 색 ≤ 48 또는 line_art / text / pixel
+        const isMono =
+          analysis.kind === "line_art_logo" ||
+          analysis.kind === "document_text" ||
+          analysis.kind === "pixel_art" ||
+          analysis.uniqueColors <= 48;
+        const rec: LogoType = isMono ? "mono" : "color";
+        setRecommendedType(rec);
+        if (!logoType) setLogoType(rec);
+        setAnalyzedSrc(src);
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [logoUrl, testLogoDataUrl]);
+
   const handleWidthChange = (v: number) => {
     setLogoWidthMm(v);
     if (lockAspect && naturalAspect > 0) {
