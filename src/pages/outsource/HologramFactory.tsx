@@ -242,10 +242,6 @@ function OrderProgressBox({
   const woData = useMemo(() => computeHoloWorkOrder(order, items), [order, items]);
   const woHtml = useMemo(() => buildHologramWorkOrderHtml(woData, pdfPreview), [woData, pdfPreview]);
 
-  const saveWebhook = () => {
-    try { localStorage.setItem(WECHAT_WEBHOOK_LS_KEY, webhookUrl.trim()); toast({ title: "위챗 Webhook 저장됨" }); setSettingsOpen(false); }
-    catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" as any }); }
-  };
 
   const sendOrder = async () => {
     if (!webhookUrl) {
