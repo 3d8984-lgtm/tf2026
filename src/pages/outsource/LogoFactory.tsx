@@ -878,42 +878,17 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                         원본 로고를 확인하세요. 확인 즉시 시스템이 자동 분석하여 다음 단계에서 적합한 처리 방식을 추천합니다.
                         <span className="block mt-1">⚠️ LOGO 이외에는 <b>배경이 투명</b>이어야 합니다.</span>
                       </div>
-                      <div className="flex items-center justify-between gap-3 p-3 rounded-md border border-dashed bg-muted/20">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium">로고 확인</div>
-                            <div className="text-[11px] text-muted-foreground truncate">
-                              {testLogoDataUrl
-                                ? <>현재 적용됨: <span className="font-mono">{testLogoName}</span></>
-                                : sourceLogo
-                                   ? "원본 로고(주문 첨부)가 적용되어 있습니다. 교체하려면 다시 확인하세요."
-                                  : "PNG/JPG/SVG 파일을 확인하세요"}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <input
-                            ref={testLogoInputRef}
-                            type="file"
-                            accept="image/*,.svg"
-                            className="hidden"
-                            onChange={(e) => {
-                              const f = e.target.files?.[0];
-                              if (f) handleTestLogoSelect(f);
-                              e.target.value = "";
-                            }}
-                          />
-                          <Button size="sm" variant="outline" onClick={() => { if (testLogoInputRef.current) { testLogoInputRef.current.value = ""; testLogoInputRef.current.click(); } }}>
-                            <Upload className="w-3 h-3 mr-1" /> {testLogoDataUrl ? "교체" : "로고확인"}
-                          </Button>
-                          {testLogoDataUrl && (
-                            <Button size="sm" variant="ghost" onClick={handleRemoveTestLogo}>
-                              <Trash2 className="w-3 h-3 mr-1" /> 제거
-                            </Button>
-                          )}
-                        </div>
-                      </div>
+                      <input
+                        ref={testLogoInputRef}
+                        type="file"
+                        accept="image/*,.svg"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handleTestLogoSelect(f);
+                          e.target.value = "";
+                        }}
+                      />
 
                       {/* 원본 로고 — 작업번호당 1개 (로고 없어도 정보는 표시) */}
                       <div className="rounded-md border bg-blue-50/40 dark:bg-blue-950/20 overflow-hidden">
