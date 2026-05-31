@@ -784,15 +784,33 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       const { data, error } = await supabase.functions.invoke("vectorize-image", { body: payload });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
-      // 2) 사후 처리: 혹시 남아있는 흰 fill 패스 제거 (안전망)
+      // 2) 사후 처리: 흰 fill 패스 제거 + viewBox 를 콘텐츠 경계로 크롭 (배경 여백 제외)
       const rawSvg: string = (data as any).svgDataUrl;
-      const svgDataUrl = stripWhiteFillsFromSvg(rawSvg);
+      const cleanedSvg = stripWhiteFillsFromSvg(rawSvg);
+      const svgDataUrl = await cropSvgToContent(cleanedSvg);
+
+      // 3) 인쇄 크기를 콘텐츠 실제 종횡비에 맞춰 자동 보정 (긴 변 유지)
+      try {
+        const m2 = svgDataUrl.match(/viewBox\s*=\s*"([^"]+)"/);
+        if (m2) {
+          const [, , vw, vh] = m2[1].trim().split(/\s+/).map(Number);
+          if (vw > 0 && vh > 0) {
+            const ar = vw / vh;
+            const longest = Math.max(logoWidthMm, logoHeightMm) || DEFAULT_BASE_MM;
+            const newW = ar >= 1 ? longest : +(longest * ar).toFixed(2);
+            const newH = ar >= 1 ? +(longest / ar).toFixed(2) : longest;
+            setLogoWidthMm(newW);
+            setLogoHeightMm(newH);
+          }
+        }
+      } catch { /* noop */ }
+
       setVectorDataUrl(svgDataUrl);
       setProcessedDataUrl(svgDataUrl);
       setProcessedKind("vector");
       toast({
         title: "Vectorizer.AI 벡터 변환 완료",
-        description: `모드: ${mode} · 흰 배경 자동 제거 · 크레딧: ${(data as any).credits ?? "-"}`,
+        description: `모드: ${mode} · 흰 배경 제거 + 콘텐츠 크롭 · 크레딧: ${(data as any).credits ?? "-"}`,
       });
     } catch (e: any) {
       toast({ title: "Vectorizer.AI 변환 실패", description: e?.message || String(e), variant: "destructive" });
