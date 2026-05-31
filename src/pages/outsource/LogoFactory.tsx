@@ -94,6 +94,10 @@ function svgDataUrlToText(dataUrl: string): string {
   return dataUrl;
 }
 
+function svgTextToDataUrl(svgText: string): string {
+  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgText)))}`;
+}
+
 // Smart upscale (Lanczos3 + auto image-type pipeline) lives in src/lib/upscale.ts.
 // The local `edgePreservingUpscale` was removed in favour of the shared helper,
 // which auto-selects Nearest / Lanczos3 + per-type sharpening based on input
