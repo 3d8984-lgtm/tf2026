@@ -271,7 +271,7 @@ function OrderProgressBox({
       // Upload to public bucket to get a downloadable URL
       const path = `orders/${orderNo}-${Date.now()}.zip`;
       const { error: upErr } = await supabase.storage.from("hologram-pdf").upload(path, zipBlob, {
-        contentType: "application/zip", upsert: true,
+        contentType: "application/zip", upsert: false,
       });
       if (upErr) throw upErr;
       const { data: pub } = supabase.storage.from("hologram-pdf").getPublicUrl(path);
