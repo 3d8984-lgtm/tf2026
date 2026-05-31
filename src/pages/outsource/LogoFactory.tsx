@@ -1948,15 +1948,26 @@ LOGO 크기: ${logoWidthMm} × ${logoHeightMm} mm
               </DialogTitle>
             </DialogHeader>
             <div className="flex-1 overflow-auto border rounded-md bg-white p-6 flex items-center justify-center" style={{ minHeight: "60vh" }}>
-              {vectorDataUrl ? (
-                <img src={vectorDataUrl} alt="logo vector" className="max-w-full max-h-[60vh] object-contain" />
-              ) : (
-                <div className="text-center space-y-2">
-                  <ImageOff className="w-10 h-10 mx-auto text-destructive" />
-                  <div className="text-sm font-medium text-destructive">LOGO 벡터 변환이 완료되지 않았습니다</div>
-                  <div className="text-xs text-muted-foreground">발주 전 '벡터 변환(Vectorizer.AI)'을 먼저 실행하세요.</div>
-                </div>
-              )}
+              {(() => {
+                const resultSrc = vectorDataUrl || processedDataUrl || upscaledDataUrl || logoUrl || testLogoDataUrl;
+                const kindLabel = vectorDataUrl
+                  ? "벡터 변환본"
+                  : processedKind === "upscaled" || upscaledDataUrl
+                  ? "업스케일본"
+                  : "원본 로고";
+                return resultSrc ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+                    <img src={resultSrc} alt="작업결과물" className="max-w-full max-h-[55vh] object-contain" />
+                    <div className="text-xs text-muted-foreground">유형: {kindLabel} · 인쇄 크기 {logoWidthMm} × {logoHeightMm} mm</div>
+                  </div>
+                ) : (
+                  <div className="text-center space-y-2">
+                    <ImageOff className="w-10 h-10 mx-auto text-destructive" />
+                    <div className="text-sm font-medium text-destructive">작업결과물이 없습니다</div>
+                    <div className="text-xs text-muted-foreground">로고를 업로드하고 업스케일/벡터 변환을 먼저 진행하세요.</div>
+                  </div>
+                );
+              })()}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setOpen2(false)}>닫기</Button>
