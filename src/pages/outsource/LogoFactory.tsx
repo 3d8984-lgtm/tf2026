@@ -1316,13 +1316,22 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                       )}
 
                       <div className="flex flex-wrap gap-2 justify-end pt-2 border-t">
-                        <Button variant="outline" onClick={() => downloadPrintPng(300)} disabled={!sourceLogo || !!busy}>
-                          <Download className="w-4 h-4 mr-1" /> PNG 300dpi
+                        <Button
+                          variant={workCompleted ? "outline" : "default"}
+                          onClick={() => {
+                            setWorkCompleted(true);
+                            try { localStorage.setItem(`logo.workCompleted.v1.${orderNo}`, "1"); } catch {}
+                            if (!printAreaSaved) {
+                              setPrintAreaSaved(true);
+                              try { localStorage.setItem(`logo.printArea.v1.${orderNo}`, "1"); } catch {}
+                            }
+                            toast({ title: "작업 완료", description: "작업결과물 다운로드 버튼이 활성화되었습니다." });
+                          }}
+                          disabled={!sourceLogo || !!busy}
+                        >
+                          {workCompleted ? <><CheckCircle2 className="w-4 h-4 mr-1" /> 완료됨</> : <><CheckCircle2 className="w-4 h-4 mr-1" /> 완료</>}
                         </Button>
-                        <Button variant="outline" onClick={() => downloadPrintPng(600)} disabled={!sourceLogo || !!busy}>
-                          <Download className="w-4 h-4 mr-1" /> PNG 600dpi
-                        </Button>
-                        <Button onClick={downloadResultPdf} disabled={!sourceLogo || !!busy}>
+                        <Button onClick={downloadResultPdf} disabled={!sourceLogo || !!busy || !workCompleted}>
                           <Download className="w-4 h-4 mr-1" /> 작업결과물 PDF 다운로드
                         </Button>
                       </div>
