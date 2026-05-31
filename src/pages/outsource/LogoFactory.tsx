@@ -1043,6 +1043,74 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                     </div>
                   )}
 
+                  {/* ============ STEP 7: 업스케일 결과 업로드 ============ */}
+                  {currentStep === 7 && (
+                    <div className="space-y-4">
+                      <div className="text-sm text-muted-foreground">
+                        외부 도구(Let's Enhance 등)에서 업스케일한 결과 파일을 업로드하세요. 사이트 내장 업스케일을 사용했다면 이 단계는 건너뛰어도 됩니다.
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3 p-3 rounded-md border border-dashed bg-muted/20">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium">업스케일 파일 업로드</div>
+                            <div className="text-[11px] text-muted-foreground truncate">
+                              {upscaledUploadName
+                                ? <>업로드됨: <span className="font-mono">{upscaledUploadName}</span></>
+                                : upscaledDataUrl
+                                  ? "사이트 내장 업스케일 결과가 적용되어 있습니다. 외부 업스케일본으로 교체하려면 업로드하세요."
+                                  : "PNG/JPG 파일을 업로드하세요 (배경 투명 유지)"}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <input
+                            ref={upscaledUploadInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) handleUpscaledUpload(f);
+                              e.target.value = "";
+                            }}
+                          />
+                          <Button size="sm" variant="outline" onClick={() => upscaledUploadInputRef.current?.click()}>
+                            <Upload className="w-3 h-3 mr-1" /> {upscaledUploadName || upscaledDataUrl ? "교체" : "업로드"}
+                          </Button>
+                        </div>
+                      </div>
+
+                      {upscaledDataUrl && (
+                        <div className="flex items-start gap-4 p-3 rounded-md border bg-muted/10">
+                          <div className="w-24 h-24 border rounded bg-muted/20 flex items-center justify-center overflow-hidden shrink-0">
+                            <img src={upscaledDataUrl} alt="업스케일 결과" className="max-w-full max-h-full object-contain" />
+                          </div>
+                          <div className="text-xs space-y-1 flex-1 min-w-0">
+                            <div className="font-semibold text-sm flex items-center gap-2">
+                              현재 업스케일 결과 <Badge variant="secondary" className="text-[10px]">{upscaledUploadName ? "외부 업로드" : "사이트 내장"}</Badge>
+                            </div>
+                            <div className="text-muted-foreground">다음 단계에서 이 파일을 기준으로 작업이 진행됩니다.</div>
+                            <div className="pt-1">
+                              <Button size="sm" variant="outline" onClick={() => downloadUrl(upscaledDataUrl, `logo-upscaled-${orderNo}.png`)}>
+                                <Download className="w-3 h-3 mr-1" /> 다운로드
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {!upscaledDataUrl && (
+                        <div className="flex items-center justify-between p-3 rounded-md bg-muted/20 border">
+                          <div className="text-xs text-muted-foreground">외부 업스케일이 필요 없다면 이 단계를 건너뛸 수 있습니다.</div>
+                          <Button size="sm" variant="ghost" onClick={() => { setUpscaleSkipped(true); next(); }}>건너뛰기 →</Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+
                   {/* ============ STEP 4: 벡터 변환 (단색 전용) ============ */}
                   {currentStep === 4 && logoType === "mono" && (
                     <div className="space-y-4">
