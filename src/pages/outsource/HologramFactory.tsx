@@ -614,6 +614,7 @@ export default function HologramFactory() {
       <div>
         <PageHeader title={t("menu.outHologram")} description="주문 상세 목록" />
         <div className="p-6 space-y-4">
+          <OrderProgressBox order={detailOrder} items={detailItems} pdfPreview={pdfPreview} />
           <HologramWorkOrderBox order={detailOrder} items={detailItems} pdfPreview={pdfPreview} />
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
