@@ -17,11 +17,12 @@ import { jsPDF } from "jspdf";
 import { svg2pdf } from "svg2pdf.js";
 import { supabase } from "@/integrations/supabase/client";
 import { VECTORIZER_MODE_KEY } from "./OutsourceSettings";
-import { smartUpscale, type UpscaleMode, type ImageAnalysis } from "@/lib/upscale";
+import { smartUpscale, analyzeImage, type UpscaleMode, type ImageAnalysis } from "@/lib/upscale";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import JSZip from "jszip";
 import html2canvas from "html2canvas";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+
 import { ExternalLink } from "lucide-react";
 
 function fmtDate(v?: string | null): string {
@@ -281,6 +282,17 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const [lastAnalysis, setLastAnalysis] = useState<ImageAnalysis | null>(null);
   const [lastMethod, setLastMethod] = useState<string | null>(null);
 
+  // ── Wizard state (로고 시안 단계별 진행) ────────────────────────────
+  type LogoType = "color" | "mono";
+  const [currentStep, setCurrentStep] = useState<number>(1);
+  const [logoType, setLogoType] = useState<LogoType | null>(null);
+  const [recommendedType, setRecommendedType] = useState<LogoType | null>(null);
+  const [analyzedSrc, setAnalyzedSrc] = useState<string | null>(null);
+  const [upscaleSkipped, setUpscaleSkipped] = useState<boolean>(false);
+  const [printAreaSaved, setPrintAreaSaved] = useState<boolean>(() => {
+    try { return !!localStorage.getItem(`logo.printArea.v1.${orderNo}`); } catch { return false; }
+  });
+
   // Logo size as % of canvas longest side — convenience slider
   const canvasLongest = Math.max(canvasWidthMm, canvasHeightMm) || 1;
   const logoLongest = Math.max(logoWidthMm, logoHeightMm) || 0;
@@ -339,6 +351,34 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       } catch { /* ignore */ }
     })();
     return () => { cancelled = true; };
+  }, [logoUrl, testLogoDataUrl]);
+
+  // Auto-analyze source logo whenever it changes → recommend 컬러/단색 type
+  useEffect(() => {
+    const src = testLogoDataUrl || logoUrl;
+    if (!src || src === analyzedSrc) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
+        const img = await loadImage(dataUrl);
+        if (cancelled) return;
+        const analysis = analyzeImage(img);
+        setLastAnalysis(analysis);
+        // 단순/단색 휴리스틱: 고유 색 ≤ 48 또는 line_art / text / pixel
+        const isMono =
+          analysis.kind === "line_art_logo" ||
+          analysis.kind === "document_text" ||
+          analysis.kind === "pixel_art" ||
+          analysis.uniqueColors <= 48;
+        const rec: LogoType = isMono ? "mono" : "color";
+        setRecommendedType(rec);
+        if (!logoType) setLogoType(rec);
+        setAnalyzedSrc(src);
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logoUrl, testLogoDataUrl]);
 
   const handleWidthChange = (v: number) => {
@@ -726,397 +766,423 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Tabs defaultValue="design" className="w-full">
-              <TabsList>
-                <TabsTrigger value="design">로고 시안</TabsTrigger>
-                <TabsTrigger value="upscale">업스케일링</TabsTrigger>
-              </TabsList>
-              <TabsContent value="design" className="space-y-4 mt-4">
-            {/* Test logo upload */}
-            <div className="flex items-center justify-between gap-3 p-3 rounded-md border border-dashed bg-muted/20">
-              <div className="flex items-center gap-3 min-w-0">
-                <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
-                <div className="min-w-0">
-                  <div className="text-sm font-medium">테스트 로고 업로드</div>
-                  <div className="text-[11px] text-muted-foreground truncate">
-                    {testLogoDataUrl
-                      ? <>현재 적용됨: <span className="font-mono">{testLogoName}</span> · 제거하면 원본 로고로 복원됩니다</>
-                      : "테스트용 로고 파일을 업로드하면 원본 대신 사용됩니다 (PNG/JPG/SVG)"}
+            {(() => {
+              const STEPS = [
+                { id: 1, label: "업로드" },
+                { id: 2, label: "타입 확인" },
+                { id: 3, label: "업스케일" },
+                { id: 4, label: "벡터 변환" },
+                { id: 5, label: "인쇄영역 & 크기" },
+                { id: 6, label: "미리보기 & PDF" },
+              ].filter(s => s.id !== 4 || logoType === "mono");
+
+              const step1Done = !!sourceLogo;
+              const step2Done = !!logoType;
+              const step3Done = !!upscaledDataUrl || upscaleSkipped || (logoType === "mono" && !!vectorDataUrl);
+              const step4Done = !!vectorDataUrl;
+              const step5Done = printAreaSaved;
+              const doneMap: Record<number, boolean> = { 1: step1Done, 2: step2Done, 3: step3Done, 4: step4Done, 5: step5Done, 6: false };
+
+              const canAdvance = (id: number) => {
+                if (id === 1) return step1Done;
+                if (id === 2) return step2Done;
+                if (id === 3) return step3Done;
+                if (id === 4) return step4Done;
+                if (id === 5) return step5Done;
+                return false;
+              };
+              const idx = STEPS.findIndex(s => s.id === currentStep);
+              const next = () => { const n = STEPS[idx + 1]; if (n) setCurrentStep(n.id); };
+              const prev = () => { const p = STEPS[idx - 1]; if (p) setCurrentStep(p.id); };
+
+              return (
+                <div className="space-y-4">
+                  {/* Horizontal Stepper */}
+                  <div className="flex items-center gap-1 overflow-x-auto pb-2">
+                    {STEPS.map((s, i) => {
+                      const active = s.id === currentStep;
+                      const done = doneMap[s.id];
+                      return (
+                        <div key={s.id} className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setCurrentStep(s.id)}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs transition-colors ${
+                              active ? "bg-primary text-primary-foreground border-primary" : done ? "bg-muted border-border" : "bg-background border-border text-muted-foreground"
+                            }`}
+                          >
+                            <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-semibold ${
+                              done ? "bg-emerald-500 text-white" : active ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted-foreground/20"
+                            }`}>
+                              {done ? <CheckCircle2 className="w-3.5 h-3.5" /> : s.id}
+                            </span>
+                            <span className="whitespace-nowrap font-medium">{s.label}</span>
+                          </button>
+                          {i < STEPS.length - 1 && <div className="w-4 h-px bg-border" />}
+                        </div>
+                      );
+                    })}
                   </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <input
-                  ref={testLogoInputRef}
-                  type="file"
-                  accept="image/*,.svg"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) handleTestLogoSelect(f);
-                    e.target.value = "";
-                  }}
-                />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    if (testLogoInputRef.current) {
-                      testLogoInputRef.current.value = "";
-                      testLogoInputRef.current.click();
-                    }
-                  }}
-                >
-                  <Upload className="w-3 h-3 mr-1" /> {testLogoDataUrl ? "교체" : "업로드"}
-                </Button>
-                {testLogoDataUrl && (
-                  <Button size="sm" variant="ghost" onClick={handleRemoveTestLogo}>
-                    <Trash2 className="w-3 h-3 mr-1" /> 제거
-                  </Button>
-                )}
-              </div>
-            </div>
 
+                  {busy && (
+                    <div className="text-xs text-muted-foreground px-3 py-2 rounded bg-muted/30 border">{busy}</div>
+                  )}
 
-            {/* Settings row 1: 작업종류 + 인쇄영역 */}
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-2 items-end">
-              <div className="space-y-1">
-                <Label className="text-xs">작업종류</Label>
-                <Select value={workType} onValueChange={(v) => setWorkType(v as WorkType)}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {WORK_TYPES.map(w => <SelectItem key={w.value} value={w.value}>{w.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">인쇄영역 가로 (mm)</Label>
-                <div className="relative">
-                  <Input
-                    type="number"
-                    step="1"
-                    min={1}
-                    value={canvasWidthMm}
-                    onChange={(e) => setCanvasWidthMm(Math.max(1, Number(e.target.value) || 0))}
-                    className="h-9 pr-10"
-                  />
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">mm</span>
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">인쇄영역 세로 (mm)</Label>
-                <div className="relative">
-                  <Input
-                    type="number"
-                    step="1"
-                    min={1}
-                    value={canvasHeightMm}
-                    onChange={(e) => setCanvasHeightMm(Math.max(1, Number(e.target.value) || 0))}
-                    className="h-9 pr-10"
-                  />
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">mm</span>
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">업스케일</Label>
-                <Button size="sm" variant="outline" className="w-full h-9" onClick={handleUpscale} disabled={!sourceLogo || !!busy} title="Smart Lanczos3 + 이미지 유형별 샤프닝">
-                  <Sparkles className="w-3 h-3 mr-1" /> 실행
-                </Button>
-            </div>
+                  {/* ============ STEP 1: 업로드 ============ */}
+                  {currentStep === 1 && (
+                    <div className="space-y-3">
+                      <div className="text-sm text-muted-foreground">
+                        원본 로고를 업로드하세요. 업로드 즉시 시스템이 자동 분석하여 다음 단계에서 적합한 처리 방식을 추천합니다.
+                        <span className="block mt-1">⚠️ LOGO 이외에는 <b>배경이 투명</b>이어야 합니다.</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 p-3 rounded-md border border-dashed bg-muted/20">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium">로고 업로드</div>
+                            <div className="text-[11px] text-muted-foreground truncate">
+                              {testLogoDataUrl
+                                ? <>현재 적용됨: <span className="font-mono">{testLogoName}</span></>
+                                : sourceLogo
+                                  ? "원본 로고(주문 첨부)가 적용되어 있습니다. 교체하려면 업로드하세요."
+                                  : "PNG/JPG/SVG 파일을 업로드하세요"}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <input
+                            ref={testLogoInputRef}
+                            type="file"
+                            accept="image/*,.svg"
+                            className="hidden"
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) handleTestLogoSelect(f);
+                              e.target.value = "";
+                            }}
+                          />
+                          <Button size="sm" variant="outline" onClick={() => { if (testLogoInputRef.current) { testLogoInputRef.current.value = ""; testLogoInputRef.current.click(); } }}>
+                            <Upload className="w-3 h-3 mr-1" /> {testLogoDataUrl ? "교체" : "업로드"}
+                          </Button>
+                          {testLogoDataUrl && (
+                            <Button size="sm" variant="ghost" onClick={handleRemoveTestLogo}>
+                              <Trash2 className="w-3 h-3 mr-1" /> 제거
+                            </Button>
+                          )}
+                        </div>
+                      </div>
 
-            {/* 인쇄영역 설정 저장 */}
-            <div className="flex justify-end">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  try {
-                    localStorage.setItem(
-                      PRINT_AREA_LS_KEY,
-                      JSON.stringify({ w: canvasWidthMm, h: canvasHeightMm }),
-                    );
-                    toast({ title: "인쇄영역 설정이 저장되었습니다", description: `${canvasWidthMm} × ${canvasHeightMm} mm` });
-                  } catch {
-                    toast({ title: "저장 실패", variant: "destructive" });
-                  }
-                }}
-              >
-                인쇄영역 설정 저장
-              </Button>
-            </div>
-              <div className="space-y-1">
-                <Label className="text-xs">벡터 변환 (Vectorizer.AI)</Label>
-                <Button
-                  size="sm"
-                  className="w-full h-9"
-                  onClick={handleVectorizeAI}
-                  disabled={!sourceLogo || !!busy}
-                  title="고품질 SVG · 시스템 설정에서 모드 선택"
-                >
-                  <Cloud className="w-3 h-3 mr-1" /> 벡터 변환
-                </Button>
-              </div>
-            </div>
-
-            {/* Smart upscale tuning: image-type mode + sharpness */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end p-3 rounded-md border bg-muted/10">
-              <div className="space-y-1 md:col-span-1">
-                <Label className="text-xs">업스케일 모드</Label>
-                <Select value={upscaleMode} onValueChange={(v) => setUpscaleMode(v as UpscaleMode)}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="auto">자동 (이미지 자동 분석)</SelectItem>
-                    <SelectItem value="logo">로고 / 라인아트</SelectItem>
-                    <SelectItem value="text">문서 / 텍스트</SelectItem>
-                    <SelectItem value="illustration">일러스트 / 애니</SelectItem>
-                    <SelectItem value="photo">사진</SelectItem>
-                    <SelectItem value="pixel">픽셀아트</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1 md:col-span-2">
-                <div className="flex justify-between"><Label className="text-xs">샤프니스</Label><span className="text-[10px] text-muted-foreground">{upscaleSharpness}</span></div>
-                <Slider value={[upscaleSharpness]} min={0} max={100} step={5} onValueChange={(v) => setUpscaleSharpness(v[0])} />
-              </div>
-              <div className="space-y-1 md:col-span-1">
-                <Label className="text-xs">최근 분석</Label>
-                <div className="h-9 px-2 rounded-md border bg-background text-[11px] flex items-center text-muted-foreground truncate" title={lastMethod ?? ""}>
-                  {lastAnalysis
-                    ? `${lastAnalysis.kind}${lastAnalysis.transparent ? " · α" : ""}`
-                    : "—"}
-                </div>
-              </div>
-            </div>
-
-            {/* Settings row 2: 로고 크기 + 위치 */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end p-3 rounded-md border bg-muted/20">
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs">로고 가로 (mm)</Label>
-                  <label className="text-[10px] text-muted-foreground flex items-center gap-1 cursor-pointer">
-                    <input type="checkbox" checked={lockAspect} onChange={(e) => setLockAspect(e.target.checked)} className="h-3 w-3" />
-                    비율
-                  </label>
-                </div>
-                <div className="relative">
-                  <Input
-                    type="number"
-                    step="0.5"
-                    value={logoWidthMm}
-                    onChange={(e) => handleWidthChange(Number(e.target.value) || 0)}
-                    className="h-9 pr-10"
-                  />
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">mm</span>
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">로고 세로 (mm)</Label>
-                <div className="relative">
-                  <Input
-                    type="number"
-                    step="0.5"
-                    value={logoHeightMm}
-                    onChange={(e) => handleHeightChange(Number(e.target.value) || 0)}
-                    className="h-9 pr-10"
-                  />
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">mm</span>
-                </div>
-              </div>
-              <div className="space-y-1 md:col-span-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs">로고 크기 (인쇄영역 대비 {logoScalePct}%)</Label>
-                  <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => { setOffsetXMm(0); setOffsetYMm(0); setLogoScalePct(50); }}>
-                    중앙·50%
-                  </Button>
-                </div>
-                <Slider min={1} max={100} step={1} value={[logoScalePct]} onValueChange={(v) => setLogoScalePct(v[0])} />
-              </div>
-
-              <div className="space-y-1 md:col-span-2">
-                <Label className="text-xs">가로 위치 X ({clampedOffsetX.toFixed(1)} mm · 중앙 기준)</Label>
-                <Slider
-                  min={-maxOffsetX}
-                  max={maxOffsetX}
-                  step={0.5}
-                  value={[clampedOffsetX]}
-                  onValueChange={(v) => setOffsetXMm(v[0])}
-                  disabled={maxOffsetX === 0}
-                />
-              </div>
-              <div className="space-y-1 md:col-span-2">
-                <Label className="text-xs">세로 위치 Y ({clampedOffsetY.toFixed(1)} mm · 중앙 기준)</Label>
-                <Slider
-                  min={-maxOffsetY}
-                  max={maxOffsetY}
-                  step={0.5}
-                  value={[clampedOffsetY]}
-                  onValueChange={(v) => setOffsetYMm(v[0])}
-                  disabled={maxOffsetY === 0}
-                />
-              </div>
-            </div>
-
-            {busy && <div className="text-xs text-muted-foreground">{busy}</div>}
-
-            {/* Preview grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="border rounded-md p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold">로고 미리보기</div>
-                  <Badge variant="outline" className="text-[10px]">
-                    {processedKind === "original" ? "원본" : processedKind === "upscaled" ? "업스케일" : "벡터(SVG)"}
-                  </Badge>
-                </div>
-                <div className="aspect-square w-full border rounded bg-muted/20 flex items-center justify-center overflow-hidden">
-                  {displayedLogo ? (
-                    <img src={displayedLogo} alt="로고" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
-                  ) : (
-                    <div className="flex flex-col items-center text-muted-foreground gap-1">
-                      <ImageOff className="w-8 h-8" />
-                      <span className="text-xs">로고가 없습니다</span>
+                      {sourceLogo && (
+                        <div className="flex items-start gap-4 p-3 rounded-md border bg-muted/10">
+                          <div className="w-24 h-24 border rounded bg-muted/20 flex items-center justify-center overflow-hidden shrink-0">
+                            <img src={sourceLogo} alt="로고" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                          </div>
+                          <div className="text-xs space-y-1 flex-1 min-w-0">
+                            <div className="font-semibold text-sm">자동 분석 결과</div>
+                            {lastAnalysis ? (
+                              <>
+                                <div>해상도: <span className="font-mono">{lastAnalysis.width}×{lastAnalysis.height}px</span></div>
+                                <div>유형: <span className="font-mono">{lastAnalysis.kind}</span></div>
+                                <div>고유 색상 수: <span className="font-mono">{lastAnalysis.uniqueColors}</span></div>
+                                <div>배경 투명: {lastAnalysis.transparent ? <span className="text-emerald-600 font-medium">✓ 투명</span> : <span className="text-amber-600 font-medium">⚠️ 불투명 (LOGO가 아닌 경우 투명배경 필요)</span>}</div>
+                                <div className="pt-1">추천 타입: <Badge variant={recommendedType === "color" ? "default" : "secondary"}>{recommendedType === "color" ? "🎨 컬러 / 복잡" : "⚫ 단색 / 단순"}</Badge></div>
+                              </>
+                            ) : <div className="text-muted-foreground">분석 중...</div>}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
-                {processedKind !== "original" && (
-                  <Button size="sm" variant="ghost" className="w-full" onClick={resetLogo}>원본으로 복원</Button>
-                )}
-              </div>
 
-              <div className="border rounded-md p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold">인쇄영역 미리보기 (실제 비율)</div>
-                  <Badge>{WORK_TYPES.find(w => w.value === workType)?.label}</Badge>
-                </div>
-                {/* Canvas frame at real aspect ratio of 인쇄영역 */}
-                <div
-                  className="w-full border-2 border-dashed border-primary/60 rounded relative overflow-hidden"
-                  style={{
-                    aspectRatio: `${canvasWidthMm} / ${canvasHeightMm}`,
-                    background: "repeating-conic-gradient(hsl(var(--muted)) 0% 25%, hsl(var(--background)) 0% 50%) 50% / 16px 16px",
-                  }}
-                >
-                  {/* Center cross-hair guide */}
-                  <div className="absolute inset-0 pointer-events-none">
-                    <div className="absolute left-1/2 top-0 bottom-0 w-px bg-primary/20" />
-                    <div className="absolute top-1/2 left-0 right-0 h-px bg-primary/20" />
-                  </div>
-                  {/* Canvas size label */}
-                  <div className="absolute top-1 left-1 text-[10px] px-1.5 py-0.5 rounded bg-background/80 border font-mono">
-                    {canvasWidthMm} × {canvasHeightMm} mm
-                  </div>
-                  {displayedLogo && logoWidthMm > 0 && logoHeightMm > 0 && (
-                    <div
-                      className="absolute"
-                      style={{
-                        width: `${Math.min(100, (logoWidthMm / canvasWidthMm) * 100)}%`,
-                        height: `${Math.min(100, (logoHeightMm / canvasHeightMm) * 100)}%`,
-                        left: `calc(50% + ${(clampedOffsetX / canvasWidthMm) * 100}% - ${Math.min(100, (logoWidthMm / canvasWidthMm) * 100) / 2}%)`,
-                        top: `calc(50% + ${(clampedOffsetY / canvasHeightMm) * 100}% - ${Math.min(100, (logoHeightMm / canvasHeightMm) * 100) / 2}%)`,
-                      }}
-                    >
-                      <img
-                        src={displayedLogo}
-                        alt="logo on canvas"
-                        className={`w-full h-full object-contain ${effectClass[workType]}`}
-                        referrerPolicy="no-referrer"
-                        draggable={false}
-                      />
+                  {/* ============ STEP 2: 타입 확인 ============ */}
+                  {currentStep === 2 && (
+                    <div className="space-y-3">
+                      <div className="text-sm text-muted-foreground">
+                        로고 처리 방식을 선택하세요. 시스템 추천을 참고하되, 최종 선택은 사용자가 결정합니다.
+                      </div>
+                      <RadioGroup value={logoType ?? ""} onValueChange={(v) => setLogoType(v as LogoType)} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <label htmlFor="lt-color" className={`flex gap-3 p-4 rounded-md border cursor-pointer ${logoType === "color" ? "border-primary bg-primary/5" : "hover:bg-muted/30"}`}>
+                          <RadioGroupItem id="lt-color" value="color" className="mt-1" />
+                          <div className="space-y-1">
+                            <div className="font-semibold text-sm flex items-center gap-2">🎨 컬러 / 복잡한 로고 {recommendedType === "color" && <Badge variant="outline" className="text-[10px]">추천</Badge>}</div>
+                            <div className="text-xs text-muted-foreground">사진·일러스트·다채로운 로고. <b>업스케일링만</b> 진행 후 PDF로 전달합니다.</div>
+                            <div className="text-[10px] text-muted-foreground">단계: 업스케일 → 인쇄영역 → PDF</div>
+                          </div>
+                        </label>
+                        <label htmlFor="lt-mono" className={`flex gap-3 p-4 rounded-md border cursor-pointer ${logoType === "mono" ? "border-primary bg-primary/5" : "hover:bg-muted/30"}`}>
+                          <RadioGroupItem id="lt-mono" value="mono" className="mt-1" />
+                          <div className="space-y-1">
+                            <div className="font-semibold text-sm flex items-center gap-2">⚫ 단색 / 단순 로고 {recommendedType === "mono" && <Badge variant="outline" className="text-[10px]">추천</Badge>}</div>
+                            <div className="text-xs text-muted-foreground">라인아트·텍스트·단색 로고. 필요 시 업스케일 후 <b>벡터 변환</b>까지 진행합니다.</div>
+                            <div className="text-[10px] text-muted-foreground">단계: 업스케일(선택) → 벡터 변환 → 인쇄영역 → PDF</div>
+                          </div>
+                        </label>
+                      </RadioGroup>
                     </div>
                   )}
-                </div>
-                <div className="text-[11px] text-muted-foreground space-y-0.5">
-                  <div>인쇄영역: <span className="font-mono">{canvasWidthMm} × {canvasHeightMm} mm</span></div>
-                  <div>로고 크기: <span className="font-mono">{logoWidthMm} × {logoHeightMm} mm</span> (영역 대비 {logoScalePct}%)</div>
-                  <div>로고 위치: X <span className="font-mono">{clampedOffsetX.toFixed(1)}</span> · Y <span className="font-mono">{clampedOffsetY.toFixed(1)}</span> mm · 수량 {total} EA</div>
-                </div>
-              </div>
-            </div>
 
+                  {/* ============ STEP 3: 업스케일 ============ */}
+                  {currentStep === 3 && (
+                    <div className="space-y-4">
+                      <div className="text-sm text-muted-foreground">
+                        {logoType === "color"
+                          ? "컬러 로고는 업스케일링이 필수입니다. Let's Enhance에서 업스케일한 파일을 다시 업로드하거나, 사이트 내장 업스케일을 실행하세요."
+                          : "단색 로고는 업스케일이 선택입니다. 해상도가 충분하면 건너뛰고 바로 벡터 변환을 진행할 수 있습니다."}
+                      </div>
 
-            {/* Compare viewer: original vs processed (vector) */}
-            {sourceLogo && (
-              <div className="border rounded-md p-4 space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="text-sm font-semibold">원본 ↔ 변환 결과 확대 비교</div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex items-center gap-1 rounded-md border p-0.5">
-                      <Button size="sm" variant={compareTarget === "upscaled" ? "default" : "ghost"} className="h-7 px-2 text-xs" onClick={() => setCompareTarget("upscaled")} disabled={!upscaledDataUrl} title={!upscaledDataUrl ? "먼저 '업스케일'을 실행하세요" : "업스케일 결과와 비교"}>업스케일</Button>
-                      <Button size="sm" variant={compareTarget === "vector" ? "default" : "ghost"} className="h-7 px-2 text-xs" onClick={() => setCompareTarget("vector")} disabled={!vectorDataUrl} title={!vectorDataUrl ? "먼저 '벡터 변환'을 실행하세요" : "벡터 결과와 비교"}>벡터</Button>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {/* Let's Enhance 외부 */}
+                        <div className="p-4 rounded-md border space-y-3">
+                          <div className="font-semibold text-sm">① 외부: Let's Enhance</div>
+                          <p className="text-xs text-muted-foreground">새 창에서 업스케일 후 결과 PNG를 위 "업로드" 단계에서 다시 올려주세요.</p>
+                          <Button size="sm" variant="outline" onClick={() => window.open("https://letsenhance.io/ko/boost", "_blank", "noopener,noreferrer")}>
+                            <ExternalLink className="w-3 h-3 mr-1" /> Let's Enhance 새 창
+                          </Button>
+                        </div>
+
+                        {/* 내장 업스케일 */}
+                        <div className="p-4 rounded-md border space-y-3">
+                          <div className="font-semibold text-sm">② 사이트 내장 업스케일 (2×)</div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <Label className="text-[10px]">모드</Label>
+                              <Select value={upscaleMode} onValueChange={(v) => setUpscaleMode(v as UpscaleMode)}>
+                                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="auto">자동</SelectItem>
+                                  <SelectItem value="logo">로고/라인</SelectItem>
+                                  <SelectItem value="text">텍스트</SelectItem>
+                                  <SelectItem value="illustration">일러스트</SelectItem>
+                                  <SelectItem value="photo">사진</SelectItem>
+                                  <SelectItem value="pixel">픽셀</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[10px]">샤프니스 {upscaleSharpness}</Label>
+                              <Slider value={[upscaleSharpness]} min={0} max={100} step={5} onValueChange={(v) => setUpscaleSharpness(v[0])} />
+                            </div>
+                          </div>
+                          <Button size="sm" className="w-full" onClick={handleUpscale} disabled={!sourceLogo || !!busy}>
+                            <Sparkles className="w-3 h-3 mr-1" /> 업스케일 실행
+                          </Button>
+                          {upscaledDataUrl && <div className="text-[11px] text-emerald-600">✓ 업스케일 완료</div>}
+                        </div>
+                      </div>
+
+                      {logoType === "mono" && !upscaledDataUrl && (
+                        <div className="flex items-center justify-between p-3 rounded-md bg-muted/20 border">
+                          <div className="text-xs text-muted-foreground">업스케일이 필요하지 않다면 이 단계를 건너뛸 수 있습니다.</div>
+                          <Button size="sm" variant="ghost" onClick={() => { setUpscaleSkipped(true); next(); }}>건너뛰기 →</Button>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center gap-1 rounded-md border p-0.5">
-                      <Button size="sm" variant={compareMode === "side" ? "default" : "ghost"} className="h-7 px-2 text-xs" onClick={() => setCompareMode("side")}>좌우</Button>
-                      <Button size="sm" variant={compareMode === "slider" ? "default" : "ghost"} className="h-7 px-2 text-xs" onClick={() => setCompareMode("slider")}>오버레이</Button>
-                    </div>
-                    <div className="flex items-center gap-1 rounded-md border p-0.5">
-                      {(["checker", "white", "black"] as const).map(b => (
-                        <Button key={b} size="sm" variant={compareBg === b ? "default" : "ghost"} className="h-7 px-2 text-xs" onClick={() => setCompareBg(b)}>
-                          {b === "checker" ? "체커" : b === "white" ? "백" : "흑"}
+                  )}
+
+                  {/* ============ STEP 4: 벡터 변환 (단색 전용) ============ */}
+                  {currentStep === 4 && logoType === "mono" && (
+                    <div className="space-y-4">
+                      <div className="text-sm text-muted-foreground">
+                        단색 로고는 벡터(SVG)로 변환해야 인쇄·자수·레이저 공정에서 깔끔하게 출력됩니다. Vectorizer.AI를 사용합니다.
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-[1fr,auto] gap-3 items-center p-4 rounded-md border">
+                        <div className="text-xs text-muted-foreground">
+                          소스: {processedKind === "upscaled" ? "업스케일된 로고" : "원본 로고"} · 변환 모드는 [외주 설정]에서 변경
+                        </div>
+                        <Button onClick={handleVectorizeAI} disabled={!sourceLogo || !!busy}>
+                          <Cloud className="w-4 h-4 mr-1" /> 벡터 변환 실행
                         </Button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Zoom control */}
-                <div className="flex items-center gap-3">
-                  <Label className="text-xs w-14 shrink-0">확대 {compareZoom.toFixed(1)}×</Label>
-                  <Slider min={1} max={10} step={0.5} value={[compareZoom]} onValueChange={(v) => setCompareZoom(v[0])} className="flex-1" />
-                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => { setCompareZoom(1); setCompareOrigin({ x: 50, y: 50 }); }}>초기화</Button>
-                </div>
-
-                {(() => {
-                  const targetUrl = compareTarget === "vector" ? vectorDataUrl : upscaledDataUrl;
-                  const targetLabel = compareTarget === "vector" ? "벡터 변환" : "업스케일 (2×)";
-                  const ready = !!targetUrl;
-                  return (
-                    <>
-                      {!ready && (
-                        <div className="text-xs text-muted-foreground p-3 rounded bg-muted/30">
-                          ※ 비교를 위해 먼저 '{compareTarget === "vector" ? "벡터 변환" : "업스케일"}'을 실행하세요. 현재는 원본만 표시됩니다.
+                      </div>
+                      {vectorDataUrl && (
+                        <div className="p-4 rounded-md border bg-emerald-50/50 dark:bg-emerald-950/20 flex items-center gap-3">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                          <div className="flex-1 text-sm">벡터 변환 완료. 미리보기 단계에서 결과를 확인하세요.</div>
+                          <Button size="sm" variant="outline" onClick={downloadVectorSvg}>SVG 다운로드</Button>
                         </div>
                       )}
-                      {compareMode === "side" ? (
-                        <div className="grid grid-cols-2 gap-3">
-                          <CompareTile label="원본" src={sourceLogo} zoom={compareZoom} origin={compareOrigin} onMove={setCompareOrigin} bg={compareBg} />
-                          <CompareTile label={targetLabel} src={targetUrl || sourceLogo} zoom={compareZoom} origin={compareOrigin} onMove={setCompareOrigin} bg={compareBg} muted={!ready} />
-                        </div>
-                      ) : (
-                        <CompareOverlay
-                          original={sourceLogo}
-                          processed={targetUrl}
-                          zoom={compareZoom}
-                          origin={compareOrigin}
-                          onMove={setCompareOrigin}
-                          sliderPct={sliderPct}
-                          onSliderChange={setSliderPct}
-                          bg={compareBg}
-                        />
-                      )}
-                    </>
-                  );
-                })()}
-                <p className="text-[10px] text-muted-foreground">
-                  ※ 이미지 위에서 마우스를 움직이면 확대 중심점이 따라옵니다. 좌우 모드는 동기화된 확대, 오버레이 모드는 가운데 핸들을 드래그해 비교하세요.
-                </p>
-              </div>
-            )}
-              </TabsContent>
-              <TabsContent value="upscale" className="mt-4">
-                <div className="flex flex-col items-center justify-center gap-6 py-16 border rounded-md bg-muted/10">
-                  <Sparkles className="w-12 h-12 text-primary/60" />
-                  <div className="text-center space-y-2">
-                    <div className="text-lg font-semibold">Let's Enhance 업스케일링</div>
-                    <div className="text-sm text-muted-foreground max-w-sm">
-                      외부 AI 업스케일링 서비스를 새 창에서 열어 사용할 수 있습니다.<br />
-                      작업 완료 후 결과 파일을 다운로드하여 다시 업로드하세요.
                     </div>
+                  )}
+
+                  {/* ============ STEP 5: 인쇄영역 & 크기 ============ */}
+                  {currentStep === 5 && (
+                    <div className="space-y-4">
+                      <div className="text-sm text-muted-foreground">실제 인쇄영역(mm)과 그 안의 로고 크기·위치를 설정합니다.</div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end p-3 rounded-md border bg-muted/10">
+                        <div className="space-y-1">
+                          <Label className="text-xs">작업종류</Label>
+                          <Select value={workType} onValueChange={(v) => setWorkType(v as WorkType)}>
+                            <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {WORK_TYPES.map(w => <SelectItem key={w.value} value={w.value}>{w.label}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">인쇄영역 가로 (mm)</Label>
+                          <Input type="number" step="1" min={1} value={canvasWidthMm} onChange={(e) => { setCanvasWidthMm(Math.max(1, Number(e.target.value) || 0)); setPrintAreaSaved(false); }} className="h-9" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">인쇄영역 세로 (mm)</Label>
+                          <Input type="number" step="1" min={1} value={canvasHeightMm} onChange={(e) => { setCanvasHeightMm(Math.max(1, Number(e.target.value) || 0)); setPrintAreaSaved(false); }} className="h-9" />
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            try {
+                              localStorage.setItem(PRINT_AREA_LS_KEY, JSON.stringify({ w: canvasWidthMm, h: canvasHeightMm }));
+                              setPrintAreaSaved(true);
+                              toast({ title: "인쇄영역 설정이 저장되었습니다", description: `${canvasWidthMm} × ${canvasHeightMm} mm` });
+                            } catch { toast({ title: "저장 실패", variant: "destructive" }); }
+                          }}
+                          variant={printAreaSaved ? "outline" : "default"}
+                        >
+                          {printAreaSaved ? <><CheckCircle2 className="w-4 h-4 mr-1" /> 저장됨</> : "인쇄영역 설정 저장"}
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end p-3 rounded-md border bg-muted/20">
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs">로고 가로 (mm)</Label>
+                            <label className="text-[10px] text-muted-foreground flex items-center gap-1 cursor-pointer">
+                              <input type="checkbox" checked={lockAspect} onChange={(e) => setLockAspect(e.target.checked)} className="h-3 w-3" />
+                              비율
+                            </label>
+                          </div>
+                          <Input type="number" step="0.5" value={logoWidthMm} onChange={(e) => handleWidthChange(Number(e.target.value) || 0)} className="h-9" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">로고 세로 (mm)</Label>
+                          <Input type="number" step="0.5" value={logoHeightMm} onChange={(e) => handleHeightChange(Number(e.target.value) || 0)} className="h-9" />
+                        </div>
+                        <div className="space-y-1 md:col-span-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs">로고 크기 (영역 대비 {logoScalePct}%)</Label>
+                            <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => { setOffsetXMm(0); setOffsetYMm(0); setLogoScalePct(50); }}>중앙·50%</Button>
+                          </div>
+                          <Slider min={1} max={100} step={1} value={[logoScalePct]} onValueChange={(v) => setLogoScalePct(v[0])} />
+                        </div>
+                        <div className="space-y-1 md:col-span-2">
+                          <Label className="text-xs">가로 위치 X ({clampedOffsetX.toFixed(1)} mm)</Label>
+                          <Slider min={-maxOffsetX} max={maxOffsetX} step={0.5} value={[clampedOffsetX]} onValueChange={(v) => setOffsetXMm(v[0])} disabled={maxOffsetX === 0} />
+                        </div>
+                        <div className="space-y-1 md:col-span-2">
+                          <Label className="text-xs">세로 위치 Y ({clampedOffsetY.toFixed(1)} mm)</Label>
+                          <Slider min={-maxOffsetY} max={maxOffsetY} step={0.5} value={[clampedOffsetY]} onValueChange={(v) => setOffsetYMm(v[0])} disabled={maxOffsetY === 0} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ============ STEP 6: 미리보기 & PDF ============ */}
+                  {currentStep === 6 && (
+                    <div className="space-y-4">
+                      <div className="text-sm text-muted-foreground">최종 적용 결과를 확인하고 PDF로 다운로드하세요. 발주는 상단 [발주 진행] 박스에서 진행합니다.</div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="border rounded-md p-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="text-sm font-semibold">로고 미리보기</div>
+                            <Badge variant="outline" className="text-[10px]">
+                              {processedKind === "original" ? "원본" : processedKind === "upscaled" ? "업스케일" : "벡터(SVG)"}
+                            </Badge>
+                          </div>
+                          <div className="aspect-square w-full border rounded bg-muted/20 flex items-center justify-center overflow-hidden">
+                            {displayedLogo ? (
+                              <img src={displayedLogo} alt="로고" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                            ) : (
+                              <div className="flex flex-col items-center text-muted-foreground gap-1">
+                                <ImageOff className="w-8 h-8" />
+                                <span className="text-xs">로고가 없습니다</span>
+                              </div>
+                            )}
+                          </div>
+                          {processedKind !== "original" && (
+                            <Button size="sm" variant="ghost" className="w-full" onClick={resetLogo}>원본으로 복원</Button>
+                          )}
+                        </div>
+
+                        <div className="border rounded-md p-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="text-sm font-semibold">인쇄영역 미리보기 (실제 비율)</div>
+                            <Badge>{WORK_TYPES.find(w => w.value === workType)?.label}</Badge>
+                          </div>
+                          <div
+                            className="w-full border-2 border-dashed border-primary/60 rounded relative overflow-hidden"
+                            style={{
+                              aspectRatio: `${canvasWidthMm} / ${canvasHeightMm}`,
+                              background: "repeating-conic-gradient(hsl(var(--muted)) 0% 25%, hsl(var(--background)) 0% 50%) 50% / 16px 16px",
+                            }}
+                          >
+                            <div className="absolute inset-0 pointer-events-none">
+                              <div className="absolute left-1/2 top-0 bottom-0 w-px bg-primary/20" />
+                              <div className="absolute top-1/2 left-0 right-0 h-px bg-primary/20" />
+                            </div>
+                            <div className="absolute top-1 left-1 text-[10px] px-1.5 py-0.5 rounded bg-background/80 border font-mono">
+                              {canvasWidthMm} × {canvasHeightMm} mm
+                            </div>
+                            {displayedLogo && logoWidthMm > 0 && logoHeightMm > 0 && (
+                              <div
+                                className="absolute"
+                                style={{
+                                  width: `${Math.min(100, (logoWidthMm / canvasWidthMm) * 100)}%`,
+                                  height: `${Math.min(100, (logoHeightMm / canvasHeightMm) * 100)}%`,
+                                  left: `calc(50% + ${(clampedOffsetX / canvasWidthMm) * 100}% - ${Math.min(100, (logoWidthMm / canvasWidthMm) * 100) / 2}%)`,
+                                  top: `calc(50% + ${(clampedOffsetY / canvasHeightMm) * 100}% - ${Math.min(100, (logoHeightMm / canvasHeightMm) * 100) / 2}%)`,
+                                }}
+                              >
+                                <img src={displayedLogo} alt="logo on canvas" className={`w-full h-full object-contain ${effectClass[workType]}`} referrerPolicy="no-referrer" draggable={false} />
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground space-y-0.5">
+                            <div>인쇄영역: <span className="font-mono">{canvasWidthMm} × {canvasHeightMm} mm</span></div>
+                            <div>로고 크기: <span className="font-mono">{logoWidthMm} × {logoHeightMm} mm</span></div>
+                            <div>수량: {total} EA</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {logoType === "mono" && !vectorDataUrl && (
+                        <div className="p-3 rounded-md border border-amber-500/40 bg-amber-50/40 dark:bg-amber-950/20 text-xs text-amber-700 dark:text-amber-400">
+                          ⚠️ 단색 로고는 벡터 변환을 완료해야 발주가 가능합니다. [벡터 변환] 단계로 돌아가서 실행하세요.
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap gap-2 justify-end">
+                        <Button variant="outline" onClick={() => downloadPrintPng(300)} disabled={!sourceLogo || !!busy}>
+                          <Download className="w-4 h-4 mr-1" /> PNG 300dpi
+                        </Button>
+                        <Button variant="outline" onClick={() => downloadPrintPng(600)} disabled={!sourceLogo || !!busy}>
+                          <Download className="w-4 h-4 mr-1" /> PNG 600dpi
+                        </Button>
+                        <Button onClick={downloadResultPdf} disabled={!sourceLogo || !!busy}>
+                          <Download className="w-4 h-4 mr-1" /> 작업결과물 PDF 다운로드
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Footer: Prev / Next */}
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <Button variant="ghost" size="sm" onClick={prev} disabled={idx <= 0}>
+                      ← 이전
+                    </Button>
+                    <div className="text-[11px] text-muted-foreground">
+                      {currentStep === 1 && !step1Done && "로고를 업로드하세요"}
+                      {currentStep === 2 && !step2Done && "로고 타입을 선택하세요"}
+                      {currentStep === 3 && !step3Done && (logoType === "color" ? "업스케일을 완료하세요" : "업스케일을 실행하거나 건너뛰세요")}
+                      {currentStep === 4 && !step4Done && "벡터 변환을 실행하세요"}
+                      {currentStep === 5 && !step5Done && "인쇄영역 설정을 저장하세요"}
+                    </div>
+                    <Button size="sm" onClick={next} disabled={idx >= STEPS.length - 1 || !canAdvance(currentStep)}>
+                      다음 →
+                    </Button>
                   </div>
-                  <Button size="lg" onClick={() => window.open("https://letsenhance.io/ko/boost", "_blank", "noopener,noreferrer")}>
-                    <ExternalLink className="w-4 h-4 mr-2" /> Let's Enhance 새 창에서 열기
-                  </Button>
                 </div>
-              </TabsContent>
-            </Tabs>
+              );
+            })()}
           </CardContent>
         </Card>
       </div>
