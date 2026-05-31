@@ -21,6 +21,8 @@ import { smartUpscale, type UpscaleMode, type ImageAnalysis } from "@/lib/upscal
 import JSZip from "jszip";
 import html2canvas from "html2canvas";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ExternalLink } from "lucide-react";
 
 function fmtDate(v?: string | null): string {
   if (!v) return "";
@@ -724,6 +726,12 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <Tabs defaultValue="design" className="w-full">
+              <TabsList>
+                <TabsTrigger value="design">로고 시안</TabsTrigger>
+                <TabsTrigger value="upscale">업스케일링</TabsTrigger>
+              </TabsList>
+              <TabsContent value="design" className="space-y-4 mt-4">
             {/* Test logo upload */}
             <div className="flex items-center justify-between gap-3 p-3 rounded-md border border-dashed bg-muted/20">
               <div className="flex items-center gap-3 min-w-0">
@@ -1092,6 +1100,31 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 </p>
               </div>
             )}
+              </TabsContent>
+              <TabsContent value="upscale" className="mt-4 space-y-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="text-sm text-muted-foreground">
+                    외부 AI 업스케일링 서비스(Let's Enhance)를 이 페이지 안에서 바로 사용할 수 있습니다.
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => window.open("https://letsenhance.io/ko/boost", "_blank", "noopener,noreferrer")}>
+                    <ExternalLink className="w-3 h-3 mr-1" /> 새 창에서 열기
+                  </Button>
+                </div>
+                <div className="border rounded-md overflow-hidden bg-muted/20" style={{ height: "75vh" }}>
+                  <iframe
+                    src="https://letsenhance.io/ko/boost"
+                    title="Let's Enhance 업스케일링"
+                    className="w-full h-full"
+                    style={{ border: 0 }}
+                    allow="clipboard-read; clipboard-write; fullscreen"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  ※ 일부 외부 사이트는 보안 정책(X-Frame-Options/CSP)으로 인해 프레임 내 표시를 차단할 수 있습니다. 화면이 비어 있으면 우측 상단 "새 창에서 열기"를 이용하세요.
+                </p>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
       </div>
