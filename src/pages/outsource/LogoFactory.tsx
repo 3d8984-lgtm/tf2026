@@ -1341,7 +1341,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                                     top: `calc(50% + ${(clampedOffsetY / canvasHeightMm) * 100}% - ${Math.min(100, (logoHeightMm / canvasHeightMm) * 100) / 2}%)`,
                                   }}
                                 >
-                                  <img src={displayedLogo} alt="logo on canvas" className={`w-full h-full object-contain ${effectClass[workType]}`} referrerPolicy="no-referrer" draggable={false} />
+                                  <img src={displayedLogo} alt="logo on canvas" className={`w-full h-full object-contain ${effectClass[workType] || ""}`} referrerPolicy="no-referrer" draggable={false} />
                                 </div>
                               ) : (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground gap-1">
