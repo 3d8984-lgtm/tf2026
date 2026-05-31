@@ -710,19 +710,33 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
         if (!v) return false;
         const s = v.trim().toLowerCase().replace(/\s+/g, "");
         if (s === "#fff" || s === "#ffffff" || s === "white") return true;
+        const hex = s.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)?.[1];
+        if (hex) {
+          const full = hex.length === 3 ? hex.split("").map((c) => c + c).join("") : hex;
+          const r = parseInt(full.slice(0, 2), 16), g = parseInt(full.slice(2, 4), 16), b = parseInt(full.slice(4, 6), 16);
+          return r >= 245 && g >= 245 && b >= 245;
+        }
         const rgb = s.match(/^rgba?\((\d+),(\d+),(\d+)(?:,([\d.]+))?\)$/);
         if (rgb) {
           const r = +rgb[1], g = +rgb[2], b = +rgb[3];
-          return r >= 250 && g >= 250 && b >= 250;
+          return r >= 245 && g >= 245 && b >= 245;
         }
         return false;
       };
+      const whiteClasses = new Set<string>();
+      doc.querySelectorAll("style").forEach((styleEl) => {
+        const css = styleEl.textContent || "";
+        for (const rule of css.matchAll(/\.([a-zA-Z0-9_-]+)\s*\{[^}]*fill\s*:\s*([^;}]+)/g)) {
+          if (isWhite(rule[2])) whiteClasses.add(rule[1]);
+        }
+      });
       const els = doc.querySelectorAll("path, polygon, rect, circle, ellipse");
       els.forEach((el) => {
         const fillAttr = el.getAttribute("fill");
         const styleAttr = el.getAttribute("style") || "";
         const styleFill = styleAttr.match(/fill\s*:\s*([^;]+)/i)?.[1] ?? null;
-        if (isWhite(fillAttr) || isWhite(styleFill)) el.remove();
+        const hasWhiteClass = (el.getAttribute("class") || "").split(/\s+/).some((cls) => whiteClasses.has(cls));
+        if (isWhite(fillAttr) || isWhite(styleFill) || hasWhiteClass) el.remove();
       });
       const out = new XMLSerializer().serializeToString(doc);
       return svgTextToDataUrl(out);
