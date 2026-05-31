@@ -1833,8 +1833,8 @@ export function LogoOrderProgressBox({
   );
 
   const sendOrder = async () => {
-    if (!vectorDataUrl) {
-      toast({ title: "LOGO를 먼저 변환완료하세요", description: "벡터 변환(Vectorizer.AI) 완료 후 발주가 가능합니다.", variant: "destructive" });
+    if (!vectorDataUrl && !displayedLogo) {
+      toast({ title: "LOGO가 없습니다", description: "로고를 업로드한 뒤 발주하세요.", variant: "destructive" });
       return;
     }
     if (!webhookUrl) {
@@ -1847,7 +1847,10 @@ export function LogoOrderProgressBox({
       const zip = new JSZip();
       const woPdfBytes = await renderHtmlToPdfBytes(woHtml);
       zip.file("작업지시서.pdf", woPdfBytes);
-      const logoPdfBytes = await buildLogoVectorPdfBytes(vectorDataUrl, logoWidthMm, logoHeightMm);
+      const isVector = !!vectorDataUrl;
+      const logoPdfBytes = isVector
+        ? await buildLogoVectorPdfBytes(vectorDataUrl!, logoWidthMm, logoHeightMm)
+        : await buildLogoRasterPdfBytes(displayedLogo!, logoWidthMm, logoHeightMm);
       zip.file(`LOGO_${orderNo}.pdf`, logoPdfBytes);
 
       const zipBlob = await zip.generateAsync({ type: "blob" });
