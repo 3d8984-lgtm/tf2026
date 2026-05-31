@@ -439,6 +439,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   useEffect(() => {
     const src = processedDataUrl || testLogoDataUrl || logoUrl || upscaledDataUrl;
     if (!src) return;
+    if (skipAutoFitRef.current) { skipAutoFitRef.current = false; return; }
     let cancelled = false;
     (async () => {
       try {
