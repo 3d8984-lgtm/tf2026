@@ -1775,6 +1775,31 @@ async function buildLogoVectorPdfBytes(svgDataUrl: string, logoWidthMm: number, 
   return new Uint8Array(pdf.output("arraybuffer"));
 }
 
+
+async function buildLogoRasterPdfBytes(imageDataUrl: string, logoWidthMm: number, logoHeightMm: number): Promise<Uint8Array> {
+  const pdf = new jsPDF({ unit: "mm", format: "a4" });
+  const pageW = 210, pageH = 297;
+  const x = (pageW - logoWidthMm) / 2;
+  const y = (pageH - logoHeightMm) / 2;
+  // Load image to detect format
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = reject;
+    i.src = imageDataUrl;
+  });
+  // Render to canvas for consistent PNG embed (preserves transparency)
+  const canvas = document.createElement("canvas");
+  canvas.width = img.naturalWidth || img.width;
+  canvas.height = img.naturalHeight || img.height;
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(img, 0, 0);
+  const pngDataUrl = canvas.toDataURL("image/png");
+  pdf.addImage(pngDataUrl, "PNG", x, y, logoWidthMm, logoHeightMm, undefined, "FAST");
+  return new Uint8Array(pdf.output("arraybuffer"));
+}
+
+
 export function LogoOrderProgressBox({
   order, wo, workType, logoWidthMm, logoHeightMm, displayedLogo, vectorDataUrl,
 }: {
@@ -1833,8 +1858,8 @@ export function LogoOrderProgressBox({
   );
 
   const sendOrder = async () => {
-    if (!vectorDataUrl) {
-      toast({ title: "LOGO를 먼저 변환완료하세요", description: "벡터 변환(Vectorizer.AI) 완료 후 발주가 가능합니다.", variant: "destructive" });
+    if (!vectorDataUrl && !displayedLogo) {
+      toast({ title: "LOGO가 없습니다", description: "로고를 업로드한 뒤 발주하세요.", variant: "destructive" });
       return;
     }
     if (!webhookUrl) {
@@ -1847,7 +1872,10 @@ export function LogoOrderProgressBox({
       const zip = new JSZip();
       const woPdfBytes = await renderHtmlToPdfBytes(woHtml);
       zip.file("작업지시서.pdf", woPdfBytes);
-      const logoPdfBytes = await buildLogoVectorPdfBytes(vectorDataUrl, logoWidthMm, logoHeightMm);
+      const isVector = !!vectorDataUrl;
+      const logoPdfBytes = isVector
+        ? await buildLogoVectorPdfBytes(vectorDataUrl!, logoWidthMm, logoHeightMm)
+        : await buildLogoRasterPdfBytes(displayedLogo!, logoWidthMm, logoHeightMm);
       zip.file(`LOGO_${orderNo}.pdf`, logoPdfBytes);
 
       const zipBlob = await zip.generateAsync({ type: "blob" });
