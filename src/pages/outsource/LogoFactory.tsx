@@ -265,6 +265,8 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const [testLogoDataUrl, setTestLogoDataUrl] = useState<string | null>(null);
   const [testLogoName, setTestLogoName] = useState<string | null>(null);
   const testLogoInputRef = useRef<HTMLInputElement>(null);
+  const upscaledUploadInputRef = useRef<HTMLInputElement>(null);
+  const [upscaledUploadName, setUpscaledUploadName] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   // Compare viewer
   const [compareMode, setCompareMode] = useState<"side" | "slider">("side");
