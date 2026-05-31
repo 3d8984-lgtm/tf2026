@@ -629,6 +629,17 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
           </CardContent>
         </Card>
 
+        {/* 발주 진행 (3단계) */}
+        <LogoOrderProgressBox
+          order={order}
+          wo={wo}
+          workType={workType}
+          logoWidthMm={logoWidthMm}
+          logoHeightMm={logoHeightMm}
+          displayedLogo={displayedLogo}
+          vectorDataUrl={vectorDataUrl}
+        />
+
         {/* 작업지시서 설정 */}
         <Card className="border-dashed">
           <CardHeader className="pb-3">
