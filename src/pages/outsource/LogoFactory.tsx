@@ -1949,12 +1949,8 @@ LOGO 크기: ${logoWidthMm} × ${logoHeightMm} mm
             </DialogHeader>
             <div className="flex-1 overflow-auto border rounded-md bg-white p-6 flex items-center justify-center" style={{ minHeight: "60vh" }}>
               {(() => {
-                const resultSrc = vectorDataUrl || processedDataUrl || upscaledDataUrl || logoUrl || testLogoDataUrl;
-                const kindLabel = vectorDataUrl
-                  ? "벡터 변환본"
-                  : processedKind === "upscaled" || upscaledDataUrl
-                  ? "업스케일본"
-                  : "원본 로고";
+                const resultSrc = vectorDataUrl || displayedLogo;
+                const kindLabel = vectorDataUrl ? "벡터 변환본" : "처리된 로고";
                 return resultSrc ? (
                   <div className="w-full h-full flex flex-col items-center justify-center gap-2">
                     <img src={resultSrc} alt="작업결과물" className="max-w-full max-h-[55vh] object-contain" />
