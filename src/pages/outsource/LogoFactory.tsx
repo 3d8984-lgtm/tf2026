@@ -1791,7 +1791,7 @@ export function LogoOrderProgressBox({
       const message =
 `【LOGO 발주】
 작업번호: ${orderNo}
-작업종류: ${workTypeLabel}
+작업종류: ${loadWorkTypes().find(w => w.value === workType)?.label || workType}
 LOGO 크기: ${logoWidthMm} × ${logoHeightMm} mm
 파일: ${zipName}
 다운로드: ${url}`;
