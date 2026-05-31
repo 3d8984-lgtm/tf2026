@@ -40,14 +40,27 @@ interface OrderRow {
   quantity: number;
 }
 
-type WorkType = "heat-transfer" | "hologram" | "laser" | "embroidery" | "print";
-const WORK_TYPES: { value: WorkType; label: string }[] = [
+type WorkType = string;
+const WORK_TYPES_LS_KEY = "logo.workTypes.v1";
+const DEFAULT_WORK_TYPES: { value: string; label: string }[] = [
   { value: "heat-transfer", label: "열전사" },
   { value: "hologram", label: "홀로그램" },
   { value: "laser", label: "레이저" },
   { value: "embroidery", label: "자수" },
   { value: "print", label: "인쇄" },
 ];
+function loadWorkTypes(): { value: string; label: string }[] {
+  try {
+    const raw = localStorage.getItem(WORK_TYPES_LS_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr) && arr.every((x) => x && typeof x.value === "string" && typeof x.label === "string")) {
+        return arr;
+      }
+    }
+  } catch {}
+  return DEFAULT_WORK_TYPES;
+}
 
 async function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
