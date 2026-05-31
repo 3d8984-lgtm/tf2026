@@ -317,6 +317,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   });
   // PDF 다운로드 활성화는 현재 주문 화면에서 '완료' 버튼을 눌러야만 가능하도록 저장/복원하지 않음
   const [workCompleted, setWorkCompleted] = useState<boolean>(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState<boolean>(false);
 
   // ── 작업 상태 자동 저장/복원 (orderNo 별) ────────────────────────────
   const skipAutoFitRef = useRef<boolean>(false);
