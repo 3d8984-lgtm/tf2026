@@ -673,6 +673,61 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
 
   // Vectorizer.AI 클라우드 벡터화 (고품질)
+  // 입력 PNG의 흰/근사-흰 배경을 투명으로 만들어 벡터화 품질을 높임
+  const preprocessWhiteToTransparent = async (src: string, threshold = 240): Promise<string> => {
+    const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
+    const img = await loadImage(dataUrl);
+    const w = img.naturalWidth, h = img.naturalHeight;
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(img, 0, 0);
+    const imageData = ctx.getImageData(0, 0, w, h);
+    const d = imageData.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], g = d[i + 1], b = d[i + 2];
+      if (r >= threshold && g >= threshold && b >= threshold) {
+        d[i + 3] = 0;
+      }
+    }
+    ctx.putImageData(imageData, 0, 0);
+    return canvas.toDataURL("image/png");
+  };
+
+  // 응답 SVG에서 흰색 fill 패스를 제거 (안전망)
+  const stripWhiteFillsFromSvg = (svgDataUrl: string): string => {
+    try {
+      const m = svgDataUrl.match(/^data:image\/svg\+xml;base64,(.+)$/);
+      if (!m) return svgDataUrl;
+      const svgText = decodeURIComponent(escape(atob(m[1])));
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(svgText, "image/svg+xml");
+      const isWhite = (v: string | null) => {
+        if (!v) return false;
+        const s = v.trim().toLowerCase().replace(/\s+/g, "");
+        if (s === "#fff" || s === "#ffffff" || s === "white") return true;
+        const rgb = s.match(/^rgba?\((\d+),(\d+),(\d+)(?:,([\d.]+))?\)$/);
+        if (rgb) {
+          const r = +rgb[1], g = +rgb[2], b = +rgb[3];
+          return r >= 250 && g >= 250 && b >= 250;
+        }
+        return false;
+      };
+      const els = doc.querySelectorAll("path, polygon, rect, circle, ellipse");
+      els.forEach((el) => {
+        const fillAttr = el.getAttribute("fill");
+        const styleAttr = el.getAttribute("style") || "";
+        const styleFill = styleAttr.match(/fill\s*:\s*([^;]+)/i)?.[1] ?? null;
+        if (isWhite(fillAttr) || isWhite(styleFill)) el.remove();
+      });
+      const out = new XMLSerializer().serializeToString(doc);
+      const b64 = btoa(unescape(encodeURIComponent(out)));
+      return `data:image/svg+xml;base64,${b64}`;
+    } catch {
+      return svgDataUrl;
+    }
+  };
+
   const handleVectorizeAI = async () => {
     // 우선순위: 업스케일 결과 → 원본 로고 (업스케일만 업로드된 경우도 지원)
     const vectorSource = upscaledDataUrl || sourceLogo;
@@ -680,22 +735,21 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     const mode = (localStorage.getItem(VECTORIZER_MODE_KEY) as "test" | "preview" | "production" | null) || "test";
     setBusy(`Vectorizer.AI 처리 중 (${mode})...`);
     try {
-      let payload: { imageBase64?: string; imageUrl?: string; mode: string };
-      if (vectorSource.startsWith("data:")) {
-        payload = { imageBase64: vectorSource, mode };
-      } else {
-        payload = { imageUrl: vectorSource, mode };
-      }
+      // 1) 사전 처리: 흰 배경을 투명으로 만들어 전송 (벡터화 정확도↑, 흰 fill path 생성 방지)
+      const cleaned = await preprocessWhiteToTransparent(vectorSource);
+      const payload = { imageBase64: cleaned, mode };
       const { data, error } = await supabase.functions.invoke("vectorize-image", { body: payload });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
-      const svgDataUrl: string = (data as any).svgDataUrl;
+      // 2) 사후 처리: 혹시 남아있는 흰 fill 패스 제거 (안전망)
+      const rawSvg: string = (data as any).svgDataUrl;
+      const svgDataUrl = stripWhiteFillsFromSvg(rawSvg);
       setVectorDataUrl(svgDataUrl);
       setProcessedDataUrl(svgDataUrl);
       setProcessedKind("vector");
       toast({
         title: "Vectorizer.AI 벡터 변환 완료",
-        description: `모드: ${mode} · 크레딧: ${(data as any).credits ?? "-"}`,
+        description: `모드: ${mode} · 흰 배경 자동 제거 · 크레딧: ${(data as any).credits ?? "-"}`,
       });
     } catch (e: any) {
       toast({ title: "Vectorizer.AI 변환 실패", description: e?.message || String(e), variant: "destructive" });
@@ -1540,9 +1594,10 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                               variant="secondary"
                               className="w-full"
                               onClick={handleRemoveBackground}
-                              disabled={!displayedLogo || !!busy}
+                              disabled={!displayedLogo || !!busy || !!vectorDataUrl}
+                              title={vectorDataUrl ? "벡터 결과는 이미 배경이 제거되어 있습니다 (벡터 품질 유지)" : undefined}
                             >
-                              🪄 배경 제거 (AI 최적화)
+                              {vectorDataUrl ? "✓ 벡터: 배경 자동 제거됨" : "🪄 배경 제거 (AI 최적화)"}
                             </Button>
                           </div>
                         </div>
