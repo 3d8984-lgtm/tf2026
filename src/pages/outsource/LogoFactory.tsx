@@ -94,6 +94,10 @@ function svgDataUrlToText(dataUrl: string): string {
   return dataUrl;
 }
 
+function svgTextToDataUrl(svgText: string): string {
+  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgText)))}`;
+}
+
 // Smart upscale (Lanczos3 + auto image-type pipeline) lives in src/lib/upscale.ts.
 // The local `edgePreservingUpscale` was removed in favour of the shared helper,
 // which auto-selects Nearest / Lanczos3 + per-type sharpening based on input
@@ -706,23 +710,36 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
         if (!v) return false;
         const s = v.trim().toLowerCase().replace(/\s+/g, "");
         if (s === "#fff" || s === "#ffffff" || s === "white") return true;
+        const hex = s.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)?.[1];
+        if (hex) {
+          const full = hex.length === 3 ? hex.split("").map((c) => c + c).join("") : hex;
+          const r = parseInt(full.slice(0, 2), 16), g = parseInt(full.slice(2, 4), 16), b = parseInt(full.slice(4, 6), 16);
+          return r >= 245 && g >= 245 && b >= 245;
+        }
         const rgb = s.match(/^rgba?\((\d+),(\d+),(\d+)(?:,([\d.]+))?\)$/);
         if (rgb) {
           const r = +rgb[1], g = +rgb[2], b = +rgb[3];
-          return r >= 250 && g >= 250 && b >= 250;
+          return r >= 245 && g >= 245 && b >= 245;
         }
         return false;
       };
+      const whiteClasses = new Set<string>();
+      doc.querySelectorAll("style").forEach((styleEl) => {
+        const css = styleEl.textContent || "";
+        for (const rule of css.matchAll(/\.([a-zA-Z0-9_-]+)\s*\{[^}]*fill\s*:\s*([^;}]+)/g)) {
+          if (isWhite(rule[2])) whiteClasses.add(rule[1]);
+        }
+      });
       const els = doc.querySelectorAll("path, polygon, rect, circle, ellipse");
       els.forEach((el) => {
         const fillAttr = el.getAttribute("fill");
         const styleAttr = el.getAttribute("style") || "";
         const styleFill = styleAttr.match(/fill\s*:\s*([^;]+)/i)?.[1] ?? null;
-        if (isWhite(fillAttr) || isWhite(styleFill)) el.remove();
+        const hasWhiteClass = (el.getAttribute("class") || "").split(/\s+/).some((cls) => whiteClasses.has(cls));
+        if (isWhite(fillAttr) || isWhite(styleFill) || hasWhiteClass) el.remove();
       });
       const out = new XMLSerializer().serializeToString(doc);
-      const b64 = btoa(unescape(encodeURIComponent(out)));
-      return `data:image/svg+xml;base64,${b64}`;
+      return svgTextToDataUrl(out);
     } catch {
       return svgDataUrl;
     }
@@ -731,41 +748,58 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   // SVG viewBox를 실제 콘텐츠 경계로 크롭 (배경/여백 제외 → 인쇄 영역에 꽉 채움)
   const cropSvgToContent = async (svgDataUrl: string): Promise<string> => {
     try {
-      const m = svgDataUrl.match(/^data:image\/svg\+xml;base64,(.+)$/);
-      if (!m) return svgDataUrl;
-      const svgText = decodeURIComponent(escape(atob(m[1])));
+      const svgText = svgDataUrlToText(svgDataUrl);
       const parser = new DOMParser();
       const doc = parser.parseFromString(svgText, "image/svg+xml");
       const svgEl = doc.documentElement as unknown as SVGSVGElement;
-      // 측정용 임시 DOM 부착 (offscreen)
-      const host = document.createElement("div");
-      host.style.cssText = "position:absolute;left:-99999px;top:-99999px;width:0;height:0;overflow:hidden;";
-      const liveSvg = svgEl.cloneNode(true) as SVGSVGElement;
-      host.appendChild(liveSvg);
-      document.body.appendChild(host);
-      let bbox: { x: number; y: number; width: number; height: number } | null = null;
-      try {
-        bbox = (liveSvg as any).getBBox();
-      } catch {
-        bbox = null;
+      const baseViewBox = svgEl.getAttribute("viewBox")?.trim().split(/[\s,]+/).map(Number);
+      const baseW = baseViewBox?.length === 4 && baseViewBox[2] > 0 ? baseViewBox[2] : Number(svgEl.getAttribute("width")) || 1000;
+      const baseH = baseViewBox?.length === 4 && baseViewBox[3] > 0 ? baseViewBox[3] : Number(svgEl.getAttribute("height")) || 1000;
+
+      // DOM getBBox는 투명/빈 path 또는 루트 viewBox 영향을 받는 경우가 있어,
+      // 실제 렌더링 픽셀의 alpha 경계로 한 번 더 정확히 계산합니다.
+      const probeW = 1200;
+      const probeH = Math.max(1, Math.round(probeW * (baseH / baseW)));
+      const img = await loadImage(svgTextToDataUrl(new XMLSerializer().serializeToString(svgEl)));
+      const probe = document.createElement("canvas");
+      probe.width = probeW;
+      probe.height = probeH;
+      const pctx = probe.getContext("2d", { willReadFrequently: true })!;
+      pctx.clearRect(0, 0, probeW, probeH);
+      pctx.drawImage(img, 0, 0, probeW, probeH);
+      const pixels = pctx.getImageData(0, 0, probeW, probeH).data;
+      let minX = probeW, minY = probeH, maxX = -1, maxY = -1;
+      for (let y = 0; y < probeH; y++) {
+        for (let x = 0; x < probeW; x++) {
+          const a = pixels[(y * probeW + x) * 4 + 3];
+          if (a > 16) {
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+          }
+        }
       }
-      document.body.removeChild(host);
-      if (!bbox || !isFinite(bbox.width) || !isFinite(bbox.height) || bbox.width <= 0 || bbox.height <= 0) {
+      if (maxX < minX || maxY < minY) {
         return svgDataUrl;
       }
-      // 약간의 여유(0.5%)만 두고 타이트하게 크롭
-      const pad = Math.max(bbox.width, bbox.height) * 0.005;
-      const x = bbox.x - pad;
-      const y = bbox.y - pad;
-      const w = bbox.width + pad * 2;
-      const h = bbox.height + pad * 2;
+      const padPx = Math.max(1, Math.ceil(Math.max(maxX - minX + 1, maxY - minY + 1) * 0.003));
+      minX = Math.max(0, minX - padPx);
+      minY = Math.max(0, minY - padPx);
+      maxX = Math.min(probeW - 1, maxX + padPx);
+      maxY = Math.min(probeH - 1, maxY + padPx);
+
+      const [vbX, vbY, vbW, vbH] = baseViewBox?.length === 4 ? baseViewBox : [0, 0, baseW, baseH];
+      const x = vbX + (minX / probeW) * vbW;
+      const y = vbY + (minY / probeH) * vbH;
+      const w = ((maxX - minX + 1) / probeW) * vbW;
+      const h = ((maxY - minY + 1) / probeH) * vbH;
       svgEl.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
       svgEl.setAttribute("width", String(w));
       svgEl.setAttribute("height", String(h));
       svgEl.setAttribute("preserveAspectRatio", "xMidYMid meet");
       const out = new XMLSerializer().serializeToString(svgEl);
-      const b64 = btoa(unescape(encodeURIComponent(out)));
-      return `data:image/svg+xml;base64,${b64}`;
+      return svgTextToDataUrl(out);
     } catch {
       return svgDataUrl;
     }
@@ -791,9 +825,10 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
       // 3) 인쇄 크기를 콘텐츠 실제 종횡비에 맞춰 자동 보정 (긴 변 유지)
       try {
-        const m2 = svgDataUrl.match(/viewBox\s*=\s*"([^"]+)"/);
-        if (m2) {
-          const [, , vw, vh] = m2[1].trim().split(/\s+/).map(Number);
+        const svgDoc = new DOMParser().parseFromString(svgDataUrlToText(svgDataUrl), "image/svg+xml");
+        const viewBox = svgDoc.documentElement.getAttribute("viewBox");
+        if (viewBox) {
+          const [, , vw, vh] = viewBox.trim().split(/[\s,]+/).map(Number);
           if (vw > 0 && vh > 0) {
             const ar = vw / vh;
             const longest = Math.max(logoWidthMm, logoHeightMm) || DEFAULT_BASE_MM;
