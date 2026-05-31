@@ -326,33 +326,67 @@ function OrderProgressBox({
           </DialogContent>
         </Dialog>
 
-        {/* Step 2 Dialog */}
+        {/* Step 2 Dialog — Excel-like preview */}
         <Dialog open={open2} onOpenChange={setOpen2}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-            <DialogHeader><DialogTitle>작업파일 미리보기 ({items.length}건)</DialogTitle></DialogHeader>
-            <div className="flex-1 overflow-auto border rounded-md">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-16">순번</TableHead>
-                    <TableHead>스티커 고유번호</TableHead>
-                    <TableHead>에디션 넘버</TableHead>
-                    <TableHead>등급</TableHead>
-                    <TableHead>회사명</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {items.map(it => (
-                    <TableRow key={`${it.uniqueNo}-${it.editionNo}`}>
-                      <TableCell>{it.seq}</TableCell>
-                      <TableCell className="font-mono">{it.uniqueNo}</TableCell>
-                      <TableCell>#{String(it.editionNo).padStart(4, "0")}</TableCell>
-                      <TableCell><Badge variant="outline">{it.grade}</Badge></TableCell>
-                      <TableCell>TWINMETA</TableCell>
-                    </TableRow>
+          <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-green-600" />
+                작업파일.xlsx · Sheet: Hologram ({items.length}행)
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-auto border bg-white text-[#1f2937]" style={{ fontFamily: 'Calibri, "Segoe UI", Arial, sans-serif' }}>
+              <table className="border-collapse text-xs" style={{ tableLayout: "fixed" }}>
+                <colgroup>
+                  <col style={{ width: 40 }} />
+                  <col style={{ width: 60 }} />
+                  <col style={{ width: 200 }} />
+                  <col style={{ width: 110 }} />
+                  <col style={{ width: 90 }} />
+                  <col style={{ width: 140 }} />
+                </colgroup>
+                {/* Column letter row (A, B, C...) */}
+                <thead>
+                  <tr>
+                    <th className="sticky top-0 left-0 z-20 bg-[#f3f3f3] border border-[#d4d4d4] h-6 text-center font-normal text-[#666]"></th>
+                    {["A", "B", "C", "D", "E"].map(L => (
+                      <th key={L} className="sticky top-0 z-10 bg-[#f3f3f3] border border-[#d4d4d4] h-6 text-center font-normal text-[#666]">{L}</th>
+                    ))}
+                  </tr>
+                  {/* Header row (row 1) */}
+                  <tr>
+                    <td className="sticky left-0 z-10 bg-[#f3f3f3] border border-[#d4d4d4] h-7 text-center text-[#666]">1</td>
+                    {["序号", "贴纸唯一编号", "版本编号", "等级", "公司名称"].map(h => (
+                      <td key={h} className="border border-[#d4d4d4] px-2 h-7 font-semibold bg-[#fafafa]">{h}</td>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((it, i) => (
+                    <tr key={`${it.uniqueNo}-${it.editionNo}`} className="hover:bg-[#f0f7ff]">
+                      <td className="sticky left-0 bg-[#f3f3f3] border border-[#d4d4d4] h-6 text-center text-[#666]">{i + 2}</td>
+                      <td className="border border-[#d4d4d4] px-2 h-6 text-right tabular-nums">{it.seq}</td>
+                      <td className="border border-[#d4d4d4] px-2 h-6">{it.uniqueNo}</td>
+                      <td className="border border-[#d4d4d4] px-2 h-6">#{String(it.editionNo).padStart(4, "0")}</td>
+                      <td className="border border-[#d4d4d4] px-2 h-6">{it.grade}</td>
+                      <td className="border border-[#d4d4d4] px-2 h-6">TWINMETA</td>
+                    </tr>
                   ))}
-                </TableBody>
-              </Table>
+                  {/* Empty Excel-like padding rows */}
+                  {Array.from({ length: Math.max(0, 8 - items.length) }).map((_, i) => (
+                    <tr key={`empty-${i}`}>
+                      <td className="sticky left-0 bg-[#f3f3f3] border border-[#d4d4d4] h-6 text-center text-[#666]">{items.length + 2 + i}</td>
+                      {Array.from({ length: 5 }).map((__, j) => (
+                        <td key={j} className="border border-[#d4d4d4] h-6"></td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {/* Sheet tab bar */}
+            <div className="flex items-center gap-1 border-x border-b bg-[#f3f3f3] px-2 py-1 text-xs text-[#444]">
+              <div className="px-3 py-0.5 bg-white border border-[#d4d4d4] border-b-white rounded-t font-medium">Hologram</div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setOpen2(false)}>닫기</Button>
@@ -362,6 +396,7 @@ function OrderProgressBox({
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
 
         {/* Webhook settings dialog */}
         <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
