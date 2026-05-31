@@ -811,9 +811,10 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
       // 3) 인쇄 크기를 콘텐츠 실제 종횡비에 맞춰 자동 보정 (긴 변 유지)
       try {
-        const m2 = svgDataUrl.match(/viewBox\s*=\s*"([^"]+)"/);
-        if (m2) {
-          const [, , vw, vh] = m2[1].trim().split(/\s+/).map(Number);
+        const svgDoc = new DOMParser().parseFromString(svgDataUrlToText(svgDataUrl), "image/svg+xml");
+        const viewBox = svgDoc.documentElement.getAttribute("viewBox");
+        if (viewBox) {
+          const [, , vw, vh] = viewBox.trim().split(/[\s,]+/).map(Number);
           if (vw > 0 && vh > 0) {
             const ar = vw / vh;
             const longest = Math.max(logoWidthMm, logoHeightMm) || DEFAULT_BASE_MM;
