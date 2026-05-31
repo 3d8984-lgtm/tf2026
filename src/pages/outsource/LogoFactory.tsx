@@ -1773,6 +1773,8 @@ async function buildLogoVectorPdfBytes(svgDataUrl: string, logoWidthMm: number, 
   const y = (pageH - logoHeightMm) / 2;
   await svg2pdf(svgEl as unknown as SVGElement, pdf, { x, y, width: logoWidthMm, height: logoHeightMm });
   return new Uint8Array(pdf.output("arraybuffer"));
+}
+
 
 async function buildLogoRasterPdfBytes(imageDataUrl: string, logoWidthMm: number, logoHeightMm: number): Promise<Uint8Array> {
   const pdf = new jsPDF({ unit: "mm", format: "a4" });
