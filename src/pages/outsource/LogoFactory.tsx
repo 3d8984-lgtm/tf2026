@@ -1388,8 +1388,9 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                                   style={{
                                     width: `${Math.min(100, (logoWidthMm / canvasWidthMm) * 100)}%`,
                                     height: `${Math.min(100, (logoHeightMm / canvasHeightMm) * 100)}%`,
-                                    left: `calc(50% + ${(clampedOffsetX / canvasWidthMm) * 100}% - ${Math.min(100, (logoWidthMm / canvasWidthMm) * 100) / 2}%)`,
-                                    top: `calc(50% + ${(clampedOffsetY / canvasHeightMm) * 100}% - ${Math.min(100, (logoHeightMm / canvasHeightMm) * 100) / 2}%)`,
+                                    left: `calc(50% + ${(clampedOffsetX / canvasWidthMm) * 100}%)`,
+                                    top: `calc(50% + ${(clampedOffsetY / canvasHeightMm) * 100}%)`,
+                                    transform: "translate(-50%, -50%)",
                                   }}
                                 >
                                   <img src={displayedLogo} alt="logo on canvas" className={`w-full h-full object-contain ${effectClass[workType] || ""}`} referrerPolicy="no-referrer" draggable={false} />
