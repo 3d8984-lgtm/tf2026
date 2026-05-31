@@ -435,7 +435,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     setProcessedDataUrl(null);
     setProcessedKind("original");
     setUpscaledDataUrl(null);
-    setVectorDataUrl(null);
+    setVectorDataUrl(null); setPreVectorBgRemovedDataUrl(null);
     setTestLogoDataUrl(null);
     setTestLogoName(null);
   }, [logoUrl]);
@@ -525,7 +525,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       setProcessedDataUrl(null);
       setProcessedKind("original");
       setUpscaledDataUrl(null);
-      setVectorDataUrl(null);
+      setVectorDataUrl(null); setPreVectorBgRemovedDataUrl(null);
       toast({ title: "테스트 로고 적용됨", description: file.name });
     };
     reader.onerror = () => toast({ title: "파일 읽기 실패", variant: "destructive" });
@@ -538,7 +538,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     setProcessedDataUrl(null);
     setProcessedKind("original");
     setUpscaledDataUrl(null);
-    setVectorDataUrl(null);
+    setVectorDataUrl(null); setPreVectorBgRemovedDataUrl(null);
     if (testLogoInputRef.current) testLogoInputRef.current.value = "";
     toast({ title: "테스트 로고 제거됨", description: "원본 로고로 복원되었습니다" });
   };
@@ -1048,7 +1048,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     setProcessedDataUrl(null);
     setProcessedKind("original");
     setUpscaledDataUrl(null);
-    setVectorDataUrl(null);
+    setVectorDataUrl(null); setPreVectorBgRemovedDataUrl(null);
   };
 
   const resetWork = () => {
@@ -1068,7 +1068,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     setTestLogoName(null);
     setUpscaledUploadName(null);
     setUpscaledDataUrl(null);
-    setVectorDataUrl(null);
+    setVectorDataUrl(null); setPreVectorBgRemovedDataUrl(null);
     setUpscaleMode("auto");
     setUpscaleSharpness(50);
     setCurrentStep(1);
