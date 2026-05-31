@@ -282,6 +282,15 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const [lastAnalysis, setLastAnalysis] = useState<ImageAnalysis | null>(null);
   const [lastMethod, setLastMethod] = useState<string | null>(null);
 
+  // ── Wizard state (로고 시안 단계별 진행) ────────────────────────────
+  type LogoType = "color" | "mono";
+  const [currentStep, setCurrentStep] = useState<number>(1);
+  const [logoType, setLogoType] = useState<LogoType | null>(null);
+  const [recommendedType, setRecommendedType] = useState<LogoType | null>(null);
+  const [analyzedSrc, setAnalyzedSrc] = useState<string | null>(null);
+  const [upscaleSkipped, setUpscaleSkipped] = useState<boolean>(false);
+  const [printAreaSaved, setPrintAreaSaved] = useState<boolean>(false);
+
   // Logo size as % of canvas longest side — convenience slider
   const canvasLongest = Math.max(canvasWidthMm, canvasHeightMm) || 1;
   const logoLongest = Math.max(logoWidthMm, logoHeightMm) || 0;
