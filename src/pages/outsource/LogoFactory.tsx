@@ -1429,6 +1429,83 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={workTypesDialogOpen} onOpenChange={setWorkTypesDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>작업종류 관리</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2 max-h-72 overflow-auto pr-1">
+              {workTypes.length === 0 && (
+                <div className="text-sm text-muted-foreground text-center py-4">등록된 작업종류가 없습니다.</div>
+              )}
+              {workTypes.map((w, idx) => (
+                <div key={w.value} className="flex items-center gap-2">
+                  <Input
+                    className="h-9"
+                    value={w.label}
+                    onChange={(e) => {
+                      const next = [...workTypes];
+                      next[idx] = { ...w, label: e.target.value };
+                      setWorkTypes(next);
+                    }}
+                  />
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => {
+                      if (workTypes.length <= 1) {
+                        toast({ title: "최소 1개는 남겨야 합니다", variant: "destructive" });
+                        return;
+                      }
+                      const next = workTypes.filter((_, i) => i !== idx);
+                      setWorkTypes(next);
+                      if (workType === w.value) setWorkType(next[0].value);
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 pt-2 border-t">
+              <Input
+                className="h-9"
+                placeholder="새 작업종류 이름"
+                value={newWorkTypeLabel}
+                onChange={(e) => setNewWorkTypeLabel(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const label = newWorkTypeLabel.trim();
+                    if (!label) return;
+                    const value = `custom-${Date.now()}`;
+                    setWorkTypes([...workTypes, { value, label }]);
+                    setNewWorkTypeLabel("");
+                  }
+                }}
+              />
+              <Button
+                size="sm"
+                onClick={() => {
+                  const label = newWorkTypeLabel.trim();
+                  if (!label) { toast({ title: "이름을 입력하세요", variant: "destructive" }); return; }
+                  const value = `custom-${Date.now()}`;
+                  setWorkTypes([...workTypes, { value, label }]);
+                  setNewWorkTypeLabel("");
+                }}
+              >
+                추가
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setWorkTypes(DEFAULT_WORK_TYPES); toast({ title: "기본값으로 초기화되었습니다" }); }}>기본값 복원</Button>
+            <Button onClick={() => setWorkTypesDialogOpen(false)}>닫기</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
