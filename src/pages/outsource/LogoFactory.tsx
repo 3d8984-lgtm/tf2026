@@ -303,6 +303,8 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   // Persist each processed result independently so the comparator can switch between them.
   const [upscaledDataUrl, setUpscaledDataUrl] = useState<string | null>(null);
   const [vectorDataUrl, setVectorDataUrl] = useState<string | null>(null);
+  // 벡터 변환 전 배경 제거 결과 (미리보기용). null이면 미실행 상태.
+  const [preVectorBgRemovedDataUrl, setPreVectorBgRemovedDataUrl] = useState<string | null>(null);
   // Smart-upscale controls (decision-matrix-driven, see src/lib/upscale.ts)
   const [upscaleMode, setUpscaleMode] = useState<UpscaleMode>("auto");
   const [upscaleSharpness, setUpscaleSharpness] = useState<number>(50);
