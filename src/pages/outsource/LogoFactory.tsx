@@ -1240,7 +1240,12 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                         <div className="space-y-3">
                           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end p-3 rounded-md border bg-muted/10">
                             <div className="space-y-1 md:col-span-2">
-                              <Label className="text-xs">작업종류</Label>
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs">작업종류</Label>
+                                <Button type="button" size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setWorkTypesDialogOpen(true)}>
+                                  <Settings className="w-3 h-3 mr-1" />관리
+                                </Button>
+                              </div>
                               <Select value={workType} onValueChange={(v) => setWorkType(v as WorkType)}>
                                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                                 <SelectContent>
