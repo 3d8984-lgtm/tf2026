@@ -913,12 +913,15 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                         </div>
                       </div>
 
-                      {/* API에서 받은 원본 로고 — 작업번호당 1개 */}
-                      {logoUrl && (
+                      {/* 원본 로고 — 작업번호당 1개 (API 우선, 없으면 업로드본) */}
+                      {(logoUrl || testLogoDataUrl) ? (
                         <div className="rounded-md border bg-blue-50/40 dark:bg-blue-950/20 overflow-hidden">
                           <div className="px-3 py-2 text-sm font-semibold flex items-center gap-2 border-b bg-background/40">
-                            <Cloud className="w-4 h-4" /> API로 받은 원본 로고
-                            <Badge variant="outline" className="text-[10px]">주문 첨부 · 1건</Badge>
+                            <Cloud className="w-4 h-4" />
+                            {logoUrl ? "API로 받은 원본 로고" : "업로드한 로고 (API 원본 없음)"}
+                            <Badge variant="outline" className="text-[10px]">
+                              {logoUrl ? "주문 첨부" : "로컬 업로드"} · 1건
+                            </Badge>
                           </div>
                           <Table>
                             <TableHeader>
@@ -937,17 +940,21 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                                 <TableCell><QrThumb value={`${orderNo}-1`} /></TableCell>
                                 <TableCell>
                                   <div className="w-12 h-12 border rounded bg-white flex items-center justify-center overflow-hidden">
-                                    <img src={logoUrl} alt="로고" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                                    <img src={(logoUrl || testLogoDataUrl)!} alt="로고" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
                                   </div>
                                 </TableCell>
                                 <TableCell className="text-right">
-                                  <Button size="sm" variant="outline" onClick={() => downloadUrl(logoUrl, `${orderNo}-1.png`)}>
+                                  <Button size="sm" variant="outline" onClick={() => downloadUrl((logoUrl || testLogoDataUrl)!, `${orderNo}-1.png`)}>
                                     <Download className="w-3 h-3 mr-1" /> 로고 다운로드
                                   </Button>
                                 </TableCell>
                               </TableRow>
                             </TableBody>
                           </Table>
+                        </div>
+                      ) : (
+                        <div className="rounded-md border border-dashed p-4 text-xs text-muted-foreground bg-muted/10">
+                          이 작업번호에는 API로 받은 원본 로고가 없습니다. 위에서 테스트 로고를 업로드하면 여기에 표시됩니다.
                         </div>
                       )}
 
