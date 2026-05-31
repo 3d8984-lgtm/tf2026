@@ -667,26 +667,41 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
           d[i + 3] = Math.round(d[i + 3] * t);
         }
       }
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i + 3] < 24) d[i + 3] = 0;
+      }
       ctx.putImageData(id, 0, 0);
 
       // ── 불투명 영역 자동 트리밍: 실제 인쇄될 부분만 남김 ─────────
-      const ALPHA_THRESHOLD = 8;
-      let minX = w, minY = h, maxX = -1, maxY = -1;
-      for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-          const a = d[(y * w + x) * 4 + 3];
-          if (a > ALPHA_THRESHOLD) {
-            if (x < minX) minX = x;
-            if (x > maxX) maxX = x;
-            if (y < minY) minY = y;
-            if (y > maxY) maxY = y;
+      // JPG 압축 노이즈/반투명 잔상이 가장자리까지 남으면 기존 alpha>8 방식은
+      // 원본 캔버스 전체를 트리밍 영역으로 오인할 수 있어, 강한 알파 기준으로 먼저 잡고 폴백합니다.
+      const findAlphaBounds = (threshold: number) => {
+        let minX = w, minY = h, maxX = -1, maxY = -1;
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const a = d[(y * w + x) * 4 + 3];
+            if (a > threshold) {
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+            }
           }
         }
-      }
+        return maxX >= minX && maxY >= minY ? { minX, minY, maxX, maxY } : null;
+      };
+
+      const strongBounds = findAlphaBounds(96);
+      const fallbackBounds = strongBounds ?? findAlphaBounds(8);
 
       let out: string;
       let trimmedInfo = "";
-      if (maxX >= minX && maxY >= minY) {
+      if (fallbackBounds) {
+        const pad = Math.max(2, Math.ceil(Math.max(w, h) * 0.002));
+        const minX = Math.max(0, fallbackBounds.minX - pad);
+        const minY = Math.max(0, fallbackBounds.minY - pad);
+        const maxX = Math.min(w - 1, fallbackBounds.maxX + pad);
+        const maxY = Math.min(h - 1, fallbackBounds.maxY + pad);
         const tw = maxX - minX + 1;
         const th = maxY - minY + 1;
         const tCanvas = document.createElement("canvas");
