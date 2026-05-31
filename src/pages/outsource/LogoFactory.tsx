@@ -1594,9 +1594,10 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                               variant="secondary"
                               className="w-full"
                               onClick={handleRemoveBackground}
-                              disabled={!displayedLogo || !!busy}
+                              disabled={!displayedLogo || !!busy || !!vectorDataUrl}
+                              title={vectorDataUrl ? "벡터 결과는 이미 배경이 제거되어 있습니다 (벡터 품질 유지)" : undefined}
                             >
-                              🪄 배경 제거 (AI 최적화)
+                              {vectorDataUrl ? "✓ 벡터: 배경 자동 제거됨" : "🪄 배경 제거 (AI 최적화)"}
                             </Button>
                           </div>
                         </div>
