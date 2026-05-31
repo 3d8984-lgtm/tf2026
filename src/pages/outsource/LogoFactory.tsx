@@ -1174,143 +1174,134 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                     </div>
                   )}
 
-                  {/* ============ STEP 5: 인쇄영역 & 크기 ============ */}
+                  {/* ============ STEP 5: 인쇄영역 · 크기 · 미리보기 · PDF (통합) ============ */}
                   {currentStep === 5 && (
                     <div className="space-y-4">
-                      <div className="text-sm text-muted-foreground">실제 인쇄영역(mm)과 그 안의 로고 크기·위치를 설정합니다.</div>
+                      <div className="text-sm text-muted-foreground">인쇄영역(mm)·로고 크기·위치를 설정하면 우측 미리보기가 즉시 갱신됩니다. 확인 후 PDF로 다운로드하세요.</div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end p-3 rounded-md border bg-muted/10">
-                        <div className="space-y-1">
-                          <Label className="text-xs">작업종류</Label>
-                          <Select value={workType} onValueChange={(v) => setWorkType(v as WorkType)}>
-                            <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              {WORK_TYPES.map(w => <SelectItem key={w.value} value={w.value}>{w.label}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs">인쇄영역 가로 (mm)</Label>
-                          <Input type="number" step="1" min={1} value={canvasWidthMm} onChange={(e) => { setCanvasWidthMm(Math.max(1, Number(e.target.value) || 0)); setPrintAreaSaved(false); }} className="h-9" />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs">인쇄영역 세로 (mm)</Label>
-                          <Input type="number" step="1" min={1} value={canvasHeightMm} onChange={(e) => { setCanvasHeightMm(Math.max(1, Number(e.target.value) || 0)); setPrintAreaSaved(false); }} className="h-9" />
-                        </div>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            try {
-                              localStorage.setItem(PRINT_AREA_LS_KEY, JSON.stringify({ w: canvasWidthMm, h: canvasHeightMm }));
-                              setPrintAreaSaved(true);
-                              toast({ title: "인쇄영역 설정이 저장되었습니다", description: `${canvasWidthMm} × ${canvasHeightMm} mm` });
-                            } catch { toast({ title: "저장 실패", variant: "destructive" }); }
-                          }}
-                          variant={printAreaSaved ? "outline" : "default"}
-                        >
-                          {printAreaSaved ? <><CheckCircle2 className="w-4 h-4 mr-1" /> 저장됨</> : "인쇄영역 설정 저장"}
-                        </Button>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end p-3 rounded-md border bg-muted/20">
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between">
-                            <Label className="text-xs">로고 가로 (mm)</Label>
-                            <label className="text-[10px] text-muted-foreground flex items-center gap-1 cursor-pointer">
-                              <input type="checkbox" checked={lockAspect} onChange={(e) => setLockAspect(e.target.checked)} className="h-3 w-3" />
-                              비율
-                            </label>
-                          </div>
-                          <Input type="number" step="0.5" value={logoWidthMm} onChange={(e) => handleWidthChange(Number(e.target.value) || 0)} className="h-9" />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs">로고 세로 (mm)</Label>
-                          <Input type="number" step="0.5" value={logoHeightMm} onChange={(e) => handleHeightChange(Number(e.target.value) || 0)} className="h-9" />
-                        </div>
-                        <div className="space-y-1 md:col-span-2">
-                          <div className="flex items-center justify-between">
-                            <Label className="text-xs">로고 크기 (영역 대비 {logoScalePct}%)</Label>
-                            <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => { setOffsetXMm(0); setOffsetYMm(0); setLogoScalePct(50); }}>중앙·50%</Button>
-                          </div>
-                          <Slider min={1} max={100} step={1} value={[logoScalePct]} onValueChange={(v) => setLogoScalePct(v[0])} />
-                        </div>
-                        <div className="space-y-1 md:col-span-2">
-                          <Label className="text-xs">가로 위치 X ({clampedOffsetX.toFixed(1)} mm)</Label>
-                          <Slider min={-maxOffsetX} max={maxOffsetX} step={0.5} value={[clampedOffsetX]} onValueChange={(v) => setOffsetXMm(v[0])} disabled={maxOffsetX === 0} />
-                        </div>
-                        <div className="space-y-1 md:col-span-2">
-                          <Label className="text-xs">세로 위치 Y ({clampedOffsetY.toFixed(1)} mm)</Label>
-                          <Slider min={-maxOffsetY} max={maxOffsetY} step={0.5} value={[clampedOffsetY]} onValueChange={(v) => setOffsetYMm(v[0])} disabled={maxOffsetY === 0} />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ============ STEP 6: 미리보기 & PDF ============ */}
-                  {currentStep === 6 && (
-                    <div className="space-y-4">
-                      <div className="text-sm text-muted-foreground">최종 적용 결과를 확인하고 PDF로 다운로드하세요. 발주는 상단 [발주 진행] 박스에서 진행합니다.</div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="border rounded-md p-4 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <div className="text-sm font-semibold">로고 미리보기</div>
-                            <Badge variant="outline" className="text-[10px]">
-                              {processedKind === "original" ? "원본" : processedKind === "upscaled" ? "업스케일" : "벡터(SVG)"}
-                            </Badge>
-                          </div>
-                          <div className="aspect-square w-full border rounded bg-muted/20 flex items-center justify-center overflow-hidden">
-                            {displayedLogo ? (
-                              <img src={displayedLogo} alt="로고" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
-                            ) : (
-                              <div className="flex flex-col items-center text-muted-foreground gap-1">
-                                <ImageOff className="w-8 h-8" />
-                                <span className="text-xs">로고가 없습니다</span>
-                              </div>
-                            )}
-                          </div>
-                          {processedKind !== "original" && (
-                            <Button size="sm" variant="ghost" className="w-full" onClick={resetLogo}>원본으로 복원</Button>
-                          )}
-                        </div>
-
-                        <div className="border rounded-md p-4 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <div className="text-sm font-semibold">인쇄영역 미리보기 (실제 비율)</div>
-                            <Badge>{WORK_TYPES.find(w => w.value === workType)?.label}</Badge>
-                          </div>
-                          <div
-                            className="w-full border-2 border-dashed border-primary/60 rounded relative overflow-hidden"
-                            style={{
-                              aspectRatio: `${canvasWidthMm} / ${canvasHeightMm}`,
-                              background: "repeating-conic-gradient(hsl(var(--muted)) 0% 25%, hsl(var(--background)) 0% 50%) 50% / 16px 16px",
-                            }}
-                          >
-                            <div className="absolute inset-0 pointer-events-none">
-                              <div className="absolute left-1/2 top-0 bottom-0 w-px bg-primary/20" />
-                              <div className="absolute top-1/2 left-0 right-0 h-px bg-primary/20" />
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {/* LEFT: 설정 */}
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end p-3 rounded-md border bg-muted/10">
+                            <div className="space-y-1 md:col-span-2">
+                              <Label className="text-xs">작업종류</Label>
+                              <Select value={workType} onValueChange={(v) => setWorkType(v as WorkType)}>
+                                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {WORK_TYPES.map(w => <SelectItem key={w.value} value={w.value}>{w.label}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
                             </div>
-                            <div className="absolute top-1 left-1 text-[10px] px-1.5 py-0.5 rounded bg-background/80 border font-mono">
-                              {canvasWidthMm} × {canvasHeightMm} mm
+                            <div className="space-y-1">
+                              <Label className="text-xs">인쇄영역 가로 (mm)</Label>
+                              <Input type="number" step="1" min={1} value={canvasWidthMm} onChange={(e) => { setCanvasWidthMm(Math.max(1, Number(e.target.value) || 0)); setPrintAreaSaved(false); }} className="h-9" />
                             </div>
-                            {displayedLogo && logoWidthMm > 0 && logoHeightMm > 0 && (
-                              <div
-                                className="absolute"
-                                style={{
-                                  width: `${Math.min(100, (logoWidthMm / canvasWidthMm) * 100)}%`,
-                                  height: `${Math.min(100, (logoHeightMm / canvasHeightMm) * 100)}%`,
-                                  left: `calc(50% + ${(clampedOffsetX / canvasWidthMm) * 100}% - ${Math.min(100, (logoWidthMm / canvasWidthMm) * 100) / 2}%)`,
-                                  top: `calc(50% + ${(clampedOffsetY / canvasHeightMm) * 100}% - ${Math.min(100, (logoHeightMm / canvasHeightMm) * 100) / 2}%)`,
-                                }}
-                              >
-                                <img src={displayedLogo} alt="logo on canvas" className={`w-full h-full object-contain ${effectClass[workType]}`} referrerPolicy="no-referrer" draggable={false} />
-                              </div>
-                            )}
+                            <div className="space-y-1">
+                              <Label className="text-xs">인쇄영역 세로 (mm)</Label>
+                              <Input type="number" step="1" min={1} value={canvasHeightMm} onChange={(e) => { setCanvasHeightMm(Math.max(1, Number(e.target.value) || 0)); setPrintAreaSaved(false); }} className="h-9" />
+                            </div>
+                            <Button
+                              size="sm"
+                              className="md:col-span-4"
+                              onClick={() => {
+                                try {
+                                  localStorage.setItem(PRINT_AREA_LS_KEY, JSON.stringify({ w: canvasWidthMm, h: canvasHeightMm }));
+                                  setPrintAreaSaved(true);
+                                  toast({ title: "인쇄영역 설정이 저장되었습니다", description: `${canvasWidthMm} × ${canvasHeightMm} mm` });
+                                } catch { toast({ title: "저장 실패", variant: "destructive" }); }
+                              }}
+                              variant={printAreaSaved ? "outline" : "default"}
+                            >
+                              {printAreaSaved ? <><CheckCircle2 className="w-4 h-4 mr-1" /> 인쇄영역 저장됨</> : "인쇄영역 설정 저장"}
+                            </Button>
                           </div>
-                          <div className="text-[11px] text-muted-foreground space-y-0.5">
-                            <div>인쇄영역: <span className="font-mono">{canvasWidthMm} × {canvasHeightMm} mm</span></div>
-                            <div>로고 크기: <span className="font-mono">{logoWidthMm} × {logoHeightMm} mm</span></div>
-                            <div>수량: {total} EA</div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end p-3 rounded-md border bg-muted/20">
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs">로고 가로 (mm)</Label>
+                                <label className="text-[10px] text-muted-foreground flex items-center gap-1 cursor-pointer">
+                                  <input type="checkbox" checked={lockAspect} onChange={(e) => setLockAspect(e.target.checked)} className="h-3 w-3" />
+                                  비율
+                                </label>
+                              </div>
+                              <Input type="number" step="0.5" value={logoWidthMm} onChange={(e) => handleWidthChange(Number(e.target.value) || 0)} className="h-9" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">로고 세로 (mm)</Label>
+                              <Input type="number" step="0.5" value={logoHeightMm} onChange={(e) => handleHeightChange(Number(e.target.value) || 0)} className="h-9" />
+                            </div>
+                            <div className="space-y-1 md:col-span-2">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs">로고 크기 (영역 대비 {logoScalePct}%)</Label>
+                                <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => { setOffsetXMm(0); setOffsetYMm(0); setLogoScalePct(50); }}>중앙·50%</Button>
+                              </div>
+                              <Slider min={1} max={100} step={1} value={[logoScalePct]} onValueChange={(v) => setLogoScalePct(v[0])} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">가로 위치 X ({clampedOffsetX.toFixed(1)} mm)</Label>
+                              <Slider min={-maxOffsetX} max={maxOffsetX} step={0.5} value={[clampedOffsetX]} onValueChange={(v) => setOffsetXMm(v[0])} disabled={maxOffsetX === 0} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">세로 위치 Y ({clampedOffsetY.toFixed(1)} mm)</Label>
+                              <Slider min={-maxOffsetY} max={maxOffsetY} step={0.5} value={[clampedOffsetY]} onValueChange={(v) => setOffsetYMm(v[0])} disabled={maxOffsetY === 0} />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* RIGHT: 미리보기 */}
+                        <div className="space-y-3">
+                          <div className="border rounded-md p-4 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="text-sm font-semibold">인쇄영역 미리보기 (실제 비율)</div>
+                              <div className="flex items-center gap-1">
+                                <Badge variant="outline" className="text-[10px]">
+                                  {processedKind === "original" ? "원본" : processedKind === "upscaled" ? "업스케일" : "벡터(SVG)"}
+                                </Badge>
+                                <Badge>{WORK_TYPES.find(w => w.value === workType)?.label}</Badge>
+                              </div>
+                            </div>
+                            <div
+                              className="w-full border-2 border-dashed border-primary/60 rounded relative overflow-hidden"
+                              style={{
+                                aspectRatio: `${canvasWidthMm} / ${canvasHeightMm}`,
+                                background: "repeating-conic-gradient(hsl(var(--muted)) 0% 25%, hsl(var(--background)) 0% 50%) 50% / 16px 16px",
+                              }}
+                            >
+                              <div className="absolute inset-0 pointer-events-none">
+                                <div className="absolute left-1/2 top-0 bottom-0 w-px bg-primary/20" />
+                                <div className="absolute top-1/2 left-0 right-0 h-px bg-primary/20" />
+                              </div>
+                              <div className="absolute top-1 left-1 text-[10px] px-1.5 py-0.5 rounded bg-background/80 border font-mono">
+                                {canvasWidthMm} × {canvasHeightMm} mm
+                              </div>
+                              {displayedLogo && logoWidthMm > 0 && logoHeightMm > 0 ? (
+                                <div
+                                  className="absolute"
+                                  style={{
+                                    width: `${Math.min(100, (logoWidthMm / canvasWidthMm) * 100)}%`,
+                                    height: `${Math.min(100, (logoHeightMm / canvasHeightMm) * 100)}%`,
+                                    left: `calc(50% + ${(clampedOffsetX / canvasWidthMm) * 100}% - ${Math.min(100, (logoWidthMm / canvasWidthMm) * 100) / 2}%)`,
+                                    top: `calc(50% + ${(clampedOffsetY / canvasHeightMm) * 100}% - ${Math.min(100, (logoHeightMm / canvasHeightMm) * 100) / 2}%)`,
+                                  }}
+                                >
+                                  <img src={displayedLogo} alt="logo on canvas" className={`w-full h-full object-contain ${effectClass[workType]}`} referrerPolicy="no-referrer" draggable={false} />
+                                </div>
+                              ) : (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground gap-1">
+                                  <ImageOff className="w-8 h-8" />
+                                  <span className="text-xs">로고가 없습니다</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground space-y-0.5">
+                              <div>인쇄영역: <span className="font-mono">{canvasWidthMm} × {canvasHeightMm} mm</span></div>
+                              <div>로고 크기: <span className="font-mono">{logoWidthMm} × {logoHeightMm} mm</span></div>
+                              <div>수량: {total} EA</div>
+                            </div>
+                            {processedKind !== "original" && (
+                              <Button size="sm" variant="ghost" className="w-full" onClick={resetLogo}>원본 로고로 복원</Button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1321,7 +1312,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                         </div>
                       )}
 
-                      <div className="flex flex-wrap gap-2 justify-end">
+                      <div className="flex flex-wrap gap-2 justify-end pt-2 border-t">
                         <Button variant="outline" onClick={() => downloadPrintPng(300)} disabled={!sourceLogo || !!busy}>
                           <Download className="w-4 h-4 mr-1" /> PNG 300dpi
                         </Button>
@@ -1334,6 +1325,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                       </div>
                     </div>
                   )}
+
 
                   {/* Footer: Prev / Next */}
                   <div className="flex items-center justify-between pt-2 border-t">
