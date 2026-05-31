@@ -1584,19 +1584,79 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                         </div>
                       )}
 
-                      {/* 단색 로고: 벡터 변환 통합 */}
+                      {/* 단색 로고: 배경 제거 → 벡터 변환 통합 */}
                       {logoType === "mono" && (
                         <div className="space-y-3 p-4 rounded-md border-2 border-primary/30 bg-primary/5">
                           <div className="text-sm font-semibold flex items-center gap-2">
                             <Cloud className="w-4 h-4" /> 벡터 변환 (단색 로고 필수)
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            단색 로고는 벡터(SVG)로 변환해야 인쇄·자수·레이저 공정에서 깔끔하게 출력됩니다. Vectorizer.AI를 사용합니다.
-                            <span className="block mt-1">소스: {processedKind === "upscaled" ? "업스케일된 로고" : "원본 로고"} · 변환 모드는 [외주 설정]에서 변경</span>
+                            ① 먼저 <b>배경 제거</b>로 흰/단색 배경을 투명 처리한 뒤 미리보기로 확인하세요. ② 결과가 만족스러우면 <b>벡터 변환 실행</b>으로 SVG를 생성합니다.
+                            <span className="block mt-1">소스: {preVectorBgRemovedDataUrl ? "배경 제거된 로고" : (upscaledDataUrl ? "업스케일된 로고" : "원본 로고")} · 변환 모드는 [외주 설정]에서 변경</span>
                           </div>
-                          <div className="flex items-center justify-between gap-3">
+
+                          {/* ① 배경 제거 */}
+                          <div className="flex items-center justify-between gap-3 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                variant={preVectorBgRemovedDataUrl ? "outline" : "default"}
+                                onClick={handlePreVectorRemoveBackground}
+                                disabled={(!sourceLogo && !upscaledDataUrl) || !!busy}
+                              >
+                                🪄 {preVectorBgRemovedDataUrl ? "배경 다시 제거" : "① 배경 제거"}
+                              </Button>
+                              {preVectorBgRemovedDataUrl && (
+                                <Button size="sm" variant="ghost" onClick={() => setPreVectorBgRemovedDataUrl(null)} disabled={!!busy}>
+                                  초기화
+                                </Button>
+                              )}
+                            </div>
+                            {preVectorBgRemovedDataUrl && (
+                              <span className="text-[11px] text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" /> 배경 제거 완료
+                              </span>
+                            )}
+                          </div>
+
+                          {/* 미리보기: 원본/업스케일 vs 배경 제거 결과 */}
+                          {(sourceLogo || upscaledDataUrl) && (
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <div className="text-[11px] text-muted-foreground">원본 / 업스케일</div>
+                                <div className="aspect-square rounded border bg-muted/30 flex items-center justify-center overflow-hidden">
+                                  <img
+                                    src={upscaledDataUrl || sourceLogo!}
+                                    alt="배경 제거 전"
+                                    className="max-w-full max-h-full object-contain"
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-1">
+                                <div className="text-[11px] text-muted-foreground">배경 제거 결과 (투명)</div>
+                                <div
+                                  className="aspect-square rounded border flex items-center justify-center overflow-hidden"
+                                  style={{
+                                    backgroundImage:
+                                      "linear-gradient(45deg,#ccc 25%,transparent 25%),linear-gradient(-45deg,#ccc 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#ccc 75%),linear-gradient(-45deg,transparent 75%,#ccc 75%)",
+                                    backgroundSize: "12px 12px",
+                                    backgroundPosition: "0 0,0 6px,6px -6px,-6px 0px",
+                                  }}
+                                >
+                                  {preVectorBgRemovedDataUrl ? (
+                                    <img src={preVectorBgRemovedDataUrl} alt="배경 제거 후" className="max-w-full max-h-full object-contain" />
+                                  ) : (
+                                    <span className="text-[11px] text-muted-foreground">[① 배경 제거] 실행 시 표시됩니다</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* ② 벡터 변환 */}
+                          <div className="flex items-center justify-between gap-3 pt-2 border-t border-primary/20">
                             <Button onClick={handleVectorizeAI} disabled={(!sourceLogo && !upscaledDataUrl) || !!busy}>
-                              <Cloud className="w-4 h-4 mr-1" /> 벡터 변환 실행
+                              <Cloud className="w-4 h-4 mr-1" /> ② 벡터 변환 실행
                             </Button>
                             {vectorDataUrl && (
                               <Button size="sm" variant="outline" onClick={downloadVectorSvg}>
