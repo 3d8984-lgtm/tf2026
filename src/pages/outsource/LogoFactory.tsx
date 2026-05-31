@@ -1314,7 +1314,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                                 <Badge variant="outline" className="text-[10px]">
                                   {processedKind === "original" ? "원본" : processedKind === "upscaled" ? "업스케일" : "벡터(SVG)"}
                                 </Badge>
-                                <Badge>{WORK_TYPES.find(w => w.value === workType)?.label}</Badge>
+                                <Badge>{workTypeLabel}</Badge>
                               </div>
                             </div>
                             <div
