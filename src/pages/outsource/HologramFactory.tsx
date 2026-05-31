@@ -52,22 +52,14 @@ async function renderHtmlToPdfBytes(html: string): Promise<Uint8Array> {
     const canvas = await html2canvas(target, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
     const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
     const pageW = 210, pageH = 297;
-    const imgW = pageW;
-    const imgH = (canvas.height * imgW) / canvas.width;
+    // A4 한 페이지에 맞도록 비율 유지하며 축소
+    const ratio = Math.min(pageW / (canvas.width), pageH / (canvas.height));
+    const imgW = canvas.width * ratio;
+    const imgH = canvas.height * ratio;
+    const x = (pageW - imgW) / 2;
+    const y = 0;
     const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
-    if (imgH <= pageH) {
-      pdf.addImage(dataUrl, "JPEG", 0, 0, imgW, imgH);
-    } else {
-      // 다중 페이지로 잘라 붙임
-      let remaining = imgH;
-      let y = 0;
-      while (remaining > 0) {
-        pdf.addImage(dataUrl, "JPEG", 0, y === 0 ? 0 : -y, imgW, imgH);
-        remaining -= pageH;
-        y += pageH;
-        if (remaining > 0) pdf.addPage();
-      }
-    }
+    pdf.addImage(dataUrl, "JPEG", x, y, imgW, imgH);
     return new Uint8Array(pdf.output("arraybuffer"));
   } finally {
     document.body.removeChild(iframe);
