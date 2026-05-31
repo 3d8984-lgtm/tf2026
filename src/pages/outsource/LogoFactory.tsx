@@ -728,6 +728,49 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     }
   };
 
+  // SVG viewBox를 실제 콘텐츠 경계로 크롭 (배경/여백 제외 → 인쇄 영역에 꽉 채움)
+  const cropSvgToContent = async (svgDataUrl: string): Promise<string> => {
+    try {
+      const m = svgDataUrl.match(/^data:image\/svg\+xml;base64,(.+)$/);
+      if (!m) return svgDataUrl;
+      const svgText = decodeURIComponent(escape(atob(m[1])));
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(svgText, "image/svg+xml");
+      const svgEl = doc.documentElement as unknown as SVGSVGElement;
+      // 측정용 임시 DOM 부착 (offscreen)
+      const host = document.createElement("div");
+      host.style.cssText = "position:absolute;left:-99999px;top:-99999px;width:0;height:0;overflow:hidden;";
+      const liveSvg = svgEl.cloneNode(true) as SVGSVGElement;
+      host.appendChild(liveSvg);
+      document.body.appendChild(host);
+      let bbox: { x: number; y: number; width: number; height: number } | null = null;
+      try {
+        bbox = (liveSvg as any).getBBox();
+      } catch {
+        bbox = null;
+      }
+      document.body.removeChild(host);
+      if (!bbox || !isFinite(bbox.width) || !isFinite(bbox.height) || bbox.width <= 0 || bbox.height <= 0) {
+        return svgDataUrl;
+      }
+      // 약간의 여유(0.5%)만 두고 타이트하게 크롭
+      const pad = Math.max(bbox.width, bbox.height) * 0.005;
+      const x = bbox.x - pad;
+      const y = bbox.y - pad;
+      const w = bbox.width + pad * 2;
+      const h = bbox.height + pad * 2;
+      svgEl.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
+      svgEl.setAttribute("width", String(w));
+      svgEl.setAttribute("height", String(h));
+      svgEl.setAttribute("preserveAspectRatio", "xMidYMid meet");
+      const out = new XMLSerializer().serializeToString(svgEl);
+      const b64 = btoa(unescape(encodeURIComponent(out)));
+      return `data:image/svg+xml;base64,${b64}`;
+    } catch {
+      return svgDataUrl;
+    }
+  };
+
   const handleVectorizeAI = async () => {
     // 우선순위: 업스케일 결과 → 원본 로고 (업스케일만 업로드된 경우도 지원)
     const vectorSource = upscaledDataUrl || sourceLogo;
