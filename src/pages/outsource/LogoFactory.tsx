@@ -598,8 +598,65 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     } finally { setBusy(null); }
   };
 
+  /**
+   * AI 최적화 배경 제거 (흰색/단색 배경).
+   * - 4 모서리+변 중점 색 샘플링 → 배경색 추정
+   * - 각 픽셀의 배경색까지의 거리(RGB)로 알파 결정 (소프트 임계)
+   * - 결과를 processedDataUrl 로 적용 → 미리보기/PDF 동시 반영
+   */
+  const handleRemoveBackground = async () => {
+    const src = displayedLogo || sourceLogo;
+    if (!src) { toast({ title: "로고가 없습니다", variant: "destructive" }); return; }
+    setBusy("배경 제거 중 (AI 최적화)...");
+    try {
+      const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
+      const img = await loadImage(dataUrl);
+      const w = img.naturalWidth, h = img.naturalHeight;
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+      ctx.drawImage(img, 0, 0);
+      const id = ctx.getImageData(0, 0, w, h);
+      const d = id.data;
 
+      const samples: Array<[number, number]> = [
+        [0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1],
+        [(w / 2) | 0, 0], [(w / 2) | 0, h - 1], [0, (h / 2) | 0], [w - 1, (h / 2) | 0],
+      ];
+      let br = 0, bg = 0, bb = 0, n = 0;
+      for (const [x, y] of samples) {
+        const i = (y * w + x) * 4;
+        if (d[i + 3] < 8) continue;
+        br += d[i]; bg += d[i + 1]; bb += d[i + 2]; n++;
+      }
+      if (n === 0) { br = bg = bb = 255; n = 1; }
+      br /= n; bg /= n; bb /= n;
 
+      const T1 = 18;
+      const T2 = 60;
+      for (let i = 0; i < d.length; i += 4) {
+        const dr = d[i] - br, dg = d[i + 1] - bg, db = d[i + 2] - bb;
+        const dist = Math.sqrt(dr * dr + dg * dg + db * db);
+        if (dist <= T1) {
+          d[i + 3] = 0;
+        } else if (dist < T2) {
+          const t = (dist - T1) / (T2 - T1);
+          d[i + 3] = Math.round(d[i + 3] * t);
+        }
+      }
+      ctx.putImageData(id, 0, 0);
+      const out = canvas.toDataURL("image/png");
+      setProcessedDataUrl(out);
+      setProcessedKind("upscaled");
+      setLastAnalysis((prev) => prev ? { ...prev, transparent: true } : prev);
+      toast({
+        title: "배경 제거 완료",
+        description: `배경색 RGB(${Math.round(br)},${Math.round(bg)},${Math.round(bb)}) 기준 투명 처리`,
+      });
+    } catch (e: any) {
+      toast({ title: "배경 제거 실패", description: e?.message || String(e), variant: "destructive" });
+    } finally { setBusy(null); }
+  };
 
 
   const downloadVectorSvg = () => {
