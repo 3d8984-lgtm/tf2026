@@ -24,6 +24,7 @@ import html2canvas from "html2canvas";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 import { ExternalLink } from "lucide-react";
+import QRCode from "qrcode";
 
 function fmtDate(v?: string | null): string {
   if (!v) return "";
@@ -912,26 +913,44 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                         </div>
                       </div>
 
-                      {/* API에서 받은 원본 파일 미리보기 + 다운로드 */}
+                      {/* API에서 받은 원본 로고 — 작업번호당 1개 */}
                       {logoUrl && (
-                        <div className="flex items-start gap-4 p-3 rounded-md border bg-blue-50/40 dark:bg-blue-950/20">
-                          <div className="w-24 h-24 border rounded bg-muted/20 flex items-center justify-center overflow-hidden shrink-0">
-                            <img src={logoUrl} alt="API 로고" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                        <div className="rounded-md border bg-blue-50/40 dark:bg-blue-950/20 overflow-hidden">
+                          <div className="px-3 py-2 text-sm font-semibold flex items-center gap-2 border-b bg-background/40">
+                            <Cloud className="w-4 h-4" /> API로 받은 원본 로고
+                            <Badge variant="outline" className="text-[10px]">주문 첨부 · 1건</Badge>
                           </div>
-                          <div className="text-xs space-y-1 flex-1 min-w-0">
-                            <div className="font-semibold text-sm flex items-center gap-2">
-                              <Cloud className="w-3.5 h-3.5" /> API로 받은 원본 파일
-                              <Badge variant="outline" className="text-[10px]">주문 첨부</Badge>
-                            </div>
-                            <div className="text-muted-foreground break-all">{logoUrl}</div>
-                            <div className="pt-1">
-                              <Button size="sm" variant="outline" onClick={() => downloadUrl(logoUrl, `logo-original-${orderNo}.png`)}>
-                                <Download className="w-3 h-3 mr-1" /> 원본 다운로드
-                              </Button>
-                            </div>
-                          </div>
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>작업번호</TableHead>
+                                <TableHead>로고 고유번호</TableHead>
+                                <TableHead>QR</TableHead>
+                                <TableHead>미리보기</TableHead>
+                                <TableHead className="text-right">다운로드</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              <TableRow>
+                                <TableCell className="font-mono">{orderNo}</TableCell>
+                                <TableCell className="font-mono font-medium">{`${orderNo}-1`}</TableCell>
+                                <TableCell><QrThumb value={`${orderNo}-1`} /></TableCell>
+                                <TableCell>
+                                  <div className="w-12 h-12 border rounded bg-white flex items-center justify-center overflow-hidden">
+                                    <img src={logoUrl} alt="로고" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Button size="sm" variant="outline" onClick={() => downloadUrl(logoUrl, `${orderNo}-1.png`)}>
+                                    <Download className="w-3 h-3 mr-1" /> 로고 다운로드
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            </TableBody>
+                          </Table>
                         </div>
                       )}
+
 
                       {sourceLogo && (
                         <div className="flex items-start gap-4 p-3 rounded-md border bg-muted/10">
@@ -1807,3 +1826,18 @@ LOGO 크기: ${logoWidthMm} × ${logoHeightMm} mm
     </Card>
   );
 }
+
+function QrThumb({ value }: { value: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    QRCode.toDataURL(value, { errorCorrectionLevel: "M", margin: 1, width: 80 })
+      .then(d => { if (!cancelled) setSrc(d); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [value]);
+  return src
+    ? <img src={src} alt="qr" className="w-12 h-12 border rounded bg-white" />
+    : <div className="w-12 h-12 border rounded bg-muted" />;
+}
+
