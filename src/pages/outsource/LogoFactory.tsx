@@ -701,6 +701,9 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
       setProcessedDataUrl(out);
       setProcessedKind("upscaled");
+      // 트리밍 후 위치를 중앙으로 리셋 (이전 오프셋이 남아 한쪽으로 쏠리는 현상 방지)
+      setOffsetXMm(0);
+      setOffsetYMm(0);
       setLastAnalysis((prev) => prev ? { ...prev, transparent: true } : prev);
       toast({
         title: "배경 제거 완료",
