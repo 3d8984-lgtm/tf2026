@@ -303,6 +303,8 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   // Persist each processed result independently so the comparator can switch between them.
   const [upscaledDataUrl, setUpscaledDataUrl] = useState<string | null>(null);
   const [vectorDataUrl, setVectorDataUrl] = useState<string | null>(null);
+  // 벡터 변환 전 배경 제거 결과 (미리보기용). null이면 미실행 상태.
+  const [preVectorBgRemovedDataUrl, setPreVectorBgRemovedDataUrl] = useState<string | null>(null);
   // Smart-upscale controls (decision-matrix-driven, see src/lib/upscale.ts)
   const [upscaleMode, setUpscaleMode] = useState<UpscaleMode>("auto");
   const [upscaleSharpness, setUpscaleSharpness] = useState<number>(50);
@@ -433,7 +435,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     setProcessedDataUrl(null);
     setProcessedKind("original");
     setUpscaledDataUrl(null);
-    setVectorDataUrl(null);
+    setVectorDataUrl(null); setPreVectorBgRemovedDataUrl(null);
     setTestLogoDataUrl(null);
     setTestLogoName(null);
   }, [logoUrl]);
@@ -523,7 +525,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       setProcessedDataUrl(null);
       setProcessedKind("original");
       setUpscaledDataUrl(null);
-      setVectorDataUrl(null);
+      setVectorDataUrl(null); setPreVectorBgRemovedDataUrl(null);
       toast({ title: "테스트 로고 적용됨", description: file.name });
     };
     reader.onerror = () => toast({ title: "파일 읽기 실패", variant: "destructive" });
@@ -536,7 +538,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     setProcessedDataUrl(null);
     setProcessedKind("original");
     setUpscaledDataUrl(null);
-    setVectorDataUrl(null);
+    setVectorDataUrl(null); setPreVectorBgRemovedDataUrl(null);
     if (testLogoInputRef.current) testLogoInputRef.current.value = "";
     toast({ title: "테스트 로고 제거됨", description: "원본 로고로 복원되었습니다" });
   };
@@ -805,15 +807,74 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     }
   };
 
+  /**
+   * 배경 제거 코어 로직 (handleRemoveBackground 와 동일한 알고리즘).
+   * 상태를 변경하지 않고 결과 PNG dataUrl만 반환합니다 — 미리보기/벡터 사전처리에 재사용.
+   */
+  const removeBackgroundToDataUrl = async (src: string): Promise<string> => {
+    const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
+    const img = await loadImage(dataUrl);
+    const w = img.naturalWidth, h = img.naturalHeight;
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+    ctx.drawImage(img, 0, 0);
+    const id = ctx.getImageData(0, 0, w, h);
+    const d = id.data;
+    const samples: Array<[number, number]> = [
+      [0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1],
+      [(w / 2) | 0, 0], [(w / 2) | 0, h - 1], [0, (h / 2) | 0], [w - 1, (h / 2) | 0],
+    ];
+    let br = 0, bg = 0, bb = 0, n = 0;
+    for (const [x, y] of samples) {
+      const i = (y * w + x) * 4;
+      if (d[i + 3] < 8) continue;
+      br += d[i]; bg += d[i + 1]; bb += d[i + 2]; n++;
+    }
+    if (n === 0) { br = bg = bb = 255; n = 1; }
+    br /= n; bg /= n; bb /= n;
+    const T1 = 18, T2 = 60;
+    for (let i = 0; i < d.length; i += 4) {
+      const dr = d[i] - br, dg = d[i + 1] - bg, db = d[i + 2] - bb;
+      const dist = Math.sqrt(dr * dr + dg * dg + db * db);
+      if (dist <= T1) d[i + 3] = 0;
+      else if (dist < T2) {
+        const t = (dist - T1) / (T2 - T1);
+        d[i + 3] = Math.round(d[i + 3] * t);
+      }
+    }
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] < 24) d[i + 3] = 0;
+    }
+    ctx.putImageData(id, 0, 0);
+    return canvas.toDataURL("image/png");
+  };
+
+  /** 벡터 변환 직전 배경 제거 — 미리보기 전용 (processedDataUrl/벡터 결과는 건드리지 않음). */
+  const handlePreVectorRemoveBackground = async () => {
+    const src = upscaledDataUrl || sourceLogo;
+    if (!src) { toast({ title: "로고가 없습니다", variant: "destructive" }); return; }
+    setBusy("배경 제거 중...");
+    try {
+      const out = await removeBackgroundToDataUrl(src);
+      setPreVectorBgRemovedDataUrl(out);
+      toast({ title: "배경 제거 완료", description: "아래 미리보기에서 결과를 확인한 뒤 [벡터 변환 실행]을 누르세요." });
+    } catch (e: any) {
+      toast({ title: "배경 제거 실패", description: e?.message || String(e), variant: "destructive" });
+    } finally { setBusy(null); }
+  };
+
   const handleVectorizeAI = async () => {
-    // 우선순위: 업스케일 결과 → 원본 로고 (업스케일만 업로드된 경우도 지원)
-    const vectorSource = upscaledDataUrl || sourceLogo;
+    // 우선순위: 배경 제거 결과 → 업스케일 결과 → 원본 로고
+    const vectorSource = preVectorBgRemovedDataUrl || upscaledDataUrl || sourceLogo;
     if (!vectorSource) { toast({ title: "로고가 없습니다", description: "원본 로고 또는 업스케일 결과를 먼저 업로드하세요.", variant: "destructive" }); return; }
     const mode = (localStorage.getItem(VECTORIZER_MODE_KEY) as "test" | "preview" | "production" | null) || "test";
     setBusy(`Vectorizer.AI 처리 중 (${mode})...`);
     try {
-      // 1) 사전 처리: 흰 배경을 투명으로 만들어 전송 (벡터화 정확도↑, 흰 fill path 생성 방지)
-      const cleaned = await preprocessWhiteToTransparent(vectorSource);
+      // 1) 사전 처리: 이미 배경 제거된 경우 그대로 사용, 아니면 흰 배경을 투명으로 변환
+      const cleaned = preVectorBgRemovedDataUrl
+        ? preVectorBgRemovedDataUrl
+        : await preprocessWhiteToTransparent(vectorSource);
       const payload = { imageBase64: cleaned, mode };
       const { data, error } = await supabase.functions.invoke("vectorize-image", { body: payload });
       if (error) throw error;
@@ -987,7 +1048,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     setProcessedDataUrl(null);
     setProcessedKind("original");
     setUpscaledDataUrl(null);
-    setVectorDataUrl(null);
+    setVectorDataUrl(null); setPreVectorBgRemovedDataUrl(null);
   };
 
   const resetWork = () => {
@@ -1007,7 +1068,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     setTestLogoName(null);
     setUpscaledUploadName(null);
     setUpscaledDataUrl(null);
-    setVectorDataUrl(null);
+    setVectorDataUrl(null); setPreVectorBgRemovedDataUrl(null);
     setUpscaleMode("auto");
     setUpscaleSharpness(50);
     setCurrentStep(1);
@@ -1523,19 +1584,79 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                         </div>
                       )}
 
-                      {/* 단색 로고: 벡터 변환 통합 */}
+                      {/* 단색 로고: 배경 제거 → 벡터 변환 통합 */}
                       {logoType === "mono" && (
                         <div className="space-y-3 p-4 rounded-md border-2 border-primary/30 bg-primary/5">
                           <div className="text-sm font-semibold flex items-center gap-2">
                             <Cloud className="w-4 h-4" /> 벡터 변환 (단색 로고 필수)
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            단색 로고는 벡터(SVG)로 변환해야 인쇄·자수·레이저 공정에서 깔끔하게 출력됩니다. Vectorizer.AI를 사용합니다.
-                            <span className="block mt-1">소스: {processedKind === "upscaled" ? "업스케일된 로고" : "원본 로고"} · 변환 모드는 [외주 설정]에서 변경</span>
+                            ① 먼저 <b>배경 제거</b>로 흰/단색 배경을 투명 처리한 뒤 미리보기로 확인하세요. ② 결과가 만족스러우면 <b>벡터 변환 실행</b>으로 SVG를 생성합니다.
+                            <span className="block mt-1">소스: {preVectorBgRemovedDataUrl ? "배경 제거된 로고" : (upscaledDataUrl ? "업스케일된 로고" : "원본 로고")} · 변환 모드는 [외주 설정]에서 변경</span>
                           </div>
-                          <div className="flex items-center justify-between gap-3">
+
+                          {/* ① 배경 제거 */}
+                          <div className="flex items-center justify-between gap-3 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                variant={preVectorBgRemovedDataUrl ? "outline" : "default"}
+                                onClick={handlePreVectorRemoveBackground}
+                                disabled={(!sourceLogo && !upscaledDataUrl) || !!busy}
+                              >
+                                🪄 {preVectorBgRemovedDataUrl ? "배경 다시 제거" : "① 배경 제거"}
+                              </Button>
+                              {preVectorBgRemovedDataUrl && (
+                                <Button size="sm" variant="ghost" onClick={() => setPreVectorBgRemovedDataUrl(null)} disabled={!!busy}>
+                                  초기화
+                                </Button>
+                              )}
+                            </div>
+                            {preVectorBgRemovedDataUrl && (
+                              <span className="text-[11px] text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" /> 배경 제거 완료
+                              </span>
+                            )}
+                          </div>
+
+                          {/* 미리보기: 원본/업스케일 vs 배경 제거 결과 */}
+                          {(sourceLogo || upscaledDataUrl) && (
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <div className="text-[11px] text-muted-foreground">원본 / 업스케일</div>
+                                <div className="aspect-square rounded border bg-muted/30 flex items-center justify-center overflow-hidden">
+                                  <img
+                                    src={upscaledDataUrl || sourceLogo!}
+                                    alt="배경 제거 전"
+                                    className="max-w-full max-h-full object-contain"
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-1">
+                                <div className="text-[11px] text-muted-foreground">배경 제거 결과 (투명)</div>
+                                <div
+                                  className="aspect-square rounded border flex items-center justify-center overflow-hidden"
+                                  style={{
+                                    backgroundImage:
+                                      "linear-gradient(45deg,#ccc 25%,transparent 25%),linear-gradient(-45deg,#ccc 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#ccc 75%),linear-gradient(-45deg,transparent 75%,#ccc 75%)",
+                                    backgroundSize: "12px 12px",
+                                    backgroundPosition: "0 0,0 6px,6px -6px,-6px 0px",
+                                  }}
+                                >
+                                  {preVectorBgRemovedDataUrl ? (
+                                    <img src={preVectorBgRemovedDataUrl} alt="배경 제거 후" className="max-w-full max-h-full object-contain" />
+                                  ) : (
+                                    <span className="text-[11px] text-muted-foreground">[① 배경 제거] 실행 시 표시됩니다</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* ② 벡터 변환 */}
+                          <div className="flex items-center justify-between gap-3 pt-2 border-t border-primary/20">
                             <Button onClick={handleVectorizeAI} disabled={(!sourceLogo && !upscaledDataUrl) || !!busy}>
-                              <Cloud className="w-4 h-4 mr-1" /> 벡터 변환 실행
+                              <Cloud className="w-4 h-4 mr-1" /> ② 벡터 변환 실행
                             </Button>
                             {vectorDataUrl && (
                               <Button size="sm" variant="outline" onClick={downloadVectorSvg}>
