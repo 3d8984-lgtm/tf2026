@@ -1302,7 +1302,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                             }
                             toast({ title: "작업 완료", description: "작업결과물 다운로드 버튼이 활성화되었습니다." });
                           }}
-                          disabled={!sourceLogo || !!busy}
+                          disabled={!!busy || (!upscaledUploadName && !upscaledDataUrl)}
                         >
                           {workCompleted ? <><CheckCircle2 className="w-4 h-4 mr-1" /> 완료됨</> : <><CheckCircle2 className="w-4 h-4 mr-1" /> 완료</>}
                         </Button>
