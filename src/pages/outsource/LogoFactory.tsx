@@ -725,8 +725,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
         if (isWhite(fillAttr) || isWhite(styleFill)) el.remove();
       });
       const out = new XMLSerializer().serializeToString(doc);
-      const b64 = btoa(unescape(encodeURIComponent(out)));
-      return `data:image/svg+xml;base64,${b64}`;
+      return svgTextToDataUrl(out);
     } catch {
       return svgDataUrl;
     }
@@ -735,41 +734,58 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   // SVG viewBox를 실제 콘텐츠 경계로 크롭 (배경/여백 제외 → 인쇄 영역에 꽉 채움)
   const cropSvgToContent = async (svgDataUrl: string): Promise<string> => {
     try {
-      const m = svgDataUrl.match(/^data:image\/svg\+xml;base64,(.+)$/);
-      if (!m) return svgDataUrl;
-      const svgText = decodeURIComponent(escape(atob(m[1])));
+      const svgText = svgDataUrlToText(svgDataUrl);
       const parser = new DOMParser();
       const doc = parser.parseFromString(svgText, "image/svg+xml");
       const svgEl = doc.documentElement as unknown as SVGSVGElement;
-      // 측정용 임시 DOM 부착 (offscreen)
-      const host = document.createElement("div");
-      host.style.cssText = "position:absolute;left:-99999px;top:-99999px;width:0;height:0;overflow:hidden;";
-      const liveSvg = svgEl.cloneNode(true) as SVGSVGElement;
-      host.appendChild(liveSvg);
-      document.body.appendChild(host);
-      let bbox: { x: number; y: number; width: number; height: number } | null = null;
-      try {
-        bbox = (liveSvg as any).getBBox();
-      } catch {
-        bbox = null;
+      const baseViewBox = svgEl.getAttribute("viewBox")?.trim().split(/[\s,]+/).map(Number);
+      const baseW = baseViewBox?.length === 4 && baseViewBox[2] > 0 ? baseViewBox[2] : Number(svgEl.getAttribute("width")) || 1000;
+      const baseH = baseViewBox?.length === 4 && baseViewBox[3] > 0 ? baseViewBox[3] : Number(svgEl.getAttribute("height")) || 1000;
+
+      // DOM getBBox는 투명/빈 path 또는 루트 viewBox 영향을 받는 경우가 있어,
+      // 실제 렌더링 픽셀의 alpha 경계로 한 번 더 정확히 계산합니다.
+      const probeW = 1200;
+      const probeH = Math.max(1, Math.round(probeW * (baseH / baseW)));
+      const img = await loadImage(svgTextToDataUrl(new XMLSerializer().serializeToString(svgEl)));
+      const probe = document.createElement("canvas");
+      probe.width = probeW;
+      probe.height = probeH;
+      const pctx = probe.getContext("2d", { willReadFrequently: true })!;
+      pctx.clearRect(0, 0, probeW, probeH);
+      pctx.drawImage(img, 0, 0, probeW, probeH);
+      const pixels = pctx.getImageData(0, 0, probeW, probeH).data;
+      let minX = probeW, minY = probeH, maxX = -1, maxY = -1;
+      for (let y = 0; y < probeH; y++) {
+        for (let x = 0; x < probeW; x++) {
+          const a = pixels[(y * probeW + x) * 4 + 3];
+          if (a > 16) {
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+          }
+        }
       }
-      document.body.removeChild(host);
-      if (!bbox || !isFinite(bbox.width) || !isFinite(bbox.height) || bbox.width <= 0 || bbox.height <= 0) {
+      if (maxX < minX || maxY < minY) {
         return svgDataUrl;
       }
-      // 약간의 여유(0.5%)만 두고 타이트하게 크롭
-      const pad = Math.max(bbox.width, bbox.height) * 0.005;
-      const x = bbox.x - pad;
-      const y = bbox.y - pad;
-      const w = bbox.width + pad * 2;
-      const h = bbox.height + pad * 2;
+      const padPx = Math.max(1, Math.ceil(Math.max(maxX - minX + 1, maxY - minY + 1) * 0.003));
+      minX = Math.max(0, minX - padPx);
+      minY = Math.max(0, minY - padPx);
+      maxX = Math.min(probeW - 1, maxX + padPx);
+      maxY = Math.min(probeH - 1, maxY + padPx);
+
+      const [vbX, vbY, vbW, vbH] = baseViewBox?.length === 4 ? baseViewBox : [0, 0, baseW, baseH];
+      const x = vbX + (minX / probeW) * vbW;
+      const y = vbY + (minY / probeH) * vbH;
+      const w = ((maxX - minX + 1) / probeW) * vbW;
+      const h = ((maxY - minY + 1) / probeH) * vbH;
       svgEl.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
       svgEl.setAttribute("width", String(w));
       svgEl.setAttribute("height", String(h));
       svgEl.setAttribute("preserveAspectRatio", "xMidYMid meet");
       const out = new XMLSerializer().serializeToString(svgEl);
-      const b64 = btoa(unescape(encodeURIComponent(out)));
-      return `data:image/svg+xml;base64,${b64}`;
+      return svgTextToDataUrl(out);
     } catch {
       return svgDataUrl;
     }
