@@ -1584,8 +1584,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                       {currentStep === 1 && !step1Done && "로고를 확인하세요"}
                       {currentStep === 2 && !step2Done && "로고 타입을 선택하세요"}
                       {currentStep === 3 && !step3Done && (logoType === "color" ? "업스케일을 완료하세요" : "업스케일을 실행하거나 건너뛰세요")}
-                      {currentStep === 7 && !upscaledUploadName && "외부 업스케일 파일을 업로드하거나 건너뛰세요"}
-                      {currentStep === 4 && !step4Done && "벡터 변환을 실행하세요"}
+                      {currentStep === 7 && !step7Done && (logoType === "mono" ? "벡터 변환을 실행해주세요" : "외부 업스케일 파일을 업로드하거나 건너뛰세요")}
                       {currentStep === 5 && !step5Done && "인쇄영역 설정을 저장하세요"}
                     </div>
                     <Button size="sm" onClick={next} disabled={idx >= STEPS.length - 1 || !canAdvance(currentStep)}>
