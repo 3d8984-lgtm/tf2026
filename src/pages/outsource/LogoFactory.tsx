@@ -913,50 +913,64 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                         </div>
                       </div>
 
-                      {/* 원본 로고 — 작업번호당 1개 (API 우선, 없으면 업로드본) */}
-                      {(logoUrl || testLogoDataUrl) ? (
-                        <div className="rounded-md border bg-blue-50/40 dark:bg-blue-950/20 overflow-hidden">
-                          <div className="px-3 py-2 text-sm font-semibold flex items-center gap-2 border-b bg-background/40">
-                            <Cloud className="w-4 h-4" />
-                            {logoUrl ? "API로 받은 원본 로고" : "업로드한 로고 (API 원본 없음)"}
-                            <Badge variant="outline" className="text-[10px]">
-                              {logoUrl ? "주문 첨부" : "로컬 업로드"} · 1건
-                            </Badge>
-                          </div>
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>작업번호</TableHead>
-                                <TableHead>로고 고유번호</TableHead>
-                                <TableHead>QR</TableHead>
-                                <TableHead>미리보기</TableHead>
-                                <TableHead className="text-right">다운로드</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              <TableRow>
-                                <TableCell className="font-mono">{orderNo}</TableCell>
-                                <TableCell className="font-mono font-medium">{`${orderNo}-1`}</TableCell>
-                                <TableCell><QrThumb value={`${orderNo}-1`} /></TableCell>
-                                <TableCell>
-                                  <div className="w-12 h-12 border rounded bg-white flex items-center justify-center overflow-hidden">
+                      {/* 원본 로고 — 작업번호당 1개 (로고 없어도 정보는 표시) */}
+                      <div className="rounded-md border bg-blue-50/40 dark:bg-blue-950/20 overflow-hidden">
+                        <div className="px-3 py-2 text-sm font-semibold flex items-center gap-2 border-b bg-background/40">
+                          <Cloud className="w-4 h-4" />
+                          {logoUrl
+                            ? "API로 받은 원본 로고"
+                            : testLogoDataUrl
+                              ? "업로드한 로고 (API 원본 없음)"
+                              : "원본 로고 (미등록)"}
+                          <Badge variant="outline" className="text-[10px]">
+                            {logoUrl ? "주문 첨부" : testLogoDataUrl ? "로컬 업로드" : "없음"} · 1건
+                          </Badge>
+                        </div>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>작업번호</TableHead>
+                              <TableHead>로고 고유번호</TableHead>
+                              <TableHead>QR</TableHead>
+                              <TableHead>미리보기</TableHead>
+                              <TableHead className="text-right">동작</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            <TableRow>
+                              <TableCell className="font-mono">{orderNo}</TableCell>
+                              <TableCell className="font-mono font-medium">{`${orderNo}-1`}</TableCell>
+                              <TableCell><QrThumb value={`${orderNo}-1`} /></TableCell>
+                              <TableCell>
+                                <div className="w-12 h-12 border rounded bg-white flex items-center justify-center overflow-hidden">
+                                  {(logoUrl || testLogoDataUrl) ? (
                                     <img src={(logoUrl || testLogoDataUrl)!} alt="로고" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
-                                  </div>
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  <Button size="sm" variant="outline" onClick={() => downloadUrl((logoUrl || testLogoDataUrl)!, `${orderNo}-1.png`)}>
-                                    <Download className="w-3 h-3 mr-1" /> 로고 다운로드
+                                  ) : (
+                                    <span className="text-[10px] text-muted-foreground">없음</span>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  {(logoUrl || testLogoDataUrl) && (
+                                    <Button size="sm" variant="outline" onClick={() => downloadUrl((logoUrl || testLogoDataUrl)!, `${orderNo}-1.png`)}>
+                                      <Download className="w-3 h-3 mr-1" /> 다운로드
+                                    </Button>
+                                  )}
+                                  <Button size="sm" variant={(logoUrl || testLogoDataUrl) ? "ghost" : "default"} onClick={() => { if (testLogoInputRef.current) { testLogoInputRef.current.value = ""; testLogoInputRef.current.click(); } }}>
+                                    <Upload className="w-3 h-3 mr-1" /> {testLogoDataUrl ? "교체" : "수동 업로드"}
                                   </Button>
-                                </TableCell>
-                              </TableRow>
-                            </TableBody>
-                          </Table>
-                        </div>
-                      ) : (
-                        <div className="rounded-md border border-dashed p-4 text-xs text-muted-foreground bg-muted/10">
-                          이 작업번호에는 API로 받은 원본 로고가 없습니다. 위에서 테스트 로고를 업로드하면 여기에 표시됩니다.
-                        </div>
-                      )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                        {!logoUrl && !testLogoDataUrl && (
+                          <div className="px-3 py-2 text-[11px] text-muted-foreground border-t bg-muted/10">
+                            API로 받은 원본 로고가 없습니다. 우측 <b>수동 업로드</b> 버튼으로 로고 파일을 등록하세요.
+                          </div>
+                        )}
+                      </div>
 
 
                       {sourceLogo && (
