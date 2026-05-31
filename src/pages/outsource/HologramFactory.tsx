@@ -167,6 +167,29 @@ function buildHologramExcelBlob(items: Array<{ seq: number; uniqueNo: string; ed
 }
 
 const WECHAT_WEBHOOK_LS_KEY = "wechat.webhook.hologram";
+const WECHAT_HOOKS_SHARED_KEY = "outsource.wechatWebhooks.v1";
+
+function readHologramWebhook(): string {
+  try {
+    const shared = localStorage.getItem(WECHAT_HOOKS_SHARED_KEY);
+    if (shared) {
+      const obj = JSON.parse(shared);
+      if (obj?.hologram) return String(obj.hologram).trim();
+    }
+  } catch {}
+  try { return (localStorage.getItem(WECHAT_WEBHOOK_LS_KEY) || "").trim(); } catch { return ""; }
+}
+
+function writeHologramWebhook(url: string) {
+  const v = url.trim();
+  try { localStorage.setItem(WECHAT_WEBHOOK_LS_KEY, v); } catch {}
+  try {
+    const raw = localStorage.getItem(WECHAT_HOOKS_SHARED_KEY);
+    const obj = raw ? JSON.parse(raw) : {};
+    obj.hologram = v;
+    localStorage.setItem(WECHAT_HOOKS_SHARED_KEY, JSON.stringify(obj));
+  } catch {}
+}
 
 function OrderProgressBox({
   order, items, pdfPreview,
