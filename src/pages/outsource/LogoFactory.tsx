@@ -1565,7 +1565,7 @@ function buildLogoWorkOrderHtml(
 ): string {
   const esc = (s: any) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
   const today = new Date().toISOString().slice(0, 10);
-  const typeLabel = WORK_TYPES.find(w => w.value === workType)?.label || workType;
+  const typeLabel = loadWorkTypes().find(w => w.value === workType)?.label || workType;
   const printScript = opts?.autoPrint ? `<script>window.addEventListener("load", () => setTimeout(() => window.print(), 400));</script>` : "";
   return `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8" />
