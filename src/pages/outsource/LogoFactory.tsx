@@ -424,6 +424,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const clampedOffsetY = Math.max(-maxOffsetY, Math.min(maxOffsetY, offsetYMm));
 
   useEffect(() => {
+    if (restoringRef.current) return; // 복원 중에는 초기화 금지
     setProcessedDataUrl(null);
     setProcessedKind("original");
     setUpscaledDataUrl(null);
@@ -431,6 +432,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     setTestLogoDataUrl(null);
     setTestLogoName(null);
   }, [logoUrl]);
+
 
   // Auto-set print size: preserve the logo's natural aspect ratio and scale it
   // to the largest size that fits inside the current print area (canvas).
