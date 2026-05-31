@@ -922,10 +922,10 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                           {logoUrl
                             ? "API로 받은 원본 로고"
                             : testLogoDataUrl
-                              ? "업로드한 로고 (API 원본 없음)"
+                              ? "로고확인됨 (API 원본 없음)"
                               : "원본 로고 (미등록)"}
                           <Badge variant="outline" className="text-[10px]">
-                            {logoUrl ? "주문 첨부" : testLogoDataUrl ? "로컬 업로드" : "없음"} · 1건
+                            {logoUrl ? "주문 첨부" : testLogoDataUrl ? "수동 확인" : "없음"} · 1건
                           </Badge>
                         </div>
                         <Table>
@@ -960,7 +960,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                                     </Button>
                                   )}
                                   <Button size="sm" variant={(logoUrl || testLogoDataUrl) ? "ghost" : "default"} onClick={() => { if (testLogoInputRef.current) { testLogoInputRef.current.value = ""; testLogoInputRef.current.click(); } }}>
-                                    <Upload className="w-3 h-3 mr-1" /> {testLogoDataUrl ? "교체" : "수동 업로드"}
+                                    <Upload className="w-3 h-3 mr-1" /> {testLogoDataUrl ? "교체" : "로고확인"}
                                   </Button>
                                 </div>
                               </TableCell>
@@ -969,7 +969,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                         </Table>
                         {!logoUrl && !testLogoDataUrl && (
                           <div className="px-3 py-2 text-[11px] text-muted-foreground border-t bg-muted/10">
-                            API로 받은 원본 로고가 없습니다. 우측 <b>수동 업로드</b> 버튼으로 로고 파일을 등록하세요.
+                            API로 받은 원본 로고가 없습니다. 우측 <b>로고확인</b> 버튼으로 로고 파일을 등록하세요.
                           </div>
                         )}
                       </div>
