@@ -265,6 +265,8 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const [testLogoDataUrl, setTestLogoDataUrl] = useState<string | null>(null);
   const [testLogoName, setTestLogoName] = useState<string | null>(null);
   const testLogoInputRef = useRef<HTMLInputElement>(null);
+  const upscaledUploadInputRef = useRef<HTMLInputElement>(null);
+  const [upscaledUploadName, setUpscaledUploadName] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   // Compare viewer
   const [compareMode, setCompareMode] = useState<"side" | "slider">("side");
@@ -426,6 +428,41 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     setVectorDataUrl(null);
     if (testLogoInputRef.current) testLogoInputRef.current.value = "";
     toast({ title: "테스트 로고 제거됨", description: "원본 로고로 복원되었습니다" });
+  };
+
+  /** Download any URL (data: or remote) as a file via a temporary <a>. */
+  const downloadUrl = async (url: string, filename: string) => {
+    try {
+      const dataUrl = url.startsWith("data:") ? url : await fetchAsDataUrl(url);
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (e: any) {
+      toast({ title: "다운로드 실패", description: e?.message || String(e), variant: "destructive" });
+    }
+  };
+
+  /** User uploads an externally-upscaled file (e.g. from Let's Enhance). */
+  const handleUpscaledUpload = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "이미지 파일만 업로드 가능합니다", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setUpscaledDataUrl(dataUrl);
+      setProcessedDataUrl(dataUrl);
+      setProcessedKind("upscaled");
+      setCompareTarget("upscaled");
+      setUpscaledUploadName(file.name);
+      toast({ title: "업스케일 결과 업로드 완료", description: file.name });
+    };
+    reader.onerror = () => toast({ title: "파일 읽기 실패", variant: "destructive" });
+    reader.readAsDataURL(file);
   };
 
   const handleUpscale = async () => {
@@ -771,6 +808,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 { id: 1, label: "업로드" },
                 { id: 2, label: "타입 확인" },
                 { id: 3, label: "업스케일" },
+                { id: 7, label: "업스케일 업로드" },
                 { id: 4, label: "벡터 변환" },
                 { id: 5, label: "인쇄영역 & 크기" },
                 { id: 6, label: "미리보기 & PDF" },
@@ -779,14 +817,16 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
               const step1Done = !!sourceLogo;
               const step2Done = !!logoType;
               const step3Done = !!upscaledDataUrl || upscaleSkipped || (logoType === "mono" && !!vectorDataUrl);
+              const step7Done = !!upscaledUploadName || !!upscaledDataUrl || upscaleSkipped;
               const step4Done = !!vectorDataUrl;
               const step5Done = printAreaSaved;
-              const doneMap: Record<number, boolean> = { 1: step1Done, 2: step2Done, 3: step3Done, 4: step4Done, 5: step5Done, 6: false };
+              const doneMap: Record<number, boolean> = { 1: step1Done, 2: step2Done, 3: step3Done, 7: step7Done, 4: step4Done, 5: step5Done, 6: false };
 
               const canAdvance = (id: number) => {
                 if (id === 1) return step1Done;
                 if (id === 2) return step2Done;
                 if (id === 3) return step3Done;
+                if (id === 7) return true; // optional step — skip allowed
                 if (id === 4) return step4Done;
                 if (id === 5) return step5Done;
                 return false;
@@ -814,7 +854,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                             <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-semibold ${
                               done ? "bg-emerald-500 text-white" : active ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted-foreground/20"
                             }`}>
-                              {done ? <CheckCircle2 className="w-3.5 h-3.5" /> : s.id}
+                              {done ? <CheckCircle2 className="w-3.5 h-3.5" /> : (i + 1)}
                             </span>
                             <span className="whitespace-nowrap font-medium">{s.label}</span>
                           </button>
@@ -872,13 +912,37 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                         </div>
                       </div>
 
+                      {/* API에서 받은 원본 파일 미리보기 + 다운로드 */}
+                      {logoUrl && (
+                        <div className="flex items-start gap-4 p-3 rounded-md border bg-blue-50/40 dark:bg-blue-950/20">
+                          <div className="w-24 h-24 border rounded bg-muted/20 flex items-center justify-center overflow-hidden shrink-0">
+                            <img src={logoUrl} alt="API 로고" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                          </div>
+                          <div className="text-xs space-y-1 flex-1 min-w-0">
+                            <div className="font-semibold text-sm flex items-center gap-2">
+                              <Cloud className="w-3.5 h-3.5" /> API로 받은 원본 파일
+                              <Badge variant="outline" className="text-[10px]">주문 첨부</Badge>
+                            </div>
+                            <div className="text-muted-foreground break-all">{logoUrl}</div>
+                            <div className="pt-1">
+                              <Button size="sm" variant="outline" onClick={() => downloadUrl(logoUrl, `logo-original-${orderNo}.png`)}>
+                                <Download className="w-3 h-3 mr-1" /> 원본 다운로드
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       {sourceLogo && (
                         <div className="flex items-start gap-4 p-3 rounded-md border bg-muted/10">
                           <div className="w-24 h-24 border rounded bg-muted/20 flex items-center justify-center overflow-hidden shrink-0">
                             <img src={sourceLogo} alt="로고" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
                           </div>
                           <div className="text-xs space-y-1 flex-1 min-w-0">
-                            <div className="font-semibold text-sm">자동 분석 결과</div>
+                            <div className="font-semibold text-sm flex items-center gap-2">
+                              자동 분석 결과
+                              <Badge variant="secondary" className="text-[10px]">{testLogoDataUrl ? "업로드본" : "API 원본"}</Badge>
+                            </div>
                             {lastAnalysis ? (
                               <>
                                 <div>해상도: <span className="font-mono">{lastAnalysis.width}×{lastAnalysis.height}px</span></div>
@@ -978,6 +1042,74 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                       )}
                     </div>
                   )}
+
+                  {/* ============ STEP 7: 업스케일 결과 업로드 ============ */}
+                  {currentStep === 7 && (
+                    <div className="space-y-4">
+                      <div className="text-sm text-muted-foreground">
+                        외부 도구(Let's Enhance 등)에서 업스케일한 결과 파일을 업로드하세요. 사이트 내장 업스케일을 사용했다면 이 단계는 건너뛰어도 됩니다.
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3 p-3 rounded-md border border-dashed bg-muted/20">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium">업스케일 파일 업로드</div>
+                            <div className="text-[11px] text-muted-foreground truncate">
+                              {upscaledUploadName
+                                ? <>업로드됨: <span className="font-mono">{upscaledUploadName}</span></>
+                                : upscaledDataUrl
+                                  ? "사이트 내장 업스케일 결과가 적용되어 있습니다. 외부 업스케일본으로 교체하려면 업로드하세요."
+                                  : "PNG/JPG 파일을 업로드하세요 (배경 투명 유지)"}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <input
+                            ref={upscaledUploadInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) handleUpscaledUpload(f);
+                              e.target.value = "";
+                            }}
+                          />
+                          <Button size="sm" variant="outline" onClick={() => upscaledUploadInputRef.current?.click()}>
+                            <Upload className="w-3 h-3 mr-1" /> {upscaledUploadName || upscaledDataUrl ? "교체" : "업로드"}
+                          </Button>
+                        </div>
+                      </div>
+
+                      {upscaledDataUrl && (
+                        <div className="flex items-start gap-4 p-3 rounded-md border bg-muted/10">
+                          <div className="w-24 h-24 border rounded bg-muted/20 flex items-center justify-center overflow-hidden shrink-0">
+                            <img src={upscaledDataUrl} alt="업스케일 결과" className="max-w-full max-h-full object-contain" />
+                          </div>
+                          <div className="text-xs space-y-1 flex-1 min-w-0">
+                            <div className="font-semibold text-sm flex items-center gap-2">
+                              현재 업스케일 결과 <Badge variant="secondary" className="text-[10px]">{upscaledUploadName ? "외부 업로드" : "사이트 내장"}</Badge>
+                            </div>
+                            <div className="text-muted-foreground">다음 단계에서 이 파일을 기준으로 작업이 진행됩니다.</div>
+                            <div className="pt-1">
+                              <Button size="sm" variant="outline" onClick={() => downloadUrl(upscaledDataUrl, `logo-upscaled-${orderNo}.png`)}>
+                                <Download className="w-3 h-3 mr-1" /> 다운로드
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {!upscaledDataUrl && (
+                        <div className="flex items-center justify-between p-3 rounded-md bg-muted/20 border">
+                          <div className="text-xs text-muted-foreground">외부 업스케일이 필요 없다면 이 단계를 건너뛸 수 있습니다.</div>
+                          <Button size="sm" variant="ghost" onClick={() => { setUpscaleSkipped(true); next(); }}>건너뛰기 →</Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
 
                   {/* ============ STEP 4: 벡터 변환 (단색 전용) ============ */}
                   {currentStep === 4 && logoType === "mono" && (
@@ -1173,6 +1305,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                       {currentStep === 1 && !step1Done && "로고를 업로드하세요"}
                       {currentStep === 2 && !step2Done && "로고 타입을 선택하세요"}
                       {currentStep === 3 && !step3Done && (logoType === "color" ? "업스케일을 완료하세요" : "업스케일을 실행하거나 건너뛰세요")}
+                      {currentStep === 7 && !upscaledUploadName && "외부 업스케일 파일을 업로드하거나 건너뛰세요"}
                       {currentStep === 4 && !step4Done && "벡터 변환을 실행하세요"}
                       {currentStep === 5 && !step5Done && "인쇄영역 설정을 저장하세요"}
                     </div>
