@@ -295,6 +295,9 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const [printAreaSaved, setPrintAreaSaved] = useState<boolean>(() => {
     try { return !!localStorage.getItem(`logo.printArea.v1.${orderNo}`); } catch { return false; }
   });
+  const [workCompleted, setWorkCompleted] = useState<boolean>(() => {
+    try { return !!localStorage.getItem(`logo.workCompleted.v1.${orderNo}`); } catch { return false; }
+  });
 
   // Logo size as % of canvas longest side — convenience slider
   const canvasLongest = Math.max(canvasWidthMm, canvasHeightMm) || 1;
