@@ -912,13 +912,37 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                         </div>
                       </div>
 
+                      {/* API에서 받은 원본 파일 미리보기 + 다운로드 */}
+                      {logoUrl && (
+                        <div className="flex items-start gap-4 p-3 rounded-md border bg-blue-50/40 dark:bg-blue-950/20">
+                          <div className="w-24 h-24 border rounded bg-muted/20 flex items-center justify-center overflow-hidden shrink-0">
+                            <img src={logoUrl} alt="API 로고" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                          </div>
+                          <div className="text-xs space-y-1 flex-1 min-w-0">
+                            <div className="font-semibold text-sm flex items-center gap-2">
+                              <Cloud className="w-3.5 h-3.5" /> API로 받은 원본 파일
+                              <Badge variant="outline" className="text-[10px]">주문 첨부</Badge>
+                            </div>
+                            <div className="text-muted-foreground break-all">{logoUrl}</div>
+                            <div className="pt-1">
+                              <Button size="sm" variant="outline" onClick={() => downloadUrl(logoUrl, `logo-original-${orderNo}.png`)}>
+                                <Download className="w-3 h-3 mr-1" /> 원본 다운로드
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       {sourceLogo && (
                         <div className="flex items-start gap-4 p-3 rounded-md border bg-muted/10">
                           <div className="w-24 h-24 border rounded bg-muted/20 flex items-center justify-center overflow-hidden shrink-0">
                             <img src={sourceLogo} alt="로고" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
                           </div>
                           <div className="text-xs space-y-1 flex-1 min-w-0">
-                            <div className="font-semibold text-sm">자동 분석 결과</div>
+                            <div className="font-semibold text-sm flex items-center gap-2">
+                              자동 분석 결과
+                              <Badge variant="secondary" className="text-[10px]">{testLogoDataUrl ? "업로드본" : "API 원본"}</Badge>
+                            </div>
                             {lastAnalysis ? (
                               <>
                                 <div>해상도: <span className="font-mono">{lastAnalysis.width}×{lastAnalysis.height}px</span></div>
