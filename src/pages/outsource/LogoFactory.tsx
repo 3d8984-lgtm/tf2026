@@ -674,15 +674,17 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
   // Vectorizer.AI 클라우드 벡터화 (고품질)
   const handleVectorizeAI = async () => {
-    if (!sourceLogo) { toast({ title: "로고가 없습니다", variant: "destructive" }); return; }
+    // 우선순위: 업스케일 결과 → 원본 로고 (업스케일만 업로드된 경우도 지원)
+    const vectorSource = upscaledDataUrl || sourceLogo;
+    if (!vectorSource) { toast({ title: "로고가 없습니다", description: "원본 로고 또는 업스케일 결과를 먼저 업로드하세요.", variant: "destructive" }); return; }
     const mode = (localStorage.getItem(VECTORIZER_MODE_KEY) as "test" | "preview" | "production" | null) || "test";
     setBusy(`Vectorizer.AI 처리 중 (${mode})...`);
     try {
       let payload: { imageBase64?: string; imageUrl?: string; mode: string };
-      if (sourceLogo.startsWith("data:")) {
-        payload = { imageBase64: sourceLogo, mode };
+      if (vectorSource.startsWith("data:")) {
+        payload = { imageBase64: vectorSource, mode };
       } else {
-        payload = { imageUrl: sourceLogo, mode };
+        payload = { imageUrl: vectorSource, mode };
       }
       const { data, error } = await supabase.functions.invoke("vectorize-image", { body: payload });
       if (error) throw error;
