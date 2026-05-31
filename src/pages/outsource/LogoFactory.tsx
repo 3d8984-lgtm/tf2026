@@ -236,8 +236,21 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const [workType, setWorkType] = useState<WorkType>("heat-transfer");
   const DEFAULT_BASE_MM = 50;
   const DEFAULT_CANVAS_MM = 100;
-  const [canvasWidthMm, setCanvasWidthMm] = useState<number>(DEFAULT_CANVAS_MM);
-  const [canvasHeightMm, setCanvasHeightMm] = useState<number>(DEFAULT_CANVAS_MM);
+  const PRINT_AREA_LS_KEY = `logo.printArea.v1.${orderNo}`;
+  const [canvasWidthMm, setCanvasWidthMm] = useState<number>(() => {
+    try {
+      const raw = localStorage.getItem(`logo.printArea.v1.${orderNo}`);
+      if (raw) { const o = JSON.parse(raw); if (o?.w) return Number(o.w); }
+    } catch {}
+    return DEFAULT_CANVAS_MM;
+  });
+  const [canvasHeightMm, setCanvasHeightMm] = useState<number>(() => {
+    try {
+      const raw = localStorage.getItem(`logo.printArea.v1.${orderNo}`);
+      if (raw) { const o = JSON.parse(raw); if (o?.h) return Number(o.h); }
+    } catch {}
+    return DEFAULT_CANVAS_MM;
+  });
   const [logoWidthMm, setLogoWidthMm] = useState<number>(DEFAULT_BASE_MM);
   const [logoHeightMm, setLogoHeightMm] = useState<number>(DEFAULT_BASE_MM);
   const [offsetXMm, setOffsetXMm] = useState<number>(0);
