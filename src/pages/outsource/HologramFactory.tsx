@@ -66,17 +66,18 @@ interface HoloWorkOrderData {
   recipient: string; phone: string; address: string; notes: string;
 }
 
-function printHologramWorkOrder(wo: HoloWorkOrderData, pdfPreview: string | null) {
+function buildHologramWorkOrderHtml(wo: HoloWorkOrderData, pdfPreview: string | null, opts?: { autoPrint?: boolean }) {
   const esc = (s: any) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
   const today = new Date().toISOString().slice(0, 10);
   const img = pdfPreview ? `<img src="${pdfPreview}" alt="hologram" />` : `<div class="ph">未上传PDF</div>`;
-  const html = `<!doctype html>
+  const printScript = opts?.autoPrint ? `<script>window.addEventListener("load", () => setTimeout(() => window.print(), 300));</script>` : "";
+  return `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8" />
 <title>作业指示书 - ${esc(wo.orderNo)}</title>
 <style>
   @page { size: A4; margin: 12mm; }
   * { box-sizing: border-box; }
-  body { font-family: "PingFang SC", "Microsoft YaHei", "SimHei", "Noto Sans SC", sans-serif; color:#111; margin:0; padding:0; }
+  body { font-family: "PingFang SC", "Microsoft YaHei", "SimHei", "Noto Sans SC", sans-serif; color:#111; margin:0; padding:12mm; background:#fff; }
   h1 { font-size: 22pt; text-align:center; margin: 0 0 4mm; letter-spacing: 8px; border-bottom: 2px solid #111; padding-bottom: 4mm; }
   .meta { display:flex; justify-content:space-between; font-size: 9pt; color:#555; margin-bottom: 6mm; }
   table { width:100%; border-collapse: collapse; font-size: 10pt; }
@@ -91,12 +92,12 @@ function printHologramWorkOrder(wo: HoloWorkOrderData, pdfPreview: string | null
   .ph { color:#999; font-size: 10pt; }
   .sig { margin-top: 10mm; display:flex; justify-content:flex-end; gap: 10mm; font-size: 10pt; }
   .sig div { border-top:1px solid #333; padding-top:2mm; min-width: 40mm; text-align:center; }
-  @media print { .no-print { display:none; } }
+  @media print { .no-print { display:none; } body { padding: 0; } }
   .no-print { position:fixed; top:8px; right:8px; }
   .no-print button { padding: 8px 14px; font-size: 13px; cursor:pointer; }
 </style></head>
 <body>
-  <div class="no-print"><button onclick="window.print()">打印 / 保存PDF</button></div>
+  ${opts?.autoPrint ? `<div class="no-print"><button onclick="window.print()">打印 / 保存PDF</button></div>` : ""}
   <h1>作 业 指 示 书</h1>
   <div class="meta"><span>发包方:${esc(wo.company)}</span><span>打印日期:${today}</span></div>
   <table>
@@ -115,11 +116,271 @@ function printHologramWorkOrder(wo: HoloWorkOrderData, pdfPreview: string | null
   <h2>全息贴纸样式</h2>
   <div class="imgbox">${img}</div>
   <div class="sig"><div>负责人</div><div>审批</div></div>
-  <script>window.addEventListener("load", () => setTimeout(() => window.print(), 300));</script>
+  ${printScript}
 </body></html>`;
+}
+
+function printHologramWorkOrder(wo: HoloWorkOrderData, pdfPreview: string | null) {
+  const html = buildHologramWorkOrderHtml(wo, pdfPreview, { autoPrint: true });
   const w = window.open("", "_blank", "width=900,height=1100");
   if (!w) { toast({ title: "팝업 차단됨", description: "팝업을 허용해주세요", variant: "destructive" as any }); return; }
   w.document.open(); w.document.write(html); w.document.close();
+}
+
+function computeHoloWorkOrder(order: any, items: Array<{ grade: Grade }>): HoloWorkOrderData {
+  const orderNo: string = order?.external_order_id || "";
+  const c: Record<Grade, number> = { COMMON: 0, RARE: 0, EPIC: 0, LEGEND: 0 };
+  for (const it of items) c[it.grade] = (c[it.grade] || 0) + 1;
+  const defaults: HoloWorkOrderData = {
+    company: "TWINMETA",
+    orderNo,
+    orderDate: (order?.created_at || "").slice(0, 10),
+    deliveryDate: (order?.project_completed_at || "").slice(0, 10),
+    common: c.COMMON, rare: c.RARE, epic: c.EPIC, legend: c.LEGEND,
+    total: items.length || order?.quantity || 0,
+    recipient: "TWINMETA",
+    phone: "18562757070",
+    address: "山东省 青岛市 城阳区 青岛市城阳区流亭街道杨埠寨社区工业园6号厂房东侧1楼 TWINMETA",
+    notes: order?.source_data?.notes || order?.source_data?.memo || "",
+  };
+  try {
+    const raw = orderNo ? localStorage.getItem(`hologram.workOrder.v1.${orderNo}`) : null;
+    if (raw) return { ...defaults, ...JSON.parse(raw) };
+  } catch {}
+  return defaults;
+}
+
+function buildHologramExcelBlob(items: Array<{ seq: number; uniqueNo: string; editionNo: number; grade: Grade }>): Blob {
+  const rows = items.map(it => ({
+    "序号": it.seq,
+    "贴纸唯一编号": it.uniqueNo,
+    "版本编号": `#${String(it.editionNo).padStart(4, "0")}`,
+    "等级": it.grade,
+    "公司名称": "TWINMETA",
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws["!cols"] = [{ wch: 6 }, { wch: 22 }, { wch: 14 }, { wch: 10 }, { wch: 14 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Hologram");
+  const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+  return new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+}
+
+const WECHAT_WEBHOOK_LS_KEY = "wechat.webhook.hologram";
+
+function OrderProgressBox({
+  order, items, pdfPreview,
+}: {
+  order: any;
+  items: Array<{ seq: number; uniqueNo: string; editionNo: number; grade: Grade }>;
+  pdfPreview: string | null;
+}) {
+  const orderNo: string = order?.external_order_id || "";
+  const stateKey = `hologram.progress.v1.${orderNo}`;
+  const [confirmed1, setConfirmed1] = useState(false);
+  const [confirmed2, setConfirmed2] = useState(false);
+  const [ordered, setOrdered] = useState(false);
+  const [open1, setOpen1] = useState(false);
+  const [open2, setOpen2] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [webhookUrl, setWebhookUrl] = useState<string>(() => {
+    try { return localStorage.getItem(WECHAT_WEBHOOK_LS_KEY) || ""; } catch { return ""; }
+  });
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(stateKey);
+      if (raw) {
+        const s = JSON.parse(raw);
+        setConfirmed1(!!s.confirmed1); setConfirmed2(!!s.confirmed2); setOrdered(!!s.ordered);
+      } else {
+        setConfirmed1(false); setConfirmed2(false); setOrdered(false);
+      }
+    } catch {}
+  }, [stateKey]);
+
+  const persist = (next: { confirmed1?: boolean; confirmed2?: boolean; ordered?: boolean }) => {
+    const merged = { confirmed1, confirmed2, ordered, ...next };
+    try { localStorage.setItem(stateKey, JSON.stringify(merged)); } catch {}
+  };
+
+  const woData = useMemo(() => computeHoloWorkOrder(order, items), [order, items]);
+  const woHtml = useMemo(() => buildHologramWorkOrderHtml(woData, pdfPreview), [woData, pdfPreview]);
+
+  const saveWebhook = () => {
+    try { localStorage.setItem(WECHAT_WEBHOOK_LS_KEY, webhookUrl.trim()); toast({ title: "위챗 Webhook 저장됨" }); setSettingsOpen(false); }
+    catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" as any }); }
+  };
+
+  const sendOrder = async () => {
+    if (!webhookUrl) {
+      toast({ title: "위챗 Webhook 미설정", description: "발주 전 위챗 Webhook을 먼저 설정하세요.", variant: "destructive" as any });
+      setSettingsOpen(true);
+      return;
+    }
+    setSending(true);
+    try {
+      // Build ZIP
+      const zip = new JSZip();
+      // 작업지시서 PDF — use uploaded format.pdf as the instruction sheet
+      const { data: pdfBlob } = await supabase.storage.from("hologram-pdf").download("format.pdf");
+      if (pdfBlob) {
+        zip.file("작업지시서.pdf", new Uint8Array(await pdfBlob.arrayBuffer()));
+      } else {
+        // Fallback: include HTML version
+        zip.file("작업지시서.html", woHtml);
+      }
+      // 작업파일 Excel
+      const xlsBlob = buildHologramExcelBlob(items);
+      zip.file("작업파일.xlsx", new Uint8Array(await xlsBlob.arrayBuffer()));
+
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const zipName = `${orderNo}.zip`;
+
+      // Upload to public bucket to get a downloadable URL
+      const path = `orders/${orderNo}-${Date.now()}.zip`;
+      const { error: upErr } = await supabase.storage.from("hologram-pdf").upload(path, zipBlob, {
+        contentType: "application/zip", upsert: true,
+      });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from("hologram-pdf").getPublicUrl(path);
+      const url = pub.publicUrl;
+
+      // Send WeChat message with download link (group bots support text/markdown; file requires media_id upload not available cross-origin)
+      const message =
+`【홀로그램 스티커 발주】
+작업번호: ${orderNo}
+수량: ${items.length}건
+파일: ${zipName}
+다운로드: ${url}`;
+
+      const { data, error } = await supabase.functions.invoke("wechat-send", {
+        body: { webhookUrl, message },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+
+      setOrdered(true); persist({ ordered: true });
+      toast({ title: "발주 완료", description: `${zipName} 위챗 단톡방으로 전송됨` });
+    } catch (e: any) {
+      toast({ title: "발주 실패", description: e?.message || String(e), variant: "destructive" as any });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const Step = ({ idx, label, done, disabled, onClick }: { idx: number; label: string; done: boolean; disabled: boolean; onClick: () => void }) => (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`flex-1 rounded-lg border p-4 text-left transition-colors ${
+        done ? "border-primary bg-primary/5" : disabled ? "border-border bg-muted/30 opacity-60 cursor-not-allowed" : "border-border hover:bg-accent"
+      }`}
+    >
+      <div className="flex items-center gap-2">
+        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+          done ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+        }`}>
+          {done ? <CheckCircle2 className="w-4 h-4" /> : idx}
+        </div>
+        <div className="font-medium text-sm">{label}</div>
+      </div>
+      <div className="mt-2 text-xs text-muted-foreground">
+        {done ? "완료" : disabled ? "이전 단계를 먼저 완료하세요" : "클릭하여 진행"}
+      </div>
+    </button>
+  );
+
+  return (
+    <Card>
+      <CardHeader className="pb-3 flex flex-row items-center justify-between">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Package className="w-4 h-4" /> 발주 진행
+        </CardTitle>
+        <Button size="sm" variant="ghost" onClick={() => setSettingsOpen(true)}>
+          <Settings className="w-4 h-4 mr-1" /> 위챗 Webhook
+        </Button>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col md:flex-row gap-3">
+          <Step idx={1} label="작업지시서 확인" done={confirmed1} disabled={false} onClick={() => setOpen1(true)} />
+          <Step idx={2} label="작업파일 확인" done={confirmed2} disabled={!confirmed1} onClick={() => setOpen2(true)} />
+          <Step idx={3} label="발주" done={ordered} disabled={!confirmed1 || !confirmed2 || sending} onClick={sendOrder} />
+        </div>
+
+        {/* Step 1 Dialog */}
+        <Dialog open={open1} onOpenChange={setOpen1}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader><DialogTitle>작업지시서 미리보기</DialogTitle></DialogHeader>
+            <div className="flex-1 overflow-auto border rounded-md bg-white">
+              <iframe title="work-order-preview" srcDoc={woHtml} className="w-full h-[70vh] bg-white" />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpen1(false)}>닫기</Button>
+              <Button onClick={() => { setConfirmed1(true); persist({ confirmed1: true }); setOpen1(false); toast({ title: "작업지시서 확인 완료" }); }}>
+                <CheckCircle2 className="w-4 h-4 mr-1" /> 확인
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Step 2 Dialog */}
+        <Dialog open={open2} onOpenChange={setOpen2}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader><DialogTitle>작업파일 미리보기 ({items.length}건)</DialogTitle></DialogHeader>
+            <div className="flex-1 overflow-auto border rounded-md">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-16">순번</TableHead>
+                    <TableHead>스티커 고유번호</TableHead>
+                    <TableHead>에디션 넘버</TableHead>
+                    <TableHead>등급</TableHead>
+                    <TableHead>회사명</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {items.map(it => (
+                    <TableRow key={`${it.uniqueNo}-${it.editionNo}`}>
+                      <TableCell>{it.seq}</TableCell>
+                      <TableCell className="font-mono">{it.uniqueNo}</TableCell>
+                      <TableCell>#{String(it.editionNo).padStart(4, "0")}</TableCell>
+                      <TableCell><Badge variant="outline">{it.grade}</Badge></TableCell>
+                      <TableCell>TWINMETA</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpen2(false)}>닫기</Button>
+              <Button onClick={() => { setConfirmed2(true); persist({ confirmed2: true }); setOpen2(false); toast({ title: "작업파일 확인 완료" }); }}>
+                <CheckCircle2 className="w-4 h-4 mr-1" /> 확인
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Webhook settings dialog */}
+        <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>홀로그램 공장 위챗 Webhook</DialogTitle></DialogHeader>
+            <div className="space-y-2">
+              <Label className="text-xs">기업위챗 그룹봇 Webhook URL</Label>
+              <Input value={webhookUrl} onChange={e => setWebhookUrl(e.target.value)} placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..." />
+              <p className="text-xs text-muted-foreground">발주 시 이 그룹채팅으로 ZIP 다운로드 링크가 전송됩니다.</p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSettingsOpen(false)}>취소</Button>
+              <Button onClick={saveWebhook}><Send className="w-4 h-4 mr-1" /> 저장</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </CardContent>
+    </Card>
+  );
 }
 
 function HologramWorkOrderBox({
