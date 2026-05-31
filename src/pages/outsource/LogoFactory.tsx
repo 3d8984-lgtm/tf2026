@@ -726,6 +726,12 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <Tabs defaultValue="design" className="w-full">
+              <TabsList>
+                <TabsTrigger value="design">로고 시안</TabsTrigger>
+                <TabsTrigger value="upscale">업스케일링</TabsTrigger>
+              </TabsList>
+              <TabsContent value="design" className="space-y-4 mt-4">
             {/* Test logo upload */}
             <div className="flex items-center justify-between gap-3 p-3 rounded-md border border-dashed bg-muted/20">
               <div className="flex items-center gap-3 min-w-0">
