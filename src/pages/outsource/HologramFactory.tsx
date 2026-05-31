@@ -11,13 +11,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ChevronLeft, Eye, Upload, FileText, X, Loader2, Download } from "lucide-react";
+import { ChevronLeft, Eye, Upload, FileText, X, Loader2, Download, CheckCircle2, Send, Settings, Package } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { useOrders } from "@/hooks/useDbData";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from "xlsx";
 import QRCode from "qrcode";
+import JSZip from "jszip";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 async function renderPdfFirstPagePng(bytes: Uint8Array): Promise<string> {
   const doc = await (pdfjsLib as any).getDocument({ data: bytes.slice(0) }).promise;
