@@ -668,13 +668,43 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
         }
       }
       ctx.putImageData(id, 0, 0);
-      const out = canvas.toDataURL("image/png");
+
+      // ── 불투명 영역 자동 트리밍: 실제 인쇄될 부분만 남김 ─────────
+      const ALPHA_THRESHOLD = 8;
+      let minX = w, minY = h, maxX = -1, maxY = -1;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const a = d[(y * w + x) * 4 + 3];
+          if (a > ALPHA_THRESHOLD) {
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+          }
+        }
+      }
+
+      let out: string;
+      let trimmedInfo = "";
+      if (maxX >= minX && maxY >= minY) {
+        const tw = maxX - minX + 1;
+        const th = maxY - minY + 1;
+        const tCanvas = document.createElement("canvas");
+        tCanvas.width = tw; tCanvas.height = th;
+        const tctx = tCanvas.getContext("2d")!;
+        tctx.drawImage(canvas, minX, minY, tw, th, 0, 0, tw, th);
+        out = tCanvas.toDataURL("image/png");
+        trimmedInfo = ` · 자동 트리밍 ${tw}×${th}px`;
+      } else {
+        out = canvas.toDataURL("image/png");
+      }
+
       setProcessedDataUrl(out);
       setProcessedKind("upscaled");
       setLastAnalysis((prev) => prev ? { ...prev, transparent: true } : prev);
       toast({
         title: "배경 제거 완료",
-        description: `배경색 RGB(${Math.round(br)},${Math.round(bg)},${Math.round(bb)}) 기준 투명 처리`,
+        description: `배경색 RGB(${Math.round(br)},${Math.round(bg)},${Math.round(bb)}) 기준 투명 처리${trimmedInfo}. 로고 크기가 실제 인쇄 영역 기준으로 재측정됩니다.`,
       });
     } catch (e: any) {
       toast({ title: "배경 제거 실패", description: e?.message || String(e), variant: "destructive" });
