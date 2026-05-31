@@ -838,6 +838,45 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     setVectorDataUrl(null);
   };
 
+  const resetWork = () => {
+    // 상태 초기화
+    setWorkType(loadWorkTypes()[0]?.value || "heat-transfer");
+    setCanvasWidthMm(DEFAULT_CANVAS_MM);
+    setCanvasHeightMm(DEFAULT_CANVAS_MM);
+    setLogoWidthMm(DEFAULT_BASE_MM);
+    setLogoHeightMm(DEFAULT_BASE_MM);
+    setOffsetXMm(0);
+    setOffsetYMm(0);
+    setLockAspect(true);
+    setNaturalAspect(1);
+    setProcessedDataUrl(null);
+    setProcessedKind("original");
+    setTestLogoDataUrl(null);
+    setTestLogoName(null);
+    setUpscaledUploadName(null);
+    setUpscaledDataUrl(null);
+    setVectorDataUrl(null);
+    setUpscaleMode("auto");
+    setUpscaleSharpness(50);
+    setCurrentStep(1);
+    setLogoType(null);
+    setRecommendedType(null);
+    setAnalyzedSrc(null);
+    setUpscaleSkipped(false);
+    setPrintAreaSaved(false);
+    setWorkCompleted(false);
+
+    // localStorage 삭제
+    try {
+      localStorage.removeItem(`logo.work.v1.${orderNo}`);
+      localStorage.removeItem(`logo.printArea.v1.${orderNo}`);
+      localStorage.removeItem(WO_LS_KEY);
+    } catch {}
+
+    setResetConfirmOpen(false);
+    toast({ title: "작업 상태 초기화 완료", description: "모든 작업 내용이 삭제되고 처음부터 다시 시작할 수 있습니다." });
+  };
+
   const downloadResultPdf = async () => {
     if (!logoUrl && !displayedLogo) {
       toast({ title: "로고가 없습니다", variant: "destructive" });
