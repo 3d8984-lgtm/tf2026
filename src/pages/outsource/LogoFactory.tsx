@@ -21,6 +21,8 @@ import { smartUpscale, type UpscaleMode, type ImageAnalysis } from "@/lib/upscal
 import JSZip from "jszip";
 import html2canvas from "html2canvas";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ExternalLink } from "lucide-react";
 
 function fmtDate(v?: string | null): string {
   if (!v) return "";
