@@ -20,6 +20,60 @@ import * as XLSX from "xlsx";
 import QRCode from "qrcode";
 import JSZip from "jszip";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
+
+/**
+ * 미리보기 HTML을 그대로 렌더링해 A4 PDF 바이트로 반환.
+ * 화면 밖 iframe에 srcdoc으로 띄운 뒤 html2canvas + jsPDF로 변환.
+ */
+async function renderHtmlToPdfBytes(html: string): Promise<Uint8Array> {
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.left = "-10000px";
+  iframe.style.top = "0";
+  iframe.style.width = "210mm";
+  iframe.style.height = "297mm";
+  iframe.style.border = "0";
+  document.body.appendChild(iframe);
+  try {
+    await new Promise<void>((resolve) => {
+      iframe.onload = () => resolve();
+      iframe.srcdoc = html;
+    });
+    // 폰트/이미지 로딩 대기
+    const doc = iframe.contentDocument!;
+    await (doc as any).fonts?.ready?.catch?.(() => {});
+    const imgs = Array.from(doc.images);
+    await Promise.all(imgs.map((img) => img.complete ? Promise.resolve() : new Promise((r) => { img.onload = img.onerror = () => r(null); })));
+    await new Promise((r) => setTimeout(r, 150));
+
+    const target = doc.body;
+    const canvas = await html2canvas(target, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+    const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+    const pageW = 210, pageH = 297;
+    const imgW = pageW;
+    const imgH = (canvas.height * imgW) / canvas.width;
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
+    if (imgH <= pageH) {
+      pdf.addImage(dataUrl, "JPEG", 0, 0, imgW, imgH);
+    } else {
+      // 다중 페이지로 잘라 붙임
+      let remaining = imgH;
+      let y = 0;
+      while (remaining > 0) {
+        pdf.addImage(dataUrl, "JPEG", 0, y === 0 ? 0 : -y, imgW, imgH);
+        remaining -= pageH;
+        y += pageH;
+        if (remaining > 0) pdf.addPage();
+      }
+    }
+    return new Uint8Array(pdf.output("arraybuffer"));
+  } finally {
+    document.body.removeChild(iframe);
+  }
+}
+
 
 async function renderPdfFirstPagePng(bytes: Uint8Array): Promise<string> {
   const doc = await (pdfjsLib as any).getDocument({ data: bytes.slice(0) }).promise;
@@ -253,14 +307,9 @@ function OrderProgressBox({
     try {
       // Build ZIP
       const zip = new JSZip();
-      // 작업지시서 PDF — use uploaded format.pdf as the instruction sheet
-      const { data: pdfBlob } = await supabase.storage.from("hologram-pdf").download("format.pdf");
-      if (pdfBlob) {
-        zip.file("작업지시서.pdf", new Uint8Array(await pdfBlob.arrayBuffer()));
-      } else {
-        // Fallback: include HTML version
-        zip.file("작업지시서.html", woHtml);
-      }
+      // 작업지시서 PDF — 미리보기와 동일한 HTML을 PDF로 변환
+      const woPdfBytes = await renderHtmlToPdfBytes(woHtml);
+      zip.file("작업지시서.pdf", woPdfBytes);
       // 작업파일 Excel
       const xlsBlob = buildHologramExcelBlob(items);
       zip.file("작업파일.xlsx", new Uint8Array(await xlsBlob.arrayBuffer()));
