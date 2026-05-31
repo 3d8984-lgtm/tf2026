@@ -1360,9 +1360,6 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                               <div>로고 크기: <span className="font-mono">{logoWidthMm} × {logoHeightMm} mm</span></div>
                               <div>수량: {total} EA</div>
                             </div>
-                            {processedKind !== "original" && (
-                              <Button size="sm" variant="ghost" className="w-full" onClick={resetLogo}>원본 로고로 복원</Button>
-                            )}
                             <Button
                               size="sm"
                               variant="secondary"
