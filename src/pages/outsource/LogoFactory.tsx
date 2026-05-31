@@ -315,9 +315,8 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const [printAreaSaved, setPrintAreaSaved] = useState<boolean>(() => {
     try { return !!localStorage.getItem(`logo.printArea.v1.${orderNo}`); } catch { return false; }
   });
-  const [workCompleted, setWorkCompleted] = useState<boolean>(() => {
-    try { return !!localStorage.getItem(`logo.workCompleted.v1.${orderNo}`); } catch { return false; }
-  });
+  // PDF 다운로드 활성화는 매 세션마다 '완료' 버튼을 눌러야 가능하도록 localStorage 복원하지 않음
+  const [workCompleted, setWorkCompleted] = useState<boolean>(false);
 
   // Logo size as % of canvas longest side — convenience slider
   const canvasLongest = Math.max(canvasWidthMm, canvasHeightMm) || 1;
