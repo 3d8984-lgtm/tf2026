@@ -1773,7 +1773,30 @@ async function buildLogoVectorPdfBytes(svgDataUrl: string, logoWidthMm: number, 
   const y = (pageH - logoHeightMm) / 2;
   await svg2pdf(svgEl as unknown as SVGElement, pdf, { x, y, width: logoWidthMm, height: logoHeightMm });
   return new Uint8Array(pdf.output("arraybuffer"));
+
+async function buildLogoRasterPdfBytes(imageDataUrl: string, logoWidthMm: number, logoHeightMm: number): Promise<Uint8Array> {
+  const pdf = new jsPDF({ unit: "mm", format: "a4" });
+  const pageW = 210, pageH = 297;
+  const x = (pageW - logoWidthMm) / 2;
+  const y = (pageH - logoHeightMm) / 2;
+  // Load image to detect format
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = reject;
+    i.src = imageDataUrl;
+  });
+  // Render to canvas for consistent PNG embed (preserves transparency)
+  const canvas = document.createElement("canvas");
+  canvas.width = img.naturalWidth || img.width;
+  canvas.height = img.naturalHeight || img.height;
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(img, 0, 0);
+  const pngDataUrl = canvas.toDataURL("image/png");
+  pdf.addImage(pngDataUrl, "PNG", x, y, logoWidthMm, logoHeightMm, undefined, "FAST");
+  return new Uint8Array(pdf.output("arraybuffer"));
 }
+
 
 export function LogoOrderProgressBox({
   order, wo, workType, logoWidthMm, logoHeightMm, displayedLogo, vectorDataUrl,
