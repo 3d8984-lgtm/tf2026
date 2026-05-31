@@ -1596,6 +1596,25 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
         </Card>
       </div>
 
+      {/* 작업 상태 초기화 확인 */}
+      <Dialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>작업 상태 초기화</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            현재 작업번호의 모든 작업 내용(업스케일, 벡터 변환, 인쇄영역 설정, 완료 상태 등)이 삭제됩니다.<br />
+            정말 처음부터 다시 작업하시겠습니까?
+          </p>
+          <DialogFooter className="flex justify-end gap-2 pt-2">
+            <Button size="sm" variant="ghost" onClick={() => setResetConfirmOpen(false)}>취소</Button>
+            <Button size="sm" variant="destructive" onClick={resetWork}>
+              <RotateCcw className="w-4 h-4 mr-1" /> 초기화
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={workTypesDialogOpen} onOpenChange={setWorkTypesDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
