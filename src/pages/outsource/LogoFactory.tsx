@@ -1244,7 +1244,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                               <Select value={workType} onValueChange={(v) => setWorkType(v as WorkType)}>
                                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                                 <SelectContent>
-                                  {WORK_TYPES.map(w => <SelectItem key={w.value} value={w.value}>{w.label}</SelectItem>)}
+                                  {workTypes.map(w => <SelectItem key={w.value} value={w.value}>{w.label}</SelectItem>)}
                                 </SelectContent>
                               </Select>
                             </div>
