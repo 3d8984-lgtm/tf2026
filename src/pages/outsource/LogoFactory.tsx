@@ -854,7 +854,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                             <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-semibold ${
                               done ? "bg-emerald-500 text-white" : active ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted-foreground/20"
                             }`}>
-                              {done ? <CheckCircle2 className="w-3.5 h-3.5" /> : s.id}
+                              {done ? <CheckCircle2 className="w-3.5 h-3.5" /> : (i + 1)}
                             </span>
                             <span className="whitespace-nowrap font-medium">{s.label}</span>
                           </button>
