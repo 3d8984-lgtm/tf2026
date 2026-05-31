@@ -1059,25 +1059,24 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 { id: 1, label: "로고확인" },
                 { id: 2, label: "타입 확인" },
                 { id: 3, label: "업스케일" },
-                { id: 7, label: "업스케일 업로드" },
-                { id: 4, label: "벡터 변환" },
+                { id: 7, label: logoType === "mono" ? "업스케일 업로드 · 벡터 변환" : "업스케일 업로드" },
                 { id: 5, label: "인쇄영역·미리보기 & PDF" },
-              ].filter(s => s.id !== 4 || logoType === "mono");
+              ];
 
               const step1Done = !!sourceLogo;
               const step2Done = !!logoType;
               const step3Done = !!upscaledDataUrl || upscaleSkipped || (logoType === "mono" && !!vectorDataUrl);
-              const step7Done = !!upscaledUploadName || !!upscaledDataUrl || upscaleSkipped;
-              const step4Done = !!vectorDataUrl;
+              const step7Done = logoType === "mono"
+                ? !!vectorDataUrl
+                : (!!upscaledUploadName || !!upscaledDataUrl || upscaleSkipped);
               const step5Done = printAreaSaved;
-              const doneMap: Record<number, boolean> = { 1: step1Done, 2: step2Done, 3: step3Done, 7: step7Done, 4: step4Done, 5: step5Done, 6: false };
+              const doneMap: Record<number, boolean> = { 1: step1Done, 2: step2Done, 3: step3Done, 7: step7Done, 5: step5Done };
 
               const canAdvance = (id: number) => {
                 if (id === 1) return step1Done;
                 if (id === 2) return step2Done;
                 if (id === 3) return step3Done;
-                if (id === 7) return true; // optional step — skip allowed
-                if (id === 4) return step4Done;
+                if (id === 7) return logoType === "mono" ? !!vectorDataUrl : true;
                 if (id === 5) return step5Done;
                 return false;
               };
@@ -1241,8 +1240,8 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                           <RadioGroupItem id="lt-mono" value="mono" className="mt-1" />
                           <div className="space-y-1">
                             <div className="font-semibold text-sm flex items-center gap-2">⚫ 단색 / 단순 로고 {recommendedType === "mono" && <Badge variant="outline" className="text-[10px]">추천</Badge>}</div>
-                            <div className="text-xs text-muted-foreground">라인아트·텍스트·단색 로고. 필요 시 업스케일 후 <b>벡터 변환</b>까지 진행합니다.</div>
-                            <div className="text-[10px] text-muted-foreground">단계: 업스케일(선택) → 벡터 변환 → 인쇄영역 → PDF</div>
+                            <div className="text-xs text-muted-foreground">라인아트·텍스트·단색 로고. 업스케일 업로드 단계에서 <b>벡터 변환</b>까지 함께 진행합니다.</div>
+                            <div className="text-[10px] text-muted-foreground">단계: 업스케일(선택) → 업로드·벡터 변환 → 인쇄영역 → PDF</div>
                           </div>
                         </label>
                       </RadioGroup>
@@ -1371,33 +1370,37 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                           <Button size="sm" variant="ghost" onClick={() => { setUpscaleSkipped(true); next(); }}>건너뛰기 →</Button>
                         </div>
                       )}
-                    </div>
-                  )}
 
-
-                  {/* ============ STEP 4: 벡터 변환 (단색 전용) ============ */}
-                  {currentStep === 4 && logoType === "mono" && (
-                    <div className="space-y-4">
-                      <div className="text-sm text-muted-foreground">
-                        단색 로고는 벡터(SVG)로 변환해야 인쇄·자수·레이저 공정에서 깔끔하게 출력됩니다. Vectorizer.AI를 사용합니다.
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-[1fr,auto] gap-3 items-center p-4 rounded-md border">
-                        <div className="text-xs text-muted-foreground">
-                          소스: {processedKind === "upscaled" ? "업스케일된 로고" : "원본 로고"} · 변환 모드는 [외주 설정]에서 변경
-                        </div>
-                        <Button onClick={handleVectorizeAI} disabled={!sourceLogo || !!busy}>
-                          <Cloud className="w-4 h-4 mr-1" /> 벡터 변환 실행
-                        </Button>
-                      </div>
-                      {vectorDataUrl && (
-                        <div className="p-4 rounded-md border bg-emerald-50/50 dark:bg-emerald-950/20 flex items-center gap-3">
-                          <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                          <div className="flex-1 text-sm">벡터 변환 완료. 미리보기 단계에서 결과를 확인하세요.</div>
-                          <Button size="sm" variant="outline" onClick={downloadVectorSvg}>SVG 다운로드</Button>
+                      {/* 단색 로고: 벡터 변환 통합 */}
+                      {logoType === "mono" && (
+                        <div className="space-y-3 p-4 rounded-md border-2 border-primary/30 bg-primary/5">
+                          <div className="text-sm font-semibold flex items-center gap-2">
+                            <Cloud className="w-4 h-4" /> 벡터 변환 (단색 로고 필수)
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            단색 로고는 벡터(SVG)로 변환해야 인쇄·자수·레이저 공정에서 깔끔하게 출력됩니다. Vectorizer.AI를 사용합니다.
+                            <span className="block mt-1">소스: {processedKind === "upscaled" ? "업스케일된 로고" : "원본 로고"} · 변환 모드는 [외주 설정]에서 변경</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <Button onClick={handleVectorizeAI} disabled={!sourceLogo || !!busy}>
+                              <Cloud className="w-4 h-4 mr-1" /> 벡터 변환 실행
+                            </Button>
+                            {vectorDataUrl && (
+                              <Button size="sm" variant="outline" onClick={downloadVectorSvg}>
+                                <Download className="w-3 h-3 mr-1" /> SVG 다운로드
+                              </Button>
+                            )}
+                          </div>
+                          {vectorDataUrl && (
+                            <div className="flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-400">
+                              <CheckCircle2 className="w-4 h-4" /> 벡터 변환 완료. 다음 단계에서 결과를 확인하세요.
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
                   )}
+
 
                   {/* ============ STEP 5: 인쇄영역 · 크기 · 미리보기 · PDF (통합) ============ */}
                   {currentStep === 5 && (
@@ -1581,8 +1584,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                       {currentStep === 1 && !step1Done && "로고를 확인하세요"}
                       {currentStep === 2 && !step2Done && "로고 타입을 선택하세요"}
                       {currentStep === 3 && !step3Done && (logoType === "color" ? "업스케일을 완료하세요" : "업스케일을 실행하거나 건너뛰세요")}
-                      {currentStep === 7 && !upscaledUploadName && "외부 업스케일 파일을 업로드하거나 건너뛰세요"}
-                      {currentStep === 4 && !step4Done && "벡터 변환을 실행하세요"}
+                      {currentStep === 7 && !step7Done && (logoType === "mono" ? "벡터 변환을 실행해주세요" : "외부 업스케일 파일을 업로드하거나 건너뛰세요")}
                       {currentStep === 5 && !step5Done && "인쇄영역 설정을 저장하세요"}
                     </div>
                     <Button size="sm" onClick={next} disabled={idx >= STEPS.length - 1 || !canAdvance(currentStep)}>
