@@ -40,14 +40,27 @@ interface OrderRow {
   quantity: number;
 }
 
-type WorkType = "heat-transfer" | "hologram" | "laser" | "embroidery" | "print";
-const WORK_TYPES: { value: WorkType; label: string }[] = [
+type WorkType = string;
+const WORK_TYPES_LS_KEY = "logo.workTypes.v1";
+const DEFAULT_WORK_TYPES: { value: string; label: string }[] = [
   { value: "heat-transfer", label: "열전사" },
   { value: "hologram", label: "홀로그램" },
   { value: "laser", label: "레이저" },
   { value: "embroidery", label: "자수" },
   { value: "print", label: "인쇄" },
 ];
+function loadWorkTypes(): { value: string; label: string }[] {
+  try {
+    const raw = localStorage.getItem(WORK_TYPES_LS_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr) && arr.every((x) => x && typeof x.value === "string" && typeof x.label === "string")) {
+        return arr;
+      }
+    }
+  } catch {}
+  return DEFAULT_WORK_TYPES;
+}
 
 async function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -237,7 +250,14 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const setWoP = (p: Partial<typeof wo>) => setWo(prev => ({ ...prev, ...p }));
 
   // Logo settings
-  const [workType, setWorkType] = useState<WorkType>("heat-transfer");
+  const [workTypes, setWorkTypes] = useState<{ value: string; label: string }[]>(() => loadWorkTypes());
+  useEffect(() => {
+    try { localStorage.setItem(WORK_TYPES_LS_KEY, JSON.stringify(workTypes)); } catch {}
+  }, [workTypes]);
+  const [workType, setWorkType] = useState<WorkType>(() => loadWorkTypes()[0]?.value || "heat-transfer");
+  const [workTypesDialogOpen, setWorkTypesDialogOpen] = useState(false);
+  const [newWorkTypeLabel, setNewWorkTypeLabel] = useState("");
+  const workTypeLabel = workTypes.find(w => w.value === workType)?.label || workType;
   const DEFAULT_BASE_MM = 50;
   const DEFAULT_CANVAS_MM = 100;
   const PRINT_AREA_LS_KEY = `logo.printArea.v1.${orderNo}`;
@@ -760,7 +780,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
 
   // Effect preview overlay style based on work type
-  const effectClass: Record<WorkType, string> = {
+  const effectClass: Record<string, string> = {
     "heat-transfer": "",
     "hologram": "mix-blend-screen drop-shadow-[0_0_8px_rgba(168,85,247,0.6)]",
     "laser": "grayscale contrast-125 brightness-90",
@@ -1220,11 +1240,16 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                         <div className="space-y-3">
                           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end p-3 rounded-md border bg-muted/10">
                             <div className="space-y-1 md:col-span-2">
-                              <Label className="text-xs">작업종류</Label>
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs">작업종류</Label>
+                                <Button type="button" size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setWorkTypesDialogOpen(true)}>
+                                  <Settings className="w-3 h-3 mr-1" />관리
+                                </Button>
+                              </div>
                               <Select value={workType} onValueChange={(v) => setWorkType(v as WorkType)}>
                                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                                 <SelectContent>
-                                  {WORK_TYPES.map(w => <SelectItem key={w.value} value={w.value}>{w.label}</SelectItem>)}
+                                  {workTypes.map(w => <SelectItem key={w.value} value={w.value}>{w.label}</SelectItem>)}
                                 </SelectContent>
                               </Select>
                             </div>
@@ -1294,7 +1319,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                                 <Badge variant="outline" className="text-[10px]">
                                   {processedKind === "original" ? "원본" : processedKind === "upscaled" ? "업스케일" : "벡터(SVG)"}
                                 </Badge>
-                                <Badge>{WORK_TYPES.find(w => w.value === workType)?.label}</Badge>
+                                <Badge>{workTypeLabel}</Badge>
                               </div>
                             </div>
                             <div
@@ -1321,7 +1346,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                                     top: `calc(50% + ${(clampedOffsetY / canvasHeightMm) * 100}% - ${Math.min(100, (logoHeightMm / canvasHeightMm) * 100) / 2}%)`,
                                   }}
                                 >
-                                  <img src={displayedLogo} alt="logo on canvas" className={`w-full h-full object-contain ${effectClass[workType]}`} referrerPolicy="no-referrer" draggable={false} />
+                                  <img src={displayedLogo} alt="logo on canvas" className={`w-full h-full object-contain ${effectClass[workType] || ""}`} referrerPolicy="no-referrer" draggable={false} />
                                 </div>
                               ) : (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground gap-1">
@@ -1404,6 +1429,83 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={workTypesDialogOpen} onOpenChange={setWorkTypesDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>작업종류 관리</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2 max-h-72 overflow-auto pr-1">
+              {workTypes.length === 0 && (
+                <div className="text-sm text-muted-foreground text-center py-4">등록된 작업종류가 없습니다.</div>
+              )}
+              {workTypes.map((w, idx) => (
+                <div key={w.value} className="flex items-center gap-2">
+                  <Input
+                    className="h-9"
+                    value={w.label}
+                    onChange={(e) => {
+                      const next = [...workTypes];
+                      next[idx] = { ...w, label: e.target.value };
+                      setWorkTypes(next);
+                    }}
+                  />
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => {
+                      if (workTypes.length <= 1) {
+                        toast({ title: "최소 1개는 남겨야 합니다", variant: "destructive" });
+                        return;
+                      }
+                      const next = workTypes.filter((_, i) => i !== idx);
+                      setWorkTypes(next);
+                      if (workType === w.value) setWorkType(next[0].value);
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 pt-2 border-t">
+              <Input
+                className="h-9"
+                placeholder="새 작업종류 이름"
+                value={newWorkTypeLabel}
+                onChange={(e) => setNewWorkTypeLabel(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const label = newWorkTypeLabel.trim();
+                    if (!label) return;
+                    const value = `custom-${Date.now()}`;
+                    setWorkTypes([...workTypes, { value, label }]);
+                    setNewWorkTypeLabel("");
+                  }
+                }}
+              />
+              <Button
+                size="sm"
+                onClick={() => {
+                  const label = newWorkTypeLabel.trim();
+                  if (!label) { toast({ title: "이름을 입력하세요", variant: "destructive" }); return; }
+                  const value = `custom-${Date.now()}`;
+                  setWorkTypes([...workTypes, { value, label }]);
+                  setNewWorkTypeLabel("");
+                }}
+              >
+                추가
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setWorkTypes(DEFAULT_WORK_TYPES); toast({ title: "기본값으로 초기화되었습니다" }); }}>기본값 복원</Button>
+            <Button onClick={() => setWorkTypesDialogOpen(false)}>닫기</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1545,7 +1647,7 @@ function buildLogoWorkOrderHtml(
 ): string {
   const esc = (s: any) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
   const today = new Date().toISOString().slice(0, 10);
-  const typeLabel = WORK_TYPES.find(w => w.value === workType)?.label || workType;
+  const typeLabel = loadWorkTypes().find(w => w.value === workType)?.label || workType;
   const printScript = opts?.autoPrint ? `<script>window.addEventListener("load", () => setTimeout(() => window.print(), 400));</script>` : "";
   return `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8" />
@@ -1771,7 +1873,7 @@ export function LogoOrderProgressBox({
       const message =
 `【LOGO 발주】
 작업번호: ${orderNo}
-작업종류: ${WORK_TYPES.find(w => w.value === workType)?.label || workType}
+작업종류: ${loadWorkTypes().find(w => w.value === workType)?.label || workType}
 LOGO 크기: ${logoWidthMm} × ${logoHeightMm} mm
 파일: ${zipName}
 다운로드: ${url}`;
