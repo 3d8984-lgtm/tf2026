@@ -966,8 +966,13 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
             <Button size="sm" variant="ghost" onClick={onBack}>
               <ChevronLeft className="w-4 h-4 mr-1" /> 목록으로
             </Button>
-            <div className="text-sm text-muted-foreground">
-              작업번호 <span className="font-mono text-foreground">{orderNo}</span>
+            <div className="flex items-center gap-3">
+              <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setResetConfirmOpen(true)}>
+                <RotateCcw className="w-4 h-4 mr-1" /> 초기화
+              </Button>
+              <div className="text-sm text-muted-foreground">
+                작업번호 <span className="font-mono text-foreground">{orderNo}</span>
+              </div>
             </div>
           </CardContent>
         </Card>
