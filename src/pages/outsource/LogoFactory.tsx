@@ -11,13 +11,16 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Eye, ImageOff, ChevronLeft, FileText, Download, Sparkles, Upload, Trash2, Cloud } from "lucide-react";
+import { Eye, ImageOff, ChevronLeft, FileText, Download, Sparkles, Upload, Trash2, Cloud, Package, CheckCircle2, Settings, Send } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { jsPDF } from "jspdf";
 import { svg2pdf } from "svg2pdf.js";
 import { supabase } from "@/integrations/supabase/client";
 import { VECTORIZER_MODE_KEY } from "./OutsourceSettings";
 import { smartUpscale, type UpscaleMode, type ImageAnalysis } from "@/lib/upscale";
+import JSZip from "jszip";
+import html2canvas from "html2canvas";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 function fmtDate(v?: string | null): string {
   if (!v) return "";
@@ -626,6 +629,17 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
           </CardContent>
         </Card>
 
+        {/* 발주 진행 (3단계) */}
+        <LogoOrderProgressBox
+          order={order}
+          wo={wo}
+          workType={workType}
+          logoWidthMm={logoWidthMm}
+          logoHeightMm={logoHeightMm}
+          displayedLogo={displayedLogo}
+          vectorDataUrl={vectorDataUrl}
+        />
+
         {/* 작업지시서 설정 */}
         <Card className="border-dashed">
           <CardHeader className="pb-3">
@@ -1176,23 +1190,27 @@ function TxtField({ label, v, set, type = "text" }: { label: string; v: string; 
   );
 }
 
-function printLogoWorkOrder(
-  wo: { company: string; orderNo: string; orderDate: string; deliveryDate: string; baseQty: number; surplusQty: number; totalQty: number; recipient: string; phone: string; address: string; notes: string },
+type WoData = { company: string; orderNo: string; orderDate: string; deliveryDate: string; baseQty: number; surplusQty: number; totalQty: number; recipient: string; phone: string; address: string; notes: string };
+
+function buildLogoWorkOrderHtml(
+  wo: WoData,
   workType: WorkType,
   logoWidthMm: number,
   logoHeightMm: number,
   logoSrc: string | null,
-) {
+  opts?: { autoPrint?: boolean },
+): string {
   const esc = (s: any) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
   const today = new Date().toISOString().slice(0, 10);
   const typeLabel = WORK_TYPES.find(w => w.value === workType)?.label || workType;
-  const html = `<!doctype html>
+  const printScript = opts?.autoPrint ? `<script>window.addEventListener("load", () => setTimeout(() => window.print(), 400));</script>` : "";
+  return `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8" />
 <title>作业指示书 - ${esc(wo.orderNo)}</title>
 <style>
   @page { size: A4; margin: 12mm; }
   * { box-sizing: border-box; }
-  body { font-family: "PingFang SC", "Microsoft YaHei", "SimHei", "Noto Sans SC", sans-serif; color:#111; margin:0; padding:0; }
+  body { font-family: "PingFang SC", "Microsoft YaHei", "SimHei", "Noto Sans SC", sans-serif; color:#111; margin:0; padding:12mm; background:#fff; }
   h1 { font-size: 22pt; text-align:center; margin: 0 0 4mm; letter-spacing: 8px; border-bottom: 2px solid #111; padding-bottom: 4mm; }
   .meta { display:flex; justify-content:space-between; font-size: 9pt; color:#555; margin-bottom: 6mm; }
   table { width:100%; border-collapse: collapse; font-size: 10pt; }
@@ -1207,10 +1225,10 @@ function printLogoWorkOrder(
   .sig div { border-top:1px solid #333; padding-top:2mm; min-width: 40mm; text-align:center; }
   .no-print { position:fixed; top:8px; right:8px; }
   .no-print button { padding: 8px 14px; font-size: 13px; cursor:pointer; }
-  @media print { .no-print { display:none; } }
+  @media print { .no-print { display:none; } body { padding: 0; } }
 </style></head>
 <body>
-  <div class="no-print"><button onclick="window.print()">打印 / 保存PDF</button></div>
+  ${opts?.autoPrint ? `<div class="no-print"><button onclick="window.print()">打印 / 保存PDF</button></div>` : ""}
   <h1>作 业 指 示 书</h1>
   <div class="meta"><span>发包方:${esc(wo.company)}</span><span>打印日期:${today}</span></div>
   <table>
@@ -1232,9 +1250,302 @@ function printLogoWorkOrder(
     ${logoSrc ? `<img src="${esc(logoSrc)}" alt="logo" />` : `<span style="color:#999;">无 LOGO</span>`}
   </div>
   <div class="sig"><div>负责人</div><div>审批</div></div>
-  <script>window.addEventListener("load", () => setTimeout(() => window.print(), 400));</script>
+  ${printScript}
 </body></html>`;
+}
+
+function printLogoWorkOrder(
+  wo: WoData,
+  workType: WorkType,
+  logoWidthMm: number,
+  logoHeightMm: number,
+  logoSrc: string | null,
+) {
+  const html = buildLogoWorkOrderHtml(wo, workType, logoWidthMm, logoHeightMm, logoSrc, { autoPrint: true });
   const w = window.open("", "_blank", "width=900,height=1100");
   if (!w) { toast({ title: "팝업 차단됨", description: "팝업을 허용해주세요", variant: "destructive" }); return; }
   w.document.open(); w.document.write(html); w.document.close();
+}
+
+/* ====================== Order progress (3-step) ====================== */
+
+const WECHAT_HOOKS_SHARED_KEY = "outsource.wechatWebhooks.v1";
+const WECHAT_WEBHOOK_LS_KEY = "wechat.webhook.logo";
+
+function readLogoWebhook(): string {
+  try {
+    const shared = localStorage.getItem(WECHAT_HOOKS_SHARED_KEY);
+    if (shared) {
+      const obj = JSON.parse(shared);
+      if (obj?.logo) return String(obj.logo).trim();
+    }
+  } catch {}
+  try { return (localStorage.getItem(WECHAT_WEBHOOK_LS_KEY) || "").trim(); } catch { return ""; }
+}
+
+function writeLogoWebhook(url: string) {
+  const v = url.trim();
+  try { localStorage.setItem(WECHAT_WEBHOOK_LS_KEY, v); } catch {}
+  try {
+    const raw = localStorage.getItem(WECHAT_HOOKS_SHARED_KEY);
+    const obj = raw ? JSON.parse(raw) : {};
+    obj.logo = v;
+    localStorage.setItem(WECHAT_HOOKS_SHARED_KEY, JSON.stringify(obj));
+  } catch {}
+}
+
+async function renderHtmlToPdfBytes(html: string): Promise<Uint8Array> {
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.left = "-10000px";
+  iframe.style.top = "0";
+  iframe.style.width = "210mm";
+  iframe.style.height = "297mm";
+  iframe.style.border = "0";
+  document.body.appendChild(iframe);
+  try {
+    await new Promise<void>((resolve) => {
+      iframe.onload = () => resolve();
+      iframe.srcdoc = html;
+    });
+    const doc = iframe.contentDocument!;
+    await (doc as any).fonts?.ready?.catch?.(() => {});
+    const imgs = Array.from(doc.images);
+    await Promise.all(imgs.map((img) => img.complete ? Promise.resolve() : new Promise((r) => { img.onload = img.onerror = () => r(null); })));
+    await new Promise((r) => setTimeout(r, 150));
+    const canvas = await html2canvas(doc.body, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+    const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+    const pageW = 210, pageH = 297;
+    const ratio = Math.min(pageW / canvas.width, pageH / canvas.height);
+    const imgW = canvas.width * ratio;
+    const imgH = canvas.height * ratio;
+    const x = (pageW - imgW) / 2;
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
+    pdf.addImage(dataUrl, "JPEG", x, 0, imgW, imgH);
+    return new Uint8Array(pdf.output("arraybuffer"));
+  } finally {
+    document.body.removeChild(iframe);
+  }
+}
+
+async function buildLogoVectorPdfBytes(svgDataUrl: string, logoWidthMm: number, logoHeightMm: number): Promise<Uint8Array> {
+  const svgText = svgDataUrlToText(svgDataUrl);
+  const svgEl = new DOMParser().parseFromString(svgText, "image/svg+xml").documentElement;
+  const pdf = new jsPDF({ unit: "mm", format: "a4" });
+  const pageW = 210, pageH = 297;
+  const x = (pageW - logoWidthMm) / 2;
+  const y = (pageH - logoHeightMm) / 2;
+  await svg2pdf(svgEl as unknown as SVGElement, pdf, { x, y, width: logoWidthMm, height: logoHeightMm });
+  return new Uint8Array(pdf.output("arraybuffer"));
+}
+
+export function LogoOrderProgressBox({
+  order, wo, workType, logoWidthMm, logoHeightMm, displayedLogo, vectorDataUrl,
+}: {
+  order: any;
+  wo: WoData;
+  workType: WorkType;
+  logoWidthMm: number;
+  logoHeightMm: number;
+  displayedLogo: string | null;
+  vectorDataUrl: string | null;
+}) {
+  const orderNo: string = order?.external_order_id || "";
+  const stateKey = `logo.progress.v1.${orderNo}`;
+  const [confirmed1, setConfirmed1] = useState(false);
+  const [confirmed2, setConfirmed2] = useState(false);
+  const [ordered, setOrdered] = useState(false);
+  const [open1, setOpen1] = useState(false);
+  const [open2, setOpen2] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [webhookUrl, setWebhookUrl] = useState<string>(() => readLogoWebhook());
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    const onFocus = () => setWebhookUrl(readLogoWebhook());
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("storage", onFocus);
+    return () => { window.removeEventListener("focus", onFocus); window.removeEventListener("storage", onFocus); };
+  }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(stateKey);
+      if (raw) {
+        const s = JSON.parse(raw);
+        setConfirmed1(!!s.confirmed1); setConfirmed2(!!s.confirmed2); setOrdered(!!s.ordered);
+      } else {
+        setConfirmed1(false); setConfirmed2(false); setOrdered(false);
+      }
+    } catch {}
+  }, [stateKey]);
+
+  const persist = (next: { confirmed1?: boolean; confirmed2?: boolean; ordered?: boolean }) => {
+    const merged = { confirmed1, confirmed2, ordered, ...next };
+    try { localStorage.setItem(stateKey, JSON.stringify(merged)); } catch {}
+  };
+
+  const saveWebhook = () => {
+    writeLogoWebhook(webhookUrl);
+    toast({ title: "위챗 Webhook 저장됨" });
+    setSettingsOpen(false);
+  };
+
+  const woHtml = useMemo(
+    () => buildLogoWorkOrderHtml(wo, workType, logoWidthMm, logoHeightMm, displayedLogo),
+    [wo, workType, logoWidthMm, logoHeightMm, displayedLogo],
+  );
+
+  const sendOrder = async () => {
+    if (!vectorDataUrl) {
+      toast({ title: "LOGO를 먼저 변환완료하세요", description: "벡터 변환(Vectorizer.AI) 완료 후 발주가 가능합니다.", variant: "destructive" });
+      return;
+    }
+    if (!webhookUrl) {
+      toast({ title: "위챗 Webhook 미설정", description: "발주 전 위챗 Webhook을 먼저 설정하세요.", variant: "destructive" });
+      setSettingsOpen(true);
+      return;
+    }
+    setSending(true);
+    try {
+      const zip = new JSZip();
+      const woPdfBytes = await renderHtmlToPdfBytes(woHtml);
+      zip.file("작업지시서.pdf", woPdfBytes);
+      const logoPdfBytes = await buildLogoVectorPdfBytes(vectorDataUrl, logoWidthMm, logoHeightMm);
+      zip.file(`LOGO_${orderNo}.pdf`, logoPdfBytes);
+
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const zipName = `${orderNo}.zip`;
+
+      const path = `orders/logo-${orderNo}-${Date.now()}.zip`;
+      const { error: upErr } = await supabase.storage.from("hologram-pdf").upload(path, zipBlob, {
+        contentType: "application/zip", upsert: false,
+      });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from("hologram-pdf").getPublicUrl(path);
+      const url = pub.publicUrl;
+
+      const message =
+`【LOGO 발주】
+작업번호: ${orderNo}
+작업종류: ${WORK_TYPES.find(w => w.value === workType)?.label || workType}
+LOGO 크기: ${logoWidthMm} × ${logoHeightMm} mm
+파일: ${zipName}
+다운로드: ${url}`;
+
+      const { data, error } = await supabase.functions.invoke("wechat-send", {
+        body: { webhookUrl, message },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+
+      setOrdered(true); persist({ ordered: true });
+      toast({ title: "발주 완료", description: `${zipName} 위챗 단톡방으로 전송됨` });
+    } catch (e: any) {
+      toast({ title: "발주 실패", description: e?.message || String(e), variant: "destructive" });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const Step = ({ idx, label, done, disabled, onClick }: { idx: number; label: string; done: boolean; disabled: boolean; onClick: () => void }) => (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`flex-1 rounded-lg border p-4 text-left transition-colors ${
+        done ? "border-primary bg-primary/5" : disabled ? "border-border bg-muted/30 opacity-60 cursor-not-allowed" : "border-border hover:bg-accent"
+      }`}
+    >
+      <div className="flex items-center gap-2">
+        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+          done ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+        }`}>
+          {done ? <CheckCircle2 className="w-4 h-4" /> : idx}
+        </div>
+        <div className="font-medium text-sm">{label}</div>
+      </div>
+      <div className="mt-2 text-xs text-muted-foreground">
+        {done ? "완료" : disabled ? "이전 단계를 먼저 완료하세요" : "클릭하여 진행"}
+      </div>
+    </button>
+  );
+
+  return (
+    <Card>
+      <CardHeader className="pb-3 flex flex-row items-center justify-between">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Package className="w-4 h-4" /> 발주 진행
+        </CardTitle>
+        <Button size="sm" variant="ghost" onClick={() => setSettingsOpen(true)}>
+          <Settings className="w-4 h-4 mr-1" /> 위챗 Webhook
+        </Button>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col md:flex-row gap-3">
+          <Step idx={1} label="작업지시서 확인" done={confirmed1} disabled={false} onClick={() => setOpen1(true)} />
+          <Step idx={2} label="작업파일 확인" done={confirmed2} disabled={!confirmed1} onClick={() => setOpen2(true)} />
+          <Step idx={3} label="발주" done={ordered} disabled={!confirmed1 || !confirmed2 || sending} onClick={sendOrder} />
+        </div>
+
+        <Dialog open={open1} onOpenChange={setOpen1}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader><DialogTitle>작업지시서 미리보기</DialogTitle></DialogHeader>
+            <div className="flex-1 overflow-auto border rounded-md bg-white">
+              <iframe title="logo-wo-preview" srcDoc={woHtml} className="w-full h-[70vh] bg-white" />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpen1(false)}>닫기</Button>
+              <Button onClick={() => { setConfirmed1(true); persist({ confirmed1: true }); setOpen1(false); toast({ title: "작업지시서 확인 완료" }); }}>
+                <CheckCircle2 className="w-4 h-4 mr-1" /> 확인
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={open2} onOpenChange={setOpen2}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-primary" />
+                LOGO 작업파일 미리보기 · {logoWidthMm} × {logoHeightMm} mm
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-auto border rounded-md bg-white p-6 flex items-center justify-center" style={{ minHeight: "60vh" }}>
+              {vectorDataUrl ? (
+                <img src={vectorDataUrl} alt="logo vector" className="max-w-full max-h-[60vh] object-contain" />
+              ) : (
+                <div className="text-center space-y-2">
+                  <ImageOff className="w-10 h-10 mx-auto text-destructive" />
+                  <div className="text-sm font-medium text-destructive">LOGO 벡터 변환이 완료되지 않았습니다</div>
+                  <div className="text-xs text-muted-foreground">발주 전 '벡터 변환(Vectorizer.AI)'을 먼저 실행하세요.</div>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpen2(false)}>닫기</Button>
+              <Button onClick={() => { setConfirmed2(true); persist({ confirmed2: true }); setOpen2(false); toast({ title: "작업파일 확인 완료" }); }}>
+                <CheckCircle2 className="w-4 h-4 mr-1" /> 확인
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>LOGO 공장 위챗 Webhook</DialogTitle></DialogHeader>
+            <div className="space-y-2">
+              <Label className="text-xs">기업위챗 그룹봇 Webhook URL</Label>
+              <Input value={webhookUrl} onChange={e => setWebhookUrl(e.target.value)} placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..." />
+              <p className="text-xs text-muted-foreground">발주 시 이 그룹채팅으로 ZIP 다운로드 링크가 전송됩니다.</p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSettingsOpen(false)}>취소</Button>
+              <Button onClick={saveWebhook}><Send className="w-4 h-4 mr-1" /> 저장</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </CardContent>
+    </Card>
+  );
 }
