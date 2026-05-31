@@ -206,9 +206,20 @@ function OrderProgressBox({
   const [open1, setOpen1] = useState(false);
   const [open2, setOpen2] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [webhookUrl, setWebhookUrl] = useState<string>(() => {
-    try { return localStorage.getItem(WECHAT_WEBHOOK_LS_KEY) || ""; } catch { return ""; }
-  });
+  const [webhookUrl, setWebhookUrl] = useState<string>(() => readHologramWebhook());
+
+  useEffect(() => {
+    const onFocus = () => setWebhookUrl(readHologramWebhook());
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("storage", onFocus);
+    return () => { window.removeEventListener("focus", onFocus); window.removeEventListener("storage", onFocus); };
+  }, []);
+
+  const saveWebhook = () => {
+    writeHologramWebhook(webhookUrl);
+    toast({ title: "위챗 Webhook 저장됨" });
+    setSettingsOpen(false);
+  };
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
