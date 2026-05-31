@@ -807,15 +807,74 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     }
   };
 
+  /**
+   * 배경 제거 코어 로직 (handleRemoveBackground 와 동일한 알고리즘).
+   * 상태를 변경하지 않고 결과 PNG dataUrl만 반환합니다 — 미리보기/벡터 사전처리에 재사용.
+   */
+  const removeBackgroundToDataUrl = async (src: string): Promise<string> => {
+    const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
+    const img = await loadImage(dataUrl);
+    const w = img.naturalWidth, h = img.naturalHeight;
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+    ctx.drawImage(img, 0, 0);
+    const id = ctx.getImageData(0, 0, w, h);
+    const d = id.data;
+    const samples: Array<[number, number]> = [
+      [0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1],
+      [(w / 2) | 0, 0], [(w / 2) | 0, h - 1], [0, (h / 2) | 0], [w - 1, (h / 2) | 0],
+    ];
+    let br = 0, bg = 0, bb = 0, n = 0;
+    for (const [x, y] of samples) {
+      const i = (y * w + x) * 4;
+      if (d[i + 3] < 8) continue;
+      br += d[i]; bg += d[i + 1]; bb += d[i + 2]; n++;
+    }
+    if (n === 0) { br = bg = bb = 255; n = 1; }
+    br /= n; bg /= n; bb /= n;
+    const T1 = 18, T2 = 60;
+    for (let i = 0; i < d.length; i += 4) {
+      const dr = d[i] - br, dg = d[i + 1] - bg, db = d[i + 2] - bb;
+      const dist = Math.sqrt(dr * dr + dg * dg + db * db);
+      if (dist <= T1) d[i + 3] = 0;
+      else if (dist < T2) {
+        const t = (dist - T1) / (T2 - T1);
+        d[i + 3] = Math.round(d[i + 3] * t);
+      }
+    }
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] < 24) d[i + 3] = 0;
+    }
+    ctx.putImageData(id, 0, 0);
+    return canvas.toDataURL("image/png");
+  };
+
+  /** 벡터 변환 직전 배경 제거 — 미리보기 전용 (processedDataUrl/벡터 결과는 건드리지 않음). */
+  const handlePreVectorRemoveBackground = async () => {
+    const src = upscaledDataUrl || sourceLogo;
+    if (!src) { toast({ title: "로고가 없습니다", variant: "destructive" }); return; }
+    setBusy("배경 제거 중...");
+    try {
+      const out = await removeBackgroundToDataUrl(src);
+      setPreVectorBgRemovedDataUrl(out);
+      toast({ title: "배경 제거 완료", description: "아래 미리보기에서 결과를 확인한 뒤 [벡터 변환 실행]을 누르세요." });
+    } catch (e: any) {
+      toast({ title: "배경 제거 실패", description: e?.message || String(e), variant: "destructive" });
+    } finally { setBusy(null); }
+  };
+
   const handleVectorizeAI = async () => {
-    // 우선순위: 업스케일 결과 → 원본 로고 (업스케일만 업로드된 경우도 지원)
-    const vectorSource = upscaledDataUrl || sourceLogo;
+    // 우선순위: 배경 제거 결과 → 업스케일 결과 → 원본 로고
+    const vectorSource = preVectorBgRemovedDataUrl || upscaledDataUrl || sourceLogo;
     if (!vectorSource) { toast({ title: "로고가 없습니다", description: "원본 로고 또는 업스케일 결과를 먼저 업로드하세요.", variant: "destructive" }); return; }
     const mode = (localStorage.getItem(VECTORIZER_MODE_KEY) as "test" | "preview" | "production" | null) || "test";
     setBusy(`Vectorizer.AI 처리 중 (${mode})...`);
     try {
-      // 1) 사전 처리: 흰 배경을 투명으로 만들어 전송 (벡터화 정확도↑, 흰 fill path 생성 방지)
-      const cleaned = await preprocessWhiteToTransparent(vectorSource);
+      // 1) 사전 처리: 이미 배경 제거된 경우 그대로 사용, 아니면 흰 배경을 투명으로 변환
+      const cleaned = preVectorBgRemovedDataUrl
+        ? preVectorBgRemovedDataUrl
+        : await preprocessWhiteToTransparent(vectorSource);
       const payload = { imageBase64: cleaned, mode };
       const { data, error } = await supabase.functions.invoke("vectorize-image", { body: payload });
       if (error) throw error;
