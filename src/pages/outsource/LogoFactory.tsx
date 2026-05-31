@@ -1059,25 +1059,24 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 { id: 1, label: "로고확인" },
                 { id: 2, label: "타입 확인" },
                 { id: 3, label: "업스케일" },
-                { id: 7, label: "업스케일 업로드" },
-                { id: 4, label: "벡터 변환" },
+                { id: 7, label: logoType === "mono" ? "업스케일 업로드 · 벡터 변환" : "업스케일 업로드" },
                 { id: 5, label: "인쇄영역·미리보기 & PDF" },
-              ].filter(s => s.id !== 4 || logoType === "mono");
+              ];
 
               const step1Done = !!sourceLogo;
               const step2Done = !!logoType;
               const step3Done = !!upscaledDataUrl || upscaleSkipped || (logoType === "mono" && !!vectorDataUrl);
-              const step7Done = !!upscaledUploadName || !!upscaledDataUrl || upscaleSkipped;
-              const step4Done = !!vectorDataUrl;
+              const step7Done = logoType === "mono"
+                ? !!vectorDataUrl
+                : (!!upscaledUploadName || !!upscaledDataUrl || upscaleSkipped);
               const step5Done = printAreaSaved;
-              const doneMap: Record<number, boolean> = { 1: step1Done, 2: step2Done, 3: step3Done, 7: step7Done, 4: step4Done, 5: step5Done, 6: false };
+              const doneMap: Record<number, boolean> = { 1: step1Done, 2: step2Done, 3: step3Done, 7: step7Done, 5: step5Done };
 
               const canAdvance = (id: number) => {
                 if (id === 1) return step1Done;
                 if (id === 2) return step2Done;
                 if (id === 3) return step3Done;
-                if (id === 7) return true; // optional step — skip allowed
-                if (id === 4) return step4Done;
+                if (id === 7) return logoType === "mono" ? !!vectorDataUrl : true;
                 if (id === 5) return step5Done;
                 return false;
               };
