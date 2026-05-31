@@ -790,6 +790,73 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
           </CardContent>
         </Card>
 
+        {/* 주문 상세 목록 */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">주문 상세 목록</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const items = Array.from({ length: Math.max(1, qty) }, (_, i) => ({
+                seq: i + 1,
+                uniqueNo: `${orderNo}-${i + 1}`,
+              }));
+              return (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12">#</TableHead>
+                        <TableHead>작업번호</TableHead>
+                        <TableHead>로고고유번호</TableHead>
+                        <TableHead>로고</TableHead>
+                        <TableHead className="text-right">로고다운로드</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {items.map((it) => (
+                        <TableRow key={it.seq}>
+                          <TableCell className="text-muted-foreground">{it.seq}</TableCell>
+                          <TableCell className="font-mono">{orderNo}</TableCell>
+                          <TableCell className="font-mono">{it.uniqueNo}</TableCell>
+                          <TableCell>
+                            <div className="w-12 h-12 rounded border bg-muted/30 flex items-center justify-center overflow-hidden">
+                              {sourceLogo ? (
+                                <img src={sourceLogo} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                              ) : (
+                                <ImageOff className="w-4 h-4 text-muted-foreground" />
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {sourceLogo ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  downloadUrl(
+                                    sourceLogo,
+                                    `logo-${it.uniqueNo}.png`
+                                  )
+                                }
+                              >
+                                <Download className="w-3.5 h-3.5 mr-1" />
+                                다운로드
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
+
         {/* 로고 작업 설정 박스 */}
         <Card>
           <CardHeader className="pb-3">
