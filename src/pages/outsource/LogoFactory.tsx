@@ -1384,7 +1384,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                             <span className="block mt-1">소스: {processedKind === "upscaled" ? "업스케일된 로고" : "원본 로고"} · 변환 모드는 [외주 설정]에서 변경</span>
                           </div>
                           <div className="flex items-center justify-between gap-3">
-                            <Button onClick={handleVectorizeAI} disabled={!sourceLogo || !!busy}>
+                            <Button onClick={handleVectorizeAI} disabled={(!sourceLogo && !upscaledDataUrl) || !!busy}>
                               <Cloud className="w-4 h-4 mr-1" /> 벡터 변환 실행
                             </Button>
                             {vectorDataUrl && (
