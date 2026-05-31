@@ -167,6 +167,29 @@ function buildHologramExcelBlob(items: Array<{ seq: number; uniqueNo: string; ed
 }
 
 const WECHAT_WEBHOOK_LS_KEY = "wechat.webhook.hologram";
+const WECHAT_HOOKS_SHARED_KEY = "outsource.wechatWebhooks.v1";
+
+function readHologramWebhook(): string {
+  try {
+    const shared = localStorage.getItem(WECHAT_HOOKS_SHARED_KEY);
+    if (shared) {
+      const obj = JSON.parse(shared);
+      if (obj?.hologram) return String(obj.hologram).trim();
+    }
+  } catch {}
+  try { return (localStorage.getItem(WECHAT_WEBHOOK_LS_KEY) || "").trim(); } catch { return ""; }
+}
+
+function writeHologramWebhook(url: string) {
+  const v = url.trim();
+  try { localStorage.setItem(WECHAT_WEBHOOK_LS_KEY, v); } catch {}
+  try {
+    const raw = localStorage.getItem(WECHAT_HOOKS_SHARED_KEY);
+    const obj = raw ? JSON.parse(raw) : {};
+    obj.hologram = v;
+    localStorage.setItem(WECHAT_HOOKS_SHARED_KEY, JSON.stringify(obj));
+  } catch {}
+}
 
 function OrderProgressBox({
   order, items, pdfPreview,
@@ -183,9 +206,20 @@ function OrderProgressBox({
   const [open1, setOpen1] = useState(false);
   const [open2, setOpen2] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [webhookUrl, setWebhookUrl] = useState<string>(() => {
-    try { return localStorage.getItem(WECHAT_WEBHOOK_LS_KEY) || ""; } catch { return ""; }
-  });
+  const [webhookUrl, setWebhookUrl] = useState<string>(() => readHologramWebhook());
+
+  useEffect(() => {
+    const onFocus = () => setWebhookUrl(readHologramWebhook());
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("storage", onFocus);
+    return () => { window.removeEventListener("focus", onFocus); window.removeEventListener("storage", onFocus); };
+  }, []);
+
+  const saveWebhook = () => {
+    writeHologramWebhook(webhookUrl);
+    toast({ title: "위챗 Webhook 저장됨" });
+    setSettingsOpen(false);
+  };
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
@@ -208,10 +242,6 @@ function OrderProgressBox({
   const woData = useMemo(() => computeHoloWorkOrder(order, items), [order, items]);
   const woHtml = useMemo(() => buildHologramWorkOrderHtml(woData, pdfPreview), [woData, pdfPreview]);
 
-  const saveWebhook = () => {
-    try { localStorage.setItem(WECHAT_WEBHOOK_LS_KEY, webhookUrl.trim()); toast({ title: "위챗 Webhook 저장됨" }); setSettingsOpen(false); }
-    catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" as any }); }
-  };
 
   const sendOrder = async () => {
     if (!webhookUrl) {
