@@ -430,6 +430,41 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     toast({ title: "테스트 로고 제거됨", description: "원본 로고로 복원되었습니다" });
   };
 
+  /** Download any URL (data: or remote) as a file via a temporary <a>. */
+  const downloadUrl = async (url: string, filename: string) => {
+    try {
+      const dataUrl = url.startsWith("data:") ? url : await fetchAsDataUrl(url);
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (e: any) {
+      toast({ title: "다운로드 실패", description: e?.message || String(e), variant: "destructive" });
+    }
+  };
+
+  /** User uploads an externally-upscaled file (e.g. from Let's Enhance). */
+  const handleUpscaledUpload = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "이미지 파일만 업로드 가능합니다", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setUpscaledDataUrl(dataUrl);
+      setProcessedDataUrl(dataUrl);
+      setProcessedKind("upscaled");
+      setCompareTarget("upscaled");
+      setUpscaledUploadName(file.name);
+      toast({ title: "업스케일 결과 업로드 완료", description: file.name });
+    };
+    reader.onerror = () => toast({ title: "파일 읽기 실패", variant: "destructive" });
+    reader.readAsDataURL(file);
+  };
+
   const handleUpscale = async () => {
     if (!sourceLogo) return;
     setBusy("로고 업스케일링 중 (smart Lanczos3)...");
