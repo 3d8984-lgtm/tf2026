@@ -1176,23 +1176,27 @@ function TxtField({ label, v, set, type = "text" }: { label: string; v: string; 
   );
 }
 
-function printLogoWorkOrder(
-  wo: { company: string; orderNo: string; orderDate: string; deliveryDate: string; baseQty: number; surplusQty: number; totalQty: number; recipient: string; phone: string; address: string; notes: string },
+type WoData = { company: string; orderNo: string; orderDate: string; deliveryDate: string; baseQty: number; surplusQty: number; totalQty: number; recipient: string; phone: string; address: string; notes: string };
+
+function buildLogoWorkOrderHtml(
+  wo: WoData,
   workType: WorkType,
   logoWidthMm: number,
   logoHeightMm: number,
   logoSrc: string | null,
-) {
+  opts?: { autoPrint?: boolean },
+): string {
   const esc = (s: any) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
   const today = new Date().toISOString().slice(0, 10);
   const typeLabel = WORK_TYPES.find(w => w.value === workType)?.label || workType;
-  const html = `<!doctype html>
+  const printScript = opts?.autoPrint ? `<script>window.addEventListener("load", () => setTimeout(() => window.print(), 400));</script>` : "";
+  return `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8" />
 <title>作业指示书 - ${esc(wo.orderNo)}</title>
 <style>
   @page { size: A4; margin: 12mm; }
   * { box-sizing: border-box; }
-  body { font-family: "PingFang SC", "Microsoft YaHei", "SimHei", "Noto Sans SC", sans-serif; color:#111; margin:0; padding:0; }
+  body { font-family: "PingFang SC", "Microsoft YaHei", "SimHei", "Noto Sans SC", sans-serif; color:#111; margin:0; padding:12mm; background:#fff; }
   h1 { font-size: 22pt; text-align:center; margin: 0 0 4mm; letter-spacing: 8px; border-bottom: 2px solid #111; padding-bottom: 4mm; }
   .meta { display:flex; justify-content:space-between; font-size: 9pt; color:#555; margin-bottom: 6mm; }
   table { width:100%; border-collapse: collapse; font-size: 10pt; }
@@ -1207,10 +1211,10 @@ function printLogoWorkOrder(
   .sig div { border-top:1px solid #333; padding-top:2mm; min-width: 40mm; text-align:center; }
   .no-print { position:fixed; top:8px; right:8px; }
   .no-print button { padding: 8px 14px; font-size: 13px; cursor:pointer; }
-  @media print { .no-print { display:none; } }
+  @media print { .no-print { display:none; } body { padding: 0; } }
 </style></head>
 <body>
-  <div class="no-print"><button onclick="window.print()">打印 / 保存PDF</button></div>
+  ${opts?.autoPrint ? `<div class="no-print"><button onclick="window.print()">打印 / 保存PDF</button></div>` : ""}
   <h1>作 业 指 示 书</h1>
   <div class="meta"><span>发包方:${esc(wo.company)}</span><span>打印日期:${today}</span></div>
   <table>
@@ -1232,8 +1236,18 @@ function printLogoWorkOrder(
     ${logoSrc ? `<img src="${esc(logoSrc)}" alt="logo" />` : `<span style="color:#999;">无 LOGO</span>`}
   </div>
   <div class="sig"><div>负责人</div><div>审批</div></div>
-  <script>window.addEventListener("load", () => setTimeout(() => window.print(), 400));</script>
+  ${printScript}
 </body></html>`;
+}
+
+function printLogoWorkOrder(
+  wo: WoData,
+  workType: WorkType,
+  logoWidthMm: number,
+  logoHeightMm: number,
+  logoSrc: string | null,
+) {
+  const html = buildLogoWorkOrderHtml(wo, workType, logoWidthMm, logoHeightMm, logoSrc, { autoPrint: true });
   const w = window.open("", "_blank", "width=900,height=1100");
   if (!w) { toast({ title: "팝업 차단됨", description: "팝업을 허용해주세요", variant: "destructive" }); return; }
   w.document.open(); w.document.write(html); w.document.close();
