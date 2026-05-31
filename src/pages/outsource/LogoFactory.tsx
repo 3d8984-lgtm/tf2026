@@ -929,13 +929,13 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                               </TableCell>
                               <TableCell className="text-right">
                                 <div className="flex items-center justify-end gap-2">
-                                  {(logoUrl || testLogoDataUrl) && (
-                                    <Button size="sm" variant="outline" onClick={() => downloadUrl((logoUrl || testLogoDataUrl)!, `${orderNo}-1.png`)}>
-                                      <Download className="w-3 h-3 mr-1" /> 다운로드
-                                    </Button>
-                                  )}
-                                  <Button size="sm" variant={(logoUrl || testLogoDataUrl) ? "ghost" : "default"} onClick={() => { if (testLogoInputRef.current) { testLogoInputRef.current.value = ""; testLogoInputRef.current.click(); } }}>
-                                    <Upload className="w-3 h-3 mr-1" /> {testLogoDataUrl ? "교체" : "로고확인"}
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={!(logoUrl || testLogoDataUrl)}
+                                    onClick={() => downloadUrl((logoUrl || testLogoDataUrl)!, `${orderNo}-1.png`)}
+                                  >
+                                    <Download className="w-3 h-3 mr-1" /> 로고다운
                                   </Button>
                                 </div>
                               </TableCell>
@@ -944,7 +944,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                         </Table>
                         {!logoUrl && !testLogoDataUrl && (
                           <div className="px-3 py-2 text-[11px] text-muted-foreground border-t bg-muted/10">
-                            API로 받은 원본 로고가 없습니다. 우측 <b>로고확인</b> 버튼으로 로고 파일을 등록하세요.
+                            API로 받은 원본 로고가 없습니다.
                           </div>
                         )}
                       </div>
