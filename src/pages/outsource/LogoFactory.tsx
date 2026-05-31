@@ -250,7 +250,14 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const setWoP = (p: Partial<typeof wo>) => setWo(prev => ({ ...prev, ...p }));
 
   // Logo settings
-  const [workType, setWorkType] = useState<WorkType>("heat-transfer");
+  const [workTypes, setWorkTypes] = useState<{ value: string; label: string }[]>(() => loadWorkTypes());
+  useEffect(() => {
+    try { localStorage.setItem(WORK_TYPES_LS_KEY, JSON.stringify(workTypes)); } catch {}
+  }, [workTypes]);
+  const [workType, setWorkType] = useState<WorkType>(() => loadWorkTypes()[0]?.value || "heat-transfer");
+  const [workTypesDialogOpen, setWorkTypesDialogOpen] = useState(false);
+  const [newWorkTypeLabel, setNewWorkTypeLabel] = useState("");
+  const workTypeLabel = workTypes.find(w => w.value === workType)?.label || workType;
   const DEFAULT_BASE_MM = 50;
   const DEFAULT_CANVAS_MM = 100;
   const PRINT_AREA_LS_KEY = `logo.printArea.v1.${orderNo}`;
