@@ -811,8 +811,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 { id: 3, label: "업스케일" },
                 { id: 7, label: "업스케일 업로드" },
                 { id: 4, label: "벡터 변환" },
-                { id: 5, label: "인쇄영역 & 크기" },
-                { id: 6, label: "미리보기 & PDF" },
+                { id: 5, label: "인쇄영역·미리보기 & PDF" },
               ].filter(s => s.id !== 4 || logoType === "mono");
 
               const step1Done = !!sourceLogo;
