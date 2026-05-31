@@ -1240,8 +1240,8 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                           <RadioGroupItem id="lt-mono" value="mono" className="mt-1" />
                           <div className="space-y-1">
                             <div className="font-semibold text-sm flex items-center gap-2">⚫ 단색 / 단순 로고 {recommendedType === "mono" && <Badge variant="outline" className="text-[10px]">추천</Badge>}</div>
-                            <div className="text-xs text-muted-foreground">라인아트·텍스트·단색 로고. 필요 시 업스케일 후 <b>벡터 변환</b>까지 진행합니다.</div>
-                            <div className="text-[10px] text-muted-foreground">단계: 업스케일(선택) → 벡터 변환 → 인쇄영역 → PDF</div>
+                            <div className="text-xs text-muted-foreground">라인아트·텍스트·단색 로고. 업스케일 업로드 단계에서 <b>벡터 변환</b>까지 함께 진행합니다.</div>
+                            <div className="text-[10px] text-muted-foreground">단계: 업스케일(선택) → 업로드·벡터 변환 → 인쇄영역 → PDF</div>
                           </div>
                         </label>
                       </RadioGroup>
