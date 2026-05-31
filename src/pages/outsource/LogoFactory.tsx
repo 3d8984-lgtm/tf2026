@@ -875,13 +875,8 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
         {/* 로고 작업 설정 박스 */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center justify-between">
+            <CardTitle className="text-base">
               <span>로고 작업 시안</span>
-              <div className="flex items-center gap-2 flex-wrap">
-                <Button size="sm" onClick={downloadResultPdf} disabled={!!busy || !workCompleted} title={!workCompleted ? "[인쇄영역·미리보기 & PDF] 단계에서 완료 버튼을 눌러주세요" : undefined}>
-                  <Download className="w-4 h-4 mr-1" /> 작업결과물 다운로드 (PDF)
-                </Button>
-              </div>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
