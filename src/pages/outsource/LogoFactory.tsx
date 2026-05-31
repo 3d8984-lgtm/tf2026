@@ -334,10 +334,10 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     setTestLogoName(null);
   }, [logoUrl]);
 
-  // Auto-set default print size based on source logo's natural aspect ratio.
-  // Base = 50mm on the longer side; the shorter side scales proportionally.
+  // Auto-set print size: preserve the logo's natural aspect ratio and scale it
+  // to the largest size that fits inside the current print area (canvas).
   useEffect(() => {
-    const src = testLogoDataUrl || logoUrl;
+    const src = processedDataUrl || testLogoDataUrl || logoUrl || upscaledDataUrl;
     if (!src) return;
     let cancelled = false;
     (async () => {
@@ -345,19 +345,20 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
         const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
         const img = await loadImage(dataUrl);
         if (cancelled) return;
-        const ar = img.naturalWidth / img.naturalHeight;
+        const ar = (img.naturalWidth || 1) / (img.naturalHeight || 1);
         setNaturalAspect(ar || 1);
-        if (ar >= 1) {
-          setLogoWidthMm(DEFAULT_BASE_MM);
-          setLogoHeightMm(Math.round((DEFAULT_BASE_MM / ar) * 10) / 10);
-        } else {
-          setLogoHeightMm(DEFAULT_BASE_MM);
-          setLogoWidthMm(Math.round(DEFAULT_BASE_MM * ar * 10) / 10);
-        }
+        const cw = canvasWidthMm || DEFAULT_CANVAS_MM;
+        const ch = canvasHeightMm || DEFAULT_CANVAS_MM;
+        // Fit logo inside canvas keeping aspect ratio (max possible size)
+        let w = cw;
+        let h = w / ar;
+        if (h > ch) { h = ch; w = h * ar; }
+        setLogoWidthMm(Math.round(w * 10) / 10);
+        setLogoHeightMm(Math.round(h * 10) / 10);
       } catch { /* ignore */ }
     })();
     return () => { cancelled = true; };
-  }, [logoUrl, testLogoDataUrl]);
+  }, [logoUrl, testLogoDataUrl, processedDataUrl, upscaledDataUrl, canvasWidthMm, canvasHeightMm]);
 
   // Auto-analyze source logo whenever it changes → recommend 컬러/단색 type
   useEffect(() => {
