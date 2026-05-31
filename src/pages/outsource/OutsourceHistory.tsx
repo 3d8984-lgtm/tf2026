@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import PageHeader from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +15,7 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { useLang } from "@/contexts/LangContext";
-import { CheckCircle2, Search, ExternalLink, Send, Settings2, Loader2 } from "lucide-react";
+import { CheckCircle2, Search, ExternalLink, Send, Settings2, Loader2, Plus } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -25,17 +25,17 @@ type Status = "ordered" | "shipped" | "received";
 interface HistoryRow {
   id: string;
   factory: Factory;
-  orderNo: string;
-  orderedAt: string;
-  qty: number;
-  productCode: string;
-  startedAt?: string;
-  expectedAt?: string;
-  producedAt?: string;
-  shippedAt?: string;
-  trackingNo?: string;
-  carrier?: string;
-  receivedAt?: string;
+  order_no: string;
+  ordered_at: string;
+  quantity: number;
+  product_code: string;
+  started_at: string | null;
+  expected_at: string | null;
+  produced_at: string | null;
+  shipped_at: string | null;
+  tracking_no: string | null;
+  carrier: string | null;
+  received_at: string | null;
   status: Status;
 }
 
@@ -54,7 +54,6 @@ const FACTORY_LABEL_ZH: Record<Factory, string> = {
   logo: "LOGO工厂",
 };
 
-// 중국 주요 택배사
 const CARRIERS: { value: string; labelKo: string; labelZh: string; trackUrl: (no: string) => string }[] = [
   { value: "SF",   labelKo: "순펑(SF Express)", labelZh: "顺丰速运", trackUrl: (n) => `https://www.sf-express.com/chn/sc/dynamic_function/waybill/#search/bill-number/${n}` },
   { value: "YTO",  labelKo: "위엔통(YTO)",      labelZh: "圆通速递", trackUrl: (n) => `https://www.yto.net.cn/Track/?wb=${n}` },
@@ -65,13 +64,14 @@ const CARRIERS: { value: string; labelKo: string; labelZh: string; trackUrl: (no
   { value: "EMS",  labelKo: "EMS",              labelZh: "中国邮政EMS", trackUrl: (n) => `https://www.ems.com.cn/queryList?mailNum=${n}` },
 ];
 
-const SAMPLE: HistoryRow[] = [];
-
 const WECHAT_HOOKS_STORAGE_KEY = "outsource.wechatWebhooks.v1";
+
+const EDITABLE_DATE_FIELDS = ["started_at", "expected_at", "produced_at", "shipped_at"] as const;
 
 export default function OutsourceHistory() {
   const { lang } = useLang();
-  const [rows, setRows] = useState<HistoryRow[]>(SAMPLE);
+  const [rows, setRows] = useState<HistoryRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [factoryFilter, setFactoryFilter] = useState<Factory | "all">("all");
   const [q, setQ] = useState("");
   const [hooks, setHooks] = useState<Record<Factory, string>>({
@@ -79,6 +79,27 @@ export default function OutsourceHistory() {
   });
   const [hooksOpen, setHooksOpen] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [draft, setDraft] = useState<{ factory: Factory; order_no: string; product_code: string; quantity: number; ordered_at: string }>({
+    factory: "silicon", order_no: "", product_code: "", quantity: 0, ordered_at: new Date().toISOString().slice(0, 10),
+  });
+
+  const loadRows = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("outsource_orders")
+      .select("*")
+      .order("ordered_at", { ascending: false });
+    if (error) {
+      toast({ title: lang === "ko" ? "조회 실패" : "查询失败", description: error.message, variant: "destructive" });
+    } else {
+      setRows((data ?? []) as HistoryRow[]);
+    }
+    setLoading(false);
+  }, [lang]);
+
+  useEffect(() => { loadRows(); }, [loadRows]);
 
   useEffect(() => {
     try {
@@ -97,7 +118,7 @@ export default function OutsourceHistory() {
 
   const filtered = useMemo(() => rows.filter(r =>
     (factoryFilter === "all" || r.factory === factoryFilter) &&
-    (!q || r.orderNo.toLowerCase().includes(q.toLowerCase()) || (r.trackingNo ?? "").toLowerCase().includes(q.toLowerCase()))
+    (!q || r.order_no.toLowerCase().includes(q.toLowerCase()) || (r.tracking_no ?? "").toLowerCase().includes(q.toLowerCase()))
   ), [rows, factoryFilter, q]);
 
   const stats = useMemo(() => ({
@@ -107,22 +128,31 @@ export default function OutsourceHistory() {
     received: rows.filter(r => r.status === "received").length,
   }), [rows]);
 
-  const updateRow = (id: string, patch: Partial<HistoryRow>) => {
-    setRows(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
+  const persist = async (id: string, patch: Partial<HistoryRow>) => {
+    const prev = rows;
+    setRows(p => p.map(r => r.id === id ? { ...r, ...patch } : r));
+    const { error } = await supabase.from("outsource_orders").update(patch).eq("id", id);
+    if (error) {
+      setRows(prev);
+      toast({ title: lang === "ko" ? "저장 실패" : "保存失败", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const handleDateChange = (id: string, field: typeof EDITABLE_DATE_FIELDS[number], value: string, currentStatus: Status) => {
+    const patch: Partial<HistoryRow> = { [field]: value || null } as any;
+    if (field === "shipped_at" && value && currentStatus === "ordered") patch.status = "shipped";
+    persist(id, patch);
   };
 
   const confirmReceived = (id: string) => {
-    updateRow(id, { status: "received", receivedAt: new Date().toISOString().slice(0, 10) });
+    persist(id, { status: "received", received_at: new Date().toISOString().slice(0, 10) });
     toast({ title: lang === "ko" ? "수령 확인 완료" : "已确认收货" });
   };
 
-  const openTracking = (carrier?: string, no?: string) => {
-    if (!carrier || !no) return;
+  const openTracking = (carrier?: string | null, no?: string | null) => {
+    if (!no) return;
     const c = CARRIERS.find(x => x.value === carrier);
-    if (!c) {
-      window.open(`https://t.17track.net/zh-cn#nums=${no}`, "_blank");
-      return;
-    }
+    if (!c) { window.open(`https://t.17track.net/zh-cn#nums=${no}`, "_blank"); return; }
     window.open(c.trackUrl(no), "_blank");
   };
 
@@ -131,12 +161,12 @@ export default function OutsourceHistory() {
     const lines = [
       `【TWINMETA 发货通知 / 발주】`,
       `工厂 / 공장: ${factoryZh}`,
-      `订单号 / 작업번호: ${r.orderNo}`,
-      `产品编号 / 제품코드: ${r.productCode}`,
-      `数量 / 수량: ${r.qty.toLocaleString()}`,
-      `发单日期 / 발주일: ${r.orderedAt}`,
-      r.startedAt && `开始制作 / 제작착수: ${r.startedAt}`,
-      r.expectedAt && `预计制作完成日 / 예상 제작 완료일: ${r.expectedAt}`,
+      `订单号 / 작업번호: ${r.order_no}`,
+      `产品编号 / 제품코드: ${r.product_code}`,
+      `数量 / 수량: ${r.quantity.toLocaleString()}`,
+      `发单日期 / 발주일: ${r.ordered_at}`,
+      r.started_at && `开始制作 / 제작착수: ${r.started_at}`,
+      r.expected_at && `预计制作完成日 / 예상 제작 완료일: ${r.expected_at}`,
       `——`,
       `请确认并按时交付。감사합니다.`,
     ].filter(Boolean);
@@ -148,9 +178,7 @@ export default function OutsourceHistory() {
     if (!url) {
       toast({
         title: lang === "ko" ? "Webhook 미설정" : "未设置 Webhook",
-        description: lang === "ko"
-          ? `${FACTORY_LABEL_KO[r.factory]}의 위챗 Webhook을 먼저 등록하세요.`
-          : `请先为 ${FACTORY_LABEL_ZH[r.factory]} 配置企业微信 Webhook。`,
+        description: lang === "ko" ? `${FACTORY_LABEL_KO[r.factory]}의 위챗 Webhook을 먼저 등록하세요.` : `请先为 ${FACTORY_LABEL_ZH[r.factory]} 配置企业微信 Webhook。`,
         variant: "destructive",
       });
       setHooksOpen(true);
@@ -161,19 +189,34 @@ export default function OutsourceHistory() {
       const { data, error } = await supabase.functions.invoke("wechat-send", {
         body: { webhookUrl: url, message: buildOrderMessage(r) },
       });
-      if (error || (data as any)?.error) {
-        throw new Error(error?.message ?? (data as any)?.error ?? "Unknown error");
-      }
+      if (error || (data as any)?.error) throw new Error(error?.message ?? (data as any)?.error ?? "Unknown error");
       toast({ title: lang === "ko" ? "위챗 발송 완료" : "已发送到企业微信" });
     } catch (e: any) {
-      toast({
-        title: lang === "ko" ? "위챗 발송 실패" : "发送失败",
-        description: e?.message ?? String(e),
-        variant: "destructive",
-      });
+      toast({ title: lang === "ko" ? "위챗 발송 실패" : "发送失败", description: e?.message ?? String(e), variant: "destructive" });
     } finally {
       setSendingId(null);
     }
+  };
+
+  const createOrder = async () => {
+    if (!draft.order_no || !draft.product_code) {
+      toast({ title: lang === "ko" ? "작업번호/제품코드를 입력하세요" : "请输入订单号/产品编号", variant: "destructive" });
+      return;
+    }
+    setCreating(true);
+    const { error } = await supabase.from("outsource_orders").insert({
+      factory: draft.factory, order_no: draft.order_no, product_code: draft.product_code,
+      quantity: draft.quantity, ordered_at: draft.ordered_at, status: "ordered",
+    });
+    setCreating(false);
+    if (error) {
+      toast({ title: lang === "ko" ? "등록 실패" : "登记失败", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: lang === "ko" ? "발주 등록 완료" : "已登记发货" });
+    setCreateOpen(false);
+    setDraft({ factory: "silicon", order_no: "", product_code: "", quantity: 0, ordered_at: new Date().toISOString().slice(0, 10) });
+    loadRows();
   };
 
   return (
@@ -203,17 +246,11 @@ export default function OutsourceHistory() {
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[220px]">
             <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={q}
-              onChange={e => setQ(e.target.value)}
-              placeholder={lang === "ko" ? "작업번호 / 송장번호 검색" : "搜索订单号 / 运单号"}
-              className="pl-8"
-            />
+            <Input value={q} onChange={e => setQ(e.target.value)}
+              placeholder={lang === "ko" ? "작업번호 / 송장번호 검색" : "搜索订单号 / 运单号"} className="pl-8" />
           </div>
           <Select value={factoryFilter} onValueChange={v => setFactoryFilter(v as Factory | "all")}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue />
-            </SelectTrigger>
+            <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{lang === "ko" ? "전체 공장" : "全部工厂"}</SelectItem>
               {(Object.keys(factoryLabel) as Factory[]).map(f => (
@@ -221,9 +258,11 @@ export default function OutsourceHistory() {
               ))}
             </SelectContent>
           </Select>
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus className="w-4 h-4 mr-1" />{lang === "ko" ? "발주 등록" : "登记发货"}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setHooksOpen(true)}>
-            <Settings2 className="w-4 h-4 mr-1" />
-            {lang === "ko" ? "위챗 Webhook 설정" : "企业微信 Webhook 设置"}
+            <Settings2 className="w-4 h-4 mr-1" />{lang === "ko" ? "위챗 Webhook 설정" : "企业微信 Webhook 设置"}
           </Button>
         </div>
 
@@ -247,81 +286,38 @@ export default function OutsourceHistory() {
             <TableBody>
               {filtered.map(r => (
                 <TableRow key={r.id}>
-                  <TableCell>
-                    <Badge variant="secondary">{factoryLabel[r.factory]}</Badge>
-                  </TableCell>
-                  <TableCell className="font-medium">{r.orderNo}</TableCell>
-                  <TableCell className="text-right">{r.qty.toLocaleString()}</TableCell>
-                  <TableCell>{r.orderedAt}</TableCell>
-                  <TableCell>
-                    <Input
-                      type="date"
-                      value={r.startedAt ?? ""}
-                      onChange={e => updateRow(r.id, { startedAt: e.target.value })}
-                      className="h-8"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      type="date"
-                      value={r.expectedAt ?? ""}
-                      onChange={e => updateRow(r.id, { expectedAt: e.target.value })}
-                      className="h-8"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      type="date"
-                      value={r.producedAt ?? ""}
-                      onChange={e => updateRow(r.id, { producedAt: e.target.value })}
-                      className="h-8"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      type="date"
-                      value={r.shippedAt ?? ""}
-                      onChange={e => {
-                        const v = e.target.value;
-                        updateRow(r.id, {
-                          shippedAt: v,
-                          status: v && r.status === "ordered" ? "shipped" : r.status,
-                        });
-                      }}
-                      className="h-8"
-                    />
-                  </TableCell>
+                  <TableCell><Badge variant="secondary">{factoryLabel[r.factory]}</Badge></TableCell>
+                  <TableCell className="font-medium">{r.order_no}</TableCell>
+                  <TableCell className="text-right">{r.quantity.toLocaleString()}</TableCell>
+                  <TableCell>{r.ordered_at}</TableCell>
+                  {EDITABLE_DATE_FIELDS.map(field => (
+                    <TableCell key={field}>
+                      <Input type="date" value={r[field] ?? ""}
+                        onChange={e => handleDateChange(r.id, field, e.target.value, r.status)}
+                        className="h-8" />
+                    </TableCell>
+                  ))}
                   <TableCell>
                     <div className="flex gap-1 items-center">
-                      <Select
-                        value={r.carrier ?? ""}
-                        onValueChange={v => updateRow(r.id, { carrier: v })}
-                      >
+                      <Select value={r.carrier ?? ""} onValueChange={v => persist(r.id, { carrier: v })}>
                         <SelectTrigger className="h-8 w-[110px]">
                           <SelectValue placeholder={lang === "ko" ? "택배사" : "快递"} />
                         </SelectTrigger>
                         <SelectContent>
                           {CARRIERS.map(c => (
-                            <SelectItem key={c.value} value={c.value}>
-                              {lang === "ko" ? c.labelKo : c.labelZh}
-                            </SelectItem>
+                            <SelectItem key={c.value} value={c.value}>{lang === "ko" ? c.labelKo : c.labelZh}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                      <Input
-                        value={r.trackingNo ?? ""}
-                        onChange={e => updateRow(r.id, { trackingNo: e.target.value })}
+                      <Input value={r.tracking_no ?? ""}
+                        onChange={e => setRows(p => p.map(x => x.id === r.id ? { ...x, tracking_no: e.target.value } : x))}
+                        onBlur={e => persist(r.id, { tracking_no: e.target.value || null })}
                         placeholder={lang === "ko" ? "송장번호" : "运单号"}
-                        className="h-8 flex-1 min-w-[110px]"
-                      />
-                      {r.trackingNo && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 shrink-0"
+                        className="h-8 flex-1 min-w-[110px]" />
+                      {r.tracking_no && (
+                        <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0"
                           title={lang === "ko" ? "운송상태 조회" : "查询物流"}
-                          onClick={() => openTracking(r.carrier, r.trackingNo)}
-                        >
+                          onClick={() => openTracking(r.carrier, r.tracking_no)}>
                           <ExternalLink className="w-4 h-4" />
                         </Button>
                       )}
@@ -332,7 +328,7 @@ export default function OutsourceHistory() {
                       <Badge variant="outline" className="gap-1 bg-success/15 text-success">
                         <CheckCircle2 className="w-3 h-3" />
                         {lang === "ko" ? "수령 완료" : "已收货"}
-                        {r.receivedAt && <span className="ml-1 text-[10px] opacity-70">{r.receivedAt}</span>}
+                        {r.received_at && <span className="ml-1 text-[10px] opacity-70">{r.received_at}</span>}
                       </Badge>
                     ) : (
                       <Button size="sm" variant="outline" onClick={() => confirmReceived(r.id)}>
@@ -341,24 +337,25 @@ export default function OutsourceHistory() {
                     )}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={sendingId === r.id}
-                      onClick={() => sendToWeChat(r)}
-                    >
-                      {sendingId === r.id
-                        ? <Loader2 className="w-4 h-4 animate-spin" />
-                        : <Send className="w-4 h-4 mr-1" />}
+                    <Button size="sm" variant="outline" disabled={sendingId === r.id} onClick={() => sendToWeChat(r)}>
+                      {sendingId === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 mr-1" />}
                       {lang === "ko" ? "위챗 발송" : "发送微信"}
                     </Button>
                   </TableCell>
                 </TableRow>
               ))}
-              {filtered.length === 0 && (
+              {!loading && filtered.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                     {lang === "ko" ? "조회된 발주 이력이 없습니다." : "暂无发货历史。"}
+                  </TableCell>
+                </TableRow>
+              )}
+              {loading && (
+                <TableRow>
+                  <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
+                    <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
+                    {lang === "ko" ? "불러오는 중..." : "加载中..."}
                   </TableCell>
                 </TableRow>
               )}
@@ -367,35 +364,75 @@ export default function OutsourceHistory() {
         </div>
       </Card>
 
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{lang === "ko" ? "발주 등록" : "登记发货"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">{lang === "ko" ? "공장" : "工厂"}</Label>
+              <Select value={draft.factory} onValueChange={v => setDraft(d => ({ ...d, factory: v as Factory }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(factoryLabel) as Factory[]).map(f => (
+                    <SelectItem key={f} value={f}>{factoryLabel[f]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">{lang === "ko" ? "작업번호" : "作业号"}</Label>
+                <Input value={draft.order_no} onChange={e => setDraft(d => ({ ...d, order_no: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">{lang === "ko" ? "제품코드" : "产品编号"}</Label>
+                <Input value={draft.product_code} onChange={e => setDraft(d => ({ ...d, product_code: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">{lang === "ko" ? "수량" : "数量"}</Label>
+                <Input type="number" value={draft.quantity} onChange={e => setDraft(d => ({ ...d, quantity: Number(e.target.value) || 0 }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">{lang === "ko" ? "발주일" : "发单日期"}</Label>
+                <Input type="date" value={draft.ordered_at} onChange={e => setDraft(d => ({ ...d, ordered_at: e.target.value }))} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCreateOpen(false)}>{lang === "ko" ? "취소" : "取消"}</Button>
+            <Button onClick={createOrder} disabled={creating}>
+              {creating && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
+              {lang === "ko" ? "등록" : "登记"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={hooksOpen} onOpenChange={setHooksOpen}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>{lang === "ko" ? "공장별 위챗 Webhook 설정" : "工厂企业微信 Webhook 设置"}</DialogTitle>
             <DialogDescription>
               {lang === "ko"
-                ? "기업위챗(企业微信) 그룹채팅에서 '그룹봇 추가'로 발급받은 Webhook URL을 각 공장별로 등록하세요. URL 예: https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxx"
-                : "在企业微信群聊中添加群机器人后获取 Webhook URL,按工厂分别填写。示例: https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxx"}
+                ? "기업위챗(企业微信) 그룹채팅에서 '그룹봇 추가'로 발급받은 Webhook URL을 각 공장별로 등록하세요."
+                : "在企业微信群聊中添加群机器人后获取 Webhook URL,按工厂分别填写。"}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
             {(Object.keys(FACTORY_LABEL_KO) as Factory[]).map(f => (
               <div key={f} className="space-y-1.5">
                 <Label className="text-xs">{factoryLabel[f]}</Label>
-                <Input
-                  value={hooks[f] ?? ""}
+                <Input value={hooks[f] ?? ""}
                   onChange={e => setHooks(prev => ({ ...prev, [f]: e.target.value }))}
-                  placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..."
-                />
+                  placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..." />
               </div>
             ))}
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setHooksOpen(false)}>
-              {lang === "ko" ? "취소" : "取消"}
-            </Button>
-            <Button onClick={() => { saveHooks(hooks); setHooksOpen(false); }}>
-              {lang === "ko" ? "저장" : "保存"}
-            </Button>
+            <Button variant="ghost" onClick={() => setHooksOpen(false)}>{lang === "ko" ? "취소" : "取消"}</Button>
+            <Button onClick={() => { saveHooks(hooks); setHooksOpen(false); }}>{lang === "ko" ? "저장" : "保存"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

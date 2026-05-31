@@ -299,6 +299,66 @@ export type Database = {
         }
         Relationships: []
       }
+      outsource_orders: {
+        Row: {
+          carrier: string | null
+          created_at: string
+          expected_at: string | null
+          factory: Database["public"]["Enums"]["outsource_factory"]
+          id: string
+          note: string | null
+          order_no: string
+          ordered_at: string
+          produced_at: string | null
+          product_code: string
+          quantity: number
+          received_at: string | null
+          shipped_at: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["outsource_status"]
+          tracking_no: string | null
+          updated_at: string
+        }
+        Insert: {
+          carrier?: string | null
+          created_at?: string
+          expected_at?: string | null
+          factory: Database["public"]["Enums"]["outsource_factory"]
+          id?: string
+          note?: string | null
+          order_no: string
+          ordered_at?: string
+          produced_at?: string | null
+          product_code: string
+          quantity?: number
+          received_at?: string | null
+          shipped_at?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["outsource_status"]
+          tracking_no?: string | null
+          updated_at?: string
+        }
+        Update: {
+          carrier?: string | null
+          created_at?: string
+          expected_at?: string | null
+          factory?: Database["public"]["Enums"]["outsource_factory"]
+          id?: string
+          note?: string | null
+          order_no?: string
+          ordered_at?: string
+          produced_at?: string | null
+          product_code?: string
+          quantity?: number
+          received_at?: string | null
+          shipped_at?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["outsource_status"]
+          tracking_no?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       production_tracking: {
         Row: {
           completed_at: string | null
@@ -688,6 +748,8 @@ export type Database = {
         | "completed"
         | "shipped"
         | "cancelled"
+      outsource_factory: "silicon" | "heat" | "hologram" | "nfc" | "logo"
+      outsource_status: "ordered" | "shipped" | "received"
       production_stage:
         | "tshirt"
         | "card"
@@ -840,6 +902,8 @@ export const Constants = {
         "shipped",
         "cancelled",
       ],
+      outsource_factory: ["silicon", "heat", "hologram", "nfc", "logo"],
+      outsource_status: ["ordered", "shipped", "received"],
       production_stage: [
         "tshirt",
         "card",
