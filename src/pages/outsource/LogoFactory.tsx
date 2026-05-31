@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Eye, ImageOff, ChevronLeft, FileText, Download, Sparkles, Upload, Trash2, Cloud, Package, CheckCircle2, Settings, Send } from "lucide-react";
+import { Eye, ImageOff, ChevronLeft, FileText, Download, Sparkles, Upload, Trash2, Cloud, Package, CheckCircle2, Settings, Send, RotateCcw } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { jsPDF } from "jspdf";
 import { svg2pdf } from "svg2pdf.js";
@@ -317,6 +317,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   });
   // PDF 다운로드 활성화는 현재 주문 화면에서 '완료' 버튼을 눌러야만 가능하도록 저장/복원하지 않음
   const [workCompleted, setWorkCompleted] = useState<boolean>(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState<boolean>(false);
 
   // ── 작업 상태 자동 저장/복원 (orderNo 별) ────────────────────────────
   const skipAutoFitRef = useRef<boolean>(false);
@@ -837,6 +838,45 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     setVectorDataUrl(null);
   };
 
+  const resetWork = () => {
+    // 상태 초기화
+    setWorkType(loadWorkTypes()[0]?.value || "heat-transfer");
+    setCanvasWidthMm(DEFAULT_CANVAS_MM);
+    setCanvasHeightMm(DEFAULT_CANVAS_MM);
+    setLogoWidthMm(DEFAULT_BASE_MM);
+    setLogoHeightMm(DEFAULT_BASE_MM);
+    setOffsetXMm(0);
+    setOffsetYMm(0);
+    setLockAspect(true);
+    setNaturalAspect(1);
+    setProcessedDataUrl(null);
+    setProcessedKind("original");
+    setTestLogoDataUrl(null);
+    setTestLogoName(null);
+    setUpscaledUploadName(null);
+    setUpscaledDataUrl(null);
+    setVectorDataUrl(null);
+    setUpscaleMode("auto");
+    setUpscaleSharpness(50);
+    setCurrentStep(1);
+    setLogoType(null);
+    setRecommendedType(null);
+    setAnalyzedSrc(null);
+    setUpscaleSkipped(false);
+    setPrintAreaSaved(false);
+    setWorkCompleted(false);
+
+    // localStorage 삭제
+    try {
+      localStorage.removeItem(`logo.work.v1.${orderNo}`);
+      localStorage.removeItem(`logo.printArea.v1.${orderNo}`);
+      localStorage.removeItem(WO_LS_KEY);
+    } catch {}
+
+    setResetConfirmOpen(false);
+    toast({ title: "작업 상태 초기화 완료", description: "모든 작업 내용이 삭제되고 처음부터 다시 시작할 수 있습니다." });
+  };
+
   const downloadResultPdf = async () => {
     if (!logoUrl && !displayedLogo) {
       toast({ title: "로고가 없습니다", variant: "destructive" });
@@ -926,8 +966,13 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
             <Button size="sm" variant="ghost" onClick={onBack}>
               <ChevronLeft className="w-4 h-4 mr-1" /> 목록으로
             </Button>
-            <div className="text-sm text-muted-foreground">
-              작업번호 <span className="font-mono text-foreground">{orderNo}</span>
+            <div className="flex items-center gap-3">
+              <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setResetConfirmOpen(true)}>
+                <RotateCcw className="w-4 h-4 mr-1" /> 초기화
+              </Button>
+              <div className="text-sm text-muted-foreground">
+                작업번호 <span className="font-mono text-foreground">{orderNo}</span>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -1550,6 +1595,25 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
           </CardContent>
         </Card>
       </div>
+
+      {/* 작업 상태 초기화 확인 */}
+      <Dialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>작업 상태 초기화</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            현재 작업번호의 모든 작업 내용(업스케일, 벡터 변환, 인쇄영역 설정, 완료 상태 등)이 삭제됩니다.<br />
+            정말 처음부터 다시 작업하시겠습니까?
+          </p>
+          <DialogFooter className="flex justify-end gap-2 pt-2">
+            <Button size="sm" variant="ghost" onClick={() => setResetConfirmOpen(false)}>취소</Button>
+            <Button size="sm" variant="destructive" onClick={resetWork}>
+              <RotateCcw className="w-4 h-4 mr-1" /> 초기화
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={workTypesDialogOpen} onOpenChange={setWorkTypesDialogOpen}>
         <DialogContent className="max-w-md">
