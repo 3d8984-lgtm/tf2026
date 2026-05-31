@@ -1100,6 +1100,31 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 </p>
               </div>
             )}
+              </TabsContent>
+              <TabsContent value="upscale" className="mt-4 space-y-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="text-sm text-muted-foreground">
+                    외부 AI 업스케일링 서비스(Let's Enhance)를 이 페이지 안에서 바로 사용할 수 있습니다.
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => window.open("https://letsenhance.io/ko/boost", "_blank", "noopener,noreferrer")}>
+                    <ExternalLink className="w-3 h-3 mr-1" /> 새 창에서 열기
+                  </Button>
+                </div>
+                <div className="border rounded-md overflow-hidden bg-muted/20" style={{ height: "75vh" }}>
+                  <iframe
+                    src="https://letsenhance.io/ko/boost"
+                    title="Let's Enhance 업스케일링"
+                    className="w-full h-full"
+                    style={{ border: 0 }}
+                    allow="clipboard-read; clipboard-write; fullscreen"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  ※ 일부 외부 사이트는 보안 정책(X-Frame-Options/CSP)으로 인해 프레임 내 표시를 차단할 수 있습니다. 화면이 비어 있으면 우측 상단 "새 창에서 열기"를 이용하세요.
+                </p>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
       </div>
