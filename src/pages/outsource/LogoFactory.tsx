@@ -1338,6 +1338,15 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                             {processedKind !== "original" && (
                               <Button size="sm" variant="ghost" className="w-full" onClick={resetLogo}>원본 로고로 복원</Button>
                             )}
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="w-full"
+                              onClick={handleRemoveBackground}
+                              disabled={!displayedLogo || !!busy}
+                            >
+                              🪄 배경 제거 (AI 최적화)
+                            </Button>
                           </div>
                         </div>
                       </div>
