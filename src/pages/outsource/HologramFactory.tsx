@@ -253,14 +253,9 @@ function OrderProgressBox({
     try {
       // Build ZIP
       const zip = new JSZip();
-      // 작업지시서 PDF — use uploaded format.pdf as the instruction sheet
-      const { data: pdfBlob } = await supabase.storage.from("hologram-pdf").download("format.pdf");
-      if (pdfBlob) {
-        zip.file("작업지시서.pdf", new Uint8Array(await pdfBlob.arrayBuffer()));
-      } else {
-        // Fallback: include HTML version
-        zip.file("작업지시서.html", woHtml);
-      }
+      // 작업지시서 PDF — 미리보기와 동일한 HTML을 PDF로 변환
+      const woPdfBytes = await renderHtmlToPdfBytes(woHtml);
+      zip.file("작업지시서.pdf", woPdfBytes);
       // 작업파일 Excel
       const xlsBlob = buildHologramExcelBlob(items);
       zip.file("작업파일.xlsx", new Uint8Array(await xlsBlob.arrayBuffer()));
