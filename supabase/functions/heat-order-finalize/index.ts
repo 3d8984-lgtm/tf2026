@@ -4,7 +4,6 @@
 // updates heartbeat/progress, and asks the client/watchdog to call again when needed.
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { Zip, ZipPassThrough } from "npm:fflate@0.8.2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -20,7 +19,7 @@ const json = (data: unknown, status = 200) =>
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
-  let body: { jobId?: string; mode?: "resume" | "watchdog" } = {};
+  let body: { jobId?: string; mode?: "resume" | "watchdog"; zipPath?: string } = {};
   try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
 
   const authHeader = req.headers.get("Authorization") || "";
@@ -53,7 +52,7 @@ Deno.serve(async (req) => {
   }
 
   if (!body.jobId || typeof body.jobId !== "string") return json({ error: "jobId required" }, 400);
-  const result = await processJob(admin, body.jobId);
+  const result = await processJob(admin, body.jobId, body.zipPath);
   return json(result, result.status === "failed" ? 500 : 200);
 });
 
@@ -70,106 +69,7 @@ async function failJob(admin: any, jobId: string, message: string) {
   return { status: "failed", jobId, error: message };
 }
 
-function entryName(folderName: string, name: string) {
-  if (name === "__work_order.pdf") return `${folderName}/${folderName}_작업지시서.pdf`;
-  return `${folderName}/Image/${name}`;
-}
-
-async function downloadBytes(admin: any, path: string): Promise<Uint8Array> {
-  const { data: blob, error } = await admin.storage.from(BUCKET).download(path);
-  if (error || !blob) throw new Error(`다운로드 실패 ${path}: ${error?.message || "no blob"}`);
-  return new Uint8Array(await blob.arrayBuffer());
-}
-
-function encodeStoragePath(path: string) {
-  return path.split("/").map((part) => encodeURIComponent(part)).join("/");
-}
-
-async function uploadZipStream(
-  admin: any,
-  jobId: string,
-  zipPath: string,
-  folderName: string,
-  entries: { path: string; name: string }[],
-) {
-  let controllerRef: ReadableStreamDefaultController<Uint8Array> | null = null;
-  let pullWake: (() => void) | null = null;
-  let streamError: Error | null = null;
-
-  const waitForDemand = async () => {
-    while (controllerRef && (controllerRef.desiredSize ?? 1) <= 0) {
-      await new Promise<void>((resolve) => { pullWake = resolve; });
-    }
-  };
-
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      controllerRef = controller;
-      const zip = new Zip();
-      let writeChain = Promise.resolve();
-      zip.ondata = (err, chunk) => {
-        if (err) {
-          streamError = err;
-          controller.error(err);
-          return;
-        }
-        if (!chunk?.length) return;
-        writeChain = writeChain.then(async () => {
-          await waitForDemand();
-          controller.enqueue(chunk);
-        });
-      };
-
-      try {
-        for (let i = 0; i < entries.length; i++) {
-          const e = entries[i];
-          const file = new ZipPassThrough(entryName(folderName, e.name));
-          zip.add(file);
-          const bytes = await downloadBytes(admin, e.path);
-          file.push(bytes, true);
-          await writeChain;
-          if (streamError) throw streamError;
-          if ((i + 1) % 5 === 0 || i + 1 === entries.length) {
-            await setJob(admin, jobId, {
-              zip_progress: i + 1,
-              stage: `ZIP 스트리밍 업로드 ${i + 1}/${entries.length}`,
-            });
-          }
-        }
-        zip.end();
-        await writeChain;
-        if (streamError) throw streamError;
-        controller.close();
-      } catch (e) {
-        controller.error(e);
-      }
-    },
-    pull() {
-      if (pullWake) {
-        const wake = pullWake;
-        pullWake = null;
-        wake();
-      }
-    },
-  });
-
-  const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${BUCKET}/${encodeStoragePath(zipPath)}`;
-  const res = await fetch(uploadUrl, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
-      apikey: SERVICE_ROLE_KEY,
-      "Content-Type": "application/zip",
-      "cache-control": "3600",
-      "x-upsert": "true",
-    },
-    body: stream,
-  });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`ZIP 업로드 실패: ${res.status} ${text || res.statusText}`);
-}
-
-async function processJob(admin: any, jobId: string) {
+async function processJob(admin: any, jobId: string, uploadedZipPath?: string) {
   const { data: job, error: jobErr } = await admin
     .from("outsource_order_jobs")
     .select("*")
