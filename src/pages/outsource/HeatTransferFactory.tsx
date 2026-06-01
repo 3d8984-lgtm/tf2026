@@ -1530,57 +1530,14 @@ function OrderProgressBox({
     if (error) throw new Error(`finalize 호출 실패: ${error.message}`);
   }, []);
 
-  const uploadZipForJob = useCallback(async (jobId: string) => {
-    const folderName = order.orderNo || "heat-transfer";
-    const { data: jobRow } = await supabase.from("outsource_order_jobs" as any)
-      .select("zip_path")
-      .eq("id", jobId)
-      .maybeSingle();
-    const zipPath = (jobRow as any)?.zip_path || `orders/heat-transfer-${folderName}-${Date.now()}.zip`;
-    const tmpPrefix = `orders/heat-transfer-jobs/${jobId}`;
-    const zip = new JSZip();
-    const zipRoot = zip.folder(folderName)!;
-    const zipImageFolder = zipRoot.folder("Image")!;
-
-    const { data: workOrderPdf, error: pdfErr } = await supabase.storage.from("hologram-pdf").download(`${tmpPrefix}/__work_order.pdf`);
-    if (pdfErr || !workOrderPdf) throw new Error(`작업지시서 다운로드 실패: ${pdfErr?.message || "no blob"}`);
-    zipRoot.file(`${folderName}_작업지시서.pdf`, workOrderPdf);
-
-    const { data: rows, error: rowsErr } = await supabase.from("png_jobs" as any)
-      .select("item_id,status,file_url")
-      .eq("job_id", jobId)
-      .eq("status", "completed")
-      .order("item_id", { ascending: true });
-    if (rowsErr) throw new Error(`PNG 목록 조회 실패: ${rowsErr.message}`);
-    const completedRows = (rows || []) as unknown as PngJobRow[];
-    for (let i = 0; i < completedRows.length; i++) {
-      const row = completedRows[i];
-      if (!row.file_url) continue;
-      setSendStage(`ZIP 파일 수집 ${i + 1}/${completedRows.length}`);
-      const { data: pngBlob, error } = await supabase.storage.from("hologram-pdf").download(row.file_url);
-      if (error || !pngBlob) throw new Error(`PNG 다운로드 실패: ${row.file_url} (${error?.message || "no blob"})`);
-      zipImageFolder.file(row.file_url.split("/").pop() || `${row.item_id}.png`, pngBlob);
-    }
-
-    setSendStage("브라우저 ZIP 생성 중");
-    const zipBlob = await zip.generateAsync({ type: "blob", compression: "STORE" }, (meta) => {
-      setSendStage(`브라우저 ZIP 생성 ${Math.round(meta.percent)}%`);
-    });
-    const { error: zipUpErr } = await supabase.storage.from("hologram-pdf")
-      .upload(zipPath, zipBlob, { contentType: "application/zip", upsert: true });
-    if (zipUpErr) throw new Error(`ZIP 업로드 실패: ${zipUpErr.message}`);
-    return zipPath;
-  }, [order.orderNo]);
-
   const resumeActiveJob = useCallback(async () => {
     if (!activeJobId) return;
     setShowResume(false);
     try {
       setSending(true);
       sendStartedAtRef.current = Date.now();
-      setSendStage("멈춘 작업 ZIP 재개 중");
-      const zipPath = await uploadZipForJob(activeJobId);
-      const { error } = await supabase.functions.invoke("heat-order-finalize", { body: { jobId: activeJobId, zipPath } });
+      setSendStage("멈춘 발주 마무리 재개 중");
+      const { error } = await supabase.functions.invoke("heat-order-finalize", { body: { jobId: activeJobId, mode: "resume" } });
       if (error) throw new Error(`finalize 호출 실패: ${error.message}`);
     } catch (e: any) {
       toast({ title: "재개 실패", description: e?.message || String(e), variant: "destructive" as any });
@@ -1589,7 +1546,7 @@ function OrderProgressBox({
       setSendStage("");
       sendStartedAtRef.current = null;
     }
-  }, [activeJobId, uploadZipForJob]);
+  }, [activeJobId]);
 
   useEffect(() => {
     if (!activeJobId) return;
