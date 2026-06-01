@@ -913,6 +913,11 @@ function OrderDetail({
         <h2 className="text-base font-semibold">작업번호 <span className="font-mono">{order.orderNo}</span></h2>
       </div>
 
+      <OrderProgressBox
+        order={order} details={details} outline={outline}
+        formats={formats} testDesign={testDesign}
+      />
+
       <WorkOrderInfoBox order={order} outlinePreview={outline?.previewUrl} />
 
       <Tabs defaultValue="design">
