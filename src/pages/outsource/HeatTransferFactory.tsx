@@ -1532,7 +1532,7 @@ function OrderProgressBox({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open2, savedTransform]);
 
-  useEffect(() => () => { thumbs.forEach((t) => { if (t.url) URL.revokeObjectURL(t.url); }); }, [thumbs]);
+  // blob URL 정리는 위 effect의 cleanup(createdUrls)에서 처리합니다. 여기서 thumbs 변경마다 revoke 하면 streaming 중인 이미지가 모두 깨집니다.
 
 
   const sendOrder = async () => {
