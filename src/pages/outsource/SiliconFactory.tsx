@@ -1691,6 +1691,7 @@ function Step2PdfPreviewDialog({
 function SiliconOrderProgressBox({
   order, items, templates,
   proof, setProof, proofQrMap, proofPage, setProofPage, proofQrPage, setProofQrPage,
+  testTwinSvgUrl,
 }: {
   order: any;
   items: Array<{ seq: number; uniqueNo: string; grade: Grade }>;
@@ -1702,6 +1703,7 @@ function SiliconOrderProgressBox({
   setProofPage: (n: number) => void;
   proofQrPage: number;
   setProofQrPage: (n: number) => void;
+  testTwinSvgUrl?: string | null;
 }) {
   const orderNo: string = order?.external_order_id || "";
   const stateKey = `silicon.progress.v1.${orderNo}`;
