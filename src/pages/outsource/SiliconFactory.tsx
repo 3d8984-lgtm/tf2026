@@ -721,6 +721,7 @@ export default function SiliconFactory() {
             setProofPage={setProofPage}
             proofQrPage={proofQrPage}
             setProofQrPage={setProofQrPage}
+            testTwinSvgUrl={testTwinSvg?.url || null}
           />
 
 
@@ -736,6 +737,8 @@ export default function SiliconFactory() {
             qrPage={proofQrPage}
             setQrPage={setProofQrPage}
             order={detailOrder}
+            testTwinSvg={testTwinSvg}
+            setTestTwinSvg={setTestTwinSvg}
           />
 
 
