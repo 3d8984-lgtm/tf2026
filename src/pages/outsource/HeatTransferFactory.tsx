@@ -1467,6 +1467,13 @@ function OrderProgressBox({
   const [showResume, setShowResume] = useState(false);
   const lastProgressAtRef = useRef(Date.now());
   const resumeTimerRef = useRef<number | null>(null);
+  const sendStartedAtRef = useRef<number | null>(null);
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    if (!sending) return;
+    const id = window.setInterval(() => forceTick((n) => n + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [sending]);
 
 
   const readSavedTransform = () => {
