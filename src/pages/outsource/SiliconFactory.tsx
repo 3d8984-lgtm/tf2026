@@ -1610,7 +1610,7 @@ function Step2PdfPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] w-[95vw] h-[95vh] max-h-[95vh] overflow-hidden flex flex-col">
+      <DialogContent className="!grid-rows-none !gap-3 max-w-[95vw] w-[95vw] h-[95vh] max-h-[95vh] overflow-hidden !flex !flex-col">
         <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <FileText className="w-4 h-4 text-green-600" />
@@ -1623,7 +1623,7 @@ function Step2PdfPreviewDialog({
             <TabsTrigger value="qr"><QrCode className="w-4 h-4 mr-1" /> QR코드 시안 ({totalQr}장)</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="twin" className="flex-1 flex flex-col overflow-hidden mt-2">
+          <TabsContent value="twin" className="flex-1 min-h-0 flex flex-col overflow-hidden mt-2">
             <div className="shrink-0 flex items-center justify-between gap-2 pb-2">
               <div className="text-xs text-muted-foreground">
                 파일명 미리보기: <span className="font-mono text-foreground">{orderNo || "twincode"}({twinIdx + 1}).pdf</span>
@@ -1646,7 +1646,7 @@ function Step2PdfPreviewDialog({
             </div>
           </TabsContent>
 
-          <TabsContent value="qr" className="flex-1 flex flex-col overflow-hidden mt-2">
+          <TabsContent value="qr" className="flex-1 min-h-0 flex flex-col overflow-hidden mt-2">
             <div className="shrink-0 flex items-center justify-between gap-2 pb-2">
               <div className="text-xs text-muted-foreground">
                 파일명 미리보기: <span className="font-mono text-foreground">QRcode.pdf</span>
