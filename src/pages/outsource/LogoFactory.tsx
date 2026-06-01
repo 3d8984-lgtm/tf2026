@@ -638,25 +638,9 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     setBusy(`Photoroom 업스케일 중 (${photoroomScale}×)...`);
     try {
       const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
-      // Photoroom 입력 제한: width*height ≤ 1,000,000 px. 초과 시 축소 후 전송.
-      const srcImg = await loadImage(dataUrl);
-      const MAX_PX = 1_000_000;
-      const total = srcImg.naturalWidth * srcImg.naturalHeight;
-      let payload = dataUrl;
-      if (total > MAX_PX) {
-        const ratio = Math.sqrt(MAX_PX / total) * 0.98;
-        const w = Math.max(1, Math.floor(srcImg.naturalWidth * ratio));
-        const h = Math.max(1, Math.floor(srcImg.naturalHeight * ratio));
-        const cvs = document.createElement("canvas");
-        cvs.width = w; cvs.height = h;
-        const ctx = cvs.getContext("2d")!;
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = "high";
-        ctx.drawImage(srcImg, 0, 0, w, h);
-        payload = cvs.toDataURL("image/png");
-      }
+      const prepared = await preparePhotoroomPayload(dataUrl, photoroomScale);
       const { data, error } = await supabase.functions.invoke("photoroom-upscale", {
-        body: { imageBase64: payload, mode: "upscale", scale: photoroomScale },
+        body: { imageBase64: prepared.payload, mode: "upscale", scale: photoroomScale },
       });
       if (error) throw new Error(error.message || "Photoroom 호출 실패");
       if (!data?.ok || !data?.imageDataUrl) throw new Error(data?.error || "Photoroom 응답이 비어 있습니다");
@@ -669,7 +653,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       setLastMethod(`Photoroom AI ${photoroomScale}×`);
       toast({
         title: "Photoroom 업스케일 완료",
-        description: `${img.naturalWidth}×${img.naturalHeight} · ${photoroomScale}× (자동 모드)`,
+        description: `${img.naturalWidth}×${img.naturalHeight} · ${photoroomScale}×${prepared.resized ? ` · 입력 ${prepared.width}×${prepared.height} 자동 최적화` : ""}`,
       });
     } catch (e: any) {
       toast({ title: "업스케일 실패", description: e.message, variant: "destructive" });
