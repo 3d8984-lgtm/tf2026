@@ -1,4 +1,5 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { decodeBase64, encodeBase64 } from 'https://deno.land/std@0.224.0/encoding/base64.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -14,7 +15,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const { imageBase64, mode = 'test', scale = 2 } = body as { imageBase64?: string; mode?: string; scale?: number };
 
-    // Test mode: just verify the API key by hitting the account endpoint
+    // Test mode: just verify the API key
     if (mode === 'test' || !imageBase64) {
       const resp = await fetch('https://image-api.photoroom.com/v2/account', {
         headers: { 'x-api-key': apiKey, Accept: 'application/json' },
@@ -32,19 +33,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Upscale or background removal mode
+    // Memory-efficient base64 decode
     const base64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
-    const bin = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    const bin = decodeBase64(base64);
     const fd = new FormData();
     fd.append('imageFile', new Blob([bin], { type: 'image/png' }), 'input.png');
 
     if (mode === 'remove-bg') {
-      // Background removal only; keep original size, output transparent PNG, auto-crop
       fd.append('background.color', 'transparent');
       fd.append('outputSize', 'originalImage');
       fd.append('export.format', 'png');
     } else {
-      // Upscale (default). Photoroom upscaler also removes bg unless we keep it.
       fd.append('upscale.mode', 'ai.fast');
       fd.append('upscale.scale', String(scale));
     }
@@ -60,10 +59,10 @@ Deno.serve(async (req) => {
         status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // Memory-efficient base64 encode using std lib (avoids huge string concat loop)
     const buf = new Uint8Array(await resp.arrayBuffer());
-    let bin64 = '';
-    for (let i = 0; i < buf.length; i++) bin64 += String.fromCharCode(buf[i]);
-    const out = `data:image/png;base64,${btoa(bin64)}`;
+    const out = `data:image/png;base64,${encodeBase64(buf)}`;
     return new Response(JSON.stringify({ ok: true, imageDataUrl: out }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
