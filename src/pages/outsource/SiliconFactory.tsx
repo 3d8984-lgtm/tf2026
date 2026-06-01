@@ -1729,6 +1729,18 @@ function SiliconOrderProgressBox({
     setSettingsOpen(false);
   };
 
+  // ProofItem 형태로 변환 (svgUrl 포함)
+  const proofItems = useMemo<ProofItem[]>(
+    () => items.map((it: any) => ({
+      seq: it.seq,
+      orderNo,
+      uniqueNo: it.uniqueNo,
+      grade: it.grade,
+      svgUrl: it.svgUrl ?? it.svg_url ?? null,
+    })),
+    [items, orderNo],
+  );
+
   const sendOrder = async () => {
     if (!webhookUrl) {
       toast({ title: "위챗 Webhook 미설정", description: "발주 전 위챗 Webhook을 먼저 설정하세요.", variant: "destructive" as any });
@@ -1738,14 +1750,34 @@ function SiliconOrderProgressBox({
     setSending(true);
     try {
       const zip = new JSZip();
+      const folderName = orderNo || "silicon";
+      const folder = zip.folder(folderName)!;
+
+      // 1) Work order.pdf
       const woPdfBytes = await renderHtmlToPdfBytes(woHtml);
-      zip.file("작업지시서.pdf", woPdfBytes);
-      const xlsBlob = buildSiliconExcelBlob(items);
-      zip.file("작업파일.xlsx", new Uint8Array(await xlsBlob.arrayBuffer()));
+      folder.file("Work order.pdf", woPdfBytes);
+
+      // 2) TPU mark/ 폴더 — 트윈코드 시안 페이지별 1개 PDF
+      const tpuFolder = folder.folder("TPU mark")!;
+      const { totalPages: totalTwin } = getTwinLayoutInfo(proof, proofItems.length);
+      for (let p = 0; p < totalTwin; p++) {
+        const bytes = await buildSiliconTwinPdfPage({
+          items: proofItems, pageIdx: p, proof, templates,
+          gradeColorNames: colorNames, gradeColorStyle: colorStyle,
+        });
+        tpuFolder.file(`${folderName}(${p + 1}).pdf`, bytes);
+      }
+
+      // 3) QRcode.pdf — 단일 PDF에 A4 여러 페이지
+      const qrBytes = await buildSiliconQrPdfAll({
+        items: proofItems, proof, qrMap: proofQrMap,
+        gradeColorNames: colorNames, gradeColorStyle: colorStyle,
+      });
+      folder.file("QRcode.pdf", qrBytes);
 
       const zipBlob = await zip.generateAsync({ type: "blob" });
-      const zipName = `${orderNo || "silicon"}.zip`;
-      const path = `orders/silicon-${orderNo || "noid"}-${Date.now()}.zip`;
+      const zipName = `${folderName}.zip`;
+      const path = `orders/silicon-${folderName}-${Date.now()}.zip`;
       const { error: upErr } = await supabase.storage.from("hologram-pdf").upload(path, zipBlob, {
         contentType: "application/zip", upsert: false,
       });
@@ -1756,7 +1788,7 @@ function SiliconOrderProgressBox({
       const message =
 `【실리콘 마크 발주】
 작업번호: ${orderNo}
-수량: ${items.length}건
+수량: ${items.length}건 / 트윈코드 ${totalTwin}장
 파일: ${zipName}
 다운로드: ${url}`;
 
