@@ -1457,6 +1457,7 @@ function OrderProgressBox({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [webhookUrl, setWebhookUrl] = useState<string>(() => readHtWebhook());
   const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
   const [sendProgress, setSendProgress] = useState<{ done: number; total: number } | null>(null);
   const [sendStage, setSendStage] = useState<string>("");
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
@@ -1464,6 +1465,7 @@ function OrderProgressBox({
   const [showResume, setShowResume] = useState(false);
   const lastProgressAtRef = useRef(Date.now());
   const resumeTimerRef = useRef<number | null>(null);
+
 
   const readSavedTransform = () => {
     const d = readHtDesignUiDraft(order.orderNo);
