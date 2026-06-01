@@ -26,6 +26,10 @@ import JSZip from "jszip";
 
 const DESIGN_FORMAT_BUCKET = "design-formats";
 const DESIGN_FORMAT_FOLDER = "heat-transfer";
+const HT_ACTIVE_ORDER_LS_KEY = "htf:activeOrderId:v1";
+const HT_UI_DRAFT_PREFIX = "htf:designUiDraft:v1:";
+const HT_DESIGN_DB_NAME = "heatTransferDesignDrafts";
+const HT_DESIGN_STORE = "designFiles";
 
 // ============ helpers ============
 
@@ -372,6 +376,80 @@ interface DesignDetail {
   tshirtType: string;
   tshirtColor: string;
   tshirtSize: string;
+}
+
+type HtDesignUiDraft = {
+  quality?: QualityPresetKey;
+  offsetX?: number;
+  offsetY?: number;
+  designScale?: number;
+  testUid?: string;
+};
+
+type HtPersistedDesign = {
+  orderNo: string;
+  dataUrl: string;
+  name: string;
+  updatedAt: string;
+};
+
+function readHtDesignUiDraft(orderNo: string): HtDesignUiDraft {
+  try {
+    const raw = localStorage.getItem(`${HT_UI_DRAFT_PREFIX}${orderNo}`);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeHtDesignUiDraft(orderNo: string, patch: HtDesignUiDraft) {
+  try {
+    const prev = readHtDesignUiDraft(orderNo);
+    localStorage.setItem(`${HT_UI_DRAFT_PREFIX}${orderNo}`, JSON.stringify({ ...prev, ...patch }));
+  } catch {}
+}
+
+function openHtDesignDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(HT_DESIGN_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(HT_DESIGN_STORE)) db.createObjectStore(HT_DESIGN_STORE, { keyPath: "orderNo" });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error || new Error("작업 파일 저장소를 열 수 없습니다."));
+  });
+}
+
+async function readHtPersistedDesign(orderNo: string): Promise<HtPersistedDesign | null> {
+  const db = await openHtDesignDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(HT_DESIGN_STORE, "readonly");
+    const req = tx.objectStore(HT_DESIGN_STORE).get(orderNo);
+    req.onsuccess = () => resolve((req.result as HtPersistedDesign | undefined) || null);
+    req.onerror = () => reject(req.error);
+    tx.oncomplete = () => db.close();
+  });
+}
+
+async function saveHtPersistedDesign(orderNo: string, dataUrl: string, name: string) {
+  const db = await openHtDesignDb();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(HT_DESIGN_STORE, "readwrite");
+    tx.objectStore(HT_DESIGN_STORE).put({ orderNo, dataUrl, name, updatedAt: new Date().toISOString() });
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+}
+
+async function deleteHtPersistedDesign(orderNo: string) {
+  const db = await openHtDesignDb();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(HT_DESIGN_STORE, "readwrite");
+    tx.objectStore(HT_DESIGN_STORE).delete(orderNo);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
 }
 
 // ============ page ============
