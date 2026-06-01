@@ -26,6 +26,11 @@ import JSZip from "jszip";
 
 const DESIGN_FORMAT_BUCKET = "design-formats";
 const DESIGN_FORMAT_FOLDER = "heat-transfer";
+const HT_ACTIVE_ORDER_LS_KEY = "htf:activeOrderId:v1";
+const HT_SELECTED_FORMAT_LS_KEY = "htf:selectedFormatId:v1";
+const HT_UI_DRAFT_PREFIX = "htf:designUiDraft:v1:";
+const HT_DESIGN_DB_NAME = "heatTransferDesignDrafts";
+const HT_DESIGN_STORE = "designFiles";
 
 // ============ helpers ============
 
@@ -374,6 +379,80 @@ interface DesignDetail {
   tshirtSize: string;
 }
 
+type HtDesignUiDraft = {
+  quality?: QualityPresetKey;
+  offsetX?: number;
+  offsetY?: number;
+  designScale?: number;
+  testUid?: string;
+};
+
+type HtPersistedDesign = {
+  orderNo: string;
+  dataUrl: string;
+  name: string;
+  updatedAt: string;
+};
+
+function readHtDesignUiDraft(orderNo: string): HtDesignUiDraft {
+  try {
+    const raw = localStorage.getItem(`${HT_UI_DRAFT_PREFIX}${orderNo}`);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeHtDesignUiDraft(orderNo: string, patch: HtDesignUiDraft) {
+  try {
+    const prev = readHtDesignUiDraft(orderNo);
+    localStorage.setItem(`${HT_UI_DRAFT_PREFIX}${orderNo}`, JSON.stringify({ ...prev, ...patch }));
+  } catch {}
+}
+
+function openHtDesignDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(HT_DESIGN_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(HT_DESIGN_STORE)) db.createObjectStore(HT_DESIGN_STORE, { keyPath: "orderNo" });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error || new Error("작업 파일 저장소를 열 수 없습니다."));
+  });
+}
+
+async function readHtPersistedDesign(orderNo: string): Promise<HtPersistedDesign | null> {
+  const db = await openHtDesignDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(HT_DESIGN_STORE, "readonly");
+    const req = tx.objectStore(HT_DESIGN_STORE).get(orderNo);
+    req.onsuccess = () => resolve((req.result as HtPersistedDesign | undefined) || null);
+    req.onerror = () => reject(req.error);
+    tx.oncomplete = () => db.close();
+  });
+}
+
+async function saveHtPersistedDesign(orderNo: string, dataUrl: string, name: string) {
+  const db = await openHtDesignDb();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(HT_DESIGN_STORE, "readwrite");
+    tx.objectStore(HT_DESIGN_STORE).put({ orderNo, dataUrl, name, updatedAt: new Date().toISOString() });
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+}
+
+async function deleteHtPersistedDesign(orderNo: string) {
+  const db = await openHtDesignDb();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(HT_DESIGN_STORE, "readwrite");
+    tx.objectStore(HT_DESIGN_STORE).delete(orderNo);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+}
+
 // ============ page ============
 
 export default function HeatTransferFactory() {
@@ -412,8 +491,18 @@ export default function HeatTransferFactory() {
     heightPt: number;
   };
   const [formats, setFormats] = useState<FormatEntry[]>([]);
-  const [selectedFormatId, setSelectedFormatId] = useState<string | null>(null);
+  const [selectedFormatId, setSelectedFormatIdState] = useState<string | null>(() => {
+    try { return localStorage.getItem(HT_SELECTED_FORMAT_LS_KEY); } catch { return null; }
+  });
   const [formatsLoading, setFormatsLoading] = useState(false);
+
+  const setSelectedFormatId = (id: string | null) => {
+    setSelectedFormatIdState(id);
+    try {
+      if (id) localStorage.setItem(HT_SELECTED_FORMAT_LS_KEY, id);
+      else localStorage.removeItem(HT_SELECTED_FORMAT_LS_KEY);
+    } catch {}
+  };
 
   const runDesignFormatStorageAction = async (form: FormData) => {
     const { data, error } = await supabase.functions.invoke("design-format-storage", { body: form });
@@ -473,7 +562,13 @@ export default function HeatTransferFactory() {
             setFormats((prev) => [...prev, entry]);
             if (!firstSelected) {
               firstSelected = true;
-              setSelectedFormatId((prev) => prev || entry.id);
+              setSelectedFormatIdState((prev) => {
+                const next = prev || entry.id;
+                if (!prev) {
+                  try { localStorage.setItem(HT_SELECTED_FORMAT_LS_KEY, next); } catch {}
+                }
+                return next;
+              });
             }
           }
         };
@@ -594,8 +689,33 @@ export default function HeatTransferFactory() {
 
   const outline = formats.find((f) => f.id === selectedFormatId) || null;
 
-  const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+  useEffect(() => {
+    if (formatsLoading) return;
+    if (formats.length === 0 && selectedFormatId) setSelectedFormatId(null);
+    if (formats.length > 0 && (!selectedFormatId || !formats.some((f) => f.id === selectedFormatId))) {
+      setSelectedFormatId(formats[0].id);
+    }
+  }, [formatsLoading, formats, selectedFormatId]);
+
+  const [activeOrderId, setActiveOrderId] = useState<string | null>(() => {
+    try { return localStorage.getItem(HT_ACTIVE_ORDER_LS_KEY); } catch { return null; }
+  });
   const activeOrder = orders.find((o) => o.id === activeOrderId) || null;
+
+  useEffect(() => {
+    if (activeOrderId && !activeOrder && orders.length > 0) {
+      setActiveOrderId(null);
+      try { localStorage.removeItem(HT_ACTIVE_ORDER_LS_KEY); } catch {}
+    }
+  }, [activeOrderId, activeOrder, orders.length]);
+
+  const openOrder = (id: string | null) => {
+    setActiveOrderId(id);
+    try {
+      if (id) localStorage.setItem(HT_ACTIVE_ORDER_LS_KEY, id);
+      else localStorage.removeItem(HT_ACTIVE_ORDER_LS_KEY);
+    } catch {}
+  };
 
   return (
     <div>
@@ -613,14 +733,14 @@ export default function HeatTransferFactory() {
               onRename={handleRenameFormat}
               onReplace={handleReplaceFormat}
             />
-            <OrderListCard orders={orders} onOpen={setActiveOrderId} />
+            <OrderListCard orders={orders} onOpen={openOrder} />
           </>
         ) : (
           <OrderDetail
             order={activeOrder}
             outline={outline}
             formats={formats}
-            onBack={() => setActiveOrderId(null)}
+            onBack={() => openOrder(null)}
           />
 
         )}
@@ -888,6 +1008,24 @@ function OrderDetail({
 }) {
   const [testDesign, setTestDesign] = useState<string | null>(null);
   const [testName, setTestName] = useState<string>("");
+
+  useEffect(() => {
+    let cancelled = false;
+    setTestDesign(null);
+    setTestName("");
+    (async () => {
+      try {
+        const saved = await readHtPersistedDesign(order.orderNo);
+        if (!cancelled && saved?.dataUrl) {
+          setTestDesign(saved.dataUrl);
+          setTestName(saved.name || "저장된 테스트 디자인");
+        }
+      } catch {
+        if (!cancelled) toast({ title: "저장된 작업 파일을 불러오지 못했습니다", variant: "destructive" });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [order.orderNo]);
 
   const details: DesignDetail[] = useMemo(() => {
     const arr: DesignDetail[] = [];
@@ -1561,14 +1699,19 @@ function DesignTab({
 }) {
 
 
+  const uiDraft = useMemo(() => readHtDesignUiDraft(order.orderNo), [order.orderNo]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [quality, setQuality] = useState<QualityPresetKey>("auto");
+  const [quality, setQualityState] = useState<QualityPresetKey>(uiDraft.quality ?? "auto");
   const [autoResolved, setAutoResolved] = useState<{ preset: Exclude<QualityPresetKey, "auto">; reason: string } | null>(null);
   // design transform within fixed format (offset in %, scale relative to cover-fit)
-  const [offsetX, setOffsetX] = useState(0);
-  const [offsetY, setOffsetY] = useState(0);
-  const [designScale, setDesignScale] = useState(1);
+  const [offsetX, setOffsetXState] = useState(uiDraft.offsetX ?? 0);
+  const [offsetY, setOffsetYState] = useState(uiDraft.offsetY ?? 0);
+  const [designScale, setDesignScaleState] = useState(uiDraft.designScale ?? 1);
+  const setQuality = (v: QualityPresetKey) => { setQualityState(v); writeHtDesignUiDraft(order.orderNo, { quality: v }); };
+  const setOffsetX = (v: number) => { setOffsetXState(v); writeHtDesignUiDraft(order.orderNo, { offsetX: v }); };
+  const setOffsetY = (v: number) => { setOffsetYState(v); writeHtDesignUiDraft(order.orderNo, { offsetY: v }); };
+  const setDesignScale = (v: number) => { setDesignScaleState(v); writeHtDesignUiDraft(order.orderNo, { designScale: v }); };
   const transform = { offsetXPct: offsetX, offsetYPct: offsetY, scale: designScale };
 
   // Footer (UID + QR) config — persisted to localStorage
@@ -1580,7 +1723,17 @@ function DesignTab({
     } catch {}
     return DEFAULT_FOOTER_CFG;
   });
-  const [testUid, setTestUid] = useState<string>("");
+  const [testUid, setTestUidState] = useState<string>(uiDraft.testUid ?? "");
+  const setTestUid = (v: string) => { setTestUidState(v); writeHtDesignUiDraft(order.orderNo, { testUid: v }); };
+
+  useEffect(() => {
+    const next = readHtDesignUiDraft(order.orderNo);
+    setQualityState(next.quality ?? "auto");
+    setOffsetXState(next.offsetX ?? 0);
+    setOffsetYState(next.offsetY ?? 0);
+    setDesignScaleState(next.designScale ?? 1);
+    setTestUidState(next.testUid ?? "");
+  }, [order.orderNo]);
 
 
 
@@ -1632,6 +1785,12 @@ function DesignTab({
       const r = new FileReader(); r.onload = () => resolve(r.result as string); r.readAsDataURL(f);
     });
     setTestDesign(url); setTestName(f.name);
+    try {
+      await saveHtPersistedDesign(order.orderNo, url, f.name);
+      toast({ title: "작업 파일 저장됨", description: "다른 메뉴로 이동해도 이 작업번호에 유지됩니다." });
+    } catch (e: any) {
+      toast({ title: "작업 파일 저장 실패", description: e?.message || "브라우저 저장공간을 확인하세요.", variant: "destructive" });
+    }
   };
 
   const [logs, setLogs] = useState<Array<{ ts: string; level: "info" | "warn" | "error"; msg: string }>>([]);
@@ -1785,7 +1944,7 @@ function DesignTab({
                 className="h-9"
               />
               {testDesign && (
-                <Button size="sm" variant="outline" onClick={() => { setTestDesign(null); setTestName(""); }}>
+                <Button size="sm" variant="outline" onClick={async () => { setTestDesign(null); setTestName(""); try { await deleteHtPersistedDesign(order.orderNo); } catch {} }}>
                   <X className="w-4 h-4 mr-1" /> {testName || "테스트 제거"}
                 </Button>
               )}
