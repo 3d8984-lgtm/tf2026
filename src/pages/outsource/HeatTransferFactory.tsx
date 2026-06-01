@@ -1814,10 +1814,6 @@ function OrderProgressBox({
                 const { error } = await supabase.storage.from("hologram-pdf")
                   .upload(`${tmpPrefix}/${item.name}`, item.blob, { contentType: "image/png", upsert: false });
                 if (error) throw error;
-                if (!zippedItems.has(item.itemId)) {
-                  zipImageFolder.file(item.name, item.blob);
-                  zippedItems.add(item.itemId);
-                }
                 uploadedCount++;
                 console.log("[Upload]", `${uploadedCount}/${details.length}`, item.name, `${(performance.now() - t0).toFixed(0)}ms`);
                 if (uploadedCount % 5 === 0) logMemory(`after ${uploadedCount} uploads`);
@@ -1955,15 +1951,8 @@ function OrderProgressBox({
 
         if (uploadedCount === 0) throw new Error("업로드된 PNG가 없습니다 — 디자인 포맷/소스를 확인하세요.");
 
-        setSendStage("서버에서 ZIP 생성 요청 중");
-        setSendStage("브라우저에서 ZIP 생성 중");
-        const zipBlob = await zip.generateAsync({ type: "blob", compression: "STORE" }, (meta) => {
-          setSendStage(`브라우저 ZIP 생성 ${Math.round(meta.percent)}%`);
-        });
-        const { error: zipUpErr } = await supabase.storage.from("hologram-pdf")
-          .upload(zipPath, zipBlob, { contentType: "application/zip", upsert: true });
-        if (zipUpErr) throw new Error(`ZIP 업로드 실패: ${zipUpErr.message}`);
-        const { error: finErr } = await supabase.functions.invoke("heat-order-finalize", { body: { jobId, zipPath } });
+        setSendStage("서버에서 발주 마무리 요청 중");
+        const { error: finErr } = await supabase.functions.invoke("heat-order-finalize", { body: { jobId, mode: "resume" } });
         if (finErr) throw new Error(`finalize 호출 실패: ${finErr.message}`);
 
         setSendStage("서버 ZIP 생성 중");
