@@ -1296,6 +1296,7 @@ async function buildFinalPngs(
   dpi: number,
   sharpen: boolean,
   onProgress?: (done: number, total: number) => void,
+  transform?: { offsetXPct?: number; offsetYPct?: number; scale?: number },
 ): Promise<Array<{ designUid: string; blob: Blob | null; reason?: string }>> {
   const out: Array<{ designUid: string; blob: Blob | null; reason?: string }> = [];
   let i = 0;
@@ -1307,7 +1308,7 @@ async function buildFinalPngs(
       const target = normalizeSize(d.tshirtSize);
       const fmt = (target ? formats.find((f) => normalizeSize(f.sizeLabel) === target) : null) || fallbackOutline;
       if (!fmt) { out.push({ designUid: d.designUid, blob: null, reason: `사이즈 ${d.tshirtSize || "?"} 포맷 없음` }); onProgress?.(i, details.length); continue; }
-      const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, undefined, { sharpen });
+      const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
       const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer, {
         tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize,
       });
