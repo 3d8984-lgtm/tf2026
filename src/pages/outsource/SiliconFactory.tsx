@@ -237,6 +237,9 @@ export default function SiliconFactory() {
   const [proofPage, setProofPage] = useState(0);
   const [proofQrPage, setProofQrPage] = useState(0);
   const [proofQrMap, setProofQrMap] = useState<Record<string, string>>({});
+  // 트윈코드 테스트 SVG (ProofBox와 발주진행 Step2에서 공유)
+  const [testTwinSvg, setTestTwinSvg] = useState<{ url: string; name: string } | null>(null);
+  useEffect(() => () => { if (testTwinSvg?.url) URL.revokeObjectURL(testTwinSvg.url); }, [testTwinSvg]);
 
   useEffect(() => {
     let cancelled = false;
@@ -718,6 +721,7 @@ export default function SiliconFactory() {
             setProofPage={setProofPage}
             proofQrPage={proofQrPage}
             setProofQrPage={setProofQrPage}
+            testTwinSvgUrl={testTwinSvg?.url || null}
           />
 
 
@@ -733,6 +737,8 @@ export default function SiliconFactory() {
             qrPage={proofQrPage}
             setQrPage={setProofQrPage}
             order={detailOrder}
+            testTwinSvg={testTwinSvg}
+            setTestTwinSvg={setTestTwinSvg}
           />
 
 
@@ -1531,6 +1537,7 @@ async function renderPdfAllPagesToPng(bytes: Uint8Array, scale = 1.5): Promise<s
 
 function Step2PdfPreviewDialog({
   open, onOpenChange, items, proof, templates, qrMap, gradeColorNames, gradeColorStyle, orderNo, onConfirm,
+  overrideTwinSvgUrl,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -1542,6 +1549,7 @@ function Step2PdfPreviewDialog({
   gradeColorStyle: GradeColorStyle;
   orderNo: string;
   onConfirm: () => void;
+  overrideTwinSvgUrl?: string | null;
 }) {
   const { totalPages: totalTwin } = useMemo(() => getTwinLayoutInfo(proof, items.length), [proof, items.length]);
   const { totalPages: totalQr } = useMemo(() => getQrLayoutInfo(proof, items.length), [proof, items.length]);
@@ -1571,6 +1579,7 @@ function Step2PdfPreviewDialog({
         for (let p = 0; p < totalTwin; p++) {
           const bytes = await buildSiliconTwinPdfPage({
             items, pageIdx: p, proof, templates, gradeColorNames, gradeColorStyle,
+            overrideTwinSvgUrl: overrideTwinSvgUrl || null,
           });
           if (cancelled) return;
           imgs[p] = await renderPdfPageToPng(bytes, 1, 1.5);
@@ -1583,7 +1592,7 @@ function Step2PdfPreviewDialog({
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, items, proof, templates, gradeColorNames, gradeColorStyle, totalTwin]);
+  }, [open, items, proof, templates, gradeColorNames, gradeColorStyle, totalTwin, overrideTwinSvgUrl]);
 
   useEffect(() => {
     if (!open || items.length === 0) return;
@@ -1635,9 +1644,9 @@ function Step2PdfPreviewDialog({
                 <Button size="sm" variant="outline" disabled={twinIdx >= totalTwin - 1} onClick={() => setTwinIdx(twinIdx + 1)}>다음</Button>
               </div>
             </div>
-            <div className="flex-1 border rounded-md bg-muted/30 overflow-auto flex items-center justify-center p-2">
+            <div className="flex-1 border rounded-md bg-muted/30 overflow-auto flex items-start justify-center p-2">
               {currentTwinImg ? (
-                <img src={currentTwinImg} alt={`twin-page-${twinIdx + 1}`} className="max-w-full max-h-full object-contain shadow-lg bg-white" />
+                <img src={currentTwinImg} alt={`twin-page-${twinIdx + 1}`} className="max-w-full h-auto object-contain shadow-lg bg-white" />
               ) : (
                 <div className="text-sm text-muted-foreground flex items-center">
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" /> 페이지 생성 중...
@@ -1659,9 +1668,9 @@ function Step2PdfPreviewDialog({
                 <Button size="sm" variant="outline" disabled={qrIdx >= totalQr - 1} onClick={() => setQrIdx(qrIdx + 1)}>다음</Button>
               </div>
             </div>
-            <div className="flex-1 border rounded-md bg-muted/30 overflow-auto flex items-center justify-center p-2">
+            <div className="flex-1 border rounded-md bg-muted/30 overflow-auto flex items-start justify-center p-2">
               {currentQrImg ? (
-                <img src={currentQrImg} alt={`qr-page-${qrIdx + 1}`} className="max-w-full max-h-full object-contain shadow-lg bg-white" />
+                <img src={currentQrImg} alt={`qr-page-${qrIdx + 1}`} className="max-w-full h-auto object-contain shadow-lg bg-white" />
               ) : (
                 <div className="text-sm text-muted-foreground flex items-center">
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" /> PDF 생성 중...
@@ -1685,6 +1694,7 @@ function Step2PdfPreviewDialog({
 function SiliconOrderProgressBox({
   order, items, templates,
   proof, setProof, proofQrMap, proofPage, setProofPage, proofQrPage, setProofQrPage,
+  testTwinSvgUrl,
 }: {
   order: any;
   items: Array<{ seq: number; uniqueNo: string; grade: Grade }>;
@@ -1696,6 +1706,7 @@ function SiliconOrderProgressBox({
   setProofPage: (n: number) => void;
   proofQrPage: number;
   setProofQrPage: (n: number) => void;
+  testTwinSvgUrl?: string | null;
 }) {
   const orderNo: string = order?.external_order_id || "";
   const stateKey = `silicon.progress.v1.${orderNo}`;
@@ -1792,6 +1803,7 @@ function SiliconOrderProgressBox({
         const bytes = await buildSiliconTwinPdfPage({
           items: proofItems, pageIdx: p, proof, templates,
           gradeColorNames: colorNames, gradeColorStyle: colorStyle,
+          overrideTwinSvgUrl: testTwinSvgUrl || null,
         });
         tpuFolder.file(`${folderName}(${p + 1}).pdf`, bytes);
       }
@@ -1917,6 +1929,7 @@ function SiliconOrderProgressBox({
           gradeColorNames={colorNames}
           gradeColorStyle={colorStyle}
           orderNo={orderNo}
+          overrideTwinSvgUrl={testTwinSvgUrl || null}
           onConfirm={() => { setConfirmed2(true); persist({ confirmed2: true }); setOpen2(false); toast({ title: "작업파일 확인 완료" }); }}
         />
 
@@ -1956,6 +1969,7 @@ interface ProofSettings {
 
 function ProofBox({
   items, templates, proof, setProof, qrMap, page, setPage, qrPage, setQrPage, order,
+  testTwinSvg, setTestTwinSvg,
 }: {
   items: ProofItem[];
   templates: Record<Grade, { name: string; bytes: Uint8Array; preview: string; aspect: number } | null>;
@@ -1965,6 +1979,8 @@ function ProofBox({
   page: number; setPage: (n: number) => void;
   qrPage: number; setQrPage: (n: number) => void;
   order?: any;
+  testTwinSvg: { url: string; name: string } | null;
+  setTestTwinSvg: React.Dispatch<React.SetStateAction<{ url: string; name: string } | null>>;
 }) {
 
   const PAPER_W_PX = 640;
@@ -2062,9 +2078,7 @@ function ProofBox({
     return c ? `${it.uniqueNo} · ${c}` : it.uniqueNo;
   };
 
-  // ===== 트윈코드 테스트 SVG (업로드 시 모든 마크에 동일 적용) =====
-  const [testTwinSvg, setTestTwinSvg] = useState<{ url: string; name: string } | null>(null);
-  useEffect(() => () => { if (testTwinSvg?.url) URL.revokeObjectURL(testTwinSvg.url); }, [testTwinSvg]);
+  // ===== 트윈코드 테스트 SVG (부모에서 lifted) =====
   const handleTestSvgUpload = (file: File) => {
     if (!file) return;
     if (!/svg/i.test(file.type) && !/\.svg$/i.test(file.name)) {
