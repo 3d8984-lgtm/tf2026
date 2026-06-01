@@ -1995,7 +1995,13 @@ function OrderProgressBox({
           pool.terminate();
         }
 
-        if (uploadedCount === 0) throw new Error("업로드된 PNG가 없습니다 — 디자인 포맷/소스를 확인하세요.");
+        if (okCount !== totalExpected || uploadedCount !== totalExpected) {
+          const reason = `완료 조건 미충족: ok=${okCount}/${totalExpected}, uploaded=${uploadedCount}/${totalExpected}, skip=${skipCount}`;
+          await supabase.from("outsource_order_jobs" as any)
+            .update({ status: "failed", stage: "PNG 업로드 미완료", error_message: reason })
+            .eq("id", jobId);
+          throw new Error(reason);
+        }
 
         setSendStage("서버에서 발주 마무리 요청 중");
         const { error: finErr } = await supabase.functions.invoke("heat-order-finalize", { body: { jobId, mode: "resume" } });
