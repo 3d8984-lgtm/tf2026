@@ -1537,6 +1537,7 @@ async function renderPdfAllPagesToPng(bytes: Uint8Array, scale = 1.5): Promise<s
 
 function Step2PdfPreviewDialog({
   open, onOpenChange, items, proof, templates, qrMap, gradeColorNames, gradeColorStyle, orderNo, onConfirm,
+  overrideTwinSvgUrl,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -1548,6 +1549,7 @@ function Step2PdfPreviewDialog({
   gradeColorStyle: GradeColorStyle;
   orderNo: string;
   onConfirm: () => void;
+  overrideTwinSvgUrl?: string | null;
 }) {
   const { totalPages: totalTwin } = useMemo(() => getTwinLayoutInfo(proof, items.length), [proof, items.length]);
   const { totalPages: totalQr } = useMemo(() => getQrLayoutInfo(proof, items.length), [proof, items.length]);
