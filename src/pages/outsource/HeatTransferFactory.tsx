@@ -139,19 +139,12 @@ async function loadPdfOutline(bytes: ArrayBuffer): Promise<{
  *
  * Returns a canvas at print resolution (pdf size in points * dpi/72).
  */
-async function composeClippedDesign(
-  designSrc: string,
-  maskCanvas: HTMLCanvasElement,
-  widthPt: number,
-  heightPt: number,
-  dpi: number,
-  transform?: { offsetXPct?: number; offsetYPct?: number; scale?: number },
-  opts?: { sharpen?: boolean },
-): Promise<HTMLCanvasElement> {
-  const targetW = Math.max(64, Math.round((widthPt / 72) * dpi));
-  const targetH = Math.max(64, Math.round((heightPt / 72) * dpi));
-
-  // 1) build mask at target size, converting the PDF render into pure alpha
+/**
+ * Build a pure-alpha mask canvas at the target pixel size from the PDF render.
+ * Expensive (drawImage + getImageData + per-pixel loop), so callers should
+ * cache the result and reuse it across details that share the same format.
+ */
+function buildAlphaMaskCanvas(maskCanvas: HTMLCanvasElement, targetW: number, targetH: number): HTMLCanvasElement {
   const mask = document.createElement("canvas");
   mask.width = targetW;
   mask.height = targetH;
@@ -160,14 +153,34 @@ async function composeClippedDesign(
   mctx.imageSmoothingQuality = "high";
   mctx.drawImage(maskCanvas, 0, 0, targetW, targetH);
   const md = mctx.getImageData(0, 0, targetW, targetH);
-  for (let i = 0; i < md.data.length; i += 4) {
-    const r = md.data[i], g = md.data[i + 1], b = md.data[i + 2], a = md.data[i + 3];
+  const d = md.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i], g = d[i + 1], b = d[i + 2], a = d[i + 3];
     const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
     const inside = (1 - lum) * (a / 255);
-    md.data[i] = 0; md.data[i + 1] = 0; md.data[i + 2] = 0;
-    md.data[i + 3] = Math.round(Math.min(1, inside) * 255);
+    d[i] = 0; d[i + 1] = 0; d[i + 2] = 0;
+    d[i + 3] = Math.round(Math.min(1, inside) * 255);
   }
   mctx.putImageData(md, 0, 0);
+  return mask;
+}
+
+async function composeClippedDesign(
+  designSrc: string,
+  maskCanvas: HTMLCanvasElement,
+  widthPt: number,
+  heightPt: number,
+  dpi: number,
+  transform?: { offsetXPct?: number; offsetYPct?: number; scale?: number },
+  opts?: { sharpen?: boolean; preBuiltMask?: HTMLCanvasElement; preLoadedImage?: HTMLImageElement },
+): Promise<HTMLCanvasElement> {
+  const targetW = Math.max(64, Math.round((widthPt / 72) * dpi));
+  const targetH = Math.max(64, Math.round((heightPt / 72) * dpi));
+
+  // 1) alpha mask — reuse cached one when provided
+  const mask = opts?.preBuiltMask && opts.preBuiltMask.width === targetW && opts.preBuiltMask.height === targetH
+    ? opts.preBuiltMask
+    : buildAlphaMaskCanvas(maskCanvas, targetW, targetH);
 
   // 2) draw design centered, cover-fit to mask, with user transform (offset + scale, aspect kept)
   const out = document.createElement("canvas");
@@ -177,7 +190,7 @@ async function composeClippedDesign(
   octx.imageSmoothingEnabled = true;
   octx.imageSmoothingQuality = "high";
 
-  const img = await loadImage(designSrc);
+  const img = opts?.preLoadedImage ?? (await loadImage(designSrc));
   const userScale = transform?.scale ?? 1;
   const offXPct = transform?.offsetXPct ?? 0;
   const offYPct = transform?.offsetYPct ?? 0;
@@ -187,8 +200,6 @@ async function composeClippedDesign(
   const dh = Math.max(1, Math.round(img.height * scale));
   const dx = Math.round((targetW - dw) / 2 + (offXPct / 100) * targetW);
   const dy = Math.round((targetH - dh) / 2 + (offYPct / 100) * targetH);
-  // Edge-preserving sharpening path: pre-upscale the design via iterative 2× + unsharp mask,
-  // then blit at exact pixel size — avoids the soft halo a single big bicubic produces.
   if (opts?.sharpen && (dw > img.width || dh > img.height)) {
     const sharp = edgePreservingUpscale(img, dw, dh);
     octx.imageSmoothingEnabled = false;
