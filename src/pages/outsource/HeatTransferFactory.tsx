@@ -1614,7 +1614,7 @@ function OrderProgressBox({
       const pdfBlob = new Blob([woBytes as BlobPart], { type: "application/pdf" });
       {
         const { error } = await supabase.storage.from("hologram-pdf")
-          .upload(`${tmpPrefix}/__work_order.pdf`, pdfBlob, { contentType: "application/pdf", upsert: true });
+          .upload(`${tmpPrefix}/__work_order.pdf`, pdfBlob, { contentType: "application/pdf", upsert: false });
         if (error) throw new Error(`작업지시서 업로드 실패: ${error.message}`);
       }
 
