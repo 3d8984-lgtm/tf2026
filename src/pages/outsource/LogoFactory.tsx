@@ -140,6 +140,45 @@ async function preparePhotoroomPayload(dataUrl: string, scale: 2 | 4) {
   return { payload: await canvasToPngDataUrl(canvas), resized: true, width, height };
 }
 
+type Bounds = { minX: number; minY: number; maxX: number; maxY: number; width: number; height: number };
+
+function findVisibleBounds(data: Uint8ClampedArray, width: number, height: number, alphaThreshold: number): Bounds | null {
+  let minX = width, minY = height, maxX = -1, maxY = -1;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (data[(y * width + x) * 4 + 3] > alphaThreshold) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  return maxX >= minX && maxY >= minY
+    ? { minX, minY, maxX, maxY, width: maxX - minX + 1, height: maxY - minY + 1 }
+    : null;
+}
+
+async function trimTransparentEdges(dataUrl: string, alphaThreshold = 32): Promise<{ dataUrl: string; bounds: Bounds | null; originalWidth: number; originalHeight: number }> {
+  const img = await loadImage(dataUrl);
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  ctx.drawImage(img, 0, 0);
+  const bounds = findVisibleBounds(ctx.getImageData(0, 0, w, h).data, w, h, alphaThreshold)
+    ?? findVisibleBounds(ctx.getImageData(0, 0, w, h).data, w, h, 8);
+  if (!bounds) return { dataUrl, bounds: null, originalWidth: w, originalHeight: h };
+
+  const out = document.createElement("canvas");
+  out.width = bounds.width;
+  out.height = bounds.height;
+  out.getContext("2d")!.drawImage(canvas, bounds.minX, bounds.minY, bounds.width, bounds.height, 0, 0, bounds.width, bounds.height);
+  return { dataUrl: await canvasToPngDataUrl(out), bounds, originalWidth: w, originalHeight: h };
+}
+
 
 /** Convert mm + dpi → integer pixel count. */
 function mmToPx(mm: number, dpi: number): number {
@@ -553,6 +592,24 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const sourceLogo = testLogoDataUrl || logoUrl;
   const displayedLogo = processedDataUrl || sourceLogo;
 
+  const applyProcessedLogo = (result: { dataUrl: string; bounds: Bounds | null; originalWidth: number; originalHeight: number }) => {
+    const { dataUrl, bounds, originalWidth, originalHeight } = result;
+    skipAutoFitRef.current = true;
+    if (bounds && originalWidth > 0 && originalHeight > 0) {
+      const nextW = Math.max(0.1, Math.round(logoWidthMm * (bounds.width / originalWidth) * 10) / 10);
+      const nextH = Math.max(0.1, Math.round(logoHeightMm * (bounds.height / originalHeight) * 10) / 10);
+      setNaturalAspect(bounds.width / bounds.height || 1);
+      setLogoWidthMm(nextW);
+      setLogoHeightMm(nextH);
+    }
+    setProcessedDataUrl(dataUrl);
+    setUpscaledDataUrl(dataUrl);
+    setProcessedKind("upscaled");
+    setOffsetXMm(0);
+    setOffsetYMm(0);
+    setLastAnalysis((prev) => prev ? { ...prev, transparent: true } : prev);
+  };
+
   const handleTestLogoSelect = (file: File) => {
     if (!file.type.startsWith("image/")) {
       toast({ title: "이미지 파일만 업로드 가능합니다", variant: "destructive" });
@@ -941,40 +998,6 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
    * - 각 픽셀의 배경색까지의 거리(RGB)로 알파 결정 (소프트 임계)
    * - 결과를 processedDataUrl 로 적용 → 미리보기/PDF 동시 반영
    */
-  /**
-   * 투명 픽셀 가장자리를 잘라내어 실제 이미지 콘텐츠만 남깁니다.
-   * Photoroom 결과나 로컬 처리 결과 모두 동일한 방식으로 가운데 정렬됩니다.
-   */
-  const trimTransparentEdges = async (dataUrl: string, alphaThreshold = 8): Promise<string> => {
-    const img = await loadImage(dataUrl);
-    const w = img.naturalWidth, h = img.naturalHeight;
-    const canvas = document.createElement("canvas");
-    canvas.width = w; canvas.height = h;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
-    ctx.drawImage(img, 0, 0);
-    const id = ctx.getImageData(0, 0, w, h);
-    const d = id.data;
-    let minX = w, minY = h, maxX = -1, maxY = -1;
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        if (d[(y * w + x) * 4 + 3] > alphaThreshold) {
-          if (x < minX) minX = x;
-          if (x > maxX) maxX = x;
-          if (y < minY) minY = y;
-          if (y > maxY) maxY = y;
-        }
-      }
-    }
-    if (maxX < minX || maxY < minY) return dataUrl;
-    const tw = maxX - minX + 1;
-    const th = maxY - minY + 1;
-    if (tw === w && th === h) return dataUrl;
-    const tCanvas = document.createElement("canvas");
-    tCanvas.width = tw; tCanvas.height = th;
-    tCanvas.getContext("2d")!.drawImage(canvas, minX, minY, tw, th, 0, 0, tw, th);
-    return tCanvas.toDataURL("image/png");
-  };
-
   const handleRemoveBackground = async () => {
     const src = displayedLogo || sourceLogo;
     if (!src) { toast({ title: "로고가 없습니다", variant: "destructive" }); return; }
@@ -993,12 +1016,13 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
         if (!raw) throw new Error("Photoroom 응답에 이미지가 없습니다");
         // Photoroom이 원본 캔버스를 유지해 한쪽으로 쏠리는 경우가 있어
         // 클라이언트에서 알파 경계 기준으로 다시 트리밍해 중앙 정렬을 보장한다.
-        const out = await trimTransparentEdges(raw);
-        setProcessedDataUrl(out);
-        setProcessedKind("upscaled");
-        setOffsetXMm(0);
-        setOffsetYMm(0);
-        setLastAnalysis((prev) => prev ? { ...prev, transparent: true } : prev);
+        const inputImage = await loadImage(dataUrl);
+        const trimmed = await trimTransparentEdges(raw);
+        applyProcessedLogo({
+          ...trimmed,
+          originalWidth: inputImage.naturalWidth || inputImage.width,
+          originalHeight: inputImage.naturalHeight || inputImage.height,
+        });
         toast({ title: "배경 제거 완료 (Photoroom)", description: "AI 기반 배경 제거 + 자동 크롭으로 중앙 정렬되었습니다." });
         return;
       } catch (apiErr: any) {
@@ -1046,54 +1070,9 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       }
       ctx.putImageData(id, 0, 0);
 
-      // ── 불투명 영역 자동 트리밍: 실제 인쇄될 부분만 남김 ─────────
-      // JPG 압축 노이즈/반투명 잔상이 가장자리까지 남으면 기존 alpha>8 방식은
-      // 원본 캔버스 전체를 트리밍 영역으로 오인할 수 있어, 강한 알파 기준으로 먼저 잡고 폴백합니다.
-      const findAlphaBounds = (threshold: number) => {
-        let minX = w, minY = h, maxX = -1, maxY = -1;
-        for (let y = 0; y < h; y++) {
-          for (let x = 0; x < w; x++) {
-            const a = d[(y * w + x) * 4 + 3];
-            if (a > threshold) {
-              if (x < minX) minX = x;
-              if (x > maxX) maxX = x;
-              if (y < minY) minY = y;
-              if (y > maxY) maxY = y;
-            }
-          }
-        }
-        return maxX >= minX && maxY >= minY ? { minX, minY, maxX, maxY } : null;
-      };
-
-      const strongBounds = findAlphaBounds(96);
-      const fallbackBounds = strongBounds ?? findAlphaBounds(8);
-
-      let out: string;
-      let trimmedInfo = "";
-      if (fallbackBounds) {
-        const pad = Math.max(2, Math.ceil(Math.max(w, h) * 0.002));
-        const minX = Math.max(0, fallbackBounds.minX - pad);
-        const minY = Math.max(0, fallbackBounds.minY - pad);
-        const maxX = Math.min(w - 1, fallbackBounds.maxX + pad);
-        const maxY = Math.min(h - 1, fallbackBounds.maxY + pad);
-        const tw = maxX - minX + 1;
-        const th = maxY - minY + 1;
-        const tCanvas = document.createElement("canvas");
-        tCanvas.width = tw; tCanvas.height = th;
-        const tctx = tCanvas.getContext("2d")!;
-        tctx.drawImage(canvas, minX, minY, tw, th, 0, 0, tw, th);
-        out = tCanvas.toDataURL("image/png");
-        trimmedInfo = ` · 자동 트리밍 ${tw}×${th}px`;
-      } else {
-        out = canvas.toDataURL("image/png");
-      }
-
-      setProcessedDataUrl(out);
-      setProcessedKind("upscaled");
-      // 트리밍 후 위치를 중앙으로 리셋 (이전 오프셋이 남아 한쪽으로 쏠리는 현상 방지)
-      setOffsetXMm(0);
-      setOffsetYMm(0);
-      setLastAnalysis((prev) => prev ? { ...prev, transparent: true } : prev);
+      const trimmed = await trimTransparentEdges(canvas.toDataURL("image/png"));
+      const trimmedInfo = trimmed.bounds ? ` · 자동 트리밍 ${trimmed.bounds.width}×${trimmed.bounds.height}px` : "";
+      applyProcessedLogo(trimmed);
       toast({
         title: "배경 제거 완료",
         description: `배경색 RGB(${Math.round(br)},${Math.round(bg)},${Math.round(bb)}) 기준 투명 처리${trimmedInfo}. 로고 크기가 실제 인쇄 영역 기준으로 재측정됩니다.`,
