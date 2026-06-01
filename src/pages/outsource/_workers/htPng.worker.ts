@@ -205,14 +205,14 @@ self.onmessage = async (e: MessageEvent<InMsg>) => {
   try {
     const bytes = await compose(msg);
     const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-    (self as any).postMessage(
+    self.postMessage(
       { type: "done", idx: msg.idx, designUid: msg.designUid, buffer: buf },
       [buf],
     );
-  } catch (err: any) {
-    (self as any).postMessage({
+  } catch (err: unknown) {
+    self.postMessage({
       type: "error", idx: msg.idx, designUid: msg.designUid,
-      message: String(err?.message || err),
+      message: err instanceof Error ? err.message : String(err),
     });
   }
 };
