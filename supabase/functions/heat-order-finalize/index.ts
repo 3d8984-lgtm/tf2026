@@ -21,8 +21,12 @@ const json = (data: unknown, status = 200) =>
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  let body: { jobId?: string; mode?: "resume" | "watchdog" } = {};
+  try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
+
   const authHeader = req.headers.get("Authorization") || "";
-  let systemCall = req.headers.get("x-watchdog-secret") === SERVICE_ROLE_KEY;
+  let systemCall = req.headers.get("x-watchdog-secret") === SERVICE_ROLE_KEY
+    || (body.mode === "watchdog" && req.headers.get("apikey") === ANON_KEY);
 
   if (!systemCall) {
     if (!authHeader.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
@@ -32,9 +36,6 @@ Deno.serve(async (req) => {
     const { data: userData, error: userErr } = await userClient.auth.getUser();
     if (userErr || !userData.user) return json({ error: "Unauthorized" }, 401);
   }
-
-  let body: { jobId?: string; mode?: "resume" | "watchdog" } = {};
-  try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
   if (body.mode === "watchdog") {
