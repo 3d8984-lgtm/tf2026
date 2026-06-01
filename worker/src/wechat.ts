@@ -4,9 +4,17 @@ import { callback } from "./callback.js";
 import { signedUrl } from "./storage.js";
 
 const WECHAT_FILE_LIMIT = 20 * 1024 * 1024;
+const DEFAULT_WECHAT_KEY = process.env.WECHAT_WEBHOOK_KEY || "";
 
 function extractKey(url: string): string | null {
-  try { return new URL(url).searchParams.get("key"); } catch { return null; }
+  try { return new URL(url).searchParams.get("key") || DEFAULT_WECHAT_KEY || null; }
+  catch { return DEFAULT_WECHAT_KEY || null; }
+}
+
+function resolveWebhookUrl(jobWebhookUrl: string): string {
+  if (jobWebhookUrl) return jobWebhookUrl;
+  if (DEFAULT_WECHAT_KEY) return `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${encodeURIComponent(DEFAULT_WECHAT_KEY)}`;
+  return "";
 }
 
 async function uploadMedia(key: string, filename: string, bytes: Buffer): Promise<string> {
@@ -50,8 +58,9 @@ export interface WeChatSendInput {
 }
 
 export async function sendBundleToWeChat(input: WeChatSendInput): Promise<void> {
-  const { webhookUrl, zipBytes, zipFilename, zipUrl, orderNo, itemCount } = input;
-  if (!webhookUrl) throw new Error("webhook_url 미설정");
+  const { zipBytes, zipFilename, zipUrl, orderNo, itemCount } = input;
+  const webhookUrl = resolveWebhookUrl(input.webhookUrl);
+  if (!webhookUrl) throw new Error("webhook_url / WECHAT_WEBHOOK_KEY 미설정");
   const summary = `【발주 ZIP】\n작업번호: ${orderNo}\n수량: ${itemCount}건\n파일: ${zipFilename}\n크기: ${(zipBytes.length / 1024 / 1024).toFixed(2)}MB`;
   const key = extractKey(webhookUrl);
   if (zipBytes.length <= WECHAT_FILE_LIMIT && key) {
