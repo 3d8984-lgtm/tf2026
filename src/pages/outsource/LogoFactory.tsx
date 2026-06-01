@@ -581,29 +581,45 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     reader.readAsDataURL(file);
   };
 
+  const handlePhotoroomSourceUpload = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "이미지 파일만 업로드 가능합니다", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPhotoroomSourceDataUrl(reader.result as string);
+      setPhotoroomSourceName(file.name);
+      toast({ title: "업스케일 소스 업로드 완료", description: file.name });
+    };
+    reader.onerror = () => toast({ title: "파일 읽기 실패", variant: "destructive" });
+    reader.readAsDataURL(file);
+  };
+
   const handleUpscale = async () => {
-    if (!sourceLogo) return;
-    setBusy("로고 업스케일링 중 (smart Lanczos3)...");
+    const src = photoroomSourceDataUrl || sourceLogo;
+    if (!src) {
+      toast({ title: "업스케일할 이미지가 없습니다", description: "API 로고가 없다면 수동 업로드를 사용하세요.", variant: "destructive" });
+      return;
+    }
+    setBusy(`Photoroom 업스케일 중 (${photoroomScale}×)...`);
     try {
-      const src = sourceLogo!;
       const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
-      const img = await loadImage(dataUrl);
-      const targetW = img.naturalWidth * 2;
-      const targetH = img.naturalHeight * 2;
-      const { canvas, analysis, method } = smartUpscale(img, targetW, targetH, {
-        mode: upscaleMode,
-        sharpness: upscaleSharpness,
+      const { data, error } = await supabase.functions.invoke("photoroom-upscale", {
+        body: { imageBase64: dataUrl, mode: "upscale", scale: photoroomScale },
       });
-      const up = canvas.toDataURL("image/png");
+      if (error) throw new Error(error.message || "Photoroom 호출 실패");
+      if (!data?.ok || !data?.imageDataUrl) throw new Error(data?.error || "Photoroom 응답이 비어 있습니다");
+      const up = data.imageDataUrl as string;
+      const img = await loadImage(up);
       setUpscaledDataUrl(up);
       setProcessedDataUrl(up);
       setProcessedKind("upscaled");
       setCompareTarget("upscaled");
-      setLastAnalysis(analysis);
-      setLastMethod(method);
+      setLastMethod(`Photoroom AI ${photoroomScale}×`);
       toast({
-        title: "업스케일 완료",
-        description: `${img.naturalWidth}×${img.naturalHeight} → ${canvas.width}×${canvas.height} · ${method}`,
+        title: "Photoroom 업스케일 완료",
+        description: `${img.naturalWidth}×${img.naturalHeight} · ${photoroomScale}× (자동 모드)`,
       });
     } catch (e: any) {
       toast({ title: "업스케일 실패", description: e.message, variant: "destructive" });
