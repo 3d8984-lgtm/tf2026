@@ -16,7 +16,7 @@ export type VectorizerMode = "test" | "preview" | "production";
 
 export const UPSCALER_PROVIDER_KEY = "upscaler.provider.v1";
 export const UPSCALER_SCALE_KEY = "upscaler.scale.v1";
-export type UpscalerProvider = "photoroom" | "claid";
+export type UpscalerProvider = "photoroom";
 
 type Factory = "silicon" | "heat" | "hologram" | "nfc" | "logo";
 
@@ -57,10 +57,7 @@ export default function OutsourceSettings() {
   useEffect(() => { localStorage.setItem(VECTORIZER_MODE_KEY, vecMode); }, [vecMode]);
 
   // 업스케일링 (Photoroom) 설정
-  const [upscaleProvider, setUpscaleProvider] = useState<UpscalerProvider>(() => {
-    const v = (typeof window !== "undefined" && localStorage.getItem(UPSCALER_PROVIDER_KEY)) as UpscalerProvider | null;
-    return v === "claid" || v === "photoroom" ? v : "photoroom";
-  });
+  const [upscaleProvider, setUpscaleProvider] = useState<UpscalerProvider>("photoroom");
   const [upscaleScale, setUpscaleScale] = useState<number>(() => {
     const v = typeof window !== "undefined" ? Number(localStorage.getItem(UPSCALER_SCALE_KEY)) : 0;
     return v === 2 || v === 4 ? v : 2;
@@ -328,7 +325,7 @@ export default function OutsourceSettings() {
           <div className="space-y-1.5">
             <Label>{lang === "ko" ? "제공자" : "提供商"}</Label>
             <div className="grid grid-cols-2 gap-2">
-              {(["photoroom", "claid"] as UpscalerProvider[]).map(p => (
+              {(["photoroom"] as UpscalerProvider[]).map(p => (
                 <button
                   key={p}
                   type="button"
