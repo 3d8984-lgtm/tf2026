@@ -103,6 +103,39 @@ function svgTextToDataUrl(svgText: string): string {
 // which auto-selects Nearest / Lanczos3 + per-type sharpening based on input
 // content (pixel-art / logo / text / illustration / photo).
 
+async function canvasToPngDataUrl(canvas: HTMLCanvasElement): Promise<string> {
+  const blob = await new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob((b) => b ? resolve(b) : reject(new Error("PNG 인코딩 실패")), "image/png"),
+  );
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error("PNG 읽기 실패"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function preparePhotoroomPayload(dataUrl: string, scale: 2 | 4) {
+  const img = await loadImage(dataUrl);
+  const total = img.naturalWidth * img.naturalHeight;
+  // Photoroom hard limit is 1MP, but AI upscale can 504 near that size.
+  // Keep expected output around ≤1.8MP to avoid upstream gateway timeouts.
+  const maxInputPx = scale === 4 ? 112_500 : 450_000;
+  if (total <= maxInputPx) return { payload: dataUrl, resized: false, width: img.naturalWidth, height: img.naturalHeight };
+
+  const ratio = Math.sqrt(maxInputPx / total);
+  const width = Math.max(1, Math.floor(img.naturalWidth * ratio));
+  const height = Math.max(1, Math.floor(img.naturalHeight * ratio));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d")!;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, 0, 0, width, height);
+  return { payload: await canvasToPngDataUrl(canvas), resized: true, width, height };
+}
+
 
 /** Convert mm + dpi → integer pixel count. */
 function mmToPx(mm: number, dpi: number): number {
@@ -605,28 +638,36 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     setBusy(`Photoroom 업스케일 중 (${photoroomScale}×)...`);
     try {
       const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
-      // Photoroom 입력 제한: width*height ≤ 1,000,000 px. 초과 시 축소 후 전송.
-      const srcImg = await loadImage(dataUrl);
-      const MAX_PX = 1_000_000;
-      const total = srcImg.naturalWidth * srcImg.naturalHeight;
-      let payload = dataUrl;
-      if (total > MAX_PX) {
-        const ratio = Math.sqrt(MAX_PX / total) * 0.98;
-        const w = Math.max(1, Math.floor(srcImg.naturalWidth * ratio));
-        const h = Math.max(1, Math.floor(srcImg.naturalHeight * ratio));
-        const cvs = document.createElement("canvas");
-        cvs.width = w; cvs.height = h;
-        const ctx = cvs.getContext("2d")!;
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = "high";
-        ctx.drawImage(srcImg, 0, 0, w, h);
-        payload = cvs.toDataURL("image/png");
-      }
+      const prepared = await preparePhotoroomPayload(dataUrl, photoroomScale);
       const { data, error } = await supabase.functions.invoke("photoroom-upscale", {
-        body: { imageBase64: payload, mode: "upscale", scale: photoroomScale },
+        body: { imageBase64: prepared.payload, mode: "upscale", scale: photoroomScale },
       });
       if (error) throw new Error(error.message || "Photoroom 호출 실패");
-      if (!data?.ok || !data?.imageDataUrl) throw new Error(data?.error || "Photoroom 응답이 비어 있습니다");
+      if (!data?.ok || !data?.imageDataUrl) {
+        const code = String(data?.code || "");
+        if (code === "PHOTOROOM_504" || code === "PHOTOROOM_TIMEOUT") {
+          const fallbackImg = await loadImage(prepared.payload);
+          const fallback = smartUpscale(
+            fallbackImg,
+            fallbackImg.naturalWidth * photoroomScale,
+            fallbackImg.naturalHeight * photoroomScale,
+            { mode: "auto", sharpness: upscaleSharpness },
+          );
+          const fallbackDataUrl = await canvasToPngDataUrl(fallback.canvas);
+          setUpscaledDataUrl(fallbackDataUrl);
+          setProcessedDataUrl(fallbackDataUrl);
+          setProcessedKind("upscaled");
+          setCompareTarget("upscaled");
+          setLastAnalysis(fallback.analysis);
+          setLastMethod(`Photoroom timeout → ${fallback.method}`);
+          toast({
+            title: "Photoroom 응답 지연 → 로컬 업스케일 적용",
+            description: `${fallback.canvas.width}×${fallback.canvas.height} · 서버 504로 자동 대체되었습니다.`,
+          });
+          return;
+        }
+        throw new Error(data?.error || "Photoroom 응답이 비어 있습니다");
+      }
       const up = data.imageDataUrl as string;
       const img = await loadImage(up);
       setUpscaledDataUrl(up);
@@ -636,7 +677,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
       setLastMethod(`Photoroom AI ${photoroomScale}×`);
       toast({
         title: "Photoroom 업스케일 완료",
-        description: `${img.naturalWidth}×${img.naturalHeight} · ${photoroomScale}× (자동 모드)`,
+        description: `${img.naturalWidth}×${img.naturalHeight} · ${photoroomScale}×${prepared.resized ? ` · 입력 ${prepared.width}×${prepared.height} 자동 최적화` : ""}`,
       });
     } catch (e: any) {
       toast({ title: "업스케일 실패", description: e.message, variant: "destructive" });
