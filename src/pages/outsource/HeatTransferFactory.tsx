@@ -960,7 +960,7 @@ function buildHtWorkOrderHtml(wo: HtWorkOrderData, outlinePreview?: string | nul
   const esc = (s: any) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
   const today = new Date().toISOString().slice(0, 10);
   const outlineBlock = outlinePreview
-    ? `<h2>设计外框(示例)</h2><div class="outline"><img src="${outlinePreview}" alt="outline" /></div>`
+    ? `<h2>作业结果物(首件)</h2><div class="outline"><img src="${outlinePreview}" alt="first-result" /></div>`
     : "";
   const printBtn = opts?.autoPrint ? `<div class="no-print"><button onclick="window.print()">打印 / 保存PDF</button></div>` : "";
   const printScript = opts?.autoPrint ? `<script>window.addEventListener("load", () => setTimeout(() => window.print(), 300));</script>` : "";
