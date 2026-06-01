@@ -2063,6 +2063,7 @@ function OrderProgressBox({
       sendingRef.current = false;
       setSendProgress(null);
       setSendStage("");
+      sendStartedAtRef.current = null;
     }
   };
 
