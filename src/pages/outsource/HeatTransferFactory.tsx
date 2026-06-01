@@ -1248,7 +1248,9 @@ function readHtWebhook(): string {
     const shared = localStorage.getItem(HT_WECHAT_HOOKS_SHARED_KEY);
     if (shared) {
       const obj = JSON.parse(shared);
-      if (obj?.heatTransfer) return String(obj.heatTransfer).trim();
+      // 발주이력관리(OutsourceHistory)는 'heat' 키로 저장 — 우선 매칭, 구버전 'heatTransfer'는 폴백
+      const v = (obj?.heat ?? obj?.heatTransfer ?? "").toString().trim();
+      if (v) return v;
     }
   } catch {}
   try { return (localStorage.getItem(HT_WECHAT_WEBHOOK_LS_KEY) || "").trim(); } catch { return ""; }
@@ -1259,6 +1261,8 @@ function writeHtWebhook(url: string) {
   try {
     const raw = localStorage.getItem(HT_WECHAT_HOOKS_SHARED_KEY);
     const obj = raw ? JSON.parse(raw) : {};
+    // 두 키 모두 기록 — 발주이력관리/구버전 모두 호환
+    obj.heat = v;
     obj.heatTransfer = v;
     localStorage.setItem(HT_WECHAT_HOOKS_SHARED_KEY, JSON.stringify(obj));
   } catch {}
