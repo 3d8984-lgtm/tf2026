@@ -1075,15 +1075,19 @@ function WorkOrderInfoBox({ order, outlinePreview }: { order: OrderRow; outlineP
 
 function DesignTab({
   order, details, outline, formats,
+  testDesign, setTestDesign, testName, setTestName,
 }: {
   order: OrderRow;
   details: DesignDetail[];
   outline: OutlineFormat | null;
   formats: SizedFormat[];
+  testDesign: string | null;
+  setTestDesign: (v: string | null) => void;
+  testName: string;
+  setTestName: (v: string) => void;
 }) {
 
-  const [testDesign, setTestDesign] = useState<string | null>(null);
-  const [testName, setTestName] = useState<string>("");
+
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [quality, setQuality] = useState<QualityPresetKey>("auto");
