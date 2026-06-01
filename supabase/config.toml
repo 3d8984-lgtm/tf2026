@@ -1,1 +1,49 @@
 project_id = "bbsfhmarrcvhvcmuqwej"
+
+[functions.orders-create]
+verify_jwt = false
+
+[functions.worker-callback]
+verify_jwt = false
+
+[functions.ai-chat]
+verify_jwt = false
+
+[functions.webhook-receive]
+verify_jwt = false
+
+[functions.webhook-status]
+verify_jwt = false
+
+[functions.site-a-callback]
+verify_jwt = false
+
+[functions.wechat-send]
+verify_jwt = false
+
+[functions.card-orders-ingest]
+verify_jwt = false
+
+[functions.card-photo-inspect]
+verify_jwt = false
+
+[functions.design-format-storage]
+verify_jwt = false
+
+[functions.generate-card-pdf]
+verify_jwt = false
+
+[functions.nfc-card-upload]
+verify_jwt = false
+
+[functions.pdf-to-png]
+verify_jwt = false
+
+[functions.photoroom-upscale]
+verify_jwt = false
+
+[functions.silicon-template-storage]
+verify_jwt = false
+
+[functions.vectorize-image]
+verify_jwt = false
