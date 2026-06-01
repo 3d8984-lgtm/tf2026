@@ -56,6 +56,42 @@ export default function OutsourceSettings() {
   const [vecTesting, setVecTesting] = useState(false);
   useEffect(() => { localStorage.setItem(VECTORIZER_MODE_KEY, vecMode); }, [vecMode]);
 
+  // 업스케일링 (Photoroom) 설정
+  const [upscaleProvider, setUpscaleProvider] = useState<UpscalerProvider>(() => {
+    const v = (typeof window !== "undefined" && localStorage.getItem(UPSCALER_PROVIDER_KEY)) as UpscalerProvider | null;
+    return v === "claid" || v === "photoroom" ? v : "photoroom";
+  });
+  const [upscaleScale, setUpscaleScale] = useState<number>(() => {
+    const v = typeof window !== "undefined" ? Number(localStorage.getItem(UPSCALER_SCALE_KEY)) : 0;
+    return v === 2 || v === 4 ? v : 2;
+  });
+  const [photoroomTesting, setPhotoroomTesting] = useState(false);
+  useEffect(() => { localStorage.setItem(UPSCALER_PROVIDER_KEY, upscaleProvider); }, [upscaleProvider]);
+  useEffect(() => { localStorage.setItem(UPSCALER_SCALE_KEY, String(upscaleScale)); }, [upscaleScale]);
+
+  const testPhotoroom = async () => {
+    setPhotoroomTesting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("photoroom-upscale", {
+        body: { mode: "test" },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      toast({
+        title: lang === "ko" ? "Photoroom 연결 성공" : "Photoroom 连接成功",
+        description: lang === "ko" ? "API 키가 유효합니다." : "API 密钥有效。",
+      });
+    } catch (e) {
+      toast({
+        title: lang === "ko" ? "Photoroom 연결 실패" : "Photoroom 连接失败",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+    } finally {
+      setPhotoroomTesting(false);
+    }
+  };
+
 
 
   const testVectorizer = async () => {
