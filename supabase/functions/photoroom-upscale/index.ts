@@ -13,7 +13,8 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { imageBase64, mode = 'test', scale = 2 } = body as { imageBase64?: string; mode?: string; scale?: number };
+    const { imageBase64, mode = 'test' } = body as { imageBase64?: string; mode?: string; scale?: number };
+    const scale = body?.scale === 4 ? 4 : 2;
 
     // Test mode: just verify the API key
     if (mode === 'test' || !imageBase64) {
@@ -48,15 +49,36 @@ Deno.serve(async (req) => {
       fd.append('upscale.scale', String(scale));
     }
 
-    const resp = await fetch('https://image-api.photoroom.com/v2/edit', {
-      method: 'POST',
-      headers: { 'x-api-key': apiKey },
-      body: fd,
-    });
+    let resp: Response;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 45_000);
+    try {
+      resp = await fetch('https://image-api.photoroom.com/v2/edit', {
+        method: 'POST',
+        headers: { 'x-api-key': apiKey },
+        body: fd,
+        signal: controller.signal,
+      });
+    } catch (e) {
+      const isAbort = e instanceof DOMException && e.name === 'AbortError';
+      return new Response(JSON.stringify({
+        ok: false,
+        code: isAbort ? 'PHOTOROOM_TIMEOUT' : 'PHOTOROOM_FETCH_FAILED',
+        error: isAbort
+          ? 'Photoroom 서버 응답 시간이 초과되었습니다. 더 작은 이미지 또는 2× 사이즈로 다시 시도하세요.'
+          : e instanceof Error ? e.message : String(e),
+      }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    } finally {
+      clearTimeout(timeout);
+    }
     if (!resp.ok) {
       const t = await resp.text();
-      return new Response(JSON.stringify({ error: `Upscale failed (${resp.status}): ${t}` }), {
-        status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      const isHtml = /<\/?html/i.test(t);
+      const error = resp.status === 504
+        ? 'Photoroom 서버에서 업스케일 처리 시간이 초과되었습니다. 더 작은 이미지 또는 2× 사이즈로 다시 시도하세요.'
+        : `Photoroom 처리 실패 (${resp.status}): ${isHtml ? 'HTML 오류 응답' : t.slice(0, 500)}`;
+      return new Response(JSON.stringify({ ok: false, code: `PHOTOROOM_${resp.status}`, error, upstreamStatus: resp.status }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
