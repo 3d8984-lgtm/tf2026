@@ -1,4 +1,4 @@
-# TWINMETA Order Worker (Railway)
+# TWINMETA Order Worker (Render)
 
 Lovable의 `/v1/orders` Edge Function이 enqueue하는 발주 작업을 받아, **이미지 가공(Sharp) → ZIP 묶기 → Supabase Storage 업로드 → WeChat Work 전송**까지 처리하는 Node 서비스입니다.
 
