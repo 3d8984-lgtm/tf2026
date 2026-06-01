@@ -1611,7 +1611,7 @@ function OrderProgressBox({
       // 2) 작업지시서 PDF 업로드
       setSendStage("작업지시서 업로드 중");
       const woBytes = await renderHtmlToPdfBytes(woHtml);
-      const pdfBlob = new Blob([woBytes], { type: "application/pdf" });
+      const pdfBlob = new Blob([woBytes as BlobPart], { type: "application/pdf" });
       {
         const { error } = await supabase.storage.from("hologram-pdf")
           .upload(`${tmpPrefix}/__work_order.pdf`, pdfBlob, { contentType: "application/pdf", upsert: true });
