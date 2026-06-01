@@ -1234,7 +1234,9 @@ function DesignTab({
         }
         const sizeFolder = d.tshirtSize ? folder.folder(d.tshirtSize) || folder : folder;
         const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
-        const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer);
+        const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer, {
+          tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize,
+        });
         const b = await pngWithDpi(await canvasToBlob(c), dpi);
         sizeFolder.file(`${d.designUid}.png`, b);
         matched++;
