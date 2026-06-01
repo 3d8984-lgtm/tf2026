@@ -283,8 +283,8 @@ async function composeWithFooter(
   if (metaText) {
     ctx.font = `${metaTextPx}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`;
     ctx.textBaseline = "middle";
-    const metaY = bandTop + Math.max(qrPx, textPx) + metaGapPx + metaTextPx / 2;
-    ctx.fillText(metaText, groupX, metaY);
+    const metaX = groupX + qrPx + gapPx + textW + gapPx;
+    ctx.fillText(metaText, metaX, groupCenterY);
   }
 
   return out;
