@@ -1838,6 +1838,7 @@ function OrderProgressBox({
         const uploadQueue: Array<{ name: string; blob: Blob; itemId: string }> = [];
         let inFlight = 0;
         let uploadDone: (() => void) | null = null;
+        const pngJobUpdatePromises: Promise<unknown>[] = [];
         const pumpUpload = () => {
           while (inFlight < UPLOAD_CONCURRENCY && uploadQueue.length > 0) {
             const item = uploadQueue.shift()!;
@@ -1859,15 +1860,15 @@ function OrderProgressBox({
                 setSendProgress({ done: uploadedCount, total: details.length });
                 setSendStage(`PNG 업로드 ${uploadedCount}/${details.length}`);
                 reportProgress();
-                supabase.from("png_jobs" as any)
+                pngJobUpdatePromises.push(supabase.from("png_jobs" as any)
                   .update({ status: "completed", file_url: `${tmpPrefix}/${item.name}`, completed_at: new Date().toISOString() })
-                  .eq("job_id", jobId).eq("item_id", item.itemId).then(() => {});
+                  .eq("job_id", jobId).eq("item_id", item.itemId).then(() => {}));
               } catch (e) {
                 console.error("[Upload] failed", item.name, e);
                 skipCount++;
-                supabase.from("png_jobs" as any)
+                pngJobUpdatePromises.push(supabase.from("png_jobs" as any)
                   .update({ status: "failed", error_message: e instanceof Error ? e.message : String(e) })
-                  .eq("job_id", jobId).eq("item_id", item.itemId).then(() => {});
+                  .eq("job_id", jobId).eq("item_id", item.itemId).then(() => {}));
               } finally {
                 inFlight--;
                 if (uploadDone && uploadQueue.length === 0 && inFlight === 0) {
@@ -1979,6 +1980,7 @@ function OrderProgressBox({
           if (inFlight > 0 || uploadQueue.length > 0) {
             await new Promise<void>((resolve) => { uploadDone = resolve; pumpUpload(); });
           }
+          await Promise.allSettled(pngJobUpdatePromises);
           await reportProgress(true);
           console.log("[Upload] all PNGs done — ok:", okCount, "skip:", skipCount, "uploaded:", uploadedCount);
           logMemory("end");
