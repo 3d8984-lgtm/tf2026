@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 // @ts-ignore - vite worker import
 import PdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?worker";
@@ -392,6 +392,15 @@ interface DesignDetail {
   tshirtColor: string;
   tshirtSize: string;
 }
+
+type PngJobRow = {
+  item_id: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  file_url?: string | null;
+  error_message?: string | null;
+  last_heartbeat?: string | null;
+  completed_at?: string | null;
+};
 
 type HtDesignUiDraft = {
   quality?: QualityPresetKey;
