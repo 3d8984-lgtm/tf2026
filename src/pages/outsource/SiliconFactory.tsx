@@ -1501,34 +1501,6 @@ export async function buildSiliconQrPdfAll(opts: {
 }
 
 /** Step 2: 트윈코드 / QR코드 최종 PDF 미리보기 다이얼로그 */
-async function renderPdfPageToPng(bytes: Uint8Array, pageNum: number, scale = 1.5): Promise<string> {
-  const doc = await (pdfjsLib as any).getDocument({ data: bytes.slice(0) }).promise;
-  const page = await doc.getPage(pageNum);
-  const viewport = page.getViewport({ scale });
-  const canvas = document.createElement("canvas");
-  canvas.width = viewport.width;
-  canvas.height = viewport.height;
-  const ctx = canvas.getContext("2d")!;
-  await page.render({ canvasContext: ctx, viewport, canvas }).promise;
-  return canvas.toDataURL("image/png");
-}
-
-async function renderPdfAllPagesToPng(bytes: Uint8Array, scale = 1.5): Promise<string[]> {
-  const doc = await (pdfjsLib as any).getDocument({ data: bytes.slice(0) }).promise;
-  const out: string[] = [];
-  for (let i = 1; i <= doc.numPages; i++) {
-    const page = await doc.getPage(i);
-    const viewport = page.getViewport({ scale });
-    const canvas = document.createElement("canvas");
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    const ctx = canvas.getContext("2d")!;
-    await page.render({ canvasContext: ctx, viewport, canvas }).promise;
-    out.push(canvas.toDataURL("image/png"));
-  }
-  return out;
-}
-
 function Step2PdfPreviewDialog({
   open, onOpenChange, items, proof, templates, qrMap, gradeColorNames, gradeColorStyle, orderNo, onConfirm,
 }: {
@@ -1546,18 +1518,21 @@ function Step2PdfPreviewDialog({
   const { totalPages: totalTwin } = useMemo(() => getTwinLayoutInfo(proof, items.length), [proof, items.length]);
   const { totalPages: totalQr } = useMemo(() => getQrLayoutInfo(proof, items.length), [proof, items.length]);
 
-  const [twinImgs, setTwinImgs] = useState<(string | null)[]>([]);
+  const [twinUrls, setTwinUrls] = useState<(string | null)[]>([]);
   const [twinIdx, setTwinIdx] = useState(0);
   const [twinBusy, setTwinBusy] = useState(false);
 
-  const [qrImgs, setQrImgs] = useState<string[]>([]);
+  const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [qrIdx, setQrIdx] = useState(0);
   const [qrBusy, setQrBusy] = useState(false);
 
   useEffect(() => {
     if (!open) {
-      setTwinImgs([]); setTwinIdx(0); setQrImgs([]); setQrIdx(0);
+      twinUrls.forEach(u => u && URL.revokeObjectURL(u));
+      if (qrUrl) URL.revokeObjectURL(qrUrl);
+      setTwinUrls([]); setTwinIdx(0); setQrUrl(null); setQrIdx(0);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   useEffect(() => {
@@ -1566,16 +1541,15 @@ function Step2PdfPreviewDialog({
     (async () => {
       setTwinBusy(true);
       try {
-        const imgs: (string | null)[] = new Array(totalTwin).fill(null);
-        setTwinImgs([...imgs]);
+        const urls: (string | null)[] = new Array(totalTwin).fill(null);
         for (let p = 0; p < totalTwin; p++) {
           const bytes = await buildSiliconTwinPdfPage({
             items, pageIdx: p, proof, templates, gradeColorNames, gradeColorStyle,
           });
           if (cancelled) return;
-          imgs[p] = await renderPdfPageToPng(bytes, 1, 3);
-          if (cancelled) return;
-          setTwinImgs([...imgs]);
+          const ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+          urls[p] = URL.createObjectURL(new Blob([ab], { type: "application/pdf" }));
+          setTwinUrls([...urls]);
         }
       } catch (e: any) {
         toast({ title: "트윈코드 PDF 생성 실패", description: e?.message, variant: "destructive" });
@@ -1593,9 +1567,8 @@ function Step2PdfPreviewDialog({
       try {
         const bytes = await buildSiliconQrPdfAll({ items, proof, qrMap, gradeColorNames, gradeColorStyle });
         if (cancelled) return;
-        const imgs = await renderPdfAllPagesToPng(bytes, 3);
-        if (cancelled) return;
-        setQrImgs(imgs);
+        const ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+        setQrUrl(URL.createObjectURL(new Blob([ab], { type: "application/pdf" })));
       } catch (e: any) {
         toast({ title: "QR PDF 생성 실패", description: e?.message, variant: "destructive" });
       } finally { if (!cancelled) setQrBusy(false); }
@@ -1604,30 +1577,29 @@ function Step2PdfPreviewDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, items, proof, qrMap, gradeColorNames, gradeColorStyle]);
 
-  const currentTwinImg = twinImgs[twinIdx] || null;
-  const currentQrImg = qrImgs[qrIdx] || null;
-  const loadedTwin = twinImgs.filter(Boolean).length;
+  const currentTwinUrl = twinUrls[twinIdx] || null;
+  const currentQrSrc = qrUrl ? `${qrUrl}#page=${qrIdx + 1}&toolbar=0&view=FitH` : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!grid-rows-none !gap-3 max-w-[95vw] w-[95vw] h-[95vh] max-h-[95vh] overflow-hidden !flex !flex-col">
-        <DialogHeader className="shrink-0">
+      <DialogContent className="max-w-[95vw] w-[95vw] max-h-[95vh] overflow-hidden flex flex-col">
+        <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="w-4 h-4 text-green-600" />
             작업파일 확인 — 최종 출력 PDF 미리보기 ({items.length}건)
           </DialogTitle>
         </DialogHeader>
-        <Tabs defaultValue="twin" className="flex-1 min-h-0 flex flex-col overflow-hidden">
-          <TabsList className="self-start shrink-0">
+        <Tabs defaultValue="twin" className="flex-1 flex flex-col overflow-hidden">
+          <TabsList className="self-start">
             <TabsTrigger value="twin"><FileText className="w-4 h-4 mr-1" /> 트윈코드 시안 ({totalTwin}장)</TabsTrigger>
             <TabsTrigger value="qr"><QrCode className="w-4 h-4 mr-1" /> QR코드 시안 ({totalQr}장)</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="twin" className="flex-1 min-h-0 flex flex-col overflow-hidden mt-2">
-            <div className="shrink-0 flex items-center justify-between gap-2 pb-2">
+          <TabsContent value="twin" className="flex-1 flex flex-col overflow-hidden mt-2">
+            <div className="flex items-center justify-between gap-2 pb-2">
               <div className="text-xs text-muted-foreground">
                 파일명 미리보기: <span className="font-mono text-foreground">{orderNo || "twincode"}({twinIdx + 1}).pdf</span>
-                {twinBusy && <span className="ml-2 inline-flex items-center text-amber-600"><Loader2 className="w-3 h-3 mr-1 animate-spin" />생성 중 ({loadedTwin}/{totalTwin})</span>}
+                {twinBusy && <span className="ml-2 inline-flex items-center text-amber-600"><Loader2 className="w-3 h-3 mr-1 animate-spin" />생성 중 ({twinUrls.filter(Boolean).length}/{totalTwin})</span>}
               </div>
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="outline" disabled={twinIdx <= 0} onClick={() => setTwinIdx(twinIdx - 1)}>이전</Button>
@@ -1635,19 +1607,19 @@ function Step2PdfPreviewDialog({
                 <Button size="sm" variant="outline" disabled={twinIdx >= totalTwin - 1} onClick={() => setTwinIdx(twinIdx + 1)}>다음</Button>
               </div>
             </div>
-            <div style={{ height: "calc(95vh - 260px)" }} className="min-h-[360px] border rounded-md bg-muted/30 overflow-hidden flex items-center justify-center p-2">
-              {currentTwinImg ? (
-                <img src={currentTwinImg} alt={`twin-page-${twinIdx + 1}`} className="block max-w-full max-h-full w-auto h-auto object-contain shadow-lg bg-white" />
+            <div className="flex-1 border rounded-md bg-muted/30 overflow-hidden">
+              {currentTwinUrl ? (
+                <iframe key={`twin-${twinIdx}`} title="twin-pdf-preview" src={currentTwinUrl} className="w-full h-full bg-white" />
               ) : (
-                <div className="text-sm text-muted-foreground flex items-center">
+                <div className="w-full h-full flex items-center justify-center text-sm text-muted-foreground">
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" /> 페이지 생성 중...
                 </div>
               )}
             </div>
           </TabsContent>
 
-          <TabsContent value="qr" className="flex-1 min-h-0 flex flex-col overflow-hidden mt-2">
-            <div className="shrink-0 flex items-center justify-between gap-2 pb-2">
+          <TabsContent value="qr" className="flex-1 flex flex-col overflow-hidden mt-2">
+            <div className="flex items-center justify-between gap-2 pb-2">
               <div className="text-xs text-muted-foreground">
                 파일명 미리보기: <span className="font-mono text-foreground">QRcode.pdf</span>
                 <span className="ml-2">· A4 {totalQr}페이지 / 단일 PDF</span>
@@ -1659,18 +1631,18 @@ function Step2PdfPreviewDialog({
                 <Button size="sm" variant="outline" disabled={qrIdx >= totalQr - 1} onClick={() => setQrIdx(qrIdx + 1)}>다음</Button>
               </div>
             </div>
-            <div style={{ height: "calc(95vh - 260px)" }} className="min-h-[360px] border rounded-md bg-muted/30 overflow-hidden flex items-center justify-center p-2">
-              {currentQrImg ? (
-                <img src={currentQrImg} alt={`qr-page-${qrIdx + 1}`} className="block max-w-full max-h-full w-auto h-auto object-contain shadow-lg bg-white" />
+            <div className="flex-1 border rounded-md bg-muted/30 overflow-hidden">
+              {currentQrSrc ? (
+                <iframe key={`qr-${qrIdx}`} title="qr-pdf-preview" src={currentQrSrc} className="w-full h-full bg-white" />
               ) : (
-                <div className="text-sm text-muted-foreground flex items-center">
+                <div className="w-full h-full flex items-center justify-center text-sm text-muted-foreground">
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" /> PDF 생성 중...
                 </div>
               )}
             </div>
           </TabsContent>
         </Tabs>
-        <div className="shrink-0 flex justify-end gap-2 pt-2 border-t mt-2">
+        <div className="flex justify-end gap-2 pt-2 border-t mt-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>닫기</Button>
           <Button onClick={onConfirm} disabled={twinBusy || qrBusy}>
             <CheckCircle2 className="w-4 h-4 mr-1" /> 확인
