@@ -223,6 +223,8 @@ function canvasToBlob(c: HTMLCanvasElement): Promise<Blob> {
   });
 }
 
+const yieldToBrowser = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
 // ============ footer (UID + QR) ============
 
 export interface FooterCfg {
@@ -1312,10 +1314,11 @@ async function buildFinalPngs(
   sharpen: boolean,
   onProgress?: (done: number, total: number) => void,
   transform?: { offsetXPct?: number; offsetYPct?: number; scale?: number },
-  opts?: { embedDpiMetadata?: boolean; concurrency?: number; onItem?: (index: number, item: { designUid: string; blob: Blob | null; reason?: string }) => void },
+  opts?: { embedDpiMetadata?: boolean; concurrency?: number; yieldEvery?: number; onItem?: (index: number, item: { designUid: string; blob: Blob | null; reason?: string }) => void },
 ): Promise<Array<{ designUid: string; blob: Blob | null; reason?: string }>> {
   const embedDpi = opts?.embedDpiMetadata ?? true;
   const concurrency = Math.max(1, opts?.concurrency ?? 4);
+  const yieldEvery = Math.max(1, opts?.yieldEvery ?? concurrency);
   const total = details.length;
   const results: Array<{ designUid: string; blob: Blob | null; reason?: string } | undefined> =
     new Array(total).fill(undefined);
@@ -1408,6 +1411,7 @@ async function buildFinalPngs(
     done++;
     onProgress?.(done, total);
     opts?.onItem?.(idx, item);
+    if (done % yieldEvery === 0) await yieldToBrowser();
   };
 
   // Concurrency-limited pool
@@ -1572,11 +1576,13 @@ function OrderProgressBox({
 
 
   const sendOrder = async () => {
-    if (!webhookUrl) {
+    const currentWebhookUrl = readHtWebhook() || webhookUrl.trim();
+    if (!currentWebhookUrl) {
       toast({ title: "위챗 Webhook 미설정", description: "발주 전 위챗 Webhook을 먼저 설정하세요.", variant: "destructive" as any });
       setSettingsOpen(true);
       return;
     }
+    if (currentWebhookUrl !== webhookUrl) setWebhookUrl(currentWebhookUrl);
     setSending(true);
     setSendProgress({ done: 0, total: details.length });
     setSendStage("작업지시서 PDF 생성 중");
@@ -1592,8 +1598,9 @@ function OrderProgressBox({
       // 2) Image 폴더 — 300dpi 최종 PNG
       setSendStage("최종 PNG 생성 중");
       const imageFolder = root.folder("Image")!;
-      const pngs = await buildFinalPngs(details, formats, outline, testDesign, readFooter(), 300, true,
-        (done, total) => setSendProgress({ done, total }), savedTransform, { concurrency: 3 });
+      const pngs = await buildFinalPngs(details, formats, outline, testDesign, readFooter(), 300, false,
+        (done, total) => setSendProgress({ done, total }), savedTransform,
+        { concurrency: 1, yieldEvery: 1 });
 
       let ok = 0, skipped = 0;
       const used = new Map<string, number>();
@@ -1602,13 +1609,17 @@ function OrderProgressBox({
         const count = used.get(r.designUid) ?? 0;
         const name = count === 0 ? `${r.designUid}.png` : `${r.designUid}(${count}).png`;
         used.set(r.designUid, count + 1);
-        imageFolder.file(name, r.blob);
+        imageFolder.file(name, r.blob, { binary: true, compression: "STORE" });
         ok++;
+        if (ok % 10 === 0) await yieldToBrowser();
       }
       if (ok === 0) throw new Error("생성된 PNG가 없습니다 — 디자인 포맷/소스를 확인하세요.");
 
       setSendStage("ZIP 압축 중");
-      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const zipBlob = await zip.generateAsync(
+        { type: "blob", compression: "STORE", streamFiles: true },
+        (meta) => setSendStage(`ZIP 압축 중 ${Math.round(meta.percent)}%`),
+      );
       const zipName = `${folderName}.zip`;
       const path = `orders/heat-transfer-${folderName}-${Date.now()}.zip`;
       setSendStage("ZIP 업로드 중");
@@ -1628,25 +1639,22 @@ function OrderProgressBox({
 
       setSendStage("위챗 전송 중");
       const { data, error } = await supabase.functions.invoke("wechat-send", {
-        body: { webhookUrl, message },
+        body: { webhookUrl: currentWebhookUrl, message },
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
 
+      const { error: logErr } = await supabase.from("outsource_orders" as any).insert({
+        factory: "heat",
+        order_no: order.orderNo,
+        product_code: order.raw?.product_code || order.orderNo,
+        quantity: ok,
+        ordered_at: new Date().toISOString().slice(0, 10),
+        status: "ordered",
+        note: `위챗 발송 · ${zipName}`,
+      });
+      if (logErr) throw new Error(`발송은 완료됐지만 발주 이력 저장 실패: ${logErr.message}`);
       setOrdered(true); persist({ ordered: true });
-      try {
-        await supabase.from("outsource_orders" as any).insert({
-          factory: "heat",
-          order_no: order.orderNo,
-          product_code: order.raw?.product_code || order.orderNo,
-          quantity: ok,
-          ordered_at: new Date().toISOString().slice(0, 10),
-          status: "ordered",
-          note: `위챗 발송 · ${zipName}`,
-        });
-      } catch (logErr) {
-        console.warn("outsource_orders insert failed", logErr);
-      }
       toast({ title: "발주 완료", description: `${zipName} 위챗 단톡방으로 전송됨` });
     } catch (e: any) {
       toast({ title: "발주 실패", description: e?.message || String(e), variant: "destructive" as any });
