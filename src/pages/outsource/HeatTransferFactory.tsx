@@ -1757,6 +1757,12 @@ function DesignTab({
       const r = new FileReader(); r.onload = () => resolve(r.result as string); r.readAsDataURL(f);
     });
     setTestDesign(url); setTestName(f.name);
+    try {
+      await saveHtPersistedDesign(order.orderNo, url, f.name);
+      toast({ title: "작업 파일 저장됨", description: "다른 메뉴로 이동해도 이 작업번호에 유지됩니다." });
+    } catch (e: any) {
+      toast({ title: "작업 파일 저장 실패", description: e?.message || "브라우저 저장공간을 확인하세요.", variant: "destructive" });
+    }
   };
 
   const [logs, setLogs] = useState<Array<{ ts: string; level: "info" | "warn" | "error"; msg: string }>>([]);
@@ -1910,7 +1916,7 @@ function DesignTab({
                 className="h-9"
               />
               {testDesign && (
-                <Button size="sm" variant="outline" onClick={() => { setTestDesign(null); setTestName(""); }}>
+                <Button size="sm" variant="outline" onClick={async () => { setTestDesign(null); setTestName(""); try { await deleteHtPersistedDesign(order.orderNo); } catch {} }}>
                   <X className="w-4 h-4 mr-1" /> {testName || "테스트 제거"}
                 </Button>
               )}
