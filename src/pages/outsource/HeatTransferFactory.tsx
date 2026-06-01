@@ -2184,12 +2184,51 @@ function OrderProgressBox({
           </DialogContent>
         </Dialog>
 
-        {sending && (
-          <div className="mt-3 flex items-center text-xs text-muted-foreground">
-            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-            {sendStage || "발주 전송 중"}{sendProgress ? ` · PNG ${sendProgress.done}/${sendProgress.total}` : ""}
-          </div>
-        )}
+        {sending && (() => {
+          const done = sendProgress?.done ?? 0;
+          const total = sendProgress?.total ?? 0;
+          // PNG 업로드(0~90%) + 서버 ZIP/마무리(90~100%) 가중치 적용
+          const pngPct = total > 0 ? (done / total) * 90 : 0;
+          const stageHints = sendStage || "";
+          const inZipStage = /ZIP|위챗|발주 이력|마무리|finaliz/i.test(stageHints);
+          const tailPct = inZipStage ? 8 : 0;
+          const percent = Math.min(99, Math.round(pngPct + tailPct));
+          const startedAt = sendStartedAtRef.current;
+          const elapsedMs = startedAt ? Date.now() - startedAt : 0;
+          let etaText = "";
+          if (startedAt && done > 0 && total > 0 && done < total) {
+            const rate = done / (elapsedMs / 1000); // items/sec
+            const remaining = (total - done) / Math.max(rate, 0.0001);
+            const m = Math.floor(remaining / 60);
+            const s = Math.round(remaining % 60);
+            etaText = m > 0 ? `약 ${m}분 ${s}초 남음` : `약 ${s}초 남음`;
+          } else if (startedAt && done >= total && total > 0) {
+            etaText = "마무리 중…";
+          } else if (startedAt) {
+            etaText = "예상 시간 계산 중…";
+          }
+          const elapsedSec = Math.floor(elapsedMs / 1000);
+          const em = Math.floor(elapsedSec / 60);
+          const es = elapsedSec % 60;
+          const elapsedText = em > 0 ? `${em}분 ${es}초 경과` : `${es}초 경과`;
+          return (
+            <div className="mt-3 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center text-muted-foreground">
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  {sendStage || "발주 전송 중"}
+                  {total > 0 ? ` · PNG ${done}/${total}` : ""}
+                </div>
+                <div className="font-semibold tabular-nums">{percent}%</div>
+              </div>
+              <Progress value={percent} className="h-2" />
+              <div className="flex items-center justify-between text-[11px] text-muted-foreground tabular-nums">
+                <span>{elapsedText}</span>
+                <span>{etaText}</span>
+              </div>
+            </div>
+          );
+        })()}
       </CardContent>
     </Card>
   );
