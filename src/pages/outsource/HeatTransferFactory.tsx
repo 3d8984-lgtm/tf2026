@@ -139,19 +139,12 @@ async function loadPdfOutline(bytes: ArrayBuffer): Promise<{
  *
  * Returns a canvas at print resolution (pdf size in points * dpi/72).
  */
-async function composeClippedDesign(
-  designSrc: string,
-  maskCanvas: HTMLCanvasElement,
-  widthPt: number,
-  heightPt: number,
-  dpi: number,
-  transform?: { offsetXPct?: number; offsetYPct?: number; scale?: number },
-  opts?: { sharpen?: boolean },
-): Promise<HTMLCanvasElement> {
-  const targetW = Math.max(64, Math.round((widthPt / 72) * dpi));
-  const targetH = Math.max(64, Math.round((heightPt / 72) * dpi));
-
-  // 1) build mask at target size, converting the PDF render into pure alpha
+/**
+ * Build a pure-alpha mask canvas at the target pixel size from the PDF render.
+ * Expensive (drawImage + getImageData + per-pixel loop), so callers should
+ * cache the result and reuse it across details that share the same format.
+ */
+function buildAlphaMaskCanvas(maskCanvas: HTMLCanvasElement, targetW: number, targetH: number): HTMLCanvasElement {
   const mask = document.createElement("canvas");
   mask.width = targetW;
   mask.height = targetH;
@@ -160,14 +153,34 @@ async function composeClippedDesign(
   mctx.imageSmoothingQuality = "high";
   mctx.drawImage(maskCanvas, 0, 0, targetW, targetH);
   const md = mctx.getImageData(0, 0, targetW, targetH);
-  for (let i = 0; i < md.data.length; i += 4) {
-    const r = md.data[i], g = md.data[i + 1], b = md.data[i + 2], a = md.data[i + 3];
+  const d = md.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i], g = d[i + 1], b = d[i + 2], a = d[i + 3];
     const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
     const inside = (1 - lum) * (a / 255);
-    md.data[i] = 0; md.data[i + 1] = 0; md.data[i + 2] = 0;
-    md.data[i + 3] = Math.round(Math.min(1, inside) * 255);
+    d[i] = 0; d[i + 1] = 0; d[i + 2] = 0;
+    d[i + 3] = Math.round(Math.min(1, inside) * 255);
   }
   mctx.putImageData(md, 0, 0);
+  return mask;
+}
+
+async function composeClippedDesign(
+  designSrc: string,
+  maskCanvas: HTMLCanvasElement,
+  widthPt: number,
+  heightPt: number,
+  dpi: number,
+  transform?: { offsetXPct?: number; offsetYPct?: number; scale?: number },
+  opts?: { sharpen?: boolean; preBuiltMask?: HTMLCanvasElement; preLoadedImage?: HTMLImageElement },
+): Promise<HTMLCanvasElement> {
+  const targetW = Math.max(64, Math.round((widthPt / 72) * dpi));
+  const targetH = Math.max(64, Math.round((heightPt / 72) * dpi));
+
+  // 1) alpha mask — reuse cached one when provided
+  const mask = opts?.preBuiltMask && opts.preBuiltMask.width === targetW && opts.preBuiltMask.height === targetH
+    ? opts.preBuiltMask
+    : buildAlphaMaskCanvas(maskCanvas, targetW, targetH);
 
   // 2) draw design centered, cover-fit to mask, with user transform (offset + scale, aspect kept)
   const out = document.createElement("canvas");
@@ -177,7 +190,7 @@ async function composeClippedDesign(
   octx.imageSmoothingEnabled = true;
   octx.imageSmoothingQuality = "high";
 
-  const img = await loadImage(designSrc);
+  const img = opts?.preLoadedImage ?? (await loadImage(designSrc));
   const userScale = transform?.scale ?? 1;
   const offXPct = transform?.offsetXPct ?? 0;
   const offYPct = transform?.offsetYPct ?? 0;
@@ -187,8 +200,6 @@ async function composeClippedDesign(
   const dh = Math.max(1, Math.round(img.height * scale));
   const dx = Math.round((targetW - dw) / 2 + (offXPct / 100) * targetW);
   const dy = Math.round((targetH - dh) / 2 + (offYPct / 100) * targetH);
-  // Edge-preserving sharpening path: pre-upscale the design via iterative 2× + unsharp mask,
-  // then blit at exact pixel size — avoids the soft halo a single big bicubic produces.
   if (opts?.sharpen && (dw > img.width || dh > img.height)) {
     const sharp = edgePreservingUpscale(img, dw, dh);
     octx.imageSmoothingEnabled = false;
@@ -1297,30 +1308,82 @@ async function buildFinalPngs(
   sharpen: boolean,
   onProgress?: (done: number, total: number) => void,
   transform?: { offsetXPct?: number; offsetYPct?: number; scale?: number },
+  opts?: { embedDpiMetadata?: boolean; concurrency?: number; onItem?: (index: number, item: { designUid: string; blob: Blob | null; reason?: string }) => void },
 ): Promise<Array<{ designUid: string; blob: Blob | null; reason?: string }>> {
-  const out: Array<{ designUid: string; blob: Blob | null; reason?: string }> = [];
-  let i = 0;
-  for (const d of details) {
-    i++;
+  const embedDpi = opts?.embedDpiMetadata ?? true;
+  const concurrency = Math.max(1, opts?.concurrency ?? 4);
+  const total = details.length;
+  const results: Array<{ designUid: string; blob: Blob | null; reason?: string } | undefined> =
+    new Array(total).fill(undefined);
+
+  // Cache alpha masks per format (keyed by mask canvas identity + dpi)
+  const maskCache = new Map<HTMLCanvasElement, HTMLCanvasElement>();
+  const getMask = (fmt: { maskCanvas: HTMLCanvasElement; widthPt: number; heightPt: number }) => {
+    const cached = maskCache.get(fmt.maskCanvas);
+    if (cached) return cached;
+    const tW = Math.max(64, Math.round((fmt.widthPt / 72) * dpi));
+    const tH = Math.max(64, Math.round((fmt.heightPt / 72) * dpi));
+    const m = buildAlphaMaskCanvas(fmt.maskCanvas, tW, tH);
+    maskCache.set(fmt.maskCanvas, m);
+    return m;
+  };
+
+  // Cache decoded design images per src string
+  const imgCache = new Map<string, Promise<HTMLImageElement>>();
+  const getImg = (src: string) => {
+    let p = imgCache.get(src);
+    if (!p) { p = loadImage(src); imgCache.set(src, p); }
+    return p;
+  };
+
+  let done = 0;
+  const processOne = async (idx: number) => {
+    const d = details[idx];
+    let item: { designUid: string; blob: Blob | null; reason?: string };
     try {
       const src = testDesign || d.designSrc;
-      if (!src) { out.push({ designUid: d.designUid, blob: null, reason: "디자인 소스 없음" }); onProgress?.(i, details.length); continue; }
-      const target = normalizeSize(d.tshirtSize);
-      const fmt = (target ? formats.find((f) => normalizeSize(f.sizeLabel) === target) : null) || fallbackOutline;
-      if (!fmt) { out.push({ designUid: d.designUid, blob: null, reason: `사이즈 ${d.tshirtSize || "?"} 포맷 없음` }); onProgress?.(i, details.length); continue; }
-      const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
-      const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer, {
-        tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize,
-      });
-      const blob = await pngWithDpi(await canvasToBlob(c), dpi);
-      out.push({ designUid: d.designUid, blob });
+      if (!src) {
+        item = { designUid: d.designUid, blob: null, reason: "디자인 소스 없음" };
+      } else {
+        const target = normalizeSize(d.tshirtSize);
+        const fmt = (target ? formats.find((f) => normalizeSize(f.sizeLabel) === target) : null) || fallbackOutline;
+        if (!fmt) {
+          item = { designUid: d.designUid, blob: null, reason: `사이즈 ${d.tshirtSize || "?"} 포맷 없음` };
+        } else {
+          const preMask = getMask(fmt);
+          const preImg = await getImg(src);
+          const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform,
+            { sharpen, preBuiltMask: preMask, preLoadedImage: preImg });
+          const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer, {
+            tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize,
+          });
+          const rawBlob = await canvasToBlob(c);
+          const blob = embedDpi ? await pngWithDpi(rawBlob, dpi) : rawBlob;
+          item = { designUid: d.designUid, blob };
+        }
+      }
     } catch (e) {
-      out.push({ designUid: d.designUid, blob: null, reason: String((e as Error)?.message || e) });
+      item = { designUid: d.designUid, blob: null, reason: String((e as Error)?.message || e) };
     }
-    onProgress?.(i, details.length);
-  }
-  return out;
+    results[idx] = item;
+    done++;
+    onProgress?.(done, total);
+    opts?.onItem?.(idx, item);
+  };
+
+  // Concurrency-limited pool
+  let next = 0;
+  const workers = Array.from({ length: Math.min(concurrency, total) }, async () => {
+    while (true) {
+      const i = next++;
+      if (i >= total) return;
+      await processOne(i);
+    }
+  });
+  await Promise.all(workers);
+  return results as Array<{ designUid: string; blob: Blob | null; reason?: string }>;
 }
+
 
 // ===== OrderProgressBox: 작업지시서 / 작업파일 확인 / 발주 =====
 function OrderProgressBox({
@@ -1422,35 +1485,51 @@ function OrderProgressBox({
   }, [order.orderNo, outline?.previewUrl, firstResultUrl, open1]);
 
 
-  // Step 2: PNG 썸네일 미리보기
+  // Step 2: PNG 썸네일 미리보기 (스트리밍 + 캐시 + 동시 처리)
   const [thumbs, setThumbs] = useState<Array<{ designUid: string; url: string | null; reason?: string }>>([]);
   const [thumbBusy, setThumbBusy] = useState(false);
+  const [thumbProgress, setThumbProgress] = useState<{ done: number; total: number } | null>(null);
 
   useEffect(() => {
     if (!open2) return;
     let cancelled = false;
+    const createdUrls: string[] = [];
     (async () => {
       setThumbBusy(true);
-      setThumbs([]);
+      setThumbProgress({ done: 0, total: details.length });
+      // 자리표시자: 완료되는 대로 채워 넣기
+      setThumbs(details.map((d) => ({ designUid: d.designUid, url: null, reason: undefined })));
       try {
-        // 미리보기는 96dpi (가벼움)
-        const res = await buildFinalPngs(details, formats, outline, testDesign, readFooter(), 96, false, undefined, savedTransform);
-        if (cancelled) return;
-        const mapped = res.map((r) => ({
-          designUid: r.designUid,
-          url: r.blob ? URL.createObjectURL(r.blob) : null,
-          reason: r.reason,
-        }));
-        setThumbs(mapped);
+        // 미리보기는 72dpi + DPI 메타데이터 생략 + 4개 동시 처리 + 마스크/이미지 캐시
+        await buildFinalPngs(
+          details, formats, outline, testDesign, readFooter(), 72, false,
+          (done, total) => { if (!cancelled) setThumbProgress({ done, total }); },
+          savedTransform,
+          {
+            embedDpiMetadata: false,
+            concurrency: 4,
+            onItem: (idx, item) => {
+              if (cancelled) return;
+              const url = item.blob ? URL.createObjectURL(item.blob) : null;
+              if (url) createdUrls.push(url);
+              setThumbs((prev) => {
+                const next = prev.slice();
+                next[idx] = { designUid: item.designUid, url, reason: item.reason };
+                return next;
+              });
+            },
+          },
+        );
       } finally {
         if (!cancelled) setThumbBusy(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; createdUrls.forEach((u) => URL.revokeObjectURL(u)); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open2, savedTransform]);
 
   useEffect(() => () => { thumbs.forEach((t) => { if (t.url) URL.revokeObjectURL(t.url); }); }, [thumbs]);
+
 
   const sendOrder = async () => {
     if (!webhookUrl) {
@@ -1472,7 +1551,8 @@ function OrderProgressBox({
       // 2) Image 폴더 — 300dpi 최종 PNG
       const imageFolder = root.folder("Image")!;
       const pngs = await buildFinalPngs(details, formats, outline, testDesign, readFooter(), 300, true,
-        (done, total) => setSendProgress({ done, total }), savedTransform);
+        (done, total) => setSendProgress({ done, total }), savedTransform, { concurrency: 3 });
+
       let ok = 0, skipped = 0;
       const used = new Map<string, number>();
       for (const r of pngs) {
@@ -1597,27 +1677,30 @@ function OrderProgressBox({
               </DialogTitle>
             </DialogHeader>
             <div className="flex-1 overflow-auto border rounded-md bg-muted/20 p-3">
-              {thumbBusy && thumbs.length === 0 ? (
-                <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" /> PNG 생성 중...
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-                  {thumbs.map((t) => (
-                    <div key={t.designUid} className="rounded border bg-white overflow-hidden flex flex-col">
-                      <div className="w-full aspect-square bg-[conic-gradient(at_50%_50%,#eee_25%,#fff_0_50%,#eee_0_75%,#fff_0)] bg-[length:12px_12px] flex items-center justify-center overflow-hidden">
-                        {t.url ? (
-                          <img src={t.url} alt={t.designUid} className="max-w-full max-h-full object-contain" />
-                        ) : (
-                          <div className="text-[10px] text-destructive text-center px-1">{t.reason || "생성 실패"}</div>
-                        )}
-                      </div>
-                      <div className="px-2 py-1 text-[11px] font-mono truncate border-t" title={t.designUid}>{t.designUid}</div>
-                    </div>
-                  ))}
+              {thumbBusy && thumbProgress && (
+                <div className="flex items-center justify-center pb-3 text-xs text-muted-foreground">
+                  <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
+                  PNG 생성 중... {thumbProgress.done} / {thumbProgress.total}
                 </div>
               )}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                {thumbs.map((t, i) => (
+                  <div key={`${t.designUid}-${i}`} className="rounded border bg-white overflow-hidden flex flex-col">
+                    <div className="w-full aspect-square bg-[conic-gradient(at_50%_50%,#eee_25%,#fff_0_50%,#eee_0_75%,#fff_0)] bg-[length:12px_12px] flex items-center justify-center overflow-hidden">
+                      {t.url ? (
+                        <img src={t.url} alt={t.designUid} className="max-w-full max-h-full object-contain" loading="lazy" />
+                      ) : t.reason ? (
+                        <div className="text-[10px] text-destructive text-center px-1">{t.reason}</div>
+                      ) : (
+                        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="px-2 py-1 text-[11px] font-mono truncate border-t" title={t.designUid}>{t.designUid}</div>
+                  </div>
+                ))}
+              </div>
             </div>
+
             <div className="flex justify-end gap-2 pt-2 border-t">
               <Button variant="outline" onClick={() => setOpen2(false)}>닫기</Button>
               <Button onClick={() => { setConfirmed2(true); persist({ confirmed2: true }); setOpen2(false); toast({ title: "작업파일 확인 완료" }); }} disabled={thumbBusy}>
