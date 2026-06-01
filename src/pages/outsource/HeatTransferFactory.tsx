@@ -1045,18 +1045,37 @@ function OrderDetail({
     return arr;
   }, [order, testDesign]);
 
+  const [resetKey, setResetKey] = useState(0);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+
+  const handleResetAll = async () => {
+    try { localStorage.removeItem(`${HT_UI_DRAFT_PREFIX}${order.orderNo}`); } catch {}
+    try { localStorage.removeItem(`heatTransfer.progress.v1.${order.orderNo}`); } catch {}
+    try { await deleteHtPersistedDesign(order.orderNo); } catch {}
+    setTestDesign(null);
+    setTestName("");
+    setResetKey((k) => k + 1);
+    setResetConfirmOpen(false);
+    toast({ title: "초기화 완료", description: "현재 작업번호의 모든 작업 내용이 삭제되었습니다." });
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Button size="sm" variant="ghost" onClick={onBack}><ChevronLeft className="w-4 h-4 mr-1" /> 목록으로</Button>
-        <h2 className="text-base font-semibold">작업번호 <span className="font-mono">{order.orderNo}</span></h2>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="ghost" onClick={onBack}><ChevronLeft className="w-4 h-4 mr-1" /> 목록으로</Button>
+          <h2 className="text-base font-semibold">작업번호 <span className="font-mono">{order.orderNo}</span></h2>
+        </div>
+        <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setResetConfirmOpen(true)}>
+          <RotateCcw className="w-4 h-4 mr-1" /> 초기화
+        </Button>
       </div>
 
-      <OrderProgressBox order={order} details={details} outline={outline} formats={formats} testDesign={testDesign} />
+      <OrderProgressBox key={`progress-${resetKey}`} order={order} details={details} outline={outline} formats={formats} testDesign={testDesign} />
 
       <WorkOrderInfoBox order={order} outlinePreview={outline?.previewUrl} />
 
-      <Tabs defaultValue="design">
+      <Tabs key={`tabs-${resetKey}`} defaultValue="design">
         <TabsList>
           <TabsTrigger value="design">디자인 시안 설정</TabsTrigger>
           <TabsTrigger value="qr">큐알코드 시안</TabsTrigger>
@@ -1074,6 +1093,24 @@ function OrderDetail({
       </Tabs>
 
       <OrderDetailList details={details} outline={outline} />
+
+      <Dialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>작업 상태 초기화</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            현재 작업번호의 모든 작업 내용(업로드한 테스트 디자인, 위치/크기 조정, 발주 진행 상태 등)이 삭제됩니다.<br />
+            정말 처음부터 다시 작업하시겠습니까?
+          </p>
+          <DialogFooter className="flex justify-end gap-2 pt-2">
+            <Button size="sm" variant="ghost" onClick={() => setResetConfirmOpen(false)}>취소</Button>
+            <Button size="sm" variant="destructive" onClick={handleResetAll}>
+              <RotateCcw className="w-4 h-4 mr-1" /> 초기화
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
