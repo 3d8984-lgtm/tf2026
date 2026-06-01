@@ -131,14 +131,30 @@ async function processJob(admin: any, jobId: string) {
       .order("item_id", { ascending: true });
     if (filesErr) throw new Error(filesErr.message);
 
-    const allNames = ["__work_order.pdf", ...(files || []).map((f: any) => f.file_url || `${f.item_id}.png`)];
+    // file_url may be a full storage path, a public URL, or just a filename — normalize all to a storage path.
+    const resolvePath = (raw: string) => {
+      if (!raw) return "";
+      if (raw.startsWith("http")) {
+        const i = raw.indexOf(`/${BUCKET}/`);
+        return i >= 0 ? raw.slice(i + BUCKET.length + 2) : raw;
+      }
+      return raw.includes("/") ? raw : `${tmpPrefix}/${raw}`;
+    };
+    const entries: { path: string; name: string }[] = [
+      { path: `${tmpPrefix}/__work_order.pdf`, name: "__work_order.pdf" },
+      ...(files || []).map((f: any) => {
+        const p = resolvePath(f.file_url || `${f.item_id}.png`);
+        return { path: p, name: p.split("/").pop() || `${f.item_id}.png` };
+      }),
+    ];
     const start = Math.max(0, Number(job.zip_progress || 0));
-    const slice = allNames.slice(0, Math.min(allNames.length, start + BATCH_SIZE));
+    const slice = entries.slice(0, Math.min(entries.length, start + BATCH_SIZE));
+    const allNames = entries;
     await setJob(admin, jobId, { stage: `ZIP 빌드 중 ${slice.length}/${allNames.length}` });
 
     const zipEntries: Record<string, Uint8Array> = {};
-    for (const name of slice) {
-      zipEntries[entryName(folderName, name)] = await downloadBytes(admin, `${tmpPrefix}/${name}`);
+    for (const e of slice) {
+      zipEntries[entryName(folderName, e.name)] = await downloadBytes(admin, e.path);
     }
     const zipped = zipSync(zipEntries, { level: 0 });
     const { error: upErr } = await admin.storage.from(BUCKET).upload(zipPath, new Blob([zipped], { type: "application/zip" }), {
