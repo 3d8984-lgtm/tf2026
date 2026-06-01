@@ -23,6 +23,7 @@ import { edgePreservingUpscale } from "@/lib/upscale";
 import { supabase } from "@/integrations/supabase/client";
 import QRCode from "qrcode";
 import JSZip from "jszip";
+import { HtPngPool, type PoolTask } from "./_workers/htPngPool";
 
 const DESIGN_FORMAT_BUCKET = "design-formats";
 const DESIGN_FORMAT_FOLDER = "heat-transfer";
