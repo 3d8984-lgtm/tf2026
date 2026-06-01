@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
     const base64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
     const bin = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
     const fd = new FormData();
-    fd.append('image_file', new Blob([bin], { type: 'image/png' }), 'input.png');
+    fd.append('imageFile', new Blob([bin], { type: 'image/png' }), 'input.png');
 
     if (mode === 'remove-bg') {
       // Background removal only; keep original size, output transparent PNG, auto-crop
