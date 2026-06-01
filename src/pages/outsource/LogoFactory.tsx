@@ -103,6 +103,39 @@ function svgTextToDataUrl(svgText: string): string {
 // which auto-selects Nearest / Lanczos3 + per-type sharpening based on input
 // content (pixel-art / logo / text / illustration / photo).
 
+async function canvasToPngDataUrl(canvas: HTMLCanvasElement): Promise<string> {
+  const blob = await new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob((b) => b ? resolve(b) : reject(new Error("PNG 인코딩 실패")), "image/png"),
+  );
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error("PNG 읽기 실패"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function preparePhotoroomPayload(dataUrl: string, scale: 2 | 4) {
+  const img = await loadImage(dataUrl);
+  const total = img.naturalWidth * img.naturalHeight;
+  // Photoroom hard limit is 1MP, but AI upscale can 504 near that size.
+  // Keep expected output around ≤1.8MP to avoid upstream gateway timeouts.
+  const maxInputPx = scale === 4 ? 112_500 : 450_000;
+  if (total <= maxInputPx) return { payload: dataUrl, resized: false, width: img.naturalWidth, height: img.naturalHeight };
+
+  const ratio = Math.sqrt(maxInputPx / total);
+  const width = Math.max(1, Math.floor(img.naturalWidth * ratio));
+  const height = Math.max(1, Math.floor(img.naturalHeight * ratio));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d")!;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, 0, 0, width, height);
+  return { payload: await canvasToPngDataUrl(canvas), resized: true, width, height };
+}
+
 
 /** Convert mm + dpi → integer pixel count. */
 function mmToPx(mm: number, dpi: number): number {
