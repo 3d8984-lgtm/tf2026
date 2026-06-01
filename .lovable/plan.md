@@ -1,120 +1,92 @@
+## 목표
 
-# 업스케일링 최적화 적용 계획
+현재 브라우저에서 모두 처리하는 발주 흐름(PNG 생성 → ZIP → 업로드 → 위챗)을 비동기 잡 패턴으로 바꿉니다. 사용자 PC 의존을 최소화하고 1000건 규모까지 안정적으로 동작하게 만듭니다.
 
-교육자료(`Lovable_업스케일링_교육패키지.zip`)의 의사결정 매트릭스를 외주 공정 전체에 적용합니다.
-적용 방식: **A) 무료 클라이언트 최적화 + B) Real-ESRGAN(Replicate) AI 업스케일 (사용자가 선택)**.
+## 핵심 결정
 
----
+PNG 렌더링 자체(Lanczos3 + Canvas mask clipping)는 **브라우저에 그대로 남깁니다**. 이유: 같은 코드를 Deno Edge Function 환경에서 동작하는 Canvas/Skia 포팅에 큰 리스크가 있고, 1000건 처리 시간보다 메모리 폭주와 단일 호출 타임아웃이 더 큰 병목입니다.
 
-## 1. 공통 유틸 신설 — `src/lib/upscale.ts`
+대신 다음을 서버로 옮깁니다.
+- **ZIP 생성 (서버 스트리밍)**: 메모리에 모아두지 않음
+- **위챗 전송**: 서버에서 ZIP 완성 직후
+- **잡 상태 관리**: 진행률·실패 사유를 DB로 추적 → 탭을 닫아도 안전
 
-지금 `LogoFactory.tsx` / `HeatTransferFactory.tsx` 등에 **각자 복붙된** `edgePreservingUpscale` 을 하나로 통합하고,
-교육자료의 Decision Matrix 를 코드로 옮깁니다.
+## 새 흐름
 
-### 1.1 입력 이미지 자동 분석 `analyzeImage(img)`
-- **transparency**: 알파 히스토그램(0/255 비율) → 투명 배경 여부
-- **palette**: 고유 색 수 추정 (다운샘플 후 카운트) → 일러스트/로고/사진 판별
-- **edginess**: Sobel 평균 → 라인아트/텍스트성 강도
-- **noise**: 고주파 분산 → 압축 노이즈/사진 여부
-- **isPixelArt**: 작은 해상도 + 적은 팔레트 + 하드엣지 시그니처
-- **hasText**: 가로 스트로크 클러스터 휴리스틱 (간이)
-- **결과 타입**: `'pixel_art' | 'line_art_logo' | 'illustration' | 'document_text' | 'photo'`
-
-### 1.2 알고리즘 분기 `pickAlgo(analysis, options)`
-교육자료 SECTION 3 표를 그대로 반영:
-
-| 입력 타입       | 클라이언트 알고리즘                       | AI 옵션(켰을 때)       |
-|----------------|------------------------------------------|------------------------|
-| pixel_art      | Nearest-Neighbor 정수배                  | 사용 안 함             |
-| line_art_logo  | Lanczos3 + 강한 Unsharp + 알파 이진화    | Real-ESRGAN-anime      |
-| illustration   | Lanczos3 + 색평탄화(blur on chroma)      | Real-ESRGAN-anime      |
-| document_text  | Lanczos3 + 강 샤프닝 + 알파 이진화       | SwinIR(or Real-ESRGAN) |
-| photo          | Lanczos3 + 약 샤프닝 + 노이즈 무시 임계  | Real-ESRGAN(general)   |
-
-### 1.3 핵심 구현
-- **Lanczos3 리샘플러** (신규): 현재 반복 Bilinear 대신 1-shot Lanczos3.
-  - WebGL 백업 없이도 충분히 빠름. 단일 패스 → 흐림/엣지 정확도 향상.
-- **언샤프 마스크**: 가우시안(σ 가변, 현재 3×3 박스블러 대체), `amount`/`threshold` 를 타입별 프리셋 제공.
-- **알파 정리**: 투명 PNG 입력 시에만 동작. 임계 24/232 → 타입별 동적 조정.
-- **색평탄화 (illustration)**: HSL 채도/명도 양자화로 anime 모델 효과 흉내.
-- **목표 크기**: 현재처럼 `(mm × dpi/25.4)` 픽셀로 계산.
-
-### 1.4 진입점
-```ts
-export async function smartUpscale(
-  img: HTMLImageElement | HTMLCanvasElement,
-  targetW: number, targetH: number,
-  opts?: { mode?: 'auto' | 'photo' | 'logo' | 'illustration' | 'text' | 'pixel';
-           sharpness?: number; useAI?: boolean }
-): Promise<{ canvas: HTMLCanvasElement; analysis: Analysis; method: string }>;
+```text
+[브라우저]                                  [Supabase]
+  PNG 1장 생성 ──► Storage 직접 PUT (signed) ──► outsource_order_jobs.uploaded++
+       (10~20개 병렬, 진행률 실시간)
+       ...
+  모든 PNG 업로드 완료 ──► invoke('heat-order-finalize')
+                                              │
+                                              ▼
+                          EdgeRuntime.waitUntil(
+                            ① Storage에서 PNG 스트리밍 다운로드
+                            ② JSZip(스트리밍) 로 ZIP 생성
+                            ③ ZIP을 hologram-pdf 업로드
+                            ④ 위챗 webhook 호출
+                            ⑤ outsource_orders insert
+                            ⑥ job.status = 'done' + zip_url
+                          )
+                                              │
+  job 상태 폴링(2초) ◄──────────────────────┘
+  완료 시 토스트 + 발주 진행 칸 done 처리
 ```
-- `useAI: true` 면 Edge Function 호출(아래 §2), 실패 시 클라이언트 폴백.
 
----
+## 작업 항목
 
-## 2. AI 업스케일 — Edge Function `upscale-image`
+### 1. DB 마이그레이션
+- `outsource_order_jobs` 테이블 신설 (id, order_no, factory, total_pngs, uploaded_pngs, status, stage, zip_url, error_message, webhook_url, created_at/updated_at)
+- RLS: admin insert/update/delete, approved select
+- GRANT 명시 (authenticated/service_role)
+- `hologram-pdf` 버킷에 `orders/heat-transfer-jobs/<jobId>/` 경로 사용 (이미 public, 별도 정책 불필요)
 
-Replicate 커넥터(게이트웨이)로 Real-ESRGAN / Real-ESRGAN-anime / GFPGAN 호출.
+### 2. 클라이언트 (`HeatTransferFactory.tsx`)
+- `sendOrder` 재작성:
+  1. `outsource_order_jobs` 잡 row 생성 → `jobId` 획득
+  2. 작업지시서 PDF 1장 → `…/<jobId>/__work_order.pdf` 업로드
+  3. `buildFinalPngs`를 한 장씩 콜백 받으며 만들 때마다 **즉시** Storage에 업로드(JS 동시 6개)
+     - 메모리에서 즉시 blob 해제
+  4. 업로드마다 잡 `uploaded_pngs++` (10개마다 한 번 batched RPC)
+  5. 전부 끝나면 edge function `heat-order-finalize` 호출
+  6. 잡 상태를 2초 간격으로 폴링하며 `sendStage` 표시
+  7. `done`/`failed` 토스트 + UI 마무리
+- 탭이 닫혀도 잡은 서버에서 계속 진행 → 재진입 시 잡 진행 중이면 그대로 폴링 재개
+- "ZIP 압축/업로드"는 클라이언트에서 완전히 제거
 
-### 2.1 커넥터 연결
-- `standard_connectors--connect(connector_id="replicate")` 호출 → 사용자가 연결.
-- 연결 전에는 UI 의 'AI 업스케일' 토글이 **disabled** + 안내 문구.
+### 3. Edge Function `heat-order-finalize` (신규)
+- 입력: `{ jobId }`, JWT 검증
+- 잡 row 잠금 (status: 'finalizing')
+- `EdgeRuntime.waitUntil`로 백그라운드 처리:
+  - Storage에서 jobId 폴더의 모든 객체 list
+  - `npm:fflate` 의 스트리밍 ZIP API로 PNG/PDF를 순차 append (메모리 상주 X)
+  - 완성된 ZIP을 `orders/heat-transfer-<orderNo>-<ts>.zip`에 업로드 (resumable)
+  - 위챗 webhook POST (기존 `wechat-send` 로직 인라인 또는 internal invoke)
+  - `outsource_orders` insert
+  - 임시 PNG 폴더 정리
+  - 잡 status='done', zip_url 기록 / 실패 시 'failed' + error_message
+- 즉시 `{ status: 'queued', jobId }` 202 응답
 
-### 2.2 Edge Function 동작
-- 입력: `{ imageBase64, scale: 2|4, kind: 'general'|'anime'|'face' }`
-- 처리:
-  1. base64 → Replicate Files API 업로드
-  2. `kind` 에 따른 모델 호출:
-     - `general` → `nightmareai/real-esrgan` (또는 `xinntao/realesrgan-x4plus`)
-     - `anime`   → `xinntao/realesrgan-x4plus-anime`
-     - `face`    → `tencentarc/gfpgan` (+ bg_upsampler)
-  3. polling → output URL → fetch → base64 반환
-- 응답: `{ imageBase64, model, ms }`
-- 에러: 429/402/모델 실패 시 명확한 메시지(클라이언트에서 토스트 + 자동 클라이언트 폴백).
+### 4. Edge Function `wechat-send`
+- 기존 그대로 두되, 내부에서도 재사용 가능하도록 export. 호환 유지.
 
-### 2.3 보안 / 제한
-- `verify_jwt = true` (인증 사용자만)
-- 입력 크기 상한(예: 8MB) Zod 검증
-- 가격 안내 토스트(첫 호출 시 한 번)
+## 기술 세부
 
----
+- **PNG 업로드 동시성 6**: 일반 가정용 인터넷에서 안정적. 진행률 표시는 uploaded/total.
+- **fflate 스트리밍 ZIP**: Deno 런타임 메모리 200MB 한계 안에서 GB급 ZIP 가능. Edge Function CPU 시간이 모자라면 finalize를 청크 단위로 재호출하는 패턴으로 확장 가능(추후).
+- **재시도/멱등성**: 같은 PNG가 두 번 올라가도 `upsert: true`로 덮어쓰기. 잡 finalize는 멱등 — 동일 jobId 재호출 시 기존 ZIP 있으면 위챗만 재전송.
+- **임시 파일 정리**: finalize 성공 후 Storage `…/<jobId>/` 폴더 일괄 삭제.
+- **권한**: 잡 테이블은 admin만 수정, edge function은 service_role 사용.
 
-## 3. UI 변경 — 5개 외주 페이지 공통
+## 기대 효과
 
-대상: `LogoFactory.tsx`, `HeatTransferFactory.tsx`, `SiliconFactory.tsx`, `HologramFactory.tsx`, `NfcCardFactory.tsx`
+- 100장: 사용자 체감 시간 거의 동일하지만 ZIP/업로드 단계가 사라져 더 빨라짐
+- 1000장: 가능. PNG 업로드만 끝나면 탭을 닫아도 서버가 ZIP+위챗을 완료
+- 실패 시 어디서 막혔는지(스테이지/메시지) DB에 남아 디버깅 용이
 
-각 페이지의 "업스케일" 컨트롤 옆에 다음 추가:
-1. **모드 셀렉트**: `자동 / 로고 / 일러스트 / 텍스트 / 사진 / 픽셀` (기본 자동)
-2. **샤프니스 슬라이더**: 0–100 (기본 50)
-3. **'고품질 AI 업스케일' 토글**: Real-ESRGAN 호출. Replicate 미연결 시 비활성 + "연결하기" 버튼.
-4. 결과 미리보기 아래에 `analysis.type` 과 `method` 라벨 표시(교육자료 응답 템플릿과 동일 형식).
+## 범위에서 제외(이번 작업 X)
 
-기존 `edgePreservingUpscale` 호출부는 전부 `smartUpscale(...)` 로 교체.
-다운로드 / PDF / 인쇄 미리보기 경로의 픽셀 크기 계산 로직(`mm × dpi/25.4`)은 그대로 유지 — 알고리즘만 교체.
-
----
-
-## 4. 마이그레이션 / 백워드 호환
-
-- 기존 동작(샤프닝된 결과) 과 시각적으로 동등하거나 더 나음.
-- 투명 PNG 입력 → 투명 유지(이전 수정 사항 보존).
-- PDF 헤더/푸터 제거 상태 유지.
-- 픽셀 아트 입력은 자동으로 Nearest-Neighbor 로 빠지므로 기존 흐림 없음.
-
----
-
-## 5. 작업 단계
-
-1. `src/lib/upscale.ts` 신설 (analyzeImage, Lanczos3, Unsharp, smartUpscale).
-2. `standard_connectors--connect` 로 Replicate 연결 요청.
-3. `supabase/functions/upscale-image/index.ts` 생성 + 배포.
-4. 5개 외주 페이지에서 로컬 `edgePreservingUpscale` 제거, `smartUpscale` 사용.
-5. 모드/샤프니스/AI 토글 UI 추가.
-6. QA: 로고(투명 PNG), 사진 JPG, 일러스트 PNG, 텍스트 스캔 각각 다운로드 결과 비교.
-
-## 기술 노트
-
-- Lanczos3 커널: `L(x) = sinc(x)·sinc(x/3)`, support=3, 분리 가능 1D 컨볼루션 2회로 적용. 큰 이미지에서도 단일 패스로 충분.
-- 가우시안 언샤프: σ=0.8 커널 5×5, `out = base + amount*(base - blur)`, `|diff|<threshold` 시 무시.
-- 알파 이진화 임계: line_art_logo 는 32/224, document_text 는 48/208.
-- Replicate 호출은 게이트웨이 (`connector-gateway.lovable.dev/replicate/v1`) 사용, `LOVABLE_API_KEY` + `LOVABLE_CONNECTOR_REPLICATE_API_KEY` 헤더 필수.
+- PNG 생성 자체의 서버 포팅(추후 옵션 — 더 큰 작업)
+- 다른 공장(실리콘/홀로그램/NFC/로고) 발주 흐름 — 이번에는 열전사 디자인 공장만 변경
+- 사용자 인증/권한 체계 변경
