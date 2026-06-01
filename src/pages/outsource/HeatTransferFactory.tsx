@@ -236,6 +236,7 @@ async function composeWithFooter(
   _dpi: number,
   designUid: string,
   cfg: FooterCfg,
+  meta?: { tshirtType?: string; tshirtColor?: string; tshirtSize?: string },
 ): Promise<HTMLCanvasElement> {
   if (!cfg.enabled) return base;
   const widthMm = (widthPt / 72) * 25.4;
@@ -244,7 +245,16 @@ async function composeWithFooter(
   const textPx = Math.max(1, Math.round(cfg.textSizeMm * pxPerMm));
   const gapPx = Math.max(0, Math.round(cfg.gapMm * pxPerMm));
   const padPx = Math.max(0, Math.round(cfg.bottomPaddingMm * pxPerMm));
-  const bandH = Math.max(qrPx, textPx) + padPx * 2;
+
+  // Build meta line: 티셔츠 종류 · 컬러 · 사이즈
+  const metaParts = [meta?.tshirtType, meta?.tshirtColor, meta?.tshirtSize]
+    .map((v) => (v ?? "").toString().trim())
+    .filter(Boolean);
+  const metaText = metaParts.join(" · ");
+  const metaTextPx = Math.max(1, Math.round(cfg.textSizeMm * 0.85 * pxPerMm));
+  const metaGapPx = metaText ? Math.max(2, Math.round(cfg.textSizeMm * 0.4 * pxPerMm)) : 0;
+  const metaBlockH = metaText ? metaTextPx + metaGapPx : 0;
+  const bandH = Math.max(qrPx, textPx) + padPx * 2 + metaBlockH;
 
   const qrCanvas = document.createElement("canvas");
   await QRCode.toCanvas(qrCanvas, designUid || " ", { width: qrPx, margin: 0 });
@@ -271,6 +281,13 @@ async function composeWithFooter(
 
   ctx.drawImage(qrCanvas, groupX, Math.round(groupCenterY - qrPx / 2));
   ctx.fillText(designUid || "", groupX + qrPx + gapPx, groupCenterY);
+
+  if (metaText) {
+    ctx.font = `${metaTextPx}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`;
+    ctx.textBaseline = "middle";
+    const metaY = bandTop + Math.max(qrPx, textPx) + metaGapPx + metaTextPx / 2;
+    ctx.fillText(metaText, groupX, metaY);
+  }
 
   return out;
 }
@@ -1134,7 +1151,11 @@ function DesignTab({
       if (!outline || !effectiveDesign) { setPreviewUrl(null); return; }
       try {
         const canvas = await composeClippedDesign(effectiveDesign, outline.maskCanvas, outline.widthPt, outline.heightPt, 96, transform, { sharpen });
-        const withFooter = await composeWithFooter(canvas, outline.widthPt, 96, previewUid, footer);
+        const withFooter = await composeWithFooter(canvas, outline.widthPt, 96, previewUid, footer, {
+          tshirtType: first?.tshirtType,
+          tshirtColor: first?.tshirtColor,
+          tshirtSize: first?.tshirtSize,
+        });
         if (!cancelled) setPreviewUrl(withFooter.toDataURL("image/png"));
       } catch (e) { /* ignore */ }
     }
@@ -1172,7 +1193,9 @@ function DesignTab({
     setBusy(true);
     try {
       const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
-      const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer);
+      const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer, {
+        tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize,
+      });
       const b = await pngWithDpi(await canvasToBlob(c), dpi);
       triggerDownload(b, `${d.designUid}_${d.tshirtSize || "size"}_${dpi}dpi.png`);
     } finally { setBusy(false); }
@@ -1211,7 +1234,9 @@ function DesignTab({
         }
         const sizeFolder = d.tshirtSize ? folder.folder(d.tshirtSize) || folder : folder;
         const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
-        const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer);
+        const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer, {
+          tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize,
+        });
         const b = await pngWithDpi(await canvasToBlob(c), dpi);
         sizeFolder.file(`${d.designUid}.png`, b);
         matched++;
