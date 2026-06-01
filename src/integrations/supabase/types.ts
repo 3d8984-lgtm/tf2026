@@ -233,6 +233,119 @@ export type Database = {
         }
         Relationships: []
       }
+      order_job_items: {
+        Row: {
+          attempts: number
+          created_at: string
+          error_message: string | null
+          filename: string
+          id: string
+          idx: number
+          job_id: string
+          meta: Json
+          output_path: string | null
+          source_url: string
+          status: Database["public"]["Enums"]["order_item_status"]
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          error_message?: string | null
+          filename?: string
+          id?: string
+          idx: number
+          job_id: string
+          meta?: Json
+          output_path?: string | null
+          source_url: string
+          status?: Database["public"]["Enums"]["order_item_status"]
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          error_message?: string | null
+          filename?: string
+          id?: string
+          idx?: number
+          job_id?: string
+          meta?: Json
+          output_path?: string | null
+          source_url?: string
+          status?: Database["public"]["Enums"]["order_item_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_job_items_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "order_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_jobs: {
+        Row: {
+          bundle_size: number | null
+          bundle_zip_path: string | null
+          bundle_zip_url: string | null
+          callback_url: string | null
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          factory: string
+          id: string
+          order_no: string
+          payload: Json
+          progress_current: number
+          progress_total: number
+          stage: string
+          status: Database["public"]["Enums"]["order_job_status"]
+          updated_at: string
+          webhook_url: string
+        }
+        Insert: {
+          bundle_size?: number | null
+          bundle_zip_path?: string | null
+          bundle_zip_url?: string | null
+          callback_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          factory: string
+          id?: string
+          order_no: string
+          payload?: Json
+          progress_current?: number
+          progress_total?: number
+          stage?: string
+          status?: Database["public"]["Enums"]["order_job_status"]
+          updated_at?: string
+          webhook_url?: string
+        }
+        Update: {
+          bundle_size?: number | null
+          bundle_zip_path?: string | null
+          bundle_zip_url?: string | null
+          callback_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          factory?: string
+          id?: string
+          order_no?: string
+          payload?: Json
+          progress_current?: number
+          progress_total?: number
+          stage?: string
+          status?: Database["public"]["Enums"]["order_job_status"]
+          updated_at?: string
+          webhook_url?: string
+        }
+        Relationships: []
+      }
       orders: {
         Row: {
           created_at: string
@@ -299,63 +412,6 @@ export type Database = {
         }
         Relationships: []
       }
-      outsource_order_jobs: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          error_message: string | null
-          factory: string
-          id: string
-          order_no: string
-          payload: Json
-          stage: string
-          status: Database["public"]["Enums"]["outsource_job_status"]
-          total_pngs: number
-          updated_at: string
-          uploaded_pngs: number
-          webhook_url: string
-          zip_path: string | null
-          zip_progress: number
-          zip_url: string | null
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          error_message?: string | null
-          factory: string
-          id?: string
-          order_no: string
-          payload?: Json
-          stage?: string
-          status?: Database["public"]["Enums"]["outsource_job_status"]
-          total_pngs?: number
-          updated_at?: string
-          uploaded_pngs?: number
-          webhook_url?: string
-          zip_path?: string | null
-          zip_progress?: number
-          zip_url?: string | null
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          error_message?: string | null
-          factory?: string
-          id?: string
-          order_no?: string
-          payload?: Json
-          stage?: string
-          status?: Database["public"]["Enums"]["outsource_job_status"]
-          total_pngs?: number
-          updated_at?: string
-          uploaded_pngs?: number
-          webhook_url?: string
-          zip_path?: string | null
-          zip_progress?: number
-          zip_url?: string | null
-        }
-        Relationships: []
-      }
       outsource_orders: {
         Row: {
           carrier: string | null
@@ -415,53 +471,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
-      }
-      png_jobs: {
-        Row: {
-          completed_at: string | null
-          created_at: string
-          error_message: string | null
-          file_url: string | null
-          id: string
-          item_id: string
-          job_id: string
-          last_heartbeat: string | null
-          status: Database["public"]["Enums"]["png_job_status"]
-          updated_at: string
-        }
-        Insert: {
-          completed_at?: string | null
-          created_at?: string
-          error_message?: string | null
-          file_url?: string | null
-          id?: string
-          item_id: string
-          job_id: string
-          last_heartbeat?: string | null
-          status?: Database["public"]["Enums"]["png_job_status"]
-          updated_at?: string
-        }
-        Update: {
-          completed_at?: string | null
-          created_at?: string
-          error_message?: string | null
-          file_url?: string | null
-          id?: string
-          item_id?: string
-          job_id?: string
-          last_heartbeat?: string | null
-          status?: Database["public"]["Enums"]["png_job_status"]
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "png_jobs_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: false
-            referencedRelation: "outsource_order_jobs"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       production_tracking: {
         Row: {
@@ -843,16 +852,22 @@ export type Database = {
     Functions: {
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_approved: { Args: { _user_id: string }; Returns: boolean }
-      requeue_stale_png_jobs: {
-        Args: { _older_than?: string }
-        Returns: {
-          job_id: string
-          requeued_count: number
-        }[]
-      }
     }
     Enums: {
       inspect_result: "pending" | "pass" | "mismatch" | "weight_fail"
+      order_item_status:
+        | "pending"
+        | "processing"
+        | "uploaded"
+        | "failed"
+        | "skipped"
+      order_job_status:
+        | "queued"
+        | "processing"
+        | "uploading"
+        | "wechat"
+        | "done"
+        | "failed"
       order_status:
         | "received"
         | "in_production"
@@ -860,14 +875,7 @@ export type Database = {
         | "shipped"
         | "cancelled"
       outsource_factory: "silicon" | "heat" | "hologram" | "nfc" | "logo"
-      outsource_job_status:
-        | "pending"
-        | "uploading"
-        | "finalizing"
-        | "done"
-        | "failed"
       outsource_status: "ordered" | "shipped" | "received"
-      png_job_status: "pending" | "processing" | "completed" | "failed"
       production_stage:
         | "tshirt"
         | "card"
@@ -1013,6 +1021,21 @@ export const Constants = {
   public: {
     Enums: {
       inspect_result: ["pending", "pass", "mismatch", "weight_fail"],
+      order_item_status: [
+        "pending",
+        "processing",
+        "uploaded",
+        "failed",
+        "skipped",
+      ],
+      order_job_status: [
+        "queued",
+        "processing",
+        "uploading",
+        "wechat",
+        "done",
+        "failed",
+      ],
       order_status: [
         "received",
         "in_production",
@@ -1021,15 +1044,7 @@ export const Constants = {
         "cancelled",
       ],
       outsource_factory: ["silicon", "heat", "hologram", "nfc", "logo"],
-      outsource_job_status: [
-        "pending",
-        "uploading",
-        "finalizing",
-        "done",
-        "failed",
-      ],
       outsource_status: ["ordered", "shipped", "received"],
-      png_job_status: ["pending", "processing", "completed", "failed"],
       production_stage: [
         "tshirt",
         "card",
