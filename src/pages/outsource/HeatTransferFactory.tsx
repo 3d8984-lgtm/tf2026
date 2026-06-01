@@ -960,7 +960,7 @@ function buildHtWorkOrderHtml(wo: HtWorkOrderData, outlinePreview?: string | nul
   const esc = (s: any) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
   const today = new Date().toISOString().slice(0, 10);
   const outlineBlock = outlinePreview
-    ? `<h2>设计外框(示例)</h2><div class="outline"><img src="${outlinePreview}" alt="outline" /></div>`
+    ? `<h2>作业结果物(首件)</h2><div class="outline"><img src="${outlinePreview}" alt="first-result" /></div>`
     : "";
   const printBtn = opts?.autoPrint ? `<div class="no-print"><button onclick="window.print()">打印 / 保存PDF</button></div>` : "";
   const printScript = opts?.autoPrint ? `<script>window.addEventListener("load", () => setTimeout(() => window.print(), 300));</script>` : "";
@@ -1189,13 +1189,6 @@ function OrderProgressBox({
     try { localStorage.setItem(stateKey, JSON.stringify(merged)); } catch {}
   };
 
-  // 작업지시서 HTML (저장된 값 + 폴백)
-  const woHtml = useMemo(() => {
-    const wo = computeHtWorkOrderData(order);
-    return buildHtWorkOrderHtml(wo, outline?.previewUrl, { autoPrint: false });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [order.orderNo, outline?.previewUrl, open1]);
-
   // 저장된 footer 설정 로드
   const readFooter = (): FooterCfg => {
     try {
@@ -1204,6 +1197,38 @@ function OrderProgressBox({
     } catch {}
     return DEFAULT_FOOTER_CFG;
   };
+
+  // 작업지시서 하단에 첫번째 작업결과물 이미지 적용
+  const [firstResultUrl, setFirstResultUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    let createdUrl: string | null = null;
+    (async () => {
+      try {
+        if (!details || details.length === 0) { setFirstResultUrl(null); return; }
+        const res = await buildFinalPngs(details.slice(0, 1), formats, outline, testDesign, readFooter(), 96, false);
+        const first = res.find((r) => r.blob);
+        if (cancelled) return;
+        if (first && first.blob) {
+          const reader = new FileReader();
+          reader.onload = () => { if (!cancelled) setFirstResultUrl(String(reader.result || "")); };
+          reader.readAsDataURL(first.blob);
+        } else {
+          setFirstResultUrl(null);
+        }
+      } catch { if (!cancelled) setFirstResultUrl(null); }
+    })();
+    return () => { cancelled = true; if (createdUrl) URL.revokeObjectURL(createdUrl); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order.orderNo, details.length, outline?.previewUrl, testDesign]);
+
+  // 작업지시서 HTML (저장된 값 + 폴백) — 하단에 첫 작업결과물 PNG 적용
+  const woHtml = useMemo(() => {
+    const wo = computeHtWorkOrderData(order);
+    return buildHtWorkOrderHtml(wo, firstResultUrl || outline?.previewUrl, { autoPrint: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order.orderNo, outline?.previewUrl, firstResultUrl, open1]);
+
 
   // Step 2: PNG 썸네일 미리보기
   const [thumbs, setThumbs] = useState<Array<{ designUid: string; url: string | null; reason?: string }>>([]);
