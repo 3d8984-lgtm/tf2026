@@ -1544,12 +1544,17 @@ function OrderProgressBox({
       })
       .subscribe();
     resumeTimerRef.current = window.setInterval(() => {
+      // Skip auto-resume while the local client is still producing/uploading PNGs —
+      // the browser tab IS the worker, so re-invoking finalize during that phase
+      // would clobber its own progress.
+      if (sendingRef.current) return;
       if (Date.now() - lastProgressAtRef.current > 15_000) {
         setShowResume(true);
         if (activeJobId) invokeFinalize(activeJobId).catch(() => {});
         lastProgressAtRef.current = Date.now();
       }
     }, 5_000);
+
     return () => {
       cancelled = true;
       supabase.removeChannel(ch);
