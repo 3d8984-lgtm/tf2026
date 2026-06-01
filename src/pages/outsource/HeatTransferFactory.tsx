@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronLeft, Upload, X, Download, FileText, Loader2, QrCode as QrCodeIcon, Plus, Trash2, Pencil, Package, CheckCircle2, Settings, Send, RotateCcw, Save } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useLang } from "@/contexts/LangContext";
 import { useOrders } from "@/hooks/useDbData";
@@ -1466,6 +1467,13 @@ function OrderProgressBox({
   const [showResume, setShowResume] = useState(false);
   const lastProgressAtRef = useRef(Date.now());
   const resumeTimerRef = useRef<number | null>(null);
+  const sendStartedAtRef = useRef<number | null>(null);
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    if (!sending) return;
+    const id = window.setInterval(() => forceTick((n) => n + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [sending]);
 
 
   const readSavedTransform = () => {
@@ -1558,6 +1566,7 @@ function OrderProgressBox({
     setShowResume(false);
     try {
       setSending(true);
+      sendStartedAtRef.current = Date.now();
       setSendStage("멈춘 작업 ZIP 재개 중");
       const zipPath = await uploadZipForJob(activeJobId);
       const { error } = await supabase.functions.invoke("heat-order-finalize", { body: { jobId: activeJobId, zipPath } });
@@ -1567,6 +1576,7 @@ function OrderProgressBox({
     } finally {
       setSending(false);
       setSendStage("");
+      sendStartedAtRef.current = null;
     }
   }, [activeJobId, uploadZipForJob]);
 
@@ -1726,6 +1736,7 @@ function OrderProgressBox({
 
     setSending(true);
     sendingRef.current = true;
+    sendStartedAtRef.current = Date.now();
     setSendProgress({ done: 0, total: details.length });
     setSendStage("발주 잡 생성 중");
 
@@ -2052,6 +2063,7 @@ function OrderProgressBox({
       sendingRef.current = false;
       setSendProgress(null);
       setSendStage("");
+      sendStartedAtRef.current = null;
     }
   };
 
@@ -2172,12 +2184,51 @@ function OrderProgressBox({
           </DialogContent>
         </Dialog>
 
-        {sending && (
-          <div className="mt-3 flex items-center text-xs text-muted-foreground">
-            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-            {sendStage || "발주 전송 중"}{sendProgress ? ` · PNG ${sendProgress.done}/${sendProgress.total}` : ""}
-          </div>
-        )}
+        {sending && (() => {
+          const done = sendProgress?.done ?? 0;
+          const total = sendProgress?.total ?? 0;
+          // PNG 업로드(0~90%) + 서버 ZIP/마무리(90~100%) 가중치 적용
+          const pngPct = total > 0 ? (done / total) * 90 : 0;
+          const stageHints = sendStage || "";
+          const inZipStage = /ZIP|위챗|발주 이력|마무리|finaliz/i.test(stageHints);
+          const tailPct = inZipStage ? 8 : 0;
+          const percent = Math.min(99, Math.round(pngPct + tailPct));
+          const startedAt = sendStartedAtRef.current;
+          const elapsedMs = startedAt ? Date.now() - startedAt : 0;
+          let etaText = "";
+          if (startedAt && done > 0 && total > 0 && done < total) {
+            const rate = done / (elapsedMs / 1000); // items/sec
+            const remaining = (total - done) / Math.max(rate, 0.0001);
+            const m = Math.floor(remaining / 60);
+            const s = Math.round(remaining % 60);
+            etaText = m > 0 ? `약 ${m}분 ${s}초 남음` : `약 ${s}초 남음`;
+          } else if (startedAt && done >= total && total > 0) {
+            etaText = "마무리 중…";
+          } else if (startedAt) {
+            etaText = "예상 시간 계산 중…";
+          }
+          const elapsedSec = Math.floor(elapsedMs / 1000);
+          const em = Math.floor(elapsedSec / 60);
+          const es = elapsedSec % 60;
+          const elapsedText = em > 0 ? `${em}분 ${es}초 경과` : `${es}초 경과`;
+          return (
+            <div className="mt-3 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center text-muted-foreground">
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  {sendStage || "발주 전송 중"}
+                  {total > 0 ? ` · PNG ${done}/${total}` : ""}
+                </div>
+                <div className="font-semibold tabular-nums">{percent}%</div>
+              </div>
+              <Progress value={percent} className="h-2" />
+              <div className="flex items-center justify-between text-[11px] text-muted-foreground tabular-nums">
+                <span>{elapsedText}</span>
+                <span>{etaText}</span>
+              </div>
+            </div>
+          );
+        })()}
       </CardContent>
     </Card>
   );
