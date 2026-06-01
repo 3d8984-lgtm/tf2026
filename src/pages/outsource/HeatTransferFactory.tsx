@@ -672,8 +672,22 @@ export default function HeatTransferFactory() {
 
   const outline = formats.find((f) => f.id === selectedFormatId) || null;
 
-  const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+  const [activeOrderId, setActiveOrderId] = useState<string | null>(() => {
+    try { return localStorage.getItem(HT_ACTIVE_ORDER_LS_KEY); } catch { return null; }
+  });
   const activeOrder = orders.find((o) => o.id === activeOrderId) || null;
+
+  useEffect(() => {
+    if (activeOrderId && !activeOrder && orders.length > 0) setActiveOrderId(null);
+  }, [activeOrderId, activeOrder, orders.length]);
+
+  const openOrder = (id: string | null) => {
+    setActiveOrderId(id);
+    try {
+      if (id) localStorage.setItem(HT_ACTIVE_ORDER_LS_KEY, id);
+      else localStorage.removeItem(HT_ACTIVE_ORDER_LS_KEY);
+    } catch {}
+  };
 
   return (
     <div>
@@ -691,14 +705,14 @@ export default function HeatTransferFactory() {
               onRename={handleRenameFormat}
               onReplace={handleReplaceFormat}
             />
-            <OrderListCard orders={orders} onOpen={setActiveOrderId} />
+            <OrderListCard orders={orders} onOpen={openOrder} />
           </>
         ) : (
           <OrderDetail
             order={activeOrder}
             outline={outline}
             formats={formats}
-            onBack={() => setActiveOrderId(null)}
+            onBack={() => openOrder(null)}
           />
 
         )}
