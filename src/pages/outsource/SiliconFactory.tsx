@@ -1229,6 +1229,115 @@ function computeSiliconWorkOrder(order: any, items: Array<{ grade: Grade }>): Wo
   return defaults;
 }
 
+function Step2PreviewDialog({
+  open, onOpenChange, items, templates, onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  items: Array<{ seq: number; uniqueNo: string; grade: Grade }>;
+  templates: Record<Grade, { name: string; bytes: Uint8Array; preview: string; aspect: number } | null>;
+  onConfirm: () => void;
+}) {
+  const usedGrades = useMemo(() => {
+    const set = new Set<Grade>();
+    items.forEach(it => set.add(it.grade));
+    return Array.from(set);
+  }, [items]);
+
+  const [qrMap, setQrMap] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      const next: Record<string, string> = { ...qrMap };
+      for (const it of items) {
+        if (next[it.uniqueNo]) continue;
+        next[it.uniqueNo] = await QRCode.toDataURL(it.uniqueNo, { errorCorrectionLevel: "M", margin: 1, width: 160 });
+      }
+      if (!cancelled) setQrMap(next);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, items]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileText className="w-4 h-4 text-green-600" />
+            작업파일 확인 ({items.length}건)
+          </DialogTitle>
+        </DialogHeader>
+        <Tabs defaultValue="pdf" className="flex-1 flex flex-col overflow-hidden">
+          <TabsList className="self-start">
+            <TabsTrigger value="pdf"><FileText className="w-4 h-4 mr-1" /> PDF 파일 미리보기</TabsTrigger>
+            <TabsTrigger value="qr"><QrCode className="w-4 h-4 mr-1" /> QR코드 시안 미리보기</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="pdf" className="flex-1 overflow-auto mt-2">
+            {usedGrades.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground text-sm">발주 항목이 없습니다.</div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {usedGrades.map(g => {
+                  const t = templates[g];
+                  const count = items.filter(i => i.grade === g).length;
+                  return (
+                    <div key={g} className="border rounded-md p-2 bg-white">
+                      <div className="flex items-center justify-between mb-2">
+                        <Badge variant="secondary">{g}</Badge>
+                        <span className="text-xs text-muted-foreground">{count}건</span>
+                      </div>
+                      <div className="w-full bg-muted rounded overflow-hidden flex items-center justify-center" style={{ aspectRatio: t?.aspect ? String(t.aspect) : "3 / 4" }}>
+                        {t?.preview ? (
+                          <img src={t.preview} alt={`${g} template`} className="w-full h-full object-contain" />
+                        ) : (
+                          <div className="text-xs text-muted-foreground p-4 text-center">템플릿 PDF 미등록</div>
+                        )}
+                      </div>
+                      <div className="mt-1 text-[10px] text-muted-foreground truncate" title={t?.name}>{t?.name || "—"}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="qr" className="flex-1 overflow-auto mt-2">
+            {items.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground text-sm">발주 항목이 없습니다.</div>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                {items.map(it => (
+                  <div key={it.uniqueNo} className="border rounded-md p-2 bg-white flex flex-col items-center">
+                    <div className="w-full aspect-square bg-white flex items-center justify-center">
+                      {qrMap[it.uniqueNo] ? (
+                        <img src={qrMap[it.uniqueNo]} alt={it.uniqueNo} className="w-full h-full object-contain" />
+                      ) : (
+                        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="mt-1 text-[10px] font-mono text-center break-all leading-tight text-foreground/80">{it.uniqueNo}</div>
+                    <Badge variant="outline" className="mt-1 text-[10px]">{it.grade}</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+        <div className="flex justify-end gap-2 pt-2 border-t mt-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>닫기</Button>
+          <Button onClick={onConfirm}>
+            <CheckCircle2 className="w-4 h-4 mr-1" /> 확인
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
 function SiliconOrderProgressBox({
   order, items, templates,
 }: {
