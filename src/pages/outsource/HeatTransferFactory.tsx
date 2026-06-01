@@ -1656,7 +1656,7 @@ function OrderProgressBox({
       const cpuCount = Math.max(2, navigator.hardwareConcurrency || 4);
       const workerCount = Math.min(6, Math.max(2, Math.floor(cpuCount / 2)));
       const MAX_UPLOAD = Math.min(10, Math.max(6, cpuCount));
-      const pool = new HtPngPool(workerCount);
+      let pool: HtPngPool | null = null;
 
       const footerCfg = readFooter();
       const uploadQueue: Array<{ name: string; blob: Blob }> = [];
@@ -1692,6 +1692,27 @@ function OrderProgressBox({
         }
       };
 
+      const enqueueBuild = async (task: PoolTask) => {
+        if (!pool) pool = new HtPngPool(workerCount);
+        const workerRes = await pool.enqueue(task);
+        if (workerRes.blob) return workerRes;
+
+        console.warn("PNG 워커 실패, 메인 스레드로 재시도", task.designUid, workerRes.reason);
+        const detail = details[task.idx];
+        const fmt = (normalizeSize(detail.tshirtSize)
+          ? formats.find((f) => normalizeSize(f.sizeLabel) === normalizeSize(detail.tshirtSize))
+          : null) || outline;
+        if (!fmt) return workerRes;
+        try {
+          const c0 = await composeClippedDesign(task.designSrc, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, DPI, task.transform);
+          const c = await composeWithFooter(c0, fmt.widthPt, DPI, task.designUid, footerCfg, task.meta);
+          const blob = await pngWithDpi(await canvasToBlob(c), DPI);
+          return { idx: task.idx, designUid: task.designUid, blob };
+        } catch (e: any) {
+          return { idx: task.idx, designUid: task.designUid, blob: null, reason: e?.message || String(e) };
+        }
+      };
+
       try {
         const pending: Promise<void>[] = [];
         for (let i = 0; i < details.length; i++) {
@@ -1724,8 +1745,8 @@ function OrderProgressBox({
           };
 
           pending.push((async () => {
-            const res = await pool.enqueue(task);
-            if (!res.blob) { skipCount++; return; }
+            const res = await enqueueBuild(task);
+            if (!res.blob) { skipCount++; console.warn("PNG 생성 실패", res.designUid, res.reason); return; }
             const count = used.get(res.designUid) ?? 0;
             const name = count === 0 ? `${res.designUid}.png` : `${res.designUid}(${count}).png`;
             used.set(res.designUid, count + 1);
@@ -1742,7 +1763,7 @@ function OrderProgressBox({
         }
         await reportProgress(true);
       } finally {
-        pool.terminate();
+        pool?.terminate();
       }
 
       if (uploadedCount === 0) throw new Error("업로드된 PNG가 없습니다 — 디자인 포맷/소스를 확인하세요.");
