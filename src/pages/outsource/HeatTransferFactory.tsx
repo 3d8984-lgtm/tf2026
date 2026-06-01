@@ -1777,7 +1777,7 @@ function OrderProgressBox({
         {sending && (
           <div className="mt-3 flex items-center text-xs text-muted-foreground">
             <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-            발주 전송 중...{sendProgress ? ` PNG ${sendProgress.done}/${sendProgress.total}` : ""}
+            {sendStage || "발주 전송 중"}{sendProgress ? ` · PNG ${sendProgress.done}/${sendProgress.total}` : ""}
           </div>
         )}
       </CardContent>
