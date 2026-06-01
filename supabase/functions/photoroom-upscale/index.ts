@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
       // 투명 픽셀(여백)을 제거하고 피사체 경계로 자동 크롭한다.
       // 이 옵션이 없으면 원본 캔버스 크기가 유지되어 크기 계산 시
       // 투명 영역까지 오브젝트 크기에 포함된다.
-      fd.append('outputSize', 'cropped');
+      fd.append('outputSize', 'croppedSubject');
       fd.append('padding', '0');
       fd.append('export.format', 'png');
     } else {
