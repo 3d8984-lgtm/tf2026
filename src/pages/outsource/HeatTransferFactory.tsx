@@ -1576,19 +1576,17 @@ function OrderProgressBox({
 
 
   const sendOrder = async () => {
-    if (!webhookUrl) {
+    const currentWebhookUrl = readHtWebhook() || webhookUrl.trim();
+    if (!currentWebhookUrl) {
       toast({ title: "위챗 Webhook 미설정", description: "발주 전 위챗 Webhook을 먼저 설정하세요.", variant: "destructive" as any });
       setSettingsOpen(true);
       return;
     }
+    if (currentWebhookUrl !== webhookUrl) setWebhookUrl(currentWebhookUrl);
     setSending(true);
     setSendProgress({ done: 0, total: details.length });
     setSendStage("작업지시서 PDF 생성 중");
     try {
-      const currentWebhookUrl = readHtWebhook();
-      if (!currentWebhookUrl) {
-        throw new Error("위챗 Webhook이 비어 있습니다. 발주 이력 관리 또는 이 화면의 Webhook 설정에서 다시 저장하세요.");
-      }
       const folderName = order.orderNo || "heat-transfer";
       const zip = new JSZip();
       const root = zip.folder(folderName)!;
