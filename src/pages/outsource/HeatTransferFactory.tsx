@@ -1340,6 +1340,42 @@ async function buildFinalPngs(
     return p;
   };
 
+  // Cache the expensive clipped-design base per source + format + transform.
+  // Many 발주 rows reuse the same design/size; only the footer QR/UID differs.
+  const srcIds = new Map<string, number>();
+  let nextSrcId = 0;
+  const getSrcId = (src: string) => {
+    let id = srcIds.get(src);
+    if (!id) { id = ++nextSrcId; srcIds.set(src, id); }
+    return id;
+  };
+  const maskIds = new WeakMap<HTMLCanvasElement, number>();
+  let nextMaskId = 0;
+  const getMaskId = (maskCanvas: HTMLCanvasElement) => {
+    let id = maskIds.get(maskCanvas);
+    if (!id) { id = ++nextMaskId; maskIds.set(maskCanvas, id); }
+    return id;
+  };
+  const baseCanvasCache = new Map<string, Promise<HTMLCanvasElement>>();
+  const getBaseCanvas = (
+    src: string,
+    fmt: { maskCanvas: HTMLCanvasElement; widthPt: number; heightPt: number },
+    preBuiltMask: HTMLCanvasElement,
+    preLoadedImage: HTMLImageElement,
+  ) => {
+    const key = [
+      getSrcId(src), getMaskId(fmt.maskCanvas), fmt.widthPt, fmt.heightPt, dpi,
+      sharpen ? 1 : 0, transform?.offsetXPct ?? 0, transform?.offsetYPct ?? 0, transform?.scale ?? 1,
+    ].join("|");
+    let p = baseCanvasCache.get(key);
+    if (!p) {
+      p = composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform,
+        { sharpen, preBuiltMask, preLoadedImage });
+      baseCanvasCache.set(key, p);
+    }
+    return p;
+  };
+
   let done = 0;
   const processOne = async (idx: number) => {
     const d = details[idx];
@@ -1356,8 +1392,7 @@ async function buildFinalPngs(
         } else {
           const preMask = getMask(fmt);
           const preImg = await getImg(src);
-          const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform,
-            { sharpen, preBuiltMask: preMask, preLoadedImage: preImg });
+          const c0 = await getBaseCanvas(src, fmt, preMask, preImg);
           const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer, {
             tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize,
           });
@@ -1409,6 +1444,7 @@ function OrderProgressBox({
   const [webhookUrl, setWebhookUrl] = useState<string>(() => readHtWebhook());
   const [sending, setSending] = useState(false);
   const [sendProgress, setSendProgress] = useState<{ done: number; total: number } | null>(null);
+  const [sendStage, setSendStage] = useState<string>("");
 
   const readSavedTransform = () => {
     const d = readHtDesignUiDraft(order.orderNo);
@@ -1543,6 +1579,7 @@ function OrderProgressBox({
     }
     setSending(true);
     setSendProgress({ done: 0, total: details.length });
+    setSendStage("작업지시서 PDF 생성 중");
     try {
       const folderName = order.orderNo || "heat-transfer";
       const zip = new JSZip();
@@ -1553,6 +1590,7 @@ function OrderProgressBox({
       root.file(`${folderName}_작업지시서.pdf`, woBytes);
 
       // 2) Image 폴더 — 300dpi 최종 PNG
+      setSendStage("최종 PNG 생성 중");
       const imageFolder = root.folder("Image")!;
       const pngs = await buildFinalPngs(details, formats, outline, testDesign, readFooter(), 300, true,
         (done, total) => setSendProgress({ done, total }), savedTransform, { concurrency: 3 });
@@ -1569,9 +1607,11 @@ function OrderProgressBox({
       }
       if (ok === 0) throw new Error("생성된 PNG가 없습니다 — 디자인 포맷/소스를 확인하세요.");
 
+      setSendStage("ZIP 압축 중");
       const zipBlob = await zip.generateAsync({ type: "blob" });
       const zipName = `${folderName}.zip`;
       const path = `orders/heat-transfer-${folderName}-${Date.now()}.zip`;
+      setSendStage("ZIP 업로드 중");
       const { error: upErr } = await supabase.storage.from("hologram-pdf").upload(path, zipBlob, {
         contentType: "application/zip", upsert: false,
       });
@@ -1586,6 +1626,7 @@ function OrderProgressBox({
 파일: ${zipName}
 다운로드: ${url}`;
 
+      setSendStage("위챗 전송 중");
       const { data, error } = await supabase.functions.invoke("wechat-send", {
         body: { webhookUrl, message },
       });
@@ -1612,6 +1653,7 @@ function OrderProgressBox({
     } finally {
       setSending(false);
       setSendProgress(null);
+      setSendStage("");
     }
   };
 
@@ -1735,7 +1777,7 @@ function OrderProgressBox({
         {sending && (
           <div className="mt-3 flex items-center text-xs text-muted-foreground">
             <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-            발주 전송 중...{sendProgress ? ` PNG ${sendProgress.done}/${sendProgress.total}` : ""}
+            {sendStage || "발주 전송 중"}{sendProgress ? ` · PNG ${sendProgress.done}/${sendProgress.total}` : ""}
           </div>
         )}
       </CardContent>
