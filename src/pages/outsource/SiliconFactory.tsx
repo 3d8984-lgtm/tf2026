@@ -707,6 +707,10 @@ export default function SiliconFactory() {
             </CardContent>
           </Card>
 
+          <SiliconOrderProgressBox order={detailOrder} items={detailItems} templates={templates} />
+
+
+
           <ProofBox
             items={detailItems}
             templates={templates}
