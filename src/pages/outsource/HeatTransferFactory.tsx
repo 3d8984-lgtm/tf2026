@@ -2038,7 +2038,8 @@ function DesignTab({
               <Button size="sm" className="h-7 text-xs"
                 onClick={() => {
                   writeHtDesignUiDraft(order.orderNo, { offsetX, offsetY, designScale });
-                  toast({ title: "저장됨", description: "디자인 위치/크기 값이 저장되었습니다." });
+                  try { window.dispatchEvent(new CustomEvent("htf:transformSaved", { detail: { orderNo: order.orderNo } })); } catch {}
+                  toast({ title: "저장됨", description: "디자인 위치/크기 값이 일괄 적용됩니다." });
                 }}>
                 <Save className="w-3.5 h-3.5 mr-1" /> 저장
               </Button>
