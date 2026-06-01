@@ -954,19 +954,22 @@ function TxtField({ label, v, set, type = "text" }: { label: string; v: string; 
   );
 }
 
-function printHtWorkOrder(wo: HtWorkOrderData, outlinePreview?: string | null) {
+function buildHtWorkOrderHtml(wo: HtWorkOrderData, outlinePreview?: string | null, opts?: { autoPrint?: boolean }): string {
   const esc = (s: any) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
   const today = new Date().toISOString().slice(0, 10);
   const outlineBlock = outlinePreview
     ? `<h2>设计外框(示例)</h2><div class="outline"><img src="${outlinePreview}" alt="outline" /></div>`
     : "";
-  const html = `<!doctype html>
+  const printBtn = opts?.autoPrint ? `<div class="no-print"><button onclick="window.print()">打印 / 保存PDF</button></div>` : "";
+  const printScript = opts?.autoPrint ? `<script>window.addEventListener("load", () => setTimeout(() => window.print(), 300));</script>` : "";
+  return `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8" />
 <title>作业指示书 - ${esc(wo.orderNo)}</title>
 <style>
   @page { size: A4; margin: 12mm; }
   * { box-sizing: border-box; }
-  body { font-family: "PingFang SC", "Microsoft YaHei", "SimHei", "Noto Sans SC", sans-serif; color:#111; margin:0; padding:0; }
+  body { font-family: "PingFang SC", "Microsoft YaHei", "SimHei", "Noto Sans SC", sans-serif; color:#111; margin:0; padding:0; background:#fff; }
+  .page { padding: 12mm; }
   h1 { font-size: 22pt; text-align:center; margin: 0 0 4mm; letter-spacing: 8px; border-bottom: 2px solid #111; padding-bottom: 4mm; }
   .meta { display:flex; justify-content:space-between; font-size: 9pt; color:#555; margin-bottom: 6mm; }
   table { width:100%; border-collapse: collapse; font-size: 10pt; }
@@ -980,31 +983,458 @@ function printHtWorkOrder(wo: HtWorkOrderData, outlinePreview?: string | null) {
   .outline img { max-width: 100%; max-height: 80mm; object-fit: contain; }
   .sig { margin-top: 10mm; display:flex; justify-content:flex-end; gap: 10mm; font-size: 10pt; }
   .sig div { border-top:1px solid #333; padding-top:2mm; min-width: 40mm; text-align:center; }
-  @media print { .no-print { display:none; } }
+  @media print { .no-print { display:none; } .page { padding: 0; } }
   .no-print { position:fixed; top:8px; right:8px; }
   .no-print button { padding: 8px 14px; font-size: 13px; cursor:pointer; }
 </style></head>
 <body>
-  <div class="no-print"><button onclick="window.print()">打印 / 保存PDF</button></div>
-  <h1>作 业 指 示 书</h1>
-  <div class="meta"><span>发包方:${esc(wo.company)}</span><span>打印日期:${today}</span></div>
-  <table>
-    <tr><th>发包公司</th><td>${esc(wo.company)}</td><th>作业编号</th><td>${esc(wo.orderNo)}</td></tr>
-    <tr><th>下单日期</th><td>${esc(wo.orderDate)}</td><th>交货日期</th><td>${esc(wo.deliveryDate)}</td></tr>
-    <tr><th>收件人</th><td>${esc(wo.recipient)}</td><th>联系电话</th><td>${esc(wo.phone)}</td></tr>
-    <tr><th>收货地址</th><td colspan="3">${esc(wo.address)}</td></tr>
-  </table>
-  <h2>作业数量</h2>
-  <table class="qty"><tr><th>总数量</th></tr><tr><td><strong>${esc(wo.total)}</strong></td></tr></table>
-  <h2>订单特殊事项</h2>
-  <table><tr><td class="notes">${esc(wo.notes) || "&nbsp;"}</td></tr></table>
-  ${outlineBlock}
-  <div class="sig"><div>负责人</div><div>审批</div></div>
-  <script>window.addEventListener("load", () => setTimeout(() => window.print(), 300));</script>
+  ${printBtn}
+  <div class="page">
+    <h1>作 业 指 示 书</h1>
+    <div class="meta"><span>发包方:${esc(wo.company)}</span><span>打印日期:${today}</span></div>
+    <table>
+      <tr><th>发包公司</th><td>${esc(wo.company)}</td><th>作业编号</th><td>${esc(wo.orderNo)}</td></tr>
+      <tr><th>下单日期</th><td>${esc(wo.orderDate)}</td><th>交货日期</th><td>${esc(wo.deliveryDate)}</td></tr>
+      <tr><th>收件人</th><td>${esc(wo.recipient)}</td><th>联系电话</th><td>${esc(wo.phone)}</td></tr>
+      <tr><th>收货地址</th><td colspan="3">${esc(wo.address)}</td></tr>
+    </table>
+    <h2>作业数量</h2>
+    <table class="qty"><tr><th>总数量</th></tr><tr><td><strong>${esc(wo.total)}</strong></td></tr></table>
+    <h2>订单特殊事项</h2>
+    <table><tr><td class="notes">${esc(wo.notes) || "&nbsp;"}</td></tr></table>
+    ${outlineBlock}
+    <div class="sig"><div>负责人</div><div>审批</div></div>
+  </div>
+  ${printScript}
 </body></html>`;
+}
+
+function printHtWorkOrder(wo: HtWorkOrderData, outlinePreview?: string | null) {
+  const html = buildHtWorkOrderHtml(wo, outlinePreview, { autoPrint: true });
   const w = window.open("", "_blank", "width=900,height=1100");
   if (!w) { toast({ title: "팝업 차단됨", description: "팝업을 허용해주세요", variant: "destructive" }); return; }
   w.document.open(); w.document.write(html); w.document.close();
+}
+
+// ===== 작업지시서 데이터 계산 (WorkOrderInfoBox와 동일한 fallback 로직) =====
+function computeHtWorkOrderData(order: OrderRow): HtWorkOrderData {
+  const sd = order.raw?.source_data || {};
+  let siliconDefaults: any = null;
+  if (typeof window !== "undefined") {
+    try {
+      const exact = localStorage.getItem(`silicon.workOrder.v1.${order.orderNo}`);
+      if (exact) siliconDefaults = JSON.parse(exact);
+      else {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (!k || !k.startsWith("silicon.workOrder.v1.")) continue;
+          const v = localStorage.getItem(k);
+          if (v) { try { siliconDefaults = JSON.parse(v); } catch {} }
+        }
+      }
+    } catch {}
+  }
+  const defaults: HtWorkOrderData = {
+    company: "TWINMETA",
+    orderNo: order.orderNo,
+    orderDate: order.receivedAt,
+    deliveryDate: order.dueDate,
+    total: order.workQty,
+    recipient: siliconDefaults?.recipient || order.raw?.recipient_name || "TWINMETA",
+    phone: siliconDefaults?.phone || order.raw?.recipient_phone || "18562757070",
+    address: siliconDefaults?.address || order.raw?.shipping_address || "山东省 青岛市 城阳区 青岛市城阳区流亭街道杨埠寨社区工业园6号厂房东侧1楼 TWINMETA",
+    notes: sd.notes || sd.special_notes || sd.memo || "",
+  };
+  try {
+    const raw = typeof window !== "undefined" ? localStorage.getItem(`heatTransfer.workOrder.v1.${order.orderNo}`) : null;
+    if (raw) return { ...defaults, ...JSON.parse(raw) };
+  } catch {}
+  return defaults;
+}
+
+// ===== 위챗 webhook helpers =====
+const HT_WECHAT_WEBHOOK_LS_KEY = "wechat.webhook.heatTransfer";
+const HT_WECHAT_HOOKS_SHARED_KEY = "outsource.wechatWebhooks.v1";
+function readHtWebhook(): string {
+  try {
+    const shared = localStorage.getItem(HT_WECHAT_HOOKS_SHARED_KEY);
+    if (shared) {
+      const obj = JSON.parse(shared);
+      if (obj?.heatTransfer) return String(obj.heatTransfer).trim();
+    }
+  } catch {}
+  try { return (localStorage.getItem(HT_WECHAT_WEBHOOK_LS_KEY) || "").trim(); } catch { return ""; }
+}
+function writeHtWebhook(url: string) {
+  const v = url.trim();
+  try { localStorage.setItem(HT_WECHAT_WEBHOOK_LS_KEY, v); } catch {}
+  try {
+    const raw = localStorage.getItem(HT_WECHAT_HOOKS_SHARED_KEY);
+    const obj = raw ? JSON.parse(raw) : {};
+    obj.heatTransfer = v;
+    localStorage.setItem(HT_WECHAT_HOOKS_SHARED_KEY, JSON.stringify(obj));
+  } catch {}
+}
+
+// ===== HTML -> A4 PDF =====
+async function renderHtmlToPdfBytes(html: string): Promise<Uint8Array> {
+  const html2canvas = (await import("html2canvas")).default;
+  const { jsPDF } = await import("jspdf");
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.left = "-10000px";
+  iframe.style.top = "0";
+  iframe.style.width = "210mm";
+  iframe.style.height = "297mm";
+  iframe.style.border = "0";
+  document.body.appendChild(iframe);
+  try {
+    await new Promise<void>((resolve) => { iframe.onload = () => resolve(); iframe.srcdoc = html; });
+    const doc = iframe.contentDocument!;
+    await (doc as any).fonts?.ready?.catch?.(() => {});
+    const imgs = Array.from(doc.images);
+    await Promise.all(imgs.map((img) => img.complete ? Promise.resolve() : new Promise((r) => { img.onload = img.onerror = () => r(null); })));
+    await new Promise((r) => setTimeout(r, 150));
+    const canvas = await html2canvas(doc.body, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+    const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+    const pageW = 210, pageH = 297;
+    const ratio = Math.min(pageW / canvas.width, pageH / canvas.height);
+    const imgW = canvas.width * ratio;
+    const imgH = canvas.height * ratio;
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
+    pdf.addImage(dataUrl, "JPEG", (pageW - imgW) / 2, 0, imgW, imgH);
+    return new Uint8Array(pdf.output("arraybuffer"));
+  } finally {
+    document.body.removeChild(iframe);
+  }
+}
+
+// ===== Build final PNGs (메모리 내) =====
+async function buildFinalPngs(
+  details: DesignDetail[],
+  formats: SizedFormat[],
+  fallbackOutline: OutlineFormat | null,
+  testDesign: string | null,
+  footer: FooterCfg,
+  dpi: number,
+  sharpen: boolean,
+  onProgress?: (done: number, total: number) => void,
+): Promise<Array<{ designUid: string; blob: Blob | null; reason?: string }>> {
+  const out: Array<{ designUid: string; blob: Blob | null; reason?: string }> = [];
+  let i = 0;
+  for (const d of details) {
+    i++;
+    try {
+      const src = testDesign || d.designSrc;
+      if (!src) { out.push({ designUid: d.designUid, blob: null, reason: "디자인 소스 없음" }); onProgress?.(i, details.length); continue; }
+      const target = normalizeSize(d.tshirtSize);
+      const fmt = (target ? formats.find((f) => normalizeSize(f.sizeLabel) === target) : null) || fallbackOutline;
+      if (!fmt) { out.push({ designUid: d.designUid, blob: null, reason: `사이즈 ${d.tshirtSize || "?"} 포맷 없음` }); onProgress?.(i, details.length); continue; }
+      const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, undefined, { sharpen });
+      const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer, {
+        tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize,
+      });
+      const blob = await pngWithDpi(await canvasToBlob(c), dpi);
+      out.push({ designUid: d.designUid, blob });
+    } catch (e) {
+      out.push({ designUid: d.designUid, blob: null, reason: String((e as Error)?.message || e) });
+    }
+    onProgress?.(i, details.length);
+  }
+  return out;
+}
+
+// ===== OrderProgressBox: 작업지시서 / 작업파일 확인 / 발주 =====
+function OrderProgressBox({
+  order, details, outline, formats, testDesign,
+}: {
+  order: OrderRow;
+  details: DesignDetail[];
+  outline: OutlineFormat | null;
+  formats: SizedFormat[];
+  testDesign: string | null;
+}) {
+  const stateKey = `heatTransfer.progress.v1.${order.orderNo}`;
+  const [confirmed1, setConfirmed1] = useState(false);
+  const [confirmed2, setConfirmed2] = useState(false);
+  const [ordered, setOrdered] = useState(false);
+  const [open1, setOpen1] = useState(false);
+  const [open2, setOpen2] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [webhookUrl, setWebhookUrl] = useState<string>(() => readHtWebhook());
+  const [sending, setSending] = useState(false);
+  const [sendProgress, setSendProgress] = useState<{ done: number; total: number } | null>(null);
+
+  useEffect(() => {
+    const onFocus = () => setWebhookUrl(readHtWebhook());
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("storage", onFocus);
+    return () => { window.removeEventListener("focus", onFocus); window.removeEventListener("storage", onFocus); };
+  }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(stateKey);
+      if (raw) {
+        const s = JSON.parse(raw);
+        setConfirmed1(!!s.confirmed1); setConfirmed2(!!s.confirmed2); setOrdered(!!s.ordered);
+      } else { setConfirmed1(false); setConfirmed2(false); setOrdered(false); }
+    } catch {}
+  }, [stateKey]);
+
+  const persist = (next: { confirmed1?: boolean; confirmed2?: boolean; ordered?: boolean }) => {
+    const merged = { confirmed1, confirmed2, ordered, ...next };
+    try { localStorage.setItem(stateKey, JSON.stringify(merged)); } catch {}
+  };
+
+  // 작업지시서 HTML (저장된 값 + 폴백)
+  const woHtml = useMemo(() => {
+    const wo = computeHtWorkOrderData(order);
+    return buildHtWorkOrderHtml(wo, outline?.previewUrl, { autoPrint: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order.orderNo, outline?.previewUrl, open1]);
+
+  // 저장된 footer 설정 로드
+  const readFooter = (): FooterCfg => {
+    try {
+      const raw = localStorage.getItem("htf:footerCfg:v1");
+      if (raw) return { ...DEFAULT_FOOTER_CFG, ...JSON.parse(raw) };
+    } catch {}
+    return DEFAULT_FOOTER_CFG;
+  };
+
+  // Step 2: PNG 썸네일 미리보기
+  const [thumbs, setThumbs] = useState<Array<{ designUid: string; url: string | null; reason?: string }>>([]);
+  const [thumbBusy, setThumbBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open2) return;
+    let cancelled = false;
+    (async () => {
+      setThumbBusy(true);
+      setThumbs([]);
+      try {
+        // 미리보기는 96dpi (가벼움)
+        const res = await buildFinalPngs(details, formats, outline, testDesign, readFooter(), 96, false);
+        if (cancelled) return;
+        const mapped = res.map((r) => ({
+          designUid: r.designUid,
+          url: r.blob ? URL.createObjectURL(r.blob) : null,
+          reason: r.reason,
+        }));
+        setThumbs(mapped);
+      } finally {
+        if (!cancelled) setThumbBusy(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open2]);
+
+  useEffect(() => () => { thumbs.forEach((t) => { if (t.url) URL.revokeObjectURL(t.url); }); }, [thumbs]);
+
+  const sendOrder = async () => {
+    if (!webhookUrl) {
+      toast({ title: "위챗 Webhook 미설정", description: "발주 전 위챗 Webhook을 먼저 설정하세요.", variant: "destructive" as any });
+      setSettingsOpen(true);
+      return;
+    }
+    setSending(true);
+    setSendProgress({ done: 0, total: details.length });
+    try {
+      const folderName = order.orderNo || "heat-transfer";
+      const zip = new JSZip();
+      const root = zip.folder(folderName)!;
+
+      // 1) 작업지시서 PDF
+      const woBytes = await renderHtmlToPdfBytes(woHtml);
+      root.file(`${folderName}_작업지시서.pdf`, woBytes);
+
+      // 2) Image 폴더 — 300dpi 최종 PNG
+      const imageFolder = root.folder("Image")!;
+      const pngs = await buildFinalPngs(details, formats, outline, testDesign, readFooter(), 300, true,
+        (done, total) => setSendProgress({ done, total }));
+      let ok = 0, skipped = 0;
+      const used = new Map<string, number>();
+      for (const r of pngs) {
+        if (!r.blob) { skipped++; continue; }
+        const count = used.get(r.designUid) ?? 0;
+        const name = count === 0 ? `${r.designUid}.png` : `${r.designUid}(${count}).png`;
+        used.set(r.designUid, count + 1);
+        imageFolder.file(name, r.blob);
+        ok++;
+      }
+      if (ok === 0) throw new Error("생성된 PNG가 없습니다 — 디자인 포맷/소스를 확인하세요.");
+
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const zipName = `${folderName}.zip`;
+      const path = `orders/heat-transfer-${folderName}-${Date.now()}.zip`;
+      const { error: upErr } = await supabase.storage.from("hologram-pdf").upload(path, zipBlob, {
+        contentType: "application/zip", upsert: false,
+      });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from("hologram-pdf").getPublicUrl(path);
+      const url = pub.publicUrl;
+
+      const message =
+`【열전사 디자인 발주】
+작업번호: ${order.orderNo}
+디자인 수량: ${ok}건${skipped ? ` (건너뜀 ${skipped}건)` : ""}
+파일: ${zipName}
+다운로드: ${url}`;
+
+      const { data, error } = await supabase.functions.invoke("wechat-send", {
+        body: { webhookUrl, message },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+
+      setOrdered(true); persist({ ordered: true });
+      try {
+        await supabase.from("outsource_orders" as any).insert({
+          factory: "heat-transfer",
+          order_no: order.orderNo,
+          product_code: order.raw?.product_code || order.orderNo,
+          quantity: ok,
+          ordered_at: new Date().toISOString().slice(0, 10),
+          status: "ordered",
+          note: `위챗 발송 · ${zipName}`,
+        });
+      } catch (logErr) {
+        console.warn("outsource_orders insert failed", logErr);
+      }
+      toast({ title: "발주 완료", description: `${zipName} 위챗 단톡방으로 전송됨` });
+    } catch (e: any) {
+      toast({ title: "발주 실패", description: e?.message || String(e), variant: "destructive" as any });
+    } finally {
+      setSending(false);
+      setSendProgress(null);
+    }
+  };
+
+  const Step = ({ idx, label, done, disabled, onClick }: { idx: number; label: string; done: boolean; disabled: boolean; onClick: () => void }) => (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`flex-1 rounded-lg border p-4 text-left transition-colors ${
+        done ? "border-primary bg-primary/5" : disabled ? "border-border bg-muted/30 opacity-60 cursor-not-allowed" : "border-border hover:bg-accent"
+      }`}
+    >
+      <div className="flex items-center gap-2">
+        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+          done ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+        }`}>
+          {done ? <CheckCircle2 className="w-4 h-4" /> : idx}
+        </div>
+        <div className="font-medium text-sm">{label}</div>
+      </div>
+      <div className="mt-2 text-xs text-muted-foreground">
+        {done ? "완료" : disabled ? "이전 단계를 먼저 완료하세요" : "클릭하여 진행"}
+      </div>
+    </button>
+  );
+
+  return (
+    <Card>
+      <CardHeader className="pb-3 flex flex-row items-center justify-between">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Package className="w-4 h-4" /> 발주 진행
+        </CardTitle>
+        <Button size="sm" variant="ghost" onClick={() => setSettingsOpen(true)}>
+          <Settings className="w-4 h-4 mr-1" /> 위챗 Webhook
+        </Button>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col md:flex-row gap-3">
+          <Step idx={1} label="작업지시서" done={confirmed1} disabled={false} onClick={() => setOpen1(true)} />
+          <Step idx={2} label="작업파일 확인" done={confirmed2} disabled={!confirmed1} onClick={() => setOpen2(true)} />
+          <Step idx={3} label="발주" done={ordered} disabled={!confirmed1 || !confirmed2 || sending} onClick={sendOrder} />
+        </div>
+
+        {/* Step 1 — 작업지시서 A4 미리보기 */}
+        <Dialog open={open1} onOpenChange={setOpen1}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader><DialogTitle>작업지시서 미리보기 (A4)</DialogTitle></DialogHeader>
+            <div className="flex-1 overflow-auto border rounded-md bg-white">
+              <iframe title="ht-work-order-preview" srcDoc={woHtml} className="w-full h-[70vh] bg-white" />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setOpen1(false)}>닫기</Button>
+              <Button onClick={() => { setConfirmed1(true); persist({ confirmed1: true }); setOpen1(false); toast({ title: "작업지시서 확인 완료" }); }}>
+                <CheckCircle2 className="w-4 h-4 mr-1" /> 확인
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Step 2 — 작업파일 확인 (PNG 썸네일 갤러리) */}
+        <Dialog open={open2} onOpenChange={setOpen2}>
+          <DialogContent className="max-w-[95vw] w-[95vw] max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-green-600" />
+                작업파일 확인 — 최종 출력 PNG 미리보기 ({details.length}건)
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-auto border rounded-md bg-muted/20 p-3">
+              {thumbBusy && thumbs.length === 0 ? (
+                <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" /> PNG 생성 중...
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                  {thumbs.map((t) => (
+                    <div key={t.designUid} className="rounded border bg-white overflow-hidden flex flex-col">
+                      <div className="w-full aspect-square bg-[conic-gradient(at_50%_50%,#eee_25%,#fff_0_50%,#eee_0_75%,#fff_0)] bg-[length:12px_12px] flex items-center justify-center overflow-hidden">
+                        {t.url ? (
+                          <img src={t.url} alt={t.designUid} className="max-w-full max-h-full object-contain" />
+                        ) : (
+                          <div className="text-[10px] text-destructive text-center px-1">{t.reason || "생성 실패"}</div>
+                        )}
+                      </div>
+                      <div className="px-2 py-1 text-[11px] font-mono truncate border-t" title={t.designUid}>{t.designUid}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <Button variant="outline" onClick={() => setOpen2(false)}>닫기</Button>
+              <Button onClick={() => { setConfirmed2(true); persist({ confirmed2: true }); setOpen2(false); toast({ title: "작업파일 확인 완료" }); }} disabled={thumbBusy}>
+                <CheckCircle2 className="w-4 h-4 mr-1" /> 확인
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Webhook 설정 */}
+        <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>열전사 디자인 공장 위챗 Webhook</DialogTitle></DialogHeader>
+            <div className="space-y-2">
+              <Label className="text-xs">기업위챗 그룹봇 Webhook URL</Label>
+              <Input value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..." />
+              <p className="text-xs text-muted-foreground">발주 시 이 그룹채팅으로 ZIP 다운로드 링크가 전송됩니다.</p>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setSettingsOpen(false)}>취소</Button>
+              <Button onClick={() => { writeHtWebhook(webhookUrl); toast({ title: "위챗 Webhook 저장됨" }); setSettingsOpen(false); }}>
+                <Send className="w-4 h-4 mr-1" /> 저장
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {sending && (
+          <div className="mt-3 flex items-center text-xs text-muted-foreground">
+            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+            발주 전송 중...{sendProgress ? ` PNG ${sendProgress.done}/${sendProgress.total}` : ""}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 function WorkOrderInfoBox({ order, outlinePreview }: { order: OrderRow; outlinePreview?: string | null }) {
