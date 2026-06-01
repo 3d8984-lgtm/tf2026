@@ -1926,6 +1926,7 @@ function SiliconOrderProgressBox({
           gradeColorNames={colorNames}
           gradeColorStyle={colorStyle}
           orderNo={orderNo}
+          overrideTwinSvgUrl={testTwinSvgUrl || null}
           onConfirm={() => { setConfirmed2(true); persist({ confirmed2: true }); setOpen2(false); toast({ title: "작업파일 확인 완료" }); }}
         />
 
