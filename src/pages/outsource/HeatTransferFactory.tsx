@@ -1398,7 +1398,7 @@ function OrderProgressBox({
     (async () => {
       try {
         if (!details || details.length === 0) { setFirstResultUrl(null); return; }
-        const res = await buildFinalPngs(details.slice(0, 1), formats, outline, testDesign, readFooter(), 96, false);
+        const res = await buildFinalPngs(details.slice(0, 1), formats, outline, testDesign, readFooter(), 96, false, undefined, savedTransform);
         const first = res.find((r) => r.blob);
         if (cancelled) return;
         if (first && first.blob) {
