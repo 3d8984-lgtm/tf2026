@@ -109,15 +109,6 @@ async function processJob(admin: any, jobId: string, uploadedZipPath?: string) {
       return { status: "waiting_png", jobId, completed, total, failed };
     }
 
-    if (!uploadedZipPath && !job.zip_url) {
-      await setJob(admin, jobId, {
-        status: "finalizing",
-        stage: "브라우저 ZIP 업로드 대기",
-        zip_progress: 0,
-      });
-      return { status: "need_zip_upload", jobId, completed, total, zip_path: zipPath };
-    }
-
     const finalZipPath = uploadedZipPath || job.zip_path || zipPath;
 
     const { data: files, error: filesErr } = await admin
@@ -128,8 +119,30 @@ async function processJob(admin: any, jobId: string, uploadedZipPath?: string) {
       .order("item_id", { ascending: true });
     if (filesErr) throw new Error(filesErr.message);
 
+    if ((files || []).length !== total) {
+      throw new Error(`PNG 업로드 미완료: completed=${(files || []).length}/${total}`);
+    }
+
+    const objectUrls = (files || []).map((f: any) => {
+      const { data } = admin.storage.from(BUCKET).getPublicUrl(f.file_url);
+      return `${f.item_id}\t${data.publicUrl}`;
+    });
+    const { data: workOrderPub } = admin.storage.from(BUCKET).getPublicUrl(`orders/heat-transfer-jobs/${jobId}/__work_order.pdf`);
+    const linkText = [
+      `열전사 디자인 발주 다운로드 목록`,
+      `작업번호: ${folderName}`,
+      `작업지시서: ${workOrderPub.publicUrl}`,
+      `PNG 수량: ${files.length}`,
+      "",
+      ...objectUrls,
+    ].join("\n");
+    const { error: linkUploadErr } = await admin.storage.from(BUCKET)
+      .upload(finalZipPath, new Blob([linkText], { type: "text/plain;charset=utf-8" }), { contentType: "text/plain;charset=utf-8", upsert: true });
+    if (linkUploadErr) throw new Error(`다운로드 링크 파일 생성 실패: ${linkUploadErr.message}`);
+
+    const { data: signed } = await admin.storage.from(BUCKET).createSignedUrl(finalZipPath, 60 * 60 * 24 * 7);
     const { data: pub } = admin.storage.from(BUCKET).getPublicUrl(finalZipPath);
-    const zipUrl = pub.publicUrl;
+    const zipUrl = signed?.signedUrl || pub.publicUrl;
 
     await setJob(admin, jobId, {
       zip_path: finalZipPath,
