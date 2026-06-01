@@ -37,10 +37,13 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
-import { Download, Eye, FileText, AlertTriangle, Loader2, QrCode, Upload, X, ChevronLeft } from "lucide-react";
+import { Download, Eye, FileText, AlertTriangle, Loader2, QrCode, Upload, X, ChevronLeft, CheckCircle2, Send, Settings, Package } from "lucide-react";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { jsPDF } from "jspdf";
 import { svg2pdf } from "svg2pdf.js";
+import * as XLSX from "xlsx";
+import JSZip from "jszip";
+import html2canvas from "html2canvas";
 
 // Convert SVG text → single-page PDF bytes (vector). Page size in pt.
 async function svgToVectorPdfBytes(svgText: string, widthPt: number, heightPt: number): Promise<Uint8Array> {
