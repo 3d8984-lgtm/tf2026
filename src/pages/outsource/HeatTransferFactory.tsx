@@ -1229,14 +1229,6 @@ function OrderProgressBox({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order.orderNo, outline?.previewUrl, firstResultUrl, open1]);
 
-  // 저장된 footer 설정 로드
-  const readFooter = (): FooterCfg => {
-    try {
-      const raw = localStorage.getItem("htf:footerCfg:v1");
-      if (raw) return { ...DEFAULT_FOOTER_CFG, ...JSON.parse(raw) };
-    } catch {}
-    return DEFAULT_FOOTER_CFG;
-  };
 
   // Step 2: PNG 썸네일 미리보기
   const [thumbs, setThumbs] = useState<Array<{ designUid: string; url: string | null; reason?: string }>>([]);
