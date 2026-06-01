@@ -32,13 +32,22 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Upscale mode
+    // Upscale or background removal mode
     const base64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
     const bin = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
     const fd = new FormData();
     fd.append('image_file', new Blob([bin], { type: 'image/png' }), 'input.png');
-    fd.append('upscale.mode', 'ai.fast');
-    fd.append('upscale.scale', String(scale));
+
+    if (mode === 'remove-bg') {
+      // Background removal only; keep original size, output transparent PNG, auto-crop
+      fd.append('background.color', 'transparent');
+      fd.append('outputSize', 'originalImage');
+      fd.append('export.format', 'png');
+    } else {
+      // Upscale (default). Photoroom upscaler also removes bg unless we keep it.
+      fd.append('upscale.mode', 'ai.fast');
+      fd.append('upscale.scale', String(scale));
+    }
 
     const resp = await fetch('https://image-api.photoroom.com/v2/edit', {
       method: 'POST',
