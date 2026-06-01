@@ -1585,6 +1585,10 @@ function OrderProgressBox({
     setSendProgress({ done: 0, total: details.length });
     setSendStage("작업지시서 PDF 생성 중");
     try {
+      const currentWebhookUrl = readHtWebhook();
+      if (!currentWebhookUrl) {
+        throw new Error("위챗 Webhook이 비어 있습니다. 발주 이력 관리 또는 이 화면의 Webhook 설정에서 다시 저장하세요.");
+      }
       const folderName = order.orderNo || "heat-transfer";
       const zip = new JSZip();
       const root = zip.folder(folderName)!;
@@ -1637,7 +1641,7 @@ function OrderProgressBox({
 
       setSendStage("위챗 전송 중");
       const { data, error } = await supabase.functions.invoke("wechat-send", {
-        body: { webhookUrl, message },
+        body: { webhookUrl: currentWebhookUrl, message },
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
