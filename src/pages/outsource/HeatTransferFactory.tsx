@@ -1193,7 +1193,9 @@ function DesignTab({
     setBusy(true);
     try {
       const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
-      const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer);
+      const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer, {
+        tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize,
+      });
       const b = await pngWithDpi(await canvasToBlob(c), dpi);
       triggerDownload(b, `${d.designUid}_${d.tshirtSize || "size"}_${dpi}dpi.png`);
     } finally { setBusy(false); }
