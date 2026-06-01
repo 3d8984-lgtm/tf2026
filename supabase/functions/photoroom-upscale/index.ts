@@ -1,5 +1,5 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
-import { decodeBase64, encodeBase64 } from 'https://deno.land/std@0.224.0/encoding/base64.ts';
+import { decodeBase64 } from 'https://deno.land/std@0.224.0/encoding/base64.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -82,11 +82,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Memory-efficient base64 encode using std lib (avoids huge string concat loop)
-    const buf = new Uint8Array(await resp.arrayBuffer());
-    const out = `data:image/png;base64,${encodeBase64(buf)}`;
-    return new Response(JSON.stringify({ ok: true, imageDataUrl: out }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    // Stream the binary image back to the browser instead of converting the
+    // result to base64 JSON. Base64 inflates the payload and can exceed the
+    // edge worker memory limit for upscale results.
+    return new Response(resp.body, {
+      status: 200,
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/octet-stream',
+        'X-Image-Content-Type': resp.headers.get('Content-Type') || 'image/png',
+      },
     });
   } catch (e) {
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), {

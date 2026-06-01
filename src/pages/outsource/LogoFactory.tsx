@@ -107,10 +107,14 @@ async function canvasToPngDataUrl(canvas: HTMLCanvasElement): Promise<string> {
   const blob = await new Promise<Blob>((resolve, reject) =>
     canvas.toBlob((b) => b ? resolve(b) : reject(new Error("PNG 인코딩 실패")), "image/png"),
   );
+  return blobToDataUrl(blob);
+}
+
+async function blobToDataUrl(blob: Blob): Promise<string> {
   return await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new Error("PNG 읽기 실패"));
+    reader.onerror = () => reject(new Error("이미지 읽기 실패"));
     reader.readAsDataURL(blob);
   });
 }
@@ -643,7 +647,8 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
         body: { imageBase64: prepared.payload, mode: "upscale", scale: photoroomScale },
       });
       if (error) throw new Error(error.message || "Photoroom 호출 실패");
-      if (!data?.ok || !data?.imageDataUrl) {
+      const up = data instanceof Blob ? await blobToDataUrl(data) : (data?.imageDataUrl as string | undefined);
+      if (!up) {
         const code = String(data?.code || "");
         if (code === "PHOTOROOM_504" || code === "PHOTOROOM_TIMEOUT") {
           const fallbackImg = await loadImage(prepared.payload);
@@ -668,7 +673,6 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
         }
         throw new Error(data?.error || "Photoroom 응답이 비어 있습니다");
       }
-      const up = data.imageDataUrl as string;
       const img = await loadImage(up);
       setUpscaledDataUrl(up);
       setProcessedDataUrl(up);
@@ -951,7 +955,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
         });
         if (error) throw error;
         if ((data as any)?.error) throw new Error((data as any).error);
-        const out = (data as any)?.imageDataUrl as string | undefined;
+        const out = data instanceof Blob ? await blobToDataUrl(data) : ((data as any)?.imageDataUrl as string | undefined);
         if (!out) throw new Error("Photoroom 응답에 이미지가 없습니다");
         setProcessedDataUrl(out);
         setProcessedKind("upscaled");
