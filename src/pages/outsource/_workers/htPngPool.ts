@@ -24,6 +24,10 @@ export interface PoolResult {
   reason?: string;
 }
 
+type WorkerDoneMsg = { type: "done"; idx: number; designUid: string; buffer: ArrayBuffer };
+type WorkerErrorMsg = { type: "error"; message?: string };
+type WorkerMsg = WorkerDoneMsg | WorkerErrorMsg;
+
 type Pending = { task: PoolTask; resolve: (r: PoolResult) => void };
 
 interface WorkerSlot {
@@ -41,7 +45,7 @@ export class HtPngPool {
     for (let i = 0; i < n; i++) {
       const w = new Worker(new URL("./htPng.worker.ts", import.meta.url), { type: "module" });
       const slot: WorkerSlot = { w, busy: false, current: null };
-      w.onmessage = (e: MessageEvent<any>) => this.onMessage(slot, e.data);
+      w.onmessage = (e: MessageEvent<WorkerMsg>) => this.onMessage(slot, e.data);
       w.onerror = (e) => this.onError(slot, e.message || "worker error");
       this.slots.push(slot);
     }
@@ -65,7 +69,7 @@ export class HtPngPool {
     }
   }
 
-  private onMessage(slot: WorkerSlot, data: any) {
+  private onMessage(slot: WorkerSlot, data: WorkerMsg) {
     const p = slot.current;
     if (!p) return;
     slot.current = null;

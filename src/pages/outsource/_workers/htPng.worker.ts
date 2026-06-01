@@ -99,13 +99,27 @@ function injectDpi(bytes: Uint8Array, dpi: number): Uint8Array {
   return out;
 }
 
-async function buildQrBitmap(text: string, sizePx: number): Promise<ImageBitmap> {
-  // QRCode lib's toCanvas doesn't accept OffscreenCanvas reliably across versions;
-  // toDataURL works everywhere → decode via fetch + createImageBitmap.
-  const dataUrl = await QRCode.toDataURL(text || " ", { width: sizePx, margin: 0 });
-  const res = await fetch(dataUrl);
-  const blob = await res.blob();
-  return await createImageBitmap(blob);
+function drawQr(ctx: OffscreenCanvasRenderingContext2D, text: string, x: number, y: number, sizePx: number) {
+  // DOM/canvas helpers in qrcode can fail inside module workers. Use the pure
+  // matrix API and draw directly on OffscreenCanvas instead.
+  const qr = QRCode.create(text || " ", { errorCorrectionLevel: "M" });
+  const modules = qr.modules;
+  const count = modules.size;
+  const cell = sizePx / count;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(x, y, sizePx, sizePx);
+  ctx.fillStyle = "#000000";
+  for (let row = 0; row < count; row++) {
+    for (let col = 0; col < count; col++) {
+      if (!modules.get(row, col)) continue;
+      ctx.fillRect(
+        x + Math.floor(col * cell),
+        y + Math.floor(row * cell),
+        Math.ceil(cell),
+        Math.ceil(cell),
+      );
+    }
+  }
 }
 
 async function compose(msg: BuildMsg): Promise<Uint8Array> {
@@ -152,8 +166,6 @@ async function compose(msg: BuildMsg): Promise<Uint8Array> {
     ctx.clearRect(0, 0, out.width, out.height);
     ctx.drawImage(base, 0, 0);
 
-    const qrBitmap = await buildQrBitmap(designUid, qrPx);
-
     ctx.fillStyle = "#000000";
     ctx.font = `${textPx}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`;
     ctx.textBaseline = "middle";
@@ -165,7 +177,7 @@ async function compose(msg: BuildMsg): Promise<Uint8Array> {
     const bandTop = base.height + padPx;
     const groupCenterY = bandTop + Math.max(qrPx, textPx) / 2;
 
-    ctx.drawImage(qrBitmap, groupX, Math.round(groupCenterY - qrPx / 2));
+    drawQr(ctx, designUid, groupX, Math.round(groupCenterY - qrPx / 2), qrPx);
     ctx.fillText(designUid || "", groupX + qrPx + gapPx, groupCenterY);
     if (metaText) {
       ctx.font = `${metaTextPx}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`;
@@ -173,7 +185,6 @@ async function compose(msg: BuildMsg): Promise<Uint8Array> {
       const metaX = groupX + qrPx + gapPx + textW + gapPx;
       ctx.fillText(metaText, metaX, groupCenterY);
     }
-    qrBitmap.close();
     finalCanvas = out;
   }
 
@@ -194,14 +205,14 @@ self.onmessage = async (e: MessageEvent<InMsg>) => {
   try {
     const bytes = await compose(msg);
     const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-    (self as any).postMessage(
+    self.postMessage(
       { type: "done", idx: msg.idx, designUid: msg.designUid, buffer: buf },
       [buf],
     );
-  } catch (err: any) {
-    (self as any).postMessage({
+  } catch (err: unknown) {
+    self.postMessage({
       type: "error", idx: msg.idx, designUid: msg.designUid,
-      message: String(err?.message || err),
+      message: err instanceof Error ? err.message : String(err),
     });
   }
 };
