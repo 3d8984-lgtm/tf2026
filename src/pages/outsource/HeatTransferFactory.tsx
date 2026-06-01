@@ -1151,7 +1151,11 @@ function DesignTab({
       if (!outline || !effectiveDesign) { setPreviewUrl(null); return; }
       try {
         const canvas = await composeClippedDesign(effectiveDesign, outline.maskCanvas, outline.widthPt, outline.heightPt, 96, transform, { sharpen });
-        const withFooter = await composeWithFooter(canvas, outline.widthPt, 96, previewUid, footer);
+        const withFooter = await composeWithFooter(canvas, outline.widthPt, 96, previewUid, footer, {
+          tshirtType: first?.tshirtType,
+          tshirtColor: first?.tshirtColor,
+          tshirtSize: first?.tshirtSize,
+        });
         if (!cancelled) setPreviewUrl(withFooter.toDataURL("image/png"));
       } catch (e) { /* ignore */ }
     }
