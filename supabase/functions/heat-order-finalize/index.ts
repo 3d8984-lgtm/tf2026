@@ -234,32 +234,8 @@ async function processJob(admin: any, jobId: string) {
         return { path: p, name: p.split("/").pop() || `${f.item_id}.png` };
       }),
     ];
-    await setJob(admin, jobId, { stage: `ZIP 스트리밍 빌드 ${entries.length}개` });
-
-    // Stream ZIP: push one file at a time, release bytes after each push so memory stays bounded.
-    const chunks: Uint8Array[] = [];
-    let zipErr: Error | null = null;
-    const zip = new Zip();
-    zip.ondata = (err, chunk, _final) => {
-      if (err) zipErr = err;
-      else if (chunk && chunk.length) chunks.push(chunk);
-    };
-    for (const e of entries) {
-      const file = new ZipPassThrough(entryName(folderName, e.name));
-      zip.add(file);
-      const bytes = await downloadBytes(admin, e.path);
-      file.push(bytes, true);
-      if (zipErr) throw zipErr;
-    }
-    zip.end();
-    if (zipErr) throw zipErr;
-
-    const zipBlob = new Blob(chunks, { type: "application/zip" });
-    const { error: upErr } = await admin.storage.from(BUCKET).upload(zipPath, zipBlob, {
-      contentType: "application/zip",
-      upsert: true,
-    });
-    if (upErr) throw new Error(`ZIP 업로드 실패: ${upErr.message}`);
+    await setJob(admin, jobId, { stage: `ZIP 스트리밍 업로드 준비 ${entries.length}개` });
+    await uploadZipStream(admin, jobId, zipPath, folderName, entries);
 
     await setJob(admin, jobId, { zip_progress: entries.length, stage: "ZIP 완료" });
 
@@ -302,7 +278,7 @@ async function processJob(admin: any, jobId: string) {
       stage: "완료",
       zip_url: zipUrl,
       error_message: null,
-      zip_progress: allNames.length,
+      zip_progress: entries.length,
     });
     return { status: "done", jobId, zip_url: zipUrl };
   } catch (e) {
