@@ -333,6 +333,22 @@ function OrderProgressBox({
       if ((data as any)?.error) throw new Error((data as any).error);
 
       setOrdered(true); persist({ ordered: true });
+
+      // 발주 이력 기록
+      try {
+        await supabase.from("outsource_orders").insert({
+          factory: "hologram",
+          order_no: orderNo,
+          product_code: order?.product_code || orderNo,
+          quantity: items.length,
+          ordered_at: new Date().toISOString().slice(0, 10),
+          status: "ordered",
+          note: `위챗 발송 · ${zipName}`,
+        });
+      } catch (logErr) {
+        console.warn("outsource_orders insert failed", logErr);
+      }
+
       toast({ title: "발주 완료", description: `${zipName} 위챗 단톡방으로 전송됨` });
     } catch (e: any) {
       toast({ title: "발주 실패", description: e?.message || String(e), variant: "destructive" as any });
