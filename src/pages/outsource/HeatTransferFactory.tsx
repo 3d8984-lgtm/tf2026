@@ -2029,10 +2029,19 @@ function DesignTab({
         <div className="rounded border p-3 space-y-3 bg-muted/20">
           <div className="flex items-center justify-between">
             <Label className="text-xs font-semibold">디자인 위치/크기 조정 (포맷 고정)</Label>
-            <Button size="sm" variant="ghost" className="h-7 text-xs"
-              onClick={() => { setOffsetX(0); setOffsetY(0); setDesignScale(1); }}>
-              초기화
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="ghost" className="h-7 text-xs"
+                onClick={() => { setOffsetX(0); setOffsetY(0); setDesignScale(1); }}>
+                초기화
+              </Button>
+              <Button size="sm" className="h-7 text-xs"
+                onClick={() => {
+                  writeHtDesignUiDraft(order.orderNo, { offsetX, offsetY, designScale });
+                  toast({ title: "저장됨", description: "디자인 위치/크기 값이 저장되었습니다." });
+                }}>
+                <Save className="w-3.5 h-3.5 mr-1" /> 저장
+              </Button>
+            </div>
           </div>
           <div className="grid md:grid-cols-3 gap-4">
             <div className="space-y-1">
