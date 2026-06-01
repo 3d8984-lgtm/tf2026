@@ -562,7 +562,13 @@ export default function HeatTransferFactory() {
             setFormats((prev) => [...prev, entry]);
             if (!firstSelected) {
               firstSelected = true;
-              setSelectedFormatId((prev) => prev || entry.id);
+              setSelectedFormatIdState((prev) => {
+                const next = prev || entry.id;
+                if (!prev) {
+                  try { localStorage.setItem(HT_SELECTED_FORMAT_LS_KEY, next); } catch {}
+                }
+                return next;
+              });
             }
           }
         };
