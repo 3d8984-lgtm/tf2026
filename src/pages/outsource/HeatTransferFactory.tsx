@@ -1485,35 +1485,51 @@ function OrderProgressBox({
   }, [order.orderNo, outline?.previewUrl, firstResultUrl, open1]);
 
 
-  // Step 2: PNG 썸네일 미리보기
+  // Step 2: PNG 썸네일 미리보기 (스트리밍 + 캐시 + 동시 처리)
   const [thumbs, setThumbs] = useState<Array<{ designUid: string; url: string | null; reason?: string }>>([]);
   const [thumbBusy, setThumbBusy] = useState(false);
+  const [thumbProgress, setThumbProgress] = useState<{ done: number; total: number } | null>(null);
 
   useEffect(() => {
     if (!open2) return;
     let cancelled = false;
+    const createdUrls: string[] = [];
     (async () => {
       setThumbBusy(true);
-      setThumbs([]);
+      setThumbProgress({ done: 0, total: details.length });
+      // 자리표시자: 완료되는 대로 채워 넣기
+      setThumbs(details.map((d) => ({ designUid: d.designUid, url: null, reason: undefined })));
       try {
-        // 미리보기는 96dpi (가벼움)
-        const res = await buildFinalPngs(details, formats, outline, testDesign, readFooter(), 96, false, undefined, savedTransform);
-        if (cancelled) return;
-        const mapped = res.map((r) => ({
-          designUid: r.designUid,
-          url: r.blob ? URL.createObjectURL(r.blob) : null,
-          reason: r.reason,
-        }));
-        setThumbs(mapped);
+        // 미리보기는 72dpi + DPI 메타데이터 생략 + 4개 동시 처리 + 마스크/이미지 캐시
+        await buildFinalPngs(
+          details, formats, outline, testDesign, readFooter(), 72, false,
+          (done, total) => { if (!cancelled) setThumbProgress({ done, total }); },
+          savedTransform,
+          {
+            embedDpiMetadata: false,
+            concurrency: 4,
+            onItem: (idx, item) => {
+              if (cancelled) return;
+              const url = item.blob ? URL.createObjectURL(item.blob) : null;
+              if (url) createdUrls.push(url);
+              setThumbs((prev) => {
+                const next = prev.slice();
+                next[idx] = { designUid: item.designUid, url, reason: item.reason };
+                return next;
+              });
+            },
+          },
+        );
       } finally {
         if (!cancelled) setThumbBusy(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; createdUrls.forEach((u) => URL.revokeObjectURL(u)); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open2, savedTransform]);
 
   useEffect(() => () => { thumbs.forEach((t) => { if (t.url) URL.revokeObjectURL(t.url); }); }, [thumbs]);
+
 
   const sendOrder = async () => {
     if (!webhookUrl) {
