@@ -80,7 +80,7 @@ async function processJob(admin: any, jobId: string, uploadedZipPath?: string) {
   if (job.status === "done") return { status: "done", jobId, zip_url: job.zip_url };
 
   const folderName = job.order_no || jobId;
-  const zipPath = job.zip_path || `orders/heat-transfer-${folderName}-${Date.now()}.zip`;
+  const zipPath = job.zip_path || `orders/heat-transfer-${folderName}-${Date.now()}-links.txt`;
 
   try {
     await admin.rpc("requeue_stale_png_jobs", { _older_than: "30 seconds" });
@@ -154,7 +154,7 @@ async function processJob(admin: any, jobId: string, uploadedZipPath?: string) {
     await setJob(admin, jobId, { stage: "위챗 전송 중" });
     const webhookUrl = (job.webhook_url || "").trim();
     if (webhookUrl) {
-      const message = `【열전사 디자인 발주】\n작업번호: ${folderName}\n디자인 수량: ${files.length}건\n파일: ${folderName}.zip\n다운로드: ${zipUrl}`;
+      const message = `【열전사 디자인 발주】\n작업번호: ${folderName}\n디자인 수량: ${files.length}건\n파일: 다운로드 링크 목록\n다운로드: ${zipUrl}`;
       try {
         const ac = new AbortController();
         const t = setTimeout(() => ac.abort(), 12_000);
@@ -179,7 +179,7 @@ async function processJob(admin: any, jobId: string, uploadedZipPath?: string) {
       quantity: files.length,
       ordered_at: new Date().toISOString().slice(0, 10),
       status: "ordered",
-      note: `위챗 발송 · ${folderName}.zip`,
+      note: `위챗 발송 · ${folderName} 다운로드 링크`,
     });
 
     await setJob(admin, jobId, {
