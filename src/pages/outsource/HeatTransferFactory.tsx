@@ -1695,6 +1695,7 @@ function OrderProgressBox({
       setShowResume(false);
       lastProgressAtRef.current = Date.now();
       const tmpPrefix = `orders/heat-transfer-jobs/${jobId}`;
+      const zipPath = `orders/heat-transfer-${folderName}-${Date.now()}.zip`;
 
       await uploadManager.start(jobId, async () => {
         if (!jobId) return;
@@ -1720,6 +1721,14 @@ function OrderProgressBox({
             .upload(`${tmpPrefix}/__work_order.pdf`, pdfBlob, { contentType: "application/pdf", upsert: true });
           if (error) throw new Error(`작업지시서 업로드 실패: ${error.message}`);
         }
+        await supabase.from("outsource_order_jobs" as any)
+          .update({ zip_path: zipPath })
+          .eq("id", jobId);
+        const zip = new JSZip();
+        const zipRoot = zip.folder(folderName)!;
+        const zipImageFolder = zipRoot.folder("Image")!;
+        zipRoot.file(`${folderName}_작업지시서.pdf`, pdfBlob);
+        const zippedItems = new Set<string>();
 
         setSendStage("PNG 생성 및 업로드 중");
         const used = new Map<string, number>();
