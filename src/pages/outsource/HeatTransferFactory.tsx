@@ -1434,7 +1434,7 @@ function OrderProgressBox({
       setThumbs([]);
       try {
         // 미리보기는 96dpi (가벼움)
-        const res = await buildFinalPngs(details, formats, outline, testDesign, readFooter(), 96, false);
+        const res = await buildFinalPngs(details, formats, outline, testDesign, readFooter(), 96, false, undefined, savedTransform);
         if (cancelled) return;
         const mapped = res.map((r) => ({
           designUid: r.designUid,
