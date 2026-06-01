@@ -1646,7 +1646,7 @@ function Step2PdfPreviewDialog({
             </div>
             <div className="flex-1 border rounded-md bg-muted/30 overflow-auto flex items-start justify-center p-2">
               {currentTwinImg ? (
-                <img src={currentTwinImg} alt={`twin-page-${twinIdx + 1}`} className="max-w-full max-h-full object-contain shadow-lg bg-white" />
+                <img src={currentTwinImg} alt={`twin-page-${twinIdx + 1}`} className="max-w-full h-auto object-contain shadow-lg bg-white" />
               ) : (
                 <div className="text-sm text-muted-foreground flex items-center">
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" /> 페이지 생성 중...
@@ -1670,7 +1670,7 @@ function Step2PdfPreviewDialog({
             </div>
             <div className="flex-1 border rounded-md bg-muted/30 overflow-auto flex items-start justify-center p-2">
               {currentQrImg ? (
-                <img src={currentQrImg} alt={`qr-page-${qrIdx + 1}`} className="max-w-full max-h-full object-contain shadow-lg bg-white" />
+                <img src={currentQrImg} alt={`qr-page-${qrIdx + 1}`} className="max-w-full h-auto object-contain shadow-lg bg-white" />
               ) : (
                 <div className="text-sm text-muted-foreground flex items-center">
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" /> PDF 생성 중...
