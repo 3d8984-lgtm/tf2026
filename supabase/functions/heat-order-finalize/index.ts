@@ -4,13 +4,12 @@
 // updates heartbeat/progress, and asks the client/watchdog to call again when needed.
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { zipSync } from "npm:fflate@0.8.2";
+import { Zip, ZipPassThrough } from "npm:fflate@0.8.2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const BUCKET = "hologram-pdf";
-const BATCH_SIZE = 12;
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
