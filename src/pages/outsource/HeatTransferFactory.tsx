@@ -24,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import QRCode from "qrcode";
 import JSZip from "jszip";
 import { HtPngPool, type PoolTask } from "./_workers/htPngPool";
+import { uploadManager, logMemory } from "@/lib/uploadManager";
 
 const DESIGN_FORMAT_BUCKET = "design-formats";
 const DESIGN_FORMAT_FOLDER = "heat-transfer";
