@@ -1916,23 +1916,28 @@ function OrderProgressBox({
               const src = testDesign || d.designSrc;
               if (!src) {
                 skipCount++;
-                supabase.from("png_jobs" as any).update({ status: "failed", error_message: "디자인 소스 없음" })
-                  .eq("job_id", jobId).eq("item_id", d.designUid).then(() => {});
+                const fileName = `${d.designUid}.png`;
+                addUploadIssue(i + 1, fileName, "디자인 소스 없음");
+                await supabase.from("png_jobs" as any).update({ status: "failed", error_message: "디자인 소스 없음" })
+                  .eq("job_id", jobId).eq("item_id", d.designUid);
                 continue;
               }
               const target = normalizeSize(d.tshirtSize);
               const fmt = (target ? formats.find((f) => normalizeSize(f.sizeLabel) === target) : null) || outline;
               if (!fmt) {
                 skipCount++;
-                supabase.from("png_jobs" as any).update({ status: "failed", error_message: `사이즈 ${d.tshirtSize || "?"} 포맷 없음` })
-                  .eq("job_id", jobId).eq("item_id", d.designUid).then(() => {});
+                const reason = `사이즈 ${d.tshirtSize || "?"} 포맷 없음`;
+                addUploadIssue(i + 1, `${d.designUid}.png`, reason);
+                await supabase.from("png_jobs" as any).update({ status: "failed", error_message: reason })
+                  .eq("job_id", jobId).eq("item_id", d.designUid);
                 continue;
               }
               const bundle = await getMaskBundle(fmt);
               if (!bundle) {
                 skipCount++;
-                supabase.from("png_jobs" as any).update({ status: "failed", error_message: "마스크 생성 실패" })
-                  .eq("job_id", jobId).eq("item_id", d.designUid).then(() => {});
+                addUploadIssue(i + 1, `${d.designUid}.png`, "마스크 생성 실패");
+                await supabase.from("png_jobs" as any).update({ status: "failed", error_message: "마스크 생성 실패" })
+                  .eq("job_id", jobId).eq("item_id", d.designUid);
                 continue;
               }
 
@@ -1964,17 +1969,17 @@ function OrderProgressBox({
               if (!res.blob) {
                 skipCount++;
                 console.warn("[Upload] PNG gen failed", res.designUid, res.reason);
-                supabase.from("png_jobs" as any)
+                addUploadIssue(i + 1, `${res.designUid}.png`, res.reason || "PNG 생성 실패");
+                await supabase.from("png_jobs" as any)
                   .update({ status: "failed", error_message: res.reason || "PNG 생성 실패" })
-                  .eq("job_id", jobId).eq("item_id", d.designUid).then(() => {});
+                  .eq("job_id", jobId).eq("item_id", d.designUid);
                 continue;
               }
               const count = used.get(res.designUid) ?? 0;
               const name = count === 0 ? `${res.designUid}.png` : `${res.designUid}(${count}).png`;
               used.set(res.designUid, count + 1);
               okCount++;
-              uploadQueue.push({ name, blob: res.blob, itemId: d.designUid });
-              pumpUpload();
+              await scheduleUpload({ index: i + 1, name, blob: res.blob, itemId: d.designUid });
             }
           };
 
@@ -1982,9 +1987,6 @@ function OrderProgressBox({
           for (let k = 0; k < TASK_CONCURRENCY; k++) runners.push(runOne());
           await Promise.all(runners);
 
-          if (inFlight > 0 || uploadQueue.length > 0) {
-            await new Promise<void>((resolve) => { uploadDone = resolve; pumpUpload(); });
-          }
           await Promise.allSettled(pngJobUpdatePromises);
           await reportProgress(true);
           console.log("[Upload] all PNGs done — ok:", okCount, "skip:", skipCount, "uploaded:", uploadedCount);
