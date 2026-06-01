@@ -1860,15 +1860,15 @@ function OrderProgressBox({
                 setSendProgress({ done: uploadedCount, total: details.length });
                 setSendStage(`PNG 업로드 ${uploadedCount}/${details.length}`);
                 reportProgress();
-                pngJobUpdatePromises.push(supabase.from("png_jobs" as any)
+                pngJobUpdatePromises.push(Promise.resolve(supabase.from("png_jobs" as any)
                   .update({ status: "completed", file_url: `${tmpPrefix}/${item.name}`, completed_at: new Date().toISOString() })
-                  .eq("job_id", jobId).eq("item_id", item.itemId).then(() => {}));
+                  .eq("job_id", jobId).eq("item_id", item.itemId).then(() => {})));
               } catch (e) {
                 console.error("[Upload] failed", item.name, e);
                 skipCount++;
-                pngJobUpdatePromises.push(supabase.from("png_jobs" as any)
+                pngJobUpdatePromises.push(Promise.resolve(supabase.from("png_jobs" as any)
                   .update({ status: "failed", error_message: e instanceof Error ? e.message : String(e) })
-                  .eq("job_id", jobId).eq("item_id", item.itemId).then(() => {}));
+                  .eq("job_id", jobId).eq("item_id", item.itemId).then(() => {})));
               } finally {
                 inFlight--;
                 if (uploadDone && uploadQueue.length === 0 && inFlight === 0) {
