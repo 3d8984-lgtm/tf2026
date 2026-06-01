@@ -2078,9 +2078,7 @@ function ProofBox({
     return c ? `${it.uniqueNo} · ${c}` : it.uniqueNo;
   };
 
-  // ===== 트윈코드 테스트 SVG (업로드 시 모든 마크에 동일 적용) =====
-  const [testTwinSvg, setTestTwinSvg] = useState<{ url: string; name: string } | null>(null);
-  useEffect(() => () => { if (testTwinSvg?.url) URL.revokeObjectURL(testTwinSvg.url); }, [testTwinSvg]);
+  // ===== 트윈코드 테스트 SVG (부모에서 lifted) =====
   const handleTestSvgUpload = (file: File) => {
     if (!file) return;
     if (!/svg/i.test(file.type) && !/\.svg$/i.test(file.name)) {
