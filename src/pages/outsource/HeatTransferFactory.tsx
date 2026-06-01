@@ -2224,6 +2224,21 @@ function OrderProgressBox({
             </div>
           );
         })()}
+
+        {uploadIssues.length > 0 && (
+          <div className="mt-3 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs">
+            <div className="font-medium text-destructive">업로드 실패 / skip 목록 ({uploadIssues.length}건)</div>
+            <div className="mt-2 max-h-36 overflow-auto space-y-1 font-mono">
+              {uploadIssues.map((issue, idx) => (
+                <div key={`${issue.index}-${issue.fileName}-${idx}`} className="grid grid-cols-[52px_1fr_2fr] gap-2 text-muted-foreground">
+                  <span>#{issue.index}</span>
+                  <span className="truncate" title={issue.fileName}>{issue.fileName}</span>
+                  <span className="text-destructive" title={issue.reason}>{issue.reason}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
