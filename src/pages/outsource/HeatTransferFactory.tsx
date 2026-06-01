@@ -1660,14 +1660,21 @@ function OrderProgressBox({
       return;
     }
     if (currentWebhookUrl !== webhookUrl) setWebhookUrl(currentWebhookUrl);
+
+    // Idempotency guard — Strict Mode / double-click safe.
+    if (uploadManager.isRunning()) {
+      console.log("[Upload] sendOrder already running, ignoring duplicate call");
+      return;
+    }
+
     setSending(true);
+    sendingRef.current = true;
     setSendProgress({ done: 0, total: details.length });
     setSendStage("발주 잡 생성 중");
 
     const folderName = order.orderNo || "heat-transfer";
     let jobId: string | null = null;
     try {
-      // 1) 잡 row 생성
       const { data: jobRow, error: jobErr } = await supabase
         .from("outsource_order_jobs" as any)
         .insert({
@@ -1688,238 +1695,263 @@ function OrderProgressBox({
       lastProgressAtRef.current = Date.now();
       const tmpPrefix = `orders/heat-transfer-jobs/${jobId}`;
 
-      await supabase.from("png_jobs" as any).upsert(
-        details.map((d) => ({ job_id: jobId, item_id: d.designUid, status: "pending" })),
-        { onConflict: "job_id,item_id", ignoreDuplicates: true } as any,
-      );
-      const { data: existingRows } = await supabase.from("png_jobs" as any)
-        .select("item_id,status,file_url,error_message,last_heartbeat,completed_at")
-        .eq("job_id", jobId);
-      const completedItems = new Set(((existingRows || []) as unknown as PngJobRow[])
-        .filter((r) => r.status === "completed")
-        .map((r) => r.item_id));
-
-      // 2) 작업지시서 PDF 업로드
-      setSendStage("작업지시서 업로드 중");
-      const woBytes = await renderHtmlToPdfBytes(woHtml);
-      const pdfBlob = new Blob([woBytes as BlobPart], { type: "application/pdf" });
-      {
-        const { error } = await supabase.storage.from("hologram-pdf")
-          .upload(`${tmpPrefix}/__work_order.pdf`, pdfBlob, { contentType: "application/pdf", upsert: true });
-        if (error) throw new Error(`작업지시서 업로드 실패: ${error.message}`);
-      }
-
-      // 3) PNG 생성 (WebWorker 풀) + Storage 업로드 (병렬)
-      setSendStage("PNG 생성 및 업로드 중");
-      const used = new Map<string, number>();
-      let okCount = 0, skipCount = 0, uploadedCount = 0;
-      let lastReported = 0;
-      const reportProgress = async (force = false) => {
+      await uploadManager.start(jobId, async () => {
         if (!jobId) return;
-        if (!force && uploadedCount - lastReported < 5) return;
-        lastReported = uploadedCount;
-        try {
-          await supabase.from("outsource_order_jobs" as any)
-            .update({ uploaded_pngs: uploadedCount, stage: `PNG 업로드 ${uploadedCount}/${details.length}` })
-            .eq("id", jobId);
-        } catch { /* non-fatal */ }
-      };
+        console.log("[Upload] runner begin", jobId, "items=", details.length);
+        logMemory("start");
 
-      const DPI = 300;
-      // 포맷별 마스크 Blob을 한 번만 만들어 워커들이 공유한다.
-      const maskBlobCache = new Map<string, { blob: Blob; targetW: number; targetH: number; widthPt: number }>();
-      const getMaskBundle = async (fmt: typeof formats[number] | typeof outline) => {
-        if (!fmt) return null;
-        const key = `${fmt.widthPt}x${fmt.heightPt}@${DPI}`;
-        let bundle = maskBlobCache.get(key);
-        if (!bundle) {
-          const tW = Math.max(64, Math.round((fmt.widthPt / 72) * DPI));
-          const tH = Math.max(64, Math.round((fmt.heightPt / 72) * DPI));
-          const m = buildAlphaMaskCanvas(fmt.maskCanvas, tW, tH);
-          const blob = await canvasToBlob(m);
-          bundle = { blob, targetW: tW, targetH: tH, widthPt: fmt.widthPt };
-          maskBlobCache.set(key, bundle);
+        await supabase.from("png_jobs" as any).upsert(
+          details.map((d) => ({ job_id: jobId, item_id: d.designUid, status: "pending" })),
+          { onConflict: "job_id,item_id", ignoreDuplicates: true } as any,
+        );
+        const { data: existingRows } = await supabase.from("png_jobs" as any)
+          .select("item_id,status,file_url,error_message,last_heartbeat,completed_at")
+          .eq("job_id", jobId);
+        const completedItems = new Set(((existingRows || []) as unknown as PngJobRow[])
+          .filter((r) => r.status === "completed").map((r) => r.item_id));
+        console.log("[Upload] resume — already completed:", completedItems.size);
+
+        setSendStage("작업지시서 업로드 중");
+        const woBytes = await renderHtmlToPdfBytes(woHtml);
+        const pdfBlob = new Blob([woBytes as BlobPart], { type: "application/pdf" });
+        {
+          const { error } = await supabase.storage.from("hologram-pdf")
+            .upload(`${tmpPrefix}/__work_order.pdf`, pdfBlob, { contentType: "application/pdf", upsert: true });
+          if (error) throw new Error(`작업지시서 업로드 실패: ${error.message}`);
         }
-        return { key, ...bundle };
-      };
 
-      const cpuCount = Math.max(2, navigator.hardwareConcurrency || 4);
-      const workerCount = Math.min(6, Math.max(2, Math.floor(cpuCount / 2)));
-      const MAX_UPLOAD = Math.min(10, Math.max(6, cpuCount));
-      let pool: HtPngPool | null = null;
+        setSendStage("PNG 생성 및 업로드 중");
+        const used = new Map<string, number>();
+        let okCount = 0, skipCount = 0, uploadedCount = completedItems.size;
+        let lastReported = uploadedCount;
+        setSendProgress({ done: uploadedCount, total: details.length });
 
-      const footerCfg = readFooter();
-      const uploadQueue: Array<{ name: string; blob: Blob }> = [];
-      let inFlight = 0;
-      let uploadDoneResolve: (() => void) | null = null;
-      const pumpUpload = () => {
-        while (inFlight < MAX_UPLOAD && uploadQueue.length > 0) {
-          const item = uploadQueue.shift()!;
-          inFlight++;
-          (async () => {
-            try {
-              const { error } = await supabase.storage.from("hologram-pdf")
-                .upload(`${tmpPrefix}/${item.name}`, item.blob, {
-                  contentType: "image/png", upsert: false,
-                });
-              if (error) throw error;
-              uploadedCount++;
-              setSendProgress({ done: uploadedCount, total: details.length });
-              setSendStage(`PNG 업로드 ${uploadedCount}/${details.length}`);
-              reportProgress();
-            } catch (e) {
-              console.error("PNG 업로드 실패", item.name, e);
-              skipCount++;
-            } finally {
-              inFlight--;
-              if (uploadDoneResolve && uploadQueue.length === 0 && inFlight === 0) {
-                const r = uploadDoneResolve; uploadDoneResolve = null; r();
-              } else {
-                pumpUpload();
-              }
-            }
-          })();
-        }
-      };
+        const reportProgress = async (force = false) => {
+          if (!jobId) return;
+          if (!force && uploadedCount - lastReported < 5) return;
+          lastReported = uploadedCount;
+          try {
+            await supabase.from("outsource_order_jobs" as any)
+              .update({ uploaded_pngs: uploadedCount, stage: `PNG 업로드 ${uploadedCount}/${details.length}` })
+              .eq("id", jobId);
+          } catch { /* non-fatal */ }
+        };
 
-      const enqueueBuild = async (task: PoolTask) => {
-        if (!pool) pool = new HtPngPool(workerCount);
-        const workerRes = await pool.enqueue(task);
-        if (workerRes.blob) return workerRes;
-
-        console.warn("PNG 워커 실패, 메인 스레드로 재시도", task.designUid, workerRes.reason);
-        const detail = details[task.idx];
-        const fmt = (normalizeSize(detail.tshirtSize)
-          ? formats.find((f) => normalizeSize(f.sizeLabel) === normalizeSize(detail.tshirtSize))
-          : null) || outline;
-        if (!fmt) return workerRes;
-        try {
-          const c0 = await composeClippedDesign(task.designSrc, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, DPI, task.transform);
-          const c = await composeWithFooter(c0, fmt.widthPt, DPI, task.designUid, footerCfg, task.meta);
-          const blob = await pngWithDpi(await canvasToBlob(c), DPI);
-          return { idx: task.idx, designUid: task.designUid, blob };
-        } catch (e: unknown) {
-          return { idx: task.idx, designUid: task.designUid, blob: null, reason: e instanceof Error ? e.message : String(e) };
-        }
-      };
-
-      try {
-        const pending: Promise<void>[] = [];
-        for (let i = 0; i < details.length; i++) {
-          const d = details[i];
-          if (completedItems.has(d.designUid)) { uploadedCount++; setSendProgress({ done: uploadedCount, total: details.length }); continue; }
-          const src = testDesign || d.designSrc;
-          if (!src) {
-            skipCount++;
-            await supabase.from("png_jobs" as any).update({ status: "failed", error_message: "디자인 소스 없음" }).eq("job_id", jobId).eq("item_id", d.designUid);
-            continue;
-          }
-          const target = normalizeSize(d.tshirtSize);
-          const fmt = (target ? formats.find((f) => normalizeSize(f.sizeLabel) === target) : null) || outline;
-          if (!fmt) {
-            skipCount++;
-            await supabase.from("png_jobs" as any).update({ status: "failed", error_message: `사이즈 ${d.tshirtSize || "?"} 포맷 없음` }).eq("job_id", jobId).eq("item_id", d.designUid);
-            continue;
-          }
-          const bundle = await getMaskBundle(fmt);
+        const DPI = 300;
+        const maskBlobCache = new Map<string, { blob: Blob; targetW: number; targetH: number; widthPt: number }>();
+        const getMaskBundle = async (fmt: typeof formats[number] | typeof outline) => {
+          if (!fmt) return null;
+          const key = `${fmt.widthPt}x${fmt.heightPt}@${DPI}`;
+          let bundle = maskBlobCache.get(key);
           if (!bundle) {
-            skipCount++;
-            await supabase.from("png_jobs" as any).update({ status: "failed", error_message: "마스크 생성 실패" }).eq("job_id", jobId).eq("item_id", d.designUid);
-            continue;
+            const tW = Math.max(64, Math.round((fmt.widthPt / 72) * DPI));
+            const tH = Math.max(64, Math.round((fmt.heightPt / 72) * DPI));
+            const m = buildAlphaMaskCanvas(fmt.maskCanvas, tW, tH);
+            const blob = await canvasToBlob(m);
+            bundle = { blob, targetW: tW, targetH: tH, widthPt: fmt.widthPt };
+            maskBlobCache.set(key, bundle);
           }
+          return { key, ...bundle };
+        };
 
-          const task: PoolTask = {
-            idx: i,
-            designUid: d.designUid,
-            designSrc: src,
-            maskKey: bundle.key,
-            maskBlob: bundle.blob,
-            targetW: bundle.targetW,
-            targetH: bundle.targetH,
-            widthPt: bundle.widthPt,
-            dpi: DPI,
-            transform: {
-              offsetXPct: savedTransform?.offsetXPct ?? 0,
-              offsetYPct: savedTransform?.offsetYPct ?? 0,
-              scale: savedTransform?.scale ?? 1,
-            },
-            footer: footerCfg,
-            meta: { tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize },
+        const cpuCount = Math.max(2, navigator.hardwareConcurrency || 4);
+        const workerCount = Math.min(6, Math.max(2, Math.floor(cpuCount / 2)));
+        const UPLOAD_CONCURRENCY = 5;
+        const TASK_CONCURRENCY = workerCount;
+        const pool = new HtPngPool(workerCount);
+        const footerCfg = readFooter();
+
+        const uploadQueue: Array<{ name: string; blob: Blob; itemId: string }> = [];
+        let inFlight = 0;
+        let uploadDone: (() => void) | null = null;
+        const pumpUpload = () => {
+          while (inFlight < UPLOAD_CONCURRENCY && uploadQueue.length > 0) {
+            const item = uploadQueue.shift()!;
+            inFlight++;
+            (async () => {
+              const t0 = performance.now();
+              try {
+                const { error } = await supabase.storage.from("hologram-pdf")
+                  .upload(`${tmpPrefix}/${item.name}`, item.blob, { contentType: "image/png", upsert: false });
+                if (error) throw error;
+                uploadedCount++;
+                console.log("[Upload]", `${uploadedCount}/${details.length}`, item.name, `${(performance.now() - t0).toFixed(0)}ms`);
+                if (uploadedCount % 5 === 0) logMemory(`after ${uploadedCount} uploads`);
+                lastProgressAtRef.current = Date.now();
+                setSendProgress({ done: uploadedCount, total: details.length });
+                setSendStage(`PNG 업로드 ${uploadedCount}/${details.length}`);
+                reportProgress();
+                supabase.from("png_jobs" as any)
+                  .update({ status: "completed", file_url: `${tmpPrefix}/${item.name}`, completed_at: new Date().toISOString() })
+                  .eq("job_id", jobId).eq("item_id", item.itemId).then(() => {});
+              } catch (e) {
+                console.error("[Upload] failed", item.name, e);
+                skipCount++;
+                supabase.from("png_jobs" as any)
+                  .update({ status: "failed", error_message: e instanceof Error ? e.message : String(e) })
+                  .eq("job_id", jobId).eq("item_id", item.itemId).then(() => {});
+              } finally {
+                inFlight--;
+                if (uploadDone && uploadQueue.length === 0 && inFlight === 0) {
+                  const r = uploadDone; uploadDone = null; r();
+                } else {
+                  pumpUpload();
+                }
+              }
+            })();
+          }
+        };
+
+        const enqueueBuild = async (task: PoolTask) => {
+          const workerRes = await pool.enqueue(task);
+          if (workerRes.blob) return workerRes;
+          console.warn("[Upload] worker failed, fallback", task.designUid, workerRes.reason);
+          const detail = details[task.idx];
+          const fmt = (normalizeSize(detail.tshirtSize)
+            ? formats.find((f) => normalizeSize(f.sizeLabel) === normalizeSize(detail.tshirtSize))
+            : null) || outline;
+          if (!fmt) return workerRes;
+          try {
+            const c0 = await composeClippedDesign(task.designSrc, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, DPI, task.transform);
+            const c = await composeWithFooter(c0, fmt.widthPt, DPI, task.designUid, footerCfg, task.meta);
+            const blob = await pngWithDpi(await canvasToBlob(c), DPI);
+            return { idx: task.idx, designUid: task.designUid, blob };
+          } catch (e: unknown) {
+            return { idx: task.idx, designUid: task.designUid, blob: null, reason: e instanceof Error ? e.message : String(e) };
+          }
+        };
+
+        try {
+          let cursor = 0;
+          const runOne = async (): Promise<void> => {
+            while (true) {
+              const i = cursor++;
+              if (i >= details.length) return;
+              const d = details[i];
+              if (completedItems.has(d.designUid)) continue;
+              const src = testDesign || d.designSrc;
+              if (!src) {
+                skipCount++;
+                supabase.from("png_jobs" as any).update({ status: "failed", error_message: "디자인 소스 없음" })
+                  .eq("job_id", jobId).eq("item_id", d.designUid).then(() => {});
+                continue;
+              }
+              const target = normalizeSize(d.tshirtSize);
+              const fmt = (target ? formats.find((f) => normalizeSize(f.sizeLabel) === target) : null) || outline;
+              if (!fmt) {
+                skipCount++;
+                supabase.from("png_jobs" as any).update({ status: "failed", error_message: `사이즈 ${d.tshirtSize || "?"} 포맷 없음` })
+                  .eq("job_id", jobId).eq("item_id", d.designUid).then(() => {});
+                continue;
+              }
+              const bundle = await getMaskBundle(fmt);
+              if (!bundle) {
+                skipCount++;
+                supabase.from("png_jobs" as any).update({ status: "failed", error_message: "마스크 생성 실패" })
+                  .eq("job_id", jobId).eq("item_id", d.designUid).then(() => {});
+                continue;
+              }
+
+              const task: PoolTask = {
+                idx: i,
+                designUid: d.designUid,
+                designSrc: src,
+                maskKey: bundle.key,
+                maskBlob: bundle.blob,
+                targetW: bundle.targetW,
+                targetH: bundle.targetH,
+                widthPt: bundle.widthPt,
+                dpi: DPI,
+                transform: {
+                  offsetXPct: savedTransform?.offsetXPct ?? 0,
+                  offsetYPct: savedTransform?.offsetYPct ?? 0,
+                  scale: savedTransform?.scale ?? 1,
+                },
+                footer: footerCfg,
+                meta: { tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize },
+              };
+
+              // Fire-and-forget — don't block on the round-trip.
+              supabase.from("png_jobs" as any)
+                .update({ status: "processing", last_heartbeat: new Date().toISOString(), error_message: null })
+                .eq("job_id", jobId).eq("item_id", d.designUid).then(() => {});
+
+              const res = await enqueueBuild(task);
+              if (!res.blob) {
+                skipCount++;
+                console.warn("[Upload] PNG gen failed", res.designUid, res.reason);
+                supabase.from("png_jobs" as any)
+                  .update({ status: "failed", error_message: res.reason || "PNG 생성 실패" })
+                  .eq("job_id", jobId).eq("item_id", d.designUid).then(() => {});
+                continue;
+              }
+              const count = used.get(res.designUid) ?? 0;
+              const name = count === 0 ? `${res.designUid}.png` : `${res.designUid}(${count}).png`;
+              used.set(res.designUid, count + 1);
+              okCount++;
+              uploadQueue.push({ name, blob: res.blob, itemId: d.designUid });
+              pumpUpload();
+            }
           };
 
-          pending.push((async () => {
-            let hb: number | null = null;
-            try {
-              await supabase.from("png_jobs" as any).update({ status: "processing", last_heartbeat: new Date().toISOString(), error_message: null }).eq("job_id", jobId).eq("item_id", d.designUid);
-              hb = window.setInterval(() => {
-                supabase.from("png_jobs" as any).update({ last_heartbeat: new Date().toISOString() }).eq("job_id", jobId).eq("item_id", d.designUid).then(() => {});
-              }, 5000);
-            const res = await enqueueBuild(task);
-            if (!res.blob) {
-              skipCount++;
-              console.warn("PNG 생성 실패", res.designUid, res.reason);
-              await supabase.from("png_jobs" as any).update({ status: "failed", error_message: res.reason || "PNG 생성 실패" }).eq("job_id", jobId).eq("item_id", d.designUid);
+          const runners: Promise<void>[] = [];
+          for (let k = 0; k < TASK_CONCURRENCY; k++) runners.push(runOne());
+          await Promise.all(runners);
+
+          if (inFlight > 0 || uploadQueue.length > 0) {
+            await new Promise<void>((resolve) => { uploadDone = resolve; pumpUpload(); });
+          }
+          await reportProgress(true);
+          console.log("[Upload] all PNGs done — ok:", okCount, "skip:", skipCount, "uploaded:", uploadedCount);
+          logMemory("end");
+        } finally {
+          pool.terminate();
+        }
+
+        if (uploadedCount === 0) throw new Error("업로드된 PNG가 없습니다 — 디자인 포맷/소스를 확인하세요.");
+
+        setSendStage("서버에서 ZIP 생성 요청 중");
+        const { error: finErr } = await supabase.functions.invoke("heat-order-finalize", { body: { jobId } });
+        if (finErr) throw new Error(`finalize 호출 실패: ${finErr.message}`);
+
+        setSendStage("서버 ZIP 생성 중");
+        await new Promise<void>((resolve, reject) => {
+          const maxWaitMs = 10 * 60 * 1000;
+          const startedAt = Date.now();
+          let settled = false;
+          const handleRow = (row: any) => {
+            if (!row || settled) return;
+            if (row.stage) setSendStage(row.stage);
+            if (row.status === "done") {
+              settled = true;
+              supabase.removeChannel(ch); clearInterval(pollT);
+              setOrdered(true); persist({ ordered: true });
+              toast({ title: "발주 완료", description: `${folderName}.zip 위챗 단톡방으로 전송됨` });
+              resolve();
+            } else if (row.status === "failed") {
+              settled = true;
+              supabase.removeChannel(ch); clearInterval(pollT);
+              reject(new Error(row.error_message || "서버에서 발주 마무리 실패"));
+            }
+          };
+          const ch = supabase.channel(`outsource-job-${jobId}`)
+            .on("postgres_changes", { event: "UPDATE", schema: "public", table: "outsource_order_jobs", filter: `id=eq.${jobId}` },
+              (payload) => handleRow(payload.new))
+            .subscribe();
+          const pollT = setInterval(async () => {
+            if (settled) return;
+            if (Date.now() - startedAt > maxWaitMs) {
+              settled = true; supabase.removeChannel(ch); clearInterval(pollT);
+              reject(new Error("서버 처리 타임아웃 (10분 초과)"));
               return;
             }
-            const count = used.get(res.designUid) ?? 0;
-            const name = count === 0 ? `${res.designUid}.png` : `${res.designUid}(${count}).png`;
-            used.set(res.designUid, count + 1);
-            okCount++;
-            uploadQueue.push({ name, blob: res.blob, itemId: d.designUid } as any);
-            pumpUpload();
-            } finally {
-              if (hb) window.clearInterval(hb);
-            }
-          })());
-        }
-        await Promise.all(pending);
-
-        // 남은 업로드 대기
-        if (inFlight > 0 || uploadQueue.length > 0) {
-          await new Promise<void>((resolve) => { uploadDoneResolve = resolve; pumpUpload(); });
-        }
-        await reportProgress(true);
-      } finally {
-        pool?.terminate();
-      }
-
-      if (uploadedCount === 0) throw new Error("업로드된 PNG가 없습니다 — 디자인 포맷/소스를 확인하세요.");
-
-
-      // 4) 서버에 finalize 요청 (백그라운드 잡)
-      setSendStage("서버에서 ZIP 생성 요청 중");
-      const { error: finErr } = await supabase.functions.invoke("heat-order-finalize", {
-        body: { jobId },
+            const { data } = await supabase.from("outsource_order_jobs" as any)
+              .select("status, stage, zip_url, error_message").eq("id", jobId).maybeSingle();
+            if (data) handleRow(data);
+          }, 5000);
+        });
       });
-      if (finErr) throw new Error(`finalize 호출 실패: ${finErr.message}`);
-
-      // 5) 잡 상태 폴링
-      setSendStage("서버 ZIP 생성 중");
-      const maxWaitMs = 10 * 60 * 1000;
-      const start = Date.now();
-      while (Date.now() - start < maxWaitMs) {
-        await new Promise((r) => setTimeout(r, 2000));
-        const { data: j, error: pErr } = await supabase
-          .from("outsource_order_jobs" as any)
-          .select("status, stage, zip_url, error_message")
-          .eq("id", jobId)
-          .maybeSingle();
-        if (pErr) { console.warn("폴링 오류", pErr.message); continue; }
-        if (!j) continue;
-        const jr = j as any;
-        if (jr.stage) setSendStage(jr.stage);
-        if (jr.status === "done") {
-          setOrdered(true); persist({ ordered: true });
-          toast({ title: "발주 완료", description: `${folderName}.zip 위챗 단톡방으로 전송됨` });
-          return;
-        }
-        if (jr.status === "failed") {
-          throw new Error(jr.error_message || "서버에서 발주 마무리 실패");
-        }
-      }
-      throw new Error("서버 처리 타임아웃 (10분 초과)");
     } catch (e: any) {
-      // 잡이 만들어졌다면 failed 로 기록 시도
       if (jobId) {
         try {
           await supabase.from("outsource_order_jobs" as any)
@@ -1930,6 +1962,7 @@ function OrderProgressBox({
       toast({ title: "발주 실패", description: e?.message || String(e), variant: "destructive" as any });
     } finally {
       setSending(false);
+      sendingRef.current = false;
       setSendProgress(null);
       setSendStage("");
     }
