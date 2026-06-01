@@ -689,6 +689,14 @@ export default function HeatTransferFactory() {
 
   const outline = formats.find((f) => f.id === selectedFormatId) || null;
 
+  useEffect(() => {
+    if (formatsLoading) return;
+    if (formats.length === 0 && selectedFormatId) setSelectedFormatId(null);
+    if (formats.length > 0 && (!selectedFormatId || !formats.some((f) => f.id === selectedFormatId))) {
+      setSelectedFormatId(formats[0].id);
+    }
+  }, [formatsLoading, formats, selectedFormatId]);
+
   const [activeOrderId, setActiveOrderId] = useState<string | null>(() => {
     try { return localStorage.getItem(HT_ACTIVE_ORDER_LS_KEY); } catch { return null; }
   });
