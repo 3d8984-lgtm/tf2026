@@ -223,6 +223,8 @@ function canvasToBlob(c: HTMLCanvasElement): Promise<Blob> {
   });
 }
 
+const yieldToBrowser = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
 // ============ footer (UID + QR) ============
 
 export interface FooterCfg {
@@ -1312,10 +1314,11 @@ async function buildFinalPngs(
   sharpen: boolean,
   onProgress?: (done: number, total: number) => void,
   transform?: { offsetXPct?: number; offsetYPct?: number; scale?: number },
-  opts?: { embedDpiMetadata?: boolean; concurrency?: number; onItem?: (index: number, item: { designUid: string; blob: Blob | null; reason?: string }) => void },
+  opts?: { embedDpiMetadata?: boolean; concurrency?: number; yieldEvery?: number; onItem?: (index: number, item: { designUid: string; blob: Blob | null; reason?: string }) => void },
 ): Promise<Array<{ designUid: string; blob: Blob | null; reason?: string }>> {
   const embedDpi = opts?.embedDpiMetadata ?? true;
   const concurrency = Math.max(1, opts?.concurrency ?? 4);
+  const yieldEvery = Math.max(1, opts?.yieldEvery ?? concurrency);
   const total = details.length;
   const results: Array<{ designUid: string; blob: Blob | null; reason?: string } | undefined> =
     new Array(total).fill(undefined);
@@ -1408,6 +1411,7 @@ async function buildFinalPngs(
     done++;
     onProgress?.(done, total);
     opts?.onItem?.(idx, item);
+    if (done % yieldEvery === 0) await yieldToBrowser();
   };
 
   // Concurrency-limited pool
