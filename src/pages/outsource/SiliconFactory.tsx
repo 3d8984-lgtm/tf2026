@@ -1610,21 +1610,21 @@ function Step2PdfPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] w-[95vw] max-h-[95vh] overflow-hidden flex flex-col">
-        <DialogHeader>
+      <DialogContent className="max-w-[95vw] w-[95vw] h-[95vh] max-h-[95vh] overflow-hidden flex flex-col">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <FileText className="w-4 h-4 text-green-600" />
             작업파일 확인 — 최종 출력 PDF 미리보기 ({items.length}건)
           </DialogTitle>
         </DialogHeader>
-        <Tabs defaultValue="twin" className="flex-1 flex flex-col overflow-hidden">
-          <TabsList className="self-start">
+        <Tabs defaultValue="twin" className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <TabsList className="self-start shrink-0">
             <TabsTrigger value="twin"><FileText className="w-4 h-4 mr-1" /> 트윈코드 시안 ({totalTwin}장)</TabsTrigger>
             <TabsTrigger value="qr"><QrCode className="w-4 h-4 mr-1" /> QR코드 시안 ({totalQr}장)</TabsTrigger>
           </TabsList>
 
           <TabsContent value="twin" className="flex-1 flex flex-col overflow-hidden mt-2">
-            <div className="flex items-center justify-between gap-2 pb-2">
+            <div className="shrink-0 flex items-center justify-between gap-2 pb-2">
               <div className="text-xs text-muted-foreground">
                 파일명 미리보기: <span className="font-mono text-foreground">{orderNo || "twincode"}({twinIdx + 1}).pdf</span>
                 {twinBusy && <span className="ml-2 inline-flex items-center text-amber-600"><Loader2 className="w-3 h-3 mr-1 animate-spin" />생성 중 ({loadedTwin}/{totalTwin})</span>}
@@ -1637,7 +1637,7 @@ function Step2PdfPreviewDialog({
             </div>
             <div className="flex-1 min-h-0 border rounded-md bg-muted/30 overflow-hidden flex items-center justify-center p-2">
               {currentTwinImg ? (
-                <img src={currentTwinImg} alt={`twin-page-${twinIdx + 1}`} className="w-auto h-full max-w-full max-h-full object-contain shadow-lg bg-white" />
+                <img src={currentTwinImg} alt={`twin-page-${twinIdx + 1}`} className="block w-full h-full object-contain bg-white" />
               ) : (
                 <div className="text-sm text-muted-foreground flex items-center">
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" /> 페이지 생성 중...
@@ -1647,7 +1647,7 @@ function Step2PdfPreviewDialog({
           </TabsContent>
 
           <TabsContent value="qr" className="flex-1 flex flex-col overflow-hidden mt-2">
-            <div className="flex items-center justify-between gap-2 pb-2">
+            <div className="shrink-0 flex items-center justify-between gap-2 pb-2">
               <div className="text-xs text-muted-foreground">
                 파일명 미리보기: <span className="font-mono text-foreground">QRcode.pdf</span>
                 <span className="ml-2">· A4 {totalQr}페이지 / 단일 PDF</span>
@@ -1661,7 +1661,7 @@ function Step2PdfPreviewDialog({
             </div>
             <div className="flex-1 min-h-0 border rounded-md bg-muted/30 overflow-hidden flex items-center justify-center p-2">
               {currentQrImg ? (
-                <img src={currentQrImg} alt={`qr-page-${qrIdx + 1}`} className="w-auto h-full max-w-full max-h-full object-contain shadow-lg bg-white" />
+                <img src={currentQrImg} alt={`qr-page-${qrIdx + 1}`} className="block w-full h-full object-contain bg-white" />
               ) : (
                 <div className="text-sm text-muted-foreground flex items-center">
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" /> PDF 생성 중...
@@ -1670,7 +1670,7 @@ function Step2PdfPreviewDialog({
             </div>
           </TabsContent>
         </Tabs>
-        <div className="flex justify-end gap-2 pt-2 border-t mt-2">
+        <div className="shrink-0 flex justify-end gap-2 pt-2 border-t mt-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>닫기</Button>
           <Button onClick={onConfirm} disabled={twinBusy || qrBusy}>
             <CheckCircle2 className="w-4 h-4 mr-1" /> 확인
