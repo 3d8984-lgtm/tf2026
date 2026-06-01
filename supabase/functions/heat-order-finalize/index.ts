@@ -1,23 +1,16 @@
-// Heat-transfer 발주 마무리 잡 처리기.
-// 1) 잡 상태 'finalizing' 으로 잠금
-// 2) 백그라운드 (EdgeRuntime.waitUntil) 에서
-//    - hologram-pdf/orders/heat-transfer-jobs/<jobId>/ 아래 파일들을 스트리밍 ZIP
-//    - ZIP 을 hologram-pdf/orders/heat-transfer-<orderNo>-<ts>.zip 으로 업로드
-//    - 위챗 webhook 으로 다운로드 링크 전송
-//    - outsource_orders insert
-//    - 임시 폴더 정리
-//    - 잡 status='done' (또는 'failed') 로 갱신
-// 즉시 202 응답.
+// Heat-transfer resumable order finalizer.
+// The client uploads PNGs and records each item in png_jobs. This function is
+// intentionally short-running: each invocation advances the job a small amount,
+// updates heartbeat/progress, and asks the client/watchdog to call again when needed.
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { Zip, ZipPassThrough } from "npm:fflate@0.8.2";
-
-declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void };
+import { zipSync } from "npm:fflate@0.8.2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const BUCKET = "hologram-pdf";
+const BATCH_SIZE = 12;
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -28,203 +21,182 @@ const json = (data: unknown, status = 200) =>
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
-  // JWT 검증 — 호출자가 로그인되어 있어야 함
-  const authHeader = req.headers.get("Authorization") || "";
-  if (!authHeader.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
-  const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-    global: { headers: { Authorization: authHeader } },
-  });
-  const { data: userData, error: userErr } = await userClient.auth.getUser();
-  if (userErr || !userData.user) return json({ error: "Unauthorized" }, 401);
-
-  let body: { jobId?: string };
+  let body: { jobId?: string; mode?: "resume" | "watchdog" } = {};
   try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
-  const jobId = body.jobId;
-  if (!jobId || typeof jobId !== "string") return json({ error: "jobId required" }, 400);
+
+  const authHeader = req.headers.get("Authorization") || "";
+  let systemCall = req.headers.get("x-watchdog-secret") === SERVICE_ROLE_KEY
+    || (body.mode === "watchdog" && req.headers.get("apikey") === ANON_KEY);
+
+  if (!systemCall) {
+    if (!authHeader.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
+    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userData, error: userErr } = await userClient.auth.getUser();
+    if (userErr || !userData.user) return json({ error: "Unauthorized" }, 401);
+  }
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  if (body.mode === "watchdog") {
+    await admin.rpc("requeue_stale_png_jobs", { _older_than: "30 seconds" });
+    const { data: jobs, error } = await admin
+      .from("outsource_order_jobs")
+      .select("id")
+      .eq("factory", "heat")
+      .in("status", ["uploading", "finalizing", "failed"])
+      .order("updated_at", { ascending: true })
+      .limit(5);
+    if (error) return json({ error: error.message }, 500);
+    const results = [];
+    for (const j of jobs || []) results.push(await processJob(admin, j.id));
+    return json({ status: "watchdog", results }, 200);
+  }
 
-  // 잡 조회 + 이미 done/finalizing 인 경우 idempotent
+  if (!body.jobId || typeof body.jobId !== "string") return json({ error: "jobId required" }, 400);
+  const result = await processJob(admin, body.jobId);
+  return json(result, result.status === "failed" ? 500 : 200);
+});
+
+async function setJob(admin: any, jobId: string, patch: Record<string, unknown>) {
+  await admin.from("outsource_order_jobs").update(patch).eq("id", jobId);
+}
+
+async function failJob(admin: any, jobId: string, message: string) {
+  await setJob(admin, jobId, {
+    status: "failed",
+    stage: "실패",
+    error_message: message.slice(0, 1000),
+  });
+  return { status: "failed", jobId, error: message };
+}
+
+function entryName(folderName: string, name: string) {
+  if (name === "__work_order.pdf") return `${folderName}/${folderName}_작업지시서.pdf`;
+  return `${folderName}/Image/${name}`;
+}
+
+async function downloadBytes(admin: any, path: string): Promise<Uint8Array> {
+  const { data: blob, error } = await admin.storage.from(BUCKET).download(path);
+  if (error || !blob) throw new Error(`다운로드 실패 ${path}: ${error?.message || "no blob"}`);
+  return new Uint8Array(await blob.arrayBuffer());
+}
+
+async function processJob(admin: any, jobId: string) {
   const { data: job, error: jobErr } = await admin
     .from("outsource_order_jobs")
     .select("*")
     .eq("id", jobId)
     .maybeSingle();
-  if (jobErr) return json({ error: jobErr.message }, 500);
-  if (!job) return json({ error: "Job not found" }, 404);
-  if (job.status === "done") return json({ status: "done", zip_url: job.zip_url }, 200);
-  if (job.status === "finalizing") return json({ status: "finalizing" }, 202);
+  if (jobErr) return failJob(admin, jobId, jobErr.message);
+  if (!job) return { status: "missing", jobId };
+  if (job.status === "done") return { status: "done", jobId, zip_url: job.zip_url };
 
-  // 'finalizing' 으로 상태 전환
-  const { error: updErr } = await admin
-    .from("outsource_order_jobs")
-    .update({ status: "finalizing", stage: "서버 ZIP 생성 시작" })
-    .eq("id", jobId);
-  if (updErr) return json({ error: updErr.message }, 500);
-
-  EdgeRuntime.waitUntil(processJob(admin, job));
-
-  return json({ status: "queued", jobId }, 202);
-});
-
-async function setStage(admin: any, jobId: string, stage: string) {
-  await admin.from("outsource_order_jobs").update({ stage }).eq("id", jobId);
-}
-
-async function fail(admin: any, jobId: string, message: string) {
-  console.error(`[job ${jobId}] FAIL`, message);
-  await admin.from("outsource_order_jobs")
-    .update({ status: "failed", error_message: message.slice(0, 1000) })
-    .eq("id", jobId);
-}
-
-async function listAllFiles(admin: any, folder: string): Promise<{ name: string }[]> {
-  const out: { name: string }[] = [];
-  let offset = 0;
-  const pageSize = 1000;
-  while (true) {
-    const { data, error } = await admin.storage.from(BUCKET).list(folder, {
-      limit: pageSize, offset, sortBy: { column: "name", order: "asc" },
-    });
-    if (error) throw new Error(`list 실패: ${error.message}`);
-    if (!data || data.length === 0) break;
-    for (const f of data) {
-      if (!f.name || f.name.endsWith("/")) continue;
-      out.push({ name: f.name });
-    }
-    if (data.length < pageSize) break;
-    offset += pageSize;
-  }
-  return out;
-}
-
-async function processJob(admin: any, job: any) {
-  const jobId: string = job.id;
-  const folderName: string = job.order_no || jobId;
+  const folderName = job.order_no || jobId;
   const tmpPrefix = `orders/heat-transfer-jobs/${jobId}`;
-  const zipPath = `orders/heat-transfer-${folderName}-${Date.now()}.zip`;
+  const zipPath = job.zip_path || `orders/heat-transfer-${folderName}-${Date.now()}.zip`;
 
   try {
-    await setStage(admin, jobId, "파일 목록 조회 중");
-    const files = await listAllFiles(admin, tmpPrefix);
-    if (files.length === 0) throw new Error("업로드된 파일이 없습니다");
+    await admin.rpc("requeue_stale_png_jobs", { _older_than: "30 seconds" });
 
-    // 스트리밍 ZIP 생성 — TransformStream 으로 메모리 폭주 방지
-    const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
-    const writer = writable.getWriter();
+    const { data: counts, error: countErr } = await admin
+      .from("png_jobs")
+      .select("status")
+      .eq("job_id", jobId);
+    if (countErr) throw new Error(countErr.message);
+    const total = (counts || []).length || job.total_pngs || 0;
+    const completed = (counts || []).filter((r: any) => r.status === "completed").length;
+    const failed = (counts || []).filter((r: any) => r.status === "failed").length;
 
-    let zipError: Error | null = null;
-    const zip = new Zip((err, chunk, final) => {
-      if (err) { zipError = err as Error; writer.abort(err).catch(() => {}); return; }
-      // fire-and-forget; backpressure 는 매번 write 후 awaited
-      writer.write(chunk).catch((e) => { zipError = e; });
-      if (final) writer.close().catch(() => {});
+    await setJob(admin, jobId, {
+      status: completed >= total && total > 0 ? "finalizing" : "uploading",
+      uploaded_pngs: completed,
+      total_pngs: Math.max(total, job.total_pngs || 0),
+      zip_path: zipPath,
+      error_message: null,
+      stage: completed >= total && total > 0
+        ? "서버 ZIP 생성 준비"
+        : `PNG 대기/업로드 진행 ${completed}/${Math.max(total, job.total_pngs || 0)}${failed ? ` · 실패 ${failed}` : ""}`,
     });
 
-    // ZIP 빌드와 업로드를 병렬 실행
-    const buildPromise = (async () => {
-      await setStage(admin, jobId, `ZIP 빌드 중 0/${files.length}`);
-      let i = 0;
-      for (const f of files) {
-        if (zipError) throw zipError;
-        const entryName = `${folderName}/${f.name.endsWith(".pdf") ? "" : "Image/"}${f.name === "__work_order.pdf" ? `${folderName}_작업지시서.pdf` : f.name}`;
-        const entry = new ZipPassThrough(entryName);
-        zip.add(entry);
-        const { data: blob, error: dlErr } = await admin.storage.from(BUCKET).download(`${tmpPrefix}/${f.name}`);
-        if (dlErr || !blob) throw new Error(`다운로드 실패 ${f.name}: ${dlErr?.message}`);
-        const reader = (blob.stream() as ReadableStream<Uint8Array>).getReader();
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) { entry.push(new Uint8Array(0), true); break; }
-          if (value && value.byteLength > 0) entry.push(value, false);
-        }
-        i++;
-        if (i % 5 === 0 || i === files.length) await setStage(admin, jobId, `ZIP 빌드 중 ${i}/${files.length}`);
-      }
-      zip.end();
-    })();
-
-    // Supabase Storage 로 ReadableStream 직접 업로드 (REST API)
-    await setStage(admin, jobId, "ZIP 업로드 중");
-    const uploadPromise = fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${zipPath}`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
-        apikey: SERVICE_ROLE_KEY,
-        "Content-Type": "application/zip",
-        "x-upsert": "false",
-      },
-      body: readable,
-      // @ts-ignore Deno fetch supports duplex
-      duplex: "half",
-    });
-
-    const [, uploadResp] = await Promise.all([buildPromise, uploadPromise]);
-    if (!uploadResp.ok) {
-      const txt = await uploadResp.text().catch(() => "");
-      throw new Error(`Storage 업로드 실패 [${uploadResp.status}] ${txt}`);
+    if (total === 0 || completed < total) {
+      return { status: "waiting_png", jobId, completed, total, failed };
     }
+
+    const { data: files, error: filesErr } = await admin
+      .from("png_jobs")
+      .select("item_id, file_url")
+      .eq("job_id", jobId)
+      .eq("status", "completed")
+      .order("item_id", { ascending: true });
+    if (filesErr) throw new Error(filesErr.message);
+
+    const allNames = ["__work_order.pdf", ...(files || []).map((f: any) => f.file_url || `${f.item_id}.png`)];
+    const start = Math.max(0, Number(job.zip_progress || 0));
+    const slice = allNames.slice(0, Math.min(allNames.length, start + BATCH_SIZE));
+    await setJob(admin, jobId, { stage: `ZIP 빌드 중 ${slice.length}/${allNames.length}` });
+
+    const zipEntries: Record<string, Uint8Array> = {};
+    for (const name of slice) {
+      zipEntries[entryName(folderName, name)] = await downloadBytes(admin, `${tmpPrefix}/${name}`);
+    }
+    const zipped = zipSync(zipEntries, { level: 0 });
+    const { error: upErr } = await admin.storage.from(BUCKET).upload(zipPath, new Blob([zipped], { type: "application/zip" }), {
+      contentType: "application/zip",
+      upsert: true,
+    });
+    if (upErr) throw new Error(`ZIP 업로드 실패: ${upErr.message}`);
+
+    await setJob(admin, jobId, {
+      zip_progress: slice.length,
+      stage: slice.length < allNames.length ? `ZIP 재개 대기 ${slice.length}/${allNames.length}` : "ZIP 완료",
+    });
+
+    if (slice.length < allNames.length) return { status: "partial_zip", jobId, zip_progress: slice.length, total_files: allNames.length };
 
     const { data: pub } = admin.storage.from(BUCKET).getPublicUrl(zipPath);
     const zipUrl = pub.publicUrl;
 
-    // 위챗 전송
-    await setStage(admin, jobId, "위챗 전송 중");
+    await setJob(admin, jobId, { stage: "위챗 전송 중" });
     const webhookUrl = (job.webhook_url || "").trim();
     if (webhookUrl) {
-      const message = `【열전사 디자인 발주】
-작업번호: ${folderName}
-디자인 수량: ${files.filter((f) => f.name.endsWith(".png")).length}건
-파일: ${folderName}.zip
-다운로드: ${zipUrl}`;
-
+      const message = `【열전사 디자인 발주】\n작업번호: ${folderName}\n디자인 수량: ${files.length}건\n파일: ${folderName}.zip\n다운로드: ${zipUrl}`;
       try {
         const ac = new AbortController();
-        const t = setTimeout(() => ac.abort(), 15_000);
-        const wxResp = await fetch(webhookUrl, {
+        const t = setTimeout(() => ac.abort(), 12_000);
+        await fetch(webhookUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ msgtype: "text", text: { content: message } }),
           signal: ac.signal,
         });
         clearTimeout(t);
-        if (!wxResp.ok) console.warn(`[job ${jobId}] 위챗 응답 ${wxResp.status}`);
       } catch (e) {
         console.warn(`[job ${jobId}] 위챗 전송 오류`, (e as Error).message);
       }
     }
 
-    // outsource_orders 이력 저장
-    await setStage(admin, jobId, "발주 이력 기록 중");
-    const pngCount = files.filter((f) => f.name.endsWith(".png")).length;
+    await setJob(admin, jobId, { stage: "발주 이력 기록 중" });
     const productCode = (job.payload as any)?.product_code || folderName;
     await admin.from("outsource_orders").insert({
       factory: "heat",
       order_no: folderName,
       product_code: productCode,
-      quantity: pngCount,
+      quantity: files.length,
       ordered_at: new Date().toISOString().slice(0, 10),
       status: "ordered",
       note: `위챗 발송 · ${folderName}.zip`,
     });
 
-    // 임시 파일 정리
-    await setStage(admin, jobId, "임시 파일 정리 중");
-    try {
-      const removePaths = files.map((f) => `${tmpPrefix}/${f.name}`);
-      // 100개씩 끊어서 삭제
-      for (let i = 0; i < removePaths.length; i += 100) {
-        await admin.storage.from(BUCKET).remove(removePaths.slice(i, i + 100));
-      }
-    } catch (e) {
-      console.warn(`[job ${jobId}] 임시파일 삭제 실패`, (e as Error).message);
-    }
-
-    await admin.from("outsource_order_jobs").update({
-      status: "done", stage: "완료", zip_url: zipUrl, error_message: null,
-    }).eq("id", jobId);
-    console.log(`[job ${jobId}] DONE ${zipUrl}`);
+    await setJob(admin, jobId, {
+      status: "done",
+      stage: "완료",
+      zip_url: zipUrl,
+      error_message: null,
+      zip_progress: allNames.length,
+    });
+    return { status: "done", jobId, zip_url: zipUrl };
   } catch (e) {
-    await fail(admin, jobId, (e as Error).message || String(e));
+    return await failJob(admin, jobId, (e as Error).message || String(e));
   }
 }
