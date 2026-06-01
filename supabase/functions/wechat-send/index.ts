@@ -39,17 +39,35 @@ Deno.serve(async (req) => {
       },
     };
 
-    const resp = await fetch(body.webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(wxBody),
-    });
-    const data = await resp.json();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12_000);
+    let resp: Response;
+    try {
+      resp = await fetch(body.webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(wxBody),
+        signal: controller.signal,
+      });
+    } catch (e) {
+      const isAbort = e instanceof DOMException && e.name === 'AbortError';
+      return new Response(
+        JSON.stringify({
+          error: isAbort ? 'WECHAT_TIMEOUT' : 'WECHAT_FETCH_FAILED',
+          message: isAbort ? 'WeChat webhook response timed out.' : String((e as Error).message ?? e),
+          fallback: true,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+    const data = await resp.json().catch(async () => ({ raw: await resp.text().catch(() => '') }));
 
     if (data.errcode !== 0) {
       return new Response(
-        JSON.stringify({ error: 'WeChat API error', details: data }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        JSON.stringify({ error: 'WeChat API error', details: data, fallback: resp.status >= 500 }),
+        { status: resp.status >= 500 ? 200 : 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
