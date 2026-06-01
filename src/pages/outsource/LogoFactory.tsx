@@ -861,9 +861,32 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const handleRemoveBackground = async () => {
     const src = displayedLogo || sourceLogo;
     if (!src) { toast({ title: "로고가 없습니다", variant: "destructive" }); return; }
-    setBusy("배경 제거 중 (AI 최적화)...");
+    setBusy("배경 제거 중 (Photoroom AI)...");
     try {
       const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
+
+      // 1) Photoroom API 우선 시도 (고품질)
+      try {
+        const { data, error } = await supabase.functions.invoke("photoroom-upscale", {
+          body: { imageBase64: dataUrl, mode: "remove-bg" },
+        });
+        if (error) throw error;
+        if ((data as any)?.error) throw new Error((data as any).error);
+        const out = (data as any)?.imageDataUrl as string | undefined;
+        if (!out) throw new Error("Photoroom 응답에 이미지가 없습니다");
+        setProcessedDataUrl(out);
+        setProcessedKind("upscaled");
+        setOffsetXMm(0);
+        setOffsetYMm(0);
+        setLastAnalysis((prev) => prev ? { ...prev, transparent: true } : prev);
+        toast({ title: "배경 제거 완료 (Photoroom)", description: "AI 기반 배경 제거 및 자동 크롭이 적용되었습니다." });
+        return;
+      } catch (apiErr: any) {
+        console.warn("[Photoroom] 실패, 로컬 알고리즘으로 폴백:", apiErr?.message || apiErr);
+        toast({ title: "Photoroom 실패 → 로컬 알고리즘 사용", description: apiErr?.message || String(apiErr) });
+      }
+
+      // 2) 폴백: 로컬 색 거리 기반 배경 제거
       const img = await loadImage(dataUrl);
       const w = img.naturalWidth, h = img.naturalHeight;
       const canvas = document.createElement("canvas");
