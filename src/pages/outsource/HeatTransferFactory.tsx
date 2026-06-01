@@ -1729,6 +1729,14 @@ function OrderProgressBox({
         const zipImageFolder = zipRoot.folder("Image")!;
         zipRoot.file(`${folderName}_작업지시서.pdf`, pdfBlob);
         const zippedItems = new Set<string>();
+        for (const row of (existingRows || []) as unknown as PngJobRow[]) {
+          if (row.status !== "completed" || !row.file_url) continue;
+          const { data: existingBlob, error } = await supabase.storage.from("hologram-pdf").download(row.file_url);
+          if (!error && existingBlob) {
+            zipImageFolder.file(row.file_url.split("/").pop() || `${row.item_id}.png`, existingBlob);
+            zippedItems.add(row.item_id);
+          }
+        }
 
         setSendStage("PNG 생성 및 업로드 중");
         const used = new Map<string, number>();
