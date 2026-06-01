@@ -1,0 +1,28 @@
+{
+  "name": "twinmeta-order-worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "archiver": "^7.0.1",
+    "express": "^4.21.0",
+    "p-limit": "^6.1.0",
+    "sharp": "^0.33.5",
+    "undici": "^6.20.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/archiver": "^6.0.2",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.7.4",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2"
+  }
+}
