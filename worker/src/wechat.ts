@@ -1,4 +1,4 @@
-import { fetch, FormData, Blob } from "undici";
+import { fetch, FormData } from "undici";
 import { supa } from "./supabase.js";
 import { callback } from "./callback.js";
 import { signedUrl } from "./storage.js";
