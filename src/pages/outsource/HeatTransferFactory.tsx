@@ -1761,9 +1761,17 @@ function OrderProgressBox({
 
         setSendStage("PNG 생성 및 업로드 중");
         const used = new Map<string, number>();
-        let okCount = 0, skipCount = 0, uploadedCount = completedItems.size;
+        const totalExpected = details.length;
+        const issueBuffer: UploadIssue[] = [];
+        const addUploadIssue = (index: number, fileName: string, reason: string) => {
+          const issue = { index, fileName, reason };
+          issueBuffer.push(issue);
+          setUploadIssues((prev) => [...prev, issue]);
+          console.warn("[Upload] skip", `index=${index}`, fileName, reason);
+        };
+        let okCount = completedItems.size, skipCount = 0, uploadedCount = completedItems.size;
         let lastReported = uploadedCount;
-        setSendProgress({ done: uploadedCount, total: details.length });
+        setSendProgress({ done: uploadedCount, total: totalExpected });
 
         const reportProgress = async (force = false) => {
           if (!jobId) return;
@@ -1771,7 +1779,7 @@ function OrderProgressBox({
           lastReported = uploadedCount;
           try {
             await supabase.from("outsource_order_jobs" as any)
-              .update({ uploaded_pngs: uploadedCount, stage: `PNG 업로드 ${uploadedCount}/${details.length}` })
+              .update({ uploaded_pngs: uploadedCount, stage: `PNG 업로드 ${uploadedCount}/${totalExpected}` })
               .eq("id", jobId);
           } catch { /* non-fatal */ }
         };
@@ -1795,50 +1803,86 @@ function OrderProgressBox({
 
         const cpuCount = Math.max(2, navigator.hardwareConcurrency || 4);
         const workerCount = Math.min(6, Math.max(2, Math.floor(cpuCount / 2)));
-        const UPLOAD_CONCURRENCY = 5;
         const TASK_CONCURRENCY = workerCount;
         const pool = new HtPngPool(workerCount);
         const footerCfg = readFooter();
 
-        const uploadQueue: Array<{ name: string; blob: Blob; itemId: string }> = [];
+        const uploadWaiters: Array<() => void> = [];
         let inFlight = 0;
-        let uploadDone: (() => void) | null = null;
         const pngJobUpdatePromises: Promise<unknown>[] = [];
-        const pumpUpload = () => {
-          while (inFlight < UPLOAD_CONCURRENCY && uploadQueue.length > 0) {
-            const item = uploadQueue.shift()!;
-            inFlight++;
-            (async () => {
-              const t0 = performance.now();
+        const waitForUploadSlot = async () => {
+          if (inFlight >= HT_UPLOAD_CONCURRENCY) {
+            await new Promise<void>((resolve) => uploadWaiters.push(resolve));
+          }
+          inFlight++;
+        };
+        const releaseUploadSlot = () => {
+          inFlight = Math.max(0, inFlight - 1);
+          uploadWaiters.shift()?.();
+        };
+        const uploadPngWithTimeout = async (path: string, blob: Blob) => {
+          const { data: sessionData } = await supabase.auth.getSession();
+          const token = sessionData.session?.access_token;
+          if (!token) throw new Error("로그인 세션이 만료되었습니다.");
+          const encodedPath = path.split("/").map(encodeURIComponent).join("/");
+          const controller = new AbortController();
+          const timeout = window.setTimeout(() => controller.abort(), HT_UPLOAD_TIMEOUT_MS);
+          try {
+            const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/hologram-pdf/${encodedPath}`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+                "Content-Type": "image/png",
+                "x-upsert": "true",
+              },
+              body: blob,
+              signal: controller.signal,
+            });
+            const text = await res.text();
+            if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
+          } catch (e) {
+            if (e instanceof DOMException && e.name === "AbortError") throw new Error("PNG 업로드 60초 타임아웃");
+            throw e;
+          } finally {
+            window.clearTimeout(timeout);
+          }
+        };
+        const scheduleUpload = async (item: { index: number; name: string; blob: Blob; itemId: string }) => {
+          await waitForUploadSlot();
+          try {
+            const t0 = performance.now();
+            let lastError = "";
+            for (let attempt = 1; attempt <= HT_UPLOAD_MAX_ATTEMPTS; attempt++) {
               try {
-                const { error } = await supabase.storage.from("hologram-pdf")
-                  .upload(`${tmpPrefix}/${item.name}`, item.blob, { contentType: "image/png", upsert: false });
-                if (error) throw error;
+                setSendStage(`PNG 업로드 ${uploadedCount}/${totalExpected} · #${item.index} ${attempt}/${HT_UPLOAD_MAX_ATTEMPTS}`);
+                await uploadPngWithTimeout(`${tmpPrefix}/${item.name}`, item.blob);
+                const { error: rowErr } = await supabase.from("png_jobs" as any)
+                  .update({ status: "completed", file_url: `${tmpPrefix}/${item.name}`, error_message: null, completed_at: new Date().toISOString() })
+                  .eq("job_id", jobId).eq("item_id", item.itemId);
+                if (rowErr) throw rowErr;
                 uploadedCount++;
-                console.log("[Upload]", `${uploadedCount}/${details.length}`, item.name, `${(performance.now() - t0).toFixed(0)}ms`);
+                console.log("[Upload]", `${uploadedCount}/${totalExpected}`, item.name, `${(performance.now() - t0).toFixed(0)}ms`, `attempt=${attempt}`);
                 if (uploadedCount % 5 === 0) logMemory(`after ${uploadedCount} uploads`);
                 lastProgressAtRef.current = Date.now();
-                setSendProgress({ done: uploadedCount, total: details.length });
-                setSendStage(`PNG 업로드 ${uploadedCount}/${details.length}`);
-                reportProgress();
-                pngJobUpdatePromises.push(Promise.resolve(supabase.from("png_jobs" as any)
-                  .update({ status: "completed", file_url: `${tmpPrefix}/${item.name}`, completed_at: new Date().toISOString() })
-                  .eq("job_id", jobId).eq("item_id", item.itemId).then(() => {})));
+                setSendProgress({ done: uploadedCount, total: totalExpected });
+                setSendStage(`PNG 업로드 ${uploadedCount}/${totalExpected}`);
+                await reportProgress();
+                return;
               } catch (e) {
-                console.error("[Upload] failed", item.name, e);
-                skipCount++;
-                pngJobUpdatePromises.push(Promise.resolve(supabase.from("png_jobs" as any)
-                  .update({ status: "failed", error_message: e instanceof Error ? e.message : String(e) })
-                  .eq("job_id", jobId).eq("item_id", item.itemId).then(() => {})));
-              } finally {
-                inFlight--;
-                if (uploadDone && uploadQueue.length === 0 && inFlight === 0) {
-                  const r = uploadDone; uploadDone = null; r();
-                } else {
-                  pumpUpload();
-                }
+                lastError = e instanceof Error ? e.message : String(e);
+                console.error("[Upload] failed", item.name, `attempt=${attempt}`, lastError);
+                if (attempt < HT_UPLOAD_MAX_ATTEMPTS) await new Promise((resolve) => window.setTimeout(resolve, 700 * attempt));
               }
-            })();
+            }
+            skipCount++;
+            addUploadIssue(item.index, item.name, lastError || "PNG 업로드 실패");
+            const { error: failErr } = await supabase.from("png_jobs" as any)
+              .update({ status: "failed", error_message: lastError || "PNG 업로드 실패" })
+              .eq("job_id", jobId).eq("item_id", item.itemId);
+            if (failErr) console.error("[Upload] failed row update", item.name, failErr.message);
+          } finally {
+            releaseUploadSlot();
           }
         };
 
