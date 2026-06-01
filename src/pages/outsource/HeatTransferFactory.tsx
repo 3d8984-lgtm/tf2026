@@ -1676,7 +1676,21 @@ function OrderProgressBox({
         .maybeSingle();
       if (jobErr || !jobRow) throw new Error(`잡 생성 실패: ${jobErr?.message || "no row"}`);
       jobId = (jobRow as any).id as string;
+      setActiveJobId(jobId);
+      setShowResume(false);
+      lastProgressAtRef.current = Date.now();
       const tmpPrefix = `orders/heat-transfer-jobs/${jobId}`;
+
+      await supabase.from("png_jobs" as any).upsert(
+        details.map((d) => ({ job_id: jobId, item_id: d.designUid, status: "pending" })),
+        { onConflict: "job_id,item_id", ignoreDuplicates: true } as any,
+      );
+      const { data: existingRows } = await supabase.from("png_jobs" as any)
+        .select("item_id,status,file_url,error_message,last_heartbeat,completed_at")
+        .eq("job_id", jobId);
+      const completedItems = new Set(((existingRows || []) as unknown as PngJobRow[])
+        .filter((r) => r.status === "completed")
+        .map((r) => r.item_id));
 
       // 2) 작업지시서 PDF 업로드
       setSendStage("작업지시서 업로드 중");
@@ -1684,7 +1698,7 @@ function OrderProgressBox({
       const pdfBlob = new Blob([woBytes as BlobPart], { type: "application/pdf" });
       {
         const { error } = await supabase.storage.from("hologram-pdf")
-          .upload(`${tmpPrefix}/__work_order.pdf`, pdfBlob, { contentType: "application/pdf", upsert: false });
+          .upload(`${tmpPrefix}/__work_order.pdf`, pdfBlob, { contentType: "application/pdf", upsert: true });
         if (error) throw new Error(`작업지시서 업로드 실패: ${error.message}`);
       }
 
@@ -1786,13 +1800,26 @@ function OrderProgressBox({
         const pending: Promise<void>[] = [];
         for (let i = 0; i < details.length; i++) {
           const d = details[i];
+          if (completedItems.has(d.designUid)) { uploadedCount++; setSendProgress({ done: uploadedCount, total: details.length }); continue; }
           const src = testDesign || d.designSrc;
-          if (!src) { skipCount++; continue; }
+          if (!src) {
+            skipCount++;
+            await supabase.from("png_jobs" as any).update({ status: "failed", error_message: "디자인 소스 없음" }).eq("job_id", jobId).eq("item_id", d.designUid);
+            continue;
+          }
           const target = normalizeSize(d.tshirtSize);
           const fmt = (target ? formats.find((f) => normalizeSize(f.sizeLabel) === target) : null) || outline;
-          if (!fmt) { skipCount++; continue; }
+          if (!fmt) {
+            skipCount++;
+            await supabase.from("png_jobs" as any).update({ status: "failed", error_message: `사이즈 ${d.tshirtSize || "?"} 포맷 없음` }).eq("job_id", jobId).eq("item_id", d.designUid);
+            continue;
+          }
           const bundle = await getMaskBundle(fmt);
-          if (!bundle) { skipCount++; continue; }
+          if (!bundle) {
+            skipCount++;
+            await supabase.from("png_jobs" as any).update({ status: "failed", error_message: "마스크 생성 실패" }).eq("job_id", jobId).eq("item_id", d.designUid);
+            continue;
+          }
 
           const task: PoolTask = {
             idx: i,
@@ -1814,14 +1841,28 @@ function OrderProgressBox({
           };
 
           pending.push((async () => {
+            let hb: number | null = null;
+            try {
+              await supabase.from("png_jobs" as any).update({ status: "processing", last_heartbeat: new Date().toISOString(), error_message: null }).eq("job_id", jobId).eq("item_id", d.designUid);
+              hb = window.setInterval(() => {
+                supabase.from("png_jobs" as any).update({ last_heartbeat: new Date().toISOString() }).eq("job_id", jobId).eq("item_id", d.designUid).then(() => {});
+              }, 5000);
             const res = await enqueueBuild(task);
-            if (!res.blob) { skipCount++; console.warn("PNG 생성 실패", res.designUid, res.reason); return; }
+            if (!res.blob) {
+              skipCount++;
+              console.warn("PNG 생성 실패", res.designUid, res.reason);
+              await supabase.from("png_jobs" as any).update({ status: "failed", error_message: res.reason || "PNG 생성 실패" }).eq("job_id", jobId).eq("item_id", d.designUid);
+              return;
+            }
             const count = used.get(res.designUid) ?? 0;
             const name = count === 0 ? `${res.designUid}.png` : `${res.designUid}(${count}).png`;
             used.set(res.designUid, count + 1);
             okCount++;
-            uploadQueue.push({ name, blob: res.blob });
+            uploadQueue.push({ name, blob: res.blob, itemId: d.designUid } as any);
             pumpUpload();
+            } finally {
+              if (hb) window.clearInterval(hb);
+            }
           })());
         }
         await Promise.all(pending);
