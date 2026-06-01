@@ -1423,7 +1423,19 @@ function DesignTab({
                 포함
               </label>
               <Button size="sm" variant="ghost" className="h-7 text-xs"
-                onClick={() => setFooter(DEFAULT_FOOTER_CFG)}>초기화</Button>
+                onClick={() => {
+                  setFooter(DEFAULT_FOOTER_CFG);
+                  try { localStorage.removeItem(FOOTER_STORAGE_KEY); } catch {}
+                }}>초기화</Button>
+              <Button size="sm" className="h-7 text-xs"
+                onClick={() => {
+                  try {
+                    localStorage.setItem(FOOTER_STORAGE_KEY, JSON.stringify(footer));
+                    toast({ title: "저장됨", description: "QR·고유번호 설정이 저장되었습니다." });
+                  } catch (e: any) {
+                    toast({ title: "저장 실패", description: e?.message || "", variant: "destructive" });
+                  }
+                }}>저장</Button>
             </div>
           </div>
           <div className="grid md:grid-cols-5 gap-3">
