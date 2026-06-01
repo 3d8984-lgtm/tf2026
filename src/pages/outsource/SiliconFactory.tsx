@@ -237,6 +237,9 @@ export default function SiliconFactory() {
   const [proofPage, setProofPage] = useState(0);
   const [proofQrPage, setProofQrPage] = useState(0);
   const [proofQrMap, setProofQrMap] = useState<Record<string, string>>({});
+  // 트윈코드 테스트 SVG (ProofBox와 발주진행 Step2에서 공유)
+  const [testTwinSvg, setTestTwinSvg] = useState<{ url: string; name: string } | null>(null);
+  useEffect(() => () => { if (testTwinSvg?.url) URL.revokeObjectURL(testTwinSvg.url); }, [testTwinSvg]);
 
   useEffect(() => {
     let cancelled = false;
