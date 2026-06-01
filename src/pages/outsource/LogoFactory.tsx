@@ -292,6 +292,11 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const testLogoInputRef = useRef<HTMLInputElement>(null);
   const upscaledUploadInputRef = useRef<HTMLInputElement>(null);
   const [upscaledUploadName, setUpscaledUploadName] = useState<string | null>(null);
+  // Photoroom upscaling: manual source override + scale
+  const photoroomSourceInputRef = useRef<HTMLInputElement>(null);
+  const [photoroomSourceDataUrl, setPhotoroomSourceDataUrl] = useState<string | null>(null);
+  const [photoroomSourceName, setPhotoroomSourceName] = useState<string | null>(null);
+  const [photoroomScale, setPhotoroomScale] = useState<2 | 4>(2);
   const [busy, setBusy] = useState<string | null>(null);
   // Compare viewer
   const [compareMode, setCompareMode] = useState<"side" | "slider">("side");
