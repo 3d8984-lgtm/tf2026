@@ -4,13 +4,12 @@
 // updates heartbeat/progress, and asks the client/watchdog to call again when needed.
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { zipSync } from "npm:fflate@0.8.2";
+import { Zip, ZipPassThrough } from "npm:fflate@0.8.2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const BUCKET = "hologram-pdf";
-const BATCH_SIZE = 12;
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -147,28 +146,34 @@ async function processJob(admin: any, jobId: string) {
         return { path: p, name: p.split("/").pop() || `${f.item_id}.png` };
       }),
     ];
-    const start = Math.max(0, Number(job.zip_progress || 0));
-    const slice = entries.slice(0, Math.min(entries.length, start + BATCH_SIZE));
-    const allNames = entries;
-    await setJob(admin, jobId, { stage: `ZIP 빌드 중 ${slice.length}/${allNames.length}` });
+    await setJob(admin, jobId, { stage: `ZIP 스트리밍 빌드 ${entries.length}개` });
 
-    const zipEntries: Record<string, Uint8Array> = {};
-    for (const e of slice) {
-      zipEntries[entryName(folderName, e.name)] = await downloadBytes(admin, e.path);
+    // Stream ZIP: push one file at a time, release bytes after each push so memory stays bounded.
+    const chunks: Uint8Array[] = [];
+    let zipErr: Error | null = null;
+    const zip = new Zip();
+    zip.ondata = (err, chunk, _final) => {
+      if (err) zipErr = err;
+      else if (chunk && chunk.length) chunks.push(chunk);
+    };
+    for (const e of entries) {
+      const file = new ZipPassThrough(entryName(folderName, e.name));
+      zip.add(file);
+      const bytes = await downloadBytes(admin, e.path);
+      file.push(bytes, true);
+      if (zipErr) throw zipErr;
     }
-    const zipped = zipSync(zipEntries, { level: 0 });
-    const { error: upErr } = await admin.storage.from(BUCKET).upload(zipPath, new Blob([zipped], { type: "application/zip" }), {
+    zip.end();
+    if (zipErr) throw zipErr;
+
+    const zipBlob = new Blob(chunks, { type: "application/zip" });
+    const { error: upErr } = await admin.storage.from(BUCKET).upload(zipPath, zipBlob, {
       contentType: "application/zip",
       upsert: true,
     });
     if (upErr) throw new Error(`ZIP 업로드 실패: ${upErr.message}`);
 
-    await setJob(admin, jobId, {
-      zip_progress: slice.length,
-      stage: slice.length < allNames.length ? `ZIP 재개 대기 ${slice.length}/${allNames.length}` : "ZIP 완료",
-    });
-
-    if (slice.length < allNames.length) return { status: "partial_zip", jobId, zip_progress: slice.length, total_files: allNames.length };
+    await setJob(admin, jobId, { zip_progress: entries.length, stage: "ZIP 완료" });
 
     const { data: pub } = admin.storage.from(BUCKET).getPublicUrl(zipPath);
     const zipUrl = pub.publicUrl;
