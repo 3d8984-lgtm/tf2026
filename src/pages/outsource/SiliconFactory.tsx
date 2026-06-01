@@ -1542,14 +1542,38 @@ function SiliconOrderProgressBox({
           </DialogContent>
         </Dialog>
 
-        {/* Step 2 Dialog — PDF 파일 / QR코드 시안 미리보기 */}
-        <Step2PreviewDialog
-          open={open2}
-          onOpenChange={setOpen2}
-          items={items}
-          templates={templates}
-          onConfirm={() => { setConfirmed2(true); persist({ confirmed2: true }); setOpen2(false); toast({ title: "작업파일 확인 완료" }); }}
-        />
+        {/* Step 2 Dialog — 트윈코드 시안 + 큐알코드 시안 미리보기 (ProofBox 재사용) */}
+        <Dialog open={open2} onOpenChange={setOpen2}>
+          <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-green-600" />
+                작업파일 확인 — 트윈코드 / QR코드 시안 ({items.length}건)
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-auto">
+              <ProofBox
+                items={items as any}
+                templates={templates}
+                proof={proof}
+                setProof={setProof}
+                qrMap={proofQrMap}
+                page={proofPage}
+                setPage={setProofPage}
+                qrPage={proofQrPage}
+                setQrPage={setProofQrPage}
+                order={order}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t mt-2">
+              <Button variant="outline" onClick={() => setOpen2(false)}>닫기</Button>
+              <Button onClick={() => { setConfirmed2(true); persist({ confirmed2: true }); setOpen2(false); toast({ title: "작업파일 확인 완료" }); }}>
+                <CheckCircle2 className="w-4 h-4 mr-1" /> 확인
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
 
         {/* Webhook settings dialog */}
         <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
