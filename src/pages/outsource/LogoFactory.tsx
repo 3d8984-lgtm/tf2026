@@ -1106,12 +1106,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
         out = canvas.toDataURL("image/png");
       }
 
-      setProcessedDataUrl(out);
-      setProcessedKind("upscaled");
-      // 트리밍 후 위치를 중앙으로 리셋 (이전 오프셋이 남아 한쪽으로 쏠리는 현상 방지)
-      setOffsetXMm(0);
-      setOffsetYMm(0);
-      setLastAnalysis((prev) => prev ? { ...prev, transparent: true } : prev);
+      applyProcessedLogo(await trimTransparentEdges(out));
       toast({
         title: "배경 제거 완료",
         description: `배경색 RGB(${Math.round(br)},${Math.round(bg)},${Math.round(bb)}) 기준 투명 처리${trimmedInfo}. 로고 크기가 실제 인쇄 영역 기준으로 재측정됩니다.`,
