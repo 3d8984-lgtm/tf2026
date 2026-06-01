@@ -27,6 +27,7 @@ import JSZip from "jszip";
 const DESIGN_FORMAT_BUCKET = "design-formats";
 const DESIGN_FORMAT_FOLDER = "heat-transfer";
 const HT_ACTIVE_ORDER_LS_KEY = "htf:activeOrderId:v1";
+const HT_SELECTED_FORMAT_LS_KEY = "htf:selectedFormatId:v1";
 const HT_UI_DRAFT_PREFIX = "htf:designUiDraft:v1:";
 const HT_DESIGN_DB_NAME = "heatTransferDesignDrafts";
 const HT_DESIGN_STORE = "designFiles";
@@ -490,8 +491,18 @@ export default function HeatTransferFactory() {
     heightPt: number;
   };
   const [formats, setFormats] = useState<FormatEntry[]>([]);
-  const [selectedFormatId, setSelectedFormatId] = useState<string | null>(null);
+  const [selectedFormatId, setSelectedFormatIdState] = useState<string | null>(() => {
+    try { return localStorage.getItem(HT_SELECTED_FORMAT_LS_KEY); } catch { return null; }
+  });
   const [formatsLoading, setFormatsLoading] = useState(false);
+
+  const setSelectedFormatId = (id: string | null) => {
+    setSelectedFormatIdState(id);
+    try {
+      if (id) localStorage.setItem(HT_SELECTED_FORMAT_LS_KEY, id);
+      else localStorage.removeItem(HT_SELECTED_FORMAT_LS_KEY);
+    } catch {}
+  };
 
   const runDesignFormatStorageAction = async (form: FormData) => {
     const { data, error } = await supabase.functions.invoke("design-format-storage", { body: form });
@@ -678,7 +689,10 @@ export default function HeatTransferFactory() {
   const activeOrder = orders.find((o) => o.id === activeOrderId) || null;
 
   useEffect(() => {
-    if (activeOrderId && !activeOrder && orders.length > 0) setActiveOrderId(null);
+    if (activeOrderId && !activeOrder && orders.length > 0) {
+      setActiveOrderId(null);
+      try { localStorage.removeItem(HT_ACTIVE_ORDER_LS_KEY); } catch {}
+    }
   }, [activeOrderId, activeOrder, orders.length]);
 
   const openOrder = (id: string | null) => {
