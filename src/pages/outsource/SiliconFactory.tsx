@@ -1969,6 +1969,7 @@ interface ProofSettings {
 
 function ProofBox({
   items, templates, proof, setProof, qrMap, page, setPage, qrPage, setQrPage, order,
+  testTwinSvg, setTestTwinSvg,
 }: {
   items: ProofItem[];
   templates: Record<Grade, { name: string; bytes: Uint8Array; preview: string; aspect: number } | null>;
@@ -1978,6 +1979,8 @@ function ProofBox({
   page: number; setPage: (n: number) => void;
   qrPage: number; setQrPage: (n: number) => void;
   order?: any;
+  testTwinSvg: { url: string; name: string } | null;
+  setTestTwinSvg: React.Dispatch<React.SetStateAction<{ url: string; name: string } | null>>;
 }) {
 
   const PAPER_W_PX = 640;
