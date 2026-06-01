@@ -1595,7 +1595,7 @@ function OrderProgressBox({
       setOrdered(true); persist({ ordered: true });
       try {
         await supabase.from("outsource_orders" as any).insert({
-          factory: "heat-transfer",
+          factory: "heat",
           order_no: order.orderNo,
           product_code: order.raw?.product_code || order.orderNo,
           quantity: ok,
