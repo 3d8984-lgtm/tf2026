@@ -1800,6 +1800,7 @@ function SiliconOrderProgressBox({
         const bytes = await buildSiliconTwinPdfPage({
           items: proofItems, pageIdx: p, proof, templates,
           gradeColorNames: colorNames, gradeColorStyle: colorStyle,
+          overrideTwinSvgUrl: testTwinSvgUrl || null,
         });
         tpuFolder.file(`${folderName}(${p + 1}).pdf`, bytes);
       }
