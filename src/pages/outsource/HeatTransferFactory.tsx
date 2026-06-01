@@ -1746,9 +1746,9 @@ function DesignTab({
   const [offsetY, setOffsetYState] = useState(uiDraft.offsetY ?? 0);
   const [designScale, setDesignScaleState] = useState(uiDraft.designScale ?? 1);
   const setQuality = (v: QualityPresetKey) => { setQualityState(v); writeHtDesignUiDraft(order.orderNo, { quality: v }); };
-  const setOffsetX = (v: number) => { setOffsetXState(v); writeHtDesignUiDraft(order.orderNo, { offsetX: v }); };
-  const setOffsetY = (v: number) => { setOffsetYState(v); writeHtDesignUiDraft(order.orderNo, { offsetY: v }); };
-  const setDesignScale = (v: number) => { setDesignScaleState(v); writeHtDesignUiDraft(order.orderNo, { designScale: v }); };
+  const setOffsetX = (v: number) => setOffsetXState(v);
+  const setOffsetY = (v: number) => setOffsetYState(v);
+  const setDesignScale = (v: number) => setDesignScaleState(v);
   const transform = { offsetXPct: offsetX, offsetYPct: offsetY, scale: designScale };
 
   // Footer (UID + QR) config — persisted to localStorage
