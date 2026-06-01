@@ -404,6 +404,16 @@ type PngJobRow = {
   completed_at?: string | null;
 };
 
+type UploadIssue = {
+  index: number;
+  fileName: string;
+  reason: string;
+};
+
+const HT_UPLOAD_CONCURRENCY = 5;
+const HT_UPLOAD_TIMEOUT_MS = 60_000;
+const HT_UPLOAD_MAX_ATTEMPTS = 3;
+
 type HtDesignUiDraft = {
   quality?: QualityPresetKey;
   offsetX?: number;
