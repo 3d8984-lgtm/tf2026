@@ -643,7 +643,31 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
         body: { imageBase64: prepared.payload, mode: "upscale", scale: photoroomScale },
       });
       if (error) throw new Error(error.message || "Photoroom 호출 실패");
-      if (!data?.ok || !data?.imageDataUrl) throw new Error(data?.error || "Photoroom 응답이 비어 있습니다");
+      if (!data?.ok || !data?.imageDataUrl) {
+        const code = String(data?.code || "");
+        if (code === "PHOTOROOM_504" || code === "PHOTOROOM_TIMEOUT") {
+          const fallbackImg = await loadImage(prepared.payload);
+          const fallback = smartUpscale(
+            fallbackImg,
+            fallbackImg.naturalWidth * photoroomScale,
+            fallbackImg.naturalHeight * photoroomScale,
+            { mode: "auto", sharpness: upscaleSharpness },
+          );
+          const fallbackDataUrl = await canvasToPngDataUrl(fallback.canvas);
+          setUpscaledDataUrl(fallbackDataUrl);
+          setProcessedDataUrl(fallbackDataUrl);
+          setProcessedKind("upscaled");
+          setCompareTarget("upscaled");
+          setLastAnalysis(fallback.analysis);
+          setLastMethod(`Photoroom timeout → ${fallback.method}`);
+          toast({
+            title: "Photoroom 응답 지연 → 로컬 업스케일 적용",
+            description: `${fallback.canvas.width}×${fallback.canvas.height} · 서버 504로 자동 대체되었습니다.`,
+          });
+          return;
+        }
+        throw new Error(data?.error || "Photoroom 응답이 비어 있습니다");
+      }
       const up = data.imageDataUrl as string;
       const img = await loadImage(up);
       setUpscaledDataUrl(up);
