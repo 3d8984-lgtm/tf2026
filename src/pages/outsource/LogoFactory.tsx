@@ -1016,7 +1016,13 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
         if (!raw) throw new Error("Photoroom 응답에 이미지가 없습니다");
         // Photoroom이 원본 캔버스를 유지해 한쪽으로 쏠리는 경우가 있어
         // 클라이언트에서 알파 경계 기준으로 다시 트리밍해 중앙 정렬을 보장한다.
-        applyProcessedLogo(await trimTransparentEdges(raw));
+        const inputImage = await loadImage(dataUrl);
+        const trimmed = await trimTransparentEdges(raw);
+        applyProcessedLogo({
+          ...trimmed,
+          originalWidth: inputImage.naturalWidth || inputImage.width,
+          originalHeight: inputImage.naturalHeight || inputImage.height,
+        });
         toast({ title: "배경 제거 완료 (Photoroom)", description: "AI 기반 배경 제거 + 자동 크롭으로 중앙 정렬되었습니다." });
         return;
       } catch (apiErr: any) {
