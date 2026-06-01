@@ -292,6 +292,11 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const testLogoInputRef = useRef<HTMLInputElement>(null);
   const upscaledUploadInputRef = useRef<HTMLInputElement>(null);
   const [upscaledUploadName, setUpscaledUploadName] = useState<string | null>(null);
+  // Photoroom upscaling: manual source override + scale
+  const photoroomSourceInputRef = useRef<HTMLInputElement>(null);
+  const [photoroomSourceDataUrl, setPhotoroomSourceDataUrl] = useState<string | null>(null);
+  const [photoroomSourceName, setPhotoroomSourceName] = useState<string | null>(null);
+  const [photoroomScale, setPhotoroomScale] = useState<2 | 4>(2);
   const [busy, setBusy] = useState<string | null>(null);
   // Compare viewer
   const [compareMode, setCompareMode] = useState<"side" | "slider">("side");
@@ -576,29 +581,45 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
     reader.readAsDataURL(file);
   };
 
+  const handlePhotoroomSourceUpload = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "이미지 파일만 업로드 가능합니다", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPhotoroomSourceDataUrl(reader.result as string);
+      setPhotoroomSourceName(file.name);
+      toast({ title: "업스케일 소스 업로드 완료", description: file.name });
+    };
+    reader.onerror = () => toast({ title: "파일 읽기 실패", variant: "destructive" });
+    reader.readAsDataURL(file);
+  };
+
   const handleUpscale = async () => {
-    if (!sourceLogo) return;
-    setBusy("로고 업스케일링 중 (smart Lanczos3)...");
+    const src = photoroomSourceDataUrl || sourceLogo;
+    if (!src) {
+      toast({ title: "업스케일할 이미지가 없습니다", description: "API 로고가 없다면 수동 업로드를 사용하세요.", variant: "destructive" });
+      return;
+    }
+    setBusy(`Photoroom 업스케일 중 (${photoroomScale}×)...`);
     try {
-      const src = sourceLogo!;
       const dataUrl = src.startsWith("data:") ? src : await fetchAsDataUrl(src);
-      const img = await loadImage(dataUrl);
-      const targetW = img.naturalWidth * 2;
-      const targetH = img.naturalHeight * 2;
-      const { canvas, analysis, method } = smartUpscale(img, targetW, targetH, {
-        mode: upscaleMode,
-        sharpness: upscaleSharpness,
+      const { data, error } = await supabase.functions.invoke("photoroom-upscale", {
+        body: { imageBase64: dataUrl, mode: "upscale", scale: photoroomScale },
       });
-      const up = canvas.toDataURL("image/png");
+      if (error) throw new Error(error.message || "Photoroom 호출 실패");
+      if (!data?.ok || !data?.imageDataUrl) throw new Error(data?.error || "Photoroom 응답이 비어 있습니다");
+      const up = data.imageDataUrl as string;
+      const img = await loadImage(up);
       setUpscaledDataUrl(up);
       setProcessedDataUrl(up);
       setProcessedKind("upscaled");
       setCompareTarget("upscaled");
-      setLastAnalysis(analysis);
-      setLastMethod(method);
+      setLastMethod(`Photoroom AI ${photoroomScale}×`);
       toast({
-        title: "업스케일 완료",
-        description: `${img.naturalWidth}×${img.naturalHeight} → ${canvas.width}×${canvas.height} · ${method}`,
+        title: "Photoroom 업스케일 완료",
+        description: `${img.naturalWidth}×${img.naturalHeight} · ${photoroomScale}× (자동 모드)`,
       });
     } catch (e: any) {
       toast({ title: "업스케일 실패", description: e.message, variant: "destructive" });
@@ -1442,35 +1463,86 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                           </Button>
                         </div>
 
-                        {/* 내장 업스케일 */}
+                        {/* Photoroom 업스케일 */}
                         <div className="p-4 rounded-md border space-y-3">
-                          <div className="font-semibold text-sm">② 사이트 내장 업스케일 (2×)</div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div className="space-y-1">
-                              <Label className="text-[10px]">모드</Label>
-                              <Select value={upscaleMode} onValueChange={(v) => setUpscaleMode(v as UpscaleMode)}>
-                                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="auto">자동</SelectItem>
-                                  <SelectItem value="logo">로고/라인</SelectItem>
-                                  <SelectItem value="text">텍스트</SelectItem>
-                                  <SelectItem value="illustration">일러스트</SelectItem>
-                                  <SelectItem value="photo">사진</SelectItem>
-                                  <SelectItem value="pixel">픽셀</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[10px]">샤프니스 {upscaleSharpness}</Label>
-                              <Slider value={[upscaleSharpness]} min={0} max={100} step={5} onValueChange={(v) => setUpscaleSharpness(v[0])} />
+                          <div className="font-semibold text-sm flex items-center gap-2">
+                            ② Photoroom 업스케일
+                            <Badge variant="secondary" className="text-[10px]">AI 자동 모드</Badge>
+                          </div>
+
+                          {/* Source: API logo (default) or manual upload */}
+                          <div className="space-y-2">
+                            <Label className="text-[10px]">업스케일 소스</Label>
+                            <div className="flex items-center gap-2 p-2 rounded border bg-muted/20">
+                              <div className="w-12 h-12 border rounded bg-background flex items-center justify-center overflow-hidden shrink-0">
+                                {(photoroomSourceDataUrl || sourceLogo) ? (
+                                  <img src={photoroomSourceDataUrl || sourceLogo!} alt="src" className="max-w-full max-h-full object-contain" />
+                                ) : (
+                                  <span className="text-[10px] text-muted-foreground">없음</span>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0 text-[11px]">
+                                {photoroomSourceDataUrl ? (
+                                  <>수동 업로드: <span className="font-mono truncate block">{photoroomSourceName}</span></>
+                                ) : sourceLogo ? (
+                                  <span className="text-muted-foreground">API 로고 사용 중</span>
+                                ) : (
+                                  <span className="text-muted-foreground">소스 이미지를 업로드하세요</span>
+                                )}
+                              </div>
+                              <input
+                                ref={photoroomSourceInputRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  if (f) handlePhotoroomSourceUpload(f);
+                                  e.target.value = "";
+                                }}
+                              />
+                              <Button size="sm" variant="outline" onClick={() => photoroomSourceInputRef.current?.click()}>
+                                <Upload className="w-3 h-3 mr-1" /> {photoroomSourceDataUrl ? "교체" : "업로드"}
+                              </Button>
+                              {photoroomSourceDataUrl && (
+                                <Button size="sm" variant="ghost" onClick={() => { setPhotoroomSourceDataUrl(null); setPhotoroomSourceName(null); }}>
+                                  초기화
+                                </Button>
+                              )}
                             </div>
                           </div>
-                          <Button size="sm" className="w-full" onClick={handleUpscale} disabled={!sourceLogo || !!busy}>
-                            <Sparkles className="w-3 h-3 mr-1" /> 업스케일 실행
+
+                          <div className="space-y-1">
+                            <Label className="text-[10px]">사이즈</Label>
+                            <Select value={String(photoroomScale)} onValueChange={(v) => setPhotoroomScale(Number(v) as 2 | 4)}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="2">2× (2배 확대)</SelectItem>
+                                <SelectItem value="4">4× (4배 확대)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <Button size="sm" className="w-full" onClick={handleUpscale} disabled={(!sourceLogo && !photoroomSourceDataUrl) || !!busy}>
+                            <Sparkles className="w-3 h-3 mr-1" /> Photoroom 업스케일 실행
                           </Button>
-                          {upscaledDataUrl && <div className="text-[11px] text-emerald-600">✓ 업스케일 완료</div>}
+
+                          {upscaledDataUrl && (
+                            <div className="space-y-2 pt-2 border-t">
+                              <div className="text-[11px] text-emerald-600 flex items-center justify-between">
+                                <span>✓ 업스케일 완료</span>
+                                <Button size="sm" variant="outline" className="h-7" onClick={() => downloadUrl(upscaledDataUrl, `logo-upscaled-${photoroomScale}x-${orderNo}.png`)}>
+                                  <Download className="w-3 h-3 mr-1" /> 다운로드
+                                </Button>
+                              </div>
+                              <div className="rounded border bg-[conic-gradient(at_50%_50%,#ddd_0_25%,#fff_0_50%,#ddd_0_75%,#fff_0)] bg-[length:16px_16px] p-2 flex items-center justify-center max-h-72 overflow-auto">
+                                <img src={upscaledDataUrl} alt="업스케일 미리보기" className="max-w-full max-h-64 object-contain" />
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
+
 
                       {logoType === "mono" && !upscaledDataUrl && (
                         <div className="flex items-center justify-between p-3 rounded-md bg-muted/20 border">
