@@ -913,6 +913,11 @@ function OrderDetail({
         <h2 className="text-base font-semibold">작업번호 <span className="font-mono">{order.orderNo}</span></h2>
       </div>
 
+      <OrderProgressBox
+        order={order} details={details} outline={outline}
+        formats={formats} testDesign={testDesign}
+      />
+
       <WorkOrderInfoBox order={order} outlinePreview={outline?.previewUrl} />
 
       <Tabs defaultValue="design">
@@ -953,19 +958,25 @@ function TxtField({ label, v, set, type = "text" }: { label: string; v: string; 
   );
 }
 
-function printHtWorkOrder(wo: HtWorkOrderData, outlinePreview?: string | null) {
+function buildHtWorkOrderHtml(wo: HtWorkOrderData, outlinePreview?: string | null, opts?: { autoPrint?: boolean }) {
   const esc = (s: any) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
   const today = new Date().toISOString().slice(0, 10);
   const outlineBlock = outlinePreview
     ? `<h2>设计外框(示例)</h2><div class="outline"><img src="${outlinePreview}" alt="outline" /></div>`
     : "";
-  const html = `<!doctype html>
+  const autoPrintScript = opts?.autoPrint
+    ? `<script>window.addEventListener("load", () => setTimeout(() => window.print(), 300));</script>`
+    : "";
+  const printBtn = opts?.autoPrint
+    ? `<div class="no-print"><button onclick="window.print()">打印 / 保存PDF</button></div>`
+    : "";
+  return `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8" />
 <title>作业指示书 - ${esc(wo.orderNo)}</title>
 <style>
   @page { size: A4; margin: 12mm; }
   * { box-sizing: border-box; }
-  body { font-family: "PingFang SC", "Microsoft YaHei", "SimHei", "Noto Sans SC", sans-serif; color:#111; margin:0; padding:0; }
+  body { font-family: "PingFang SC", "Microsoft YaHei", "SimHei", "Noto Sans SC", sans-serif; color:#111; margin:0; padding:12mm; background:#fff; }
   h1 { font-size: 22pt; text-align:center; margin: 0 0 4mm; letter-spacing: 8px; border-bottom: 2px solid #111; padding-bottom: 4mm; }
   .meta { display:flex; justify-content:space-between; font-size: 9pt; color:#555; margin-bottom: 6mm; }
   table { width:100%; border-collapse: collapse; font-size: 10pt; }
@@ -979,12 +990,12 @@ function printHtWorkOrder(wo: HtWorkOrderData, outlinePreview?: string | null) {
   .outline img { max-width: 100%; max-height: 80mm; object-fit: contain; }
   .sig { margin-top: 10mm; display:flex; justify-content:flex-end; gap: 10mm; font-size: 10pt; }
   .sig div { border-top:1px solid #333; padding-top:2mm; min-width: 40mm; text-align:center; }
-  @media print { .no-print { display:none; } }
+  @media print { .no-print { display:none; } body { padding:0; } }
   .no-print { position:fixed; top:8px; right:8px; }
   .no-print button { padding: 8px 14px; font-size: 13px; cursor:pointer; }
 </style></head>
 <body>
-  <div class="no-print"><button onclick="window.print()">打印 / 保存PDF</button></div>
+  ${printBtn}
   <h1>作 业 指 示 书</h1>
   <div class="meta"><span>发包方:${esc(wo.company)}</span><span>打印日期:${today}</span></div>
   <table>
@@ -999,8 +1010,12 @@ function printHtWorkOrder(wo: HtWorkOrderData, outlinePreview?: string | null) {
   <table><tr><td class="notes">${esc(wo.notes) || "&nbsp;"}</td></tr></table>
   ${outlineBlock}
   <div class="sig"><div>负责人</div><div>审批</div></div>
-  <script>window.addEventListener("load", () => setTimeout(() => window.print(), 300));</script>
+  ${autoPrintScript}
 </body></html>`;
+}
+
+function printHtWorkOrder(wo: HtWorkOrderData, outlinePreview?: string | null) {
+  const html = buildHtWorkOrderHtml(wo, outlinePreview, { autoPrint: true });
   const w = window.open("", "_blank", "width=900,height=1100");
   if (!w) { toast({ title: "팝업 차단됨", description: "팝업을 허용해주세요", variant: "destructive" }); return; }
   w.document.open(); w.document.write(html); w.document.close();
@@ -1081,6 +1096,255 @@ function WorkOrderInfoBox({ order, outlinePreview }: { order: OrderRow; outlineP
           <Label className="text-xs">발주특이사항</Label>
           <Textarea value={wo.notes} onChange={(e) => set({ notes: e.target.value })} rows={3} placeholder="특이사항을 입력하세요" />
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============ 발주진행 박스 (작업지시서 미리보기 / PNG 썸네일 / ZIP 다운로드) ============
+
+const FOOTER_STORAGE_KEY_RO = "htf:footerCfg:v1";
+function loadFooterCfg(): FooterCfg {
+  try {
+    const raw = localStorage.getItem(FOOTER_STORAGE_KEY_RO);
+    if (raw) return { ...DEFAULT_FOOTER_CFG, ...JSON.parse(raw) };
+  } catch {}
+  return DEFAULT_FOOTER_CFG;
+}
+
+function loadWoData(order: OrderRow): HtWorkOrderData {
+  const sd = order.raw?.source_data || {};
+  const defaults: HtWorkOrderData = {
+    company: "TWINMETA",
+    orderNo: order.orderNo,
+    orderDate: order.receivedAt,
+    deliveryDate: order.dueDate,
+    total: order.workQty,
+    recipient: order.raw?.recipient_name || "TWINMETA",
+    phone: order.raw?.recipient_phone || "18562757070",
+    address: order.raw?.shipping_address || "山东省 青岛市 城阳区 青岛市城阳区流亭街道杨埠寨社区工业园6号厂房东侧1楼 TWINMETA",
+    notes: sd.notes || sd.special_notes || sd.memo || "",
+  };
+  try {
+    const raw = localStorage.getItem(`heatTransfer.workOrder.v1.${order.orderNo}`);
+    if (raw) return { ...defaults, ...JSON.parse(raw) };
+  } catch {}
+  return defaults;
+}
+
+interface ThumbItem { uid: string; size: string; url: string; blob: Blob; }
+
+function OrderProgressBox({
+  order, details, outline, formats, testDesign,
+}: {
+  order: OrderRow;
+  details: DesignDetail[];
+  outline: OutlineFormat | null;
+  formats: SizedFormat[];
+  testDesign: string | null;
+}) {
+  const [tab, setTab] = useState<"workorder" | "files" | "zip">("workorder");
+  const [thumbs, setThumbs] = useState<ThumbItem[]>([]);
+  const [genBusy, setGenBusy] = useState(false);
+  const [zipBusy, setZipBusy] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
+  const [previewIdx, setPreviewIdx] = useState<number | null>(null);
+
+  const woHtml = useMemo(
+    () => buildHtWorkOrderHtml(loadWoData(order), outline?.previewUrl || null),
+    [order, outline]
+  );
+
+  useEffect(() => {
+    return () => { thumbs.forEach((t) => URL.revokeObjectURL(t.url)); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const resolveFmt = (d: DesignDetail): OutlineFormat | null => {
+    const target = normalizeSize(d.tshirtSize);
+    if (!target) return outline;
+    return formats.find((f) => normalizeSize(f.sizeLabel) === target) || outline;
+  };
+
+  async function generatePngs(targetDpi: number): Promise<ThumbItem[]> {
+    const footer = loadFooterCfg();
+    const out: ThumbItem[] = [];
+    setProgress({ done: 0, total: details.length });
+    for (let i = 0; i < details.length; i++) {
+      const d = details[i];
+      const src = testDesign || d.designSrc;
+      const fmt = resolveFmt(d);
+      if (!src || !fmt) { setProgress({ done: i + 1, total: details.length }); continue; }
+      const c0 = await composeClippedDesign(
+        src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, targetDpi,
+        { offsetXPct: 0, offsetYPct: 0, scale: 1 }, { sharpen: true },
+      );
+      const c = await composeWithFooter(c0, fmt.widthPt, targetDpi, d.designUid, footer, {
+        tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize,
+      });
+      const blob = await pngWithDpi(await canvasToBlob(c), targetDpi);
+      out.push({ uid: d.designUid, size: d.tshirtSize || "size", url: URL.createObjectURL(blob), blob });
+      setProgress({ done: i + 1, total: details.length });
+    }
+    return out;
+  }
+
+  const handleGenThumbs = async () => {
+    setGenBusy(true);
+    try {
+      thumbs.forEach((t) => URL.revokeObjectURL(t.url));
+      const items = await generatePngs(120);
+      setThumbs(items);
+      if (items.length === 0) toast({ title: "생성된 미리보기가 없습니다", description: "디자인 소스/사이즈 포맷을 확인하세요", variant: "destructive" });
+    } catch (e: any) {
+      toast({ title: "미리보기 생성 실패", description: e?.message || "", variant: "destructive" });
+    } finally { setGenBusy(false); }
+  };
+
+  async function htmlToPdfBlob(html: string): Promise<Blob> {
+    const { jsPDF } = await import("jspdf");
+    const html2canvas = (await import("html2canvas")).default;
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0;";
+    document.body.appendChild(iframe);
+    try {
+      const doc = iframe.contentDocument!;
+      doc.open(); doc.write(html); doc.close();
+      await new Promise((r) => setTimeout(r, 400));
+      const canvas = await html2canvas(doc.body, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+      const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+      const pageW = 210, pageH = 297;
+      const imgRatio = canvas.height / canvas.width;
+      let drawW = pageW, drawH = pageW * imgRatio;
+      if (drawH > pageH) { drawH = pageH; drawW = pageH / imgRatio; }
+      pdf.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", (pageW - drawW) / 2, 0, drawW, drawH);
+      return pdf.output("blob");
+    } finally { document.body.removeChild(iframe); }
+  }
+
+  const handleDownloadZip = async () => {
+    setZipBusy(true);
+    try {
+      const items = thumbs.length > 0 ? thumbs : await generatePngs(300);
+      const zip = new JSZip();
+      const root = zip.folder(order.orderNo)!;
+      const pdfBlob = await htmlToPdfBlob(woHtml);
+      root.file(`작업지시서_${order.orderNo}.pdf`, pdfBlob);
+      const imgFolder = root.folder("Image")!;
+      for (const it of items) imgFolder.file(`${it.uid}.png`, it.blob);
+      const blob = await zip.generateAsync({ type: "blob" });
+      triggerDownload(blob, `${order.orderNo}.zip`);
+      toast({ title: "ZIP 생성 완료", description: `${items.length}개 PNG + 작업지시서 PDF` });
+    } catch (e: any) {
+      toast({ title: "ZIP 생성 실패", description: e?.message || "", variant: "destructive" });
+    } finally { setZipBusy(false); }
+  };
+
+  return (
+    <Card className="border-primary/40">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center justify-between">
+          <span>발주진행</span>
+          <span className="text-xs text-muted-foreground font-normal">
+            작업번호 <span className="font-mono">{order.orderNo}</span> · 총 {details.length}개
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
+          <TabsList>
+            <TabsTrigger value="workorder">1. 작업지시서</TabsTrigger>
+            <TabsTrigger value="files">2. 작업파일 확인</TabsTrigger>
+            <TabsTrigger value="zip">3. 파일 (ZIP)</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="workorder" className="mt-3">
+            <div className="border rounded bg-muted/20 p-3 flex flex-col items-center">
+              <div className="text-xs text-muted-foreground mb-2">
+                A4 미리보기 — 아래 "작업지시서 설정"에서 저장한 값이 반영됩니다
+              </div>
+              <div className="bg-white shadow" style={{ width: "min(100%, 794px)", aspectRatio: "210 / 297" }}>
+                <iframe title="workorder-preview" srcDoc={woHtml} className="w-full h-full border-0" />
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="files" className="mt-3">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-xs text-muted-foreground">
+                각 디자인의 최종 출력 PNG를 큰 아이콘 형태로 미리보기합니다.
+                {genBusy && progress.total > 0 && ` · 생성중 ${progress.done}/${progress.total}`}
+              </div>
+              <Button size="sm" onClick={handleGenThumbs} disabled={genBusy}>
+                {genBusy ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileText className="w-4 h-4 mr-1" />}
+                미리보기 생성
+              </Button>
+            </div>
+            {thumbs.length === 0 ? (
+              <div className="text-sm text-muted-foreground border rounded p-6 text-center bg-muted/20">
+                "미리보기 생성"을 눌러 모든 디자인의 PNG 미리보기를 만드세요.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                {thumbs.map((t, i) => (
+                  <button
+                    key={t.uid + i}
+                    onClick={() => setPreviewIdx(i)}
+                    className="group border rounded bg-white p-2 hover:border-primary transition-colors text-left"
+                  >
+                    <div className="aspect-square bg-muted/40 flex items-center justify-center overflow-hidden rounded">
+                      <img src={t.url} alt={t.uid} className="max-w-full max-h-full object-contain" />
+                    </div>
+                    <div className="mt-1 text-[11px] font-mono truncate text-foreground">{t.uid}</div>
+                    <div className="text-[10px] text-muted-foreground">{t.size}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+            {previewIdx !== null && thumbs[previewIdx] && (
+              <div
+                className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6"
+                onClick={() => setPreviewIdx(null)}
+              >
+                <div className="bg-white rounded p-4 max-w-[90vw] max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-between mb-2 text-foreground">
+                    <div className="text-sm font-mono">{thumbs[previewIdx].uid} · {thumbs[previewIdx].size}</div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" disabled={previewIdx === 0} onClick={() => setPreviewIdx(Math.max(0, previewIdx - 1))}>이전</Button>
+                      <Button size="sm" variant="outline" disabled={previewIdx === thumbs.length - 1} onClick={() => setPreviewIdx(Math.min(thumbs.length - 1, previewIdx + 1))}>다음</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setPreviewIdx(null)}><X className="w-4 h-4" /></Button>
+                    </div>
+                  </div>
+                  <img src={thumbs[previewIdx].url} alt={thumbs[previewIdx].uid} className="max-w-[85vw] max-h-[78vh] object-contain" />
+                </div>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="zip" className="mt-3">
+            <div className="border rounded p-4 bg-muted/20 space-y-3">
+              <div className="text-sm">위챗 발송용 ZIP 파일을 생성합니다. 폴더 구조:</div>
+              <pre className="text-xs bg-background border rounded p-3 font-mono leading-relaxed overflow-x-auto">
+{`${order.orderNo}.zip
+└─ ${order.orderNo}/
+   ├─ 작업지시서_${order.orderNo}.pdf
+   └─ Image/
+      ├─ ${details[0]?.designUid || "[디자인고유번호]"}.png
+      ├─ ${details[1]?.designUid || "..."}.png
+      └─ ... (총 ${details.length}개)`}
+              </pre>
+              <div className="flex items-center justify-between">
+                <div className="text-xs text-muted-foreground">
+                  {zipBusy && progress.total > 0 ? `생성중 ${progress.done}/${progress.total}` : "PNG는 300DPI · 작업지시서는 A4 PDF로 생성됩니다."}
+                </div>
+                <Button onClick={handleDownloadZip} disabled={zipBusy || details.length === 0}>
+                  {zipBusy ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
+                  ZIP 다운로드
+                </Button>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   );
