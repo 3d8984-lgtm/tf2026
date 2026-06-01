@@ -1459,6 +1459,11 @@ function OrderProgressBox({
   const [sending, setSending] = useState(false);
   const [sendProgress, setSendProgress] = useState<{ done: number; total: number } | null>(null);
   const [sendStage, setSendStage] = useState<string>("");
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [pngJobs, setPngJobs] = useState<Record<string, PngJobRow>>({});
+  const [showResume, setShowResume] = useState(false);
+  const lastProgressAtRef = useRef(Date.now());
+  const resumeTimerRef = useRef<number | null>(null);
 
   const readSavedTransform = () => {
     const d = readHtDesignUiDraft(order.orderNo);
@@ -1497,6 +1502,61 @@ function OrderProgressBox({
     const merged = { confirmed1, confirmed2, ordered, ...next };
     try { localStorage.setItem(stateKey, JSON.stringify(merged)); } catch {}
   };
+
+  const invokeFinalize = useCallback(async (jobId: string) => {
+    const { error } = await supabase.functions.invoke("heat-order-finalize", { body: { jobId, mode: "resume" } });
+    if (error) throw new Error(`finalize 호출 실패: ${error.message}`);
+  }, []);
+
+  const resumeActiveJob = useCallback(async () => {
+    if (!activeJobId) return;
+    setShowResume(false);
+    setSendStage("멈춘 작업 재개 요청 중");
+    await invokeFinalize(activeJobId);
+  }, [activeJobId, invokeFinalize]);
+
+  useEffect(() => {
+    if (!activeJobId) return;
+    let cancelled = false;
+    const refresh = async () => {
+      const { data } = await supabase.from("png_jobs" as any)
+        .select("item_id,status,file_url,error_message,last_heartbeat,completed_at")
+        .eq("job_id", activeJobId);
+      if (cancelled) return;
+      const rows = ((data || []) as PngJobRow[]).reduce<Record<string, PngJobRow>>((m, r) => { m[r.item_id] = r; return m; }, {});
+      setPngJobs(rows);
+      const done = Object.values(rows).filter((r) => r.status === "completed").length;
+      setSendProgress({ done, total: details.length });
+      lastProgressAtRef.current = Date.now();
+    };
+    refresh();
+    const ch = supabase.channel(`png-jobs-${activeJobId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "png_jobs", filter: `job_id=eq.${activeJobId}` }, (payload) => {
+        const row = payload.new as PngJobRow;
+        if (!row?.item_id) return;
+        setPngJobs((prev) => {
+          const next = { ...prev, [row.item_id]: row };
+          const done = Object.values(next).filter((r) => r.status === "completed").length;
+          setSendProgress({ done, total: details.length });
+          lastProgressAtRef.current = Date.now();
+          return next;
+        });
+      })
+      .subscribe();
+    resumeTimerRef.current = window.setInterval(() => {
+      if (Date.now() - lastProgressAtRef.current > 15_000) {
+        setShowResume(true);
+        if (activeJobId) invokeFinalize(activeJobId).catch(() => {});
+        lastProgressAtRef.current = Date.now();
+      }
+    }, 5_000);
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(ch);
+      if (resumeTimerRef.current) window.clearInterval(resumeTimerRef.current);
+      resumeTimerRef.current = null;
+    };
+  }, [activeJobId, details.length, invokeFinalize]);
 
   // 저장된 footer 설정 로드
   const readFooter = (): FooterCfg => {
