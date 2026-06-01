@@ -1676,27 +1676,30 @@ function OrderProgressBox({
               </DialogTitle>
             </DialogHeader>
             <div className="flex-1 overflow-auto border rounded-md bg-muted/20 p-3">
-              {thumbBusy && thumbs.length === 0 ? (
-                <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" /> PNG 생성 중...
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-                  {thumbs.map((t) => (
-                    <div key={t.designUid} className="rounded border bg-white overflow-hidden flex flex-col">
-                      <div className="w-full aspect-square bg-[conic-gradient(at_50%_50%,#eee_25%,#fff_0_50%,#eee_0_75%,#fff_0)] bg-[length:12px_12px] flex items-center justify-center overflow-hidden">
-                        {t.url ? (
-                          <img src={t.url} alt={t.designUid} className="max-w-full max-h-full object-contain" />
-                        ) : (
-                          <div className="text-[10px] text-destructive text-center px-1">{t.reason || "생성 실패"}</div>
-                        )}
-                      </div>
-                      <div className="px-2 py-1 text-[11px] font-mono truncate border-t" title={t.designUid}>{t.designUid}</div>
-                    </div>
-                  ))}
+              {thumbBusy && thumbProgress && (
+                <div className="flex items-center justify-center pb-3 text-xs text-muted-foreground">
+                  <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
+                  PNG 생성 중... {thumbProgress.done} / {thumbProgress.total}
                 </div>
               )}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                {thumbs.map((t, i) => (
+                  <div key={`${t.designUid}-${i}`} className="rounded border bg-white overflow-hidden flex flex-col">
+                    <div className="w-full aspect-square bg-[conic-gradient(at_50%_50%,#eee_25%,#fff_0_50%,#eee_0_75%,#fff_0)] bg-[length:12px_12px] flex items-center justify-center overflow-hidden">
+                      {t.url ? (
+                        <img src={t.url} alt={t.designUid} className="max-w-full max-h-full object-contain" loading="lazy" />
+                      ) : t.reason ? (
+                        <div className="text-[10px] text-destructive text-center px-1">{t.reason}</div>
+                      ) : (
+                        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="px-2 py-1 text-[11px] font-mono truncate border-t" title={t.designUid}>{t.designUid}</div>
+                  </div>
+                ))}
+              </div>
             </div>
+
             <div className="flex justify-end gap-2 pt-2 border-t">
               <Button variant="outline" onClick={() => setOpen2(false)}>닫기</Button>
               <Button onClick={() => { setConfirmed2(true); persist({ confirmed2: true }); setOpen2(false); toast({ title: "작업파일 확인 완료" }); }} disabled={thumbBusy}>
