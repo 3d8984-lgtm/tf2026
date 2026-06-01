@@ -1635,7 +1635,7 @@ function Step2PdfPreviewDialog({
                 <Button size="sm" variant="outline" disabled={twinIdx >= totalTwin - 1} onClick={() => setTwinIdx(twinIdx + 1)}>다음</Button>
               </div>
             </div>
-            <div className="flex-1 min-h-0 border rounded-md bg-muted/30 overflow-hidden flex items-center justify-center p-2">
+            <div className="h-[calc(95vh-260px)] min-h-[360px] border rounded-md bg-muted/30 overflow-hidden flex items-center justify-center p-2">
               {currentTwinImg ? (
                 <img src={currentTwinImg} alt={`twin-page-${twinIdx + 1}`} className="block max-w-full max-h-full w-auto h-auto object-contain shadow-lg bg-white" />
               ) : (
@@ -1659,7 +1659,7 @@ function Step2PdfPreviewDialog({
                 <Button size="sm" variant="outline" disabled={qrIdx >= totalQr - 1} onClick={() => setQrIdx(qrIdx + 1)}>다음</Button>
               </div>
             </div>
-            <div className="flex-1 min-h-0 border rounded-md bg-muted/30 overflow-hidden flex items-center justify-center p-2">
+            <div className="h-[calc(95vh-260px)] min-h-[360px] border rounded-md bg-muted/30 overflow-hidden flex items-center justify-center p-2">
               {currentQrImg ? (
                 <img src={currentQrImg} alt={`qr-page-${qrIdx + 1}`} className="block max-w-full max-h-full w-auto h-auto object-contain shadow-lg bg-white" />
               ) : (
