@@ -19,7 +19,7 @@ function resolveWebhookUrl(jobWebhookUrl: string): string {
 
 async function uploadMedia(key: string, filename: string, bytes: Buffer): Promise<string> {
   const fd = new FormData();
-  fd.append("media", new Blob([bytes], { type: "application/zip" }), filename);
+  fd.append("media", new Blob([new Uint8Array(bytes)], { type: "application/zip" }), filename);
   const r = await fetch(
     `https://qyapi.weixin.qq.com/cgi-bin/webhook/upload_media?key=${encodeURIComponent(key)}&type=file`,
     { method: "POST", body: fd as any },
