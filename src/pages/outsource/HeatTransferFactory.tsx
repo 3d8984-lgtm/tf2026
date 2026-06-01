@@ -1444,6 +1444,7 @@ function OrderProgressBox({
   const [webhookUrl, setWebhookUrl] = useState<string>(() => readHtWebhook());
   const [sending, setSending] = useState(false);
   const [sendProgress, setSendProgress] = useState<{ done: number; total: number } | null>(null);
+  const [sendStage, setSendStage] = useState<string>("");
 
   const readSavedTransform = () => {
     const d = readHtDesignUiDraft(order.orderNo);
@@ -1578,6 +1579,7 @@ function OrderProgressBox({
     }
     setSending(true);
     setSendProgress({ done: 0, total: details.length });
+    setSendStage("작업지시서 PDF 생성 중");
     try {
       const folderName = order.orderNo || "heat-transfer";
       const zip = new JSZip();
@@ -1588,6 +1590,7 @@ function OrderProgressBox({
       root.file(`${folderName}_작업지시서.pdf`, woBytes);
 
       // 2) Image 폴더 — 300dpi 최종 PNG
+      setSendStage("최종 PNG 생성 중");
       const imageFolder = root.folder("Image")!;
       const pngs = await buildFinalPngs(details, formats, outline, testDesign, readFooter(), 300, true,
         (done, total) => setSendProgress({ done, total }), savedTransform, { concurrency: 3 });
@@ -1604,9 +1607,11 @@ function OrderProgressBox({
       }
       if (ok === 0) throw new Error("생성된 PNG가 없습니다 — 디자인 포맷/소스를 확인하세요.");
 
+      setSendStage("ZIP 압축 중");
       const zipBlob = await zip.generateAsync({ type: "blob" });
       const zipName = `${folderName}.zip`;
       const path = `orders/heat-transfer-${folderName}-${Date.now()}.zip`;
+      setSendStage("ZIP 업로드 중");
       const { error: upErr } = await supabase.storage.from("hologram-pdf").upload(path, zipBlob, {
         contentType: "application/zip", upsert: false,
       });
@@ -1621,6 +1626,7 @@ function OrderProgressBox({
 파일: ${zipName}
 다운로드: ${url}`;
 
+      setSendStage("위챗 전송 중");
       const { data, error } = await supabase.functions.invoke("wechat-send", {
         body: { webhookUrl, message },
       });
@@ -1647,6 +1653,7 @@ function OrderProgressBox({
     } finally {
       setSending(false);
       setSendProgress(null);
+      setSendStage("");
     }
   };
 
