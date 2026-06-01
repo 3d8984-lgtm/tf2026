@@ -314,6 +314,8 @@ export type Database = {
           updated_at: string
           uploaded_pngs: number
           webhook_url: string
+          zip_path: string | null
+          zip_progress: number
           zip_url: string | null
         }
         Insert: {
@@ -330,6 +332,8 @@ export type Database = {
           updated_at?: string
           uploaded_pngs?: number
           webhook_url?: string
+          zip_path?: string | null
+          zip_progress?: number
           zip_url?: string | null
         }
         Update: {
@@ -346,6 +350,8 @@ export type Database = {
           updated_at?: string
           uploaded_pngs?: number
           webhook_url?: string
+          zip_path?: string | null
+          zip_progress?: number
           zip_url?: string | null
         }
         Relationships: []
@@ -409,6 +415,53 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      png_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          file_url: string | null
+          id: string
+          item_id: string
+          job_id: string
+          last_heartbeat: string | null
+          status: Database["public"]["Enums"]["png_job_status"]
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          file_url?: string | null
+          id?: string
+          item_id: string
+          job_id: string
+          last_heartbeat?: string | null
+          status?: Database["public"]["Enums"]["png_job_status"]
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          file_url?: string | null
+          id?: string
+          item_id?: string
+          job_id?: string
+          last_heartbeat?: string | null
+          status?: Database["public"]["Enums"]["png_job_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "png_jobs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "outsource_order_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       production_tracking: {
         Row: {
@@ -790,6 +843,13 @@ export type Database = {
     Functions: {
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_approved: { Args: { _user_id: string }; Returns: boolean }
+      requeue_stale_png_jobs: {
+        Args: { _older_than?: string }
+        Returns: {
+          job_id: string
+          requeued_count: number
+        }[]
+      }
     }
     Enums: {
       inspect_result: "pending" | "pass" | "mismatch" | "weight_fail"
@@ -807,6 +867,7 @@ export type Database = {
         | "done"
         | "failed"
       outsource_status: "ordered" | "shipped" | "received"
+      png_job_status: "pending" | "processing" | "completed" | "failed"
       production_stage:
         | "tshirt"
         | "card"
@@ -968,6 +1029,7 @@ export const Constants = {
         "failed",
       ],
       outsource_status: ["ordered", "shipped", "received"],
+      png_job_status: ["pending", "processing", "completed", "failed"],
       production_stage: [
         "tshirt",
         "card",
