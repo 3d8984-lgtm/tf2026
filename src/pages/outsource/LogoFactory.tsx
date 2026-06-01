@@ -1463,35 +1463,86 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                           </Button>
                         </div>
 
-                        {/* 내장 업스케일 */}
+                        {/* Photoroom 업스케일 */}
                         <div className="p-4 rounded-md border space-y-3">
-                          <div className="font-semibold text-sm">② 사이트 내장 업스케일 (2×)</div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div className="space-y-1">
-                              <Label className="text-[10px]">모드</Label>
-                              <Select value={upscaleMode} onValueChange={(v) => setUpscaleMode(v as UpscaleMode)}>
-                                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="auto">자동</SelectItem>
-                                  <SelectItem value="logo">로고/라인</SelectItem>
-                                  <SelectItem value="text">텍스트</SelectItem>
-                                  <SelectItem value="illustration">일러스트</SelectItem>
-                                  <SelectItem value="photo">사진</SelectItem>
-                                  <SelectItem value="pixel">픽셀</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[10px]">샤프니스 {upscaleSharpness}</Label>
-                              <Slider value={[upscaleSharpness]} min={0} max={100} step={5} onValueChange={(v) => setUpscaleSharpness(v[0])} />
+                          <div className="font-semibold text-sm flex items-center gap-2">
+                            ② Photoroom 업스케일
+                            <Badge variant="secondary" className="text-[10px]">AI 자동 모드</Badge>
+                          </div>
+
+                          {/* Source: API logo (default) or manual upload */}
+                          <div className="space-y-2">
+                            <Label className="text-[10px]">업스케일 소스</Label>
+                            <div className="flex items-center gap-2 p-2 rounded border bg-muted/20">
+                              <div className="w-12 h-12 border rounded bg-background flex items-center justify-center overflow-hidden shrink-0">
+                                {(photoroomSourceDataUrl || sourceLogo) ? (
+                                  <img src={photoroomSourceDataUrl || sourceLogo!} alt="src" className="max-w-full max-h-full object-contain" />
+                                ) : (
+                                  <span className="text-[10px] text-muted-foreground">없음</span>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0 text-[11px]">
+                                {photoroomSourceDataUrl ? (
+                                  <>수동 업로드: <span className="font-mono truncate block">{photoroomSourceName}</span></>
+                                ) : sourceLogo ? (
+                                  <span className="text-muted-foreground">API 로고 사용 중</span>
+                                ) : (
+                                  <span className="text-muted-foreground">소스 이미지를 업로드하세요</span>
+                                )}
+                              </div>
+                              <input
+                                ref={photoroomSourceInputRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  if (f) handlePhotoroomSourceUpload(f);
+                                  e.target.value = "";
+                                }}
+                              />
+                              <Button size="sm" variant="outline" onClick={() => photoroomSourceInputRef.current?.click()}>
+                                <Upload className="w-3 h-3 mr-1" /> {photoroomSourceDataUrl ? "교체" : "업로드"}
+                              </Button>
+                              {photoroomSourceDataUrl && (
+                                <Button size="sm" variant="ghost" onClick={() => { setPhotoroomSourceDataUrl(null); setPhotoroomSourceName(null); }}>
+                                  초기화
+                                </Button>
+                              )}
                             </div>
                           </div>
-                          <Button size="sm" className="w-full" onClick={handleUpscale} disabled={!sourceLogo || !!busy}>
-                            <Sparkles className="w-3 h-3 mr-1" /> 업스케일 실행
+
+                          <div className="space-y-1">
+                            <Label className="text-[10px]">사이즈</Label>
+                            <Select value={String(photoroomScale)} onValueChange={(v) => setPhotoroomScale(Number(v) as 2 | 4)}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="2">2× (2배 확대)</SelectItem>
+                                <SelectItem value="4">4× (4배 확대)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <Button size="sm" className="w-full" onClick={handleUpscale} disabled={(!sourceLogo && !photoroomSourceDataUrl) || !!busy}>
+                            <Sparkles className="w-3 h-3 mr-1" /> Photoroom 업스케일 실행
                           </Button>
-                          {upscaledDataUrl && <div className="text-[11px] text-emerald-600">✓ 업스케일 완료</div>}
+
+                          {upscaledDataUrl && (
+                            <div className="space-y-2 pt-2 border-t">
+                              <div className="text-[11px] text-emerald-600 flex items-center justify-between">
+                                <span>✓ 업스케일 완료</span>
+                                <Button size="sm" variant="outline" className="h-7" onClick={() => downloadUrl(upscaledDataUrl, `logo-upscaled-${photoroomScale}x-${orderNo}.png`)}>
+                                  <Download className="w-3 h-3 mr-1" /> 다운로드
+                                </Button>
+                              </div>
+                              <div className="rounded border bg-[conic-gradient(at_50%_50%,#ddd_0_25%,#fff_0_50%,#ddd_0_75%,#fff_0)] bg-[length:16px_16px] p-2 flex items-center justify-center max-h-72 overflow-auto">
+                                <img src={upscaledDataUrl} alt="업스케일 미리보기" className="max-w-full max-h-64 object-contain" />
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
+
 
                       {logoType === "mono" && !upscaledDataUrl && (
                         <div className="flex items-center justify-between p-3 rounded-md bg-muted/20 border">
