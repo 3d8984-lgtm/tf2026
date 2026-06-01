@@ -1308,30 +1308,82 @@ async function buildFinalPngs(
   sharpen: boolean,
   onProgress?: (done: number, total: number) => void,
   transform?: { offsetXPct?: number; offsetYPct?: number; scale?: number },
+  opts?: { embedDpiMetadata?: boolean; concurrency?: number; onItem?: (index: number, item: { designUid: string; blob: Blob | null; reason?: string }) => void },
 ): Promise<Array<{ designUid: string; blob: Blob | null; reason?: string }>> {
-  const out: Array<{ designUid: string; blob: Blob | null; reason?: string }> = [];
-  let i = 0;
-  for (const d of details) {
-    i++;
+  const embedDpi = opts?.embedDpiMetadata ?? true;
+  const concurrency = Math.max(1, opts?.concurrency ?? 4);
+  const total = details.length;
+  const results: Array<{ designUid: string; blob: Blob | null; reason?: string } | undefined> =
+    new Array(total).fill(undefined);
+
+  // Cache alpha masks per format (keyed by mask canvas identity + dpi)
+  const maskCache = new Map<HTMLCanvasElement, HTMLCanvasElement>();
+  const getMask = (fmt: { maskCanvas: HTMLCanvasElement; widthPt: number; heightPt: number }) => {
+    const cached = maskCache.get(fmt.maskCanvas);
+    if (cached) return cached;
+    const tW = Math.max(64, Math.round((fmt.widthPt / 72) * dpi));
+    const tH = Math.max(64, Math.round((fmt.heightPt / 72) * dpi));
+    const m = buildAlphaMaskCanvas(fmt.maskCanvas, tW, tH);
+    maskCache.set(fmt.maskCanvas, m);
+    return m;
+  };
+
+  // Cache decoded design images per src string
+  const imgCache = new Map<string, Promise<HTMLImageElement>>();
+  const getImg = (src: string) => {
+    let p = imgCache.get(src);
+    if (!p) { p = loadImage(src); imgCache.set(src, p); }
+    return p;
+  };
+
+  let done = 0;
+  const processOne = async (idx: number) => {
+    const d = details[idx];
+    let item: { designUid: string; blob: Blob | null; reason?: string };
     try {
       const src = testDesign || d.designSrc;
-      if (!src) { out.push({ designUid: d.designUid, blob: null, reason: "디자인 소스 없음" }); onProgress?.(i, details.length); continue; }
-      const target = normalizeSize(d.tshirtSize);
-      const fmt = (target ? formats.find((f) => normalizeSize(f.sizeLabel) === target) : null) || fallbackOutline;
-      if (!fmt) { out.push({ designUid: d.designUid, blob: null, reason: `사이즈 ${d.tshirtSize || "?"} 포맷 없음` }); onProgress?.(i, details.length); continue; }
-      const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
-      const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer, {
-        tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize,
-      });
-      const blob = await pngWithDpi(await canvasToBlob(c), dpi);
-      out.push({ designUid: d.designUid, blob });
+      if (!src) {
+        item = { designUid: d.designUid, blob: null, reason: "디자인 소스 없음" };
+      } else {
+        const target = normalizeSize(d.tshirtSize);
+        const fmt = (target ? formats.find((f) => normalizeSize(f.sizeLabel) === target) : null) || fallbackOutline;
+        if (!fmt) {
+          item = { designUid: d.designUid, blob: null, reason: `사이즈 ${d.tshirtSize || "?"} 포맷 없음` };
+        } else {
+          const preMask = getMask(fmt);
+          const preImg = await getImg(src);
+          const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform,
+            { sharpen, preBuiltMask: preMask, preLoadedImage: preImg });
+          const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer, {
+            tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize,
+          });
+          const rawBlob = await canvasToBlob(c);
+          const blob = embedDpi ? await pngWithDpi(rawBlob, dpi) : rawBlob;
+          item = { designUid: d.designUid, blob };
+        }
+      }
     } catch (e) {
-      out.push({ designUid: d.designUid, blob: null, reason: String((e as Error)?.message || e) });
+      item = { designUid: d.designUid, blob: null, reason: String((e as Error)?.message || e) };
     }
-    onProgress?.(i, details.length);
-  }
-  return out;
+    results[idx] = item;
+    done++;
+    onProgress?.(done, total);
+    opts?.onItem?.(idx, item);
+  };
+
+  // Concurrency-limited pool
+  let next = 0;
+  const workers = Array.from({ length: Math.min(concurrency, total) }, async () => {
+    while (true) {
+      const i = next++;
+      if (i >= total) return;
+      await processOne(i);
+    }
+  });
+  await Promise.all(workers);
+  return results as Array<{ designUid: string; blob: Blob | null; reason?: string }>;
 }
+
 
 // ===== OrderProgressBox: 작업지시서 / 작업파일 확인 / 발주 =====
 function OrderProgressBox({
