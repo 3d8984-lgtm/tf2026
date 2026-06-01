@@ -30,6 +30,7 @@ import NfcCardFactory from "@/pages/outsource/NfcCardFactory";
 import LogoFactory from "@/pages/outsource/LogoFactory";
 import OutsourceHistory from "@/pages/outsource/OutsourceHistory";
 import OutsourceSettings from "@/pages/outsource/OutsourceSettings";
+import OrderJobsDashboard from "@/pages/outsource/OrderJobsDashboard";
 import NotFound from "@/pages/NotFound";
 import { useLang } from "@/contexts/LangContext";
 import { Button } from "@/components/ui/button";
@@ -94,6 +95,7 @@ function ProtectedRoutes() {
         <Route path="/outsource/nfc-card" element={<NfcCardFactory />} />
         <Route path="/outsource/logo" element={<LogoFactory />} />
         <Route path="/outsource/history" element={<OutsourceHistory />} />
+        <Route path="/outsource/jobs" element={<OrderJobsDashboard />} />
         <Route path="/outsource/settings" element={<OutsourceSettings />} />
       </Route>
       <Route path="*" element={<NotFound />} />
