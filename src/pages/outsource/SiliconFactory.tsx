@@ -1413,70 +1413,14 @@ function SiliconOrderProgressBox({
           </DialogContent>
         </Dialog>
 
-        {/* Step 2 Dialog — Excel-like preview */}
-        <Dialog open={open2} onOpenChange={setOpen2}>
-          <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-green-600" />
-                작업파일.xlsx · Sheet: Silicon ({items.length}행)
-              </DialogTitle>
-            </DialogHeader>
-            <div className="flex-1 overflow-auto border bg-white text-[#1f2937]" style={{ fontFamily: 'Calibri, "Segoe UI", Arial, sans-serif' }}>
-              <table className="border-collapse text-xs" style={{ tableLayout: "fixed" }}>
-                <colgroup>
-                  <col style={{ width: 40 }} />
-                  <col style={{ width: 60 }} />
-                  <col style={{ width: 220 }} />
-                  <col style={{ width: 100 }} />
-                  <col style={{ width: 140 }} />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th className="sticky top-0 left-0 z-20 bg-[#f3f3f3] border border-[#d4d4d4] h-6 text-center font-normal text-[#666]"></th>
-                    {["A", "B", "C", "D"].map(L => (
-                      <th key={L} className="sticky top-0 z-10 bg-[#f3f3f3] border border-[#d4d4d4] h-6 text-center font-normal text-[#666]">{L}</th>
-                    ))}
-                  </tr>
-                  <tr>
-                    <td className="sticky left-0 z-10 bg-[#f3f3f3] border border-[#d4d4d4] h-7 text-center text-[#666]">1</td>
-                    {["序号", "标识唯一编号", "等级", "公司名称"].map(h => (
-                      <td key={h} className="border border-[#d4d4d4] px-2 h-7 font-semibold bg-[#fafafa]">{h}</td>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((it, i) => (
-                    <tr key={it.uniqueNo} className="hover:bg-[#f0f7ff]">
-                      <td className="sticky left-0 bg-[#f3f3f3] border border-[#d4d4d4] h-6 text-center text-[#666]">{i + 2}</td>
-                      <td className="border border-[#d4d4d4] px-2 h-6 text-right tabular-nums">{it.seq}</td>
-                      <td className="border border-[#d4d4d4] px-2 h-6 font-mono">{it.uniqueNo}</td>
-                      <td className="border border-[#d4d4d4] px-2 h-6">{it.grade}</td>
-                      <td className="border border-[#d4d4d4] px-2 h-6">TWINMETA</td>
-                    </tr>
-                  ))}
-                  {Array.from({ length: Math.max(0, 8 - items.length) }).map((_, i) => (
-                    <tr key={`empty-${i}`}>
-                      <td className="sticky left-0 bg-[#f3f3f3] border border-[#d4d4d4] h-6 text-center text-[#666]">{items.length + 2 + i}</td>
-                      {Array.from({ length: 4 }).map((__, j) => (
-                        <td key={j} className="border border-[#d4d4d4] h-6"></td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="flex items-center gap-1 border-x border-b bg-[#f3f3f3] px-2 py-1 text-xs text-[#444]">
-              <div className="px-3 py-0.5 bg-white border border-[#d4d4d4] border-b-white rounded-t font-medium">Silicon</div>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setOpen2(false)}>닫기</Button>
-              <Button onClick={() => { setConfirmed2(true); persist({ confirmed2: true }); setOpen2(false); toast({ title: "작업파일 확인 완료" }); }}>
-                <CheckCircle2 className="w-4 h-4 mr-1" /> 확인
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        {/* Step 2 Dialog — PDF 파일 / QR코드 시안 미리보기 */}
+        <Step2PreviewDialog
+          open={open2}
+          onOpenChange={setOpen2}
+          items={items}
+          templates={templates}
+          onConfirm={() => { setConfirmed2(true); persist({ confirmed2: true }); setOpen2(false); toast({ title: "작업파일 확인 완료" }); }}
+        />
 
         {/* Webhook settings dialog */}
         <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
