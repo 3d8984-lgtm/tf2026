@@ -1352,10 +1352,18 @@ function Step2PreviewDialog({
 
 function SiliconOrderProgressBox({
   order, items, templates,
+  proof, setProof, proofQrMap, proofPage, setProofPage, proofQrPage, setProofQrPage,
 }: {
   order: any;
   items: Array<{ seq: number; uniqueNo: string; grade: Grade }>;
   templates: Record<Grade, { name: string; bytes: Uint8Array; preview: string; aspect: number } | null>;
+  proof: ProofSettings;
+  setProof: React.Dispatch<React.SetStateAction<ProofSettings>>;
+  proofQrMap: Record<string, string>;
+  proofPage: number;
+  setProofPage: (n: number) => void;
+  proofQrPage: number;
+  setProofQrPage: (n: number) => void;
 }) {
   const orderNo: string = order?.external_order_id || "";
   const stateKey = `silicon.progress.v1.${orderNo}`;
