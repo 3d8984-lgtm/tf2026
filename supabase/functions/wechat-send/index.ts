@@ -62,7 +62,9 @@ Deno.serve(async (req) => {
     } finally {
       clearTimeout(timeout);
     }
-    const data = await resp.json().catch(async () => ({ raw: await resp.text().catch(() => '') }));
+    const responseText = await resp.text();
+    let data: any = { raw: responseText };
+    try { data = JSON.parse(responseText); } catch { /* keep raw response */ }
 
     if (data.errcode !== 0) {
       return new Response(
