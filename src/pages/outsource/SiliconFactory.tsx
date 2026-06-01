@@ -1635,9 +1635,9 @@ function Step2PdfPreviewDialog({
                 <Button size="sm" variant="outline" disabled={twinIdx >= totalTwin - 1} onClick={() => setTwinIdx(twinIdx + 1)}>다음</Button>
               </div>
             </div>
-            <div className="flex-1 border rounded-md bg-muted/30 overflow-auto flex items-center justify-center p-2">
+            <div className="flex-1 min-h-0 border rounded-md bg-muted/30 overflow-hidden flex items-center justify-center p-2">
               {currentTwinImg ? (
-                <img src={currentTwinImg} alt={`twin-page-${twinIdx + 1}`} className="max-w-full max-h-full object-contain shadow-lg bg-white" />
+                <img src={currentTwinImg} alt={`twin-page-${twinIdx + 1}`} className="w-auto h-full max-w-full max-h-full object-contain shadow-lg bg-white" />
               ) : (
                 <div className="text-sm text-muted-foreground flex items-center">
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" /> 페이지 생성 중...
