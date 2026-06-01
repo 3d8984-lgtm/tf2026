@@ -1448,7 +1448,7 @@ function OrderProgressBox({
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open2]);
+  }, [open2, savedTransform]);
 
   useEffect(() => () => { thumbs.forEach((t) => { if (t.url) URL.revokeObjectURL(t.url); }); }, [thumbs]);
 
