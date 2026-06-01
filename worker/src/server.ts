@@ -11,8 +11,9 @@ app.use(express.json({ limit: "2mb" }));
 
 function authOk(req: express.Request): boolean {
   if (!WORKER_SECRET) return false;
-  const h = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
-  return h === WORKER_SECRET;
+  const hdr = (req.headers["x-worker-secret"] as string | undefined)
+    || (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+  return hdr === WORKER_SECRET;
 }
 
 app.get("/health", (_req, res) => res.json({ ok: true, time: new Date().toISOString() }));
