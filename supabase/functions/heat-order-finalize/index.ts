@@ -80,7 +80,6 @@ async function processJob(admin: any, jobId: string, uploadedZipPath?: string) {
   if (job.status === "done") return { status: "done", jobId, zip_url: job.zip_url };
 
   const folderName = job.order_no || jobId;
-  const tmpPrefix = `orders/heat-transfer-jobs/${jobId}`;
   const zipPath = job.zip_path || `orders/heat-transfer-${folderName}-${Date.now()}.zip`;
 
   try {
