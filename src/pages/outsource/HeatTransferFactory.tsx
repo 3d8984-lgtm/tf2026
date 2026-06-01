@@ -1634,8 +1634,11 @@ function OrderProgressBox({
         } catch { /* non-fatal */ }
       };
 
-      // 동시 업로드 풀
-      const MAX_UPLOAD = 6;
+      // 동시 업로드 풀 — jobId 경로는 매번 고유하므로 충돌 가능성이 낮다.
+      // 브라우저가 PNG를 만들고 업로드하는 구조라 생성/업로드 동시성을 높여 대량 발주 시간을 줄인다.
+      const cpuCount = Math.max(2, navigator.hardwareConcurrency || 4);
+      const renderConcurrency = Math.min(6, Math.max(3, cpuCount - 1));
+      const MAX_UPLOAD = Math.min(10, Math.max(6, cpuCount));
       const queue: Array<{ name: string; blob: Blob }> = [];
       let inFlight = 0;
       let queueResolve: (() => void) | null = null;
@@ -1647,7 +1650,7 @@ function OrderProgressBox({
             try {
               const { error } = await supabase.storage.from("hologram-pdf")
                 .upload(`${tmpPrefix}/${item.name}`, item.blob, {
-                  contentType: "image/png", upsert: true,
+                  contentType: "image/png", upsert: false,
                 });
               if (error) throw error;
               uploadedCount++;
@@ -1673,8 +1676,8 @@ function OrderProgressBox({
         details, formats, outline, testDesign, readFooter(), 300, false,
         undefined, savedTransform,
         {
-          concurrency: 2,
-          yieldEvery: 1,
+          concurrency: renderConcurrency,
+          yieldEvery: renderConcurrency,
           onItem: (_idx, r) => {
             if (!r.blob) { skipCount++; return; }
             const count = used.get(r.designUid) ?? 0;
