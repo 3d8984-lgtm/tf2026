@@ -23,6 +23,7 @@ import { edgePreservingUpscale } from "@/lib/upscale";
 import { supabase } from "@/integrations/supabase/client";
 import QRCode from "qrcode";
 import JSZip from "jszip";
+import { HtPngPool, type PoolTask } from "./_workers/htPngPool";
 
 const DESIGN_FORMAT_BUCKET = "design-formats";
 const DESIGN_FORMAT_FOLDER = "heat-transfer";
@@ -1618,7 +1619,7 @@ function OrderProgressBox({
         if (error) throw new Error(`작업지시서 업로드 실패: ${error.message}`);
       }
 
-      // 3) PNG 생성 + Storage 즉시 업로드 (병렬)
+      // 3) PNG 생성 (WebWorker 풀) + Storage 업로드 (병렬)
       setSendStage("PNG 생성 및 업로드 중");
       const used = new Map<string, number>();
       let okCount = 0, skipCount = 0, uploadedCount = 0;
@@ -1634,17 +1635,36 @@ function OrderProgressBox({
         } catch { /* non-fatal */ }
       };
 
-      // 동시 업로드 풀 — jobId 경로는 매번 고유하므로 충돌 가능성이 낮다.
-      // 브라우저가 PNG를 만들고 업로드하는 구조라 생성/업로드 동시성을 높여 대량 발주 시간을 줄인다.
+      const DPI = 300;
+      // 포맷별 마스크 Blob을 한 번만 만들어 워커들이 공유한다.
+      const maskBlobCache = new Map<string, { blob: Blob; targetW: number; targetH: number; widthPt: number }>();
+      const getMaskBundle = async (fmt: typeof formats[number] | typeof outline) => {
+        if (!fmt) return null;
+        const key = `${fmt.widthPt}x${fmt.heightPt}@${DPI}`;
+        let bundle = maskBlobCache.get(key);
+        if (!bundle) {
+          const tW = Math.max(64, Math.round((fmt.widthPt / 72) * DPI));
+          const tH = Math.max(64, Math.round((fmt.heightPt / 72) * DPI));
+          const m = buildAlphaMaskCanvas(fmt.maskCanvas, tW, tH);
+          const blob = await canvasToBlob(m);
+          bundle = { blob, targetW: tW, targetH: tH, widthPt: fmt.widthPt };
+          maskBlobCache.set(key, bundle);
+        }
+        return { key, ...bundle };
+      };
+
       const cpuCount = Math.max(2, navigator.hardwareConcurrency || 4);
-      const renderConcurrency = Math.min(6, Math.max(3, cpuCount - 1));
+      const workerCount = Math.min(6, Math.max(2, Math.floor(cpuCount / 2)));
       const MAX_UPLOAD = Math.min(10, Math.max(6, cpuCount));
-      const queue: Array<{ name: string; blob: Blob }> = [];
+      const pool = new HtPngPool(workerCount);
+
+      const footerCfg = readFooter();
+      const uploadQueue: Array<{ name: string; blob: Blob }> = [];
       let inFlight = 0;
-      let queueResolve: (() => void) | null = null;
-      const pump = async () => {
-        while (inFlight < MAX_UPLOAD && queue.length > 0) {
-          const item = queue.shift()!;
+      let uploadDoneResolve: (() => void) | null = null;
+      const pumpUpload = () => {
+        while (inFlight < MAX_UPLOAD && uploadQueue.length > 0) {
+          const item = uploadQueue.shift()!;
           inFlight++;
           (async () => {
             try {
@@ -1662,41 +1682,71 @@ function OrderProgressBox({
               skipCount++;
             } finally {
               inFlight--;
-              if (queueResolve && queue.length === 0 && inFlight === 0) {
-                const r = queueResolve; queueResolve = null; r();
+              if (uploadDoneResolve && uploadQueue.length === 0 && inFlight === 0) {
+                const r = uploadDoneResolve; uploadDoneResolve = null; r();
               } else {
-                pump();
+                pumpUpload();
               }
             }
           })();
         }
       };
 
-      await buildFinalPngs(
-        details, formats, outline, testDesign, readFooter(), 300, false,
-        undefined, savedTransform,
-        {
-          concurrency: renderConcurrency,
-          yieldEvery: renderConcurrency,
-          onItem: (_idx, r) => {
-            if (!r.blob) { skipCount++; return; }
-            const count = used.get(r.designUid) ?? 0;
-            const name = count === 0 ? `${r.designUid}.png` : `${r.designUid}(${count}).png`;
-            used.set(r.designUid, count + 1);
-            okCount++;
-            queue.push({ name, blob: r.blob });
-            pump();
-          },
-        },
-      );
+      try {
+        const pending: Promise<void>[] = [];
+        for (let i = 0; i < details.length; i++) {
+          const d = details[i];
+          const src = testDesign || d.designSrc;
+          if (!src) { skipCount++; continue; }
+          const target = normalizeSize(d.tshirtSize);
+          const fmt = (target ? formats.find((f) => normalizeSize(f.sizeLabel) === target) : null) || outline;
+          if (!fmt) { skipCount++; continue; }
+          const bundle = await getMaskBundle(fmt as any);
+          if (!bundle) { skipCount++; continue; }
 
-      // 남은 업로드 대기
-      if (inFlight > 0 || queue.length > 0) {
-        await new Promise<void>((resolve) => { queueResolve = resolve; pump(); });
+          const task: PoolTask = {
+            idx: i,
+            designUid: d.designUid,
+            designSrc: src,
+            maskKey: bundle.key,
+            maskBlob: bundle.blob,
+            targetW: bundle.targetW,
+            targetH: bundle.targetH,
+            widthPt: bundle.widthPt,
+            dpi: DPI,
+            transform: {
+              offsetXPct: savedTransform?.offsetXPct ?? 0,
+              offsetYPct: savedTransform?.offsetYPct ?? 0,
+              scale: savedTransform?.scale ?? 1,
+            },
+            footer: footerCfg,
+            meta: { tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize },
+          };
+
+          pending.push((async () => {
+            const res = await pool.enqueue(task);
+            if (!res.blob) { skipCount++; return; }
+            const count = used.get(res.designUid) ?? 0;
+            const name = count === 0 ? `${res.designUid}.png` : `${res.designUid}(${count}).png`;
+            used.set(res.designUid, count + 1);
+            okCount++;
+            uploadQueue.push({ name, blob: res.blob });
+            pumpUpload();
+          })());
+        }
+        await Promise.all(pending);
+
+        // 남은 업로드 대기
+        if (inFlight > 0 || uploadQueue.length > 0) {
+          await new Promise<void>((resolve) => { uploadDoneResolve = resolve; pumpUpload(); });
+        }
+        await reportProgress(true);
+      } finally {
+        pool.terminate();
       }
-      await reportProgress(true);
 
       if (uploadedCount === 0) throw new Error("업로드된 PNG가 없습니다 — 디자인 포맷/소스를 확인하세요.");
+
 
       // 4) 서버에 finalize 요청 (백그라운드 잡)
       setSendStage("서버에서 ZIP 생성 요청 중");
