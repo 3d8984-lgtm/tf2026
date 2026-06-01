@@ -1412,7 +1412,7 @@ function OrderProgressBox({
     })();
     return () => { cancelled = true; if (createdUrl) URL.revokeObjectURL(createdUrl); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [order.orderNo, details.length, outline?.previewUrl, testDesign]);
+  }, [order.orderNo, details.length, outline?.previewUrl, testDesign, savedTransform]);
 
   // 작업지시서 HTML (저장된 값 + 폴백) — 하단에 첫 작업결과물 PNG 적용
   const woHtml = useMemo(() => {
