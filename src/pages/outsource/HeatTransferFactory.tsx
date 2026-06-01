@@ -1343,12 +1343,28 @@ function OrderProgressBox({
   const [sending, setSending] = useState(false);
   const [sendProgress, setSendProgress] = useState<{ done: number; total: number } | null>(null);
 
+  const readSavedTransform = () => {
+    const d = readHtDesignUiDraft(order.orderNo);
+    return { offsetXPct: d.offsetX ?? 0, offsetYPct: d.offsetY ?? 0, scale: d.designScale ?? 1 };
+  };
+  const [savedTransform, setSavedTransform] = useState(readSavedTransform);
+
   useEffect(() => {
-    const onFocus = () => setWebhookUrl(readHtWebhook());
-    window.addEventListener("focus", onFocus);
-    window.addEventListener("storage", onFocus);
-    return () => { window.removeEventListener("focus", onFocus); window.removeEventListener("storage", onFocus); };
-  }, []);
+    const refresh = () => { setWebhookUrl(readHtWebhook()); setSavedTransform(readSavedTransform()); };
+    const onSaved = (e: Event) => {
+      const ce = e as CustomEvent<{ orderNo?: string }>;
+      if (!ce.detail?.orderNo || ce.detail.orderNo === order.orderNo) setSavedTransform(readSavedTransform());
+    };
+    window.addEventListener("focus", refresh);
+    window.addEventListener("storage", refresh);
+    window.addEventListener("htf:transformSaved", onSaved as EventListener);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("storage", refresh);
+      window.removeEventListener("htf:transformSaved", onSaved as EventListener);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order.orderNo]);
 
   useEffect(() => {
     try {
