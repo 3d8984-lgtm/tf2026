@@ -981,6 +981,24 @@ function OrderDetail({
   const [testDesign, setTestDesign] = useState<string | null>(null);
   const [testName, setTestName] = useState<string>("");
 
+  useEffect(() => {
+    let cancelled = false;
+    setTestDesign(null);
+    setTestName("");
+    (async () => {
+      try {
+        const saved = await readHtPersistedDesign(order.orderNo);
+        if (!cancelled && saved?.dataUrl) {
+          setTestDesign(saved.dataUrl);
+          setTestName(saved.name || "저장된 테스트 디자인");
+        }
+      } catch {
+        if (!cancelled) toast({ title: "저장된 작업 파일을 불러오지 못했습니다", variant: "destructive" });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [order.orderNo]);
+
   const details: DesignDetail[] = useMemo(() => {
     const arr: DesignDetail[] = [];
     const n = Math.max(order.items.length, 1);
