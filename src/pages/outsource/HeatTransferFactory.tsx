@@ -1736,6 +1736,7 @@ function OrderProgressBox({
 
     setSending(true);
     sendingRef.current = true;
+    sendStartedAtRef.current = Date.now();
     setSendProgress({ done: 0, total: details.length });
     setSendStage("발주 잡 생성 중");
 
