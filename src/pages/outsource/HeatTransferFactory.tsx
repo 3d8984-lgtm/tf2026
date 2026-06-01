@@ -870,6 +870,9 @@ function OrderDetail({
   formats: SizedFormat[];
   onBack: () => void;
 }) {
+  const [testDesign, setTestDesign] = useState<string | null>(null);
+  const [testName, setTestName] = useState<string>("");
+
   const details: DesignDetail[] = useMemo(() => {
     const arr: DesignDetail[] = [];
     const n = Math.max(order.items.length, 1);
@@ -879,14 +882,14 @@ function OrderDetail({
         serial: i + 1,
         orderNo: order.orderNo,
         designUid: `${order.orderNo}-${i + 1}`,
-        designSrc: order.logoUrl,
+        designSrc: order.logoUrl || testDesign,
         tshirtType: String(it.tshirt_type ?? "").trim(),
         tshirtColor: String(it.tshirt_color ?? "").trim(),
         tshirtSize: String(it.tshirt_size ?? "").trim(),
       });
     }
     return arr;
-  }, [order]);
+  }, [order, testDesign]);
 
   return (
     <div className="space-y-4">
@@ -903,7 +906,11 @@ function OrderDetail({
           <TabsTrigger value="qr">큐알코드 시안</TabsTrigger>
         </TabsList>
         <TabsContent value="design">
-          <DesignTab order={order} details={details} outline={outline} formats={formats} />
+          <DesignTab
+            order={order} details={details} outline={outline} formats={formats}
+            testDesign={testDesign} setTestDesign={setTestDesign}
+            testName={testName} setTestName={setTestName}
+          />
         </TabsContent>
         <TabsContent value="qr">
           <QrTab details={details} />
@@ -1068,15 +1075,19 @@ function WorkOrderInfoBox({ order, outlinePreview }: { order: OrderRow; outlineP
 
 function DesignTab({
   order, details, outline, formats,
+  testDesign, setTestDesign, testName, setTestName,
 }: {
   order: OrderRow;
   details: DesignDetail[];
   outline: OutlineFormat | null;
   formats: SizedFormat[];
+  testDesign: string | null;
+  setTestDesign: (v: string | null) => void;
+  testName: string;
+  setTestName: (v: string) => void;
 }) {
 
-  const [testDesign, setTestDesign] = useState<string | null>(null);
-  const [testName, setTestName] = useState<string>("");
+
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [quality, setQuality] = useState<QualityPresetKey>("auto");
