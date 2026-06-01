@@ -1671,14 +1671,19 @@ function DesignTab({
 }) {
 
 
+  const uiDraft = useMemo(() => readHtDesignUiDraft(order.orderNo), [order.orderNo]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [quality, setQuality] = useState<QualityPresetKey>("auto");
+  const [quality, setQualityState] = useState<QualityPresetKey>(uiDraft.quality ?? "auto");
   const [autoResolved, setAutoResolved] = useState<{ preset: Exclude<QualityPresetKey, "auto">; reason: string } | null>(null);
   // design transform within fixed format (offset in %, scale relative to cover-fit)
-  const [offsetX, setOffsetX] = useState(0);
-  const [offsetY, setOffsetY] = useState(0);
-  const [designScale, setDesignScale] = useState(1);
+  const [offsetX, setOffsetXState] = useState(uiDraft.offsetX ?? 0);
+  const [offsetY, setOffsetYState] = useState(uiDraft.offsetY ?? 0);
+  const [designScale, setDesignScaleState] = useState(uiDraft.designScale ?? 1);
+  const setQuality = (v: QualityPresetKey) => { setQualityState(v); writeHtDesignUiDraft(order.orderNo, { quality: v }); };
+  const setOffsetX = (v: number) => { setOffsetXState(v); writeHtDesignUiDraft(order.orderNo, { offsetX: v }); };
+  const setOffsetY = (v: number) => { setOffsetYState(v); writeHtDesignUiDraft(order.orderNo, { offsetY: v }); };
+  const setDesignScale = (v: number) => { setDesignScaleState(v); writeHtDesignUiDraft(order.orderNo, { designScale: v }); };
   const transform = { offsetXPct: offsetX, offsetYPct: offsetY, scale: designScale };
 
   // Footer (UID + QR) config — persisted to localStorage
@@ -1690,7 +1695,17 @@ function DesignTab({
     } catch {}
     return DEFAULT_FOOTER_CFG;
   });
-  const [testUid, setTestUid] = useState<string>("");
+  const [testUid, setTestUidState] = useState<string>(uiDraft.testUid ?? "");
+  const setTestUid = (v: string) => { setTestUidState(v); writeHtDesignUiDraft(order.orderNo, { testUid: v }); };
+
+  useEffect(() => {
+    const next = readHtDesignUiDraft(order.orderNo);
+    setQualityState(next.quality ?? "auto");
+    setOffsetXState(next.offsetX ?? 0);
+    setOffsetYState(next.offsetY ?? 0);
+    setDesignScaleState(next.designScale ?? 1);
+    setTestUidState(next.testUid ?? "");
+  }, [order.orderNo]);
 
 
 
