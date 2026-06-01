@@ -1708,8 +1708,8 @@ function OrderProgressBox({
           const c = await composeWithFooter(c0, fmt.widthPt, DPI, task.designUid, footerCfg, task.meta);
           const blob = await pngWithDpi(await canvasToBlob(c), DPI);
           return { idx: task.idx, designUid: task.designUid, blob };
-        } catch (e: any) {
-          return { idx: task.idx, designUid: task.designUid, blob: null, reason: e?.message || String(e) };
+        } catch (e: unknown) {
+          return { idx: task.idx, designUid: task.designUid, blob: null, reason: e instanceof Error ? e.message : String(e) };
         }
       };
 
@@ -1722,7 +1722,7 @@ function OrderProgressBox({
           const target = normalizeSize(d.tshirtSize);
           const fmt = (target ? formats.find((f) => normalizeSize(f.sizeLabel) === target) : null) || outline;
           if (!fmt) { skipCount++; continue; }
-          const bundle = await getMaskBundle(fmt as any);
+          const bundle = await getMaskBundle(fmt);
           if (!bundle) { skipCount++; continue; }
 
           const task: PoolTask = {
