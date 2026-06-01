@@ -1189,12 +1189,45 @@ function OrderProgressBox({
     try { localStorage.setItem(stateKey, JSON.stringify(merged)); } catch {}
   };
 
-  // 작업지시서 HTML (저장된 값 + 폴백)
+  // 저장된 footer 설정 로드
+  const readFooter = (): FooterCfg => {
+    try {
+      const raw = localStorage.getItem("htf:footerCfg:v1");
+      if (raw) return { ...DEFAULT_FOOTER_CFG, ...JSON.parse(raw) };
+    } catch {}
+    return DEFAULT_FOOTER_CFG;
+  };
+
+  // 작업지시서 하단에 첫번째 작업결과물 이미지 적용
+  const [firstResultUrl, setFirstResultUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    let createdUrl: string | null = null;
+    (async () => {
+      try {
+        if (!details || details.length === 0) { setFirstResultUrl(null); return; }
+        const res = await buildFinalPngs(details.slice(0, 1), formats, outline, testDesign, readFooter(), 96, false);
+        const first = res.find((r) => r.blob);
+        if (cancelled) return;
+        if (first && first.blob) {
+          const reader = new FileReader();
+          reader.onload = () => { if (!cancelled) setFirstResultUrl(String(reader.result || "")); };
+          reader.readAsDataURL(first.blob);
+        } else {
+          setFirstResultUrl(null);
+        }
+      } catch { if (!cancelled) setFirstResultUrl(null); }
+    })();
+    return () => { cancelled = true; if (createdUrl) URL.revokeObjectURL(createdUrl); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order.orderNo, details.length, outline?.previewUrl, testDesign]);
+
+  // 작업지시서 HTML (저장된 값 + 폴백) — 하단에 첫 작업결과물 PNG 적용
   const woHtml = useMemo(() => {
     const wo = computeHtWorkOrderData(order);
-    return buildHtWorkOrderHtml(wo, outline?.previewUrl, { autoPrint: false });
+    return buildHtWorkOrderHtml(wo, firstResultUrl || outline?.previewUrl, { autoPrint: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [order.orderNo, outline?.previewUrl, open1]);
+  }, [order.orderNo, outline?.previewUrl, firstResultUrl, open1]);
 
   // 저장된 footer 설정 로드
   const readFooter = (): FooterCfg => {
