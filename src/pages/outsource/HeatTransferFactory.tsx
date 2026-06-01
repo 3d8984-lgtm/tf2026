@@ -1472,6 +1472,7 @@ function OrderProgressBox({
   const sendingRef = useRef(false);
   const [sendProgress, setSendProgress] = useState<{ done: number; total: number } | null>(null);
   const [sendStage, setSendStage] = useState<string>("");
+  const [uploadIssues, setUploadIssues] = useState<UploadIssue[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [pngJobs, setPngJobs] = useState<Record<string, PngJobRow>>({});
   const [showResume, setShowResume] = useState(false);
