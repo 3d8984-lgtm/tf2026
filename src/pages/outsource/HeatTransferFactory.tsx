@@ -1113,8 +1113,15 @@ function DesignTab({
   const [designScale, setDesignScale] = useState(1);
   const transform = { offsetXPct: offsetX, offsetYPct: offsetY, scale: designScale };
 
-  // Footer (UID + QR) config
-  const [footer, setFooter] = useState<FooterCfg>(DEFAULT_FOOTER_CFG);
+  // Footer (UID + QR) config — persisted to localStorage
+  const FOOTER_STORAGE_KEY = "htf:footerCfg:v1";
+  const [footer, setFooter] = useState<FooterCfg>(() => {
+    try {
+      const raw = localStorage.getItem(FOOTER_STORAGE_KEY);
+      if (raw) return { ...DEFAULT_FOOTER_CFG, ...JSON.parse(raw) };
+    } catch {}
+    return DEFAULT_FOOTER_CFG;
+  });
   const [testUid, setTestUid] = useState<string>("");
 
 
