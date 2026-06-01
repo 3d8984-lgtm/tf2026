@@ -941,6 +941,40 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
    * - 각 픽셀의 배경색까지의 거리(RGB)로 알파 결정 (소프트 임계)
    * - 결과를 processedDataUrl 로 적용 → 미리보기/PDF 동시 반영
    */
+  /**
+   * 투명 픽셀 가장자리를 잘라내어 실제 이미지 콘텐츠만 남깁니다.
+   * Photoroom 결과나 로컬 처리 결과 모두 동일한 방식으로 가운데 정렬됩니다.
+   */
+  const trimTransparentEdges = async (dataUrl: string, alphaThreshold = 8): Promise<string> => {
+    const img = await loadImage(dataUrl);
+    const w = img.naturalWidth, h = img.naturalHeight;
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+    ctx.drawImage(img, 0, 0);
+    const id = ctx.getImageData(0, 0, w, h);
+    const d = id.data;
+    let minX = w, minY = h, maxX = -1, maxY = -1;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (d[(y * w + x) * 4 + 3] > alphaThreshold) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX < minX || maxY < minY) return dataUrl;
+    const tw = maxX - minX + 1;
+    const th = maxY - minY + 1;
+    if (tw === w && th === h) return dataUrl;
+    const tCanvas = document.createElement("canvas");
+    tCanvas.width = tw; tCanvas.height = th;
+    tCanvas.getContext("2d")!.drawImage(canvas, minX, minY, tw, th, 0, 0, tw, th);
+    return tCanvas.toDataURL("image/png");
+  };
+
   const handleRemoveBackground = async () => {
     const src = displayedLogo || sourceLogo;
     if (!src) { toast({ title: "로고가 없습니다", variant: "destructive" }); return; }
@@ -955,14 +989,17 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
         });
         if (error) throw error;
         if ((data as any)?.error) throw new Error((data as any).error);
-        const out = data instanceof Blob ? await blobToDataUrl(data) : ((data as any)?.imageDataUrl as string | undefined);
-        if (!out) throw new Error("Photoroom 응답에 이미지가 없습니다");
+        const raw = data instanceof Blob ? await blobToDataUrl(data) : ((data as any)?.imageDataUrl as string | undefined);
+        if (!raw) throw new Error("Photoroom 응답에 이미지가 없습니다");
+        // Photoroom이 원본 캔버스를 유지해 한쪽으로 쏠리는 경우가 있어
+        // 클라이언트에서 알파 경계 기준으로 다시 트리밍해 중앙 정렬을 보장한다.
+        const out = await trimTransparentEdges(raw);
         setProcessedDataUrl(out);
         setProcessedKind("upscaled");
         setOffsetXMm(0);
         setOffsetYMm(0);
         setLastAnalysis((prev) => prev ? { ...prev, transparent: true } : prev);
-        toast({ title: "배경 제거 완료 (Photoroom)", description: "AI 기반 배경 제거 및 자동 크롭이 적용되었습니다." });
+        toast({ title: "배경 제거 완료 (Photoroom)", description: "AI 기반 배경 제거 + 자동 크롭으로 중앙 정렬되었습니다." });
         return;
       } catch (apiErr: any) {
         console.warn("[Photoroom] 실패, 로컬 알고리즘으로 폴백:", apiErr?.message || apiErr);
