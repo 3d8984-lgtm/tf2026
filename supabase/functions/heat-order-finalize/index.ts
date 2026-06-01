@@ -110,6 +110,17 @@ async function processJob(admin: any, jobId: string, uploadedZipPath?: string) {
       return { status: "waiting_png", jobId, completed, total, failed };
     }
 
+    if (!uploadedZipPath && !job.zip_url) {
+      await setJob(admin, jobId, {
+        status: "finalizing",
+        stage: "브라우저 ZIP 업로드 대기",
+        zip_progress: 0,
+      });
+      return { status: "need_zip_upload", jobId, completed, total, zip_path: zipPath };
+    }
+
+    const finalZipPath = uploadedZipPath || job.zip_path || zipPath;
+
     const { data: files, error: filesErr } = await admin
       .from("png_jobs")
       .select("item_id, file_url")
@@ -118,29 +129,15 @@ async function processJob(admin: any, jobId: string, uploadedZipPath?: string) {
       .order("item_id", { ascending: true });
     if (filesErr) throw new Error(filesErr.message);
 
-    // file_url may be a full storage path, a public URL, or just a filename — normalize all to a storage path.
-    const resolvePath = (raw: string) => {
-      if (!raw) return "";
-      if (raw.startsWith("http")) {
-        const i = raw.indexOf(`/${BUCKET}/`);
-        return i >= 0 ? raw.slice(i + BUCKET.length + 2) : raw;
-      }
-      return raw.includes("/") ? raw : `${tmpPrefix}/${raw}`;
-    };
-    const entries: { path: string; name: string }[] = [
-      { path: `${tmpPrefix}/__work_order.pdf`, name: "__work_order.pdf" },
-      ...(files || []).map((f: any) => {
-        const p = resolvePath(f.file_url || `${f.item_id}.png`);
-        return { path: p, name: p.split("/").pop() || `${f.item_id}.png` };
-      }),
-    ];
-    await setJob(admin, jobId, { stage: `ZIP 스트리밍 업로드 준비 ${entries.length}개` });
-    await uploadZipStream(admin, jobId, zipPath, folderName, entries);
-
-    await setJob(admin, jobId, { zip_progress: entries.length, stage: "ZIP 완료" });
-
-    const { data: pub } = admin.storage.from(BUCKET).getPublicUrl(zipPath);
+    const { data: pub } = admin.storage.from(BUCKET).getPublicUrl(finalZipPath);
     const zipUrl = pub.publicUrl;
+
+    await setJob(admin, jobId, {
+      zip_path: finalZipPath,
+      zip_url: zipUrl,
+      zip_progress: (files || []).length + 1,
+      stage: "ZIP 업로드 확인 완료",
+    });
 
     await setJob(admin, jobId, { stage: "위챗 전송 중" });
     const webhookUrl = (job.webhook_url || "").trim();
@@ -178,7 +175,7 @@ async function processJob(admin: any, jobId: string, uploadedZipPath?: string) {
       stage: "완료",
       zip_url: zipUrl,
       error_message: null,
-      zip_progress: entries.length,
+      zip_progress: (files || []).length + 1,
     });
     return { status: "done", jobId, zip_url: zipUrl };
   } catch (e) {
