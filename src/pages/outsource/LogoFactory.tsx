@@ -140,6 +140,45 @@ async function preparePhotoroomPayload(dataUrl: string, scale: 2 | 4) {
   return { payload: await canvasToPngDataUrl(canvas), resized: true, width, height };
 }
 
+type Bounds = { minX: number; minY: number; maxX: number; maxY: number; width: number; height: number };
+
+function findVisibleBounds(data: Uint8ClampedArray, width: number, height: number, alphaThreshold: number): Bounds | null {
+  let minX = width, minY = height, maxX = -1, maxY = -1;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (data[(y * width + x) * 4 + 3] > alphaThreshold) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  return maxX >= minX && maxY >= minY
+    ? { minX, minY, maxX, maxY, width: maxX - minX + 1, height: maxY - minY + 1 }
+    : null;
+}
+
+async function trimTransparentEdges(dataUrl: string, alphaThreshold = 32): Promise<{ dataUrl: string; bounds: Bounds | null; originalWidth: number; originalHeight: number }> {
+  const img = await loadImage(dataUrl);
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  ctx.drawImage(img, 0, 0);
+  const bounds = findVisibleBounds(ctx.getImageData(0, 0, w, h).data, w, h, alphaThreshold)
+    ?? findVisibleBounds(ctx.getImageData(0, 0, w, h).data, w, h, 8);
+  if (!bounds) return { dataUrl, bounds: null, originalWidth: w, originalHeight: h };
+
+  const out = document.createElement("canvas");
+  out.width = bounds.width;
+  out.height = bounds.height;
+  out.getContext("2d")!.drawImage(canvas, bounds.minX, bounds.minY, bounds.width, bounds.height, 0, 0, bounds.width, bounds.height);
+  return { dataUrl: await canvasToPngDataUrl(out), bounds, originalWidth: w, originalHeight: h };
+}
+
 
 /** Convert mm + dpi → integer pixel count. */
 function mmToPx(mm: number, dpi: number): number {
