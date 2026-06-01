@@ -1605,7 +1605,11 @@ function OrderProgressBox({
       if (sendingRef.current) return;
       if (Date.now() - lastProgressAtRef.current > 15_000) {
         setShowResume(true);
-        if (activeJobId) invokeFinalize(activeJobId).catch(() => {});
+        if (activeJobId) {
+          uploadZipForJob(activeJobId)
+            .then((zipPath) => supabase.functions.invoke("heat-order-finalize", { body: { jobId: activeJobId, zipPath } }))
+            .catch(() => invokeFinalize(activeJobId).catch(() => {}));
+        }
         lastProgressAtRef.current = Date.now();
       }
     }, 5_000);
@@ -1616,7 +1620,7 @@ function OrderProgressBox({
       if (resumeTimerRef.current) window.clearInterval(resumeTimerRef.current);
       resumeTimerRef.current = null;
     };
-  }, [activeJobId, details.length, invokeFinalize]);
+  }, [activeJobId, details.length, invokeFinalize, uploadZipForJob]);
 
   // 저장된 footer 설정 로드
   const readFooter = (): FooterCfg => {
