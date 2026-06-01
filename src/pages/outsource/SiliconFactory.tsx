@@ -707,7 +707,18 @@ export default function SiliconFactory() {
             </CardContent>
           </Card>
 
-          <SiliconOrderProgressBox order={detailOrder} items={detailItems} templates={templates} />
+          <SiliconOrderProgressBox
+            order={detailOrder}
+            items={detailItems}
+            templates={templates}
+            proof={proof}
+            setProof={setProof}
+            proofQrMap={proofQrMap}
+            proofPage={proofPage}
+            setProofPage={setProofPage}
+            proofQrPage={proofQrPage}
+            setProofQrPage={setProofQrPage}
+          />
 
 
 
@@ -723,6 +734,7 @@ export default function SiliconFactory() {
             setQrPage={setProofQrPage}
             order={detailOrder}
           />
+
 
 
           <Card>
