@@ -1566,6 +1566,7 @@ function OrderProgressBox({
     setShowResume(false);
     try {
       setSending(true);
+      sendStartedAtRef.current = Date.now();
       setSendStage("멈춘 작업 ZIP 재개 중");
       const zipPath = await uploadZipForJob(activeJobId);
       const { error } = await supabase.functions.invoke("heat-order-finalize", { body: { jobId: activeJobId, zipPath } });
@@ -1575,6 +1576,7 @@ function OrderProgressBox({
     } finally {
       setSending(false);
       setSendStage("");
+      sendStartedAtRef.current = null;
     }
   }, [activeJobId, uploadZipForJob]);
 
