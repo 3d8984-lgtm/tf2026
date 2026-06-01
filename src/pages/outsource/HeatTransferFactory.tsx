@@ -252,9 +252,7 @@ async function composeWithFooter(
     .filter(Boolean);
   const metaText = metaParts.join(" · ");
   const metaTextPx = Math.max(1, Math.round(cfg.textSizeMm * 0.85 * pxPerMm));
-  const metaGapPx = metaText ? Math.max(2, Math.round(cfg.textSizeMm * 0.4 * pxPerMm)) : 0;
-  const metaBlockH = metaText ? metaTextPx + metaGapPx : 0;
-  const bandH = Math.max(qrPx, textPx) + padPx * 2 + metaBlockH;
+  const bandH = Math.max(qrPx, textPx, metaText ? metaTextPx : 0) + padPx * 2;
 
   const qrCanvas = document.createElement("canvas");
   await QRCode.toCanvas(qrCanvas, designUid || " ", { width: qrPx, margin: 0 });
