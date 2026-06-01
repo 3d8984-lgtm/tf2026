@@ -592,6 +592,24 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const sourceLogo = testLogoDataUrl || logoUrl;
   const displayedLogo = processedDataUrl || sourceLogo;
 
+  const applyProcessedLogo = (result: { dataUrl: string; bounds: Bounds | null; originalWidth: number; originalHeight: number }) => {
+    const { dataUrl, bounds, originalWidth, originalHeight } = result;
+    skipAutoFitRef.current = true;
+    if (bounds && originalWidth > 0 && originalHeight > 0) {
+      const nextW = Math.max(0.1, Math.round(logoWidthMm * (bounds.width / originalWidth) * 10) / 10);
+      const nextH = Math.max(0.1, Math.round(logoHeightMm * (bounds.height / originalHeight) * 10) / 10);
+      setNaturalAspect(bounds.width / bounds.height || 1);
+      setLogoWidthMm(nextW);
+      setLogoHeightMm(nextH);
+    }
+    setProcessedDataUrl(dataUrl);
+    setUpscaledDataUrl(dataUrl);
+    setProcessedKind("upscaled");
+    setOffsetXMm(0);
+    setOffsetYMm(0);
+    setLastAnalysis((prev) => prev ? { ...prev, transparent: true } : prev);
+  };
+
   const handleTestLogoSelect = (file: File) => {
     if (!file.type.startsWith("image/")) {
       toast({ title: "이미지 파일만 업로드 가능합니다", variant: "destructive" });
