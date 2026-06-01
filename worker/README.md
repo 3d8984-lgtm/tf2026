@@ -1,4 +1,4 @@
-# TWINMETA Order Worker (Railway)
+# TWINMETA Order Worker (Render)
 
 Lovable의 `/v1/orders` Edge Function이 enqueue하는 발주 작업을 받아, **이미지 가공(Sharp) → ZIP 묶기 → Supabase Storage 업로드 → WeChat Work 전송**까지 처리하는 Node 서비스입니다.
 
@@ -35,13 +35,16 @@ npm run dev
 - `POST /internal/process` — body `{ jobId: string }`, header `Authorization: Bearer $WORKER_SECRET`
 - `POST /internal/wechat-resend` — body `{ jobId }` (실패한 위챗 전송 재시도)
 
-## Railway 배포
+## Render 배포
 
-1. https://railway.app 에 가입 후 새 프로젝트 생성
-2. **Deploy from GitHub repo** 선택 → 이 레포 연결
-3. **Root directory**를 `worker`로 지정
-4. Dockerfile은 자동 감지됩니다 (`worker/Dockerfile`)
-5. **Variables** 탭에서 다음 환경변수 입력:
+1. https://render.com 에 가입 후 **New + → Web Service**
+2. **Connect a repository** → `3d8984-lgtm/tf2026` 선택
+3. 설정:
+   - **Root Directory**: `worker`
+   - **Runtime**: Docker (`worker/Dockerfile` 자동 감지)
+   - **Instance Type**: Starter 이상 (Sharp + ZIP 메모리 여유)
+   - **Health Check Path**: `/health`
+4. **Environment** 탭에서 다음 환경변수 입력:
 
 | 이름 | 값 |
 |---|---|
@@ -49,10 +52,15 @@ npm run dev
 | `SUPABASE_SERVICE_ROLE_KEY` | (Supabase Settings → API → service_role key) |
 | `WORKER_SECRET` | 본인이 정한 긴 랜덤 문자열 (Lovable에도 같은 값 등록) |
 | `WORKER_CALLBACK_URL` | `https://bbsfhmarrcvhvcmuqwej.supabase.co/functions/v1/worker-callback` |
+| `WECHAT_WEBHOOK_KEY` | 위챗 웹훅 key (기본값 fallback) |
 | `STORAGE_BUCKET` | `hologram-pdf` |
 | `IMAGE_CONCURRENCY` | `20` (선택) |
+| `PORT` | `8080` (Render 자동 주입, 명시 권장) |
 
-6. **Networking** → **Generate Domain**으로 공개 URL 발급 (예: `https://twinmeta-worker.up.railway.app`)
+5. 배포 후 발급되는 공개 URL 예시: `https://twinmeta-worker.onrender.com`
+6. 검증: `curl https://<your-service>.onrender.com/health` → `{ "ok": true }`
+
+> Railway는 사용하지 않습니다. 이전 Railway 안내는 폐기되었습니다.
 
 ## Lovable 측 등록
 
