@@ -1241,106 +1241,410 @@ function computeSiliconWorkOrder(order: any, items: Array<{ grade: Grade }>): Wo
   return defaults;
 }
 
-function Step2PreviewDialog({
-  open, onOpenChange, items, templates, onConfirm,
+// ============= 시안 PDF 생성 (모듈 레벨 헬퍼) =============
+const MARK_ORIG_W = 63;
+const MARK_ORIG_H = 60.811;
+const MARK_AR = MARK_ORIG_H / MARK_ORIG_W;
+const A4_W_MM = 210;
+const A4_H_MM = 297;
+const QR_MARGIN_MM = 10;
+
+export function getTwinLayoutInfo(proof: ProofSettings, itemCount: number) {
+  const tCols = Math.max(1, proof.twinCols);
+  const tRows = Math.max(1, proof.twinRows);
+  const cellW = Math.max(1, proof.markW);
+  const cellH = cellW * MARK_AR;
+  const perPage = tCols * tRows;
+  const totalPages = Math.max(1, Math.ceil(itemCount / perPage));
+  return { tCols, tRows, cellW, cellH, perPage, totalPages };
+}
+
+export function getQrLayoutInfo(proof: ProofSettings, itemCount: number) {
+  const qCols = Math.max(1, Math.floor((A4_W_MM - 2 * QR_MARGIN_MM + proof.qrGap) / (proof.qrCutSize + proof.qrGap)));
+  const qRows = Math.max(1, Math.floor((A4_H_MM - 2 * QR_MARGIN_MM + proof.qrGap) / (proof.qrCutSize + proof.qrGap)));
+  const perPage = qCols * qRows;
+  const totalPages = Math.max(1, Math.ceil(itemCount / perPage));
+  return { qCols, qRows, perPage, totalPages };
+}
+
+/** 트윈코드 시안: 단일 페이지 PDF (트윈코드 설정의 대지 사이즈 그대로) */
+export async function buildSiliconTwinPdfPage(opts: {
+  items: ProofItem[];
+  pageIdx: number;
+  proof: ProofSettings;
+  templates: Record<Grade, { name: string; bytes: Uint8Array; preview: string; aspect: number } | null>;
+  gradeColorNames: GradeColorNames;
+  gradeColorStyle: GradeColorStyle;
+  overrideTwinSvgUrl?: string | null;
+}): Promise<Uint8Array> {
+  const { items, pageIdx, proof, templates, gradeColorNames, gradeColorStyle, overrideTwinSvgUrl } = opts;
+  const { tCols, tRows, cellW, cellH, perPage } = getTwinLayoutInfo(proof, items.length);
+  const tGap = proof.twinGap;
+
+  const out = await PDFDocument.create();
+  const helv = await out.embedFont(StandardFonts.Helvetica);
+  const helvBold = await out.embedFont(StandardFonts.HelveticaBold);
+
+  const pageItems = items.slice(pageIdx * perPage, pageIdx * perPage + perPage);
+
+  const gradeEmbeds: Partial<Record<Grade, any>> = {};
+  for (const it of pageItems) {
+    const tmpl = templates[it.grade];
+    if (tmpl?.bytes && !gradeEmbeds[it.grade]) {
+      try {
+        const [emb] = await out.embedPdf(tmpl.bytes);
+        gradeEmbeds[it.grade] = emb;
+      } catch (e) { console.warn("template embed failed", e); }
+    }
+  }
+
+  let effCellWmm = cellW;
+  let effCellHmm = cellH;
+  for (const g of Object.keys(gradeEmbeds) as Grade[]) {
+    const emb = gradeEmbeds[g];
+    if (!emb) continue;
+    const wMm = emb.width / MM;
+    const hMm = emb.height / MM;
+    if (wMm > effCellWmm) effCellWmm = wMm;
+    if (hMm > effCellHmm) effCellHmm = hMm;
+  }
+
+  const textHmm = Math.max(0, proof.twinTextSize);
+  const textBlockMm = proof.twinTextGap + textHmm;
+  const marginMm = Math.max(0, proof.twinMargin);
+  const cellTotalHmm = effCellHmm + textBlockMm;
+
+  const pageWmm = tCols * effCellWmm + Math.max(0, tCols - 1) * tGap + 2 * marginMm;
+  const pageHmm = tRows * cellTotalHmm + Math.max(0, tRows - 1) * tGap + 2 * marginMm;
+  const pageWpt = pageWmm * MM;
+  const pageHpt = pageHmm * MM;
+  const page = out.addPage([pageWpt, pageHpt]);
+
+  const twinEmbedCache = new Map<string, any>();
+  const getTwinEmbed = async (url: string) => {
+    if (twinEmbedCache.has(url)) return twinEmbedCache.get(url);
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("svg fetch failed");
+      const svgText = await res.text();
+      const sizePt = 200;
+      const pdfBytes = await svgToVectorPdfBytes(svgText, sizePt, sizePt);
+      const [embedded] = await out.embedPdf(pdfBytes);
+      twinEmbedCache.set(url, embedded);
+      return embedded;
+    } catch (e) { console.warn("twin svg embed failed", url, e); return null; }
+  };
+
+  for (let idx = 0; idx < pageItems.length; idx++) {
+    const it = pageItems[idx];
+    const col = idx % tCols;
+    const row = Math.floor(idx / tCols);
+    const cellXmm = marginMm + col * (effCellWmm + tGap);
+    const cellYmm = marginMm + row * (cellTotalHmm + tGap);
+
+    const emb = gradeEmbeds[it.grade];
+    const drawWmm = emb ? (emb.width / MM) : cellW;
+    const drawHmm = emb ? (emb.height / MM) : cellH;
+    const xMm = cellXmm + (effCellWmm - drawWmm) / 2;
+    const yMm = cellYmm + (effCellHmm - drawHmm) / 2;
+
+    const twinMm = proof.twinSize;
+    const offX = proof.twinOffsetX;
+    const offY = proof.twinOffsetY;
+
+    const xPt = xMm * MM;
+    const yPt = pageHpt - (yMm + drawHmm) * MM;
+    const wPt = drawWmm * MM;
+    const hPt = drawHmm * MM;
+
+    if (emb) {
+      try { page.drawPage(emb, { x: xPt, y: yPt, width: wPt, height: hPt }); }
+      catch (e) { console.warn("template draw failed", e); }
+    } else {
+      page.drawRectangle({ x: xPt, y: yPt, width: wPt, height: hPt, borderColor: rgb(0.7,0.7,0.7), borderWidth: 0.3 });
+    }
+
+    const twinUrl = overrideTwinSvgUrl || it.svgUrl;
+    if (twinUrl) {
+      const tEmb = await getTwinEmbed(twinUrl);
+      if (tEmb) {
+        const txMm = xMm + drawWmm / 2 + offX - twinMm / 2;
+        const tyMm = yMm + drawHmm / 2 + offY - twinMm / 2;
+        const txPt = txMm * MM;
+        const tyPt = pageHpt - (tyMm + twinMm) * MM;
+        const twPt = twinMm * MM;
+        page.drawPage(tEmb, { x: txPt, y: tyPt, width: twPt, height: twPt });
+      }
+    }
+
+    const fontPt = Math.max(4, proof.twinTextSize * MM);
+    const baselineYmm = cellYmm + effCellHmm + proof.twinTextGap + textHmm;
+    const colorName = gradeColorNames[it.grade] || "";
+    const idText = it.uniqueNo;
+    const colorFontPt = gradeColorStyle.fontSize;
+    const colorFont = gradeColorStyle.fontWeight >= 650 ? helvBold : helv;
+    const sepText = colorName ? "  ·  " : "";
+    const sepFontPt = colorName ? Math.max(fontPt, colorFontPt) : fontPt;
+    const sepFont = colorFont;
+    const idW = helv.widthOfTextAtSize(idText, fontPt);
+    const sepW = colorName ? sepFont.widthOfTextAtSize(sepText, sepFontPt) : 0;
+    const colorW = colorName ? colorFont.widthOfTextAtSize(colorName, colorFontPt) : 0;
+    const totalW = idW + sepW + colorW;
+    const startX = (cellXmm + effCellWmm / 2) * MM - totalW / 2;
+    const textYpt = pageHpt - baselineYmm * MM;
+    page.drawText(idText, { x: startX, y: textYpt, size: fontPt, font: helv, color: rgb(0, 0, 0) });
+    if (colorName) {
+      page.drawText(sepText, { x: startX + idW, y: textYpt, size: sepFontPt, font: sepFont, color: rgb(0, 0, 0) });
+      page.drawText(colorName, { x: startX + idW + sepW, y: textYpt, size: colorFontPt, font: colorFont, color: rgb(0, 0, 0) });
+    }
+  }
+
+  return await out.save();
+}
+
+/** 큐알코드 시안: 1개 PDF 안에 A4 여러 페이지 */
+export async function buildSiliconQrPdfAll(opts: {
+  items: ProofItem[];
+  proof: ProofSettings;
+  qrMap: Record<string, string>;
+  gradeColorNames: GradeColorNames;
+  gradeColorStyle: GradeColorStyle;
+}): Promise<Uint8Array> {
+  const { items, proof, qrMap, gradeColorNames, gradeColorStyle } = opts;
+  const { qCols, perPage, totalPages } = getQrLayoutInfo(proof, items.length);
+
+  const out = await PDFDocument.create();
+  const helv = await out.embedFont(StandardFonts.Helvetica);
+  const helvBold = await out.embedFont(StandardFonts.HelveticaBold);
+
+  const pageWpt = A4_W_MM * MM;
+  const pageHpt = A4_H_MM * MM;
+
+  const qrCache = new Map<string, any>();
+  const getQrEmbed = async (uniqueNo: string) => {
+    if (qrCache.has(uniqueNo)) return qrCache.get(uniqueNo);
+    let dataUrl = qrMap[uniqueNo];
+    if (!dataUrl) {
+      dataUrl = await QRCode.toDataURL(uniqueNo, { errorCorrectionLevel: "M", margin: 0, width: 400 });
+    }
+    const b64 = dataUrl.split(",")[1] || "";
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const img = await out.embedPng(bytes);
+    qrCache.set(uniqueNo, img);
+    return img;
+  };
+
+  for (let p = 0; p < totalPages; p++) {
+    const page = out.addPage([pageWpt, pageHpt]);
+    const pageItems = items.slice(p * perPage, p * perPage + perPage);
+    for (let idx = 0; idx < pageItems.length; idx++) {
+      const it = pageItems[idx];
+      const col = idx % qCols;
+      const row = Math.floor(idx / qCols);
+      const cellXmm = QR_MARGIN_MM + col * (proof.qrCutSize + proof.qrGap);
+      const cellYmm = QR_MARGIN_MM + row * (proof.qrCutSize + proof.qrGap);
+
+      page.drawRectangle({
+        x: cellXmm * MM,
+        y: pageHpt - (cellYmm + proof.qrCutSize) * MM,
+        width: proof.qrCutSize * MM,
+        height: proof.qrCutSize * MM,
+        borderColor: rgb(0.4, 0.4, 0.4),
+        borderWidth: 0.3,
+        borderDashArray: [2, 2],
+      });
+
+      const labelMm = Math.max(0, proof.qrTextSize);
+      const gapMm = Math.max(0, proof.qrTextGap);
+      const avail = Math.max(2, proof.qrCutSize - labelMm - gapMm);
+      const qrSizeMm = Math.min(proof.qrSize, avail);
+      const blockH = qrSizeMm + gapMm + labelMm;
+      const blockTopYmm = cellYmm + (proof.qrCutSize - blockH) / 2;
+      const qrXmm = cellXmm + (proof.qrCutSize - qrSizeMm) / 2;
+      const qrYmm = blockTopYmm;
+
+      try {
+        const qrImg = await getQrEmbed(it.uniqueNo);
+        page.drawImage(qrImg, {
+          x: qrXmm * MM,
+          y: pageHpt - (qrYmm + qrSizeMm) * MM,
+          width: qrSizeMm * MM,
+          height: qrSizeMm * MM,
+        });
+      } catch (e) { console.warn("qr embed failed", it.uniqueNo, e); }
+
+      const fontPt = Math.max(4, labelMm * MM);
+      const colorName = gradeColorNames[it.grade] || "";
+      const colorFontPt = gradeColorStyle.fontSize;
+      const colorFont = gradeColorStyle.fontWeight >= 650 ? helvBold : helv;
+      const sepText = colorName ? "  ·  " : "";
+      const sepFontPt = colorName ? Math.max(fontPt, colorFontPt) : fontPt;
+      const idText = it.uniqueNo;
+      const idW = helv.widthOfTextAtSize(idText, fontPt);
+      const sepW = colorName ? colorFont.widthOfTextAtSize(sepText, sepFontPt) : 0;
+      const colorW = colorName ? colorFont.widthOfTextAtSize(colorName, colorFontPt) : 0;
+      const totalW = idW + sepW + colorW;
+      const labelYmm = blockTopYmm + qrSizeMm + gapMm + labelMm;
+      const labelXpt = (cellXmm + proof.qrCutSize / 2) * MM - totalW / 2;
+      const labelYpt = pageHpt - labelYmm * MM;
+      page.drawText(idText, { x: labelXpt, y: labelYpt, size: fontPt, font: helv, color: rgb(0, 0, 0) });
+      if (colorName) {
+        page.drawText(sepText, { x: labelXpt + idW, y: labelYpt, size: sepFontPt, font: colorFont, color: rgb(0, 0, 0) });
+        page.drawText(colorName, { x: labelXpt + idW + sepW, y: labelYpt, size: colorFontPt, font: colorFont, color: rgb(0, 0, 0) });
+      }
+    }
+  }
+
+  return await out.save();
+}
+
+/** Step 2: 트윈코드 / QR코드 최종 PDF 미리보기 다이얼로그 */
+function Step2PdfPreviewDialog({
+  open, onOpenChange, items, proof, templates, qrMap, gradeColorNames, gradeColorStyle, orderNo, onConfirm,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  items: Array<{ seq: number; uniqueNo: string; grade: Grade }>;
+  items: ProofItem[];
+  proof: ProofSettings;
   templates: Record<Grade, { name: string; bytes: Uint8Array; preview: string; aspect: number } | null>;
+  qrMap: Record<string, string>;
+  gradeColorNames: GradeColorNames;
+  gradeColorStyle: GradeColorStyle;
+  orderNo: string;
   onConfirm: () => void;
 }) {
-  const usedGrades = useMemo(() => {
-    const set = new Set<Grade>();
-    items.forEach(it => set.add(it.grade));
-    return Array.from(set);
-  }, [items]);
+  const { totalPages: totalTwin } = useMemo(() => getTwinLayoutInfo(proof, items.length), [proof, items.length]);
+  const { totalPages: totalQr } = useMemo(() => getQrLayoutInfo(proof, items.length), [proof, items.length]);
 
-  const [qrMap, setQrMap] = useState<Record<string, string>>({});
+  const [twinUrls, setTwinUrls] = useState<(string | null)[]>([]);
+  const [twinIdx, setTwinIdx] = useState(0);
+  const [twinBusy, setTwinBusy] = useState(false);
+
+  const [qrUrl, setQrUrl] = useState<string | null>(null);
+  const [qrIdx, setQrIdx] = useState(0);
+  const [qrBusy, setQrBusy] = useState(false);
+
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      twinUrls.forEach(u => u && URL.revokeObjectURL(u));
+      if (qrUrl) URL.revokeObjectURL(qrUrl);
+      setTwinUrls([]); setTwinIdx(0); setQrUrl(null); setQrIdx(0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || items.length === 0) return;
     let cancelled = false;
     (async () => {
-      const next: Record<string, string> = { ...qrMap };
-      for (const it of items) {
-        if (next[it.uniqueNo]) continue;
-        next[it.uniqueNo] = await QRCode.toDataURL(it.uniqueNo, { errorCorrectionLevel: "M", margin: 1, width: 160 });
-      }
-      if (!cancelled) setQrMap(next);
+      setTwinBusy(true);
+      try {
+        const urls: (string | null)[] = new Array(totalTwin).fill(null);
+        for (let p = 0; p < totalTwin; p++) {
+          const bytes = await buildSiliconTwinPdfPage({
+            items, pageIdx: p, proof, templates, gradeColorNames, gradeColorStyle,
+          });
+          if (cancelled) return;
+          const ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+          urls[p] = URL.createObjectURL(new Blob([ab], { type: "application/pdf" }));
+          setTwinUrls([...urls]);
+        }
+      } catch (e: any) {
+        toast({ title: "트윈코드 PDF 생성 실패", description: e?.message, variant: "destructive" });
+      } finally { if (!cancelled) setTwinBusy(false); }
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, items]);
+  }, [open, items, proof, templates, gradeColorNames, gradeColorStyle, totalTwin]);
+
+  useEffect(() => {
+    if (!open || items.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      setQrBusy(true);
+      try {
+        const bytes = await buildSiliconQrPdfAll({ items, proof, qrMap, gradeColorNames, gradeColorStyle });
+        if (cancelled) return;
+        const ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+        setQrUrl(URL.createObjectURL(new Blob([ab], { type: "application/pdf" })));
+      } catch (e: any) {
+        toast({ title: "QR PDF 생성 실패", description: e?.message, variant: "destructive" });
+      } finally { if (!cancelled) setQrBusy(false); }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, items, proof, qrMap, gradeColorNames, gradeColorStyle]);
+
+  const currentTwinUrl = twinUrls[twinIdx] || null;
+  const currentQrSrc = qrUrl ? `${qrUrl}#page=${qrIdx + 1}&toolbar=0&view=FitH` : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-[95vw] w-[95vw] max-h-[95vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="w-4 h-4 text-green-600" />
-            작업파일 확인 ({items.length}건)
+            작업파일 확인 — 최종 출력 PDF 미리보기 ({items.length}건)
           </DialogTitle>
         </DialogHeader>
-        <Tabs defaultValue="pdf" className="flex-1 flex flex-col overflow-hidden">
+        <Tabs defaultValue="twin" className="flex-1 flex flex-col overflow-hidden">
           <TabsList className="self-start">
-            <TabsTrigger value="pdf"><FileText className="w-4 h-4 mr-1" /> PDF 파일 미리보기</TabsTrigger>
-            <TabsTrigger value="qr"><QrCode className="w-4 h-4 mr-1" /> QR코드 시안 미리보기</TabsTrigger>
+            <TabsTrigger value="twin"><FileText className="w-4 h-4 mr-1" /> 트윈코드 시안 ({totalTwin}장)</TabsTrigger>
+            <TabsTrigger value="qr"><QrCode className="w-4 h-4 mr-1" /> QR코드 시안 ({totalQr}장)</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="pdf" className="flex-1 overflow-auto mt-2">
-            {usedGrades.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground text-sm">발주 항목이 없습니다.</div>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {usedGrades.map(g => {
-                  const t = templates[g];
-                  const count = items.filter(i => i.grade === g).length;
-                  return (
-                    <div key={g} className="border rounded-md p-2 bg-white">
-                      <div className="flex items-center justify-between mb-2">
-                        <Badge variant="secondary">{g}</Badge>
-                        <span className="text-xs text-muted-foreground">{count}건</span>
-                      </div>
-                      <div className="w-full bg-muted rounded overflow-hidden flex items-center justify-center" style={{ aspectRatio: t?.aspect ? String(t.aspect) : "3 / 4" }}>
-                        {t?.preview ? (
-                          <img src={t.preview} alt={`${g} template`} className="w-full h-full object-contain" />
-                        ) : (
-                          <div className="text-xs text-muted-foreground p-4 text-center">템플릿 PDF 미등록</div>
-                        )}
-                      </div>
-                      <div className="mt-1 text-[10px] text-muted-foreground truncate" title={t?.name}>{t?.name || "—"}</div>
-                    </div>
-                  );
-                })}
+          <TabsContent value="twin" className="flex-1 flex flex-col overflow-hidden mt-2">
+            <div className="flex items-center justify-between gap-2 pb-2">
+              <div className="text-xs text-muted-foreground">
+                파일명 미리보기: <span className="font-mono text-foreground">{orderNo || "twincode"}({twinIdx + 1}).pdf</span>
+                {twinBusy && <span className="ml-2 inline-flex items-center text-amber-600"><Loader2 className="w-3 h-3 mr-1 animate-spin" />생성 중 ({twinUrls.filter(Boolean).length}/{totalTwin})</span>}
               </div>
-            )}
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" disabled={twinIdx <= 0} onClick={() => setTwinIdx(twinIdx - 1)}>이전</Button>
+                <span className="text-xs tabular-nums w-16 text-center">{twinIdx + 1} / {totalTwin}</span>
+                <Button size="sm" variant="outline" disabled={twinIdx >= totalTwin - 1} onClick={() => setTwinIdx(twinIdx + 1)}>다음</Button>
+              </div>
+            </div>
+            <div className="flex-1 border rounded-md bg-muted/30 overflow-hidden">
+              {currentTwinUrl ? (
+                <iframe key={`twin-${twinIdx}`} title="twin-pdf-preview" src={currentTwinUrl} className="w-full h-full bg-white" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" /> 페이지 생성 중...
+                </div>
+              )}
+            </div>
           </TabsContent>
 
-          <TabsContent value="qr" className="flex-1 overflow-auto mt-2">
-            {items.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground text-sm">발주 항목이 없습니다.</div>
-            ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                {items.map(it => (
-                  <div key={it.uniqueNo} className="border rounded-md p-2 bg-white flex flex-col items-center">
-                    <div className="w-full aspect-square bg-white flex items-center justify-center">
-                      {qrMap[it.uniqueNo] ? (
-                        <img src={qrMap[it.uniqueNo]} alt={it.uniqueNo} className="w-full h-full object-contain" />
-                      ) : (
-                        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                      )}
-                    </div>
-                    <div className="mt-1 text-[10px] font-mono text-center break-all leading-tight text-foreground/80">{it.uniqueNo}</div>
-                    <Badge variant="outline" className="mt-1 text-[10px]">{it.grade}</Badge>
-                  </div>
-                ))}
+          <TabsContent value="qr" className="flex-1 flex flex-col overflow-hidden mt-2">
+            <div className="flex items-center justify-between gap-2 pb-2">
+              <div className="text-xs text-muted-foreground">
+                파일명 미리보기: <span className="font-mono text-foreground">QRcode.pdf</span>
+                <span className="ml-2">· A4 {totalQr}페이지 / 단일 PDF</span>
+                {qrBusy && <span className="ml-2 inline-flex items-center text-amber-600"><Loader2 className="w-3 h-3 mr-1 animate-spin" />생성 중</span>}
               </div>
-            )}
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" disabled={qrIdx <= 0} onClick={() => setQrIdx(qrIdx - 1)}>이전</Button>
+                <span className="text-xs tabular-nums w-16 text-center">{qrIdx + 1} / {totalQr}</span>
+                <Button size="sm" variant="outline" disabled={qrIdx >= totalQr - 1} onClick={() => setQrIdx(qrIdx + 1)}>다음</Button>
+              </div>
+            </div>
+            <div className="flex-1 border rounded-md bg-muted/30 overflow-hidden">
+              {currentQrSrc ? (
+                <iframe key={`qr-${qrIdx}`} title="qr-pdf-preview" src={currentQrSrc} className="w-full h-full bg-white" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" /> PDF 생성 중...
+                </div>
+              )}
+            </div>
           </TabsContent>
         </Tabs>
         <div className="flex justify-end gap-2 pt-2 border-t mt-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>닫기</Button>
-          <Button onClick={onConfirm}>
+          <Button onClick={onConfirm} disabled={twinBusy || qrBusy}>
             <CheckCircle2 className="w-4 h-4 mr-1" /> 확인
           </Button>
         </div>
