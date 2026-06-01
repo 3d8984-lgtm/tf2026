@@ -1472,7 +1472,7 @@ function OrderProgressBox({
       // 2) Image 폴더 — 300dpi 최종 PNG
       const imageFolder = root.folder("Image")!;
       const pngs = await buildFinalPngs(details, formats, outline, testDesign, readFooter(), 300, true,
-        (done, total) => setSendProgress({ done, total }));
+        (done, total) => setSendProgress({ done, total }), savedTransform);
       let ok = 0, skipped = 0;
       const used = new Map<string, number>();
       for (const r of pngs) {
