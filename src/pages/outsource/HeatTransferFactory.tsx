@@ -1340,6 +1340,42 @@ async function buildFinalPngs(
     return p;
   };
 
+  // Cache the expensive clipped-design base per source + format + transform.
+  // Many 발주 rows reuse the same design/size; only the footer QR/UID differs.
+  const srcIds = new Map<string, number>();
+  let nextSrcId = 0;
+  const getSrcId = (src: string) => {
+    let id = srcIds.get(src);
+    if (!id) { id = ++nextSrcId; srcIds.set(src, id); }
+    return id;
+  };
+  const maskIds = new WeakMap<HTMLCanvasElement, number>();
+  let nextMaskId = 0;
+  const getMaskId = (maskCanvas: HTMLCanvasElement) => {
+    let id = maskIds.get(maskCanvas);
+    if (!id) { id = ++nextMaskId; maskIds.set(maskCanvas, id); }
+    return id;
+  };
+  const baseCanvasCache = new Map<string, Promise<HTMLCanvasElement>>();
+  const getBaseCanvas = (
+    src: string,
+    fmt: { maskCanvas: HTMLCanvasElement; widthPt: number; heightPt: number },
+    preBuiltMask: HTMLCanvasElement,
+    preLoadedImage: HTMLImageElement,
+  ) => {
+    const key = [
+      getSrcId(src), getMaskId(fmt.maskCanvas), fmt.widthPt, fmt.heightPt, dpi,
+      sharpen ? 1 : 0, transform?.offsetXPct ?? 0, transform?.offsetYPct ?? 0, transform?.scale ?? 1,
+    ].join("|");
+    let p = baseCanvasCache.get(key);
+    if (!p) {
+      p = composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform,
+        { sharpen, preBuiltMask, preLoadedImage });
+      baseCanvasCache.set(key, p);
+    }
+    return p;
+  };
+
   let done = 0;
   const processOne = async (idx: number) => {
     const d = details[idx];
@@ -1356,8 +1392,7 @@ async function buildFinalPngs(
         } else {
           const preMask = getMask(fmt);
           const preImg = await getImg(src);
-          const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform,
-            { sharpen, preBuiltMask: preMask, preLoadedImage: preImg });
+          const c0 = await getBaseCanvas(src, fmt, preMask, preImg);
           const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer, {
             tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize,
           });
