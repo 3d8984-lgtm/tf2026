@@ -1579,6 +1579,7 @@ function Step2PdfPreviewDialog({
         for (let p = 0; p < totalTwin; p++) {
           const bytes = await buildSiliconTwinPdfPage({
             items, pageIdx: p, proof, templates, gradeColorNames, gradeColorStyle,
+            overrideTwinSvgUrl: overrideTwinSvgUrl || null,
           });
           if (cancelled) return;
           imgs[p] = await renderPdfPageToPng(bytes, 1, 1.5);
@@ -1591,7 +1592,7 @@ function Step2PdfPreviewDialog({
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, items, proof, templates, gradeColorNames, gradeColorStyle, totalTwin]);
+  }, [open, items, proof, templates, gradeColorNames, gradeColorStyle, totalTwin, overrideTwinSvgUrl]);
 
   useEffect(() => {
     if (!open || items.length === 0) return;
