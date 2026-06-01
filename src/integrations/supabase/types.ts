@@ -299,6 +299,57 @@ export type Database = {
         }
         Relationships: []
       }
+      outsource_order_jobs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          factory: string
+          id: string
+          order_no: string
+          payload: Json
+          stage: string
+          status: Database["public"]["Enums"]["outsource_job_status"]
+          total_pngs: number
+          updated_at: string
+          uploaded_pngs: number
+          webhook_url: string
+          zip_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          factory: string
+          id?: string
+          order_no: string
+          payload?: Json
+          stage?: string
+          status?: Database["public"]["Enums"]["outsource_job_status"]
+          total_pngs?: number
+          updated_at?: string
+          uploaded_pngs?: number
+          webhook_url?: string
+          zip_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          factory?: string
+          id?: string
+          order_no?: string
+          payload?: Json
+          stage?: string
+          status?: Database["public"]["Enums"]["outsource_job_status"]
+          total_pngs?: number
+          updated_at?: string
+          uploaded_pngs?: number
+          webhook_url?: string
+          zip_url?: string | null
+        }
+        Relationships: []
+      }
       outsource_orders: {
         Row: {
           carrier: string | null
@@ -749,6 +800,12 @@ export type Database = {
         | "shipped"
         | "cancelled"
       outsource_factory: "silicon" | "heat" | "hologram" | "nfc" | "logo"
+      outsource_job_status:
+        | "pending"
+        | "uploading"
+        | "finalizing"
+        | "done"
+        | "failed"
       outsource_status: "ordered" | "shipped" | "received"
       production_stage:
         | "tshirt"
@@ -903,6 +960,13 @@ export const Constants = {
         "cancelled",
       ],
       outsource_factory: ["silicon", "heat", "hologram", "nfc", "logo"],
+      outsource_job_status: [
+        "pending",
+        "uploading",
+        "finalizing",
+        "done",
+        "failed",
+      ],
       outsource_status: ["ordered", "shipped", "received"],
       production_stage: [
         "tshirt",

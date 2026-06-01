@@ -1585,78 +1585,157 @@ function OrderProgressBox({
     if (currentWebhookUrl !== webhookUrl) setWebhookUrl(currentWebhookUrl);
     setSending(true);
     setSendProgress({ done: 0, total: details.length });
-    setSendStage("작업지시서 PDF 생성 중");
+    setSendStage("발주 잡 생성 중");
+
+    const folderName = order.orderNo || "heat-transfer";
+    let jobId: string | null = null;
     try {
-      const folderName = order.orderNo || "heat-transfer";
-      const zip = new JSZip();
-      const root = zip.folder(folderName)!;
+      // 1) 잡 row 생성
+      const { data: jobRow, error: jobErr } = await supabase
+        .from("outsource_order_jobs" as any)
+        .insert({
+          factory: "heat",
+          order_no: folderName,
+          total_pngs: details.length,
+          status: "uploading",
+          stage: "PNG 업로드 준비",
+          webhook_url: currentWebhookUrl,
+          payload: { product_code: order.raw?.product_code || folderName },
+        } as any)
+        .select("id")
+        .maybeSingle();
+      if (jobErr || !jobRow) throw new Error(`잡 생성 실패: ${jobErr?.message || "no row"}`);
+      jobId = (jobRow as any).id as string;
+      const tmpPrefix = `orders/heat-transfer-jobs/${jobId}`;
 
-      // 1) 작업지시서 PDF
+      // 2) 작업지시서 PDF 업로드
+      setSendStage("작업지시서 업로드 중");
       const woBytes = await renderHtmlToPdfBytes(woHtml);
-      root.file(`${folderName}_작업지시서.pdf`, woBytes);
-
-      // 2) Image 폴더 — 300dpi 최종 PNG
-      setSendStage("최종 PNG 생성 중");
-      const imageFolder = root.folder("Image")!;
-      const pngs = await buildFinalPngs(details, formats, outline, testDesign, readFooter(), 300, false,
-        (done, total) => setSendProgress({ done, total }), savedTransform,
-        { concurrency: 1, yieldEvery: 1 });
-
-      let ok = 0, skipped = 0;
-      const used = new Map<string, number>();
-      for (const r of pngs) {
-        if (!r.blob) { skipped++; continue; }
-        const count = used.get(r.designUid) ?? 0;
-        const name = count === 0 ? `${r.designUid}.png` : `${r.designUid}(${count}).png`;
-        used.set(r.designUid, count + 1);
-        imageFolder.file(name, r.blob, { binary: true, compression: "STORE" });
-        ok++;
-        if (ok % 10 === 0) await yieldToBrowser();
+      const pdfBlob = new Blob([woBytes as BlobPart], { type: "application/pdf" });
+      {
+        const { error } = await supabase.storage.from("hologram-pdf")
+          .upload(`${tmpPrefix}/__work_order.pdf`, pdfBlob, { contentType: "application/pdf", upsert: true });
+        if (error) throw new Error(`작업지시서 업로드 실패: ${error.message}`);
       }
-      if (ok === 0) throw new Error("생성된 PNG가 없습니다 — 디자인 포맷/소스를 확인하세요.");
 
-      setSendStage("ZIP 압축 중");
-      const zipBlob = await zip.generateAsync(
-        { type: "blob", compression: "STORE", streamFiles: true },
-        (meta) => setSendStage(`ZIP 압축 중 ${Math.round(meta.percent)}%`),
+      // 3) PNG 생성 + Storage 즉시 업로드 (병렬)
+      setSendStage("PNG 생성 및 업로드 중");
+      const used = new Map<string, number>();
+      let okCount = 0, skipCount = 0, uploadedCount = 0;
+      let lastReported = 0;
+      const reportProgress = async (force = false) => {
+        if (!jobId) return;
+        if (!force && uploadedCount - lastReported < 5) return;
+        lastReported = uploadedCount;
+        try {
+          await supabase.from("outsource_order_jobs" as any)
+            .update({ uploaded_pngs: uploadedCount, stage: `PNG 업로드 ${uploadedCount}/${details.length}` })
+            .eq("id", jobId);
+        } catch { /* non-fatal */ }
+      };
+
+      // 동시 업로드 풀
+      const MAX_UPLOAD = 6;
+      const queue: Array<{ name: string; blob: Blob }> = [];
+      let inFlight = 0;
+      let queueResolve: (() => void) | null = null;
+      const pump = async () => {
+        while (inFlight < MAX_UPLOAD && queue.length > 0) {
+          const item = queue.shift()!;
+          inFlight++;
+          (async () => {
+            try {
+              const { error } = await supabase.storage.from("hologram-pdf")
+                .upload(`${tmpPrefix}/${item.name}`, item.blob, {
+                  contentType: "image/png", upsert: true,
+                });
+              if (error) throw error;
+              uploadedCount++;
+              setSendProgress({ done: uploadedCount, total: details.length });
+              setSendStage(`PNG 업로드 ${uploadedCount}/${details.length}`);
+              reportProgress();
+            } catch (e) {
+              console.error("PNG 업로드 실패", item.name, e);
+              skipCount++;
+            } finally {
+              inFlight--;
+              if (queueResolve && queue.length === 0 && inFlight === 0) {
+                const r = queueResolve; queueResolve = null; r();
+              } else {
+                pump();
+              }
+            }
+          })();
+        }
+      };
+
+      await buildFinalPngs(
+        details, formats, outline, testDesign, readFooter(), 300, false,
+        undefined, savedTransform,
+        {
+          concurrency: 2,
+          yieldEvery: 1,
+          onItem: (_idx, r) => {
+            if (!r.blob) { skipCount++; return; }
+            const count = used.get(r.designUid) ?? 0;
+            const name = count === 0 ? `${r.designUid}.png` : `${r.designUid}(${count}).png`;
+            used.set(r.designUid, count + 1);
+            okCount++;
+            queue.push({ name, blob: r.blob });
+            pump();
+          },
+        },
       );
-      const zipName = `${folderName}.zip`;
-      const path = `orders/heat-transfer-${folderName}-${Date.now()}.zip`;
-      setSendStage("ZIP 업로드 중");
-      const { error: upErr } = await supabase.storage.from("hologram-pdf").upload(path, zipBlob, {
-        contentType: "application/zip", upsert: false,
-      });
-      if (upErr) throw upErr;
-      const { data: pub } = supabase.storage.from("hologram-pdf").getPublicUrl(path);
-      const url = pub.publicUrl;
 
-      const message =
-`【열전사 디자인 발주】
-작업번호: ${order.orderNo}
-디자인 수량: ${ok}건${skipped ? ` (건너뜀 ${skipped}건)` : ""}
-파일: ${zipName}
-다운로드: ${url}`;
+      // 남은 업로드 대기
+      if (inFlight > 0 || queue.length > 0) {
+        await new Promise<void>((resolve) => { queueResolve = resolve; pump(); });
+      }
+      await reportProgress(true);
 
-      setSendStage("위챗 전송 중");
-      const { data, error } = await supabase.functions.invoke("wechat-send", {
-        body: { webhookUrl: currentWebhookUrl, message },
-      });
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
+      if (uploadedCount === 0) throw new Error("업로드된 PNG가 없습니다 — 디자인 포맷/소스를 확인하세요.");
 
-      const { error: logErr } = await supabase.from("outsource_orders" as any).insert({
-        factory: "heat",
-        order_no: order.orderNo,
-        product_code: order.raw?.product_code || order.orderNo,
-        quantity: ok,
-        ordered_at: new Date().toISOString().slice(0, 10),
-        status: "ordered",
-        note: `위챗 발송 · ${zipName}`,
+      // 4) 서버에 finalize 요청 (백그라운드 잡)
+      setSendStage("서버에서 ZIP 생성 요청 중");
+      const { error: finErr } = await supabase.functions.invoke("heat-order-finalize", {
+        body: { jobId },
       });
-      if (logErr) throw new Error(`발송은 완료됐지만 발주 이력 저장 실패: ${logErr.message}`);
-      setOrdered(true); persist({ ordered: true });
-      toast({ title: "발주 완료", description: `${zipName} 위챗 단톡방으로 전송됨` });
+      if (finErr) throw new Error(`finalize 호출 실패: ${finErr.message}`);
+
+      // 5) 잡 상태 폴링
+      setSendStage("서버 ZIP 생성 중");
+      const maxWaitMs = 10 * 60 * 1000;
+      const start = Date.now();
+      while (Date.now() - start < maxWaitMs) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const { data: j, error: pErr } = await supabase
+          .from("outsource_order_jobs" as any)
+          .select("status, stage, zip_url, error_message")
+          .eq("id", jobId)
+          .maybeSingle();
+        if (pErr) { console.warn("폴링 오류", pErr.message); continue; }
+        if (!j) continue;
+        const jr = j as any;
+        if (jr.stage) setSendStage(jr.stage);
+        if (jr.status === "done") {
+          setOrdered(true); persist({ ordered: true });
+          toast({ title: "발주 완료", description: `${folderName}.zip 위챗 단톡방으로 전송됨` });
+          return;
+        }
+        if (jr.status === "failed") {
+          throw new Error(jr.error_message || "서버에서 발주 마무리 실패");
+        }
+      }
+      throw new Error("서버 처리 타임아웃 (10분 초과)");
     } catch (e: any) {
+      // 잡이 만들어졌다면 failed 로 기록 시도
+      if (jobId) {
+        try {
+          await supabase.from("outsource_order_jobs" as any)
+            .update({ status: "failed", error_message: String(e?.message || e).slice(0, 1000) })
+            .eq("id", jobId);
+        } catch { /* */ }
+      }
       toast({ title: "발주 실패", description: e?.message || String(e), variant: "destructive" as any });
     } finally {
       setSending(false);
