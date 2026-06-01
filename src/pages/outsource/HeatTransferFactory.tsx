@@ -1296,6 +1296,7 @@ async function buildFinalPngs(
   dpi: number,
   sharpen: boolean,
   onProgress?: (done: number, total: number) => void,
+  transform?: { offsetXPct?: number; offsetYPct?: number; scale?: number },
 ): Promise<Array<{ designUid: string; blob: Blob | null; reason?: string }>> {
   const out: Array<{ designUid: string; blob: Blob | null; reason?: string }> = [];
   let i = 0;
@@ -1307,7 +1308,7 @@ async function buildFinalPngs(
       const target = normalizeSize(d.tshirtSize);
       const fmt = (target ? formats.find((f) => normalizeSize(f.sizeLabel) === target) : null) || fallbackOutline;
       if (!fmt) { out.push({ designUid: d.designUid, blob: null, reason: `사이즈 ${d.tshirtSize || "?"} 포맷 없음` }); onProgress?.(i, details.length); continue; }
-      const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, undefined, { sharpen });
+      const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
       const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer, {
         tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize,
       });
@@ -1342,12 +1343,28 @@ function OrderProgressBox({
   const [sending, setSending] = useState(false);
   const [sendProgress, setSendProgress] = useState<{ done: number; total: number } | null>(null);
 
+  const readSavedTransform = () => {
+    const d = readHtDesignUiDraft(order.orderNo);
+    return { offsetXPct: d.offsetX ?? 0, offsetYPct: d.offsetY ?? 0, scale: d.designScale ?? 1 };
+  };
+  const [savedTransform, setSavedTransform] = useState(readSavedTransform);
+
   useEffect(() => {
-    const onFocus = () => setWebhookUrl(readHtWebhook());
-    window.addEventListener("focus", onFocus);
-    window.addEventListener("storage", onFocus);
-    return () => { window.removeEventListener("focus", onFocus); window.removeEventListener("storage", onFocus); };
-  }, []);
+    const refresh = () => { setWebhookUrl(readHtWebhook()); setSavedTransform(readSavedTransform()); };
+    const onSaved = (e: Event) => {
+      const ce = e as CustomEvent<{ orderNo?: string }>;
+      if (!ce.detail?.orderNo || ce.detail.orderNo === order.orderNo) setSavedTransform(readSavedTransform());
+    };
+    window.addEventListener("focus", refresh);
+    window.addEventListener("storage", refresh);
+    window.addEventListener("htf:transformSaved", onSaved as EventListener);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("storage", refresh);
+      window.removeEventListener("htf:transformSaved", onSaved as EventListener);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order.orderNo]);
 
   useEffect(() => {
     try {
@@ -1381,7 +1398,7 @@ function OrderProgressBox({
     (async () => {
       try {
         if (!details || details.length === 0) { setFirstResultUrl(null); return; }
-        const res = await buildFinalPngs(details.slice(0, 1), formats, outline, testDesign, readFooter(), 96, false);
+        const res = await buildFinalPngs(details.slice(0, 1), formats, outline, testDesign, readFooter(), 96, false, undefined, savedTransform);
         const first = res.find((r) => r.blob);
         if (cancelled) return;
         if (first && first.blob) {
@@ -1395,7 +1412,7 @@ function OrderProgressBox({
     })();
     return () => { cancelled = true; if (createdUrl) URL.revokeObjectURL(createdUrl); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [order.orderNo, details.length, outline?.previewUrl, testDesign]);
+  }, [order.orderNo, details.length, outline?.previewUrl, testDesign, savedTransform]);
 
   // 작업지시서 HTML (저장된 값 + 폴백) — 하단에 첫 작업결과물 PNG 적용
   const woHtml = useMemo(() => {
@@ -1417,7 +1434,7 @@ function OrderProgressBox({
       setThumbs([]);
       try {
         // 미리보기는 96dpi (가벼움)
-        const res = await buildFinalPngs(details, formats, outline, testDesign, readFooter(), 96, false);
+        const res = await buildFinalPngs(details, formats, outline, testDesign, readFooter(), 96, false, undefined, savedTransform);
         if (cancelled) return;
         const mapped = res.map((r) => ({
           designUid: r.designUid,
@@ -1431,7 +1448,7 @@ function OrderProgressBox({
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open2]);
+  }, [open2, savedTransform]);
 
   useEffect(() => () => { thumbs.forEach((t) => { if (t.url) URL.revokeObjectURL(t.url); }); }, [thumbs]);
 
@@ -1455,7 +1472,7 @@ function OrderProgressBox({
       // 2) Image 폴더 — 300dpi 최종 PNG
       const imageFolder = root.folder("Image")!;
       const pngs = await buildFinalPngs(details, formats, outline, testDesign, readFooter(), 300, true,
-        (done, total) => setSendProgress({ done, total }));
+        (done, total) => setSendProgress({ done, total }), savedTransform);
       let ok = 0, skipped = 0;
       const used = new Map<string, number>();
       for (const r of pngs) {
@@ -2037,7 +2054,8 @@ function DesignTab({
               <Button size="sm" className="h-7 text-xs"
                 onClick={() => {
                   writeHtDesignUiDraft(order.orderNo, { offsetX, offsetY, designScale });
-                  toast({ title: "저장됨", description: "디자인 위치/크기 값이 저장되었습니다." });
+                  try { window.dispatchEvent(new CustomEvent("htf:transformSaved", { detail: { orderNo: order.orderNo } })); } catch {}
+                  toast({ title: "저장됨", description: "디자인 위치/크기 값이 일괄 적용됩니다." });
                 }}>
                 <Save className="w-3.5 h-3.5 mr-1" /> 저장
               </Button>
