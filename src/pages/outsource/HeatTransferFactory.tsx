@@ -1523,7 +1523,7 @@ function OrderProgressBox({
         .select("item_id,status,file_url,error_message,last_heartbeat,completed_at")
         .eq("job_id", activeJobId);
       if (cancelled) return;
-      const rows = ((data || []) as PngJobRow[]).reduce<Record<string, PngJobRow>>((m, r) => { m[r.item_id] = r; return m; }, {});
+      const rows = ((data || []) as unknown as PngJobRow[]).reduce<Record<string, PngJobRow>>((m, r) => { m[r.item_id] = r; return m; }, {});
       setPngJobs(rows);
       const done = Object.values(rows).filter((r) => r.status === "completed").length;
       setSendProgress({ done, total: details.length });
