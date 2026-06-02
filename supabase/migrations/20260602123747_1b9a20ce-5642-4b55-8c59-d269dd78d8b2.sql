@@ -1,0 +1,1 @@
+ALTER TABLE public.order_jobs ADD COLUMN IF NOT EXISTS upload_token text;
