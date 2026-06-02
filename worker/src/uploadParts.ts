@@ -163,85 +163,84 @@ export async function finalizeUpload(req: Request, res: Response): Promise<void>
     return;
   }
 
-  // Sum sizes for sanity / progress.
-  let totalPartBytes = 0;
-  for (const p of parts) {
+  // Return immediately. ZIP creation + Storage upload can take minutes for 700MB+
+  // bundles, and Render/proxy timeouts otherwise surface as browser CORS + 502.
+  res.status(202).json({ ok: true, jobId, parts: parts.length, accepted: true });
+
+  (async () => {
+    const zipPath = join(tmpdir(), `order-${jobId}.zip`);
     try {
-      const s = await stat(join(dir, p));
-      totalPartBytes += s.size;
-      if (totalPartBytes > MAX_TOTAL_BYTES) {
-        await callback({ jobId, status: "failed", error_message: `parts too large (>${MAX_TOTAL_BYTES})` });
-        res.status(413).json({ error: "parts too large" });
-        return;
+      // Sum sizes for sanity / progress.
+      let totalPartBytes = 0;
+      for (const p of parts) {
+        try {
+          const s = await stat(join(dir, p));
+          totalPartBytes += s.size;
+          if (totalPartBytes > MAX_TOTAL_BYTES) {
+            throw new Error(`parts too large (>${MAX_TOTAL_BYTES})`);
+          }
+        } catch (e) {
+          if ((e as Error).message.startsWith("parts too large")) throw e;
+        }
       }
-    } catch { }
-  }
 
-  await callback({
-    jobId,
-    status: "uploading",
-    stage: `ZIP 생성 중 (${parts.length}개 PNG, ${(totalPartBytes / 1024 / 1024).toFixed(1)}MB)`,
-    error_message: null,
-  });
+      await callback({
+        jobId,
+        status: "uploading",
+        stage: `ZIP 생성 중 (${parts.length}개 PNG, ${(totalPartBytes / 1024 / 1024).toFixed(1)}MB)`,
+        error_message: null,
+      });
 
-  // Optionally include the work order PDF as the first entry.
-  let pdfTempPath: string | null = null;
-  if (info.work_order_pdf_url) {
-    pdfTempPath = join(dir, "__work_order.pdf");
-    try {
-      await downloadToFile(info.work_order_pdf_url, pdfTempPath);
-    } catch (e) {
-      console.warn("[finalize] work_order pdf download failed", (e as Error).message);
-      pdfTempPath = null;
-    }
-  }
+      // Optionally include the work order PDF as the first entry.
+      let pdfTempPath: string | null = null;
+      if (info.work_order_pdf_url) {
+        pdfTempPath = join(dir, "__work_order.pdf");
+        try {
+          await downloadToFile(info.work_order_pdf_url, pdfTempPath);
+        } catch (e) {
+          console.warn("[finalize] work_order pdf download failed", (e as Error).message);
+          pdfTempPath = null;
+        }
+      }
 
-  const zipPath = join(tmpdir(), `order-${jobId}.zip`);
-  try {
-    const entries = [
-      ...(pdfTempPath ? [{ name: "__work_order.pdf", path: pdfTempPath }] : []),
-      ...parts
-        .filter((n) => n !== "__work_order.pdf")
-        .map((n) => ({ name: n, path: join(dir, n) })),
-    ];
-    const { size } = await buildZipFile(entries, zipPath);
+      const entries = [
+        ...(pdfTempPath ? [{ name: "__work_order.pdf", path: pdfTempPath }] : []),
+        ...parts
+          .filter((n) => n !== "__work_order.pdf")
+          .map((n) => ({ name: n, path: join(dir, n) })),
+      ];
+      const { size } = await buildZipFile(entries, zipPath);
 
-    await callback({
-      jobId,
-      status: "uploading",
-      stage: `Storage 업로드 중 (${(size / 1024 / 1024).toFixed(1)}MB)`,
-    });
+      await callback({
+        jobId,
+        status: "uploading",
+        stage: `Storage 업로드 중 (${(size / 1024 / 1024).toFixed(1)}MB)`,
+      });
 
-    const r = await fetch(info.bundle.upload_url, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/zip",
-        "Content-Length": String(size),
-        "x-upsert": "true",
-      },
-      body: createReadStream(zipPath) as any,
-      duplex: "half" as any,
-    } as any);
-    if (!r.ok) {
-      const t = await r.text();
-      throw new Error(`storage ${r.status}: ${t.slice(0, 300)}`);
-    }
+      const r = await fetch(info.bundle.upload_url, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/zip",
+          "Content-Length": String(size),
+          "x-upsert": "true",
+        },
+        body: createReadStream(zipPath) as any,
+        duplex: "half" as any,
+      } as any);
+      if (!r.ok) {
+        const t = await r.text();
+        throw new Error(`storage ${r.status}: ${t.slice(0, 300)}`);
+      }
 
-    await callback({
-      jobId,
-      status: "wechat",
-      stage: "위챗 전송 중",
-      bundle_zip_path: info.bundle.path,
-      bundle_size: size,
-      error_message: null,
-    });
+      await callback({
+        jobId,
+        status: "wechat",
+        stage: "위챗 전송 중",
+        bundle_zip_path: info.bundle.path,
+        bundle_size: size,
+        error_message: null,
+      });
 
-    // Respond to browser before WeChat delivery. The file can be hundreds of MB,
-    // so keeping this HTTP request open causes Render/proxy timeouts that surface
-    // in the browser as CORS + 502 even though the ZIP was already uploaded.
-    res.status(202).json({ ok: true, jobId, parts: parts.length, bytes: size });
-
-    (async () => {
       try {
         let zipUrl = "";
         try {
@@ -268,11 +267,13 @@ export async function finalizeUpload(req: Request, res: Response): Promise<void>
         await rm(zipPath, { force: true }).catch(() => undefined);
         jobCache.delete(jobId);
       }
-    })().catch((e) => console.error("[finalize] async delivery fatal", jobId, e));
-  } catch (e) {
-    await callback({ jobId, status: "failed", error_message: `발주 마무리 실패: ${(e as Error).message}` });
-    if (!res.headersSent) res.status(502).json({ error: (e as Error).message });
-  }
+    } catch (e) {
+      await callback({ jobId, status: "failed", error_message: `발주 마무리 실패: ${(e as Error).message}` });
+      await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+      await rm(zipPath, { force: true }).catch(() => undefined);
+      jobCache.delete(jobId);
+    }
+  })().catch((e) => console.error("[finalize] async fatal", jobId, e));
 }
 
 // Allow client to abort and clean up partial uploads.
