@@ -5,6 +5,50 @@ import { fetchBundleInfo, downloadUrl } from "./api.js";
 const WECHAT_FILE_LIMIT = 20 * 1024 * 1024;
 const DEFAULT_WECHAT_KEY = process.env.WECHAT_WEBHOOK_KEY || "";
 
+/**
+ * Multi-channel WeChat webhook key map.
+ * Set env `WECHAT_WEBHOOK_KEYS` to a JSON object like:
+ *   {"sales":"<key1>","dev":"<key2>","alerts":"<key3>"}
+ * Each value is the `key` query param from the WeChat Work webhook URL.
+ */
+function loadWebhookKeys(): Record<string, string> {
+  const raw = process.env.WECHAT_WEBHOOK_KEYS;
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("WECHAT_WEBHOOK_KEYS는 객체(JSON)여야 합니다");
+    }
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (typeof v === "string" && v.trim()) out[k] = v.trim();
+    }
+    return out;
+  } catch (e) {
+    console.warn("[wechat] WECHAT_WEBHOOK_KEYS 파싱 실패:", (e as Error).message);
+    return {};
+  }
+}
+
+const WECHAT_WEBHOOK_KEYS: Record<string, string> = loadWebhookKeys();
+
+function buildWebhookUrl(key: string): string {
+  return `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${encodeURIComponent(key)}`;
+}
+
+function resolveChannelKey(channel: string): string {
+  const key = WECHAT_WEBHOOK_KEYS[channel];
+  if (!key) {
+    const available = Object.keys(WECHAT_WEBHOOK_KEYS);
+    throw new Error(
+      available.length
+        ? `알 수 없는 위챗 채널 '${channel}'. 사용 가능: ${available.join(", ")}`
+        : `위챗 채널 '${channel}'을(를) 찾을 수 없습니다. WECHAT_WEBHOOK_KEYS 환경변수를 설정하세요.`,
+    );
+  }
+  return key;
+}
+
 function extractKey(url: string): string | null {
   try { return new URL(url).searchParams.get("key") || DEFAULT_WECHAT_KEY || null; }
   catch { return DEFAULT_WECHAT_KEY || null; }
@@ -12,8 +56,24 @@ function extractKey(url: string): string | null {
 
 function resolveWebhookUrl(jobWebhookUrl: string): string {
   if (jobWebhookUrl) return jobWebhookUrl;
-  if (DEFAULT_WECHAT_KEY) return `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${encodeURIComponent(DEFAULT_WECHAT_KEY)}`;
+  if (DEFAULT_WECHAT_KEY) return buildWebhookUrl(DEFAULT_WECHAT_KEY);
   return "";
+}
+
+/**
+ * Send a plain text message to a named WeChat channel.
+ * @param channel 'sales' | 'dev' | 'alerts' 등 WECHAT_WEBHOOK_KEYS의 키
+ * @param message 전송할 텍스트
+ */
+export async function sendToWeChat(channel: string, message: string): Promise<void> {
+  if (!channel || typeof channel !== "string") {
+    throw new Error("channel은 비어있지 않은 문자열이어야 합니다");
+  }
+  if (!message || typeof message !== "string") {
+    throw new Error("message는 비어있지 않은 문자열이어야 합니다");
+  }
+  const key = resolveChannelKey(channel);
+  await sendJson(buildWebhookUrl(key), { msgtype: "text", text: { content: message } });
 }
 
 async function uploadMedia(key: string, filename: string, bytes: Buffer): Promise<string> {
