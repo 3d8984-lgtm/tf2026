@@ -22,8 +22,9 @@ async function receiveToTempFile(req: Request, jobId: string): Promise<{ path: s
   const path = join(tmpdir(), `order-${jobId}-${randomUUID()}.zip`);
   let lastReported = 0;
   const counter = new Transform({
-    transform(chunk: Buffer, _encoding, done) {
-      total += chunk.length;
+    transform(chunk: string | Buffer, _encoding, done) {
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      total += buf.length;
       if (total > MAX_BYTES) {
         done(new Error(`payload too large (>${MAX_BYTES} bytes)`));
         return;
@@ -37,7 +38,7 @@ async function receiveToTempFile(req: Request, jobId: string): Promise<{ path: s
           error_message: null,
         }).catch((e) => console.warn("[upload-stream] progress callback failed", e));
       }
-      done(null, chunk);
+      done(null, buf);
     },
   });
   let total = 0;
@@ -56,13 +57,14 @@ async function readToBuffer(filePath: string, bytes: number): Promise<Buffer> {
     const chunks: Buffer[] = [];
     let total = 0;
     const stream = createReadStream(filePath);
-    stream.on("data", (chunk: Buffer) => {
-      total += chunk.length;
+    stream.on("data", (chunk: string | Buffer) => {
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      total += buf.length;
       if (total > bytes) {
         stream.destroy(new Error("temp file grew unexpectedly"));
         return;
       }
-      chunks.push(chunk);
+      chunks.push(buf);
     });
     stream.on("end", () => resolve(Buffer.concat(chunks, total)));
     stream.on("error", reject);
