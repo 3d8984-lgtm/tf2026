@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
 
   const { data: job, error: jobErr } = await admin
     .from("order_jobs")
-    .select("id, order_no, factory, webhook_url, callback_url, payload, status, progress_total")
+    .select("id, order_no, factory, webhook_url, callback_url, payload, status, progress_total, upload_token")
     .eq("id", body.jobId)
     .maybeSingle();
   if (jobErr || !job) return json({ error: jobErr?.message || "job not found" }, 404);
