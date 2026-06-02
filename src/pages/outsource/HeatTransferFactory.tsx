@@ -1672,13 +1672,22 @@ function OrderProgressBox({
         });
         if (createErr) throw new Error(`발주 잡 등록 실패: ${createErr.message}`);
         const jobId = (createRes as any)?.jobId as string | undefined;
-        const bundle = (createRes as any)?.bundle as { upload_url: string; path: string; upload_token: string } | undefined;
-        if (!jobId || !bundle?.upload_url) throw new Error("발주 잡 응답에 업로드 URL 없음");
+        const bundle = (createRes as any)?.bundle as {
+          upload_url: string;
+          parts_url?: string;
+          finalize_url?: string;
+          abort_url?: string;
+          path: string;
+          upload_token: string;
+        } | undefined;
+        if (!jobId || !bundle?.parts_url || !bundle?.finalize_url) {
+          throw new Error("발주 잡 응답에 업로드 URL 없음 (워커 재배포 필요)");
+        }
         setActiveJobId(jobId);
 
-        // 3) Build PNGs in parallel; stream them into a single ZIP via client-zip;
-        //    PUT that stream directly to the signed Storage URL (true streaming, no buffering).
-        setSendStage("PNG 생성 및 ZIP 스트림 업로드 중");
+        // 3) Build PNGs in parallel, upload each one individually to the Render worker.
+        //    Worker accumulates files in a per-job temp dir; ZIP is built server-side on /finalize.
+        setSendStage("PNG 생성 및 개별 업로드 중");
         const DPI = 300;
         const maskBlobCache = new Map<string, { blob: Blob; targetW: number; targetH: number; widthPt: number }>();
         const getMaskBundle = async (fmt: typeof formats[number] | typeof outline) => {
@@ -1701,66 +1710,84 @@ function OrderProgressBox({
         const pool = new HtPngPool(workerCount);
         const footerCfg = readFooter();
 
-        // Streaming ZIP queue (workers push, downloadZip pulls)
-        type ZipItem = { name: string; lastModified: Date; input: Blob };
-        const zipQueue: ZipItem[] = [];
-        const waiters: Array<(v: ZipItem | null) => void> = [];
-        let producersDone = false;
-        const pushItem = (it: ZipItem) => {
-          const w = waiters.shift();
-          if (w) w(it); else zipQueue.push(it);
-        };
-        const finishProducers = () => {
-          producersDone = true;
-          while (waiters.length) waiters.shift()!(null);
-        };
-        async function* zipSource(): AsyncGenerator<ZipItem> {
-          // Embed work order PDF as first entry so recipients always have it.
-          yield { name: "__work_order.pdf", lastModified: new Date(), input: pdfBlob };
-          while (true) {
-            if (zipQueue.length) { yield zipQueue.shift()!; continue; }
-            if (producersDone) return;
-            const next = await new Promise<ZipItem | null>((res) => waiters.push(res));
-            if (!next) return;
-            yield next;
-          }
-        }
-
         const used = new Map<string, number>();
-        let okCount = 0, skipCount = 0;
+        let okCount = 0, skipCount = 0, uploadedCount = 0;
 
         const addUploadIssue = (index: number, fileName: string, reason: string) => {
           setUploadIssues((prev) => [...prev, { index, fileName, reason }]);
           console.warn("[sendOrder] skip", `index=${index}`, fileName, reason);
         };
 
-        // Kick off the ZIP stream → PUT to Storage as soon as we have the upload URL.
-        const zipResponse = downloadZip(zipSource());
-        const HT_ZIP_UPLOAD_TIMEOUT_MS = 30 * 60 * 1000; // 30 min cap for entire upload
-        const uploadController = new AbortController();
-        const uploadTimer = window.setTimeout(() => uploadController.abort(), HT_ZIP_UPLOAD_TIMEOUT_MS);
-        const uploadPromise = fetch(bundle.upload_url, {
-          method: "PUT",
-          headers: { "Content-Type": "application/zip" },
-          body: zipResponse.body!,
-          // @ts-expect-error — `duplex` is required for streaming request bodies
-          duplex: "half",
-          signal: uploadController.signal,
-        }).then(async (r) => {
-          window.clearTimeout(uploadTimer);
-          const txt = await r.text();
-          if (!r.ok) throw new Error(`ZIP 업로드 실패 ${r.status}: ${txt.slice(0, 300)}`);
-          return txt;
-        }).catch((e) => {
-          window.clearTimeout(uploadTimer);
-          if (e?.name === "AbortError") throw new Error("ZIP 업로드 30분 타임아웃");
-          throw e;
-        });
+        // Per-PNG upload with retry. Each call is a small, bounded PUT —
+        // no streaming-fetch / duplex tricks needed.
+        const PART_UPLOAD_RETRIES = 3;
+        const PART_UPLOAD_TIMEOUT_MS = 3 * 60 * 1000;
+        const uploadOnePart = async (name: string, body: Blob): Promise<void> => {
+          const url = `${bundle.parts_url}&name=${encodeURIComponent(name)}`;
+          let lastErr: unknown;
+          for (let attempt = 1; attempt <= PART_UPLOAD_RETRIES; attempt++) {
+            const ac = new AbortController();
+            const t = window.setTimeout(() => ac.abort(), PART_UPLOAD_TIMEOUT_MS);
+            try {
+              const r = await fetch(url, {
+                method: "PUT",
+                headers: { "Content-Type": "image/png" },
+                body,
+                signal: ac.signal,
+              });
+              window.clearTimeout(t);
+              if (!r.ok) {
+                const txt = await r.text().catch(() => "");
+                throw new Error(`part ${r.status}: ${txt.slice(0, 200)}`);
+              }
+              return;
+            } catch (e) {
+              window.clearTimeout(t);
+              lastErr = e;
+              if (attempt < PART_UPLOAD_RETRIES) await new Promise((r) => setTimeout(r, 500 * attempt));
+            }
+          }
+          throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+        };
+
+        // Bounded-concurrency upload queue fed by PNG producers.
+        const UPLOAD_CONCURRENCY = HT_UPLOAD_CONCURRENCY;
+        const uploadQueue: Array<{ name: string; blob: Blob }> = [];
+        const uploadWaiters: Array<() => void> = [];
+        let producersDone = false;
+        let uploadAborted = false;
+        const enqueueUpload = (item: { name: string; blob: Blob }) => {
+          uploadQueue.push(item);
+          uploadWaiters.shift()?.();
+        };
+        const signalProducersDone = () => {
+          producersDone = true;
+          while (uploadWaiters.length) uploadWaiters.shift()!();
+        };
+        const uploadWorker = async (): Promise<void> => {
+          while (!uploadAborted) {
+            const item = uploadQueue.shift();
+            if (!item) {
+              if (producersDone) return;
+              await new Promise<void>((res) => uploadWaiters.push(res));
+              continue;
+            }
+            await uploadOnePart(item.name, item.blob);
+            uploadedCount++;
+            setSendProgress({ done: uploadedCount, total: totalExpected });
+            setSendStage(`PNG ${uploadedCount}/${totalExpected} 업로드 중`);
+          }
+        };
+        const uploaders: Promise<void>[] = [];
+        for (let k = 0; k < UPLOAD_CONCURRENCY; k++) {
+          uploaders.push(uploadWorker().catch((e) => { uploadAborted = true; throw e; }));
+        }
+        const allUploadsDone = Promise.all(uploaders);
 
         try {
           let cursor = 0;
           const runOne = async (): Promise<void> => {
-            while (true) {
+            while (!uploadAborted) {
               const i = cursor++;
               if (i >= details.length) return;
               const d = details[i];
@@ -1812,38 +1839,43 @@ function OrderProgressBox({
               const name = count === 0 ? `${d.designUid}.png` : `${d.designUid}(${count}).png`;
               used.set(d.designUid, count + 1);
               okCount++;
-              pushItem({ name, lastModified: new Date(), input: blob });
-              setSendProgress({ done: okCount, total: totalExpected });
-              setSendStage(`PNG ${okCount}/${totalExpected} → ZIP 스트림 업로드 중`);
+              enqueueUpload({ name, blob });
             }
           };
 
           const runners: Promise<void>[] = [];
           for (let k = 0; k < workerCount; k++) runners.push(runOne());
           await Promise.all(runners);
-          finishProducers();
+          signalProducersDone();
           console.log("[sendOrder] all PNGs queued — ok:", okCount, "skip:", skipCount);
+          await allUploadsDone;
         } catch (e) {
-          finishProducers();
-          uploadController.abort();
+          uploadAborted = true;
+          signalProducersDone();
           pool.terminate();
+          if (bundle.abort_url) {
+            fetch(bundle.abort_url, { method: "DELETE" }).catch(() => undefined);
+          }
           throw e;
         }
 
         if (okCount === 0) {
-          uploadController.abort();
           pool.terminate();
+          if (bundle.abort_url) {
+            fetch(bundle.abort_url, { method: "DELETE" }).catch(() => undefined);
+          }
           throw new Error(`생성된 PNG가 0건입니다 (skip=${skipCount}). 작업파일을 다시 확인하세요.`);
         }
+        pool.terminate();
 
-        // 4) Wait for the Render worker to confirm: ZIP received + uploaded to Storage.
-        //    Worker then sends to WeChat asynchronously and updates job status via callback.
-        setSendStage(`Render 업로드 마무리 중 (PNG ${okCount}건)`);
-        try {
-          await uploadPromise;
-        } finally {
-          pool.terminate();
+        // 4) Trigger finalize — worker builds the ZIP, uploads to Storage, then ships to WeChat.
+        setSendStage(`Render 마무리 중 (PNG ${uploadedCount}건 → ZIP 생성/Storage/위챗)`);
+        const finalizeRes = await fetch(bundle.finalize_url, { method: "POST" });
+        const finalizeTxt = await finalizeRes.text();
+        if (!finalizeRes.ok) {
+          throw new Error(`마무리 실패 ${finalizeRes.status}: ${finalizeTxt.slice(0, 300)}`);
         }
+
 
         // 5) Wait for worker → done / failed via realtime + polling fallback.
         setSendStage("위챗 전송 대기");

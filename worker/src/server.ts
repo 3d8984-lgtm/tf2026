@@ -4,16 +4,20 @@ import { z } from "zod";
 import { processJob } from "./processJob.js";
 import { wechatResend } from "./wechat.js";
 import { uploadStream } from "./uploadStream.js";
+import { uploadPart, finalizeUpload, abortUpload } from "./uploadParts.js";
 
 const PORT = Number(process.env.PORT || 8080);
 const WORKER_SECRET = process.env.WORKER_SECRET || "";
 const FUNCTIONS_URL = (process.env.SUPABASE_FUNCTIONS_URL || "").replace(/\/$/, "");
 
 const app = express();
-// JSON middleware only for internal POSTs that send JSON. The upload-stream route
-// reads the raw request stream, so it must NOT pass through express.json().
+// JSON middleware only for internal POSTs that send JSON. The streaming upload
+// routes read the raw request stream, so they must NOT pass through express.json().
 app.use((req, res, next) => {
-  if (req.path.startsWith("/orders/") && req.path.endsWith("/upload-stream")) return next();
+  const isOrdersStreaming =
+    req.path.startsWith("/orders/") &&
+    (req.path.endsWith("/upload-stream") || req.path.includes("/parts"));
+  if (isOrdersStreaming) return next();
   return express.json({ limit: "2mb" })(req, res, next);
 });
 
@@ -21,7 +25,7 @@ app.use((req, res, next) => {
 app.use((_req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-worker-secret, Authorization, x-bundle-size, x-upsert");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   next();
 });
 
@@ -128,8 +132,32 @@ app.put("/orders/:jobId/upload-stream", (req, res) => {
     if (!res.headersSent) res.status(500).json({ error: (e as Error).message });
   });
 });
-// Browsers issue an OPTIONS preflight for cross-origin PUT.
 app.options("/orders/:jobId/upload-stream", (_req, res) => res.status(204).end());
+
+// New per-PNG upload pipeline: browser PUTs each PNG, then POSTs /finalize.
+// Worker builds the ZIP on disk, uploads to Storage, and ships to WeChat.
+app.put("/orders/:jobId/parts", (req, res) => {
+  uploadPart(req, res).catch((e) => {
+    console.error("[parts] fatal", req.params.jobId, e);
+    if (!res.headersSent) res.status(500).json({ error: (e as Error).message });
+  });
+});
+app.options("/orders/:jobId/parts", (_req, res) => res.status(204).end());
+
+app.post("/orders/:jobId/finalize", (req, res) => {
+  finalizeUpload(req, res).catch((e) => {
+    console.error("[finalize] fatal", req.params.jobId, e);
+    if (!res.headersSent) res.status(500).json({ error: (e as Error).message });
+  });
+});
+app.options("/orders/:jobId/finalize", (_req, res) => res.status(204).end());
+
+app.delete("/orders/:jobId/parts", (req, res) => {
+  abortUpload(req, res).catch((e) => {
+    console.error("[parts-abort] fatal", req.params.jobId, e);
+    if (!res.headersSent) res.status(500).json({ error: (e as Error).message });
+  });
+});
 
 app.listen(PORT, () => {
   console.log(`[worker] listening on :${PORT}`);
