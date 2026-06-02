@@ -9,6 +9,13 @@ export interface ZipEntry {
   path?: string;
 }
 
+export interface ZipProgress {
+  entriesProcessed: number;
+  entriesTotal: number;
+  bytesProcessed: number;
+  bytesTotal: number;
+}
+
 /** Build a ZIP from in-memory entries. Returns the full Buffer. */
 export function buildZipBuffer(entries: ZipEntry[]): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -29,7 +36,11 @@ export function buildZipBuffer(entries: ZipEntry[]): Promise<Buffer> {
 }
 
 /** Build a ZIP on disk so large heat-transfer orders don't exhaust Render memory. */
-export function buildZipFile(entries: ZipEntry[], targetPath: string): Promise<{ size: number }> {
+export function buildZipFile(
+  entries: ZipEntry[],
+  targetPath: string,
+  onProgress?: (progress: ZipProgress) => void,
+): Promise<{ size: number }> {
   return new Promise((resolve, reject) => {
     const archive = archiver("zip", { store: true });
     const output = createWriteStream(targetPath);
@@ -43,6 +54,14 @@ export function buildZipFile(entries: ZipEntry[], targetPath: string): Promise<{
     });
     output.on("error", reject);
     archive.on("error", reject);
+    archive.on("progress", (p: any) => {
+      onProgress?.({
+        entriesProcessed: Number(p?.entries?.processed || 0),
+        entriesTotal: Number(p?.entries?.total || entries.length),
+        bytesProcessed: Number(p?.fs?.processedBytes || 0),
+        bytesTotal: Number(p?.fs?.totalBytes || 0),
+      });
+    });
     archive.pipe(output);
     for (const e of entries) {
       if (e.path) archive.file(e.path, { name: e.name });
