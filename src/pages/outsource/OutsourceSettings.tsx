@@ -8,8 +8,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useLang } from "@/contexts/LangContext";
 import { toast } from "@/hooks/use-toast";
-import { Mail, Save, Send, Wand2, ExternalLink, Loader2, Sparkles } from "lucide-react";
+import { Mail, Save, Send, Wand2, ExternalLink, Loader2, Sparkles, Server, Copy, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+
+export const WORKER_URL_KEY = "render.worker.url.v1";
+export const WECHAT_KEYS_KEY = "wechat.webhook.keys.v1";
+type WeChatChannel = "sales" | "dev" | "alerts";
+const WECHAT_CHANNELS: { key: WeChatChannel; label: { ko: string; zh: string } }[] = [
+  { key: "sales", label: { ko: "영업 (sales)", zh: "销售 (sales)" } },
+  { key: "dev", label: { ko: "개발 (dev)", zh: "开发 (dev)" } },
+  { key: "alerts", label: { ko: "알림 (alerts)", zh: "告警 (alerts)" } },
+];
 
 export const VECTORIZER_MODE_KEY = "vectorizer.ai.mode.v1";
 export type VectorizerMode = "test" | "preview" | "production";
