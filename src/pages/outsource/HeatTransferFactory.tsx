@@ -1741,7 +1741,7 @@ function OrderProgressBox({
         const uploadTimer = window.setTimeout(() => uploadController.abort(), HT_ZIP_UPLOAD_TIMEOUT_MS);
         const uploadPromise = fetch(bundle.upload_url, {
           method: "PUT",
-          headers: { "Content-Type": "application/zip", "x-upsert": "true" },
+          headers: { "Content-Type": "application/zip" },
           body: zipResponse.body!,
           // @ts-expect-error — `duplex` is required for streaming request bodies
           duplex: "half",
