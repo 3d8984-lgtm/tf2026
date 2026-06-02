@@ -2392,7 +2392,7 @@ function DesignTab({
     let done = 0;
 
     // Start streaming ZIP producer immediately so PNGs flush as they're made.
-    const zipResponse = downloadZip(zipSource(), { metadata: zipQueue as any });
+    const zipResponse = downloadZip(zipSource());
     // Pick destination: File System Access API (true streaming) or memory blob fallback.
     let writable: FileSystemWritableFileStream | null = null;
     const anyWindow = window as any;
