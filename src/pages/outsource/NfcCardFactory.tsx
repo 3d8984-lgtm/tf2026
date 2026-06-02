@@ -2887,3 +2887,132 @@ function printWorkOrder(wo: { company: string; orderNo: string; orderDate: strin
   if (!w) { toast({ title: "팝업 차단됨", variant: "destructive" }); return; }
   w.document.open(); w.document.write(html); w.document.close();
 }
+
+// ===== 발주 진행: 작업지시서 HTML / PDF 변환 / 스텝 UI / 썸네일 그리드 =====
+
+function buildNfcWorkOrderHtml(wo: { company: string; orderNo: string; orderDate: string; deliveryDate: string; quantity: number; recipient: string; phone: string; address: string; notes: string; }) {
+  const esc = (s: any) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+  const today = new Date().toISOString().slice(0, 10);
+  return `<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"/><title>作业指示书 - ${esc(wo.orderNo)}</title>
+<style>
+  @page { size: A4; margin: 12mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif; color:#111; margin:0; padding:12mm; background:#fff; }
+  h1 { font-size: 22pt; text-align:center; margin: 0 0 4mm; letter-spacing: 8px; border-bottom: 2px solid #111; padding-bottom: 4mm; }
+  .meta { display:flex; justify-content:space-between; font-size: 9pt; color:#555; margin-bottom: 6mm; }
+  table { width:100%; border-collapse: collapse; font-size: 10pt; }
+  th, td { border: 1px solid #333; padding: 2.5mm 3mm; vertical-align: middle; }
+  th { background:#f2f2f2; font-weight:600; width: 22%; text-align:left; }
+  .notes { min-height: 22mm; white-space: pre-wrap; }
+  h2 { font-size: 12pt; margin: 8mm 0 3mm; padding-bottom: 1.5mm; border-bottom: 1px solid #999; }
+  .sig { margin-top: 10mm; display:flex; justify-content:flex-end; gap: 10mm; font-size: 10pt; }
+  .sig div { border-top:1px solid #333; padding-top:2mm; min-width: 40mm; text-align:center; }
+</style></head>
+<body>
+  <h1>NFC 卡 · 作 业 指 示 书</h1>
+  <div class="meta"><span>发包方:${esc(wo.company)}</span><span>打印日期:${today}</span></div>
+  <table>
+    <tr><th>发包公司</th><td>${esc(wo.company)}</td><th>作业编号</th><td>${esc(wo.orderNo)}</td></tr>
+    <tr><th>下单日期</th><td>${esc(wo.orderDate)}</td><th>交货日期</th><td>${esc(wo.deliveryDate)}</td></tr>
+    <tr><th>总数量</th><td>${esc(wo.quantity)}</td><th>收件人</th><td>${esc(wo.recipient)}</td></tr>
+    <tr><th>联系电话</th><td>${esc(wo.phone)}</td><th>收货地址</th><td>${esc(wo.address)}</td></tr>
+  </table>
+  <h2>订单特殊事项</h2>
+  <table><tr><td class="notes">${esc(wo.notes) || "&nbsp;"}</td></tr></table>
+  <div class="sig"><div>负责人</div><div>审批</div></div>
+</body></html>`;
+}
+
+async function renderHtmlToPdfBytesA4(html: string): Promise<Uint8Array> {
+  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+    import("html2canvas"),
+    import("jspdf"),
+  ]);
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.left = "-10000px";
+  iframe.style.top = "0";
+  iframe.style.width = "210mm";
+  iframe.style.height = "297mm";
+  iframe.style.border = "0";
+  document.body.appendChild(iframe);
+  try {
+    await new Promise<void>((resolve) => {
+      iframe.onload = () => resolve();
+      iframe.srcdoc = html;
+    });
+    const doc = iframe.contentDocument!;
+    await (doc as any).fonts?.ready?.catch?.(() => {});
+    const imgs = Array.from(doc.images);
+    await Promise.all(imgs.map((img) => img.complete ? Promise.resolve() : new Promise((r) => { img.onload = img.onerror = () => r(null); })));
+    await new Promise((r) => setTimeout(r, 150));
+    const canvas = await html2canvas(doc.body, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+    const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+    const pageW = 210, pageH = 297;
+    const ratio = Math.min(pageW / canvas.width, pageH / canvas.height);
+    const imgW = canvas.width * ratio;
+    const imgH = canvas.height * ratio;
+    const x = (pageW - imgW) / 2;
+    pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", x, 0, imgW, imgH);
+    return new Uint8Array(pdf.output("arraybuffer"));
+  } finally {
+    document.body.removeChild(iframe);
+  }
+}
+
+function ProgressStep({ idx, label, done, disabled, onClick, busy }: { idx: number; label: string; done: boolean; disabled: boolean; onClick: () => void; busy?: boolean }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`flex-1 rounded-lg border p-4 text-left transition-colors ${
+        done ? "border-primary bg-primary/5" : disabled ? "border-border bg-muted/30 opacity-60 cursor-not-allowed" : "border-border hover:bg-accent"
+      }`}
+    >
+      <div className="flex items-center gap-2">
+        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+          done ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+        }`}>
+          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : done ? <CheckCircle2 className="w-4 h-4" /> : idx}
+        </div>
+        <div className="font-medium text-sm">{label}</div>
+      </div>
+      <div className="mt-2 text-xs text-muted-foreground">
+        {busy ? "처리 중..." : done ? "완료" : disabled ? "이전 단계를 먼저 완료하세요" : "클릭하여 진행"}
+      </div>
+    </button>
+  );
+}
+
+function CardThumbGrid({ cards, side, testImageUrl }: { cards: CardData[]; side: "front" | "back"; testImageUrl: string | null }) {
+  if (cards.length === 0) {
+    return <div className="text-center text-sm text-muted-foreground py-12">카드가 없습니다</div>;
+  }
+  return (
+    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 p-1">
+      {cards.map((c, i) => {
+        const apiUrl = side === "front" ? c.frontImageUrl : c.backImageUrl;
+        const src = testImageUrl || apiUrl || null;
+        return (
+          <div key={`${c.uniqueNo}-${i}`} className="border rounded-md overflow-hidden bg-muted/20">
+            <CardFrame widthClassName="w-full" className="bg-white">
+              {src ? (
+                <img src={src} alt={c.uniqueNo} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-[10px] text-muted-foreground">
+                  {side === "front" ? "앞면" : "뒷면"}
+                </div>
+              )}
+            </CardFrame>
+            <div className="px-1.5 py-1 border-t bg-background">
+              <div className="text-[10px] font-mono truncate" title={c.uniqueNo}>{c.uniqueNo}</div>
+              <div className="text-[9px] text-muted-foreground tabular-nums">#{c.seq}</div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
