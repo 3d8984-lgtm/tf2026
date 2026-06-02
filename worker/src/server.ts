@@ -119,6 +119,18 @@ app.post("/internal/wechat-resend", (req, res) => {
   );
 });
 
+// Browser streams the finished ZIP directly here (chunked PUT). We buffer it,
+// PUT it to Storage with a proper Content-Length, then send via WeChat.
+// Auth is via per-job `upload_token` minted by `orders-create`.
+app.put("/orders/:jobId/upload-stream", (req, res) => {
+  uploadStream(req, res).catch((e) => {
+    console.error("[upload-stream] fatal", req.params.jobId, e);
+    if (!res.headersSent) res.status(500).json({ error: (e as Error).message });
+  });
+});
+// Browsers issue an OPTIONS preflight for cross-origin PUT.
+app.options("/orders/:jobId/upload-stream", (_req, res) => res.status(204).end());
+
 app.listen(PORT, () => {
   console.log(`[worker] listening on :${PORT}`);
 });
