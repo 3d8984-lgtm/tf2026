@@ -118,10 +118,26 @@ Deno.serve(async (req) => {
   // --- Idempotency: insert order_jobs, ignore conflict on order_no ---
   const { data: existing } = await admin
     .from("order_jobs")
-    .select("id, status, progress_current, progress_total")
+    .select("id, status, progress_current, progress_total, updated_at")
     .eq("order_no", body.orderNo)
     .maybeSingle();
   if (existing) {
+    const updatedAt = existing.updated_at ? new Date(existing.updated_at as string).getTime() : 0;
+    const staleMs = Date.now() - updatedAt;
+    const shouldRequeue = existing.status === "failed" || staleMs > 2 * 60 * 1000;
+    if (shouldRequeue && existing.status !== "done") {
+      await admin.from("order_job_items").update({ status: "pending", attempts: 0, error_message: null }).eq("job_id", existing.id);
+      await admin.from("order_jobs").update({
+        status: "queued",
+        stage: "큐 재등록",
+        progress_current: 0,
+        error_message: null,
+      }).eq("id", existing.id);
+      // @ts-ignore Deno EdgeRuntime
+      if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(enqueueWorker(admin, existing.id as string));
+      else enqueueWorker(admin, existing.id as string);
+      return json({ jobId: existing.id, status: "queued", idempotent: true, requeued: true }, 202);
+    }
     return json({ jobId: existing.id, status: existing.status, idempotent: true }, 202);
   }
 
