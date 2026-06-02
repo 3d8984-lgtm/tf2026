@@ -18,10 +18,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { AlertTriangle, Download, Eye, FileText, Loader2, Upload, X, ChevronLeft, Save, Image as ImageIcon, ZoomIn, ZoomOut, Maximize2, Cloud } from "lucide-react";
+import { AlertTriangle, Download, Eye, FileText, Loader2, Upload, X, ChevronLeft, Save, Image as ImageIcon, ZoomIn, ZoomOut, Maximize2, Cloud, CheckCircle2, Package } from "lucide-react";
 import { VECTORIZER_MODE_KEY } from "./OutsourceSettings";
 import { PDFDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
