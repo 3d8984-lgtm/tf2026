@@ -1474,10 +1474,6 @@ function OrderProgressBox({
   const [sendStage, setSendStage] = useState<string>("");
   const [uploadIssues, setUploadIssues] = useState<UploadIssue[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
-  const [pngJobs, setPngJobs] = useState<Record<string, PngJobRow>>({});
-  const [showResume, setShowResume] = useState(false);
-  const lastProgressAtRef = useRef(Date.now());
-  const resumeTimerRef = useRef<number | null>(null);
   const sendStartedAtRef = useRef<number | null>(null);
   const [, forceTick] = useState(0);
   useEffect(() => {
