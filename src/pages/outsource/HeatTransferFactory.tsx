@@ -1476,6 +1476,7 @@ function OrderProgressBox({
   const [sendStage, setSendStage] = useState<string>("");
   const [uploadIssues, setUploadIssues] = useState<UploadIssue[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [bundleDownloadUrl, setBundleDownloadUrl] = useState<string | null>(null);
   const sendStartedAtRef = useRef<number | null>(null);
   const [, forceTick] = useState(0);
   useEffect(() => {
@@ -1933,8 +1934,16 @@ function OrderProgressBox({
               settled = true;
               supabase.removeChannel(ch); clearInterval(pollT);
               setOrdered(true); persist({ ordered: true });
-              appendSendLog("success", "발주 완료 · 위챗 단톡방으로 다운로드 링크 전송됨");
-              toast({ title: "발주 완료", description: `${folderName} 다운로드 링크가 위챗 단톡방으로 전송됨` });
+              const dl = typeof row.bundle_zip_url === "string" ? row.bundle_zip_url : null;
+              if (dl) {
+                setBundleDownloadUrl(dl);
+                appendSendLog("success", `발주 완료 · 다운로드 링크 준비됨`);
+                appendSendLog("info", `다운로드 URL: ${dl}`);
+                try { window.open(dl, "_blank", "noopener"); } catch { /* popup blocked */ }
+              } else {
+                appendSendLog("success", "발주 완료 · 위챗 단톡방으로 다운로드 링크 전송됨");
+              }
+              toast({ title: "발주 완료", description: dl ? `${folderName} ZIP 다운로드 링크가 준비되었습니다 (위챗 단톡방에도 전송됨)` : `${folderName} 다운로드 링크가 위챗 단톡방으로 전송됨` });
               resolve();
             } else if (row.status === "failed") {
               settled = true;
