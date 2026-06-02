@@ -1476,6 +1476,7 @@ function OrderProgressBox({
   const [sendStage, setSendStage] = useState<string>("");
   const [uploadIssues, setUploadIssues] = useState<UploadIssue[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [bundleDownloadUrl, setBundleDownloadUrl] = useState<string | null>(null);
   const sendStartedAtRef = useRef<number | null>(null);
   const [, forceTick] = useState(0);
   useEffect(() => {
@@ -1933,8 +1934,16 @@ function OrderProgressBox({
               settled = true;
               supabase.removeChannel(ch); clearInterval(pollT);
               setOrdered(true); persist({ ordered: true });
-              appendSendLog("success", "발주 완료 · 위챗 단톡방으로 다운로드 링크 전송됨");
-              toast({ title: "발주 완료", description: `${folderName} 다운로드 링크가 위챗 단톡방으로 전송됨` });
+              const dl = typeof row.bundle_zip_url === "string" ? row.bundle_zip_url : null;
+              if (dl) {
+                setBundleDownloadUrl(dl);
+                appendSendLog("success", `발주 완료 · 다운로드 링크 준비됨`);
+                appendSendLog("info", `다운로드 URL: ${dl}`);
+                try { window.open(dl, "_blank", "noopener"); } catch { /* popup blocked */ }
+              } else {
+                appendSendLog("success", "발주 완료 · 위챗 단톡방으로 다운로드 링크 전송됨");
+              }
+              toast({ title: "발주 완료", description: dl ? `${folderName} ZIP 다운로드 링크가 준비되었습니다 (위챗 단톡방에도 전송됨)` : `${folderName} 다운로드 링크가 위챗 단톡방으로 전송됨` });
               resolve();
             } else if (row.status === "failed") {
               settled = true;
@@ -2197,6 +2206,46 @@ function OrderProgressBox({
                   <span className="text-destructive" title={issue.reason}>{issue.reason}</span>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {bundleDownloadUrl && (
+          <div className="mt-3 rounded-md border border-emerald-500/40 bg-emerald-500/5 p-3 text-xs">
+            <div className="font-medium text-emerald-700 dark:text-emerald-400 mb-2">
+              ✅ ZIP 다운로드 준비 완료 (스트리밍)
+            </div>
+            <div className="text-muted-foreground mb-2 leading-relaxed">
+              아래 버튼을 누르면 서버가 PNG를 실시간으로 ZIP으로 묶어 즉시 전송합니다.
+              브라우저 다운로드 표시줄에 나타날 때까지 잠시 기다려 주세요.
+              위챗 단톡방에도 동일한 링크가 전송되었습니다.
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                onClick={() => { try { window.open(bundleDownloadUrl, "_blank", "noopener"); } catch { /* noop */ } }}
+              >
+                <Send className="w-3.5 h-3.5 mr-1.5" /> ZIP 다운로드 시작
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  try {
+                    navigator.clipboard.writeText(bundleDownloadUrl);
+                    toast({ title: "다운로드 링크 복사됨" });
+                  } catch { /* noop */ }
+                }}
+              >
+                링크 복사
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setBundleDownloadUrl(null)}
+              >
+                닫기
+              </Button>
             </div>
           </div>
         )}

@@ -5,6 +5,7 @@ import { processJob } from "./processJob.js";
 import { wechatResend } from "./wechat.js";
 import { uploadStream } from "./uploadStream.js";
 import { uploadPart, finalizeUpload, abortUpload } from "./uploadParts.js";
+import { downloadZip } from "./downloadZip.js";
 
 const PORT = Number(process.env.PORT || 8080);
 const WORKER_SECRET = process.env.WORKER_SECRET || "";
@@ -162,6 +163,16 @@ app.delete("/orders/:jobId/parts", (req, res) => {
     if (!res.headersSent) res.status(500).json({ error: (e as Error).message });
   });
 });
+
+// Streaming ZIP download — builds archive on-the-fly from local PNG parts.
+// No memory buffering, no Storage round-trip.
+app.get("/orders/:jobId/download-zip", (req, res) => {
+  downloadZip(req, res).catch((e) => {
+    console.error("[download-zip] fatal", req.params.jobId, e);
+    if (!res.headersSent) res.status(500).json({ error: (e as Error).message });
+  });
+});
+app.options("/orders/:jobId/download-zip", (_req, res) => res.status(204).end());
 
 app.listen(PORT, () => {
   console.log(`[worker] listening on :${PORT}`);

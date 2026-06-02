@@ -8,22 +8,18 @@
 // upload-stream route, just without one giant streaming PUT from the browser.
 
 import type { Request, Response } from "express";
-import { createReadStream, createWriteStream } from "node:fs";
+import { createWriteStream } from "node:fs";
 import { mkdir, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Transform } from "node:stream";
-import { fetch } from "undici";
-import { fetchBundleInfo, fetchJob, type JobInfo } from "./api.js";
+import { fetchJob, type JobInfo } from "./api.js";
 import { callback } from "./callback.js";
 import { sendBundleToWeChat } from "./wechat.js";
-import { buildZipFile } from "./zipBuilder.js";
 
 const MAX_PART_BYTES = 256 * 1024 * 1024; // 256 MiB per PNG (generous)
-const MAX_TOTAL_BYTES = 8 * 1024 * 1024 * 1024; // 8 GiB per order (safety cap)
 const STREAM_TIMEOUT_MS = 30 * 60 * 1000;
-const STORAGE_UPLOAD_TIMEOUT_MS = 45 * 60 * 1000;
 
 // Token cache to avoid hammering worker-fetch-job on every part PUT.
 const jobCache = new Map<string, { info: JobInfo; expiresAt: number }>();
@@ -110,81 +106,9 @@ export async function uploadPart(req: Request, res: Response): Promise<void> {
   }
 }
 
-async function downloadToFile(url: string, target: string): Promise<number> {
-  const r = await fetch(url);
-  if (!r.ok || !r.body) throw new Error(`download ${r.status}`);
-  // r.body is a web ReadableStream; pipeline accepts it via Readable.fromWeb
-  const { Readable } = await import("node:stream");
-  const nodeStream = Readable.fromWeb(r.body as any);
-  let bytes = 0;
-  const counter = new Transform({
-    transform(chunk: string | Buffer, _enc, done) {
-      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-      bytes += buf.length;
-      done(null, buf);
-    },
-  });
-  await pipeline(nodeStream, counter, createWriteStream(target));
-  return bytes;
-}
-
-function mb(bytes: number): string {
-  return (bytes / 1024 / 1024).toFixed(1);
-}
-
-async function uploadZipWithProgress(jobId: string, uploadUrl: string, zipPath: string, size: number): Promise<void> {
-  let sent = 0;
-  let lastCallbackAt = 0;
-  let lastPercent = -1;
-  const progress = new Transform({
-    transform(chunk: string | Buffer, _enc, done) {
-      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-      sent += buf.length;
-      const pct = size > 0 ? Math.min(100, Math.floor((sent / size) * 100)) : 0;
-      const now = Date.now();
-      if (pct === 100 || pct >= lastPercent + 5 || now - lastCallbackAt > 5000) {
-        lastPercent = pct;
-        lastCallbackAt = now;
-        void callback({
-          jobId,
-          status: "uploading",
-          stage: `Storage 업로드 중 (${mb(sent)}MB / ${mb(size)}MB, ${pct}%)`,
-          progress_current: Math.round(sent / 1024 / 1024),
-          progress_total: Math.max(1, Math.round(size / 1024 / 1024)),
-        });
-      }
-      done(null, buf);
-    },
-  });
-  const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), STORAGE_UPLOAD_TIMEOUT_MS);
-  try {
-    const r = await fetch(uploadUrl, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/zip",
-        "Content-Length": String(size),
-        "x-upsert": "true",
-      },
-      body: createReadStream(zipPath).pipe(progress) as any,
-      duplex: "half" as any,
-      signal: ac.signal,
-    } as any);
-    if (!r.ok) {
-      const t = await r.text();
-      throw new Error(`storage ${r.status}: ${t.slice(0, 300)}`);
-    }
-    await callback({
-      jobId,
-      status: "uploading",
-      stage: `Storage 업로드 완료 (${mb(size)}MB, 100%)`,
-      progress_current: Math.max(1, Math.round(size / 1024 / 1024)),
-      progress_total: Math.max(1, Math.round(size / 1024 / 1024)),
-    });
-  } finally {
-    clearTimeout(timer);
-  }
-}
+// (Legacy ZIP-build / Storage-upload helpers removed — finalize now hands
+// off the download URL to WeChat and streams the ZIP on demand via
+// downloadZip.ts.)
 
 export async function finalizeUpload(req: Request, res: Response): Promise<void> {
   req.setTimeout(STREAM_TIMEOUT_MS);
@@ -222,121 +146,87 @@ export async function finalizeUpload(req: Request, res: Response): Promise<void>
     return;
   }
 
-  // Return immediately. ZIP creation + Storage upload can take minutes for 700MB+
-  // bundles, and Render/proxy timeouts otherwise surface as browser CORS + 502.
-  res.status(202).json({ ok: true, jobId, parts: parts.length, accepted: true });
+  // Compute public download URL for the streaming ZIP endpoint. Prefer the
+  // explicit WORKER_PUBLIC_URL env (set on Render), fall back to the inbound
+  // request host. Render terminates TLS, so https is safe.
+  const publicBase = (process.env.WORKER_PUBLIC_URL || `https://${req.get("host") || ""}`).replace(/\/$/, "");
+  const downloadUrl = `${publicBase}/orders/${jobId}/download-zip?token=${encodeURIComponent(token)}`;
+
+  // Respond immediately. The streaming-download model means there's no more
+  // "ZIP 생성 / Storage 업로드" work to do here — we just notify WeChat.
+  res.status(202).json({ ok: true, jobId, parts: parts.length, downloadUrl, accepted: true });
 
   (async () => {
-    const zipPath = join(tmpdir(), `order-${jobId}.zip`);
     try {
-      // Sum sizes for sanity / progress.
+      // Estimate total bytes (informational only).
       let totalPartBytes = 0;
       for (const p of parts) {
         try {
           const s = await stat(join(dir, p));
           totalPartBytes += s.size;
-          if (totalPartBytes > MAX_TOTAL_BYTES) {
-            throw new Error(`parts too large (>${MAX_TOTAL_BYTES})`);
-          }
-        } catch (e) {
-          if ((e as Error).message.startsWith("parts too large")) throw e;
-        }
+        } catch { /* ignore */ }
       }
-
-      await callback({
-        jobId,
-        status: "uploading",
-        stage: `ZIP 생성 중 (${parts.length}개 PNG, ${(totalPartBytes / 1024 / 1024).toFixed(1)}MB)`,
-        progress_current: 0,
-        progress_total: parts.length,
-        error_message: null,
-      });
-
-      // Optionally include the work order PDF as the first entry.
-      let pdfTempPath: string | null = null;
-      if (info.work_order_pdf_url) {
-        pdfTempPath = join(dir, "__work_order.pdf");
-        try {
-          await downloadToFile(info.work_order_pdf_url, pdfTempPath);
-        } catch (e) {
-          console.warn("[finalize] work_order pdf download failed", (e as Error).message);
-          pdfTempPath = null;
-        }
-      }
-
-      const entries = [
-        ...(pdfTempPath ? [{ name: "__work_order.pdf", path: pdfTempPath }] : []),
-        ...parts
-          .filter((n) => n !== "__work_order.pdf")
-          .map((n) => ({ name: n, path: join(dir, n) })),
-      ];
-      let lastZipCallbackAt = 0;
-      let lastZipPct = -1;
-      const { size } = await buildZipFile(entries, zipPath, (p) => {
-        const pct = p.bytesTotal > 0 ? Math.min(100, Math.floor((p.bytesProcessed / p.bytesTotal) * 100)) : 0;
-        const now = Date.now();
-        if (pct === 100 || pct >= lastZipPct + 10 || now - lastZipCallbackAt > 5000) {
-          lastZipPct = pct;
-          lastZipCallbackAt = now;
-          void callback({
-            jobId,
-            status: "uploading",
-            stage: `ZIP 생성 중 (${p.entriesProcessed}/${p.entriesTotal}개, ${mb(p.bytesProcessed)}MB / ${mb(p.bytesTotal)}MB, ${pct}%)`,
-            progress_current: p.entriesProcessed,
-            progress_total: Math.max(1, p.entriesTotal),
-          });
-        }
-      });
-
-      await callback({
-        jobId,
-        status: "uploading",
-        stage: `Storage 업로드 시작 (${mb(size)}MB)`,
-        progress_current: 0,
-        progress_total: Math.max(1, Math.round(size / 1024 / 1024)),
-      });
-
-      await uploadZipWithProgress(jobId, info.bundle.upload_url, zipPath, size);
 
       await callback({
         jobId,
         status: "wechat",
         stage: "위챗 전송 중",
-        bundle_zip_path: info.bundle.path,
-        bundle_size: size,
+        progress_current: parts.length,
+        progress_total: parts.length,
+        bundle_zip_url: downloadUrl,
+        bundle_size: totalPartBytes,
         error_message: null,
       });
 
       try {
-        let zipUrl = "";
-        try {
-          const bundleInfo = await fetchBundleInfo(jobId);
-          zipUrl = bundleInfo.bundle_zip_view_url || bundleInfo.bundle_zip_download_url || "";
-        } catch (e) {
-          console.warn("[finalize] bundle info lookup failed", (e as Error).message);
-        }
+        const sizeMb = (totalPartBytes / 1024 / 1024).toFixed(1);
+        const summary =
+          `【발주 ZIP 다운로드 준비 완료】\n` +
+          `작업번호: ${info.job.order_no}\n` +
+          `수량: ${parts.length}건 (총 ${sizeMb}MB)\n` +
+          `다운로드: ${downloadUrl}\n` +
+          `※ 링크 클릭 시 즉시 ZIP 스트리밍 다운로드가 시작됩니다.`;
         await sendBundleToWeChat({
           jobId,
           webhookUrl: info.job.webhook_url,
           orderNo: info.job.order_no,
-          zipPath,
-          zipSize: size,
+          // Force the text-link branch: oversized + no key path so it always
+          // sends the worker download URL.
+          zipSize: Math.max(totalPartBytes, 50 * 1024 * 1024),
           zipFilename: `${info.job.order_no}-bundle.zip`,
-          zipUrl,
-          itemCount: info.job.progress_total ?? parts.length,
+          zipUrl: downloadUrl,
+          itemCount: parts.length,
+          // Override summary by passing a custom text via WeChat text msg.
+          // sendBundleToWeChat falls back to its own text when oversized, so
+          // we send our richer summary separately.
         });
-        await callback({ jobId, status: "done", stage: "완료", error_message: null });
+        // Send the explicit Korean summary in addition to the function's auto text.
+        try {
+          const { sendToWeChat } = await import("./wechat.js");
+          await sendToWeChat("dev", summary).catch(() => undefined);
+        } catch { /* optional channel */ }
+
+        await callback({
+          jobId,
+          status: "done",
+          stage: "다운로드 가능",
+          bundle_zip_url: downloadUrl,
+          bundle_size: totalPartBytes,
+          error_message: null,
+        });
       } catch (e) {
-        await callback({ jobId, status: "failed", error_message: `위챗 전송 실패: ${(e as Error).message}` });
+        await callback({
+          jobId,
+          status: "failed",
+          error_message: `위챗 전송 실패: ${(e as Error).message}`,
+        });
       } finally {
-        await rm(dir, { recursive: true, force: true }).catch(() => undefined);
-        await rm(zipPath, { force: true }).catch(() => undefined);
+        // Keep parts on disk for the download window. A separate cleanup
+        // sweep (cron / next deploy) handles eviction.
         jobCache.delete(jobId);
       }
     } catch (e) {
       await callback({ jobId, status: "failed", error_message: `발주 마무리 실패: ${(e as Error).message}` });
-      await rm(dir, { recursive: true, force: true }).catch(() => undefined);
-      await rm(zipPath, { force: true }).catch(() => undefined);
       jobCache.delete(jobId);
     }
   })().catch((e) => console.error("[finalize] async fatal", jobId, e));
