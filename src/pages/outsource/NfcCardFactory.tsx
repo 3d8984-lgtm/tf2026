@@ -3200,7 +3200,7 @@ function ShapeOptionsCard({
             />
           </div>
           <AnchorPicker val={s.anchor} onPick={(a) => update(k, { anchor: a })} />
-          <div>
+          <div className="md:col-span-2">
             <label className="text-[11px] text-muted-foreground">색상 (테스트)</label>
             <div className="flex items-center gap-1">
               <input
