@@ -1,7 +1,6 @@
 import { fetch, FormData } from "undici";
-import { supa } from "./supabase.js";
 import { callback } from "./callback.js";
-import { signedUrl } from "./storage.js";
+import { fetchBundleInfo, downloadUrl } from "./api.js";
 
 const WECHAT_FILE_LIMIT = 20 * 1024 * 1024;
 const DEFAULT_WECHAT_KEY = process.env.WECHAT_WEBHOOK_KEY || "";
@@ -78,22 +77,25 @@ export async function sendBundleToWeChat(input: WeChatSendInput): Promise<void> 
 
 /** Re-attempt WeChat delivery for a job that has bundle_zip_path set. */
 export async function wechatResend(jobId: string): Promise<void> {
-  const { data: job, error } = await supa.from("order_jobs").select("*").eq("id", jobId).maybeSingle();
-  if (error || !job) {
-    await callback({ jobId, status: "failed", error_message: `job not found: ${error?.message || "missing"}` });
+  let info;
+  try {
+    info = await fetchBundleInfo(jobId);
+  } catch (e) {
+    await callback({ jobId, status: "failed", error_message: `bundle info: ${(e as Error).message}` });
     return;
   }
-  if (!job.bundle_zip_path || !job.bundle_zip_url) {
-    await callback({ jobId, status: "failed", error_message: "ZIP이 아직 생성되지 않음" });
+  const { job, bundle_zip_view_url, bundle_zip_download_url } = info;
+  if (!bundle_zip_download_url) {
+    await callback({ jobId, status: "failed", error_message: "ZIP 다운로드 URL 없음" });
     return;
   }
-  const { data: blob, error: dlErr } = await supa.storage.from(process.env.STORAGE_BUCKET || "hologram-pdf").download(job.bundle_zip_path);
-  if (dlErr || !blob) {
-    await callback({ jobId, status: "failed", error_message: `ZIP 다운로드 실패: ${dlErr?.message || ""}` });
+  let bytes: Buffer;
+  try {
+    bytes = await downloadUrl(bundle_zip_download_url);
+  } catch (e) {
+    await callback({ jobId, status: "failed", error_message: `ZIP 다운로드 실패: ${(e as Error).message}` });
     return;
   }
-  const bytes = Buffer.from(await blob.arrayBuffer());
-  const url = await signedUrl(job.bundle_zip_path);
   await callback({ jobId, status: "wechat", stage: "위챗 재전송 중", error_message: null });
   try {
     await sendBundleToWeChat({
@@ -102,10 +104,10 @@ export async function wechatResend(jobId: string): Promise<void> {
       orderNo: job.order_no,
       zipBytes: bytes,
       zipFilename: `${job.order_no}-bundle.zip`,
-      zipUrl: url,
+      zipUrl: bundle_zip_view_url || "",
       itemCount: job.progress_total ?? 0,
     });
-    await callback({ jobId, status: "done", stage: "완료", bundle_zip_url: url, error_message: null });
+    await callback({ jobId, status: "done", stage: "완료", bundle_zip_url: bundle_zip_view_url, error_message: null });
   } catch (e) {
     await callback({ jobId, status: "failed", error_message: `위챗 재전송 실패: ${(e as Error).message}` });
   }
