@@ -1893,12 +1893,16 @@ function OrderProgressBox({
         pool.terminate();
 
         // 4) Trigger finalize — worker builds the ZIP, uploads to Storage, then ships to WeChat.
+        appendSendLog("info", `PNG 업로드 완료 · ${uploadedCount}건 (skip ${skipCount}건)`);
         setSendStage(`Render 마무리 중 (PNG ${uploadedCount}건 → ZIP 생성/Storage/위챗)`);
+        appendSendLog("info", "Render 워커에 마무리(finalize) 요청 전송");
         const finalizeRes = await fetch(bundle.finalize_url, { method: "POST" });
         const finalizeTxt = await finalizeRes.text();
         if (!finalizeRes.ok) {
+          appendSendLog("error", `마무리 요청 실패: ${finalizeRes.status} ${finalizeTxt.slice(0, 200)}`);
           throw new Error(`마무리 실패 ${finalizeRes.status}: ${finalizeTxt.slice(0, 300)}`);
         }
+        appendSendLog("info", "워커가 마무리 요청 접수 (백그라운드 처리 시작)");
 
 
         // 5) Wait for worker → done / failed via realtime + polling fallback.
@@ -1914,11 +1918,13 @@ function OrderProgressBox({
               settled = true;
               supabase.removeChannel(ch); clearInterval(pollT);
               setOrdered(true); persist({ ordered: true });
+              appendSendLog("success", "발주 완료 · 위챗 단톡방으로 다운로드 링크 전송됨");
               toast({ title: "발주 완료", description: `${folderName} 다운로드 링크가 위챗 단톡방으로 전송됨` });
               resolve();
             } else if (row.status === "failed") {
               settled = true;
               supabase.removeChannel(ch); clearInterval(pollT);
+              appendSendLog("error", `서버 처리 실패: ${row.error_message || "(원인 미상)"}`);
               reject(new Error(row.error_message || "서버에서 발주 마무리 실패"));
             }
           };
@@ -1930,6 +1936,7 @@ function OrderProgressBox({
             if (settled) return;
             if (Date.now() - startedAt > maxWaitMs) {
               settled = true; supabase.removeChannel(ch); clearInterval(pollT);
+              appendSendLog("error", "서버 처리 타임아웃 (15분 초과)");
               reject(new Error("서버 처리 타임아웃 (15분 초과)"));
               return;
             }
@@ -1940,6 +1947,7 @@ function OrderProgressBox({
         });
       });
     } catch (e: any) {
+      appendSendLog("error", `발주 실패: ${e?.message || String(e)}`);
       toast({ title: "발주 실패", description: e?.message || String(e), variant: "destructive" as any });
     } finally {
       setSending(false);
