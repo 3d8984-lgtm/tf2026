@@ -1595,6 +1595,69 @@ function DetailView({
     } finally { setBusy(false); }
   };
 
+  // 작업지시서 HTML — 미리보기와 PDF 변환에 공통으로 사용
+  const workOrderHtml = useMemo(() => buildNfcWorkOrderHtml(workOrder), [workOrder]);
+
+  // 발주: ZIP 생성 후 다운로드 (작업지시서.pdf + 카드 앞면/ + 카드 뒷면/)
+  const handleFinalize = async () => {
+    if (cards.length === 0) {
+      toast({ title: "카드 데이터가 없습니다", variant: "destructive" as any });
+      return;
+    }
+    setFinalizing(true);
+    try {
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+
+      setFinalizeProgress({ stage: "작업지시서 PDF 생성", current: 0, total: 1 });
+      const woBytes = await renderHtmlToPdfBytesA4(workOrderHtml);
+      zip.file("작업지시서.pdf", woBytes);
+
+      const frontDir = zip.folder("카드 앞면")!;
+      const backDir = zip.folder("카드 뒷면")!;
+      const usedFront = new Map<string, number>();
+      const usedBack = new Map<string, number>();
+      const total = cards.length;
+
+      for (let i = 0; i < cards.length; i++) {
+        const card = cards[i];
+        const base = card.uniqueNo || `card-${i + 1}`;
+
+        setFinalizeProgress({ stage: `카드 앞면 PDF (${i + 1}/${total})`, current: i + 1, total });
+        const frontBytes = await buildCardPdfBytes(card, { sides: ["front"] });
+        const nf = usedFront.get(base) || 0;
+        frontDir.file(nf === 0 ? `${base}.pdf` : `${base}(${nf}).pdf`, frontBytes);
+        usedFront.set(base, nf + 1);
+
+        setFinalizeProgress({ stage: `카드 뒷면 PDF (${i + 1}/${total})`, current: i + 1, total });
+        const backBytes = await buildCardPdfBytes(card, { sides: ["back"] });
+        const nb = usedBack.get(base) || 0;
+        backDir.file(nb === 0 ? `${base}.pdf` : `${base}(${nb}).pdf`, backBytes);
+        usedBack.set(base, nb + 1);
+      }
+
+      setFinalizeProgress({ stage: "ZIP 생성 중", current: total, total });
+      const blob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${orderNo}_nfc-card_order_${tsName()}.zip`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+
+      setOrdered(true);
+      persistProgress({ ordered: true });
+      toast({ title: "발주 ZIP 다운로드 완료", description: `${cards.length}장 · 작업지시서 포함` });
+    } catch (e: any) {
+      toast({ title: "발주 실패", description: e?.message || String(e), variant: "destructive" as any });
+    } finally {
+      setFinalizing(false);
+      setFinalizeProgress(null);
+    }
+  };
+
+
+
   return (
     <div>
       <PageHeader title={`NFC 카드 공장 · ${orderNo}`} description="주문 상세 목록" />
