@@ -24,6 +24,7 @@ import { edgePreservingUpscale } from "@/lib/upscale";
 import { supabase } from "@/integrations/supabase/client";
 import QRCode from "qrcode";
 import JSZip from "jszip";
+import { downloadZip } from "client-zip";
 import { HtPngPool, type PoolTask } from "./_workers/htPngPool";
 import { uploadManager, logMemory } from "@/lib/uploadManager";
 
