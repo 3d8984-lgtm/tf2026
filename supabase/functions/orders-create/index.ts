@@ -33,7 +33,7 @@ const BodySchema = z.object({
   items: z.array(ItemSchema).min(1).max(5000),
 });
 
-async function enqueueWorker(admin: ReturnType<typeof createClient>, jobId: string) {
+async function enqueueWorker(admin: any, jobId: string) {
   if (!WORKER_URL || !WORKER_SECRET) {
     await admin.from("order_jobs").update({
       status: "failed",
@@ -91,12 +91,6 @@ Deno.serve(async (req) => {
 
   let raw: unknown;
   try { raw = await req.json(); } catch { return json({ error: "invalid json" }, 400); }
-  const parsed = BodySchema.safeParse(raw);
-  if (!parsed.success) {
-    return json({ error: "validation_failed", details: parsed.error.flatten() }, 400);
-  }
-  const body = parsed.data;
-
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
   if (raw && typeof raw === "object" && typeof (raw as Record<string, unknown>).__resume === "string") {
@@ -114,6 +108,12 @@ Deno.serve(async (req) => {
     else enqueueWorker(admin, jobId);
     return json({ jobId, status: "queued", resumed: true }, 202);
   }
+
+  const parsed = BodySchema.safeParse(raw);
+  if (!parsed.success) {
+    return json({ error: "validation_failed", details: parsed.error.flatten() }, 400);
+  }
+  const body = parsed.data;
 
   // --- Idempotency: insert order_jobs, ignore conflict on order_no ---
   const { data: existing } = await admin
