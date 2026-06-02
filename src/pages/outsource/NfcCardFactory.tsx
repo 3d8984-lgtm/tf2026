@@ -3108,7 +3108,7 @@ function ShapeOptionsCard({
     return (
       <div className="flex flex-col items-center gap-1">
         <label className="text-[11px] text-muted-foreground">기준점</label>
-        <div className="grid grid-cols-3 gap-[3px] p-1 rounded border bg-background">
+        <div className="grid grid-cols-3 gap-[2px] p-0.5 rounded border bg-background">
           {anchors.map((a) => {
             const active = val === a;
             return (
@@ -3117,14 +3117,14 @@ function ShapeOptionsCard({
                 type="button"
                 onClick={() => onPick(a)}
                 className={cn(
-                  "w-4 h-4 rounded-full flex items-center justify-center transition-colors",
+                  "w-3 h-3 rounded-full flex items-center justify-center transition-colors",
                   active
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted/60 hover:bg-muted"
                 )}
                 title={a}
               >
-                {active && <div className="w-1.5 h-1.5 rounded-full bg-primary-foreground" />}
+                {active && <div className="w-1 h-1 rounded-full bg-primary-foreground" />}
               </button>
             );
           })}
