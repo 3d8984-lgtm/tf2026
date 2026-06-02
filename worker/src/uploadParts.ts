@@ -8,22 +8,18 @@
 // upload-stream route, just without one giant streaming PUT from the browser.
 
 import type { Request, Response } from "express";
-import { createReadStream, createWriteStream } from "node:fs";
+import { createWriteStream } from "node:fs";
 import { mkdir, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Transform } from "node:stream";
-import { fetch } from "undici";
-import { fetchBundleInfo, fetchJob, type JobInfo } from "./api.js";
+import { fetchJob, type JobInfo } from "./api.js";
 import { callback } from "./callback.js";
 import { sendBundleToWeChat } from "./wechat.js";
-import { buildZipFile } from "./zipBuilder.js";
 
 const MAX_PART_BYTES = 256 * 1024 * 1024; // 256 MiB per PNG (generous)
-const MAX_TOTAL_BYTES = 8 * 1024 * 1024 * 1024; // 8 GiB per order (safety cap)
 const STREAM_TIMEOUT_MS = 30 * 60 * 1000;
-const STORAGE_UPLOAD_TIMEOUT_MS = 45 * 60 * 1000;
 
 // Token cache to avoid hammering worker-fetch-job on every part PUT.
 const jobCache = new Map<string, { info: JobInfo; expiresAt: number }>();
@@ -110,81 +106,9 @@ export async function uploadPart(req: Request, res: Response): Promise<void> {
   }
 }
 
-async function downloadToFile(url: string, target: string): Promise<number> {
-  const r = await fetch(url);
-  if (!r.ok || !r.body) throw new Error(`download ${r.status}`);
-  // r.body is a web ReadableStream; pipeline accepts it via Readable.fromWeb
-  const { Readable } = await import("node:stream");
-  const nodeStream = Readable.fromWeb(r.body as any);
-  let bytes = 0;
-  const counter = new Transform({
-    transform(chunk: string | Buffer, _enc, done) {
-      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-      bytes += buf.length;
-      done(null, buf);
-    },
-  });
-  await pipeline(nodeStream, counter, createWriteStream(target));
-  return bytes;
-}
-
-function mb(bytes: number): string {
-  return (bytes / 1024 / 1024).toFixed(1);
-}
-
-async function uploadZipWithProgress(jobId: string, uploadUrl: string, zipPath: string, size: number): Promise<void> {
-  let sent = 0;
-  let lastCallbackAt = 0;
-  let lastPercent = -1;
-  const progress = new Transform({
-    transform(chunk: string | Buffer, _enc, done) {
-      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-      sent += buf.length;
-      const pct = size > 0 ? Math.min(100, Math.floor((sent / size) * 100)) : 0;
-      const now = Date.now();
-      if (pct === 100 || pct >= lastPercent + 5 || now - lastCallbackAt > 5000) {
-        lastPercent = pct;
-        lastCallbackAt = now;
-        void callback({
-          jobId,
-          status: "uploading",
-          stage: `Storage 업로드 중 (${mb(sent)}MB / ${mb(size)}MB, ${pct}%)`,
-          progress_current: Math.round(sent / 1024 / 1024),
-          progress_total: Math.max(1, Math.round(size / 1024 / 1024)),
-        });
-      }
-      done(null, buf);
-    },
-  });
-  const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), STORAGE_UPLOAD_TIMEOUT_MS);
-  try {
-    const r = await fetch(uploadUrl, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/zip",
-        "Content-Length": String(size),
-        "x-upsert": "true",
-      },
-      body: createReadStream(zipPath).pipe(progress) as any,
-      duplex: "half" as any,
-      signal: ac.signal,
-    } as any);
-    if (!r.ok) {
-      const t = await r.text();
-      throw new Error(`storage ${r.status}: ${t.slice(0, 300)}`);
-    }
-    await callback({
-      jobId,
-      status: "uploading",
-      stage: `Storage 업로드 완료 (${mb(size)}MB, 100%)`,
-      progress_current: Math.max(1, Math.round(size / 1024 / 1024)),
-      progress_total: Math.max(1, Math.round(size / 1024 / 1024)),
-    });
-  } finally {
-    clearTimeout(timer);
-  }
-}
+// (Legacy ZIP-build / Storage-upload helpers removed — finalize now hands
+// off the download URL to WeChat and streams the ZIP on demand via
+// downloadZip.ts.)
 
 export async function finalizeUpload(req: Request, res: Response): Promise<void> {
   req.setTimeout(STREAM_TIMEOUT_MS);
