@@ -33,6 +33,42 @@ const BodySchema = z.object({
   items: z.array(ItemSchema).min(1).max(5000),
 });
 
+async function enqueueWorker(admin: ReturnType<typeof createClient>, jobId: string) {
+  if (!WORKER_URL || !WORKER_SECRET) {
+    await admin.from("order_jobs").update({
+      status: "failed",
+      error_message: "WORKER_URL / WORKER_SECRET 미설정 — 워커가 아직 배포되지 않았습니다",
+    }).eq("id", jobId);
+    return;
+  }
+  try {
+    const ac = new AbortController();
+    const t = setTimeout(() => ac.abort(), 10_000);
+    const r = await fetch(`${WORKER_URL.replace(/\/$/, "")}/internal/process`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${WORKER_SECRET}`,
+      },
+      body: JSON.stringify({ jobId }),
+      signal: ac.signal,
+    });
+    clearTimeout(t);
+    if (!r.ok) {
+      const txt = await r.text();
+      await admin.from("order_jobs").update({
+        status: "failed",
+        error_message: `worker enqueue ${r.status}: ${txt.slice(0, 300)}`,
+      }).eq("id", jobId);
+    }
+  } catch (e) {
+    await admin.from("order_jobs").update({
+      status: "failed",
+      error_message: `worker unreachable: ${(e as Error).message}`,
+    }).eq("id", jobId);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
@@ -62,6 +98,22 @@ Deno.serve(async (req) => {
   const body = parsed.data;
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+  if (raw && typeof raw === "object" && typeof (raw as Record<string, unknown>).__resume === "string") {
+    const jobId = (raw as Record<string, string>).__resume;
+    await admin.from("order_job_items").update({ status: "pending", attempts: 0, error_message: null }).eq("job_id", jobId);
+    const { error } = await admin.from("order_jobs").update({
+      status: "queued",
+      stage: "큐 재등록",
+      progress_current: 0,
+      error_message: null,
+    }).eq("id", jobId);
+    if (error) return json({ error: error.message }, 500);
+    // @ts-ignore Deno EdgeRuntime
+    if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(enqueueWorker(admin, jobId));
+    else enqueueWorker(admin, jobId);
+    return json({ jobId, status: "queued", resumed: true }, 202);
+  }
 
   // --- Idempotency: insert order_jobs, ignore conflict on order_no ---
   const { data: existing } = await admin
@@ -112,44 +164,9 @@ Deno.serve(async (req) => {
   }
 
   // --- Fire-and-forget enqueue to Railway worker ---
-  const enqueue = async () => {
-    if (!WORKER_URL || !WORKER_SECRET) {
-      await admin.from("order_jobs").update({
-        status: "failed",
-        error_message: "WORKER_URL / WORKER_SECRET 미설정 — 워커가 아직 배포되지 않았습니다",
-      }).eq("id", jobId);
-      return;
-    }
-    try {
-      const ac = new AbortController();
-      const t = setTimeout(() => ac.abort(), 10_000);
-      const r = await fetch(`${WORKER_URL.replace(/\/$/, "")}/internal/process`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${WORKER_SECRET}`,
-        },
-        body: JSON.stringify({ jobId }),
-        signal: ac.signal,
-      });
-      clearTimeout(t);
-      if (!r.ok) {
-        const txt = await r.text();
-        await admin.from("order_jobs").update({
-          status: "failed",
-          error_message: `worker enqueue ${r.status}: ${txt.slice(0, 300)}`,
-        }).eq("id", jobId);
-      }
-    } catch (e) {
-      await admin.from("order_jobs").update({
-        status: "failed",
-        error_message: `worker unreachable: ${(e as Error).message}`,
-      }).eq("id", jobId);
-    }
-  };
   // @ts-ignore Deno EdgeRuntime
-  if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(enqueue());
-  else enqueue();
+  if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(enqueueWorker(admin, jobId));
+  else enqueueWorker(admin, jobId);
 
   return json({ jobId, status: "queued" }, 202);
 });
