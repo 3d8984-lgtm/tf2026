@@ -304,6 +304,7 @@ export type Database = {
           stage: string
           status: Database["public"]["Enums"]["order_job_status"]
           updated_at: string
+          upload_token: string | null
           webhook_url: string
         }
         Insert: {
@@ -323,6 +324,7 @@ export type Database = {
           stage?: string
           status?: Database["public"]["Enums"]["order_job_status"]
           updated_at?: string
+          upload_token?: string | null
           webhook_url?: string
         }
         Update: {
@@ -342,6 +344,7 @@ export type Database = {
           stage?: string
           status?: Database["public"]["Enums"]["order_job_status"]
           updated_at?: string
+          upload_token?: string | null
           webhook_url?: string
         }
         Relationships: []

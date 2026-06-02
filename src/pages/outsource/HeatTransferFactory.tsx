@@ -1836,22 +1836,16 @@ function OrderProgressBox({
           throw new Error(`생성된 PNG가 0건입니다 (skip=${skipCount}). 작업파일을 다시 확인하세요.`);
         }
 
-        // 4) Wait for the streamed ZIP upload to finish flushing to Storage.
-        setSendStage(`ZIP 업로드 마무리 중 (PNG ${okCount}건)`);
+        // 4) Wait for the Render worker to confirm: ZIP received + uploaded to Storage.
+        //    Worker then sends to WeChat asynchronously and updates job status via callback.
+        setSendStage(`Render 업로드 마무리 중 (PNG ${okCount}건)`);
         try {
           await uploadPromise;
         } finally {
           pool.terminate();
         }
 
-        // 5) Finalize: record bundle path and trigger WeChat send via worker.
-        setSendStage("위챗 전송 트리거 중");
-        const { error: finErr } = await supabase.functions.invoke("orders-finalize-stream", {
-          body: { jobId },
-        });
-        if (finErr) throw new Error(`발주 마무리 실패: ${finErr.message}`);
-
-        // 6) Wait for worker → done / failed via realtime + polling fallback.
+        // 5) Wait for worker → done / failed via realtime + polling fallback.
         setSendStage("위챗 전송 대기");
         await new Promise<void>((resolve, reject) => {
           const maxWaitMs = 15 * 60 * 1000;

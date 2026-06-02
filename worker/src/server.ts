@@ -3,19 +3,25 @@ import { fetch } from "undici";
 import { z } from "zod";
 import { processJob } from "./processJob.js";
 import { wechatResend } from "./wechat.js";
+import { uploadStream } from "./uploadStream.js";
 
 const PORT = Number(process.env.PORT || 8080);
 const WORKER_SECRET = process.env.WORKER_SECRET || "";
 const FUNCTIONS_URL = (process.env.SUPABASE_FUNCTIONS_URL || "").replace(/\/$/, "");
 
 const app = express();
-app.use(express.json({ limit: "2mb" }));
+// JSON middleware only for internal POSTs that send JSON. The upload-stream route
+// reads the raw request stream, so it must NOT pass through express.json().
+app.use((req, res, next) => {
+  if (req.path.startsWith("/orders/") && req.path.endsWith("/upload-stream")) return next();
+  return express.json({ limit: "2mb" })(req, res, next);
+});
 
-// Simple CORS so browser-based health checks work
+// Simple CORS so browser-based health checks + streaming PUT work
 app.use((_req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-worker-secret, Authorization");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-worker-secret, Authorization, x-bundle-size");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
   next();
 });
 
@@ -112,6 +118,18 @@ app.post("/internal/wechat-resend", (req, res) => {
     console.error("[wechat-resend] fatal", parsed.data.jobId, e)
   );
 });
+
+// Browser streams the finished ZIP directly here (chunked PUT). We buffer it,
+// PUT it to Storage with a proper Content-Length, then send via WeChat.
+// Auth is via per-job `upload_token` minted by `orders-create`.
+app.put("/orders/:jobId/upload-stream", (req, res) => {
+  uploadStream(req, res).catch((e) => {
+    console.error("[upload-stream] fatal", req.params.jobId, e);
+    if (!res.headersSent) res.status(500).json({ error: (e as Error).message });
+  });
+});
+// Browsers issue an OPTIONS preflight for cross-origin PUT.
+app.options("/orders/:jobId/upload-stream", (_req, res) => res.status(204).end());
 
 app.listen(PORT, () => {
   console.log(`[worker] listening on :${PORT}`);

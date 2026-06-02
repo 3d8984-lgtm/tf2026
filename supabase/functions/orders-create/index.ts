@@ -130,13 +130,21 @@ Deno.serve(async (req) => {
   }
   const totalCount = isStream ? (body.itemCount as number) : itemsArr.length;
 
-  // Helper to mint a signed upload URL for the bundle.zip (used by stream mode).
-  const mintBundleUpload = async (jobId: string) => {
-    const bundlePath = `orders/${jobId}/bundle.zip`;
-    const { data, error } = await admin.storage.from(STORAGE_BUCKET)
-      .createSignedUploadUrl(bundlePath, { upsert: true });
-    if (error || !data) throw new Error(`signed upload url: ${error?.message || "unknown"}`);
-    return { path: bundlePath, upload_url: data.signedUrl, upload_token: data.token };
+  // Stream mode now uploads to the Render worker directly (not Storage), which then
+  // pipes the ZIP to Storage with a proper Content-Length. This avoids the chunked-PUT
+  // hang we saw against Supabase Storage signed upload URLs.
+  const mintWorkerUpload = async (jobId: string) => {
+    if (!WORKER_URL) throw new Error("WORKER_URL 미설정");
+    // 256-bit random token
+    const buf = new Uint8Array(32);
+    crypto.getRandomValues(buf);
+    const token = Array.from(buf, (b) => b.toString(16).padStart(2, "0")).join("");
+    const { error } = await admin.from("order_jobs")
+      .update({ upload_token: token })
+      .eq("id", jobId);
+    if (error) throw new Error(`upload_token persist: ${error.message}`);
+    const upload_url = `${WORKER_URL.replace(/\/$/, "")}/orders/${jobId}/upload-stream?token=${token}`;
+    return { path: `orders/${jobId}/bundle.zip`, upload_url, upload_token: token };
   };
 
   // --- Idempotency: insert order_jobs, ignore conflict on order_no ---
@@ -152,7 +160,7 @@ Deno.serve(async (req) => {
     if (shouldRequeue && existing.status !== "done") {
       await admin.from("order_job_items").update({ status: "pending", attempts: 0, error_message: null }).eq("job_id", existing.id);
       await admin.from("order_jobs").update({
-        status: isStream ? "awaiting_upload" : "queued",
+        status: isStream ? "uploading" : "queued",
         stage: isStream ? "ZIP 업로드 대기" : "큐 재등록",
         progress_current: 0,
         progress_total: totalCount,
@@ -165,8 +173,8 @@ Deno.serve(async (req) => {
       }).eq("id", existing.id);
       if (isStream) {
         try {
-          const bundle = await mintBundleUpload(existing.id as string);
-          return json({ jobId: existing.id, status: "awaiting_upload", idempotent: true, requeued: true, bundle }, 202);
+          const bundle = await mintWorkerUpload(existing.id as string);
+          return json({ jobId: existing.id, status: "uploading", idempotent: true, requeued: true, bundle }, 202);
         } catch (e) {
           return json({ error: (e as Error).message }, 500);
         }
@@ -188,7 +196,7 @@ Deno.serve(async (req) => {
       callback_url: body.callbackUrl,
       payload: body.payload,
       progress_total: totalCount,
-      status: isStream ? "awaiting_upload" : "queued",
+      status: isStream ? "uploading" : "queued",
       stage: isStream ? "ZIP 업로드 대기" : "큐 등록",
       created_by: createdBy,
     })
@@ -199,8 +207,8 @@ Deno.serve(async (req) => {
 
   if (isStream) {
     try {
-      const bundle = await mintBundleUpload(jobId);
-      return json({ jobId, status: "awaiting_upload", bundle }, 202);
+      const bundle = await mintWorkerUpload(jobId);
+      return json({ jobId, status: "uploading", bundle }, 202);
     } catch (e) {
       await admin.from("order_jobs").update({
         status: "failed",
