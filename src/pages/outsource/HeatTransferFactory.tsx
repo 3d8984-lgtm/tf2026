@@ -2120,6 +2120,36 @@ function OrderProgressBox({
                 <span>{elapsedText}</span>
                 <span>{etaText}</span>
               </div>
+              {sendLogs.length > 0 && (
+                <div className="mt-2 rounded-md border bg-muted/40">
+                  <div className="flex items-center justify-between px-2 py-1 border-b text-[11px] text-muted-foreground">
+                    <span className="font-medium">실시간 진행 로그</span>
+                    <span className="tabular-nums">{sendLogs.length}건</span>
+                  </div>
+                  <div
+                    ref={sendLogsScrollRef}
+                    className="max-h-44 overflow-auto px-2 py-1 font-mono text-[11px] leading-5"
+                  >
+                    {sendLogs.map((l, i) => {
+                      const d = new Date(l.ts);
+                      const hh = String(d.getHours()).padStart(2, "0");
+                      const mm = String(d.getMinutes()).padStart(2, "0");
+                      const ss = String(d.getSeconds()).padStart(2, "0");
+                      const color =
+                        l.level === "error" ? "text-destructive"
+                        : l.level === "warn" ? "text-amber-600 dark:text-amber-400"
+                        : l.level === "success" ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-foreground/80";
+                      return (
+                        <div key={i} className="flex gap-2">
+                          <span className="text-muted-foreground tabular-nums">{hh}:{mm}:{ss}</span>
+                          <span className={color}>{l.msg}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           );
         })()}
