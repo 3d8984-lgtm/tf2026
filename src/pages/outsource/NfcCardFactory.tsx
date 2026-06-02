@@ -1331,6 +1331,11 @@ function DetailView({
           if (v.workOrder)   setWorkOrder(prev => ({ ...prev, ...v.workOrder, orderNo }));
           if (v.testValues)  setTestValues(prev => ({ ...prev, ...v.testValues }));
           if (v.backDefaults) setBackDefaults(prev => ({ ...prev, ...v.backDefaults }));
+          if (v.shapeOptions) setShapeOptions(prev => ({
+            frontCenter:  { ...prev.frontCenter,  ...(v.shapeOptions.frontCenter  || {}) },
+            frontOutline: { ...prev.frontOutline, ...(v.shapeOptions.frontOutline || {}) },
+            back:         { ...prev.back,         ...(v.shapeOptions.back         || {}) },
+          }));
           if (v.masterFont && FONT_OPTIONS.some(f => f.id === v.masterFont)) setMasterFont(v.masterFont);
           if (typeof v.masterFontWeight === "number") setMasterFontWeight(v.masterFontWeight);
           break;
