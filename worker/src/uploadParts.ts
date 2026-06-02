@@ -149,8 +149,8 @@ async function uploadZipWithProgress(jobId: string, uploadUrl: string, zipPath: 
           jobId,
           status: "uploading",
           stage: `Storage 업로드 중 (${mb(sent)}MB / ${mb(size)}MB, ${pct}%)`,
-          progress_current: sent,
-          progress_total: size,
+          progress_current: Math.round(sent / 1024 / 1024),
+          progress_total: Math.max(1, Math.round(size / 1024 / 1024)),
         });
       }
       done(null, buf);
@@ -179,7 +179,8 @@ async function uploadZipWithProgress(jobId: string, uploadUrl: string, zipPath: 
       status: "uploading",
       stage: `Storage 업로드 완료 (${mb(size)}MB, 100%)`,
       progress_current: size,
-      progress_total: size,
+      progress_current: Math.max(1, Math.round(size / 1024 / 1024)),
+      progress_total: Math.max(1, Math.round(size / 1024 / 1024)),
     });
   } finally {
     clearTimeout(timer);
