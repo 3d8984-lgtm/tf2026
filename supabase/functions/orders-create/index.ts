@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
       }).eq("id", existing.id);
       if (isStream) {
         try {
-          const bundle = await mintBundleUpload(existing.id as string);
+          const bundle = await mintWorkerUpload(existing.id as string);
           return json({ jobId: existing.id, status: "awaiting_upload", idempotent: true, requeued: true, bundle }, 202);
         } catch (e) {
           return json({ error: (e as Error).message }, 500);
@@ -207,7 +207,7 @@ Deno.serve(async (req) => {
 
   if (isStream) {
     try {
-      const bundle = await mintBundleUpload(jobId);
+      const bundle = await mintWorkerUpload(jobId);
       return json({ jobId, status: "awaiting_upload", bundle }, 202);
     } catch (e) {
       await admin.from("order_jobs").update({
