@@ -1677,6 +1677,97 @@ function DetailView({
           <UploadDebugPanel info={uploadDebug} onClose={() => setUploadDebug(null)} />
         )}
 
+        {/* ===== 발주 진행 ===== */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Package className="w-4 h-4" /> 발주 진행
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-col md:flex-row gap-3">
+              <ProgressStep
+                idx={1} label="작업지시서"
+                done={confirmedWO} disabled={false}
+                onClick={() => setOpenWO(true)}
+              />
+              <ProgressStep
+                idx={2} label="작업파일 확인"
+                done={confirmedFiles} disabled={!confirmedWO}
+                onClick={() => setOpenFiles(true)}
+              />
+              <ProgressStep
+                idx={3} label="발주 (ZIP 다운로드)"
+                done={ordered} disabled={!confirmedWO || !confirmedFiles || finalizing}
+                onClick={handleFinalize}
+                busy={finalizing}
+              />
+            </div>
+            {finalizeProgress && (
+              <div className="text-xs text-muted-foreground border rounded-md p-2 bg-muted/30">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <span>{finalizeProgress.stage}</span>
+                  <span className="ml-auto tabular-nums">{finalizeProgress.current}/{finalizeProgress.total}</span>
+                </div>
+                <div className="mt-1 h-1.5 bg-background rounded overflow-hidden">
+                  <div className="h-full bg-primary transition-all" style={{ width: `${finalizeProgress.total ? Math.min(100, (finalizeProgress.current / finalizeProgress.total) * 100) : 0}%` }} />
+                </div>
+              </div>
+            )}
+            <p className="text-[11px] text-muted-foreground">
+              ZIP 구조: <span className="font-mono">작업지시서.pdf</span> · <span className="font-mono">카드 앞면/</span> · <span className="font-mono">카드 뒷면/</span> (파일명: 카드 고유번호, 주문 상세 목록 순서)
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Step 1: 작업지시서 A4 미리보기 */}
+        <Dialog open={openWO} onOpenChange={setOpenWO}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader><DialogTitle>작업지시서 미리보기 (A4)</DialogTitle></DialogHeader>
+            <div className="flex-1 overflow-auto border rounded-md bg-white">
+              <iframe title="nfc-wo-preview" srcDoc={workOrderHtml} className="w-full h-[70vh] bg-white" />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpenWO(false)}>닫기</Button>
+              <Button onClick={() => { setConfirmedWO(true); persistProgress({ confirmedWO: true }); setOpenWO(false); toast({ title: "작업지시서 확인 완료" }); }}>
+                <CheckCircle2 className="w-4 h-4 mr-1" /> 확인
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Step 2: 작업파일 확인 (앞면/뒷면 썸네일) */}
+        <Dialog open={openFiles} onOpenChange={setOpenFiles}>
+          <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="w-4 h-4" /> 작업파일 확인 · 총 {cards.length}장
+              </DialogTitle>
+            </DialogHeader>
+            <Tabs defaultValue="front" className="flex-1 overflow-hidden flex flex-col">
+              <TabsList>
+                <TabsTrigger value="front">카드 앞면 ({cards.length})</TabsTrigger>
+                <TabsTrigger value="back">카드 뒷면 ({cards.length})</TabsTrigger>
+              </TabsList>
+              <TabsContent value="front" className="flex-1 overflow-auto pt-3">
+                <CardThumbGrid cards={cards} side="front" testImageUrl={testImages.front?.url || null} />
+              </TabsContent>
+              <TabsContent value="back" className="flex-1 overflow-auto pt-3">
+                <CardThumbGrid cards={cards} side="back" testImageUrl={testImages.back?.url || null} />
+              </TabsContent>
+            </Tabs>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpenFiles(false)}>닫기</Button>
+              <Button onClick={() => { setConfirmedFiles(true); persistProgress({ confirmedFiles: true }); setOpenFiles(false); toast({ title: "작업파일 확인 완료" }); }}>
+                <CheckCircle2 className="w-4 h-4 mr-1" /> 확인
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+
+
         {/* Work order */}
         <Card className="border-dashed">
           <CardHeader className="pb-3">
