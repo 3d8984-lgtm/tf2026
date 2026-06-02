@@ -13,11 +13,13 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const WORKER_URL_KEY = "render.worker.url.v1";
 export const WECHAT_KEYS_KEY = "wechat.webhook.keys.v1";
-type WeChatChannel = "sales" | "dev" | "alerts";
+type WeChatChannel = "silicon" | "heat" | "hologram" | "nfc" | "logo";
 const WECHAT_CHANNELS: { key: WeChatChannel; label: { ko: string; zh: string } }[] = [
-  { key: "sales", label: { ko: "영업 (sales)", zh: "销售 (sales)" } },
-  { key: "dev", label: { ko: "개발 (dev)", zh: "开发 (dev)" } },
-  { key: "alerts", label: { ko: "알림 (alerts)", zh: "告警 (alerts)" } },
+  { key: "silicon", label: { ko: "실리콘 마크 공장 (silicon)", zh: "硅胶标识工厂 (silicon)" } },
+  { key: "heat", label: { ko: "열전사 디자인 공장 (heat)", zh: "热转印设计工厂 (heat)" } },
+  { key: "hologram", label: { ko: "홀로그램 스티커 공장 (hologram)", zh: "全息贴纸工厂 (hologram)" } },
+  { key: "nfc", label: { ko: "NFC 카드 공장 (nfc)", zh: "NFC卡片工厂 (nfc)" } },
+  { key: "logo", label: { ko: "LOGO 공장 (logo)", zh: "LOGO工厂 (logo)" } },
 ];
 
 export const VECTORIZER_MODE_KEY = "vectorizer.ai.mode.v1";
