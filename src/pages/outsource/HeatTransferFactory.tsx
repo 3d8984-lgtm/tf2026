@@ -2100,8 +2100,11 @@ function OrderProgressBox({
           // PNG 업로드(0~90%) + 서버 ZIP/마무리(90~100%) 가중치 적용
           const pngPct = total > 0 ? (done / total) * 90 : 0;
           const stageHints = sendStage || "";
-          const inZipStage = /ZIP|위챗|발주 이력|마무리|finaliz/i.test(stageHints);
-          const tailPct = inZipStage ? 8 : 0;
+          const serverPct = serverProgress && serverProgress.total > 0
+            ? Math.min(100, Math.max(0, (serverProgress.done / serverProgress.total) * 100))
+            : null;
+          const inZipStage = /ZIP|Storage|위챗|발주 이력|마무리|finaliz/i.test(stageHints);
+          const tailPct = serverPct !== null ? (serverPct / 100) * 9 : (inZipStage ? 8 : 0);
           const percent = Math.min(99, Math.round(pngPct + tailPct));
           const startedAt = sendStartedAtRef.current;
           const elapsedMs = startedAt ? Date.now() - startedAt : 0;
@@ -2112,6 +2115,8 @@ function OrderProgressBox({
             const m = Math.floor(remaining / 60);
             const s = Math.round(remaining % 60);
             etaText = m > 0 ? `약 ${m}분 ${s}초 남음` : `약 ${s}초 남음`;
+          } else if (serverProgress) {
+            etaText = `${serverProgress.label} ${serverProgress.done}/${serverProgress.total}${serverProgress.unit}`;
           } else if (startedAt && done >= total && total > 0) {
             etaText = "마무리 중…";
           } else if (startedAt) {
@@ -2132,6 +2137,17 @@ function OrderProgressBox({
                 <div className="font-semibold tabular-nums">{percent}%</div>
               </div>
               <Progress value={percent} className="h-2" />
+              {serverProgress && (
+                <div className="rounded-md border bg-muted/30 px-2 py-1.5 text-[11px] text-muted-foreground">
+                  <div className="flex items-center justify-between gap-2">
+                    <span>{serverProgress.label} 진행률</span>
+                    <span className="tabular-nums">
+                      {serverProgress.done}/{serverProgress.total}{serverProgress.unit} · {Math.min(100, Math.round((serverProgress.done / Math.max(1, serverProgress.total)) * 100))}%
+                    </span>
+                  </div>
+                  <Progress value={Math.min(100, (serverProgress.done / Math.max(1, serverProgress.total)) * 100)} className="mt-1 h-1.5" />
+                </div>
+              )}
               <div className="flex items-center justify-between text-[11px] text-muted-foreground tabular-nums">
                 <span>{elapsedText}</span>
                 <span>{etaText}</span>
