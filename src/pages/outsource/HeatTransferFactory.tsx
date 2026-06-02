@@ -1472,6 +1472,7 @@ function OrderProgressBox({
   const [sending, setSending] = useState(false);
   const sendingRef = useRef(false);
   const [sendProgress, setSendProgress] = useState<{ done: number; total: number } | null>(null);
+  const [serverProgress, setServerProgress] = useState<{ label: string; done: number; total: number; unit: string } | null>(null);
   const [sendStage, setSendStage] = useState<string>("");
   const [uploadIssues, setUploadIssues] = useState<UploadIssue[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
@@ -1653,6 +1654,7 @@ function OrderProgressBox({
     sendingRef.current = true;
     sendStartedAtRef.current = Date.now();
     setSendProgress({ done: 0, total: details.length });
+    setServerProgress(null);
     setSendStage("작업파일 준비 중");
     setUploadIssues([]);
     setSendLogs([]);
@@ -1894,6 +1896,7 @@ function OrderProgressBox({
 
         // 4) Trigger finalize — worker builds the ZIP, uploads to Storage, then ships to WeChat.
         appendSendLog("info", `PNG 업로드 완료 · ${uploadedCount}건 (skip ${skipCount}건)`);
+        setServerProgress(null);
         setSendStage(`Render 마무리 중 (PNG ${uploadedCount}건 → ZIP 생성/Storage/위챗)`);
         appendSendLog("info", "Render 워커에 마무리(finalize) 요청 전송");
         const finalizeRes = await fetch(bundle.finalize_url, { method: "POST" });
@@ -1913,7 +1916,19 @@ function OrderProgressBox({
           let settled = false;
           const handleRow = (row: any) => {
             if (!row || settled) return;
-            if (row.stage) setSendStage(String(row.stage));
+            if (row.stage) {
+              const stage = String(row.stage);
+              setSendStage(stage);
+              const current = Number(row.progress_current ?? 0);
+              const totalValue = Number(row.progress_total ?? 0);
+              if (totalValue > 0 && Number.isFinite(current) && Number.isFinite(totalValue)) {
+                if (/Storage 업로드/.test(stage)) {
+                  setServerProgress({ label: "Storage 업로드", done: current, total: totalValue, unit: "MB" });
+                } else if (/ZIP 생성/.test(stage)) {
+                  setServerProgress({ label: "ZIP 생성", done: current, total: totalValue, unit: "개" });
+                }
+              }
+            }
             if (row.status === "done") {
               settled = true;
               supabase.removeChannel(ch); clearInterval(pollT);
@@ -1941,7 +1956,7 @@ function OrderProgressBox({
               return;
             }
             const { data } = await supabase.from("order_jobs")
-              .select("status, stage, bundle_zip_url, error_message").eq("id", jobId).maybeSingle();
+              .select("status, stage, progress_current, progress_total, bundle_zip_url, error_message").eq("id", jobId).maybeSingle();
             if (data) handleRow(data);
           }, 5000);
         });
@@ -1953,6 +1968,7 @@ function OrderProgressBox({
       setSending(false);
       sendingRef.current = false;
       setSendProgress(null);
+      setServerProgress(null);
       setSendStage("");
       sendStartedAtRef.current = null;
     }
