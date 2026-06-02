@@ -3,13 +3,19 @@ import { fetch } from "undici";
 import { z } from "zod";
 import { processJob } from "./processJob.js";
 import { wechatResend } from "./wechat.js";
+import { uploadStream } from "./uploadStream.js";
 
 const PORT = Number(process.env.PORT || 8080);
 const WORKER_SECRET = process.env.WORKER_SECRET || "";
 const FUNCTIONS_URL = (process.env.SUPABASE_FUNCTIONS_URL || "").replace(/\/$/, "");
 
 const app = express();
-app.use(express.json({ limit: "2mb" }));
+// JSON middleware only for internal POSTs that send JSON. The upload-stream route
+// reads the raw request stream, so it must NOT pass through express.json().
+app.use((req, res, next) => {
+  if (req.path.startsWith("/orders/") && req.path.endsWith("/upload-stream")) return next();
+  return express.json({ limit: "2mb" })(req, res, next);
+});
 
 // Simple CORS so browser-based health checks work
 app.use((_req, res, next) => {
