@@ -8,8 +8,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useLang } from "@/contexts/LangContext";
 import { toast } from "@/hooks/use-toast";
-import { Mail, Save, Send, Wand2, ExternalLink, Loader2, Sparkles } from "lucide-react";
+import { Mail, Save, Send, Wand2, ExternalLink, Loader2, Sparkles, Server, Copy, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+
+export const WORKER_URL_KEY = "render.worker.url.v1";
+export const WECHAT_KEYS_KEY = "wechat.webhook.keys.v1";
+type WeChatChannel = "sales" | "dev" | "alerts";
+const WECHAT_CHANNELS: { key: WeChatChannel; label: { ko: string; zh: string } }[] = [
+  { key: "sales", label: { ko: "영업 (sales)", zh: "销售 (sales)" } },
+  { key: "dev", label: { ko: "개발 (dev)", zh: "开发 (dev)" } },
+  { key: "alerts", label: { ko: "알림 (alerts)", zh: "告警 (alerts)" } },
+];
 
 export const VECTORIZER_MODE_KEY = "vectorizer.ai.mode.v1";
 export type VectorizerMode = "test" | "preview" | "production";
@@ -65,6 +74,109 @@ export default function OutsourceSettings() {
   const [photoroomTesting, setPhotoroomTesting] = useState(false);
   useEffect(() => { localStorage.setItem(UPSCALER_PROVIDER_KEY, upscaleProvider); }, [upscaleProvider]);
   useEffect(() => { localStorage.setItem(UPSCALER_SCALE_KEY, String(upscaleScale)); }, [upscaleScale]);
+
+  // Render 워커 URL
+  const [workerUrl, setWorkerUrl] = useState<string>(() =>
+    (typeof window !== "undefined" && localStorage.getItem(WORKER_URL_KEY)) || ""
+  );
+  const [workerTesting, setWorkerTesting] = useState(false);
+
+  // 위챗 채널별 웹훅 키
+  const [wechatKeys, setWechatKeys] = useState<Record<WeChatChannel, string>>(() => {
+    if (typeof window === "undefined") return { sales: "", dev: "", alerts: "" };
+    try {
+      const raw = localStorage.getItem(WECHAT_KEYS_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return { sales: parsed.sales || "", dev: parsed.dev || "", alerts: parsed.alerts || "" };
+    } catch {
+      return { sales: "", dev: "", alerts: "" };
+    }
+  });
+  const [wechatTesting, setWechatTesting] = useState<WeChatChannel | null>(null);
+
+  const saveWorker = () => {
+    localStorage.setItem(WORKER_URL_KEY, workerUrl.trim());
+    toast({ title: lang === "ko" ? "워커 URL 저장됨" : "Worker URL 已保存" });
+  };
+
+  const testWorker = async () => {
+    if (!workerUrl.trim()) {
+      toast({ title: lang === "ko" ? "URL을 입력하세요" : "请输入 URL", variant: "destructive" });
+      return;
+    }
+    setWorkerTesting(true);
+    try {
+      const res = await fetch(`${workerUrl.replace(/\/$/, "")}/health`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast({ title: lang === "ko" ? "워커 연결 성공" : "Worker 连接成功" });
+    } catch (e) {
+      toast({
+        title: lang === "ko" ? "워커 연결 실패" : "Worker 连接失败",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+    } finally {
+      setWorkerTesting(false);
+    }
+  };
+
+  const saveWechatKeys = () => {
+    const cleaned: Record<string, string> = {};
+    (Object.keys(wechatKeys) as WeChatChannel[]).forEach(k => {
+      if (wechatKeys[k].trim()) cleaned[k] = wechatKeys[k].trim();
+    });
+    localStorage.setItem(WECHAT_KEYS_KEY, JSON.stringify(cleaned));
+    toast({
+      title: lang === "ko" ? "위챗 키 저장됨" : "WeChat 密钥已保存",
+      description: lang === "ko"
+        ? "Render 환경변수 WECHAT_WEBHOOK_KEYS에도 동일하게 등록해야 실제 발송됩니다."
+        : "需在 Render 环境变量 WECHAT_WEBHOOK_KEYS 中同步设置才能实际发送。",
+    });
+  };
+
+  const copyWechatJson = async () => {
+    const cleaned: Record<string, string> = {};
+    (Object.keys(wechatKeys) as WeChatChannel[]).forEach(k => {
+      if (wechatKeys[k].trim()) cleaned[k] = wechatKeys[k].trim();
+    });
+    const json = JSON.stringify(cleaned);
+    await navigator.clipboard.writeText(json);
+    toast({
+      title: lang === "ko" ? "복사됨" : "已复制",
+      description: json,
+    });
+  };
+
+  const testWechat = async (channel: WeChatChannel) => {
+    const key = wechatKeys[channel].trim();
+    if (!key) {
+      toast({ title: lang === "ko" ? "키를 입력하세요" : "请输入密钥", variant: "destructive" });
+      return;
+    }
+    setWechatTesting(channel);
+    try {
+      const url = `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${encodeURIComponent(key)}`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          msgtype: "text",
+          text: { content: `[TWINMETA] ${channel} 채널 테스트 메시지` },
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data?.errcode !== 0) throw new Error(data?.errmsg || `HTTP ${res.status}`);
+      toast({ title: lang === "ko" ? "발송 성공" : "发送成功", description: channel });
+    } catch (e) {
+      toast({
+        title: lang === "ko" ? "발송 실패" : "发送失败",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+    } finally {
+      setWechatTesting(null);
+    }
+  };
 
   const testPhotoroom = async () => {
     setPhotoroomTesting(true);
@@ -377,8 +489,102 @@ export default function OutsourceSettings() {
         </div>
       </Card>
 
+      {/* Render 워커 설정 */}
+      <Card className="p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold flex items-center gap-2">
+            <Server className="w-4 h-4" />
+            {lang === "ko" ? "Render 워커 (이미지 묶음 처리)" : "Render Worker (图片打包处理)"}
+          </h3>
+          <a
+            href="https://dashboard.render.com"
+            target="_blank" rel="noreferrer"
+            className="text-xs text-primary flex items-center gap-1 hover:underline"
+          >
+            Render Dashboard
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {lang === "ko"
+            ? "Render에 배포한 워커의 공개 URL을 등록합니다. 저장 후 Lovable Cloud 시크릿 WORKER_URL에도 동일하게 등록해야 백엔드에서 호출됩니다."
+            : "登记部署在 Render 上的 Worker 公开 URL。保存后还需在 Lovable Cloud 密钥 WORKER_URL 中设置相同的值,后端才能调用。"}
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-2 items-end">
+          <div className="space-y-1.5">
+            <Label>Worker URL</Label>
+            <Input
+              value={workerUrl}
+              onChange={e => setWorkerUrl(e.target.value)}
+              placeholder="https://twinmeta-worker.onrender.com"
+            />
+          </div>
+          <Button size="sm" variant="outline" className="gap-1" onClick={testWorker} disabled={workerTesting}>
+            {workerTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+            {lang === "ko" ? "연결 테스트" : "连接测试"}
+          </Button>
+          <Button size="sm" className="gap-1" onClick={saveWorker}>
+            <Save className="w-3.5 h-3.5" />
+            {lang === "ko" ? "저장" : "保存"}
+          </Button>
+        </div>
+      </Card>
 
+      {/* 위챗 채널별 웹훅 키 설정 */}
+      <Card className="p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold flex items-center gap-2">
+            <MessageSquare className="w-4 h-4" />
+            {lang === "ko" ? "위챗 알림 채널 (WECHAT_WEBHOOK_KEYS)" : "WeChat 通知频道 (WECHAT_WEBHOOK_KEYS)"}
+          </h3>
+          <Button size="sm" variant="outline" className="gap-1" onClick={copyWechatJson}>
+            <Copy className="w-3.5 h-3.5" />
+            {lang === "ko" ? "JSON 복사" : "复制 JSON"}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {lang === "ko"
+            ? "각 위챗 그룹봇 URL의 key= 뒤 값만 입력하세요. 저장 후 'JSON 복사'로 묶인 값을 Render 환경변수 WECHAT_WEBHOOK_KEYS에 그대로 붙여넣어야 워커에서 사용됩니다."
+            : "仅输入每个 WeChat 群机器人 URL 中 key= 后的部分。保存后用「复制 JSON」将打包值粘贴到 Render 环境变量 WECHAT_WEBHOOK_KEYS 才能被 Worker 使用。"}
+        </p>
+        <div className="space-y-3">
+          {WECHAT_CHANNELS.map(ch => (
+            <div key={ch.key} className="grid grid-cols-1 md:grid-cols-[140px_1fr_auto] gap-2 items-end">
+              <div className="space-y-1.5">
+                <Label>{ch.label[lang]}</Label>
+                <Badge variant="secondary" className="font-mono text-[10px]">{ch.key}</Badge>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Webhook Key</Label>
+                <Input
+                  value={wechatKeys[ch.key]}
+                  onChange={e => setWechatKeys(prev => ({ ...prev, [ch.key]: e.target.value }))}
+                  placeholder="abc12345-6789-..."
+                  className="font-mono text-xs"
+                />
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1"
+                onClick={() => testWechat(ch.key)}
+                disabled={wechatTesting === ch.key}
+              >
+                {wechatTesting === ch.key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                {lang === "ko" ? "테스트 발송" : "测试发送"}
+              </Button>
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-end">
+          <Button size="sm" className="gap-1" onClick={saveWechatKeys}>
+            <Save className="w-3.5 h-3.5" />
+            {lang === "ko" ? "위챗 키 저장" : "保存 WeChat 密钥"}
+          </Button>
+        </div>
+      </Card>
 
     </div>
+
   );
 }
