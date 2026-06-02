@@ -3096,6 +3096,42 @@ function ShapeOptionsCard({
     }
   };
 
+  const AnchorPicker = ({
+    val,
+    onPick,
+  }: {
+    val: ShapeAnchor;
+    onPick: (a: ShapeAnchor) => void;
+  }) => {
+    const anchors: ShapeAnchor[] = ["tl","tc","tr","ml","mc","mr","bl","bc","br"];
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <label className="text-[11px] text-muted-foreground">기준점</label>
+        <div className="grid grid-cols-3 gap-[3px] p-1 rounded border bg-background">
+          {anchors.map((a) => {
+            const active = val === a;
+            return (
+              <button
+                key={a}
+                type="button"
+                onClick={() => onPick(a)}
+                className={cn(
+                  "w-4 h-4 rounded-full flex items-center justify-center transition-colors",
+                  active
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted/60 hover:bg-muted"
+                )}
+                title={a}
+              >
+                {active && <div className="w-1.5 h-1.5 rounded-full bg-primary-foreground" />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const Row = ({
     title,
     desc,
