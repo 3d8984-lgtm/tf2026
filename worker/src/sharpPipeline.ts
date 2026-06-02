@@ -17,19 +17,26 @@ async function fetchBytes(url: string): Promise<Buffer> {
 }
 
 export interface ItemMeta {
+  passthrough?: boolean;
   targetW?: number;
   targetH?: number;
   transform?: { offsetXPct?: number; offsetYPct?: number; scale?: number };
   mask?: { url?: string };
   footer?: { text?: string; fontSize?: number; color?: string };
+  [k: string]: unknown;
 }
 
 /**
  * Process a single design source URL into a final PNG buffer.
- * Best-effort port of the browser worker (htPng.worker.ts) Lanczos3 +
- * mask clipping flow. Defaults match the current 2126x2598 @300dpi setup.
+ * - meta.passthrough = true → download URL as-is (client already composited the PNG)
+ * - otherwise: Lanczos3 resize + optional mask clip + optional footer overlay.
  */
 export async function buildItemPng(sourceUrl: string, meta: ItemMeta = {}): Promise<Buffer> {
+  if (meta.passthrough) {
+    // Client-side already produced the final PNG; just fetch the bytes.
+    return await fetchBytes(sourceUrl);
+  }
+
   const targetW = Math.max(64, meta.targetW ?? 2126);
   const targetH = Math.max(64, meta.targetH ?? 2598);
 

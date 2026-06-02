@@ -1474,10 +1474,6 @@ function OrderProgressBox({
   const [sendStage, setSendStage] = useState<string>("");
   const [uploadIssues, setUploadIssues] = useState<UploadIssue[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
-  const [pngJobs, setPngJobs] = useState<Record<string, PngJobRow>>({});
-  const [showResume, setShowResume] = useState(false);
-  const lastProgressAtRef = useRef(Date.now());
-  const resumeTimerRef = useRef<number | null>(null);
   const sendStartedAtRef = useRef<number | null>(null);
   const [, forceTick] = useState(0);
   useEffect(() => {
@@ -1525,78 +1521,10 @@ function OrderProgressBox({
     try { localStorage.setItem(stateKey, JSON.stringify(merged)); } catch {}
   };
 
-  const invokeFinalize = useCallback(async (jobId: string) => {
-    const { error } = await supabase.functions.invoke("heat-order-finalize", { body: { jobId, mode: "resume" } });
-    if (error) throw new Error(`finalize 호출 실패: ${error.message}`);
-  }, []);
+  // Legacy png_jobs / heat-order-finalize resume flow removed.
+  // The new orders-create + Render-worker pipeline tracks status via order_jobs realtime.
 
-  const resumeActiveJob = useCallback(async () => {
-    if (!activeJobId) return;
-    setShowResume(false);
-    try {
-      setSending(true);
-      sendStartedAtRef.current = Date.now();
-      setSendStage("멈춘 발주 마무리 재개 중");
-      const { error } = await supabase.functions.invoke("heat-order-finalize", { body: { jobId: activeJobId, mode: "resume" } });
-      if (error) throw new Error(`finalize 호출 실패: ${error.message}`);
-    } catch (e: any) {
-      toast({ title: "재개 실패", description: e?.message || String(e), variant: "destructive" as any });
-    } finally {
-      setSending(false);
-      setSendStage("");
-      sendStartedAtRef.current = null;
-    }
-  }, [activeJobId]);
 
-  useEffect(() => {
-    if (!activeJobId) return;
-    let cancelled = false;
-    const refresh = async () => {
-      const { data } = await supabase.from("png_jobs" as any)
-        .select("item_id,status,file_url,error_message,last_heartbeat,completed_at")
-        .eq("job_id", activeJobId);
-      if (cancelled) return;
-      const rows = ((data || []) as unknown as PngJobRow[]).reduce<Record<string, PngJobRow>>((m, r) => { m[r.item_id] = r; return m; }, {});
-      setPngJobs(rows);
-      const done = Object.values(rows).filter((r) => r.status === "completed").length;
-      setSendProgress({ done, total: details.length });
-      lastProgressAtRef.current = Date.now();
-    };
-    refresh();
-    const ch = supabase.channel(`png-jobs-${activeJobId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "png_jobs", filter: `job_id=eq.${activeJobId}` }, (payload) => {
-        const row = payload.new as PngJobRow;
-        if (!row?.item_id) return;
-        setPngJobs((prev) => {
-          const next = { ...prev, [row.item_id]: row };
-          const done = Object.values(next).filter((r) => r.status === "completed").length;
-          setSendProgress({ done, total: details.length });
-          lastProgressAtRef.current = Date.now();
-          return next;
-        });
-      })
-      .subscribe();
-    resumeTimerRef.current = window.setInterval(() => {
-      // Skip auto-resume while the local client is still producing/uploading PNGs —
-      // the browser tab IS the worker, so re-invoking finalize during that phase
-      // would clobber its own progress.
-      if (sendingRef.current) return;
-      if (Date.now() - lastProgressAtRef.current > 15_000) {
-        setShowResume(true);
-        if (activeJobId) {
-          invokeFinalize(activeJobId).catch(() => {});
-        }
-        lastProgressAtRef.current = Date.now();
-      }
-    }, 5_000);
-
-    return () => {
-      cancelled = true;
-      supabase.removeChannel(ch);
-      if (resumeTimerRef.current) window.clearInterval(resumeTimerRef.current);
-      resumeTimerRef.current = null;
-    };
-  }, [activeJobId, details.length, invokeFinalize]);
 
   // 저장된 footer 설정 로드
   const readFooter = (): FooterCfg => {
@@ -1694,7 +1622,6 @@ function OrderProgressBox({
     }
     if (currentWebhookUrl !== webhookUrl) setWebhookUrl(currentWebhookUrl);
 
-    // Idempotency guard — Strict Mode / double-click safe.
     if (uploadManager.isRunning()) {
       console.log("[Upload] sendOrder already running, ignoring duplicate call");
       return;
@@ -1704,84 +1631,38 @@ function OrderProgressBox({
     sendingRef.current = true;
     sendStartedAtRef.current = Date.now();
     setSendProgress({ done: 0, total: details.length });
-    setSendStage("발주 잡 생성 중");
+    setSendStage("작업파일 준비 중");
     setUploadIssues([]);
 
     const folderName = order.orderNo || "heat-transfer";
-    let jobId: string | null = null;
+    const stamp = Date.now();
+    const tmpPrefix = `orders/heat-${folderName}-${stamp}`;
+    const woPath = `${tmpPrefix}/__work_order.pdf`;
+    const publicUrlOf = (path: string) =>
+      `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/hologram-pdf/${path.split("/").map(encodeURIComponent).join("/")}`;
+
     try {
-      const { data: jobRow, error: jobErr } = await supabase
-        .from("outsource_order_jobs" as any)
-        .insert({
-          factory: "heat",
-          order_no: folderName,
-          total_pngs: details.length,
-          status: "uploading",
-          stage: "PNG 업로드 준비",
-          webhook_url: currentWebhookUrl,
-          payload: { product_code: order.raw?.product_code || folderName },
-        } as any)
-        .select("id")
-        .maybeSingle();
-      if (jobErr || !jobRow) throw new Error(`잡 생성 실패: ${jobErr?.message || "no row"}`);
-      jobId = (jobRow as any).id as string;
-      setActiveJobId(jobId);
-      setShowResume(false);
-      lastProgressAtRef.current = Date.now();
-      const tmpPrefix = `orders/heat-transfer-jobs/${jobId}`;
-      const zipPath = `orders/heat-transfer-${folderName}-${Date.now()}-links.txt`;
-
-      await uploadManager.start(jobId, async () => {
-        if (!jobId) return;
-        console.log("[Upload] runner begin", jobId, "items=", details.length);
-        logMemory("start");
-
-        await supabase.from("png_jobs" as any).upsert(
-          details.map((d) => ({ job_id: jobId, item_id: d.designUid, status: "pending" })),
-          { onConflict: "job_id,item_id", ignoreDuplicates: true } as any,
-        );
-        const { data: existingRows } = await supabase.from("png_jobs" as any)
-          .select("item_id,status,file_url,error_message,last_heartbeat,completed_at")
-          .eq("job_id", jobId);
-        const completedItems = new Set(((existingRows || []) as unknown as PngJobRow[])
-          .filter((r) => r.status === "completed").map((r) => r.item_id));
-        console.log("[Upload] resume — already completed:", completedItems.size);
-
+      await uploadManager.start(`${folderName}-${stamp}`, async () => {
+        // 1) Work order PDF
         setSendStage("작업지시서 업로드 중");
         const woBytes = await renderHtmlToPdfBytes(woHtml);
         const pdfBlob = new Blob([woBytes as BlobPart], { type: "application/pdf" });
         {
           const { error } = await supabase.storage.from("hologram-pdf")
-            .upload(`${tmpPrefix}/__work_order.pdf`, pdfBlob, { contentType: "application/pdf", upsert: true });
+            .upload(woPath, pdfBlob, { contentType: "application/pdf", upsert: true });
           if (error) throw new Error(`작업지시서 업로드 실패: ${error.message}`);
         }
-        await supabase.from("outsource_order_jobs" as any)
-          .update({ zip_path: zipPath })
-          .eq("id", jobId);
 
+        // 2) Generate + upload PNGs (client-side composition kept intact)
         setSendStage("PNG 생성 및 업로드 중");
-        const used = new Map<string, number>();
         const totalExpected = details.length;
-        const issueBuffer: UploadIssue[] = [];
-        const addUploadIssue = (index: number, fileName: string, reason: string) => {
-          const issue = { index, fileName, reason };
-          issueBuffer.push(issue);
-          setUploadIssues((prev) => [...prev, issue]);
-          console.warn("[Upload] skip", `index=${index}`, fileName, reason);
-        };
-        let okCount = completedItems.size, skipCount = 0, uploadedCount = completedItems.size;
-        let lastReported = uploadedCount;
-        setSendProgress({ done: uploadedCount, total: totalExpected });
+        const items: { idx: number; source_url: string; filename: string; meta: Record<string, unknown> }[] = [];
+        let okCount = 0, skipCount = 0, uploadedCount = 0;
+        const used = new Map<string, number>();
 
-        const reportProgress = async (force = false) => {
-          if (!jobId) return;
-          if (!force && uploadedCount - lastReported < 5) return;
-          lastReported = uploadedCount;
-          try {
-            await supabase.from("outsource_order_jobs" as any)
-              .update({ uploaded_pngs: uploadedCount, stage: `PNG 업로드 ${uploadedCount}/${totalExpected}` })
-              .eq("id", jobId);
-          } catch { /* non-fatal */ }
+        const addUploadIssue = (index: number, fileName: string, reason: string) => {
+          setUploadIssues((prev) => [...prev, { index, fileName, reason }]);
+          console.warn("[Upload] skip", `index=${index}`, fileName, reason);
         };
 
         const DPI = 300;
@@ -1809,7 +1690,6 @@ function OrderProgressBox({
 
         const uploadWaiters: Array<() => void> = [];
         let inFlight = 0;
-        const pngJobUpdatePromises: Promise<unknown>[] = [];
         const waitForUploadSlot = async () => {
           if (inFlight >= HT_UPLOAD_CONCURRENCY) {
             await new Promise<void>((resolve) => uploadWaiters.push(resolve));
@@ -1820,6 +1700,7 @@ function OrderProgressBox({
           inFlight = Math.max(0, inFlight - 1);
           uploadWaiters.shift()?.();
         };
+
         const uploadPngWithTimeout = async (path: string, blob: Blob) => {
           const { data: sessionData } = await supabase.auth.getSession();
           const token = sessionData.session?.access_token;
@@ -1848,26 +1729,25 @@ function OrderProgressBox({
             window.clearTimeout(timeout);
           }
         };
-        const scheduleUpload = async (item: { index: number; name: string; blob: Blob; itemId: string }) => {
+
+        const scheduleUpload = async (item: { index: number; idx: number; name: string; blob: Blob }) => {
           await waitForUploadSlot();
           try {
-            const t0 = performance.now();
             let lastError = "";
             for (let attempt = 1; attempt <= HT_UPLOAD_MAX_ATTEMPTS; attempt++) {
               try {
                 setSendStage(`PNG 업로드 ${uploadedCount}/${totalExpected} · #${item.index} ${attempt}/${HT_UPLOAD_MAX_ATTEMPTS}`);
-                await uploadPngWithTimeout(`${tmpPrefix}/${item.name}`, item.blob);
-                const { error: rowErr } = await supabase.from("png_jobs" as any)
-                  .update({ status: "completed", file_url: `${tmpPrefix}/${item.name}`, error_message: null, completed_at: new Date().toISOString() })
-                  .eq("job_id", jobId).eq("item_id", item.itemId);
-                if (rowErr) throw rowErr;
+                const path = `${tmpPrefix}/${item.name}`;
+                await uploadPngWithTimeout(path, item.blob);
+                items.push({
+                  idx: item.idx,
+                  source_url: publicUrlOf(path),
+                  filename: item.name,
+                  meta: { passthrough: true },
+                });
                 uploadedCount++;
-                console.log("[Upload]", `${uploadedCount}/${totalExpected}`, item.name, `${(performance.now() - t0).toFixed(0)}ms`, `attempt=${attempt}`);
-                if (uploadedCount % 5 === 0) logMemory(`after ${uploadedCount} uploads`);
-                lastProgressAtRef.current = Date.now();
                 setSendProgress({ done: uploadedCount, total: totalExpected });
                 setSendStage(`PNG 업로드 ${uploadedCount}/${totalExpected}`);
-                await reportProgress();
                 return;
               } catch (e) {
                 lastError = e instanceof Error ? e.message : String(e);
@@ -1877,10 +1757,6 @@ function OrderProgressBox({
             }
             skipCount++;
             addUploadIssue(item.index, item.name, lastError || "PNG 업로드 실패");
-            const { error: failErr } = await supabase.from("png_jobs" as any)
-              .update({ status: "failed", error_message: lastError || "PNG 업로드 실패" })
-              .eq("job_id", jobId).eq("item_id", item.itemId);
-            if (failErr) console.error("[Upload] failed row update", item.name, failErr.message);
           } finally {
             releaseUploadSlot();
           }
@@ -1912,34 +1788,13 @@ function OrderProgressBox({
               const i = cursor++;
               if (i >= details.length) return;
               const d = details[i];
-              if (completedItems.has(d.designUid)) continue;
               const src = testDesign || d.designSrc;
-              if (!src) {
-                skipCount++;
-                const fileName = `${d.designUid}.png`;
-                addUploadIssue(i + 1, fileName, "디자인 소스 없음");
-                await supabase.from("png_jobs" as any).update({ status: "failed", error_message: "디자인 소스 없음" })
-                  .eq("job_id", jobId).eq("item_id", d.designUid);
-                continue;
-              }
+              if (!src) { skipCount++; addUploadIssue(i + 1, `${d.designUid}.png`, "디자인 소스 없음"); continue; }
               const target = normalizeSize(d.tshirtSize);
               const fmt = (target ? formats.find((f) => normalizeSize(f.sizeLabel) === target) : null) || outline;
-              if (!fmt) {
-                skipCount++;
-                const reason = `사이즈 ${d.tshirtSize || "?"} 포맷 없음`;
-                addUploadIssue(i + 1, `${d.designUid}.png`, reason);
-                await supabase.from("png_jobs" as any).update({ status: "failed", error_message: reason })
-                  .eq("job_id", jobId).eq("item_id", d.designUid);
-                continue;
-              }
+              if (!fmt) { skipCount++; addUploadIssue(i + 1, `${d.designUid}.png`, `사이즈 ${d.tshirtSize || "?"} 포맷 없음`); continue; }
               const bundle = await getMaskBundle(fmt);
-              if (!bundle) {
-                skipCount++;
-                addUploadIssue(i + 1, `${d.designUid}.png`, "마스크 생성 실패");
-                await supabase.from("png_jobs" as any).update({ status: "failed", error_message: "마스크 생성 실패" })
-                  .eq("job_id", jobId).eq("item_id", d.designUid);
-                continue;
-              }
+              if (!bundle) { skipCount++; addUploadIssue(i + 1, `${d.designUid}.png`, "마스크 생성 실패"); continue; }
 
               const task: PoolTask = {
                 idx: i,
@@ -1960,61 +1815,59 @@ function OrderProgressBox({
                 meta: { tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize },
               };
 
-              // Fire-and-forget — don't block on the round-trip.
-              supabase.from("png_jobs" as any)
-                .update({ status: "processing", last_heartbeat: new Date().toISOString(), error_message: null })
-                .eq("job_id", jobId).eq("item_id", d.designUid).then(() => {});
-
               const res = await enqueueBuild(task);
-              if (!res.blob) {
-                skipCount++;
-                console.warn("[Upload] PNG gen failed", res.designUid, res.reason);
-                addUploadIssue(i + 1, `${res.designUid}.png`, res.reason || "PNG 생성 실패");
-                await supabase.from("png_jobs" as any)
-                  .update({ status: "failed", error_message: res.reason || "PNG 생성 실패" })
-                  .eq("job_id", jobId).eq("item_id", d.designUid);
-                continue;
-              }
+              if (!res.blob) { skipCount++; addUploadIssue(i + 1, `${res.designUid}.png`, res.reason || "PNG 생성 실패"); continue; }
               const count = used.get(res.designUid) ?? 0;
               const name = count === 0 ? `${res.designUid}.png` : `${res.designUid}(${count}).png`;
               used.set(res.designUid, count + 1);
               okCount++;
-              await scheduleUpload({ index: i + 1, name, blob: res.blob, itemId: d.designUid });
+              await scheduleUpload({ index: i + 1, idx: i, name, blob: res.blob });
             }
           };
 
           const runners: Promise<void>[] = [];
           for (let k = 0; k < TASK_CONCURRENCY; k++) runners.push(runOne());
           await Promise.all(runners);
-
-          await Promise.allSettled(pngJobUpdatePromises);
-          await reportProgress(true);
           console.log("[Upload] all PNGs done — ok:", okCount, "skip:", skipCount, "uploaded:", uploadedCount);
-          logMemory("end");
         } finally {
           pool.terminate();
         }
 
-        if (okCount !== totalExpected || uploadedCount !== totalExpected) {
-          const reason = `완료 조건 미충족: ok=${okCount}/${totalExpected}, uploaded=${uploadedCount}/${totalExpected}, skip=${skipCount}`;
-          await supabase.from("outsource_order_jobs" as any)
-            .update({ status: "failed", stage: "PNG 업로드 미완료", error_message: reason })
-            .eq("id", jobId);
-          throw new Error(reason);
+        if (items.length === 0) {
+          throw new Error(`업로드된 PNG가 0건입니다 (skip=${skipCount}). 작업파일을 다시 확인하세요.`);
         }
 
-        setSendStage("서버에서 발주 마무리 요청 중");
-        const { error: finErr } = await supabase.functions.invoke("heat-order-finalize", { body: { jobId, mode: "resume" } });
-        if (finErr) throw new Error(`finalize 호출 실패: ${finErr.message}`);
+        // 3) Register the order job — Render worker will build ZIP + send WeChat.
+        setSendStage("서버 발주 잡 등록 중");
+        items.sort((a, b) => a.idx - b.idx);
+        const { data: createRes, error: createErr } = await supabase.functions.invoke("orders-create", {
+          body: {
+            orderNo: folderName,
+            factory: "heat",
+            webhookUrl: currentWebhookUrl,
+            payload: {
+              product_code: order.raw?.product_code || folderName,
+              work_order_pdf_path: woPath,
+              uploaded_count: items.length,
+              skipped_count: skipCount,
+            },
+            items,
+          },
+        });
+        if (createErr) throw new Error(`발주 잡 등록 실패: ${createErr.message}`);
+        const jobId = (createRes as any)?.jobId as string | undefined;
+        if (!jobId) throw new Error("발주 잡 등록 응답에 jobId 없음");
+        setActiveJobId(jobId);
 
-        setSendStage("서버 ZIP 생성 중");
+        // 4) Wait for worker → done / failed via realtime + polling fallback.
+        setSendStage("서버 ZIP 생성 및 위챗 전송 대기");
         await new Promise<void>((resolve, reject) => {
-          const maxWaitMs = 10 * 60 * 1000;
+          const maxWaitMs = 15 * 60 * 1000;
           const startedAt = Date.now();
           let settled = false;
           const handleRow = (row: any) => {
             if (!row || settled) return;
-            if (row.stage) setSendStage(row.stage);
+            if (row.stage) setSendStage(String(row.stage));
             if (row.status === "done") {
               settled = true;
               supabase.removeChannel(ch); clearInterval(pollT);
@@ -2027,31 +1880,24 @@ function OrderProgressBox({
               reject(new Error(row.error_message || "서버에서 발주 마무리 실패"));
             }
           };
-          const ch = supabase.channel(`outsource-job-${jobId}`)
-            .on("postgres_changes", { event: "UPDATE", schema: "public", table: "outsource_order_jobs", filter: `id=eq.${jobId}` },
+          const ch = supabase.channel(`order-jobs-${jobId}`)
+            .on("postgres_changes", { event: "UPDATE", schema: "public", table: "order_jobs", filter: `id=eq.${jobId}` },
               (payload) => handleRow(payload.new))
             .subscribe();
           const pollT = setInterval(async () => {
             if (settled) return;
             if (Date.now() - startedAt > maxWaitMs) {
               settled = true; supabase.removeChannel(ch); clearInterval(pollT);
-              reject(new Error("서버 처리 타임아웃 (10분 초과)"));
+              reject(new Error("서버 처리 타임아웃 (15분 초과)"));
               return;
             }
-            const { data } = await supabase.from("outsource_order_jobs" as any)
-              .select("status, stage, zip_url, error_message").eq("id", jobId).maybeSingle();
+            const { data } = await supabase.from("order_jobs")
+              .select("status, stage, bundle_zip_url, error_message").eq("id", jobId).maybeSingle();
             if (data) handleRow(data);
           }, 5000);
         });
       });
     } catch (e: any) {
-      if (jobId) {
-        try {
-          await supabase.from("outsource_order_jobs" as any)
-            .update({ status: "failed", error_message: String(e?.message || e).slice(0, 1000) })
-            .eq("id", jobId);
-        } catch { /* */ }
-      }
       toast({ title: "발주 실패", description: e?.message || String(e), variant: "destructive" as any });
     } finally {
       setSending(false);
@@ -2061,6 +1907,8 @@ function OrderProgressBox({
       sendStartedAtRef.current = null;
     }
   };
+
+
 
   const Step = ({ idx, label, done, disabled, onClick }: { idx: number; label: string; done: boolean; disabled: boolean; onClick: () => void }) => (
     <button
