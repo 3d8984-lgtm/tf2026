@@ -245,29 +245,29 @@ export async function finalizeUpload(req: Request, res: Response): Promise<void>
       try {
         let zipUrl = "";
         try {
-        const bundleInfo = await fetchBundleInfo(jobId);
-        zipUrl = bundleInfo.bundle_zip_view_url || bundleInfo.bundle_zip_download_url || "";
+          const bundleInfo = await fetchBundleInfo(jobId);
+          zipUrl = bundleInfo.bundle_zip_view_url || bundleInfo.bundle_zip_download_url || "";
+        } catch (e) {
+          console.warn("[finalize] bundle info lookup failed", (e as Error).message);
+        }
+        await sendBundleToWeChat({
+          jobId,
+          webhookUrl: info.job.webhook_url,
+          orderNo: info.job.order_no,
+          zipPath,
+          zipSize: size,
+          zipFilename: `${info.job.order_no}-bundle.zip`,
+          zipUrl,
+          itemCount: info.job.progress_total ?? parts.length,
+        });
+        await callback({ jobId, status: "done", stage: "완료", error_message: null });
       } catch (e) {
-        console.warn("[finalize] bundle info lookup failed", (e as Error).message);
+        await callback({ jobId, status: "failed", error_message: `위챗 전송 실패: ${(e as Error).message}` });
+      } finally {
+        await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+        await rm(zipPath, { force: true }).catch(() => undefined);
+        jobCache.delete(jobId);
       }
-      await sendBundleToWeChat({
-        jobId,
-        webhookUrl: info.job.webhook_url,
-        orderNo: info.job.order_no,
-        zipPath,
-        zipSize: size,
-        zipFilename: `${info.job.order_no}-bundle.zip`,
-        zipUrl,
-        itemCount: info.job.progress_total ?? parts.length,
-      });
-      await callback({ jobId, status: "done", stage: "완료", error_message: null });
-    } catch (e) {
-      await callback({ jobId, status: "failed", error_message: `위챗 전송 실패: ${(e as Error).message}` });
-    } finally {
-      await rm(dir, { recursive: true, force: true }).catch(() => undefined);
-      await rm(zipPath, { force: true }).catch(() => undefined);
-      jobCache.delete(jobId);
-    }
     })().catch((e) => console.error("[finalize] async delivery fatal", jobId, e));
   } catch (e) {
     await callback({ jobId, status: "failed", error_message: `발주 마무리 실패: ${(e as Error).message}` });
