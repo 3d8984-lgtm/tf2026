@@ -67,6 +67,27 @@ export async function fetchBundleInfo(jobId: string): Promise<BundleInfo> {
   return call("worker-bundle-info", { jobId });
 }
 
+export interface SignedPartUpload {
+  path: string;
+  upload_url: string;
+  upload_token: string;
+}
+
+export async function signPart(jobId: string, name: string): Promise<SignedPartUpload> {
+  return call("worker-part-sign", { jobId, name, action: "sign" });
+}
+
+export interface PartFile {
+  name: string;
+  size: number;
+  url: string;
+}
+
+export async function listParts(jobId: string): Promise<PartFile[]> {
+  const r = await call("worker-part-sign", { jobId, action: "list" });
+  return r.files || [];
+}
+
 /** Upload buffer to Storage using a pre-signed upload URL (no service key). */
 export async function uploadToSignedUrl(uploadUrl: string, body: Buffer | ReadStream, contentType = "application/zip"): Promise<void> {
   const r = await fetch(uploadUrl, {
@@ -86,3 +107,4 @@ export async function downloadUrl(url: string): Promise<Buffer> {
   if (!r.ok) throw new Error(`download ${r.status}`);
   return Buffer.from(await r.arrayBuffer());
 }
+
