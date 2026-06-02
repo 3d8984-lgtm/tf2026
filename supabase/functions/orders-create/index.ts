@@ -30,8 +30,14 @@ const BodySchema = z.object({
   webhookUrl: z.string().url().or(z.literal("")).default(""),
   callbackUrl: z.string().url().optional(),
   payload: z.record(z.unknown()).default({}),
-  items: z.array(ItemSchema).min(1).max(5000),
+  // Legacy mode (worker builds ZIP from per-item URLs)
+  items: z.array(ItemSchema).max(5000).optional(),
+  // Stream mode (browser uploads finished ZIP directly to Storage)
+  stream: z.boolean().optional(),
+  itemCount: z.number().int().min(1).max(5000).optional(),
 });
+
+const STORAGE_BUCKET = Deno.env.get("STORAGE_BUCKET") || "hologram-pdf";
 
 async function enqueueWorker(admin: any, jobId: string) {
   if (!WORKER_URL || !WORKER_SECRET) {
