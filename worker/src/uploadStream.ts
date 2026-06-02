@@ -28,7 +28,7 @@ async function readToBuffer(req: Request): Promise<Buffer> {
 }
 
 export async function uploadStream(req: Request, res: Response): Promise<void> {
-  const jobId = req.params.jobId;
+  const jobId = String(req.params.jobId || "");
   const token = String(req.query.token || "");
   if (!jobId || !token) {
     res.status(400).json({ error: "jobId and token required" });
