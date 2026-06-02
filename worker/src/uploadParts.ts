@@ -23,6 +23,7 @@ import { buildZipFile } from "./zipBuilder.js";
 const MAX_PART_BYTES = 256 * 1024 * 1024; // 256 MiB per PNG (generous)
 const MAX_TOTAL_BYTES = 8 * 1024 * 1024 * 1024; // 8 GiB per order (safety cap)
 const STREAM_TIMEOUT_MS = 30 * 60 * 1000;
+const STORAGE_UPLOAD_TIMEOUT_MS = 45 * 60 * 1000;
 
 // Token cache to avoid hammering worker-fetch-job on every part PUT.
 const jobCache = new Map<string, { info: JobInfo; expiresAt: number }>();
@@ -125,6 +126,64 @@ async function downloadToFile(url: string, target: string): Promise<number> {
   });
   await pipeline(nodeStream, counter, createWriteStream(target));
   return bytes;
+}
+
+function mb(bytes: number): string {
+  return (bytes / 1024 / 1024).toFixed(1);
+}
+
+async function uploadZipWithProgress(jobId: string, uploadUrl: string, zipPath: string, size: number): Promise<void> {
+  let sent = 0;
+  let lastCallbackAt = 0;
+  let lastPercent = -1;
+  const progress = new Transform({
+    transform(chunk: string | Buffer, _enc, done) {
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      sent += buf.length;
+      const pct = size > 0 ? Math.min(100, Math.floor((sent / size) * 100)) : 0;
+      const now = Date.now();
+      if (pct === 100 || pct >= lastPercent + 5 || now - lastCallbackAt > 5000) {
+        lastPercent = pct;
+        lastCallbackAt = now;
+        void callback({
+          jobId,
+          status: "uploading",
+          stage: `Storage 업로드 중 (${mb(sent)}MB / ${mb(size)}MB, ${pct}%)`,
+          progress_current: sent,
+          progress_total: size,
+        });
+      }
+      done(null, buf);
+    },
+  });
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), STORAGE_UPLOAD_TIMEOUT_MS);
+  try {
+    const r = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/zip",
+        "Content-Length": String(size),
+        "x-upsert": "true",
+      },
+      body: createReadStream(zipPath).pipe(progress) as any,
+      duplex: "half" as any,
+      signal: ac.signal,
+    } as any);
+    if (!r.ok) {
+      const t = await r.text();
+      throw new Error(`storage ${r.status}: ${t.slice(0, 300)}`);
+    }
+    await callback({
+      jobId,
+      status: "uploading",
+      stage: `Storage 업로드 완료 (${mb(size)}MB, 100%)`,
+      progress_current: size,
+      progress_total: size,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function finalizeUpload(req: Request, res: Response): Promise<void> {
