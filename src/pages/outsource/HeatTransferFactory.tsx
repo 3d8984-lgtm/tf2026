@@ -2364,10 +2364,58 @@ function DesignTab({
     const pool = new HtPngPool(workerCount);
     pushLog("info", `워커 ${workerCount}개 가동`);
 
-    const zip = new JSZip();
-    const folder = zip.folder(`design_${order.orderNo}_${dpi}dpi`)!;
+    // Streaming ZIP queue: workers push finished PNGs here; downloadZip pulls.
+    type ZipItem = { name: string; lastModified: Date; input: Blob };
+    const zipQueue: ZipItem[] = [];
+    const waiters: Array<(v: ZipItem | null) => void> = [];
+    let producersDone = false;
+    const pushItem = (it: ZipItem) => {
+      const w = waiters.shift();
+      if (w) w(it); else zipQueue.push(it);
+    };
+    const finishProducers = () => {
+      producersDone = true;
+      while (waiters.length) waiters.shift()!(null);
+    };
+    async function* zipSource(): AsyncGenerator<ZipItem> {
+      while (true) {
+        if (zipQueue.length) { yield zipQueue.shift()!; continue; }
+        if (producersDone) return;
+        const next = await new Promise<ZipItem | null>((res) => waiters.push(res));
+        if (!next) return;
+        yield next;
+      }
+    }
+
+    const baseName = `design_${order.orderNo}_${dpi}dpi`;
     let matched = 0;
     let done = 0;
+
+    // Start streaming ZIP producer immediately so PNGs flush as they're made.
+    const zipResponse = downloadZip(zipSource(), { metadata: zipQueue as any });
+    // Pick destination: File System Access API (true streaming) or memory blob fallback.
+    let writable: FileSystemWritableFileStream | null = null;
+    const anyWindow = window as any;
+    if (typeof anyWindow.showSaveFilePicker === "function") {
+      try {
+        const handle = await anyWindow.showSaveFilePicker({
+          suggestedName: `${baseName}.zip`,
+          types: [{ description: "ZIP", accept: { "application/zip": [".zip"] } }],
+        });
+        writable = await handle.createWritable();
+        pushLog("info", "디스크 스트리밍 모드 (저장 위치 선택됨)");
+      } catch (e) {
+        if ((e as any)?.name === "AbortError") {
+          pool.terminate(); setBusy(false);
+          pushLog("warn", "사용자가 저장을 취소했습니다");
+          return;
+        }
+        writable = null;
+      }
+    }
+    const pipePromise: Promise<void> = writable
+      ? zipResponse.body!.pipeTo(writable as any)
+      : (async () => { /* blob fallback handled after producers */ })();
 
     try {
       await Promise.all(
@@ -2393,41 +2441,53 @@ function DesignTab({
                 meta: { tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize },
               };
               const res = await pool.enqueue(task);
+              let blob: Blob;
               if (!res.blob) {
                 // Main-thread fallback (preserves sharpen)
                 const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
                 const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer, {
                   tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize,
                 });
-                const b = await pngWithDpi(await canvasToBlob(c), dpi);
-                const sf = d.tshirtSize ? folder.folder(d.tshirtSize) || folder : folder;
-                sf.file(`${d.designUid}.png`, b);
+                blob = await pngWithDpi(await canvasToBlob(c), dpi);
               } else {
-                const sf = d.tshirtSize ? folder.folder(d.tshirtSize) || folder : folder;
-                sf.file(`${d.designUid}.png`, res.blob);
+                blob = res.blob;
               }
+              const sub = d.tshirtSize ? `${d.tshirtSize}/` : "";
+              pushItem({
+                name: `${baseName}/${sub}${d.designUid}.png`,
+                lastModified: new Date(),
+                input: blob,
+              });
               matched++;
             } catch (e) {
               skipped++;
               pushLog("warn", `실패: ${d.designUid} — ${e instanceof Error ? e.message : String(e)}`);
             } finally {
               done++;
-              if (done % 5 === 0 || done === plans.length + 0) {
+              if (done % 5 === 0) {
                 pushLog("info", `진행 ${matched + skipped}/${details.length}`);
               }
             }
           }
         }),
       );
+      finishProducers();
 
       if (matched === 0) {
+        try { await (writable as any)?.abort?.(); } catch { /* ignore */ }
         pushLog("error", "생성된 파일이 없습니다");
         toast({ title: "일괄 다운로드 실패", description: "모든 항목 생성 실패", variant: "destructive" });
         return;
       }
-      pushLog("info", "ZIP 압축 중…");
-      const zipBlob = await zip.generateAsync({ type: "blob" });
-      triggerDownload(zipBlob, `design_${order.orderNo}_${dpi}dpi.zip`);
+
+      pushLog("info", "ZIP 스트리밍 마무리…");
+      if (writable) {
+        await pipePromise;
+      } else {
+        // Memory fallback: client-zip writes STORE so size ≈ sum of PNGs.
+        const zipBlob = await zipResponse.blob();
+        triggerDownload(zipBlob, `${baseName}.zip`);
+      }
       pushLog(
         skipped > 0 ? "warn" : "info",
         `일괄 다운로드 완료 (${startedAt} 시작) · 성공 ${matched}개${skipped ? ` · 건너뜀 ${skipped}개` : ""}`,
@@ -2437,6 +2497,11 @@ function DesignTab({
         description: `성공 ${matched}개${skipped ? ` · 건너뜀 ${skipped}개 (상단 로그 확인)` : ""}`,
         variant: skipped > 0 ? "destructive" : "default",
       });
+    } catch (e) {
+      finishProducers();
+      try { await (writable as any)?.abort?.(); } catch { /* ignore */ }
+      pushLog("error", `ZIP 생성 실패: ${e instanceof Error ? e.message : String(e)}`);
+      toast({ title: "일괄 다운로드 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
       pool.terminate();
       setBusy(false);
