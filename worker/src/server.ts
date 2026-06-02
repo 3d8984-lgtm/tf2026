@@ -11,6 +11,18 @@ const WORKER_SECRET = process.env.WORKER_SECRET || "";
 const FUNCTIONS_URL = (process.env.SUPABASE_FUNCTIONS_URL || "").replace(/\/$/, "");
 
 const app = express();
+
+// CORS must run before body parsing and route handlers. If a long request fails
+// upstream, the browser otherwise reports it as a CORS failure instead of the
+// underlying worker error.
+app.use((_req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-worker-secret, Authorization, x-bundle-size, x-upsert");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  next();
+});
+app.options("*", (_req, res) => res.status(204).end());
+
 // JSON middleware only for internal POSTs that send JSON. The streaming upload
 // routes read the raw request stream, so they must NOT pass through express.json().
 app.use((req, res, next) => {
@@ -19,14 +31,6 @@ app.use((req, res, next) => {
     (req.path.endsWith("/upload-stream") || req.path.includes("/parts"));
   if (isOrdersStreaming) return next();
   return express.json({ limit: "2mb" })(req, res, next);
-});
-
-// Simple CORS so browser-based health checks + streaming PUT work
-app.use((_req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-worker-secret, Authorization, x-bundle-size, x-upsert");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  next();
 });
 
 function authOk(req: express.Request): boolean {
