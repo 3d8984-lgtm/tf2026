@@ -247,6 +247,8 @@ export async function finalizeUpload(req: Request, res: Response): Promise<void>
         jobId,
         status: "uploading",
         stage: `ZIP 생성 중 (${parts.length}개 PNG, ${(totalPartBytes / 1024 / 1024).toFixed(1)}MB)`,
+        progress_current: 0,
+        progress_total: parts.length,
         error_message: null,
       });
 
@@ -268,28 +270,33 @@ export async function finalizeUpload(req: Request, res: Response): Promise<void>
           .filter((n) => n !== "__work_order.pdf")
           .map((n) => ({ name: n, path: join(dir, n) })),
       ];
-      const { size } = await buildZipFile(entries, zipPath);
+      let lastZipCallbackAt = 0;
+      let lastZipPct = -1;
+      const { size } = await buildZipFile(entries, zipPath, (p) => {
+        const pct = p.bytesTotal > 0 ? Math.min(100, Math.floor((p.bytesProcessed / p.bytesTotal) * 100)) : 0;
+        const now = Date.now();
+        if (pct === 100 || pct >= lastZipPct + 10 || now - lastZipCallbackAt > 5000) {
+          lastZipPct = pct;
+          lastZipCallbackAt = now;
+          void callback({
+            jobId,
+            status: "uploading",
+            stage: `ZIP 생성 중 (${p.entriesProcessed}/${p.entriesTotal}개, ${mb(p.bytesProcessed)}MB / ${mb(p.bytesTotal)}MB, ${pct}%)`,
+            progress_current: p.entriesProcessed,
+            progress_total: Math.max(1, p.entriesTotal),
+          });
+        }
+      });
 
       await callback({
         jobId,
         status: "uploading",
-        stage: `Storage 업로드 중 (${(size / 1024 / 1024).toFixed(1)}MB)`,
+        stage: `Storage 업로드 시작 (${mb(size)}MB)`,
+        progress_current: 0,
+        progress_total: Math.max(1, Math.round(size / 1024 / 1024)),
       });
 
-      const r = await fetch(info.bundle.upload_url, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/zip",
-          "Content-Length": String(size),
-          "x-upsert": "true",
-        },
-        body: createReadStream(zipPath) as any,
-        duplex: "half" as any,
-      } as any);
-      if (!r.ok) {
-        const t = await r.text();
-        throw new Error(`storage ${r.status}: ${t.slice(0, 300)}`);
-      }
+      await uploadZipWithProgress(jobId, info.bundle.upload_url, zipPath, size);
 
       await callback({
         jobId,
