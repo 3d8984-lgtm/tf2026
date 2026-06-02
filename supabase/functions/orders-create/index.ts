@@ -120,6 +120,24 @@ Deno.serve(async (req) => {
     return json({ error: "validation_failed", details: parsed.error.flatten() }, 400);
   }
   const body = parsed.data;
+  const isStream = body.stream === true;
+  const itemsArr = body.items ?? [];
+  if (!isStream && itemsArr.length === 0) {
+    return json({ error: "items required (or set stream:true with itemCount)" }, 400);
+  }
+  if (isStream && (!body.itemCount || body.itemCount < 1)) {
+    return json({ error: "itemCount required for stream mode" }, 400);
+  }
+  const totalCount = isStream ? (body.itemCount as number) : itemsArr.length;
+
+  // Helper to mint a signed upload URL for the bundle.zip (used by stream mode).
+  const mintBundleUpload = async (jobId: string) => {
+    const bundlePath = `orders/${jobId}/bundle.zip`;
+    const { data, error } = await admin.storage.from(STORAGE_BUCKET)
+      .createSignedUploadUrl(bundlePath, { upsert: true });
+    if (error || !data) throw new Error(`signed upload url: ${error?.message || "unknown"}`);
+    return { path: bundlePath, upload_url: data.signedUrl, upload_token: data.token };
+  };
 
   // --- Idempotency: insert order_jobs, ignore conflict on order_no ---
   const { data: existing } = await admin
@@ -134,11 +152,25 @@ Deno.serve(async (req) => {
     if (shouldRequeue && existing.status !== "done") {
       await admin.from("order_job_items").update({ status: "pending", attempts: 0, error_message: null }).eq("job_id", existing.id);
       await admin.from("order_jobs").update({
-        status: "queued",
-        stage: "큐 재등록",
+        status: isStream ? "awaiting_upload" : "queued",
+        stage: isStream ? "ZIP 업로드 대기" : "큐 재등록",
         progress_current: 0,
+        progress_total: totalCount,
+        bundle_zip_path: null,
+        bundle_zip_url: null,
+        bundle_size: null,
         error_message: null,
+        payload: body.payload,
+        webhook_url: body.webhookUrl,
       }).eq("id", existing.id);
+      if (isStream) {
+        try {
+          const bundle = await mintBundleUpload(existing.id as string);
+          return json({ jobId: existing.id, status: "awaiting_upload", idempotent: true, requeued: true, bundle }, 202);
+        } catch (e) {
+          return json({ error: (e as Error).message }, 500);
+        }
+      }
       // @ts-ignore Deno EdgeRuntime
       if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(enqueueWorker(admin, existing.id as string));
       else enqueueWorker(admin, existing.id as string);
@@ -155,9 +187,9 @@ Deno.serve(async (req) => {
       webhook_url: body.webhookUrl,
       callback_url: body.callbackUrl,
       payload: body.payload,
-      progress_total: body.items.length,
-      status: "queued",
-      stage: "큐 등록",
+      progress_total: totalCount,
+      status: isStream ? "awaiting_upload" : "queued",
+      stage: isStream ? "ZIP 업로드 대기" : "큐 등록",
       created_by: createdBy,
     })
     .select("id")
@@ -165,8 +197,21 @@ Deno.serve(async (req) => {
   if (insErr || !inserted) return json({ error: insErr?.message || "insert failed" }, 500);
   const jobId = inserted.id as string;
 
-  // Batch insert items (chunks of 500)
-  const rows = body.items.map((it) => ({
+  if (isStream) {
+    try {
+      const bundle = await mintBundleUpload(jobId);
+      return json({ jobId, status: "awaiting_upload", bundle }, 202);
+    } catch (e) {
+      await admin.from("order_jobs").update({
+        status: "failed",
+        error_message: (e as Error).message,
+      }).eq("id", jobId);
+      return json({ error: (e as Error).message }, 500);
+    }
+  }
+
+  // Legacy items mode: batch insert items, enqueue worker for processing.
+  const rows = itemsArr.map((it) => ({
     job_id: jobId,
     idx: it.idx,
     source_url: it.source_url,
