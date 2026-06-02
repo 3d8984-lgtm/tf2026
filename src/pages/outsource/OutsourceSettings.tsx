@@ -85,13 +85,20 @@ export default function OutsourceSettings() {
 
   // 위챗 채널별 웹훅 키
   const [wechatKeys, setWechatKeys] = useState<Record<WeChatChannel, string>>(() => {
-    if (typeof window === "undefined") return { sales: "", dev: "", alerts: "" };
+    const empty: Record<WeChatChannel, string> = { silicon: "", heat: "", hologram: "", nfc: "", logo: "" };
+    if (typeof window === "undefined") return empty;
     try {
       const raw = localStorage.getItem(WECHAT_KEYS_KEY);
       const parsed = raw ? JSON.parse(raw) : {};
-      return { sales: parsed.sales || "", dev: parsed.dev || "", alerts: parsed.alerts || "" };
+      return {
+        silicon: parsed.silicon || "",
+        heat: parsed.heat || "",
+        hologram: parsed.hologram || "",
+        nfc: parsed.nfc || "",
+        logo: parsed.logo || "",
+      };
     } catch {
-      return { sales: "", dev: "", alerts: "" };
+      return empty;
     }
   });
   const [wechatTesting, setWechatTesting] = useState<WeChatChannel | null>(null);
