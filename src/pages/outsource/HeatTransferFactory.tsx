@@ -1483,6 +1483,27 @@ function OrderProgressBox({
     return () => window.clearInterval(id);
   }, [sending]);
 
+  // 실시간 발주 로그 (PNG 업로드 → ZIP 생성 → Storage 업로드 → 위챗 전송)
+  type SendLog = { ts: number; level: "info" | "warn" | "error" | "success"; msg: string };
+  const [sendLogs, setSendLogs] = useState<SendLog[]>([]);
+  const lastLoggedStageRef = useRef<string>("");
+  const appendSendLog = (level: SendLog["level"], msg: string) => {
+    if (!msg) return;
+    setSendLogs((arr) => [...arr, { ts: Date.now(), level, msg }].slice(-300));
+  };
+  // sendStage가 바뀔 때마다 자동으로 로그에 누적 (서버 callback에서 오는 stage 포함)
+  useEffect(() => {
+    if (sendStage && sendStage !== lastLoggedStageRef.current) {
+      lastLoggedStageRef.current = sendStage;
+      appendSendLog("info", sendStage);
+    }
+  }, [sendStage]);
+  const sendLogsScrollRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = sendLogsScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [sendLogs]);
+
 
   const readSavedTransform = () => {
     const d = readHtDesignUiDraft(order.orderNo);
