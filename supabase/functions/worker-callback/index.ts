@@ -6,6 +6,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const WORKER_SECRET = Deno.env.get("WORKER_SECRET") || "";
+const STORAGE_BUCKET = Deno.env.get("STORAGE_BUCKET") || "hologram-pdf";
 
 const json = (d: unknown, s = 200) =>
   new Response(JSON.stringify(d), { status: s, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -48,6 +49,12 @@ Deno.serve(async (req) => {
   const patch: Record<string, unknown> = {};
   for (const k of ["status", "stage", "progress_current", "progress_total", "bundle_zip_path", "bundle_zip_url", "bundle_size", "error_message"] as const) {
     if (body[k] !== undefined) patch[k] = body[k];
+  }
+  // Auto-generate signed URL when worker provides bundle_zip_path without an explicit URL.
+  if (typeof patch.bundle_zip_path === "string" && !patch.bundle_zip_url) {
+    const { data: sig } = await admin.storage.from(STORAGE_BUCKET)
+      .createSignedUrl(patch.bundle_zip_path as string, 60 * 60 * 24 * 7);
+    if (sig?.signedUrl) patch.bundle_zip_url = sig.signedUrl;
   }
   if (Object.keys(patch).length) {
     const { error } = await admin.from("order_jobs").update(patch).eq("id", body.jobId);
