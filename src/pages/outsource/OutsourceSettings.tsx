@@ -75,6 +75,109 @@ export default function OutsourceSettings() {
   useEffect(() => { localStorage.setItem(UPSCALER_PROVIDER_KEY, upscaleProvider); }, [upscaleProvider]);
   useEffect(() => { localStorage.setItem(UPSCALER_SCALE_KEY, String(upscaleScale)); }, [upscaleScale]);
 
+  // Render 워커 URL
+  const [workerUrl, setWorkerUrl] = useState<string>(() =>
+    (typeof window !== "undefined" && localStorage.getItem(WORKER_URL_KEY)) || ""
+  );
+  const [workerTesting, setWorkerTesting] = useState(false);
+
+  // 위챗 채널별 웹훅 키
+  const [wechatKeys, setWechatKeys] = useState<Record<WeChatChannel, string>>(() => {
+    if (typeof window === "undefined") return { sales: "", dev: "", alerts: "" };
+    try {
+      const raw = localStorage.getItem(WECHAT_KEYS_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return { sales: parsed.sales || "", dev: parsed.dev || "", alerts: parsed.alerts || "" };
+    } catch {
+      return { sales: "", dev: "", alerts: "" };
+    }
+  });
+  const [wechatTesting, setWechatTesting] = useState<WeChatChannel | null>(null);
+
+  const saveWorker = () => {
+    localStorage.setItem(WORKER_URL_KEY, workerUrl.trim());
+    toast({ title: lang === "ko" ? "워커 URL 저장됨" : "Worker URL 已保存" });
+  };
+
+  const testWorker = async () => {
+    if (!workerUrl.trim()) {
+      toast({ title: lang === "ko" ? "URL을 입력하세요" : "请输入 URL", variant: "destructive" });
+      return;
+    }
+    setWorkerTesting(true);
+    try {
+      const res = await fetch(`${workerUrl.replace(/\/$/, "")}/health`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast({ title: lang === "ko" ? "워커 연결 성공" : "Worker 连接成功" });
+    } catch (e) {
+      toast({
+        title: lang === "ko" ? "워커 연결 실패" : "Worker 连接失败",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+    } finally {
+      setWorkerTesting(false);
+    }
+  };
+
+  const saveWechatKeys = () => {
+    const cleaned: Record<string, string> = {};
+    (Object.keys(wechatKeys) as WeChatChannel[]).forEach(k => {
+      if (wechatKeys[k].trim()) cleaned[k] = wechatKeys[k].trim();
+    });
+    localStorage.setItem(WECHAT_KEYS_KEY, JSON.stringify(cleaned));
+    toast({
+      title: lang === "ko" ? "위챗 키 저장됨" : "WeChat 密钥已保存",
+      description: lang === "ko"
+        ? "Render 환경변수 WECHAT_WEBHOOK_KEYS에도 동일하게 등록해야 실제 발송됩니다."
+        : "需在 Render 环境变量 WECHAT_WEBHOOK_KEYS 中同步设置才能实际发送。",
+    });
+  };
+
+  const copyWechatJson = async () => {
+    const cleaned: Record<string, string> = {};
+    (Object.keys(wechatKeys) as WeChatChannel[]).forEach(k => {
+      if (wechatKeys[k].trim()) cleaned[k] = wechatKeys[k].trim();
+    });
+    const json = JSON.stringify(cleaned);
+    await navigator.clipboard.writeText(json);
+    toast({
+      title: lang === "ko" ? "복사됨" : "已复制",
+      description: json,
+    });
+  };
+
+  const testWechat = async (channel: WeChatChannel) => {
+    const key = wechatKeys[channel].trim();
+    if (!key) {
+      toast({ title: lang === "ko" ? "키를 입력하세요" : "请输入密钥", variant: "destructive" });
+      return;
+    }
+    setWechatTesting(channel);
+    try {
+      const url = `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${encodeURIComponent(key)}`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          msgtype: "text",
+          text: { content: `[TWINMETA] ${channel} 채널 테스트 메시지` },
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data?.errcode !== 0) throw new Error(data?.errmsg || `HTTP ${res.status}`);
+      toast({ title: lang === "ko" ? "발송 성공" : "发送成功", description: channel });
+    } catch (e) {
+      toast({
+        title: lang === "ko" ? "발송 실패" : "发送失败",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+    } finally {
+      setWechatTesting(null);
+    }
+  };
+
   const testPhotoroom = async () => {
     setPhotoroomTesting(true);
     try {
