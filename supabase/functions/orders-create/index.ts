@@ -143,8 +143,17 @@ Deno.serve(async (req) => {
       .update({ upload_token: token })
       .eq("id", jobId);
     if (error) throw new Error(`upload_token persist: ${error.message}`);
-    const upload_url = `${WORKER_URL.replace(/\/$/, "")}/orders/${jobId}/upload-stream?token=${token}`;
-    return { path: `orders/${jobId}/bundle.zip`, upload_url, upload_token: token };
+    const base = `${WORKER_URL.replace(/\/$/, "")}/orders/${jobId}`;
+    return {
+      path: `orders/${jobId}/bundle.zip`,
+      // Legacy single-stream URL (kept for backwards compat).
+      upload_url: `${base}/upload-stream?token=${token}`,
+      // New per-PNG pipeline: client PUTs each PNG to parts_url, then POSTs finalize_url.
+      parts_url: `${base}/parts?token=${token}`,
+      finalize_url: `${base}/finalize?token=${token}`,
+      abort_url: `${base}/parts?token=${token}`,
+      upload_token: token,
+    };
   };
 
   // --- Idempotency: insert order_jobs, ignore conflict on order_no ---
