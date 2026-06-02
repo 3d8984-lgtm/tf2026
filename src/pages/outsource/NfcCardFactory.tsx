@@ -28,6 +28,7 @@ import { PDFDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import bwipjs from "bwip-js/browser";
 import { CardFrame, CARD_W_MM, CARD_H_MM } from "@/components/outsource/CardFrame";
+import { cn } from "@/lib/utils";
 import { ensureSpoqaFontFace, loadSpoqaFontBytes, waitForSpoqaLoaded } from "@/lib/pdf-fonts";
 import { svgStringToPdfBytes, fetchSvgString, svgAspectRatio } from "@/lib/svg-to-pdf";
 import { loadOpentypeFont, measureOutlineWidthPt, outlineAscentPt, drawTextAsOutline } from "@/lib/text-outline";
@@ -3096,6 +3097,42 @@ function ShapeOptionsCard({
     }
   };
 
+  const AnchorPicker = ({
+    val,
+    onPick,
+  }: {
+    val: ShapeAnchor;
+    onPick: (a: ShapeAnchor) => void;
+  }) => {
+    const anchors: ShapeAnchor[] = ["tl","tc","tr","ml","mc","mr","bl","bc","br"];
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <label className="text-[11px] text-muted-foreground">기준점</label>
+        <div className="grid grid-cols-3 gap-[3px] p-1 rounded border bg-background">
+          {anchors.map((a) => {
+            const active = val === a;
+            return (
+              <button
+                key={a}
+                type="button"
+                onClick={() => onPick(a)}
+                className={cn(
+                  "w-4 h-4 rounded-full flex items-center justify-center transition-colors",
+                  active
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted/60 hover:bg-muted"
+                )}
+                title={a}
+              >
+                {active && <div className="w-1.5 h-1.5 rounded-full bg-primary-foreground" />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const Row = ({
     title,
     desc,
@@ -3141,7 +3178,7 @@ function ShapeOptionsCard({
           )}
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 items-start">
           <div>
             <label className="text-[11px] text-muted-foreground">X (mm)</label>
             <input
@@ -3162,19 +3199,8 @@ function ShapeOptionsCard({
               className="w-full h-8 rounded border bg-background px-2 text-xs"
             />
           </div>
-          <div>
-            <label className="text-[11px] text-muted-foreground">기준점</label>
-            <select
-              value={s.anchor}
-              onChange={(e) => update(k, { anchor: e.target.value as ShapeAnchor })}
-              className="w-full h-8 rounded border bg-background px-2 text-xs"
-            >
-              {SHAPE_ANCHORS.map(a => (
-                <option key={a.value} value={a.value}>{a.label}</option>
-              ))}
-            </select>
-          </div>
-          <div>
+          <AnchorPicker val={s.anchor} onPick={(a) => update(k, { anchor: a })} />
+          <div className="md:col-span-2">
             <label className="text-[11px] text-muted-foreground">색상 (테스트)</label>
             <div className="flex items-center gap-1">
               <input
