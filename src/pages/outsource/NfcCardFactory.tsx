@@ -510,6 +510,42 @@ const DEFAULT_BACK_DEFAULTS = {
   issuedBy: "ISSUED BY",
 };
 
+// 도형(SVG) 옵션 — 카드 앞면(중심/외곽) + 카드 뒷면(단일 도형)
+// SVG 원본 실제 크기를 사용하며, 카드 위 위치(x_mm, y_mm)와 기준점/색상을 지정한다.
+// 색상은 API 연동 전까지 테스트용 직접 입력 값을 사용한다.
+export type ShapeAnchor = "tl" | "tc" | "tr" | "ml" | "mc" | "mr" | "bl" | "bc" | "br";
+export interface ShapeOption {
+  svgDataUrl: string | null;
+  fileName: string | null;
+  x_mm: number;
+  y_mm: number;
+  anchor: ShapeAnchor;
+  color: string; // 테스트 색상 (#RRGGBB)
+}
+const makeShapeOption = (color: string): ShapeOption => ({
+  svgDataUrl: null,
+  fileName: null,
+  x_mm: 28.5,
+  y_mm: 43.5,
+  anchor: "mc",
+  color,
+});
+export interface ShapeOptions {
+  frontCenter: ShapeOption;
+  frontOutline: ShapeOption;
+  back: ShapeOption;
+}
+const DEFAULT_SHAPE_OPTIONS: ShapeOptions = {
+  frontCenter: makeShapeOption("#E63946"),
+  frontOutline: makeShapeOption("#1D3557"),
+  back: makeShapeOption("#457B9D"),
+};
+const SHAPE_ANCHORS: { value: ShapeAnchor; label: string }[] = [
+  { value: "tl", label: "좌상" }, { value: "tc", label: "상중" }, { value: "tr", label: "우상" },
+  { value: "ml", label: "좌중" }, { value: "mc", label: "중앙" }, { value: "mr", label: "우중" },
+  { value: "bl", label: "좌하" }, { value: "bc", label: "하중" }, { value: "br", label: "우하" },
+];
+
 // 서명 이미지의 기본 인쇄 크기 (mm) — 업로드된 이미지의 자연 비율을 모를 때 fallback
 const SIGNATURE_BASE_W_MM = 20;
 const SIGNATURE_BASE_H_MM = 8;
