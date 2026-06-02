@@ -74,7 +74,7 @@ export async function uploadToSignedUrl(uploadUrl: string, body: Buffer | ReadSt
     headers: { "Content-Type": contentType, "x-upsert": "true" },
     body: body as any,
     duplex: "half" as any,
-  });
+  } as any);
   if (!r.ok) {
     const t = await r.text();
     throw new Error(`upload ${r.status}: ${t.slice(0, 300)}`);
