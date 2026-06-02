@@ -2209,6 +2209,46 @@ function OrderProgressBox({
             </div>
           </div>
         )}
+
+        {bundleDownloadUrl && (
+          <div className="mt-3 rounded-md border border-emerald-500/40 bg-emerald-500/5 p-3 text-xs">
+            <div className="font-medium text-emerald-700 dark:text-emerald-400 mb-2">
+              ✅ ZIP 다운로드 준비 완료 (스트리밍)
+            </div>
+            <div className="text-muted-foreground mb-2 leading-relaxed">
+              아래 버튼을 누르면 서버가 PNG를 실시간으로 ZIP으로 묶어 즉시 전송합니다.
+              브라우저 다운로드 표시줄에 나타날 때까지 잠시 기다려 주세요.
+              위챗 단톡방에도 동일한 링크가 전송되었습니다.
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                onClick={() => { try { window.open(bundleDownloadUrl, "_blank", "noopener"); } catch { /* noop */ } }}
+              >
+                <Send className="w-3.5 h-3.5 mr-1.5" /> ZIP 다운로드 시작
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  try {
+                    navigator.clipboard.writeText(bundleDownloadUrl);
+                    toast({ title: "다운로드 링크 복사됨" });
+                  } catch { /* noop */ }
+                }}
+              >
+                링크 복사
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setBundleDownloadUrl(null)}
+              >
+                닫기
+              </Button>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
