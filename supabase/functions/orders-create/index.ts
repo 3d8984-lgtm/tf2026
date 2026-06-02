@@ -160,7 +160,7 @@ Deno.serve(async (req) => {
     if (shouldRequeue && existing.status !== "done") {
       await admin.from("order_job_items").update({ status: "pending", attempts: 0, error_message: null }).eq("job_id", existing.id);
       await admin.from("order_jobs").update({
-        status: isStream ? "awaiting_upload" : "queued",
+        status: isStream ? "uploading" : "queued",
         stage: isStream ? "ZIP 업로드 대기" : "큐 재등록",
         progress_current: 0,
         progress_total: totalCount,
@@ -174,7 +174,7 @@ Deno.serve(async (req) => {
       if (isStream) {
         try {
           const bundle = await mintWorkerUpload(existing.id as string);
-          return json({ jobId: existing.id, status: "awaiting_upload", idempotent: true, requeued: true, bundle }, 202);
+          return json({ jobId: existing.id, status: "uploading", idempotent: true, requeued: true, bundle }, 202);
         } catch (e) {
           return json({ error: (e as Error).message }, 500);
         }
@@ -196,7 +196,7 @@ Deno.serve(async (req) => {
       callback_url: body.callbackUrl,
       payload: body.payload,
       progress_total: totalCount,
-      status: isStream ? "awaiting_upload" : "queued",
+      status: isStream ? "uploading" : "queued",
       stage: isStream ? "ZIP 업로드 대기" : "큐 등록",
       created_by: createdBy,
     })
@@ -208,7 +208,7 @@ Deno.serve(async (req) => {
   if (isStream) {
     try {
       const bundle = await mintWorkerUpload(jobId);
-      return json({ jobId, status: "awaiting_upload", bundle }, 202);
+      return json({ jobId, status: "uploading", bundle }, 202);
     } catch (e) {
       await admin.from("order_jobs").update({
         status: "failed",
