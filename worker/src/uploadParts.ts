@@ -16,6 +16,7 @@ import { pipeline } from "node:stream/promises";
 import { Transform } from "node:stream";
 import { fetch } from "undici";
 import { fetchJob, type JobInfo } from "./api.js";
+import { fetchBundleInfo } from "./api.js";
 import { callback } from "./callback.js";
 import { sendBundleToWeChat } from "./wechat.js";
 import { buildZipFile } from "./zipBuilder.js";
@@ -236,32 +237,41 @@ export async function finalizeUpload(req: Request, res: Response): Promise<void>
       error_message: null,
     });
 
-    // Respond to browser early — WeChat send continues in background.
-    res.status(200).json({ ok: true, jobId, parts: parts.length, bytes: size });
+    // Respond to browser before WeChat delivery. The file can be hundreds of MB,
+    // so keeping this HTTP request open causes Render/proxy timeouts that surface
+    // in the browser as CORS + 502 even though the ZIP was already uploaded.
+    res.status(202).json({ ok: true, jobId, parts: parts.length, bytes: size });
 
-    try {
-      const { readFile } = await import("node:fs/promises");
-      const zipBytes = await readFile(zipPath);
+    (async () => {
+      let zipUrl = "";
+      try {
+        const bundleInfo = await fetchBundleInfo(jobId);
+        zipUrl = bundleInfo.bundle_zip_view_url || bundleInfo.bundle_zip_download_url || "";
+      } catch (e) {
+        console.warn("[finalize] bundle info lookup failed", (e as Error).message);
+      }
       await sendBundleToWeChat({
         jobId,
         webhookUrl: info.job.webhook_url,
         orderNo: info.job.order_no,
-        zipBytes,
+        zipPath,
+        zipSize: size,
         zipFilename: `${info.job.order_no}-bundle.zip`,
-        zipUrl: "",
+        zipUrl,
         itemCount: info.job.progress_total ?? parts.length,
       });
       await callback({ jobId, status: "done", stage: "완료", error_message: null });
     } catch (e) {
       await callback({ jobId, status: "failed", error_message: `위챗 전송 실패: ${(e as Error).message}` });
+    } finally {
+      await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+      await rm(zipPath, { force: true }).catch(() => undefined);
+      jobCache.delete(jobId);
     }
+    })().catch((e) => console.error("[finalize] async delivery fatal", jobId, e));
   } catch (e) {
     await callback({ jobId, status: "failed", error_message: `발주 마무리 실패: ${(e as Error).message}` });
     if (!res.headersSent) res.status(502).json({ error: (e as Error).message });
-  } finally {
-    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
-    await rm(zipPath, { force: true }).catch(() => undefined);
-    jobCache.delete(jobId);
   }
 }
 
