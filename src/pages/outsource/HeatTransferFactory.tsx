@@ -2321,43 +2321,110 @@ function DesignTab({
     }
     setBusy(true);
     const startedAt = new Date().toLocaleTimeString();
-    pushLog("info", `일괄 다운로드 시작 · ${details.length}개 · ${dpi}dpi`);
-    try {
-      const zip = new JSZip();
-      const folder = zip.folder(`design_${order.orderNo}_${dpi}dpi`)!;
-      let matched = 0;
-      let skipped = 0;
-      const skippedItems: string[] = [];
-      for (const d of details) {
-        const src = testDesign || d.designSrc;
-        if (!src) {
-          skipped++;
-          skippedItems.push(`${d.designUid} (디자인 소스 없음)`);
-          pushLog("warn", `건너뜀: ${d.designUid} — 디자인 소스 없음`);
-          continue;
-        }
-        const fmt = resolveStrictFormat(d);
-        if (!fmt) {
-          skipped++;
-          const label = `${d.designUid} (사이즈: ${d.tshirtSize || "미지정"})`;
-          skippedItems.push(label);
-          pushLog("warn", `건너뜀: ${label} — 매칭되는 디자인 포맷 없음`);
-          continue;
-        }
-        const sizeFolder = d.tshirtSize ? folder.folder(d.tshirtSize) || folder : folder;
-        const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
-        const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer, {
-          tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize,
-        });
-        const b = await pngWithDpi(await canvasToBlob(c), dpi);
-        sizeFolder.file(`${d.designUid}.png`, b);
-        matched++;
+    pushLog("info", `일괄 다운로드 시작 · ${details.length}개 · ${dpi}dpi · 병렬 워커`);
+
+    // Plan all tasks first (skip invalid items up front).
+    type Plan = { idx: number; d: typeof details[number]; fmt: NonNullable<ReturnType<typeof resolveStrictFormat>>; src: string };
+    const plans: Plan[] = [];
+    let skipped = 0;
+    for (let i = 0; i < details.length; i++) {
+      const d = details[i];
+      const src = testDesign || d.designSrc;
+      if (!src) { skipped++; pushLog("warn", `건너뜀: ${d.designUid} — 디자인 소스 없음`); continue; }
+      const fmt = resolveStrictFormat(d);
+      if (!fmt) { skipped++; pushLog("warn", `건너뜀: ${d.designUid} (사이즈 ${d.tshirtSize || "미지정"}) — 포맷 없음`); continue; }
+      plans.push({ idx: i, d, fmt, src });
+    }
+
+    if (plans.length === 0) {
+      setBusy(false);
+      pushLog("error", "생성할 항목이 없습니다");
+      toast({ title: "일괄 다운로드 실패", description: "사이즈에 맞는 포맷이 하나도 없습니다", variant: "destructive" });
+      return;
+    }
+
+    // Build mask blob cache (once per size) and spin up a worker pool.
+    const maskCache = new Map<string, { blob: Blob; targetW: number; targetH: number; widthPt: number }>();
+    const getMask = async (fmt: Plan["fmt"]) => {
+      const key = `${fmt.widthPt}x${fmt.heightPt}@${dpi}`;
+      let b = maskCache.get(key);
+      if (!b) {
+        const tW = Math.max(64, Math.round((fmt.widthPt / 72) * dpi));
+        const tH = Math.max(64, Math.round((fmt.heightPt / 72) * dpi));
+        const m = buildAlphaMaskCanvas(fmt.maskCanvas, tW, tH);
+        b = { blob: await canvasToBlob(m), targetW: tW, targetH: tH, widthPt: fmt.widthPt };
+        maskCache.set(key, b);
       }
+      return b;
+    };
+
+    const cpuCount = Math.max(2, navigator.hardwareConcurrency || 4);
+    const workerCount = Math.min(6, Math.max(2, Math.floor(cpuCount / 2)));
+    const pool = new HtPngPool(workerCount);
+    pushLog("info", `워커 ${workerCount}개 가동`);
+
+    const zip = new JSZip();
+    const folder = zip.folder(`design_${order.orderNo}_${dpi}dpi`)!;
+    let matched = 0;
+    let done = 0;
+
+    try {
+      await Promise.all(
+        Array.from({ length: workerCount }, async () => {
+          while (true) {
+            const plan = plans.shift();
+            if (!plan) return;
+            const { d, fmt, src, idx } = plan;
+            try {
+              const bundle = await getMask(fmt);
+              const task: PoolTask = {
+                idx,
+                designUid: d.designUid,
+                designSrc: src,
+                maskKey: `${fmt.widthPt}x${fmt.heightPt}@${dpi}`,
+                maskBlob: bundle.blob,
+                targetW: bundle.targetW,
+                targetH: bundle.targetH,
+                widthPt: bundle.widthPt,
+                dpi,
+                transform,
+                footer,
+                meta: { tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize },
+              };
+              const res = await pool.enqueue(task);
+              if (!res.blob) {
+                // Main-thread fallback (preserves sharpen)
+                const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
+                const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer, {
+                  tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize,
+                });
+                const b = await pngWithDpi(await canvasToBlob(c), dpi);
+                const sf = d.tshirtSize ? folder.folder(d.tshirtSize) || folder : folder;
+                sf.file(`${d.designUid}.png`, b);
+              } else {
+                const sf = d.tshirtSize ? folder.folder(d.tshirtSize) || folder : folder;
+                sf.file(`${d.designUid}.png`, res.blob);
+              }
+              matched++;
+            } catch (e) {
+              skipped++;
+              pushLog("warn", `실패: ${d.designUid} — ${e instanceof Error ? e.message : String(e)}`);
+            } finally {
+              done++;
+              if (done % 5 === 0 || done === plans.length + 0) {
+                pushLog("info", `진행 ${matched + skipped}/${details.length}`);
+              }
+            }
+          }
+        }),
+      );
+
       if (matched === 0) {
-        pushLog("error", "생성된 파일이 없습니다 — 모든 항목에서 사이즈 매칭 실패");
-        toast({ title: "일괄 다운로드 실패", description: "사이즈에 맞는 포맷이 하나도 없습니다", variant: "destructive" });
+        pushLog("error", "생성된 파일이 없습니다");
+        toast({ title: "일괄 다운로드 실패", description: "모든 항목 생성 실패", variant: "destructive" });
         return;
       }
+      pushLog("info", "ZIP 압축 중…");
       const zipBlob = await zip.generateAsync({ type: "blob" });
       triggerDownload(zipBlob, `design_${order.orderNo}_${dpi}dpi.zip`);
       pushLog(
@@ -2369,7 +2436,10 @@ function DesignTab({
         description: `성공 ${matched}개${skipped ? ` · 건너뜀 ${skipped}개 (상단 로그 확인)` : ""}`,
         variant: skipped > 0 ? "destructive" : "default",
       });
-    } finally { setBusy(false); }
+    } finally {
+      pool.terminate();
+      setBusy(false);
+    }
   };
 
 
