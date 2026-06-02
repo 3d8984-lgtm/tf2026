@@ -18,10 +18,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { AlertTriangle, Download, Eye, FileText, Loader2, Upload, X, ChevronLeft, Save, Image as ImageIcon, ZoomIn, ZoomOut, Maximize2, Cloud } from "lucide-react";
+import { AlertTriangle, Download, Eye, FileText, Loader2, Upload, X, ChevronLeft, Save, Image as ImageIcon, ZoomIn, ZoomOut, Maximize2, Cloud, CheckCircle2, Package } from "lucide-react";
 import { VECTORIZER_MODE_KEY } from "./OutsourceSettings";
 import { PDFDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
@@ -973,6 +974,30 @@ function DetailView({
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
+  // ===== 발주 진행 상태 =====
+  const progressKey = `nfc-card.progress.v1.${orderNo}`;
+  const [confirmedWO, setConfirmedWO] = useState(false);
+  const [confirmedFiles, setConfirmedFiles] = useState(false);
+  const [ordered, setOrdered] = useState(false);
+  const [openWO, setOpenWO] = useState(false);
+  const [openFiles, setOpenFiles] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
+  const [finalizeProgress, setFinalizeProgress] = useState<{ stage: string; current: number; total: number } | null>(null);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(progressKey);
+      if (raw) {
+        const s = JSON.parse(raw);
+        setConfirmedWO(!!s.confirmedWO); setConfirmedFiles(!!s.confirmedFiles); setOrdered(!!s.ordered);
+      } else { setConfirmedWO(false); setConfirmedFiles(false); setOrdered(false); }
+    } catch {}
+  }, [progressKey]);
+  const persistProgress = (next: { confirmedWO?: boolean; confirmedFiles?: boolean; ordered?: boolean }) => {
+    const merged = { confirmedWO, confirmedFiles, ordered, ...next };
+    try { localStorage.setItem(progressKey, JSON.stringify(merged)); } catch {}
+  };
+
+
   // Test images per side (server-persisted; falls back to API card image when removed)
   const [testImages, setTestImages] = useState<{
     front: TestAsset | null;
@@ -1570,6 +1595,69 @@ function DetailView({
     } finally { setBusy(false); }
   };
 
+  // 작업지시서 HTML — 미리보기와 PDF 변환에 공통으로 사용
+  const workOrderHtml = useMemo(() => buildNfcWorkOrderHtml(workOrder), [workOrder]);
+
+  // 발주: ZIP 생성 후 다운로드 (작업지시서.pdf + 카드 앞면/ + 카드 뒷면/)
+  const handleFinalize = async () => {
+    if (cards.length === 0) {
+      toast({ title: "카드 데이터가 없습니다", variant: "destructive" as any });
+      return;
+    }
+    setFinalizing(true);
+    try {
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+
+      setFinalizeProgress({ stage: "작업지시서 PDF 생성", current: 0, total: 1 });
+      const woBytes = await renderHtmlToPdfBytesA4(workOrderHtml);
+      zip.file("작업지시서.pdf", woBytes);
+
+      const frontDir = zip.folder("카드 앞면")!;
+      const backDir = zip.folder("카드 뒷면")!;
+      const usedFront = new Map<string, number>();
+      const usedBack = new Map<string, number>();
+      const total = cards.length;
+
+      for (let i = 0; i < cards.length; i++) {
+        const card = cards[i];
+        const base = card.uniqueNo || `card-${i + 1}`;
+
+        setFinalizeProgress({ stage: `카드 앞면 PDF (${i + 1}/${total})`, current: i + 1, total });
+        const frontBytes = await buildCardPdfBytes(card, { sides: ["front"] });
+        const nf = usedFront.get(base) || 0;
+        frontDir.file(nf === 0 ? `${base}.pdf` : `${base}(${nf}).pdf`, frontBytes);
+        usedFront.set(base, nf + 1);
+
+        setFinalizeProgress({ stage: `카드 뒷면 PDF (${i + 1}/${total})`, current: i + 1, total });
+        const backBytes = await buildCardPdfBytes(card, { sides: ["back"] });
+        const nb = usedBack.get(base) || 0;
+        backDir.file(nb === 0 ? `${base}.pdf` : `${base}(${nb}).pdf`, backBytes);
+        usedBack.set(base, nb + 1);
+      }
+
+      setFinalizeProgress({ stage: "ZIP 생성 중", current: total, total });
+      const blob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${orderNo}_nfc-card_order_${tsName()}.zip`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+
+      setOrdered(true);
+      persistProgress({ ordered: true });
+      toast({ title: "발주 ZIP 다운로드 완료", description: `${cards.length}장 · 작업지시서 포함` });
+    } catch (e: any) {
+      toast({ title: "발주 실패", description: e?.message || String(e), variant: "destructive" as any });
+    } finally {
+      setFinalizing(false);
+      setFinalizeProgress(null);
+    }
+  };
+
+
+
   return (
     <div>
       <PageHeader title={`NFC 카드 공장 · ${orderNo}`} description="주문 상세 목록" />
@@ -1588,6 +1676,97 @@ function DetailView({
         {uploadDebug && (
           <UploadDebugPanel info={uploadDebug} onClose={() => setUploadDebug(null)} />
         )}
+
+        {/* ===== 발주 진행 ===== */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Package className="w-4 h-4" /> 발주 진행
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-col md:flex-row gap-3">
+              <ProgressStep
+                idx={1} label="작업지시서"
+                done={confirmedWO} disabled={false}
+                onClick={() => setOpenWO(true)}
+              />
+              <ProgressStep
+                idx={2} label="작업파일 확인"
+                done={confirmedFiles} disabled={!confirmedWO}
+                onClick={() => setOpenFiles(true)}
+              />
+              <ProgressStep
+                idx={3} label="발주 (ZIP 다운로드)"
+                done={ordered} disabled={!confirmedWO || !confirmedFiles || finalizing}
+                onClick={handleFinalize}
+                busy={finalizing}
+              />
+            </div>
+            {finalizeProgress && (
+              <div className="text-xs text-muted-foreground border rounded-md p-2 bg-muted/30">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <span>{finalizeProgress.stage}</span>
+                  <span className="ml-auto tabular-nums">{finalizeProgress.current}/{finalizeProgress.total}</span>
+                </div>
+                <div className="mt-1 h-1.5 bg-background rounded overflow-hidden">
+                  <div className="h-full bg-primary transition-all" style={{ width: `${finalizeProgress.total ? Math.min(100, (finalizeProgress.current / finalizeProgress.total) * 100) : 0}%` }} />
+                </div>
+              </div>
+            )}
+            <p className="text-[11px] text-muted-foreground">
+              ZIP 구조: <span className="font-mono">작업지시서.pdf</span> · <span className="font-mono">카드 앞면/</span> · <span className="font-mono">카드 뒷면/</span> (파일명: 카드 고유번호, 주문 상세 목록 순서)
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Step 1: 작업지시서 A4 미리보기 */}
+        <Dialog open={openWO} onOpenChange={setOpenWO}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader><DialogTitle>작업지시서 미리보기 (A4)</DialogTitle></DialogHeader>
+            <div className="flex-1 overflow-auto border rounded-md bg-white">
+              <iframe title="nfc-wo-preview" srcDoc={workOrderHtml} className="w-full h-[70vh] bg-white" />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpenWO(false)}>닫기</Button>
+              <Button onClick={() => { setConfirmedWO(true); persistProgress({ confirmedWO: true }); setOpenWO(false); toast({ title: "작업지시서 확인 완료" }); }}>
+                <CheckCircle2 className="w-4 h-4 mr-1" /> 확인
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Step 2: 작업파일 확인 (앞면/뒷면 썸네일) */}
+        <Dialog open={openFiles} onOpenChange={setOpenFiles}>
+          <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="w-4 h-4" /> 작업파일 확인 · 총 {cards.length}장
+              </DialogTitle>
+            </DialogHeader>
+            <Tabs defaultValue="front" className="flex-1 overflow-hidden flex flex-col">
+              <TabsList>
+                <TabsTrigger value="front">카드 앞면 ({cards.length})</TabsTrigger>
+                <TabsTrigger value="back">카드 뒷면 ({cards.length})</TabsTrigger>
+              </TabsList>
+              <TabsContent value="front" className="flex-1 overflow-auto pt-3">
+                <CardThumbGrid cards={cards} side="front" testImageUrl={testImages.front?.url || null} />
+              </TabsContent>
+              <TabsContent value="back" className="flex-1 overflow-auto pt-3">
+                <CardThumbGrid cards={cards} side="back" testImageUrl={testImages.back?.url || null} />
+              </TabsContent>
+            </Tabs>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpenFiles(false)}>닫기</Button>
+              <Button onClick={() => { setConfirmedFiles(true); persistProgress({ confirmedFiles: true }); setOpenFiles(false); toast({ title: "작업파일 확인 완료" }); }}>
+                <CheckCircle2 className="w-4 h-4 mr-1" /> 확인
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+
 
         {/* Work order */}
         <Card className="border-dashed">
@@ -2707,4 +2886,133 @@ function printWorkOrder(wo: { company: string; orderNo: string; orderDate: strin
   const w = window.open("", "_blank", "width=900,height=1100");
   if (!w) { toast({ title: "팝업 차단됨", variant: "destructive" }); return; }
   w.document.open(); w.document.write(html); w.document.close();
+}
+
+// ===== 발주 진행: 작업지시서 HTML / PDF 변환 / 스텝 UI / 썸네일 그리드 =====
+
+function buildNfcWorkOrderHtml(wo: { company: string; orderNo: string; orderDate: string; deliveryDate: string; quantity: number; recipient: string; phone: string; address: string; notes: string; }) {
+  const esc = (s: any) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+  const today = new Date().toISOString().slice(0, 10);
+  return `<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"/><title>作业指示书 - ${esc(wo.orderNo)}</title>
+<style>
+  @page { size: A4; margin: 12mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif; color:#111; margin:0; padding:12mm; background:#fff; }
+  h1 { font-size: 22pt; text-align:center; margin: 0 0 4mm; letter-spacing: 8px; border-bottom: 2px solid #111; padding-bottom: 4mm; }
+  .meta { display:flex; justify-content:space-between; font-size: 9pt; color:#555; margin-bottom: 6mm; }
+  table { width:100%; border-collapse: collapse; font-size: 10pt; }
+  th, td { border: 1px solid #333; padding: 2.5mm 3mm; vertical-align: middle; }
+  th { background:#f2f2f2; font-weight:600; width: 22%; text-align:left; }
+  .notes { min-height: 22mm; white-space: pre-wrap; }
+  h2 { font-size: 12pt; margin: 8mm 0 3mm; padding-bottom: 1.5mm; border-bottom: 1px solid #999; }
+  .sig { margin-top: 10mm; display:flex; justify-content:flex-end; gap: 10mm; font-size: 10pt; }
+  .sig div { border-top:1px solid #333; padding-top:2mm; min-width: 40mm; text-align:center; }
+</style></head>
+<body>
+  <h1>NFC 卡 · 作 业 指 示 书</h1>
+  <div class="meta"><span>发包方:${esc(wo.company)}</span><span>打印日期:${today}</span></div>
+  <table>
+    <tr><th>发包公司</th><td>${esc(wo.company)}</td><th>作业编号</th><td>${esc(wo.orderNo)}</td></tr>
+    <tr><th>下单日期</th><td>${esc(wo.orderDate)}</td><th>交货日期</th><td>${esc(wo.deliveryDate)}</td></tr>
+    <tr><th>总数量</th><td>${esc(wo.quantity)}</td><th>收件人</th><td>${esc(wo.recipient)}</td></tr>
+    <tr><th>联系电话</th><td>${esc(wo.phone)}</td><th>收货地址</th><td>${esc(wo.address)}</td></tr>
+  </table>
+  <h2>订单特殊事项</h2>
+  <table><tr><td class="notes">${esc(wo.notes) || "&nbsp;"}</td></tr></table>
+  <div class="sig"><div>负责人</div><div>审批</div></div>
+</body></html>`;
+}
+
+async function renderHtmlToPdfBytesA4(html: string): Promise<Uint8Array> {
+  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+    import("html2canvas"),
+    import("jspdf"),
+  ]);
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.left = "-10000px";
+  iframe.style.top = "0";
+  iframe.style.width = "210mm";
+  iframe.style.height = "297mm";
+  iframe.style.border = "0";
+  document.body.appendChild(iframe);
+  try {
+    await new Promise<void>((resolve) => {
+      iframe.onload = () => resolve();
+      iframe.srcdoc = html;
+    });
+    const doc = iframe.contentDocument!;
+    await (doc as any).fonts?.ready?.catch?.(() => {});
+    const imgs = Array.from(doc.images);
+    await Promise.all(imgs.map((img) => img.complete ? Promise.resolve() : new Promise((r) => { img.onload = img.onerror = () => r(null); })));
+    await new Promise((r) => setTimeout(r, 150));
+    const canvas = await html2canvas(doc.body, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+    const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+    const pageW = 210, pageH = 297;
+    const ratio = Math.min(pageW / canvas.width, pageH / canvas.height);
+    const imgW = canvas.width * ratio;
+    const imgH = canvas.height * ratio;
+    const x = (pageW - imgW) / 2;
+    pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", x, 0, imgW, imgH);
+    return new Uint8Array(pdf.output("arraybuffer"));
+  } finally {
+    document.body.removeChild(iframe);
+  }
+}
+
+function ProgressStep({ idx, label, done, disabled, onClick, busy }: { idx: number; label: string; done: boolean; disabled: boolean; onClick: () => void; busy?: boolean }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`flex-1 rounded-lg border p-4 text-left transition-colors ${
+        done ? "border-primary bg-primary/5" : disabled ? "border-border bg-muted/30 opacity-60 cursor-not-allowed" : "border-border hover:bg-accent"
+      }`}
+    >
+      <div className="flex items-center gap-2">
+        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+          done ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+        }`}>
+          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : done ? <CheckCircle2 className="w-4 h-4" /> : idx}
+        </div>
+        <div className="font-medium text-sm">{label}</div>
+      </div>
+      <div className="mt-2 text-xs text-muted-foreground">
+        {busy ? "처리 중..." : done ? "완료" : disabled ? "이전 단계를 먼저 완료하세요" : "클릭하여 진행"}
+      </div>
+    </button>
+  );
+}
+
+function CardThumbGrid({ cards, side, testImageUrl }: { cards: CardData[]; side: "front" | "back"; testImageUrl: string | null }) {
+  if (cards.length === 0) {
+    return <div className="text-center text-sm text-muted-foreground py-12">카드가 없습니다</div>;
+  }
+  return (
+    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 p-1">
+      {cards.map((c, i) => {
+        const apiUrl = side === "front" ? c.frontImageUrl : c.backImageUrl;
+        const src = testImageUrl || apiUrl || null;
+        return (
+          <div key={`${c.uniqueNo}-${i}`} className="border rounded-md overflow-hidden bg-muted/20">
+            <CardFrame widthClassName="w-full" className="bg-white">
+              {src ? (
+                <img src={src} alt={c.uniqueNo} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-[10px] text-muted-foreground">
+                  {side === "front" ? "앞면" : "뒷면"}
+                </div>
+              )}
+            </CardFrame>
+            <div className="px-1.5 py-1 border-t bg-background">
+              <div className="text-[10px] font-mono truncate" title={c.uniqueNo}>{c.uniqueNo}</div>
+              <div className="text-[9px] text-muted-foreground tabular-nums">#{c.seq}</div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
