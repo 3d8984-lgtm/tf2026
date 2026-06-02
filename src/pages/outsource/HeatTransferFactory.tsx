@@ -1483,6 +1483,27 @@ function OrderProgressBox({
     return () => window.clearInterval(id);
   }, [sending]);
 
+  // 실시간 발주 로그 (PNG 업로드 → ZIP 생성 → Storage 업로드 → 위챗 전송)
+  type SendLog = { ts: number; level: "info" | "warn" | "error" | "success"; msg: string };
+  const [sendLogs, setSendLogs] = useState<SendLog[]>([]);
+  const lastLoggedStageRef = useRef<string>("");
+  const appendSendLog = (level: SendLog["level"], msg: string) => {
+    if (!msg) return;
+    setSendLogs((arr) => [...arr, { ts: Date.now(), level, msg }].slice(-300));
+  };
+  // sendStage가 바뀔 때마다 자동으로 로그에 누적 (서버 callback에서 오는 stage 포함)
+  useEffect(() => {
+    if (sendStage && sendStage !== lastLoggedStageRef.current) {
+      lastLoggedStageRef.current = sendStage;
+      appendSendLog("info", sendStage);
+    }
+  }, [sendStage]);
+  const sendLogsScrollRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = sendLogsScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [sendLogs]);
+
 
   const readSavedTransform = () => {
     const d = readHtDesignUiDraft(order.orderNo);
@@ -1634,6 +1655,9 @@ function OrderProgressBox({
     setSendProgress({ done: 0, total: details.length });
     setSendStage("작업파일 준비 중");
     setUploadIssues([]);
+    setSendLogs([]);
+    lastLoggedStageRef.current = "";
+    appendSendLog("info", `발주 시작 · 항목 ${details.length}건`);
 
     const folderName = order.orderNo || "heat-transfer";
     const stamp = Date.now();
@@ -1869,12 +1893,16 @@ function OrderProgressBox({
         pool.terminate();
 
         // 4) Trigger finalize — worker builds the ZIP, uploads to Storage, then ships to WeChat.
+        appendSendLog("info", `PNG 업로드 완료 · ${uploadedCount}건 (skip ${skipCount}건)`);
         setSendStage(`Render 마무리 중 (PNG ${uploadedCount}건 → ZIP 생성/Storage/위챗)`);
+        appendSendLog("info", "Render 워커에 마무리(finalize) 요청 전송");
         const finalizeRes = await fetch(bundle.finalize_url, { method: "POST" });
         const finalizeTxt = await finalizeRes.text();
         if (!finalizeRes.ok) {
+          appendSendLog("error", `마무리 요청 실패: ${finalizeRes.status} ${finalizeTxt.slice(0, 200)}`);
           throw new Error(`마무리 실패 ${finalizeRes.status}: ${finalizeTxt.slice(0, 300)}`);
         }
+        appendSendLog("info", "워커가 마무리 요청 접수 (백그라운드 처리 시작)");
 
 
         // 5) Wait for worker → done / failed via realtime + polling fallback.
@@ -1890,11 +1918,13 @@ function OrderProgressBox({
               settled = true;
               supabase.removeChannel(ch); clearInterval(pollT);
               setOrdered(true); persist({ ordered: true });
+              appendSendLog("success", "발주 완료 · 위챗 단톡방으로 다운로드 링크 전송됨");
               toast({ title: "발주 완료", description: `${folderName} 다운로드 링크가 위챗 단톡방으로 전송됨` });
               resolve();
             } else if (row.status === "failed") {
               settled = true;
               supabase.removeChannel(ch); clearInterval(pollT);
+              appendSendLog("error", `서버 처리 실패: ${row.error_message || "(원인 미상)"}`);
               reject(new Error(row.error_message || "서버에서 발주 마무리 실패"));
             }
           };
@@ -1906,6 +1936,7 @@ function OrderProgressBox({
             if (settled) return;
             if (Date.now() - startedAt > maxWaitMs) {
               settled = true; supabase.removeChannel(ch); clearInterval(pollT);
+              appendSendLog("error", "서버 처리 타임아웃 (15분 초과)");
               reject(new Error("서버 처리 타임아웃 (15분 초과)"));
               return;
             }
@@ -1916,6 +1947,7 @@ function OrderProgressBox({
         });
       });
     } catch (e: any) {
+      appendSendLog("error", `발주 실패: ${e?.message || String(e)}`);
       toast({ title: "발주 실패", description: e?.message || String(e), variant: "destructive" as any });
     } finally {
       setSending(false);
@@ -2088,6 +2120,36 @@ function OrderProgressBox({
                 <span>{elapsedText}</span>
                 <span>{etaText}</span>
               </div>
+              {sendLogs.length > 0 && (
+                <div className="mt-2 rounded-md border bg-muted/40">
+                  <div className="flex items-center justify-between px-2 py-1 border-b text-[11px] text-muted-foreground">
+                    <span className="font-medium">실시간 진행 로그</span>
+                    <span className="tabular-nums">{sendLogs.length}건</span>
+                  </div>
+                  <div
+                    ref={sendLogsScrollRef}
+                    className="max-h-44 overflow-auto px-2 py-1 font-mono text-[11px] leading-5"
+                  >
+                    {sendLogs.map((l, i) => {
+                      const d = new Date(l.ts);
+                      const hh = String(d.getHours()).padStart(2, "0");
+                      const mm = String(d.getMinutes()).padStart(2, "0");
+                      const ss = String(d.getSeconds()).padStart(2, "0");
+                      const color =
+                        l.level === "error" ? "text-destructive"
+                        : l.level === "warn" ? "text-amber-600 dark:text-amber-400"
+                        : l.level === "success" ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-foreground/80";
+                      return (
+                        <div key={i} className="flex gap-2">
+                          <span className="text-muted-foreground tabular-nums">{hh}:{mm}:{ss}</span>
+                          <span className={color}>{l.msg}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           );
         })()}
