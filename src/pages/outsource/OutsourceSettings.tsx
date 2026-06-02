@@ -131,9 +131,15 @@ export default function OutsourceSettings() {
 
   const saveWechatKeys = () => {
     const cleaned: Record<string, string> = {};
+    const normalized: Record<WeChatChannel, string> = { ...wechatKeys };
     (Object.keys(wechatKeys) as WeChatChannel[]).forEach(k => {
-      if (wechatKeys[k].trim()) cleaned[k] = wechatKeys[k].trim();
+      const key = extractKey(wechatKeys[k]);
+      if (key) {
+        cleaned[k] = key;
+        normalized[k] = key;
+      }
     });
+    setWechatKeys(normalized);
     localStorage.setItem(WECHAT_KEYS_KEY, JSON.stringify(cleaned));
     toast({
       title: lang === "ko" ? "위챗 키 저장됨" : "WeChat 密钥已保存",
@@ -146,7 +152,8 @@ export default function OutsourceSettings() {
   const copyWechatJson = async () => {
     const cleaned: Record<string, string> = {};
     (Object.keys(wechatKeys) as WeChatChannel[]).forEach(k => {
-      if (wechatKeys[k].trim()) cleaned[k] = wechatKeys[k].trim();
+      const key = extractKey(wechatKeys[k]);
+      if (key) cleaned[k] = key;
     });
     const json = JSON.stringify(cleaned);
     await navigator.clipboard.writeText(json);
@@ -155,6 +162,7 @@ export default function OutsourceSettings() {
       description: json,
     });
   };
+
 
   const extractKey = (raw: string): string => {
     const v = raw.trim();
