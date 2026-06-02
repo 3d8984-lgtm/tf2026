@@ -3178,7 +3178,7 @@ function ShapeOptionsCard({
           )}
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 items-start">
           <div>
             <label className="text-[11px] text-muted-foreground">X (mm)</label>
             <input
@@ -3199,18 +3199,7 @@ function ShapeOptionsCard({
               className="w-full h-8 rounded border bg-background px-2 text-xs"
             />
           </div>
-          <div>
-            <label className="text-[11px] text-muted-foreground">기준점</label>
-            <select
-              value={s.anchor}
-              onChange={(e) => update(k, { anchor: e.target.value as ShapeAnchor })}
-              className="w-full h-8 rounded border bg-background px-2 text-xs"
-            >
-              {SHAPE_ANCHORS.map(a => (
-                <option key={a.value} value={a.value}>{a.label}</option>
-              ))}
-            </select>
-          </div>
+          <AnchorPicker val={s.anchor} onPick={(a) => update(k, { anchor: a })} />
           <div>
             <label className="text-[11px] text-muted-foreground">색상 (테스트)</label>
             <div className="flex items-center gap-1">
