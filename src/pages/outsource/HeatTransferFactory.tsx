@@ -1639,12 +1639,10 @@ function OrderProgressBox({
     const stamp = Date.now();
     const tmpPrefix = `orders/heat-${folderName}-${stamp}`;
     const woPath = `${tmpPrefix}/__work_order.pdf`;
-    const publicUrlOf = (path: string) =>
-      `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/hologram-pdf/${path.split("/").map(encodeURIComponent).join("/")}`;
 
     try {
       await uploadManager.start(`${folderName}-${stamp}`, async () => {
-        // 1) Work order PDF
+        // 1) Work order PDF — uploaded to Storage (worker may include in legacy mode; in stream mode the PDF is embedded directly in the ZIP).
         setSendStage("작업지시서 업로드 중");
         const woBytes = await renderHtmlToPdfBytes(woHtml);
         const pdfBlob = new Blob([woBytes as BlobPart], { type: "application/pdf" });
@@ -1654,133 +1652,110 @@ function OrderProgressBox({
           if (error) throw new Error(`작업지시서 업로드 실패: ${error.message}`);
         }
 
-        // 2) Generate + upload PNGs (client-side composition kept intact)
-        setSendStage("PNG 생성 및 업로드 중");
+        // 2) Register stream-mode job → returns signed upload URL for bundle.zip.
+        setSendStage("발주 잡 등록 중");
         const totalExpected = details.length;
-        const items: { idx: number; source_url: string; filename: string; meta: Record<string, unknown> }[] = [];
-        let okCount = 0, skipCount = 0, uploadedCount = 0;
-        const used = new Map<string, number>();
+        const { data: createRes, error: createErr } = await supabase.functions.invoke("orders-create", {
+          body: {
+            orderNo: folderName,
+            factory: "heat",
+            webhookUrl: currentWebhookUrl,
+            stream: true,
+            itemCount: totalExpected,
+            payload: {
+              product_code: order.raw?.product_code || folderName,
+              work_order_pdf_path: woPath,
+              uploaded_count: totalExpected,
+              client_stream: true,
+            },
+          },
+        });
+        if (createErr) throw new Error(`발주 잡 등록 실패: ${createErr.message}`);
+        const jobId = (createRes as any)?.jobId as string | undefined;
+        const bundle = (createRes as any)?.bundle as { upload_url: string; path: string; upload_token: string } | undefined;
+        if (!jobId || !bundle?.upload_url) throw new Error("발주 잡 응답에 업로드 URL 없음");
+        setActiveJobId(jobId);
 
-        const addUploadIssue = (index: number, fileName: string, reason: string) => {
-          setUploadIssues((prev) => [...prev, { index, fileName, reason }]);
-          console.warn("[Upload] skip", `index=${index}`, fileName, reason);
-        };
-
+        // 3) Build PNGs in parallel; stream them into a single ZIP via client-zip;
+        //    PUT that stream directly to the signed Storage URL (true streaming, no buffering).
+        setSendStage("PNG 생성 및 ZIP 스트림 업로드 중");
         const DPI = 300;
         const maskBlobCache = new Map<string, { blob: Blob; targetW: number; targetH: number; widthPt: number }>();
         const getMaskBundle = async (fmt: typeof formats[number] | typeof outline) => {
           if (!fmt) return null;
           const key = `${fmt.widthPt}x${fmt.heightPt}@${DPI}`;
-          let bundle = maskBlobCache.get(key);
-          if (!bundle) {
+          let b = maskBlobCache.get(key);
+          if (!b) {
             const tW = Math.max(64, Math.round((fmt.widthPt / 72) * DPI));
             const tH = Math.max(64, Math.round((fmt.heightPt / 72) * DPI));
             const m = buildAlphaMaskCanvas(fmt.maskCanvas, tW, tH);
             const blob = await canvasToBlob(m);
-            bundle = { blob, targetW: tW, targetH: tH, widthPt: fmt.widthPt };
-            maskBlobCache.set(key, bundle);
+            b = { blob, targetW: tW, targetH: tH, widthPt: fmt.widthPt };
+            maskBlobCache.set(key, b);
           }
-          return { key, ...bundle };
+          return { key, ...b };
         };
 
         const cpuCount = Math.max(2, navigator.hardwareConcurrency || 4);
         const workerCount = Math.min(6, Math.max(2, Math.floor(cpuCount / 2)));
-        const TASK_CONCURRENCY = workerCount;
         const pool = new HtPngPool(workerCount);
         const footerCfg = readFooter();
 
-        const uploadWaiters: Array<() => void> = [];
-        let inFlight = 0;
-        const waitForUploadSlot = async () => {
-          if (inFlight >= HT_UPLOAD_CONCURRENCY) {
-            await new Promise<void>((resolve) => uploadWaiters.push(resolve));
-          }
-          inFlight++;
+        // Streaming ZIP queue (workers push, downloadZip pulls)
+        type ZipItem = { name: string; lastModified: Date; input: Blob };
+        const zipQueue: ZipItem[] = [];
+        const waiters: Array<(v: ZipItem | null) => void> = [];
+        let producersDone = false;
+        const pushItem = (it: ZipItem) => {
+          const w = waiters.shift();
+          if (w) w(it); else zipQueue.push(it);
         };
-        const releaseUploadSlot = () => {
-          inFlight = Math.max(0, inFlight - 1);
-          uploadWaiters.shift()?.();
+        const finishProducers = () => {
+          producersDone = true;
+          while (waiters.length) waiters.shift()!(null);
+        };
+        async function* zipSource(): AsyncGenerator<ZipItem> {
+          // Embed work order PDF as first entry so recipients always have it.
+          yield { name: "__work_order.pdf", lastModified: new Date(), input: pdfBlob };
+          while (true) {
+            if (zipQueue.length) { yield zipQueue.shift()!; continue; }
+            if (producersDone) return;
+            const next = await new Promise<ZipItem | null>((res) => waiters.push(res));
+            if (!next) return;
+            yield next;
+          }
+        }
+
+        const used = new Map<string, number>();
+        let okCount = 0, skipCount = 0;
+
+        const addUploadIssue = (index: number, fileName: string, reason: string) => {
+          setUploadIssues((prev) => [...prev, { index, fileName, reason }]);
+          console.warn("[sendOrder] skip", `index=${index}`, fileName, reason);
         };
 
-        const uploadPngWithTimeout = async (path: string, blob: Blob) => {
-          const { data: sessionData } = await supabase.auth.getSession();
-          const token = sessionData.session?.access_token;
-          if (!token) throw new Error("로그인 세션이 만료되었습니다.");
-          const encodedPath = path.split("/").map(encodeURIComponent).join("/");
-          const controller = new AbortController();
-          const timeout = window.setTimeout(() => controller.abort(), HT_UPLOAD_TIMEOUT_MS);
-          try {
-            const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/hologram-pdf/${encodedPath}`, {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${token}`,
-                apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-                "Content-Type": "image/png",
-                "x-upsert": "true",
-              },
-              body: blob,
-              signal: controller.signal,
-            });
-            const text = await res.text();
-            if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
-          } catch (e) {
-            if (e instanceof DOMException && e.name === "AbortError") throw new Error("PNG 업로드 60초 타임아웃");
-            throw e;
-          } finally {
-            window.clearTimeout(timeout);
-          }
-        };
-
-        const scheduleUpload = async (item: { index: number; idx: number; name: string; blob: Blob }) => {
-          await waitForUploadSlot();
-          try {
-            let lastError = "";
-            for (let attempt = 1; attempt <= HT_UPLOAD_MAX_ATTEMPTS; attempt++) {
-              try {
-                setSendStage(`PNG 업로드 ${uploadedCount}/${totalExpected} · #${item.index} ${attempt}/${HT_UPLOAD_MAX_ATTEMPTS}`);
-                const path = `${tmpPrefix}/${item.name}`;
-                await uploadPngWithTimeout(path, item.blob);
-                items.push({
-                  idx: item.idx,
-                  source_url: publicUrlOf(path),
-                  filename: item.name,
-                  meta: { passthrough: true },
-                });
-                uploadedCount++;
-                setSendProgress({ done: uploadedCount, total: totalExpected });
-                setSendStage(`PNG 업로드 ${uploadedCount}/${totalExpected}`);
-                return;
-              } catch (e) {
-                lastError = e instanceof Error ? e.message : String(e);
-                console.error("[Upload] failed", item.name, `attempt=${attempt}`, lastError);
-                if (attempt < HT_UPLOAD_MAX_ATTEMPTS) await new Promise((resolve) => window.setTimeout(resolve, 700 * attempt));
-              }
-            }
-            skipCount++;
-            addUploadIssue(item.index, item.name, lastError || "PNG 업로드 실패");
-          } finally {
-            releaseUploadSlot();
-          }
-        };
-
-        const enqueueBuild = async (task: PoolTask) => {
-          const workerRes = await pool.enqueue(task);
-          if (workerRes.blob) return workerRes;
-          console.warn("[Upload] worker failed, fallback", task.designUid, workerRes.reason);
-          const detail = details[task.idx];
-          const fmt = (normalizeSize(detail.tshirtSize)
-            ? formats.find((f) => normalizeSize(f.sizeLabel) === normalizeSize(detail.tshirtSize))
-            : null) || outline;
-          if (!fmt) return workerRes;
-          try {
-            const c0 = await composeClippedDesign(task.designSrc, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, DPI, task.transform);
-            const c = await composeWithFooter(c0, fmt.widthPt, DPI, task.designUid, footerCfg, task.meta);
-            const blob = await pngWithDpi(await canvasToBlob(c), DPI);
-            return { idx: task.idx, designUid: task.designUid, blob };
-          } catch (e: unknown) {
-            return { idx: task.idx, designUid: task.designUid, blob: null, reason: e instanceof Error ? e.message : String(e) };
-          }
-        };
+        // Kick off the ZIP stream → PUT to Storage as soon as we have the upload URL.
+        const zipResponse = downloadZip(zipSource());
+        const HT_ZIP_UPLOAD_TIMEOUT_MS = 30 * 60 * 1000; // 30 min cap for entire upload
+        const uploadController = new AbortController();
+        const uploadTimer = window.setTimeout(() => uploadController.abort(), HT_ZIP_UPLOAD_TIMEOUT_MS);
+        const uploadPromise = fetch(bundle.upload_url, {
+          method: "PUT",
+          headers: { "Content-Type": "application/zip", "x-upsert": "true" },
+          body: zipResponse.body!,
+          // @ts-expect-error — `duplex` is required for streaming request bodies
+          duplex: "half",
+          signal: uploadController.signal,
+        }).then(async (r) => {
+          window.clearTimeout(uploadTimer);
+          const txt = await r.text();
+          if (!r.ok) throw new Error(`ZIP 업로드 실패 ${r.status}: ${txt.slice(0, 300)}`);
+          return txt;
+        }).catch((e) => {
+          window.clearTimeout(uploadTimer);
+          if (e?.name === "AbortError") throw new Error("ZIP 업로드 30분 타임아웃");
+          throw e;
+        });
 
         try {
           let cursor = 0;
@@ -1794,18 +1769,18 @@ function OrderProgressBox({
               const target = normalizeSize(d.tshirtSize);
               const fmt = (target ? formats.find((f) => normalizeSize(f.sizeLabel) === target) : null) || outline;
               if (!fmt) { skipCount++; addUploadIssue(i + 1, `${d.designUid}.png`, `사이즈 ${d.tshirtSize || "?"} 포맷 없음`); continue; }
-              const bundle = await getMaskBundle(fmt);
-              if (!bundle) { skipCount++; addUploadIssue(i + 1, `${d.designUid}.png`, "마스크 생성 실패"); continue; }
+              const mb = await getMaskBundle(fmt);
+              if (!mb) { skipCount++; addUploadIssue(i + 1, `${d.designUid}.png`, "마스크 생성 실패"); continue; }
 
               const task: PoolTask = {
                 idx: i,
                 designUid: d.designUid,
                 designSrc: src,
-                maskKey: bundle.key,
-                maskBlob: bundle.blob,
-                targetW: bundle.targetW,
-                targetH: bundle.targetH,
-                widthPt: bundle.widthPt,
+                maskKey: mb.key,
+                maskBlob: mb.blob,
+                targetW: mb.targetW,
+                targetH: mb.targetH,
+                widthPt: mb.widthPt,
                 dpi: DPI,
                 transform: {
                   offsetXPct: savedTransform?.offsetXPct ?? 0,
@@ -1816,52 +1791,68 @@ function OrderProgressBox({
                 meta: { tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize },
               };
 
-              const res = await enqueueBuild(task);
-              if (!res.blob) { skipCount++; addUploadIssue(i + 1, `${res.designUid}.png`, res.reason || "PNG 생성 실패"); continue; }
-              const count = used.get(res.designUid) ?? 0;
-              const name = count === 0 ? `${res.designUid}.png` : `${res.designUid}(${count}).png`;
-              used.set(res.designUid, count + 1);
+              let blob: Blob | null = null;
+              try {
+                const res = await pool.enqueue(task);
+                if (res.blob) {
+                  blob = res.blob;
+                } else {
+                  // Main-thread fallback
+                  const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, DPI, task.transform);
+                  const c = await composeWithFooter(c0, fmt.widthPt, DPI, d.designUid, footerCfg, task.meta);
+                  blob = await pngWithDpi(await canvasToBlob(c), DPI);
+                }
+              } catch (e) {
+                skipCount++;
+                addUploadIssue(i + 1, `${d.designUid}.png`, e instanceof Error ? e.message : String(e));
+                continue;
+              }
+
+              const count = used.get(d.designUid) ?? 0;
+              const name = count === 0 ? `${d.designUid}.png` : `${d.designUid}(${count}).png`;
+              used.set(d.designUid, count + 1);
               okCount++;
-              await scheduleUpload({ index: i + 1, idx: i, name, blob: res.blob });
+              pushItem({ name, lastModified: new Date(), input: blob });
+              setSendProgress({ done: okCount, total: totalExpected });
+              setSendStage(`PNG ${okCount}/${totalExpected} → ZIP 스트림 업로드 중`);
             }
           };
 
           const runners: Promise<void>[] = [];
-          for (let k = 0; k < TASK_CONCURRENCY; k++) runners.push(runOne());
+          for (let k = 0; k < workerCount; k++) runners.push(runOne());
           await Promise.all(runners);
-          console.log("[Upload] all PNGs done — ok:", okCount, "skip:", skipCount, "uploaded:", uploadedCount);
+          finishProducers();
+          console.log("[sendOrder] all PNGs queued — ok:", okCount, "skip:", skipCount);
+        } catch (e) {
+          finishProducers();
+          uploadController.abort();
+          pool.terminate();
+          throw e;
+        }
+
+        if (okCount === 0) {
+          uploadController.abort();
+          pool.terminate();
+          throw new Error(`생성된 PNG가 0건입니다 (skip=${skipCount}). 작업파일을 다시 확인하세요.`);
+        }
+
+        // 4) Wait for the streamed ZIP upload to finish flushing to Storage.
+        setSendStage(`ZIP 업로드 마무리 중 (PNG ${okCount}건)`);
+        try {
+          await uploadPromise;
         } finally {
           pool.terminate();
         }
 
-        if (items.length === 0) {
-          throw new Error(`업로드된 PNG가 0건입니다 (skip=${skipCount}). 작업파일을 다시 확인하세요.`);
-        }
-
-        // 3) Register the order job — Render worker will build ZIP + send WeChat.
-        setSendStage("서버 발주 잡 등록 중");
-        items.sort((a, b) => a.idx - b.idx);
-        const { data: createRes, error: createErr } = await supabase.functions.invoke("orders-create", {
-          body: {
-            orderNo: folderName,
-            factory: "heat",
-            webhookUrl: currentWebhookUrl,
-            payload: {
-              product_code: order.raw?.product_code || folderName,
-              work_order_pdf_path: woPath,
-              uploaded_count: items.length,
-              skipped_count: skipCount,
-            },
-            items,
-          },
+        // 5) Finalize: record bundle path and trigger WeChat send via worker.
+        setSendStage("위챗 전송 트리거 중");
+        const { error: finErr } = await supabase.functions.invoke("orders-finalize-stream", {
+          body: { jobId },
         });
-        if (createErr) throw new Error(`발주 잡 등록 실패: ${createErr.message}`);
-        const jobId = (createRes as any)?.jobId as string | undefined;
-        if (!jobId) throw new Error("발주 잡 등록 응답에 jobId 없음");
-        setActiveJobId(jobId);
+        if (finErr) throw new Error(`발주 마무리 실패: ${finErr.message}`);
 
-        // 4) Wait for worker → done / failed via realtime + polling fallback.
-        setSendStage("서버 ZIP 생성 및 위챗 전송 대기");
+        // 6) Wait for worker → done / failed via realtime + polling fallback.
+        setSendStage("위챗 전송 대기");
         await new Promise<void>((resolve, reject) => {
           const maxWaitMs = 15 * 60 * 1000;
           const startedAt = Date.now();
@@ -1908,6 +1899,7 @@ function OrderProgressBox({
       sendStartedAtRef.current = null;
     }
   };
+
 
 
 
