@@ -1,4 +1,5 @@
 import { fetch, FormData } from "undici";
+import { readFile } from "node:fs/promises";
 import { callback } from "./callback.js";
 import { fetchBundleInfo, downloadUrl } from "./api.js";
 
@@ -110,24 +111,29 @@ export interface WeChatSendInput {
   jobId: string;
   webhookUrl: string;
   orderNo: string;
-  zipBytes: Buffer;
+  zipBytes?: Buffer;
+  zipPath?: string;
+  zipSize?: number;
   zipFilename: string;
   zipUrl: string;
   itemCount: number;
 }
 
 export async function sendBundleToWeChat(input: WeChatSendInput): Promise<void> {
-  const { zipBytes, zipFilename, zipUrl, orderNo, itemCount } = input;
+  const { zipFilename, zipUrl, orderNo, itemCount } = input;
+  const zipSize = input.zipSize ?? input.zipBytes?.length ?? 0;
   const webhookUrl = resolveWebhookUrl(input.webhookUrl);
   if (!webhookUrl) throw new Error("webhook_url / WECHAT_WEBHOOK_KEY 미설정");
-  const summary = `【발주 ZIP】\n작업번호: ${orderNo}\n수량: ${itemCount}건\n파일: ${zipFilename}\n크기: ${(zipBytes.length / 1024 / 1024).toFixed(2)}MB`;
+  const summary = `【발주 ZIP】\n작업번호: ${orderNo}\n수량: ${itemCount}건\n파일: ${zipFilename}\n크기: ${(zipSize / 1024 / 1024).toFixed(2)}MB`;
   const key = extractKey(webhookUrl);
-  if (zipBytes.length <= WECHAT_FILE_LIMIT && key) {
+  if (zipSize <= WECHAT_FILE_LIMIT && key) {
+    const zipBytes = input.zipBytes ?? (input.zipPath ? await readFile(input.zipPath) : null);
+    if (!zipBytes) throw new Error("ZIP 파일 데이터 없음");
     const mediaId = await uploadMedia(key, zipFilename, zipBytes);
     await sendJson(webhookUrl, { msgtype: "file", file: { media_id: mediaId } });
     await sendJson(webhookUrl, { msgtype: "text", text: { content: summary } });
   } else {
-    const reason = !key ? "webhook key 없음" : `${(zipBytes.length / 1024 / 1024).toFixed(1)}MB > 20MB`;
+    const reason = !key ? "webhook key 없음" : `${(zipSize / 1024 / 1024).toFixed(1)}MB > 20MB`;
     await sendJson(webhookUrl, {
       msgtype: "text",
       text: { content: `${summary}\n(${reason} → 다운로드 링크 전송)\n${zipUrl}` },
