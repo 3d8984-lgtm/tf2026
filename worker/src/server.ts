@@ -132,8 +132,32 @@ app.put("/orders/:jobId/upload-stream", (req, res) => {
     if (!res.headersSent) res.status(500).json({ error: (e as Error).message });
   });
 });
-// Browsers issue an OPTIONS preflight for cross-origin PUT.
 app.options("/orders/:jobId/upload-stream", (_req, res) => res.status(204).end());
+
+// New per-PNG upload pipeline: browser PUTs each PNG, then POSTs /finalize.
+// Worker builds the ZIP on disk, uploads to Storage, and ships to WeChat.
+app.put("/orders/:jobId/parts", (req, res) => {
+  uploadPart(req, res).catch((e) => {
+    console.error("[parts] fatal", req.params.jobId, e);
+    if (!res.headersSent) res.status(500).json({ error: (e as Error).message });
+  });
+});
+app.options("/orders/:jobId/parts", (_req, res) => res.status(204).end());
+
+app.post("/orders/:jobId/finalize", (req, res) => {
+  finalizeUpload(req, res).catch((e) => {
+    console.error("[finalize] fatal", req.params.jobId, e);
+    if (!res.headersSent) res.status(500).json({ error: (e as Error).message });
+  });
+});
+app.options("/orders/:jobId/finalize", (_req, res) => res.status(204).end());
+
+app.delete("/orders/:jobId/parts", (req, res) => {
+  abortUpload(req, res).catch((e) => {
+    console.error("[parts-abort] fatal", req.params.jobId, e);
+    if (!res.headersSent) res.status(500).json({ error: (e as Error).message });
+  });
+});
 
 app.listen(PORT, () => {
   console.log(`[worker] listening on :${PORT}`);
