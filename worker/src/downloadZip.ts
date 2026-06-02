@@ -1,25 +1,17 @@
-// Streaming ZIP download.
+// Streaming ZIP download — assembles archive on the fly from Storage parts.
 //
-// PNGs already live on the worker's local /tmp/order-<jobId>-parts/ directory
-// (from the earlier /parts uploads). When the user clicks "ZIP 다운로드", the
-// browser hits GET /orders/:jobId/download-zip?token=... and we pipe an
-// archiver({ store:true }) stream straight to the response. Nothing is buffered
-// in memory and nothing is written to Storage — the ZIP exists only for the
-// duration of the HTTP response.
+// Parts live in Lovable Cloud Storage under orders/<jobId>/parts/*.png.
+// We list them via worker-part-sign (action=list), fetch each signed URL,
+// pipe the body straight into archiver, and pipe archiver to the response.
+// Nothing is buffered beyond a few MB of network backpressure.
 
 import type { Request, Response } from "express";
 import archiver from "archiver";
-import { createReadStream } from "node:fs";
-import { readdir, stat, access } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { fetchJob, type JobInfo } from "./api.js";
+import { Readable } from "node:stream";
+import { fetch } from "undici";
+import { fetchJob, listParts, type JobInfo } from "./api.js";
 
 const STREAM_TIMEOUT_MS = 30 * 60 * 1000;
-
-function sessionDir(jobId: string): string {
-  return join(tmpdir(), `order-${jobId}-parts`);
-}
 
 export async function downloadZip(req: Request, res: Response): Promise<void> {
   req.setTimeout(STREAM_TIMEOUT_MS);
@@ -44,21 +36,26 @@ export async function downloadZip(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const dir = sessionDir(jobId);
-  let parts: string[];
+  let parts: Array<{ name: string; size: number; url: string }>;
   try {
-    parts = (await readdir(dir)).filter((n) => !n.startsWith("."));
-  } catch {
-    res.status(410).json({ error: "다운로드 만료: 워커에 PNG가 없습니다. 발주를 다시 전송하세요." });
+    parts = await listParts(jobId);
+  } catch (e) {
+    res.status(502).json({ error: `list parts: ${(e as Error).message}` });
     return;
   }
   if (parts.length === 0) {
-    res.status(410).json({ error: "다운로드 만료: PNG가 없습니다." });
+    res.status(410).json({ error: "다운로드 만료: PNG가 없습니다. 발주를 다시 전송하세요." });
     return;
   }
 
-  // Approximate total size for Content-Length isn't possible with store-only zip
-  // unless we precompute zip entry overhead. Use chunked transfer instead.
+  // Sort numerically by trailing index so files appear in order (e.g. -1, -2, ... -100).
+  parts.sort((a, b) => {
+    const ax = Number((a.name.match(/-(\d+)\.png$/i) || [])[1] || 0);
+    const bx = Number((b.name.match(/-(\d+)\.png$/i) || [])[1] || 0);
+    if (ax !== bx) return ax - bx;
+    return a.name.localeCompare(b.name);
+  });
+
   const filename = `${info.job.order_no}-bundle.zip`;
   res.status(200);
   res.setHeader("Content-Type", "application/zip");
@@ -77,8 +74,7 @@ export async function downloadZip(req: Request, res: Response): Promise<void> {
   });
 
   res.on("close", () => {
-    if (!archive.pointer || !aborted) {
-      // Client may have closed early; abort archive to free fds.
+    if (!aborted) {
       aborted = true;
       try { archive.abort(); } catch { /* noop */ }
     }
@@ -86,23 +82,37 @@ export async function downloadZip(req: Request, res: Response): Promise<void> {
 
   archive.pipe(res);
 
-  // Add work_order pdf first if present locally.
-  const pdfPath = join(dir, "__work_order.pdf");
-  try {
-    await access(pdfPath);
-    archive.file(pdfPath, { name: "__work_order.pdf" });
-  } catch { /* no pdf, skip */ }
-
-  // Stream each PNG sequentially. archiver internally buffers minimally.
-  for (const name of parts) {
-    if (aborted) break;
-    if (name === "__work_order.pdf") continue;
-    const p = join(dir, name);
+  // 1) Work order PDF (if present) at the top of the ZIP.
+  if (info.work_order_pdf_url) {
     try {
-      await stat(p);
-      archive.append(createReadStream(p), { name });
+      const r = await fetch(info.work_order_pdf_url);
+      if (r.ok && r.body) {
+        archive.append(Readable.fromWeb(r.body as any), { name: "작업지시서.pdf" });
+      } else {
+        console.warn("[download-zip] work_order pdf fetch", jobId, r.status);
+      }
     } catch (e) {
-      console.warn("[download-zip] skip missing part", name, (e as Error).message);
+      console.warn("[download-zip] work_order pdf error", jobId, (e as Error).message);
+    }
+  }
+
+  // 2) PNG parts sequentially (archiver internally serializes anyway).
+  for (const p of parts) {
+    if (aborted) break;
+    try {
+      const r = await fetch(p.url);
+      if (!r.ok || !r.body) {
+        console.warn("[download-zip] part fetch", jobId, p.name, r.status);
+        continue;
+      }
+      const stream = Readable.fromWeb(r.body as any);
+      await new Promise<void>((resolve, reject) => {
+        archive.append(stream, { name: p.name });
+        stream.on("end", resolve);
+        stream.on("error", reject);
+      });
+    } catch (e) {
+      console.warn("[download-zip] part error", jobId, p.name, (e as Error).message);
     }
   }
 
