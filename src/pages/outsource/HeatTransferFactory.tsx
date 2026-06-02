@@ -1521,78 +1521,10 @@ function OrderProgressBox({
     try { localStorage.setItem(stateKey, JSON.stringify(merged)); } catch {}
   };
 
-  const invokeFinalize = useCallback(async (jobId: string) => {
-    const { error } = await supabase.functions.invoke("heat-order-finalize", { body: { jobId, mode: "resume" } });
-    if (error) throw new Error(`finalize 호출 실패: ${error.message}`);
-  }, []);
+  // Legacy png_jobs / heat-order-finalize resume flow removed.
+  // The new orders-create + Render-worker pipeline tracks status via order_jobs realtime.
 
-  const resumeActiveJob = useCallback(async () => {
-    if (!activeJobId) return;
-    setShowResume(false);
-    try {
-      setSending(true);
-      sendStartedAtRef.current = Date.now();
-      setSendStage("멈춘 발주 마무리 재개 중");
-      const { error } = await supabase.functions.invoke("heat-order-finalize", { body: { jobId: activeJobId, mode: "resume" } });
-      if (error) throw new Error(`finalize 호출 실패: ${error.message}`);
-    } catch (e: any) {
-      toast({ title: "재개 실패", description: e?.message || String(e), variant: "destructive" as any });
-    } finally {
-      setSending(false);
-      setSendStage("");
-      sendStartedAtRef.current = null;
-    }
-  }, [activeJobId]);
 
-  useEffect(() => {
-    if (!activeJobId) return;
-    let cancelled = false;
-    const refresh = async () => {
-      const { data } = await supabase.from("png_jobs" as any)
-        .select("item_id,status,file_url,error_message,last_heartbeat,completed_at")
-        .eq("job_id", activeJobId);
-      if (cancelled) return;
-      const rows = ((data || []) as unknown as PngJobRow[]).reduce<Record<string, PngJobRow>>((m, r) => { m[r.item_id] = r; return m; }, {});
-      setPngJobs(rows);
-      const done = Object.values(rows).filter((r) => r.status === "completed").length;
-      setSendProgress({ done, total: details.length });
-      lastProgressAtRef.current = Date.now();
-    };
-    refresh();
-    const ch = supabase.channel(`png-jobs-${activeJobId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "png_jobs", filter: `job_id=eq.${activeJobId}` }, (payload) => {
-        const row = payload.new as PngJobRow;
-        if (!row?.item_id) return;
-        setPngJobs((prev) => {
-          const next = { ...prev, [row.item_id]: row };
-          const done = Object.values(next).filter((r) => r.status === "completed").length;
-          setSendProgress({ done, total: details.length });
-          lastProgressAtRef.current = Date.now();
-          return next;
-        });
-      })
-      .subscribe();
-    resumeTimerRef.current = window.setInterval(() => {
-      // Skip auto-resume while the local client is still producing/uploading PNGs —
-      // the browser tab IS the worker, so re-invoking finalize during that phase
-      // would clobber its own progress.
-      if (sendingRef.current) return;
-      if (Date.now() - lastProgressAtRef.current > 15_000) {
-        setShowResume(true);
-        if (activeJobId) {
-          invokeFinalize(activeJobId).catch(() => {});
-        }
-        lastProgressAtRef.current = Date.now();
-      }
-    }, 5_000);
-
-    return () => {
-      cancelled = true;
-      supabase.removeChannel(ch);
-      if (resumeTimerRef.current) window.clearInterval(resumeTimerRef.current);
-      resumeTimerRef.current = null;
-    };
-  }, [activeJobId, details.length, invokeFinalize]);
 
   // 저장된 footer 설정 로드
   const readFooter = (): FooterCfg => {
