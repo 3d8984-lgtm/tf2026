@@ -586,6 +586,5 @@ export default function OutsourceSettings() {
 
     </div>
 
-    </div>
   );
 }
