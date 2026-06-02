@@ -156,25 +156,34 @@ export default function OutsourceSettings() {
     });
   };
 
+  const extractKey = (raw: string): string => {
+    const v = raw.trim();
+    if (!v) return "";
+    try {
+      const u = new URL(v);
+      const k = u.searchParams.get("key");
+      if (k) return k;
+    } catch { /* not a URL */ }
+    return v;
+  };
+
   const testWechat = async (channel: WeChatChannel) => {
-    const key = wechatKeys[channel].trim();
+    const key = extractKey(wechatKeys[channel]);
     if (!key) {
       toast({ title: lang === "ko" ? "키를 입력하세요" : "请输入密钥", variant: "destructive" });
       return;
     }
     setWechatTesting(channel);
     try {
-      const url = `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${encodeURIComponent(key)}`;
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          msgtype: "text",
-          text: { content: `[TWINMETA] ${channel} 채널 테스트 메시지` },
-        }),
+      const webhookUrl = `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${encodeURIComponent(key)}`;
+      const { data, error } = await supabase.functions.invoke("wechat-send", {
+        body: {
+          webhookUrl,
+          message: `[TWINMETA] ${channel} 채널 테스트 메시지`,
+        },
       });
-      const data = await res.json().catch(() => ({}));
-      if (data?.errcode !== 0) throw new Error(data?.errmsg || `HTTP ${res.status}`);
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
       toast({ title: lang === "ko" ? "발송 성공" : "发送成功", description: channel });
     } catch (e) {
       toast({
