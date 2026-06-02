@@ -1,4 +1,5 @@
 import { fetch } from "undici";
+import type { ReadStream } from "node:fs";
 
 const FUNCTIONS_URL = (process.env.SUPABASE_FUNCTIONS_URL || "").replace(/\/$/, "");
 const SECRET = process.env.WORKER_SECRET || "";
@@ -67,12 +68,13 @@ export async function fetchBundleInfo(jobId: string): Promise<BundleInfo> {
 }
 
 /** Upload buffer to Storage using a pre-signed upload URL (no service key). */
-export async function uploadToSignedUrl(uploadUrl: string, body: Buffer, contentType = "application/zip"): Promise<void> {
+export async function uploadToSignedUrl(uploadUrl: string, body: Buffer | ReadStream, contentType = "application/zip"): Promise<void> {
   const r = await fetch(uploadUrl, {
     method: "PUT",
     headers: { "Content-Type": contentType, "x-upsert": "true" },
-    body,
-  });
+    body: body as any,
+    duplex: "half" as any,
+  } as any);
   if (!r.ok) {
     const t = await r.text();
     throw new Error(`upload ${r.status}: ${t.slice(0, 300)}`);

@@ -411,7 +411,7 @@ type UploadIssue = {
 };
 
 const HT_UPLOAD_CONCURRENCY = 5;
-const HT_UPLOAD_TIMEOUT_MS = 60_000;
+const HT_UPLOAD_TIMEOUT_MS = 180_000;
 const HT_UPLOAD_MAX_ATTEMPTS = 3;
 
 type HtDesignUiDraft = {
