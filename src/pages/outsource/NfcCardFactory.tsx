@@ -1054,6 +1054,8 @@ function DetailView({
 
   // 카드 뒷면 기본 텍스트 (API 외 전체 카드에 공통 적용)
   const [backDefaults, setBackDefaults] = useState({ ...DEFAULT_BACK_DEFAULTS });
+  // 도형(SVG) 옵션 상태 — 앞면(중심/외곽) + 뒷면(단일)
+  const [shapeOptions, setShapeOptions] = useState<ShapeOptions>({ ...DEFAULT_SHAPE_OPTIONS });
 
   // 마스터 글자꼴 (선택 시 카드 텍스트/숫자 미리보기 + PDF에 자동 적용)
   const [masterFont, setMasterFont] = useState<string>(DEFAULT_MASTER_FONT);
