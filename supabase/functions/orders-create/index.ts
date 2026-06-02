@@ -165,8 +165,10 @@ Deno.serve(async (req) => {
   if (existing) {
     const updatedAt = existing.updated_at ? new Date(existing.updated_at as string).getTime() : 0;
     const staleMs = Date.now() - updatedAt;
-    const shouldRequeue = existing.status === "failed" || staleMs > 2 * 60 * 1000;
-    if (shouldRequeue && existing.status !== "done") {
+    // In stream mode, always allow re-upload — users may need to regenerate even after a 'done' job
+    // (e.g. previous attempt was incomplete). Otherwise keep the prior fresh-job idempotency.
+    const shouldRequeue = isStream || existing.status === "failed" || staleMs > 2 * 60 * 1000;
+    if (shouldRequeue) {
       await admin.from("order_job_items").update({ status: "pending", attempts: 0, error_message: null }).eq("job_id", existing.id);
       await admin.from("order_jobs").update({
         status: isStream ? "uploading" : "queued",
