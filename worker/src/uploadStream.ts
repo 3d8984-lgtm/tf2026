@@ -92,17 +92,18 @@ export async function uploadStream(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  // 2) Receive the chunked ZIP body into memory.
+  // 2) Receive the chunked ZIP body to a temp file. `pipeline` rejects on
+  // premature browser disconnects; plain `data/end` listeners can hang forever.
   await callback({ jobId, status: "uploading", stage: "ZIP 수신 중", error_message: null });
-  let buf: Buffer;
+  let received: { path: string; bytes: number };
   try {
-    buf = await readToBuffer(req);
+    received = await receiveToTempFile(req, jobId);
   } catch (e) {
     await callback({ jobId, status: "failed", error_message: `수신 실패: ${(e as Error).message}` });
     res.status(400).json({ error: (e as Error).message });
     return;
   }
-  if (!buf.length) {
+  if (!received.bytes) {
     await callback({ jobId, status: "failed", error_message: "빈 ZIP 수신" });
     res.status(400).json({ error: "empty body" });
     return;
@@ -111,23 +112,25 @@ export async function uploadStream(req: Request, res: Response): Promise<void> {
   // 3) Upload to Storage via signed upload URL with a real Content-Length.
   await callback({
     jobId, status: "uploading",
-    stage: `Storage 업로드 중 (${(buf.length / 1024 / 1024).toFixed(1)}MB)`,
+    stage: `Storage 업로드 중 (${(received.bytes / 1024 / 1024).toFixed(1)}MB)`,
   });
   try {
     const r = await fetch(info.bundle.upload_url, {
       method: "PUT",
       headers: {
         "Content-Type": "application/zip",
-        "Content-Length": String(buf.length),
+        "Content-Length": String(received.bytes),
         "x-upsert": "true",
       },
-      body: buf,
-    });
+      body: createReadStream(received.path) as any,
+      duplex: "half" as any,
+    } as any);
     if (!r.ok) {
       const t = await r.text();
       throw new Error(`storage ${r.status}: ${t.slice(0, 300)}`);
     }
   } catch (e) {
+    await rm(received.path, { force: true }).catch(() => undefined);
     await callback({ jobId, status: "failed", error_message: `Storage 업로드 실패: ${(e as Error).message}` });
     res.status(502).json({ error: (e as Error).message });
     return;
@@ -138,20 +141,21 @@ export async function uploadStream(req: Request, res: Response): Promise<void> {
     status: "wechat",
     stage: "위챗 전송 중",
     bundle_zip_path: info.bundle.path,
-    bundle_size: buf.length,
+    bundle_size: received.bytes,
     error_message: null,
   });
 
   // 4) Respond to the browser as soon as Storage upload succeeds.
-  res.status(200).json({ ok: true, jobId, bytes: buf.length });
+  res.status(200).json({ ok: true, jobId, bytes: received.bytes });
 
   // 5) Fire off WeChat send (don't block the HTTP response).
   try {
+    const zipBytes = await readToBuffer(received.path, received.bytes);
     await sendBundleToWeChat({
       jobId,
       webhookUrl: info.job.webhook_url,
       orderNo: info.job.order_no,
-      zipBytes: buf,
+      zipBytes,
       zipFilename: `${info.job.order_no}-bundle.zip`,
       zipUrl: "", // wechat-resend will resolve a fresh signed URL if needed
       itemCount: info.job.progress_total ?? 0,
@@ -159,5 +163,7 @@ export async function uploadStream(req: Request, res: Response): Promise<void> {
     await callback({ jobId, status: "done", stage: "완료", error_message: null });
   } catch (e) {
     await callback({ jobId, status: "failed", error_message: `위챗 전송 실패: ${(e as Error).message}` });
+  } finally {
+    await rm(received.path, { force: true }).catch(() => undefined);
   }
 }
