@@ -3061,3 +3061,158 @@ function CardThumbGrid({ cards, side, testImageUrl }: { cards: CardData[]; side:
     </div>
   );
 }
+
+// ===========================================================================
+// 기본 도형 옵션 카드 — 앞면(중심/외곽) + 뒷면(단일) SVG 업로드 및 위치/색상 설정
+// SVG 원본 실제 크기를 사용하며, 카드 합성 시 이미지 위 레이어로 배치한다.
+// 색상은 API 연동 전 테스트용 직접 입력 값(#RRGGBB)을 사용한다.
+// ===========================================================================
+function ShapeOptionsCard({
+  value,
+  onChange,
+}: {
+  value: ShapeOptions;
+  onChange: (next: ShapeOptions) => void;
+}) {
+  const update = (key: keyof ShapeOptions, patch: Partial<ShapeOption>) => {
+    onChange({ ...value, [key]: { ...value[key], ...patch } });
+  };
+
+  const readSvgFile = async (file: File): Promise<string> => {
+    const text = await file.text();
+    // 간단한 검증 — <svg ...> 태그가 포함된 텍스트만 허용
+    if (!/<svg[\s>]/i.test(text)) throw new Error("올바른 SVG 파일이 아닙니다");
+    const b64 = btoa(unescape(encodeURIComponent(text)));
+    return `data:image/svg+xml;base64,${b64}`;
+  };
+
+  const onPickFile = async (key: keyof ShapeOptions, file: File | null) => {
+    if (!file) { update(key, { svgDataUrl: null, fileName: null }); return; }
+    try {
+      const dataUrl = await readSvgFile(file);
+      update(key, { svgDataUrl: dataUrl, fileName: file.name });
+    } catch (e: any) {
+      alert(e?.message || "SVG 파일을 읽지 못했습니다");
+    }
+  };
+
+  const Row = ({
+    title,
+    desc,
+    k,
+  }: {
+    title: string;
+    desc: string;
+    k: keyof ShapeOptions;
+  }) => {
+    const s = value[k];
+    return (
+      <div className="rounded-md border p-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-medium">{title}</div>
+            <div className="text-[11px] text-muted-foreground">{desc}</div>
+          </div>
+          {s.svgDataUrl && (
+            <div className="h-10 w-10 rounded border bg-muted/30 flex items-center justify-center overflow-hidden">
+              <img src={s.svgDataUrl} alt={title} className="max-h-full max-w-full" />
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <input
+            type="file"
+            accept=".svg,image/svg+xml"
+            onChange={(e) => onPickFile(k, e.target.files?.[0] || null)}
+            className="text-xs file:mr-2 file:py-1 file:px-2 file:rounded file:border file:border-input file:bg-background file:text-xs"
+          />
+          {s.fileName && (
+            <button
+              type="button"
+              className="text-[11px] text-destructive underline"
+              onClick={() => onPickFile(k, null)}
+            >
+              제거
+            </button>
+          )}
+          {s.fileName && (
+            <span className="text-[11px] text-muted-foreground truncate">{s.fileName}</span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <div>
+            <label className="text-[11px] text-muted-foreground">X (mm)</label>
+            <input
+              type="number"
+              step="0.1"
+              value={s.x_mm}
+              onChange={(e) => update(k, { x_mm: Number(e.target.value) })}
+              className="w-full h-8 rounded border bg-background px-2 text-xs"
+            />
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground">Y (mm)</label>
+            <input
+              type="number"
+              step="0.1"
+              value={s.y_mm}
+              onChange={(e) => update(k, { y_mm: Number(e.target.value) })}
+              className="w-full h-8 rounded border bg-background px-2 text-xs"
+            />
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground">기준점</label>
+            <select
+              value={s.anchor}
+              onChange={(e) => update(k, { anchor: e.target.value as ShapeAnchor })}
+              className="w-full h-8 rounded border bg-background px-2 text-xs"
+            >
+              {SHAPE_ANCHORS.map(a => (
+                <option key={a.value} value={a.value}>{a.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground">색상 (테스트)</label>
+            <div className="flex items-center gap-1">
+              <input
+                type="color"
+                value={s.color}
+                onChange={(e) => update(k, { color: e.target.value })}
+                className="h-8 w-10 rounded border bg-background"
+              />
+              <input
+                type="text"
+                value={s.color}
+                onChange={(e) => update(k, { color: e.target.value })}
+                className="flex-1 h-8 rounded border bg-background px-2 text-xs font-mono"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm flex items-center justify-between">
+          <span>기본 도형 옵션</span>
+          <span className="text-[11px] font-normal text-muted-foreground">
+            SVG 원본 실제 크기 · 이미지 위 레이어로 합성 · 색상은 추후 API 연동 (현재 테스트값)
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <Row title="카드 앞면 · 중심 도형" desc="앞면 2개 도형 중 중심부 SVG" k="frontCenter" />
+          <Row title="카드 앞면 · 외곽 도형" desc="앞면 2개 도형 중 외곽부 SVG" k="frontOutline" />
+        </div>
+        <Row title="카드 뒷면 · 도형" desc="뒷면 단일 SVG" k="back" />
+      </CardContent>
+    </Card>
+  );
+}
