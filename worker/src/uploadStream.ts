@@ -3,31 +3,75 @@
 // buffer it in memory, then upload to Supabase Storage with a real
 // Content-Length (signed upload URL accepts that), then trigger WeChat send.
 import type { Request, Response } from "express";
+import { createReadStream, createWriteStream } from "node:fs";
+import { rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { randomUUID } from "node:crypto";
+import { Transform } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { fetch } from "undici";
 import { fetchJob } from "./api.js";
 import { callback } from "./callback.js";
 import { sendBundleToWeChat } from "./wechat.js";
 
 const MAX_BYTES = 2 * 1024 * 1024 * 1024; // 2 GiB hard cap
+const STREAM_TIMEOUT_MS = 30 * 60 * 1000;
 
-async function readToBuffer(req: Request): Promise<Buffer> {
+async function receiveToTempFile(req: Request, jobId: string): Promise<{ path: string; bytes: number }> {
+  const path = join(tmpdir(), `order-${jobId}-${randomUUID()}.zip`);
+  let lastReported = 0;
+  const counter = new Transform({
+    transform(chunk: Buffer, _encoding, done) {
+      total += chunk.length;
+      if (total > MAX_BYTES) {
+        done(new Error(`payload too large (>${MAX_BYTES} bytes)`));
+        return;
+      }
+      if (total - lastReported >= 25 * 1024 * 1024) {
+        lastReported = total;
+        void callback({
+          jobId,
+          status: "uploading",
+          stage: `ZIP 수신 중 (${(total / 1024 / 1024).toFixed(1)}MB)`,
+          error_message: null,
+        }).catch((e) => console.warn("[upload-stream] progress callback failed", e));
+      }
+      done(null, chunk);
+    },
+  });
+  let total = 0;
+
+  try {
+    await pipeline(req, counter, createWriteStream(path));
+    return { path, bytes: total };
+  } catch (e) {
+    await rm(path, { force: true }).catch(() => undefined);
+    throw e;
+  }
+}
+
+async function readToBuffer(filePath: string, bytes: number): Promise<Buffer> {
   return await new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let total = 0;
-    req.on("data", (chunk: Buffer) => {
+    const stream = createReadStream(filePath);
+    stream.on("data", (chunk: Buffer) => {
       total += chunk.length;
-      if (total > MAX_BYTES) {
-        req.destroy(new Error(`payload too large (>${MAX_BYTES} bytes)`));
+      if (total > bytes) {
+        stream.destroy(new Error("temp file grew unexpectedly"));
         return;
       }
       chunks.push(chunk);
     });
-    req.on("end", () => resolve(Buffer.concat(chunks)));
-    req.on("error", reject);
+    stream.on("end", () => resolve(Buffer.concat(chunks, total)));
+    stream.on("error", reject);
   });
 }
 
 export async function uploadStream(req: Request, res: Response): Promise<void> {
+  req.setTimeout(STREAM_TIMEOUT_MS);
+  res.setTimeout(STREAM_TIMEOUT_MS);
   const jobId = String(req.params.jobId || "");
   const token = String(req.query.token || "");
   if (!jobId || !token) {
