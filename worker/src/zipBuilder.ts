@@ -1,5 +1,5 @@
 import archiver from "archiver";
-import { PassThrough, Readable } from "node:stream";
+import { PassThrough } from "node:stream";
 import { createWriteStream } from "node:fs";
 import { stat } from "node:fs/promises";
 
