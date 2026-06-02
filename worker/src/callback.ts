@@ -1,6 +1,6 @@
 import { fetch } from "undici";
 
-const CALLBACK_URL = process.env.WORKER_CALLBACK_URL || "";
+const FUNCTIONS_URL = (process.env.SUPABASE_FUNCTIONS_URL || "").replace(/\/$/, "");
 const SECRET = process.env.WORKER_SECRET || "";
 
 export interface ItemUpdate {
@@ -26,12 +26,12 @@ export interface CallbackPatch {
 }
 
 export async function callback(patch: CallbackPatch): Promise<void> {
-  if (!CALLBACK_URL || !SECRET) {
+  if (!FUNCTIONS_URL || !SECRET) {
     console.warn("[callback] missing url/secret, skip");
     return;
   }
   try {
-    const r = await fetch(CALLBACK_URL, {
+    const r = await fetch(`${FUNCTIONS_URL}/worker-callback`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
