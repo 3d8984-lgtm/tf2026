@@ -15,8 +15,7 @@ import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Transform } from "node:stream";
 import { fetch } from "undici";
-import { fetchJob, type JobInfo } from "./api.js";
-import { fetchBundleInfo } from "./api.js";
+import { fetchBundleInfo, fetchJob, type JobInfo } from "./api.js";
 import { callback } from "./callback.js";
 import { sendBundleToWeChat } from "./wechat.js";
 import { buildZipFile } from "./zipBuilder.js";
@@ -243,8 +242,9 @@ export async function finalizeUpload(req: Request, res: Response): Promise<void>
     res.status(202).json({ ok: true, jobId, parts: parts.length, bytes: size });
 
     (async () => {
-      let zipUrl = "";
       try {
+        let zipUrl = "";
+        try {
         const bundleInfo = await fetchBundleInfo(jobId);
         zipUrl = bundleInfo.bundle_zip_view_url || bundleInfo.bundle_zip_download_url || "";
       } catch (e) {
