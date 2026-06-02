@@ -1655,6 +1655,9 @@ function OrderProgressBox({
     setSendProgress({ done: 0, total: details.length });
     setSendStage("작업파일 준비 중");
     setUploadIssues([]);
+    setSendLogs([]);
+    lastLoggedStageRef.current = "";
+    appendSendLog("info", `발주 시작 · 항목 ${details.length}건`);
 
     const folderName = order.orderNo || "heat-transfer";
     const stamp = Date.now();
