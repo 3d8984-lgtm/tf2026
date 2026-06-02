@@ -3,6 +3,9 @@ project_id = "bbsfhmarrcvhvcmuqwej"
 [functions.orders-create]
 verify_jwt = false
 
+[functions.orders-finalize-stream]
+verify_jwt = false
+
 [functions.worker-callback]
 verify_jwt = false
 
