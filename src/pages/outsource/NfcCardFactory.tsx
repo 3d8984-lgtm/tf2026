@@ -974,6 +974,30 @@ function DetailView({
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
+  // ===== 발주 진행 상태 =====
+  const progressKey = `nfc-card.progress.v1.${orderNo}`;
+  const [confirmedWO, setConfirmedWO] = useState(false);
+  const [confirmedFiles, setConfirmedFiles] = useState(false);
+  const [ordered, setOrdered] = useState(false);
+  const [openWO, setOpenWO] = useState(false);
+  const [openFiles, setOpenFiles] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
+  const [finalizeProgress, setFinalizeProgress] = useState<{ stage: string; current: number; total: number } | null>(null);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(progressKey);
+      if (raw) {
+        const s = JSON.parse(raw);
+        setConfirmedWO(!!s.confirmedWO); setConfirmedFiles(!!s.confirmedFiles); setOrdered(!!s.ordered);
+      } else { setConfirmedWO(false); setConfirmedFiles(false); setOrdered(false); }
+    } catch {}
+  }, [progressKey]);
+  const persistProgress = (next: { confirmedWO?: boolean; confirmedFiles?: boolean; ordered?: boolean }) => {
+    const merged = { confirmedWO, confirmedFiles, ordered, ...next };
+    try { localStorage.setItem(progressKey, JSON.stringify(merged)); } catch {}
+  };
+
+
   // Test images per side (server-persisted; falls back to API card image when removed)
   const [testImages, setTestImages] = useState<{
     front: TestAsset | null;
