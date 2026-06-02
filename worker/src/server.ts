@@ -17,11 +17,11 @@ app.use((req, res, next) => {
   return express.json({ limit: "2mb" })(req, res, next);
 });
 
-// Simple CORS so browser-based health checks work
+// Simple CORS so browser-based health checks + streaming PUT work
 app.use((_req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-worker-secret, Authorization");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-worker-secret, Authorization, x-bundle-size");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
   next();
 });
 
