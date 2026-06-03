@@ -1142,7 +1142,7 @@ function OrderDetail({
         </TabsContent>
       </Tabs>
 
-      <OrderDetailList details={details} outline={outline} />
+      <OrderDetailList details={details} outline={outline} formats={formats} />
 
       <Dialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
         <DialogContent className="max-w-sm">
