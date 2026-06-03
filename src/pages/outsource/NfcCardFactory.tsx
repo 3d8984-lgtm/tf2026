@@ -2275,7 +2275,7 @@ function applyTestValues(c: CardData | undefined, tv: { cpValue: string; edition
 // ============== Card side editor (preview + per-option controls) ==============
 function CardSideEditor({
   side, cardSize, testImageUrl, testTwincodeUrl, testSignatureUrl, cardPreview, layout, setLayout, keys, backDefaults, onTestPdf,
-  bleedMm,
+  bleedMm, shapeOptions,
 }: {
   side: "front" | "back";
   cardSize: CardSize;
@@ -2288,6 +2288,7 @@ function CardSideEditor({
   keys: OptionKey[];
   backDefaults?: { companyName: string; centerSlogan: string; nfcEnabled: string; issuedBy: string };
   onTestPdf?: () => void | Promise<void>;
+  shapeOptions?: ShapeOptions;
   bleedMm: number;
 }) {
   const [pdfBusy, setPdfBusy] = useState(false);
