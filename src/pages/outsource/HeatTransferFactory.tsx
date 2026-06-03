@@ -1875,9 +1875,8 @@ function OrderProgressBox({
               const padN = Math.max(2, String(details.length).length);
               const seq = String(i + 1).padStart(padN, "0");
               const sanitize = (s: string) => (s || "").replace(/[\\/:*?"<>|\r\n\t]+/g, "_").replace(/\s+/g, " ").trim();
-              const parts = [d.tshirtType, d.tshirtColor, d.tshirtSize].map((x) => (x || "").trim()).filter(Boolean);
-              const productName = sanitize(parts.join("_")) || d.designUid;
-              const baseFile = `${seq}_${productName}.png`;
+              const designName = sanitize(d.designUid) || `item${i + 1}`;
+              const baseFile = `${seq}_${designName}.png`;
               const count = used.get(baseFile) ?? 0;
               const name = count === 0 ? baseFile : baseFile.replace(/\.png$/, `(${count}).png`);
               used.set(baseFile, count + 1);
@@ -2508,13 +2507,14 @@ function DesignTab({
     // Plan all tasks first (skip invalid items up front).
     type Plan = { idx: number; d: typeof details[number]; fmt: NonNullable<ReturnType<typeof resolveStrictFormat>>; src: string };
     const plans: Plan[] = [];
+    const preSkippedIdx: number[] = [];
     let skipped = 0;
     for (let i = 0; i < details.length; i++) {
       const d = details[i];
       const src = testDesign || d.designSrc;
-      if (!src) { skipped++; pushLog("warn", `건너뜀: ${d.designUid} — 디자인 소스 없음`); continue; }
+      if (!src) { skipped++; preSkippedIdx.push(i); pushLog("warn", `건너뜀: ${d.designUid} — 디자인 소스 없음`); continue; }
       const fmt = resolveStrictFormat(d);
-      if (!fmt) { skipped++; pushLog("warn", `건너뜀: ${d.designUid} (사이즈 ${d.tshirtSize || "미지정"}) — 포맷 없음`); continue; }
+      if (!fmt) { skipped++; preSkippedIdx.push(i); pushLog("warn", `건너뜀: ${d.designUid} (사이즈 ${d.tshirtSize || "미지정"}) — 포맷 없음`); continue; }
       plans.push({ idx: i, d, fmt, src });
     }
 
@@ -2578,10 +2578,19 @@ function DesignTab({
     const baseName = order.orderNo || "order";
     const padN = Math.max(2, String(details.length).length);
     const sanitizeName = (s: string) => (s || "").replace(/[\\/:*?"<>|\r\n\t]+/g, "_").replace(/\s+/g, " ").trim();
-    const buildProductName = (d: typeof details[number]) => {
-      const parts = [d.tshirtType, d.tshirtColor, d.tshirtSize].map((x) => (x || "").trim()).filter(Boolean);
-      const name = sanitizeName(parts.join("_"));
-      return name || d.designUid;
+
+    // Ordered emission: buffer items by idx so ZIP entries appear in row order
+    // regardless of which worker finishes first.
+    const pendingByIdx = new Map<number, ZipItem | null>();
+    let nextIdx = 0;
+    const markIdx = (idx: number, item: ZipItem | null) => {
+      pendingByIdx.set(idx, item);
+      while (pendingByIdx.has(nextIdx)) {
+        const it = pendingByIdx.get(nextIdx)!;
+        pendingByIdx.delete(nextIdx);
+        nextIdx++;
+        if (it) pushItem(it);
+      }
     };
     let matched = 0;
     let done = 0;
@@ -2597,6 +2606,11 @@ function DesignTab({
     } catch (e) {
       pushLog("warn", `작업지시서.pdf 생성 실패: ${e instanceof Error ? e.message : String(e)}`);
     }
+
+    // Mark pre-skipped indices so ordered emission can advance past them.
+    for (const i of preSkippedIdx) markIdx(i, null);
+
+
 
     // Start streaming ZIP producer immediately so PNGs flush as they're made.
     const zipResponse = downloadZip(zipSource());
@@ -2663,15 +2677,16 @@ function DesignTab({
                 blob = res.blob;
               }
               const seq = String(idx + 1).padStart(padN, "0");
-              const productName = buildProductName(d);
-              pushItem({
-                name: `${baseName}/이미지/${seq}_${productName}.png`,
+              const designName = sanitizeName(d.designUid) || `item${idx + 1}`;
+              markIdx(idx, {
+                name: `${baseName}/이미지/${seq}_${designName}.png`,
                 lastModified: new Date(),
                 input: blob,
               });
               matched++;
             } catch (e) {
               skipped++;
+              markIdx(idx, null);
               pushLog("warn", `실패: ${d.designUid} — ${e instanceof Error ? e.message : String(e)}`);
             } finally {
               done++;
