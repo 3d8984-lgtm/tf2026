@@ -1142,7 +1142,7 @@ function OrderDetail({
         </TabsContent>
       </Tabs>
 
-      <OrderDetailList details={details} outline={outline} />
+      <OrderDetailList details={details} outline={outline} formats={formats} />
 
       <Dialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
         <DialogContent className="max-w-sm">
@@ -3129,10 +3129,11 @@ function NumField({ label, v, set, min, max, step }: { label: string; v: number;
 // ============ order detail list ============
 
 function OrderDetailList({
-  details, outline,
+  details, outline, formats,
 }: {
   details: DesignDetail[];
   outline: { previewUrl: string; maskCanvas: HTMLCanvasElement; widthPt: number; heightPt: number; name: string } | null;
+  formats: SizedFormat[];
 }) {
   return (
     <Card>
@@ -3152,18 +3153,21 @@ function OrderDetailList({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {details.map((d) => (
-              <TableRow key={d.designUid}>
-                <TableCell>{d.serial}</TableCell>
-                <TableCell className="font-mono">{d.orderNo}</TableCell>
-                <TableCell className="font-mono">{d.designUid}</TableCell>
-                <TableCell>{d.tshirtType || "—"}</TableCell>
-                <TableCell>{d.tshirtColor || "—"}</TableCell>
-                <TableCell>{d.tshirtSize || "—"}</TableCell>
-                <TableCell><DesignThumb detail={d} outline={outline} /></TableCell>
-                <TableCell><QrThumb value={d.designUid} /></TableCell>
-              </TableRow>
-            ))}
+            {details.map((d) => {
+              const fmt = pickFormatForSize(formats, d.tshirtSize || "", outline);
+              return (
+                <TableRow key={d.designUid}>
+                  <TableCell>{d.serial}</TableCell>
+                  <TableCell className="font-mono">{d.orderNo}</TableCell>
+                  <TableCell className="font-mono">{d.designUid}</TableCell>
+                  <TableCell>{d.tshirtType || "—"}</TableCell>
+                  <TableCell>{d.tshirtColor || "—"}</TableCell>
+                  <TableCell>{d.tshirtSize || "—"}</TableCell>
+                  <TableCell><DesignThumb detail={d} outline={fmt} /></TableCell>
+                  <TableCell><QrThumb value={d.designUid} /></TableCell>
+                </TableRow>
+              );
+            })}
             {details.length === 0 && (
               <TableRow><TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">—</TableCell></TableRow>
             )}
