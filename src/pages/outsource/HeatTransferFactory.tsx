@@ -2720,7 +2720,7 @@ function DesignTab({
 
 
 
-        <div className="grid md:grid-cols-[1fr_auto_auto_auto] gap-3 items-end">
+        <div className="grid md:grid-cols-[1fr_auto_auto] gap-3 items-end">
           <div className="space-y-1">
             <Label className="text-xs">테스트 디자인 (PNG/JPG) — 삭제하면 원래 디자인이 적용됨</Label>
             <div className="flex gap-2">
@@ -2736,35 +2736,6 @@ function DesignTab({
                 </Button>
               )}
             </div>
-            <Input
-              placeholder={`테스트 디자인 고유번호 (기본: ${first?.designUid || "—"})`}
-              value={testUid}
-              onChange={(e) => setTestUid(e.target.value)}
-              className="h-9 text-xs"
-            />
-          </div>
-          <div className="space-y-1 min-w-[220px]">
-            <Label className="text-xs">인쇄 품질 프리셋</Label>
-            <Select value={quality} onValueChange={(v) => setQuality(v as QualityPresetKey)}>
-              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="auto">
-                  <span className="font-medium">자동 (권장)</span>
-                  <span className="text-muted-foreground"> — 디자인 분석 후 최적 선택</span>
-                </SelectItem>
-                {(Object.keys(QUALITY_PRESETS) as Array<Exclude<QualityPresetKey, "auto">>).map((k) => (
-                  <SelectItem key={k} value={k}>
-                    <span className="font-medium">{QUALITY_PRESETS[k].label}</span>
-                    <span className="text-muted-foreground"> — {QUALITY_PRESETS[k].desc}</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-[11px] text-muted-foreground">
-              적용: <span className="font-medium text-foreground">{presetCfg.label}</span>
-              {sharpen && <span className="text-foreground"> · 엣지 보존 샤프닝</span>}
-              {quality === "auto" && autoResolved && <span> · {autoResolved.reason}</span>}
-            </p>
           </div>
           <Button size="sm" variant="outline" disabled={busy || !outline || !first} onClick={() => first && downloadOne(first)}>
             <Download className="w-4 h-4 mr-1" /> 현재 디자인
