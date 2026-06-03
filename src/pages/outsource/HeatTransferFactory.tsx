@@ -2479,12 +2479,13 @@ function DesignTab({
     if (!src) { toast({ title: "디자인 소스가 없습니다", variant: "destructive" }); return; }
     setBusy(true);
     try {
-      const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
+      const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen, useOriginal: useOriginalRes });
       const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer, {
         tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize,
       });
       const b = await pngWithDpi(await canvasToBlob(c), dpi);
-      triggerDownload(b, `${d.designUid}_${d.tshirtSize || "size"}_${dpi}dpi.png`);
+      const tag = useOriginalRes ? "orig" : `${dpi}dpi`;
+      triggerDownload(b, `${d.designUid}_${d.tshirtSize || "size"}_${tag}.png`);
     } finally { setBusy(false); }
   };
 
