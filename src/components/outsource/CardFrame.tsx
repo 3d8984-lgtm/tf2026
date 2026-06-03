@@ -6,8 +6,8 @@ import { cn } from "@/lib/utils";
  * 57mm × 87mm frame used across factory previews, the order
  * detail modal, lightbox, and any print preview surface.
  */
-export const CARD_W_MM = 57;
-export const CARD_H_MM = 87;
+export const CARD_W_MM = 60;
+export const CARD_H_MM = 90;
 export const CARD_ASPECT_RATIO = `${CARD_W_MM}/${CARD_H_MM}`;
 /** Tailwind arbitrary aspect-ratio class for the card frame. */
 export const CARD_ASPECT_CLASS = `aspect-[${CARD_W_MM}/${CARD_H_MM}]`;
