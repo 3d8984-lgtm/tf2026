@@ -3071,10 +3071,15 @@ function CardThumbGrid({ cards, side, testImageUrl }: { cards: CardData[]; side:
 function ShapeOptionsCard({
   value,
   onChange,
+  onSave,
+  canSave,
 }: {
   value: ShapeOptions;
   onChange: (next: ShapeOptions) => void;
+  onSave?: () => Promise<void> | void;
+  canSave?: boolean;
 }) {
+  const [saving, setSaving] = useState(false);
   const update = (key: keyof ShapeOptions, patch: Partial<ShapeOption>) => {
     onChange({ ...value, [key]: { ...value[key], ...patch } });
   };
@@ -3085,6 +3090,16 @@ function ShapeOptionsCard({
     if (!/<svg[\s>]/i.test(text)) throw new Error("올바른 SVG 파일이 아닙니다");
     const b64 = btoa(unescape(encodeURIComponent(text)));
     return `data:image/svg+xml;base64,${b64}`;
+  };
+
+  const handleSave = async () => {
+    if (!onSave) return;
+    try {
+      setSaving(true);
+      await onSave();
+    } finally {
+      setSaving(false);
+    }
   };
 
   const onPickFile = async (key: keyof ShapeOptions, file: File | null) => {
