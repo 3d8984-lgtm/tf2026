@@ -2699,6 +2699,7 @@ function CardSideEditor({
               });
             })()}
 
+            {keys.map(key => {
               const cfg = layout[key];
               if (!cfg?.enabled) return null;
               const fontPx = (cfg.fontSize || 3) * pxPerMm;
