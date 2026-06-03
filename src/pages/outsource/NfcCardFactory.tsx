@@ -567,20 +567,24 @@ function decodeSvgDataUrl(dataUrl: string): string | null {
   return null;
 }
 
-// SVG의 자연 크기를 mm로 반환 (width/height 우선, 없으면 viewBox를 px로 보고 96DPI→mm 환산)
+// SVG의 자연 크기를 mm로 반환 — 원본 SVG 크기를 변형 없이 그대로 사용한다.
+// width/height에 명시 단위(mm/cm/in/pt/pc)가 있으면 그 값을 그대로 사용.
+// 단위 없는 숫자 또는 px / viewBox의 사용자 단위는 인쇄 표준인 72 DPI(1 user unit = 1pt)
+// 로 환산해 디자인 툴(Illustrator/Sketch 등)에서 내보낸 원본 사이즈가 보존되도록 한다.
 function svgNaturalSizeMm(svgString: string): { w: number; h: number } {
-  const PX_TO_MM = 25.4 / 96;
+  const USER_UNIT_TO_MM = 25.4 / 72; // 1 user unit(=1pt) → mm
   const parseLen = (raw: string): number | null => {
     const m = raw.match(/^([\d.]+)\s*(mm|cm|in|pt|pc|px)?$/i);
     if (!m) return null;
-    const n = Number(m[1]); const u = (m[2] || "px").toLowerCase();
+    const n = Number(m[1]); const u = (m[2] || "").toLowerCase();
     switch (u) {
       case "mm": return n;
       case "cm": return n * 10;
       case "in": return n * 25.4;
       case "pt": return n * (25.4 / 72);
       case "pc": return n * (25.4 / 6);
-      default:   return n * PX_TO_MM;
+      case "px": return n * USER_UNIT_TO_MM; // px도 사용자 단위와 동일하게 취급(원본 크기 보존)
+      default:   return n * USER_UNIT_TO_MM; // 단위 없음 → 사용자 단위(=pt)
     }
   };
   const wm = svgString.match(/\bwidth\s*=\s*"([^"]+)"/i);
@@ -592,7 +596,9 @@ function svgNaturalSizeMm(svgString: string): { w: number; h: number } {
   const vb = svgString.match(/viewBox\s*=\s*"([^"]+)"/i);
   if (vb) {
     const p = vb[1].trim().split(/[\s,]+/).map(Number);
-    if (p.length === 4 && p[2] > 0 && p[3] > 0) return { w: p[2] * PX_TO_MM, h: p[3] * PX_TO_MM };
+    if (p.length === 4 && p[2] > 0 && p[3] > 0) {
+      return { w: p[2] * USER_UNIT_TO_MM, h: p[3] * USER_UNIT_TO_MM };
+    }
   }
   return { w: 10, h: 10 };
 }
