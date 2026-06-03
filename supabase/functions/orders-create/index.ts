@@ -133,8 +133,29 @@ Deno.serve(async (req) => {
   // Stream mode now uploads to the Render worker directly (not Storage), which then
   // pipes the ZIP to Storage with a proper Content-Length. This avoids the chunked-PUT
   // hang we saw against Supabase Storage signed upload URLs.
+  // Wipe any stale per-PNG parts from a previous run of the same job.
+  // Without this, a re-upload with fewer PNGs leaves the old extras behind,
+  // and the worker's `list` still sees them (e.g. 200 stale + 100 new → 200
+  // reported in WeChat). orderNo-based idempotency reuses the same jobId,
+  // so this purge runs on every fresh upload-URL mint.
+  const purgePartsFolder = async (jobId: string) => {
+    try {
+      const prefix = `orders/${jobId}/parts`;
+      const { data: existing } = await admin.storage.from(STORAGE_BUCKET).list(prefix, { limit: 2000 });
+      const paths = (existing || [])
+        .filter((f) => f.name && !f.name.startsWith("."))
+        .map((f) => `${prefix}/${f.name}`);
+      if (paths.length > 0) {
+        await admin.storage.from(STORAGE_BUCKET).remove(paths);
+      }
+    } catch (e) {
+      console.warn(`[orders-create] purge parts failed for ${jobId}:`, (e as Error).message);
+    }
+  };
+
   const mintWorkerUpload = async (jobId: string) => {
     if (!WORKER_URL) throw new Error("WORKER_URL 미설정");
+    await purgePartsFolder(jobId);
     // 256-bit random token
     const buf = new Uint8Array(32);
     crypto.getRandomValues(buf);
