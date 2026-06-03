@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronLeft, Upload, X, Download, FileText, Loader2, QrCode as QrCodeIcon, Plus, Trash2, Pencil, Package, CheckCircle2, Settings, Send, RotateCcw, Save } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
@@ -176,12 +177,19 @@ async function composeClippedDesign(
   heightPt: number,
   dpi: number,
   transform?: { offsetXPct?: number; offsetYPct?: number; scale?: number },
-  opts?: { sharpen?: boolean; preBuiltMask?: HTMLCanvasElement; preLoadedImage?: HTMLImageElement },
+  opts?: { sharpen?: boolean; preBuiltMask?: HTMLCanvasElement; preLoadedImage?: HTMLImageElement; useOriginal?: boolean },
 ): Promise<HTMLCanvasElement> {
-  const targetW = Math.max(64, Math.round((widthPt / 72) * dpi));
-  const targetH = Math.max(64, Math.round((heightPt / 72) * dpi));
+  // Load image first so we can derive targetW/H from it when useOriginal=true.
+  const img = opts?.preLoadedImage ?? (await loadImage(designSrc));
 
-  // 1) alpha mask — reuse cached one when provided
+  const targetW = opts?.useOriginal
+    ? Math.max(64, img.width)
+    : Math.max(64, Math.round((widthPt / 72) * dpi));
+  const targetH = opts?.useOriginal
+    ? Math.max(64, img.height)
+    : Math.max(64, Math.round((heightPt / 72) * dpi));
+
+  // 1) alpha mask — reuse cached one when provided & matches size, else rebuild at target size.
   const mask = opts?.preBuiltMask && opts.preBuiltMask.width === targetW && opts.preBuiltMask.height === targetH
     ? opts.preBuiltMask
     : buildAlphaMaskCanvas(maskCanvas, targetW, targetH);
@@ -194,17 +202,17 @@ async function composeClippedDesign(
   octx.imageSmoothingEnabled = true;
   octx.imageSmoothingQuality = "high";
 
-  const img = opts?.preLoadedImage ?? (await loadImage(designSrc));
   const userScale = transform?.scale ?? 1;
   const offXPct = transform?.offsetXPct ?? 0;
   const offYPct = transform?.offsetYPct ?? 0;
-  const baseScale = Math.max(targetW / img.width, targetH / img.height);
+  // useOriginal: image is already at print pixel size — no cover-fit upscale; base=1.
+  const baseScale = opts?.useOriginal ? 1 : Math.max(targetW / img.width, targetH / img.height);
   const scale = baseScale * userScale;
   const dw = Math.max(1, Math.round(img.width * scale));
   const dh = Math.max(1, Math.round(img.height * scale));
   const dx = Math.round((targetW - dw) / 2 + (offXPct / 100) * targetW);
   const dy = Math.round((targetH - dh) / 2 + (offYPct / 100) * targetH);
-  if (opts?.sharpen && (dw > img.width || dh > img.height)) {
+  if (opts?.sharpen && !opts?.useOriginal && (dw > img.width || dh > img.height)) {
     const sharp = edgePreservingUpscale(img, dw, dh);
     octx.imageSmoothingEnabled = false;
     octx.drawImage(sharp, dx, dy);
@@ -421,6 +429,8 @@ type HtDesignUiDraft = {
   offsetY?: number;
   designScale?: number;
   testUid?: string;
+  dpi?: number;
+  useOriginalRes?: boolean;
 };
 
 type HtPersistedDesign = {
@@ -2356,6 +2366,18 @@ function DesignTab({
   const [busy, setBusy] = useState(false);
   const [quality, setQualityState] = useState<QualityPresetKey>(uiDraft.quality ?? "auto");
   const [autoResolved, setAutoResolved] = useState<{ preset: Exclude<QualityPresetKey, "auto">; reason: string } | null>(null);
+  // DPI & "원본 해상도 유지" — persisted per-order
+  const [dpiState, setDpiState] = useState<number>(uiDraft.dpi ?? 300);
+  const [useOriginalRes, setUseOriginalResState] = useState<boolean>(uiDraft.useOriginalRes ?? false);
+  const setDpi = (v: number) => {
+    const clamped = Math.max(72, Math.min(1200, Math.round(v) || 300));
+    setDpiState(clamped);
+    writeHtDesignUiDraft(order.orderNo, { dpi: clamped });
+  };
+  const setUseOriginalRes = (v: boolean) => {
+    setUseOriginalResState(v);
+    writeHtDesignUiDraft(order.orderNo, { useOriginalRes: v });
+  };
   // design transform within fixed format (offset in %, scale relative to cover-fit)
   const [offsetX, setOffsetXState] = useState(uiDraft.offsetX ?? 0);
   const [offsetY, setOffsetYState] = useState(uiDraft.offsetY ?? 0);
@@ -2385,6 +2407,8 @@ function DesignTab({
     setOffsetYState(next.offsetY ?? 0);
     setDesignScaleState(next.designScale ?? 1);
     setTestUidState(next.testUid ?? "");
+    setDpiState(next.dpi ?? 300);
+    setUseOriginalResState(next.useOriginalRes ?? false);
   }, [order.orderNo]);
 
 
@@ -2393,24 +2417,13 @@ function DesignTab({
   const first = details[0];
   const effectiveDesign = testDesign || first?.designSrc || null;
 
-  // Resolve "auto" quality preset by analyzing the active design image.
-  useEffect(() => {
-    let cancelled = false;
-    if (quality !== "auto" || !effectiveDesign) { setAutoResolved(null); return; }
-    (async () => {
-      const r = await analyzeDesignForQuality(effectiveDesign);
-      if (!cancelled) setAutoResolved({ preset: r.preset as Exclude<QualityPresetKey, "auto">, reason: r.reason });
-    })();
-    return () => { cancelled = true; };
-  }, [quality, effectiveDesign]);
-
-  const activePreset: Exclude<QualityPresetKey, "auto"> =
-    quality === "auto" ? (autoResolved?.preset ?? "high") : quality;
-  const presetCfg = QUALITY_PRESETS[activePreset];
-  const dpi = presetCfg.dpi;
-  const sharpen = presetCfg.sharpen;
+  // dpi/sharpen driven by explicit user setting (not quality preset).
+  // Sharpen only when we'd upscale (>= 450 dpi) — useOriginal never sharpens.
+  const dpi = dpiState;
+  const sharpen = !useOriginalRes && dpi >= 450;
 
   const previewUid = (testUid.trim() || first?.designUid || "");
+
 
   // regenerate preview when inputs change (use 96dpi for screen preview)
   useEffect(() => {
@@ -2466,12 +2479,13 @@ function DesignTab({
     if (!src) { toast({ title: "디자인 소스가 없습니다", variant: "destructive" }); return; }
     setBusy(true);
     try {
-      const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
+      const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen, useOriginal: useOriginalRes });
       const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer, {
         tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize,
       });
       const b = await pngWithDpi(await canvasToBlob(c), dpi);
-      triggerDownload(b, `${d.designUid}_${d.tshirtSize || "size"}_${dpi}dpi.png`);
+      const tag = useOriginalRes ? "orig" : `${dpi}dpi`;
+      triggerDownload(b, `${d.designUid}_${d.tshirtSize || "size"}_${tag}.png`);
     } finally { setBusy(false); }
   };
 
@@ -2483,7 +2497,7 @@ function DesignTab({
     }
     setBusy(true);
     const startedAt = new Date().toLocaleTimeString();
-    pushLog("info", `일괄 다운로드 시작 · ${details.length}개 · ${dpi}dpi · 병렬 워커`);
+    pushLog("info", `일괄 다운로드 시작 · ${details.length}개 · ${useOriginalRes ? "원본 해상도" : `${dpi}dpi`} · 병렬 워커`);
 
     // Plan all tasks first (skip invalid items up front).
     type Plan = { idx: number; d: typeof details[number]; fmt: NonNullable<ReturnType<typeof resolveStrictFormat>>; src: string };
@@ -2508,11 +2522,18 @@ function DesignTab({
     // Build mask blob cache (once per size) and spin up a worker pool.
     const maskCache = new Map<string, { blob: Blob; targetW: number; targetH: number; widthPt: number }>();
     const getMask = async (fmt: Plan["fmt"]) => {
-      const key = `${fmt.widthPt}x${fmt.heightPt}@${dpi}`;
+      const key = useOriginalRes
+        ? `${fmt.widthPt}x${fmt.heightPt}@orig`
+        : `${fmt.widthPt}x${fmt.heightPt}@${dpi}`;
       let b = maskCache.get(key);
       if (!b) {
-        const tW = Math.max(64, Math.round((fmt.widthPt / 72) * dpi));
-        const tH = Math.max(64, Math.round((fmt.heightPt / 72) * dpi));
+        // useOriginal: build alpha mask at PDF-native size; worker scales per-image.
+        const tW = useOriginalRes
+          ? fmt.maskCanvas.width
+          : Math.max(64, Math.round((fmt.widthPt / 72) * dpi));
+        const tH = useOriginalRes
+          ? fmt.maskCanvas.height
+          : Math.max(64, Math.round((fmt.heightPt / 72) * dpi));
         const m = buildAlphaMaskCanvas(fmt.maskCanvas, tW, tH);
         b = { blob: await canvasToBlob(m), targetW: tW, targetH: tH, widthPt: fmt.widthPt };
         maskCache.set(key, b);
@@ -2548,7 +2569,7 @@ function DesignTab({
       }
     }
 
-    const baseName = `design_${order.orderNo}_${dpi}dpi`;
+    const baseName = `design_${order.orderNo}_${useOriginalRes ? "orig" : `${dpi}dpi`}`;
     let matched = 0;
     let done = 0;
 
@@ -2591,7 +2612,9 @@ function DesignTab({
                 idx,
                 designUid: d.designUid,
                 designSrc: src,
-                maskKey: `${fmt.widthPt}x${fmt.heightPt}@${dpi}`,
+                maskKey: useOriginalRes
+                  ? `${fmt.widthPt}x${fmt.heightPt}@orig`
+                  : `${fmt.widthPt}x${fmt.heightPt}@${dpi}`,
                 maskBlob: bundle.blob,
                 targetW: bundle.targetW,
                 targetH: bundle.targetH,
@@ -2600,12 +2623,13 @@ function DesignTab({
                 transform,
                 footer,
                 meta: { tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize },
+                useOriginal: useOriginalRes,
               };
               const res = await pool.enqueue(task);
               let blob: Blob;
               if (!res.blob) {
                 // Main-thread fallback (preserves sharpen)
-                const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
+                const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen, useOriginal: useOriginalRes });
                 const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer, {
                   tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize,
                 });
@@ -2746,7 +2770,36 @@ function DesignTab({
           </Button>
         </div>
 
+        {/* DPI & 원본 해상도 유지 */}
+        <div className="rounded border p-3 space-y-3 bg-muted/20">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs font-semibold">출력 해상도 (DPI)</Label>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-muted-foreground">원본 해상도 유지</span>
+              <Switch checked={useOriginalRes} onCheckedChange={setUseOriginalRes} />
+            </div>
+          </div>
+          <div className="grid md:grid-cols-[140px_1fr] gap-3 items-center">
+            <Input
+              type="number"
+              min={72}
+              max={1200}
+              step={50}
+              value={dpiState}
+              disabled={useOriginalRes}
+              onChange={(e) => setDpi(Number(e.target.value) || 300)}
+              className="h-9"
+            />
+            <p className="text-[11px] text-muted-foreground leading-snug">
+              {useOriginalRes
+                ? "원본 이미지 픽셀 그대로 사용합니다. 리샘플링 없음 — 파일 용량 최소. 마스크/푸터(QR·고유번호)만 합성됩니다. (DPI 메타데이터는 표시용으로 위 값을 사용)"
+                : "기본 300DPI 권장. API로 들어오는 이미지가 이미 300DPI에 맞춰져 있다면 '원본 해상도 유지'를 켜면 업스케일링이 일어나지 않아 용량이 크게 줄어듭니다 (예: 600DPI → 300DPI는 약 1/4 용량)."}
+            </p>
+          </div>
+        </div>
+
         {/* Design transform within fixed format (offset + proportional scale) */}
+
         <div className="rounded border p-3 space-y-3 bg-muted/20">
           <div className="flex items-center justify-between">
             <Label className="text-xs font-semibold">디자인 위치/크기 조정 (포맷 고정)</Label>

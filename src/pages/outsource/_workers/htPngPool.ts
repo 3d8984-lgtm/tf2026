@@ -15,6 +15,7 @@ export interface PoolTask {
   transform: { offsetXPct: number; offsetYPct: number; scale: number };
   footer: FooterCfg;
   meta: { tshirtType?: string; tshirtColor?: string; tshirtSize?: string };
+  useOriginal?: boolean;
 }
 
 export interface PoolResult {
