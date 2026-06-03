@@ -2497,7 +2497,7 @@ function DesignTab({
     }
     setBusy(true);
     const startedAt = new Date().toLocaleTimeString();
-    pushLog("info", `일괄 다운로드 시작 · ${details.length}개 · ${dpi}dpi · 병렬 워커`);
+    pushLog("info", `일괄 다운로드 시작 · ${details.length}개 · ${useOriginalRes ? "원본 해상도" : `${dpi}dpi`} · 병렬 워커`);
 
     // Plan all tasks first (skip invalid items up front).
     type Plan = { idx: number; d: typeof details[number]; fmt: NonNullable<ReturnType<typeof resolveStrictFormat>>; src: string };
