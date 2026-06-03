@@ -2612,7 +2612,9 @@ function DesignTab({
                 idx,
                 designUid: d.designUid,
                 designSrc: src,
-                maskKey: `${fmt.widthPt}x${fmt.heightPt}@${dpi}`,
+                maskKey: useOriginalRes
+                  ? `${fmt.widthPt}x${fmt.heightPt}@orig`
+                  : `${fmt.widthPt}x${fmt.heightPt}@${dpi}`,
                 maskBlob: bundle.blob,
                 targetW: bundle.targetW,
                 targetH: bundle.targetH,
@@ -2621,12 +2623,13 @@ function DesignTab({
                 transform,
                 footer,
                 meta: { tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize },
+                useOriginal: useOriginalRes,
               };
               const res = await pool.enqueue(task);
               let blob: Blob;
               if (!res.blob) {
                 // Main-thread fallback (preserves sharpen)
-                const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen });
+                const c0 = await composeClippedDesign(src, fmt.maskCanvas, fmt.widthPt, fmt.heightPt, dpi, transform, { sharpen, useOriginal: useOriginalRes });
                 const c = await composeWithFooter(c0, fmt.widthPt, dpi, d.designUid, footer, {
                   tshirtType: d.tshirtType, tshirtColor: d.tshirtColor, tshirtSize: d.tshirtSize,
                 });
