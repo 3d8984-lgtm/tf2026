@@ -2599,10 +2599,25 @@ function DesignTab({
     let matched = 0;
     let done = 0;
 
-    // 작업지시서.pdf — generated up front so it sits at the top of the ZIP
+    // 작업지시서.pdf — 미리보기와 동일하게 '첫 작업결과물(합성된 디자인)' 이미지 포함.
     try {
+      let firstUrl: string | undefined;
+      try {
+        const res = await buildFinalPngs(details.slice(0, 1), formats, outline, testDesign, footer, 96, false, undefined, transform);
+        const first = res.find((r) => r.blob);
+        if (first?.blob) {
+          firstUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result || ""));
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(first.blob!);
+          });
+        }
+      } catch (e) {
+        pushLog("warn", `첫 작업결과물 합성 실패, 외곽선으로 대체: ${e instanceof Error ? e.message : String(e)}`);
+      }
       const wo = computeHtWorkOrderData(order);
-      const woHtml = buildHtWorkOrderHtml(wo, outline?.previewUrl ?? undefined, { autoPrint: false });
+      const woHtml = buildHtWorkOrderHtml(wo, firstUrl || outline?.previewUrl, { autoPrint: false });
       const woBytes = await renderHtmlToPdfBytes(woHtml);
       const pdfBlob = new Blob([woBytes as BlobPart], { type: "application/pdf" });
       pushItem({ name: `${baseName}/작업지시서.pdf`, lastModified: new Date(), input: pdfBlob });
