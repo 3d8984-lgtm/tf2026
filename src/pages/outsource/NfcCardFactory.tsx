@@ -2723,7 +2723,7 @@ function CardSideEditor({
                       maskSize: "100% 100%",
                       WebkitMaskPosition: "center",
                       maskPosition: "center",
-                      zIndex: 4,
+                      
                     }}
                   />
                 );
