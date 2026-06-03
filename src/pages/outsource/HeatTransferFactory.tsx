@@ -2586,15 +2586,10 @@ function DesignTab({
       const woHtml = buildHtWorkOrderHtml(wo, outline?.previewUrl ?? undefined, { autoPrint: false });
       const woBytes = await renderHtmlToPdfBytes(woHtml);
       const pdfBlob = new Blob([woBytes as BlobPart], { type: "application/pdf" });
-      // Defer push until pushItem is available below.
-      (zipQueue as any).__pdfBlob = pdfBlob;
+      pushItem({ name: `${baseName}/작업지시서.pdf`, lastModified: new Date(), input: pdfBlob });
       pushLog("info", "작업지시서.pdf 생성 완료");
     } catch (e) {
       pushLog("warn", `작업지시서.pdf 생성 실패: ${e instanceof Error ? e.message : String(e)}`);
-    }
-    const __pdfBlob: Blob | undefined = (zipQueue as any).__pdfBlob;
-    if (__pdfBlob) {
-      pushItem({ name: `${baseName}/작업지시서.pdf`, lastModified: new Date(), input: __pdfBlob });
     }
 
     // Start streaming ZIP producer immediately so PNGs flush as they're made.
