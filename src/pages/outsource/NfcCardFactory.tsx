@@ -3217,6 +3217,138 @@ function CardThumbGrid({ cards, side, testImageUrl }: { cards: CardData[]; side:
 // SVG 원본 실제 크기를 사용하며, 카드 합성 시 이미지 위 레이어로 배치한다.
 // 색상은 API 연동 전 테스트용 직접 입력 값(#RRGGBB)을 사용한다.
 // ===========================================================================
+const SvgAnchorPicker = ({
+  val,
+  onPick,
+}: {
+  val: ShapeAnchor;
+  onPick: (a: ShapeAnchor) => void;
+}) => {
+  const anchors: ShapeAnchor[] = ["tl","tc","tr","ml","mc","mr","bl","bc","br"];
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <label className="text-[11px] text-muted-foreground">기준점</label>
+      <div className="grid grid-cols-3 gap-[2px] p-0.5 rounded border bg-background">
+        {anchors.map((a) => {
+          const active = val === a;
+          return (
+            <button
+              key={a}
+              type="button"
+              onClick={() => onPick(a)}
+              className={cn(
+                "w-3 h-3 rounded-full flex items-center justify-center transition-colors",
+                active
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted/60 hover:bg-muted"
+              )}
+              title={a}
+            >
+              {active && <div className="w-1 h-1 rounded-full bg-primary-foreground" />}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+
+
+const ShapeOptionRow = ({
+  title,
+  desc,
+  k,
+  s,
+  update,
+  onPickFile,
+}: {
+  title: string;
+  desc: string;
+  k: keyof ShapeOptions;
+  s: ShapeOption;
+  update: (key: keyof ShapeOptions, patch: Partial<ShapeOption>) => void;
+  onPickFile: (key: keyof ShapeOptions, file: File | null) => void;
+}) => {
+  return (
+    <div className="rounded-md border p-3 space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-sm font-medium">{title}</div>
+          <div className="text-[11px] text-muted-foreground">{desc}</div>
+        </div>
+        {s.svgDataUrl && (
+          <div className="h-10 w-10 rounded border bg-muted/30 flex items-center justify-center overflow-hidden">
+            <img src={s.svgDataUrl} alt={title} className="max-h-full max-w-full" />
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <input
+          type="file"
+          accept=".svg,image/svg+xml"
+          onChange={(e) => onPickFile(k, e.target.files?.[0] || null)}
+          className="text-xs file:mr-2 file:py-1 file:px-2 file:rounded file:border file:border-input file:bg-background file:text-xs"
+        />
+        {s.fileName && (
+          <button
+            type="button"
+            className="text-[11px] text-destructive underline"
+            onClick={() => onPickFile(k, null)}
+          >
+            제거
+          </button>
+        )}
+        {s.fileName && (
+          <span className="text-[11px] text-muted-foreground truncate">{s.fileName}</span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 items-start">
+        <div>
+          <label className="text-[11px] text-muted-foreground">X (mm)</label>
+          <input
+            type="number"
+            step="0.001"
+            value={s.x_mm}
+            onChange={(e) => update(k, { x_mm: Number(e.target.value) })}
+            className="w-full h-8 rounded border bg-background px-2 text-xs"
+          />
+        </div>
+        <div>
+          <label className="text-[11px] text-muted-foreground">Y (mm)</label>
+          <input
+            type="number"
+            step="0.001"
+            value={s.y_mm}
+            onChange={(e) => update(k, { y_mm: Number(e.target.value) })}
+            className="w-full h-8 rounded border bg-background px-2 text-xs"
+          />
+        </div>
+        <SvgAnchorPicker val={s.anchor} onPick={(a) => update(k, { anchor: a })} />
+        <div className="md:col-span-2">
+          <label className="text-[11px] text-muted-foreground">색상 (테스트)</label>
+          <div className="flex items-center gap-1">
+            <input
+              type="color"
+              value={s.color}
+              onChange={(e) => update(k, { color: e.target.value })}
+              className="h-8 w-10 rounded border bg-background"
+            />
+            <input
+              type="text"
+              value={s.color}
+              onChange={(e) => update(k, { color: e.target.value })}
+              className="flex-1 h-8 rounded border bg-background px-2 text-xs font-mono"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 function ShapeOptionsCard({
   value,
   onChange,
@@ -3265,130 +3397,6 @@ function ShapeOptionsCard({
     }
   };
 
-  const AnchorPicker = ({
-    val,
-    onPick,
-  }: {
-    val: ShapeAnchor;
-    onPick: (a: ShapeAnchor) => void;
-  }) => {
-    const anchors: ShapeAnchor[] = ["tl","tc","tr","ml","mc","mr","bl","bc","br"];
-    return (
-      <div className="flex flex-col items-center gap-1">
-        <label className="text-[11px] text-muted-foreground">기준점</label>
-        <div className="grid grid-cols-3 gap-[2px] p-0.5 rounded border bg-background">
-          {anchors.map((a) => {
-            const active = val === a;
-            return (
-              <button
-                key={a}
-                type="button"
-                onClick={() => onPick(a)}
-                className={cn(
-                  "w-3 h-3 rounded-full flex items-center justify-center transition-colors",
-                  active
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted/60 hover:bg-muted"
-                )}
-                title={a}
-              >
-                {active && <div className="w-1 h-1 rounded-full bg-primary-foreground" />}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-
-  const Row = ({
-    title,
-    desc,
-    k,
-  }: {
-    title: string;
-    desc: string;
-    k: keyof ShapeOptions;
-  }) => {
-    const s = value[k];
-    return (
-      <div className="rounded-md border p-3 space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm font-medium">{title}</div>
-            <div className="text-[11px] text-muted-foreground">{desc}</div>
-          </div>
-          {s.svgDataUrl && (
-            <div className="h-10 w-10 rounded border bg-muted/30 flex items-center justify-center overflow-hidden">
-              <img src={s.svgDataUrl} alt={title} className="max-h-full max-w-full" />
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <input
-            type="file"
-            accept=".svg,image/svg+xml"
-            onChange={(e) => onPickFile(k, e.target.files?.[0] || null)}
-            className="text-xs file:mr-2 file:py-1 file:px-2 file:rounded file:border file:border-input file:bg-background file:text-xs"
-          />
-          {s.fileName && (
-            <button
-              type="button"
-              className="text-[11px] text-destructive underline"
-              onClick={() => onPickFile(k, null)}
-            >
-              제거
-            </button>
-          )}
-          {s.fileName && (
-            <span className="text-[11px] text-muted-foreground truncate">{s.fileName}</span>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 items-start">
-          <div>
-            <label className="text-[11px] text-muted-foreground">X (mm)</label>
-            <input
-              type="number"
-              step="0.001"
-              value={s.x_mm}
-              onChange={(e) => update(k, { x_mm: Number(e.target.value) })}
-              className="w-full h-8 rounded border bg-background px-2 text-xs"
-            />
-          </div>
-          <div>
-            <label className="text-[11px] text-muted-foreground">Y (mm)</label>
-            <input
-              type="number"
-              step="0.001"
-              value={s.y_mm}
-              onChange={(e) => update(k, { y_mm: Number(e.target.value) })}
-              className="w-full h-8 rounded border bg-background px-2 text-xs"
-            />
-          </div>
-          <AnchorPicker val={s.anchor} onPick={(a) => update(k, { anchor: a })} />
-          <div className="md:col-span-2">
-            <label className="text-[11px] text-muted-foreground">색상 (테스트)</label>
-            <div className="flex items-center gap-1">
-              <input
-                type="color"
-                value={s.color}
-                onChange={(e) => update(k, { color: e.target.value })}
-                className="h-8 w-10 rounded border bg-background"
-              />
-              <input
-                type="text"
-                value={s.color}
-                onChange={(e) => update(k, { color: e.target.value })}
-                className="flex-1 h-8 rounded border bg-background px-2 text-xs font-mono"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   return (
     <Card>
@@ -3410,10 +3418,10 @@ function ShapeOptionsCard({
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          <Row title="카드 앞면 · 중심 도형" desc="앞면 2개 도형 중 중심부 SVG" k="frontCenter" />
-          <Row title="카드 앞면 · 외곽 도형" desc="앞면 2개 도형 중 외곽부 SVG" k="frontOutline" />
+          <ShapeOptionRow title="카드 앞면 · 중심 도형" desc="앞면 2개 도형 중 중심부 SVG" k="frontCenter" s={value.frontCenter} update={update} onPickFile={onPickFile} />
+          <ShapeOptionRow title="카드 앞면 · 외곽 도형" desc="앞면 2개 도형 중 외곽부 SVG" k="frontOutline" s={value.frontOutline} update={update} onPickFile={onPickFile} />
         </div>
-        <Row title="카드 뒷면 · 도형" desc="뒷면 단일 SVG" k="back" />
+        <ShapeOptionRow title="카드 뒷면 · 도형" desc="뒷면 단일 SVG" k="back" s={value.back} update={update} onPickFile={onPickFile} />
       </CardContent>
     </Card>
   );
