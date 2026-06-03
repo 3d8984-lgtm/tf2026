@@ -177,12 +177,19 @@ async function composeClippedDesign(
   heightPt: number,
   dpi: number,
   transform?: { offsetXPct?: number; offsetYPct?: number; scale?: number },
-  opts?: { sharpen?: boolean; preBuiltMask?: HTMLCanvasElement; preLoadedImage?: HTMLImageElement },
+  opts?: { sharpen?: boolean; preBuiltMask?: HTMLCanvasElement; preLoadedImage?: HTMLImageElement; useOriginal?: boolean },
 ): Promise<HTMLCanvasElement> {
-  const targetW = Math.max(64, Math.round((widthPt / 72) * dpi));
-  const targetH = Math.max(64, Math.round((heightPt / 72) * dpi));
+  // Load image first so we can derive targetW/H from it when useOriginal=true.
+  const img = opts?.preLoadedImage ?? (await loadImage(designSrc));
 
-  // 1) alpha mask — reuse cached one when provided
+  const targetW = opts?.useOriginal
+    ? Math.max(64, img.width)
+    : Math.max(64, Math.round((widthPt / 72) * dpi));
+  const targetH = opts?.useOriginal
+    ? Math.max(64, img.height)
+    : Math.max(64, Math.round((heightPt / 72) * dpi));
+
+  // 1) alpha mask — reuse cached one when provided & matches size, else rebuild at target size.
   const mask = opts?.preBuiltMask && opts.preBuiltMask.width === targetW && opts.preBuiltMask.height === targetH
     ? opts.preBuiltMask
     : buildAlphaMaskCanvas(maskCanvas, targetW, targetH);
@@ -195,17 +202,17 @@ async function composeClippedDesign(
   octx.imageSmoothingEnabled = true;
   octx.imageSmoothingQuality = "high";
 
-  const img = opts?.preLoadedImage ?? (await loadImage(designSrc));
   const userScale = transform?.scale ?? 1;
   const offXPct = transform?.offsetXPct ?? 0;
   const offYPct = transform?.offsetYPct ?? 0;
-  const baseScale = Math.max(targetW / img.width, targetH / img.height);
+  // useOriginal: image is already at print pixel size — no cover-fit upscale; base=1.
+  const baseScale = opts?.useOriginal ? 1 : Math.max(targetW / img.width, targetH / img.height);
   const scale = baseScale * userScale;
   const dw = Math.max(1, Math.round(img.width * scale));
   const dh = Math.max(1, Math.round(img.height * scale));
   const dx = Math.round((targetW - dw) / 2 + (offXPct / 100) * targetW);
   const dy = Math.round((targetH - dh) / 2 + (offYPct / 100) * targetH);
-  if (opts?.sharpen && (dw > img.width || dh > img.height)) {
+  if (opts?.sharpen && !opts?.useOriginal && (dw > img.width || dh > img.height)) {
     const sharp = edgePreservingUpscale(img, dw, dh);
     octx.imageSmoothingEnabled = false;
     octx.drawImage(sharp, dx, dy);
