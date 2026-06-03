@@ -2672,15 +2672,16 @@ function DesignTab({
                 blob = res.blob;
               }
               const seq = String(idx + 1).padStart(padN, "0");
-              const productName = buildProductName(d);
-              pushItem({
-                name: `${baseName}/이미지/${seq}_${productName}.png`,
+              const designName = sanitizeName(d.designUid) || `item${idx + 1}`;
+              markIdx(idx, {
+                name: `${baseName}/이미지/${seq}_${designName}.png`,
                 lastModified: new Date(),
                 input: blob,
               });
               matched++;
             } catch (e) {
               skipped++;
+              markIdx(idx, null);
               pushLog("warn", `실패: ${d.designUid} — ${e instanceof Error ? e.message : String(e)}`);
             } finally {
               done++;
