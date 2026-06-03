@@ -179,14 +179,17 @@ async function composeClippedDesign(
   transform?: { offsetXPct?: number; offsetYPct?: number; scale?: number },
   opts?: { sharpen?: boolean; preBuiltMask?: HTMLCanvasElement; preLoadedImage?: HTMLImageElement; useOriginal?: boolean },
 ): Promise<HTMLCanvasElement> {
-  // Load image first so we can derive targetW/H from it when useOriginal=true.
+  // Load image first.
   const img = opts?.preLoadedImage ?? (await loadImage(designSrc));
 
+  // Frame shape/size is ALWAYS fixed to the uploaded frame (mask) geometry.
+  // - useOriginal: use the mask's native pixel size (no DPI upscale).
+  // - otherwise:   scale to widthPt/heightPt × dpi (keeps frame aspect).
   const targetW = opts?.useOriginal
-    ? Math.max(64, img.width)
+    ? Math.max(64, maskCanvas.width)
     : Math.max(64, Math.round((widthPt / 72) * dpi));
   const targetH = opts?.useOriginal
-    ? Math.max(64, img.height)
+    ? Math.max(64, maskCanvas.height)
     : Math.max(64, Math.round((heightPt / 72) * dpi));
 
   // 1) alpha mask — reuse cached one when provided & matches size, else rebuild at target size.
@@ -205,8 +208,8 @@ async function composeClippedDesign(
   const userScale = transform?.scale ?? 1;
   const offXPct = transform?.offsetXPct ?? 0;
   const offYPct = transform?.offsetYPct ?? 0;
-  // useOriginal: image is already at print pixel size — no cover-fit upscale; base=1.
-  const baseScale = opts?.useOriginal ? 1 : Math.max(targetW / img.width, targetH / img.height);
+  // Always cover-fit so the frame keeps its uploaded shape.
+  const baseScale = Math.max(targetW / img.width, targetH / img.height);
   const scale = baseScale * userScale;
   const dw = Math.max(1, Math.round(img.width * scale));
   const dh = Math.max(1, Math.round(img.height * scale));
@@ -220,6 +223,7 @@ async function composeClippedDesign(
   } else {
     octx.drawImage(img, dx, dy, dw, dh);
   }
+
 
   // 3) clip with mask alpha
   octx.globalCompositeOperation = "destination-in";
