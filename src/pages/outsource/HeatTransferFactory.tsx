@@ -2569,9 +2569,33 @@ function DesignTab({
       }
     }
 
-    const baseName = `design_${order.orderNo}_${useOriginalRes ? "orig" : `${dpi}dpi`}`;
+    const baseName = order.orderNo || "order";
+    const padN = Math.max(2, String(details.length).length);
+    const sanitizeName = (s: string) => (s || "").replace(/[\\/:*?"<>|\r\n\t]+/g, "_").replace(/\s+/g, " ").trim();
+    const buildProductName = (d: typeof details[number]) => {
+      const parts = [d.tshirtType, d.tshirtColor, d.tshirtSize].map((x) => (x || "").trim()).filter(Boolean);
+      const name = sanitizeName(parts.join("_"));
+      return name || d.designUid;
+    };
     let matched = 0;
     let done = 0;
+
+    // 작업지시서.pdf — generated up front so it sits at the top of the ZIP
+    try {
+      const wo = computeHtWorkOrderData(order);
+      const woHtml = buildHtWorkOrderHtml(wo, outline?.previewUrl ?? undefined, { autoPrint: false });
+      const woBytes = await renderHtmlToPdfBytes(woHtml);
+      const pdfBlob = new Blob([woBytes as BlobPart], { type: "application/pdf" });
+      // Defer push until pushItem is available below.
+      (zipQueue as any).__pdfBlob = pdfBlob;
+      pushLog("info", "작업지시서.pdf 생성 완료");
+    } catch (e) {
+      pushLog("warn", `작업지시서.pdf 생성 실패: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    const __pdfBlob: Blob | undefined = (zipQueue as any).__pdfBlob;
+    if (__pdfBlob) {
+      pushItem({ name: `${baseName}/작업지시서.pdf`, lastModified: new Date(), input: __pdfBlob });
+    }
 
     // Start streaming ZIP producer immediately so PNGs flush as they're made.
     const zipResponse = downloadZip(zipSource());
