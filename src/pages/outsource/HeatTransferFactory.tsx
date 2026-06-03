@@ -2759,7 +2759,36 @@ function DesignTab({
           </Button>
         </div>
 
+        {/* DPI & 원본 해상도 유지 */}
+        <div className="rounded border p-3 space-y-3 bg-muted/20">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs font-semibold">출력 해상도 (DPI)</Label>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-muted-foreground">원본 해상도 유지</span>
+              <Switch checked={useOriginalRes} onCheckedChange={setUseOriginalRes} />
+            </div>
+          </div>
+          <div className="grid md:grid-cols-[140px_1fr] gap-3 items-center">
+            <Input
+              type="number"
+              min={72}
+              max={1200}
+              step={50}
+              value={dpiState}
+              disabled={useOriginalRes}
+              onChange={(e) => setDpi(Number(e.target.value) || 300)}
+              className="h-9"
+            />
+            <p className="text-[11px] text-muted-foreground leading-snug">
+              {useOriginalRes
+                ? "원본 이미지 픽셀 그대로 사용합니다. 리샘플링 없음 — 파일 용량 최소. 마스크/푸터(QR·고유번호)만 합성됩니다. (DPI 메타데이터는 표시용으로 위 값을 사용)"
+                : "기본 300DPI 권장. API로 들어오는 이미지가 이미 300DPI에 맞춰져 있다면 '원본 해상도 유지'를 켜면 업스케일링이 일어나지 않아 용량이 크게 줄어듭니다 (예: 600DPI → 300DPI는 약 1/4 용량)."}
+            </p>
+          </div>
+        </div>
+
         {/* Design transform within fixed format (offset + proportional scale) */}
+
         <div className="rounded border p-3 space-y-3 bg-muted/20">
           <div className="flex items-center justify-between">
             <Label className="text-xs font-semibold">디자인 위치/크기 조정 (포맷 고정)</Label>
