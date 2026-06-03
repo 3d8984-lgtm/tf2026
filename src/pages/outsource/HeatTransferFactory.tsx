@@ -2417,7 +2417,7 @@ function DesignTab({
     setDesignScaleState(next.designScale ?? 1);
     setTestUidState(next.testUid ?? "");
     setDpiState(next.dpi ?? 300);
-    setUseOriginalResState(next.useOriginalRes ?? false);
+    setUseOriginalResState(next.useOriginalRes ?? true);
   }, [order.orderNo]);
 
 
