@@ -128,9 +128,27 @@ async function compose(msg: BuildMsg): Promise<Uint8Array> {
   const img = await getImg(msg.designSrc);
 
   const { transform, footer, dpi, widthPt, designUid, meta, useOriginal } = msg;
-  // useOriginal: image is already at print pixel size — output canvas matches image.
-  const targetW = useOriginal ? img.width : msg.targetW;
-  const targetH = useOriginal ? img.height : msg.targetH;
+  // useOriginal: keep canvas at the MASK (PDF) aspect ratio so the outline is
+  // never distorted. We size the canvas from the image's largest dimension
+  // mapped through the mask aspect, then place the image cover-fit so its
+  // pixels stay at (or near) native resolution.
+  const maskAspect = mask.width / mask.height; // PDF region aspect
+  let targetW: number;
+  let targetH: number;
+  if (useOriginal) {
+    const imgAspect = img.width / img.height;
+    if (imgAspect >= maskAspect) {
+      // image is wider than mask → height drives native size
+      targetH = img.height;
+      targetW = Math.max(1, Math.round(targetH * maskAspect));
+    } else {
+      targetW = img.width;
+      targetH = Math.max(1, Math.round(targetW / maskAspect));
+    }
+  } else {
+    targetW = msg.targetW;
+    targetH = msg.targetH;
+  }
 
   // 1) clipped design canvas
   const base = new OffscreenCanvas(targetW, targetH);
@@ -139,7 +157,8 @@ async function compose(msg: BuildMsg): Promise<Uint8Array> {
   bctx.imageSmoothingQuality = "high";
 
   const userScale = transform.scale ?? 1;
-  const baseScale = useOriginal ? 1 : Math.max(targetW / img.width, targetH / img.height);
+  // Always cover-fit so the image fills the (mask-aspect) canvas without distortion.
+  const baseScale = Math.max(targetW / img.width, targetH / img.height);
   const scale = baseScale * userScale;
   const dw = Math.max(1, Math.round(img.width * scale));
   const dh = Math.max(1, Math.round(img.height * scale));
@@ -147,8 +166,9 @@ async function compose(msg: BuildMsg): Promise<Uint8Array> {
   const dy = Math.round((targetH - dh) / 2 + ((transform.offsetYPct ?? 0) / 100) * targetH);
   bctx.drawImage(img, dx, dy, dw, dh);
   bctx.globalCompositeOperation = "destination-in";
-  bctx.drawImage(mask, 0, 0, targetW, targetH);
+  bctx.drawImage(mask, 0, 0, targetW, targetH); // same aspect → no distortion
   bctx.globalCompositeOperation = "source-over";
+
 
   // 2) footer band
   let finalCanvas: OffscreenCanvas = base;
