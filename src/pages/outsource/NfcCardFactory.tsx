@@ -547,6 +547,85 @@ const SHAPE_ANCHORS: { value: ShapeAnchor; label: string }[] = [
   { value: "bl", label: "좌하" }, { value: "bc", label: "하중" }, { value: "br", label: "우하" },
 ];
 
+// ---- SVG 도형 유틸 (도형 옵션 → 미리보기/PDF 공통) ----
+// data:image/svg+xml;base64,... 또는 utf-8 데이터 URL을 SVG 원문 문자열로 디코드
+function decodeSvgDataUrl(dataUrl: string): string | null {
+  try {
+    if (dataUrl.startsWith("data:image/svg+xml;base64,")) {
+      const b64 = dataUrl.slice("data:image/svg+xml;base64,".length);
+      const bin = atob(b64);
+      // UTF-8 decode
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return new TextDecoder("utf-8").decode(bytes);
+    }
+    if (dataUrl.startsWith("data:image/svg+xml")) {
+      const idx = dataUrl.indexOf(",");
+      if (idx >= 0) return decodeURIComponent(dataUrl.slice(idx + 1));
+    }
+  } catch {}
+  return null;
+}
+
+// SVG의 자연 크기를 mm로 반환 (width/height 우선, 없으면 viewBox를 px로 보고 96DPI→mm 환산)
+function svgNaturalSizeMm(svgString: string): { w: number; h: number } {
+  const PX_TO_MM = 25.4 / 96;
+  const parseLen = (raw: string): number | null => {
+    const m = raw.match(/^([\d.]+)\s*(mm|cm|in|pt|pc|px)?$/i);
+    if (!m) return null;
+    const n = Number(m[1]); const u = (m[2] || "px").toLowerCase();
+    switch (u) {
+      case "mm": return n;
+      case "cm": return n * 10;
+      case "in": return n * 25.4;
+      case "pt": return n * (25.4 / 72);
+      case "pc": return n * (25.4 / 6);
+      default:   return n * PX_TO_MM;
+    }
+  };
+  const wm = svgString.match(/\bwidth\s*=\s*"([^"]+)"/i);
+  const hm = svgString.match(/\bheight\s*=\s*"([^"]+)"/i);
+  if (wm && hm) {
+    const w = parseLen(wm[1].trim()); const h = parseLen(hm[1].trim());
+    if (w && h) return { w, h };
+  }
+  const vb = svgString.match(/viewBox\s*=\s*"([^"]+)"/i);
+  if (vb) {
+    const p = vb[1].trim().split(/[\s,]+/).map(Number);
+    if (p.length === 4 && p[2] > 0 && p[3] > 0) return { w: p[2] * PX_TO_MM, h: p[3] * PX_TO_MM };
+  }
+  return { w: 10, h: 10 };
+}
+
+// SVG 내부의 fill/stroke 값을 테스트 색상으로 일괄 치환 ("none"은 보존)
+// 추가로 루트 <svg>에 fill/color 속성을 주입해 미지정 요소까지 색이 적용되게 한다.
+function recolorSvgString(svgString: string, color: string): string {
+  let out = svgString;
+  // fill="..." (none 보존)
+  out = out.replace(/(fill\s*=\s*")([^"]*)(")/gi, (_m, a, val, c) =>
+    /^none$/i.test(val.trim()) ? `${a}${val}${c}` : `${a}${color}${c}`,
+  );
+  // stroke="..." (none 보존, 없는 경우는 추가하지 않음)
+  out = out.replace(/(stroke\s*=\s*")([^"]*)(")/gi, (_m, a, val, c) =>
+    /^none$/i.test(val.trim()) ? `${a}${val}${c}` : `${a}${color}${c}`,
+  );
+  // style="...fill:xxx;stroke:xxx..." 내부
+  out = out.replace(/(fill\s*:\s*)([^;"'}]+)/gi, (_m, a, val) =>
+    /^none$/i.test(val.trim()) ? `${a}${val}` : `${a}${color}`,
+  );
+  out = out.replace(/(stroke\s*:\s*)([^;"'}]+)/gi, (_m, a, val) =>
+    /^none$/i.test(val.trim()) ? `${a}${val}` : `${a}${color}`,
+  );
+  // 루트 svg 태그에 fill/color 강제 주입 (속성 미지정 요소 대비)
+  out = out.replace(/<svg\b([^>]*)>/i, (m, attrs) => {
+    let a = attrs as string;
+    if (!/\bfill\s*=/.test(a)) a += ` fill="${color}"`;
+    if (!/\bcolor\s*=/.test(a)) a += ` color="${color}"`;
+    return `<svg${a}>`;
+  });
+  return out;
+}
+
 // 서명 이미지의 기본 인쇄 크기 (mm) — 업로드된 이미지의 자연 비율을 모를 때 fallback
 const SIGNATURE_BASE_W_MM = 20;
 const SIGNATURE_BASE_H_MM = 8;
