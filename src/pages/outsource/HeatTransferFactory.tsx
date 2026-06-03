@@ -2569,7 +2569,7 @@ function DesignTab({
       }
     }
 
-    const baseName = `design_${order.orderNo}_${dpi}dpi`;
+    const baseName = `design_${order.orderNo}_${useOriginalRes ? "orig" : `${dpi}dpi`}`;
     let matched = 0;
     let done = 0;
 
