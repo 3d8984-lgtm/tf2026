@@ -2663,7 +2663,42 @@ function CardSideEditor({
               aria-hidden
             />
 
-            {keys.map(key => {
+            {/* 기본 도형 옵션 미리보기 — SVG를 마스크로 사용해 테스트 색상으로 채움 */}
+            {(() => {
+              const list: ShapeOption[] = side === "front"
+                ? [shapeOptions?.frontOutline, shapeOptions?.frontCenter].filter(Boolean) as ShapeOption[]
+                : [shapeOptions?.back].filter(Boolean) as ShapeOption[];
+              return list.map((s, i) => {
+                if (!s?.svgDataUrl) return null;
+                const svgStr = decodeSvgDataUrl(s.svgDataUrl);
+                const nat = svgStr ? svgNaturalSizeMm(svgStr) : { w: 10, h: 10 };
+                const tl = anchorTopLeft(s.x_mm, s.y_mm, nat.w, nat.h, s.anchor);
+                return (
+                  <div
+                    key={`shape-${side}-${i}`}
+                    aria-hidden
+                    className="absolute pointer-events-none"
+                    style={{
+                      left: tl.left * pxPerMm,
+                      top: tl.top * pxPerMm,
+                      width: nat.w * pxPerMm,
+                      height: nat.h * pxPerMm,
+                      backgroundColor: s.color,
+                      WebkitMaskImage: `url(${s.svgDataUrl})`,
+                      maskImage: `url(${s.svgDataUrl})`,
+                      WebkitMaskRepeat: "no-repeat",
+                      maskRepeat: "no-repeat",
+                      WebkitMaskSize: "100% 100%",
+                      maskSize: "100% 100%",
+                      WebkitMaskPosition: "center",
+                      maskPosition: "center",
+                      zIndex: 4,
+                    }}
+                  />
+                );
+              });
+            })()}
+
               const cfg = layout[key];
               if (!cfg?.enabled) return null;
               const fontPx = (cfg.fontSize || 3) * pxPerMm;
