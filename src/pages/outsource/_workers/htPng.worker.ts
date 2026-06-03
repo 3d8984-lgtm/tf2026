@@ -127,7 +127,10 @@ async function compose(msg: BuildMsg): Promise<Uint8Array> {
   const mask = await getMask(msg.maskKey, msg.maskBlob);
   const img = await getImg(msg.designSrc);
 
-  const { targetW, targetH, transform, footer, dpi, widthPt, designUid, meta } = msg;
+  const { transform, footer, dpi, widthPt, designUid, meta, useOriginal } = msg;
+  // useOriginal: image is already at print pixel size — output canvas matches image.
+  const targetW = useOriginal ? img.width : msg.targetW;
+  const targetH = useOriginal ? img.height : msg.targetH;
 
   // 1) clipped design canvas
   const base = new OffscreenCanvas(targetW, targetH);
@@ -136,7 +139,7 @@ async function compose(msg: BuildMsg): Promise<Uint8Array> {
   bctx.imageSmoothingQuality = "high";
 
   const userScale = transform.scale ?? 1;
-  const baseScale = Math.max(targetW / img.width, targetH / img.height);
+  const baseScale = useOriginal ? 1 : Math.max(targetW / img.width, targetH / img.height);
   const scale = baseScale * userScale;
   const dw = Math.max(1, Math.round(img.width * scale));
   const dh = Math.max(1, Math.round(img.height * scale));
