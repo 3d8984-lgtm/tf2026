@@ -2031,7 +2031,7 @@ function DetailView({
         </Card>
 
         {/* 기본 도형 옵션 (앞면 중심/외곽 · 뒷면 단일) — 이미지 위 레이어로 합성됨 */}
-        <ShapeOptionsCard value={shapeOptions} onChange={setShapeOptions} />
+        <ShapeOptionsCard value={shapeOptions} onChange={setShapeOptions} onSave={saveLayout} canSave={loaded} />
 
         {/* Layout designer */}
         <Tabs defaultValue="front">
