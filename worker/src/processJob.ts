@@ -87,7 +87,7 @@ export async function processJob(jobId: string): Promise<void> {
 
     // Build ZIP on disk to avoid keeping hundreds of large PNGs in memory.
     await callback({ jobId, status: "uploading", stage: "ZIP 묶기" });
-    const pad = String(total).length;
+    const pad = Math.max(2, String(total).length);
     const entries: ZipEntry[] = [];
 
     if (work_order_pdf_url) {
@@ -101,8 +101,13 @@ export async function processJob(jobId: string): Promise<void> {
 
     for (const [, v] of outputs) {
       const base = v.filename.replace(/[\\/]/g, "_");
-      const name = `images/${String(v.idx).padStart(pad, "0")}_${base.endsWith(".png") ? base : base + ".png"}`;
-      entries.push({ name, path: v.path });
+      // If the browser already prefixed a sequence (e.g. "01_상품A.png"),
+      // keep it as-is. Otherwise prefix with the row index.
+      const hasSeq = /^\d{2,}_/.test(base);
+      const fname = hasSeq
+        ? (base.endsWith(".png") ? base : base + ".png")
+        : `${String(v.idx).padStart(pad, "0")}_${base.endsWith(".png") ? base : base + ".png"}`;
+      entries.push({ name: `이미지/${fname}`, path: v.path });
     }
 
     const zipPath = join(workDir, "bundle.zip");
