@@ -3255,16 +3255,21 @@ const SvgAnchorPicker = ({
 
 
 
-const Row = ({
+const ShapeOptionRow = ({
   title,
   desc,
   k,
+  s,
+  update,
+  onPickFile,
 }: {
   title: string;
   desc: string;
   k: keyof ShapeOptions;
+  s: ShapeOption;
+  update: (key: keyof ShapeOptions, patch: Partial<ShapeOption>) => void;
+  onPickFile: (key: keyof ShapeOptions, file: File | null) => void;
 }) => {
-  const s = value[k];
   return (
     <div className="rounded-md border p-3 space-y-3">
       <div className="flex items-center justify-between">
