@@ -3240,11 +3240,19 @@ function ShapeOptionsCard({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm flex items-center justify-between">
+        <CardTitle className="text-sm flex items-center justify-between gap-2">
           <span>기본 도형 옵션</span>
-          <span className="text-[11px] font-normal text-muted-foreground">
-            SVG 원본 실제 크기 · 이미지 위 레이어로 합성 · 색상은 추후 API 연동 (현재 테스트값)
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-normal text-muted-foreground hidden md:inline">
+              업로드한 파일은 저장 후 유지됩니다 · 변경/삭제 전까지 보존
+            </span>
+            {onSave && (
+              <Button size="sm" onClick={handleSave} disabled={saving || canSave === false}>
+                {saving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1" />}
+                설정 저장
+              </Button>
+            )}
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
