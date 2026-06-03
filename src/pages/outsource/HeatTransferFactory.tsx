@@ -422,6 +422,8 @@ type HtDesignUiDraft = {
   offsetY?: number;
   designScale?: number;
   testUid?: string;
+  dpi?: number;
+  useOriginalRes?: boolean;
 };
 
 type HtPersistedDesign = {
