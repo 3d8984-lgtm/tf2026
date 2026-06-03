@@ -1562,6 +1562,31 @@ function DetailView({
         } catch (e) { console.warn("card design render failed", e); }
       }
 
+      // === 기본 도형 옵션 (디자인 위 / 옵션 요소 아래) ===
+      // SVG 원본 크기(mm) 그대로 사용, 테스트 색상으로 fill/stroke를 일괄 치환해 벡터 임베드.
+      const shapesForSide: ShapeOption[] = side === "front"
+        ? [shapeOptions.frontOutline, shapeOptions.frontCenter]
+        : [shapeOptions.back];
+      for (const s of shapesForSide) {
+        if (!s?.svgDataUrl) continue;
+        try {
+          const raw = decodeSvgDataUrl(s.svgDataUrl);
+          if (!raw) continue;
+          const nat = svgNaturalSizeMm(raw);
+          const colored = recolorSvgString(raw, s.color || "#000000");
+          const tl = anchorTopLeft(s.x_mm, s.y_mm, nat.w, nat.h, s.anchor);
+          const subBytes = await svgStringToPdfBytes(colored, nat.w * MM, nat.h * MM);
+          const [embedded] = await out.embedPdf(subBytes, [0]);
+          page.drawPage(embedded, {
+            x: tl.left * MM,
+            y: pageHpt - (tl.top + nat.h) * MM,
+            width: nat.w * MM,
+            height: nat.h * MM,
+          });
+        } catch (e) { console.warn("shape svg embed failed", e); }
+      }
+
+
       for (const key of keys) {
         const cfg = layout[key];
         if (!cfg?.enabled) continue;
