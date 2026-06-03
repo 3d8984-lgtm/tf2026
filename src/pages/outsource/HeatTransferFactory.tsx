@@ -2366,6 +2366,18 @@ function DesignTab({
   const [busy, setBusy] = useState(false);
   const [quality, setQualityState] = useState<QualityPresetKey>(uiDraft.quality ?? "auto");
   const [autoResolved, setAutoResolved] = useState<{ preset: Exclude<QualityPresetKey, "auto">; reason: string } | null>(null);
+  // DPI & "원본 해상도 유지" — persisted per-order
+  const [dpiState, setDpiState] = useState<number>(uiDraft.dpi ?? 300);
+  const [useOriginalRes, setUseOriginalResState] = useState<boolean>(uiDraft.useOriginalRes ?? false);
+  const setDpi = (v: number) => {
+    const clamped = Math.max(72, Math.min(1200, Math.round(v) || 300));
+    setDpiState(clamped);
+    writeHtDesignUiDraft(order.orderNo, { dpi: clamped });
+  };
+  const setUseOriginalRes = (v: boolean) => {
+    setUseOriginalResState(v);
+    writeHtDesignUiDraft(order.orderNo, { useOriginalRes: v });
+  };
   // design transform within fixed format (offset in %, scale relative to cover-fit)
   const [offsetX, setOffsetXState] = useState(uiDraft.offsetX ?? 0);
   const [offsetY, setOffsetYState] = useState(uiDraft.offsetY ?? 0);
@@ -2395,6 +2407,8 @@ function DesignTab({
     setOffsetYState(next.offsetY ?? 0);
     setDesignScaleState(next.designScale ?? 1);
     setTestUidState(next.testUid ?? "");
+    setDpiState(next.dpi ?? 300);
+    setUseOriginalResState(next.useOriginalRes ?? false);
   }, [order.orderNo]);
 
 
@@ -2403,24 +2417,13 @@ function DesignTab({
   const first = details[0];
   const effectiveDesign = testDesign || first?.designSrc || null;
 
-  // Resolve "auto" quality preset by analyzing the active design image.
-  useEffect(() => {
-    let cancelled = false;
-    if (quality !== "auto" || !effectiveDesign) { setAutoResolved(null); return; }
-    (async () => {
-      const r = await analyzeDesignForQuality(effectiveDesign);
-      if (!cancelled) setAutoResolved({ preset: r.preset as Exclude<QualityPresetKey, "auto">, reason: r.reason });
-    })();
-    return () => { cancelled = true; };
-  }, [quality, effectiveDesign]);
-
-  const activePreset: Exclude<QualityPresetKey, "auto"> =
-    quality === "auto" ? (autoResolved?.preset ?? "high") : quality;
-  const presetCfg = QUALITY_PRESETS[activePreset];
-  const dpi = presetCfg.dpi;
-  const sharpen = presetCfg.sharpen;
+  // dpi/sharpen driven by explicit user setting (not quality preset).
+  // Sharpen only when we'd upscale (>= 450 dpi) — useOriginal never sharpens.
+  const dpi = dpiState;
+  const sharpen = !useOriginalRes && dpi >= 450;
 
   const previewUid = (testUid.trim() || first?.designUid || "");
+
 
   // regenerate preview when inputs change (use 96dpi for screen preview)
   useEffect(() => {
