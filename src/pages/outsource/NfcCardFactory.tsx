@@ -3361,7 +3361,7 @@ function ShapeOptionsCard({
             <label className="text-[11px] text-muted-foreground">Y (mm)</label>
             <input
               type="number"
-              step="0.01"
+              step="0.001"
               value={s.y_mm}
               onChange={(e) => update(k, { y_mm: Number(e.target.value) })}
               className="w-full h-8 rounded border bg-background px-2 text-xs"
