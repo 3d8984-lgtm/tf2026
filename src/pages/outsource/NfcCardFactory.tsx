@@ -2687,14 +2687,7 @@ function CardSideEditor({
                 }}
               />
             )}
-            <canvas
-
-              ref={previewCanvasRef}
-              className="absolute inset-0 pointer-events-none"
-              aria-hidden
-            />
-
-            {/* 기본 도형 옵션 미리보기 — SVG를 마스크로 사용해 테스트 색상으로 채움 */}
+            {/* 기본 도형 옵션 미리보기 — 이미지 위, 텍스트 옵션 아래 */}
             {(() => {
               const list: ShapeOption[] = side === "front"
                 ? [shapeOptions?.frontOutline, shapeOptions?.frontCenter].filter(Boolean) as ShapeOption[]
@@ -2723,12 +2716,19 @@ function CardSideEditor({
                       maskSize: "100% 100%",
                       WebkitMaskPosition: "center",
                       maskPosition: "center",
-                      
                     }}
                   />
                 );
               });
             })()}
+
+            {/* 텍스트 옵션이 그려지는 캔버스 — 도형 위 */}
+            <canvas
+              ref={previewCanvasRef}
+              className="absolute inset-0 pointer-events-none"
+              aria-hidden
+            />
+
 
             {keys.map(key => {
               const cfg = layout[key];
