@@ -2656,9 +2656,10 @@ function DesignTab({
               } else {
                 blob = res.blob;
               }
-              const sub = d.tshirtSize ? `${d.tshirtSize}/` : "";
+              const seq = String(idx + 1).padStart(padN, "0");
+              const productName = buildProductName(d);
               pushItem({
-                name: `${baseName}/${sub}${d.designUid}.png`,
+                name: `${baseName}/이미지/${seq}_${productName}.png`,
                 lastModified: new Date(),
                 input: blob,
               });
