@@ -1872,9 +1872,15 @@ function OrderProgressBox({
                 continue;
               }
 
-              const count = used.get(d.designUid) ?? 0;
-              const name = count === 0 ? `${d.designUid}.png` : `${d.designUid}(${count}).png`;
-              used.set(d.designUid, count + 1);
+              const padN = Math.max(2, String(details.length).length);
+              const seq = String(i + 1).padStart(padN, "0");
+              const sanitize = (s: string) => (s || "").replace(/[\\/:*?"<>|\r\n\t]+/g, "_").replace(/\s+/g, " ").trim();
+              const parts = [d.tshirtType, d.tshirtColor, d.tshirtSize].map((x) => (x || "").trim()).filter(Boolean);
+              const productName = sanitize(parts.join("_")) || d.designUid;
+              const baseFile = `${seq}_${productName}.png`;
+              const count = used.get(baseFile) ?? 0;
+              const name = count === 0 ? baseFile : baseFile.replace(/\.png$/, `(${count}).png`);
+              used.set(baseFile, count + 1);
               okCount++;
               enqueueUpload({ name, blob });
             }
