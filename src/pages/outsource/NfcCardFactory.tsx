@@ -3107,6 +3107,10 @@ function ShapeOptionsCard({
     try {
       const dataUrl = await readSvgFile(file);
       update(key, { svgDataUrl: dataUrl, fileName: file.name });
+      // 업로드 직후 자동 저장 — 새로고침/재방문에도 파일이 유지되도록
+      if (onSave && canSave !== false) {
+        setTimeout(() => { void handleSave(); }, 0);
+      }
     } catch (e: any) {
       alert(e?.message || "SVG 파일을 읽지 못했습니다");
     }
