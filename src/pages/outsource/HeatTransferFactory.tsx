@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronLeft, Upload, X, Download, FileText, Loader2, QrCode as QrCodeIcon, Plus, Trash2, Pencil, Package, CheckCircle2, Settings, Send, RotateCcw, Save } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
