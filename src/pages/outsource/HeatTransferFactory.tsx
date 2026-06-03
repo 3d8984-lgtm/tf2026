@@ -2608,6 +2608,11 @@ function DesignTab({
       pushLog("warn", `작업지시서.pdf 생성 실패: ${e instanceof Error ? e.message : String(e)}`);
     }
 
+    // Mark pre-skipped indices so ordered emission can advance past them.
+    for (const i of preSkippedIdx) markIdx(i, null);
+
+
+
     // Start streaming ZIP producer immediately so PNGs flush as they're made.
     const zipResponse = downloadZip(zipSource());
     // Pick destination: File System Access API (true streaming) or memory blob fallback.
