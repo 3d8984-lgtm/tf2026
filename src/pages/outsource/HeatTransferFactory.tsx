@@ -2578,10 +2578,19 @@ function DesignTab({
     const baseName = order.orderNo || "order";
     const padN = Math.max(2, String(details.length).length);
     const sanitizeName = (s: string) => (s || "").replace(/[\\/:*?"<>|\r\n\t]+/g, "_").replace(/\s+/g, " ").trim();
-    const buildProductName = (d: typeof details[number]) => {
-      const parts = [d.tshirtType, d.tshirtColor, d.tshirtSize].map((x) => (x || "").trim()).filter(Boolean);
-      const name = sanitizeName(parts.join("_"));
-      return name || d.designUid;
+
+    // Ordered emission: buffer items by idx so ZIP entries appear in row order
+    // regardless of which worker finishes first.
+    const pendingByIdx = new Map<number, ZipItem | null>();
+    let nextIdx = 0;
+    const markIdx = (idx: number, item: ZipItem | null) => {
+      pendingByIdx.set(idx, item);
+      while (pendingByIdx.has(nextIdx)) {
+        const it = pendingByIdx.get(nextIdx)!;
+        pendingByIdx.delete(nextIdx);
+        nextIdx++;
+        if (it) pushItem(it);
+      }
     };
     let matched = 0;
     let done = 0;
