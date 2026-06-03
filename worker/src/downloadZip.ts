@@ -96,7 +96,7 @@ export async function downloadZip(req: Request, res: Response): Promise<void> {
     }
   }
 
-  // 2) PNG parts sequentially (archiver internally serializes anyway).
+  // 2) PNG parts sequentially under "이미지/" (archiver internally serializes anyway).
   for (const p of parts) {
     if (aborted) break;
     try {
@@ -106,8 +106,12 @@ export async function downloadZip(req: Request, res: Response): Promise<void> {
         continue;
       }
       const stream = Readable.fromWeb(r.body as any);
+      // Strip any leading row index the storage layer added (e.g. "000001-uuid.png")
+      // and keep the original "NN_상품명.png" filename produced by the browser.
+      const cleanName = p.name.replace(/^\d+-[0-9a-f-]{8,}-/i, "");
+      const finalName = `이미지/${cleanName}`;
       await new Promise<void>((resolve, reject) => {
-        archive.append(stream, { name: p.name });
+        archive.append(stream, { name: finalName });
         stream.on("end", resolve);
         stream.on("error", reject);
       });
