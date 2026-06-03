@@ -2508,13 +2508,14 @@ function DesignTab({
     // Plan all tasks first (skip invalid items up front).
     type Plan = { idx: number; d: typeof details[number]; fmt: NonNullable<ReturnType<typeof resolveStrictFormat>>; src: string };
     const plans: Plan[] = [];
+    const preSkippedIdx: number[] = [];
     let skipped = 0;
     for (let i = 0; i < details.length; i++) {
       const d = details[i];
       const src = testDesign || d.designSrc;
-      if (!src) { skipped++; pushLog("warn", `건너뜀: ${d.designUid} — 디자인 소스 없음`); continue; }
+      if (!src) { skipped++; preSkippedIdx.push(i); pushLog("warn", `건너뜀: ${d.designUid} — 디자인 소스 없음`); continue; }
       const fmt = resolveStrictFormat(d);
-      if (!fmt) { skipped++; pushLog("warn", `건너뜀: ${d.designUid} (사이즈 ${d.tshirtSize || "미지정"}) — 포맷 없음`); continue; }
+      if (!fmt) { skipped++; preSkippedIdx.push(i); pushLog("warn", `건너뜀: ${d.designUid} (사이즈 ${d.tshirtSize || "미지정"}) — 포맷 없음`); continue; }
       plans.push({ idx: i, d, fmt, src });
     }
 
