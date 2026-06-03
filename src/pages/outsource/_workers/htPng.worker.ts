@@ -27,6 +27,7 @@ interface BuildMsg {
   transform: { offsetXPct: number; offsetYPct: number; scale: number };
   footer: FooterCfg;
   meta: { tshirtType?: string; tshirtColor?: string; tshirtSize?: string };
+  useOriginal?: boolean;
 }
 
 type InMsg = BuildMsg | { type: "drop-mask"; maskKey: string };
