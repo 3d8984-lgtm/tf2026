@@ -2031,7 +2031,7 @@ function DetailView({
         </Card>
 
         {/* 기본 도형 옵션 (앞면 중심/외곽 · 뒷면 단일) — 이미지 위 레이어로 합성됨 */}
-        <ShapeOptionsCard value={shapeOptions} onChange={setShapeOptions} />
+        <ShapeOptionsCard value={shapeOptions} onChange={setShapeOptions} onSave={saveLayout} canSave={loaded} />
 
         {/* Layout designer */}
         <Tabs defaultValue="front">
@@ -3071,10 +3071,15 @@ function CardThumbGrid({ cards, side, testImageUrl }: { cards: CardData[]; side:
 function ShapeOptionsCard({
   value,
   onChange,
+  onSave,
+  canSave,
 }: {
   value: ShapeOptions;
   onChange: (next: ShapeOptions) => void;
+  onSave?: () => Promise<void> | void;
+  canSave?: boolean;
 }) {
+  const [saving, setSaving] = useState(false);
   const update = (key: keyof ShapeOptions, patch: Partial<ShapeOption>) => {
     onChange({ ...value, [key]: { ...value[key], ...patch } });
   };
@@ -3087,11 +3092,25 @@ function ShapeOptionsCard({
     return `data:image/svg+xml;base64,${b64}`;
   };
 
+  const handleSave = async () => {
+    if (!onSave) return;
+    try {
+      setSaving(true);
+      await onSave();
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const onPickFile = async (key: keyof ShapeOptions, file: File | null) => {
     if (!file) { update(key, { svgDataUrl: null, fileName: null }); return; }
     try {
       const dataUrl = await readSvgFile(file);
       update(key, { svgDataUrl: dataUrl, fileName: file.name });
+      // 업로드 직후 자동 저장 — 새로고침/재방문에도 파일이 유지되도록
+      if (onSave && canSave !== false) {
+        setTimeout(() => { void handleSave(); }, 0);
+      }
     } catch (e: any) {
       alert(e?.message || "SVG 파일을 읽지 못했습니다");
     }
@@ -3225,11 +3244,19 @@ function ShapeOptionsCard({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm flex items-center justify-between">
+        <CardTitle className="text-sm flex items-center justify-between gap-2">
           <span>기본 도형 옵션</span>
-          <span className="text-[11px] font-normal text-muted-foreground">
-            SVG 원본 실제 크기 · 이미지 위 레이어로 합성 · 색상은 추후 API 연동 (현재 테스트값)
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-normal text-muted-foreground hidden md:inline">
+              업로드한 파일은 저장 후 유지됩니다 · 변경/삭제 전까지 보존
+            </span>
+            {onSave && (
+              <Button size="sm" onClick={handleSave} disabled={saving || canSave === false}>
+                {saving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1" />}
+                설정 저장
+              </Button>
+            )}
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
