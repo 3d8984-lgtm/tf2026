@@ -2377,7 +2377,7 @@ function DesignTab({
   const [autoResolved, setAutoResolved] = useState<{ preset: Exclude<QualityPresetKey, "auto">; reason: string } | null>(null);
   // DPI & "원본 해상도 유지" — persisted per-order
   const [dpiState, setDpiState] = useState<number>(uiDraft.dpi ?? 300);
-  const [useOriginalRes, setUseOriginalResState] = useState<boolean>(uiDraft.useOriginalRes ?? false);
+  const [useOriginalRes, setUseOriginalResState] = useState<boolean>(uiDraft.useOriginalRes ?? true);
   const setDpi = (v: number) => {
     const clamped = Math.max(72, Math.min(1200, Math.round(v) || 300));
     setDpiState(clamped);
@@ -2417,7 +2417,7 @@ function DesignTab({
     setDesignScaleState(next.designScale ?? 1);
     setTestUidState(next.testUid ?? "");
     setDpiState(next.dpi ?? 300);
-    setUseOriginalResState(next.useOriginalRes ?? false);
+    setUseOriginalResState(next.useOriginalRes ?? true);
   }, [order.orderNo]);
 
 
