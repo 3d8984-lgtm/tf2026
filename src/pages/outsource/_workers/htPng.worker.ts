@@ -127,10 +127,12 @@ async function compose(msg: BuildMsg): Promise<Uint8Array> {
   const mask = await getMask(msg.maskKey, msg.maskBlob);
   const img = await getImg(msg.designSrc);
 
-  const { transform, footer, dpi, widthPt, designUid, meta, useOriginal } = msg;
-  // useOriginal: image is already at print pixel size — output canvas matches image.
-  const targetW = useOriginal ? img.width : msg.targetW;
-  const targetH = useOriginal ? img.height : msg.targetH;
+  const { transform, footer, dpi, widthPt, designUid, meta } = msg;
+  // Frame shape/size is ALWAYS the uploaded frame geometry — driven by the
+  // mask blob's pixel size (which the main thread builds at frame-native
+  // resolution in useOriginal mode, or at widthPt×dpi otherwise).
+  const targetW = msg.targetW;
+  const targetH = msg.targetH;
 
   // 1) clipped design canvas
   const base = new OffscreenCanvas(targetW, targetH);
@@ -139,8 +141,10 @@ async function compose(msg: BuildMsg): Promise<Uint8Array> {
   bctx.imageSmoothingQuality = "high";
 
   const userScale = transform.scale ?? 1;
-  const baseScale = useOriginal ? 1 : Math.max(targetW / img.width, targetH / img.height);
+  // Always cover-fit so the frame keeps its uploaded shape.
+  const baseScale = Math.max(targetW / img.width, targetH / img.height);
   const scale = baseScale * userScale;
+
   const dw = Math.max(1, Math.round(img.width * scale));
   const dh = Math.max(1, Math.round(img.height * scale));
   const dx = Math.round((targetW - dw) / 2 + ((transform.offsetXPct ?? 0) / 100) * targetW);
