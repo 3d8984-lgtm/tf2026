@@ -535,11 +535,13 @@ export interface ShapeOptions {
   frontCenter: ShapeOption;
   frontOutline: ShapeOption;
   back: ShapeOption;
+  backLine: ShapeOption;
 }
 const DEFAULT_SHAPE_OPTIONS: ShapeOptions = {
   frontCenter: makeShapeOption("#E63946"),
   frontOutline: makeShapeOption("#1D3557"),
   back: makeShapeOption("#457B9D"),
+  backLine: makeShapeOption("#000000"),
 };
 const SHAPE_ANCHORS: { value: ShapeAnchor; label: string }[] = [
   { value: "tl", label: "좌상" }, { value: "tc", label: "상중" }, { value: "tr", label: "우상" },
