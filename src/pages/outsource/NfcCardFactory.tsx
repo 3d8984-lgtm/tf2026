@@ -3401,8 +3401,9 @@ function ShapeOptionsCard({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           <ShapeOptionRow title="카드 앞면 · 중심 도형" desc="앞면 2개 도형 중 중심부 SVG" k="frontCenter" s={value.frontCenter} update={update} onPickFile={onPickFile} />
           <ShapeOptionRow title="카드 앞면 · 외곽 도형" desc="앞면 2개 도형 중 외곽부 SVG" k="frontOutline" s={value.frontOutline} update={update} onPickFile={onPickFile} />
+          <ShapeOptionRow title="카드 뒷면 · 도형" desc="뒷면 단일 SVG" k="back" s={value.back} update={update} onPickFile={onPickFile} />
+          <ShapeOptionRow title="카드 뒷면 · 라인" desc="뒷면 라인 SVG (원본 색상 유지)" k="backLine" s={value.backLine} update={update} onPickFile={onPickFile} />
         </div>
-        <ShapeOptionRow title="카드 뒷면 · 도형" desc="뒷면 단일 SVG" k="back" s={value.back} update={update} onPickFile={onPickFile} />
       </CardContent>
     </Card>
   );
