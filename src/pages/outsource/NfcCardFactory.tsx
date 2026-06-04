@@ -1224,8 +1224,9 @@ function DetailView({
     try {
       let uploadFile: Blob = file;
       let uploadName = file.name;
-      let contentType = file.type || "image/png";
-      const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+      const isSvg = file.type === "image/svg+xml" || /\.svg$/i.test(file.name);
+      let contentType = isSvg ? "image/svg+xml" : (file.type || "image/png");
+      const isPdf = !isSvg && (file.type === "application/pdf" || /\.pdf$/i.test(file.name));
       if (isPdf) {
         const bytes = new Uint8Array(await file.arrayBuffer());
         const { dataUrl } = await renderPdfFirstPagePng(bytes);
