@@ -2690,14 +2690,28 @@ function CardSideEditor({
           >
 
             {/* 열전사 디자인 공장과 동일하게 PDF를 마스크 캔버스로 변환해 디자인을 먼저 합성합니다. */}
-            {clippedPreview && (
+            {clippedPreview && !svgPreview && (
               <img
                 src={clippedPreview}
                 alt=""
                 className="absolute inset-0 w-full h-full object-fill pointer-events-none"
               />
             )}
-            {!clippedPreview && (
+            {svgPreview && (
+              <img
+                src={svgPreview.url}
+                alt=""
+                aria-hidden
+                className="absolute pointer-events-none"
+                style={{
+                  left: ((cardWmm - svgPreview.wMm) / 2) * pxPerMm,
+                  top: ((cardHmm - svgPreview.hMm) / 2) * pxPerMm,
+                  width: svgPreview.wMm * pxPerMm,
+                  height: svgPreview.hMm * pxPerMm,
+                }}
+              />
+            )}
+            {!clippedPreview && !svgPreview && (
               <div className="absolute inset-0 flex items-center justify-center text-[11px] text-muted-foreground pointer-events-none">
                 테스트 이미지 또는 API 디자인이 없습니다
               </div>
