@@ -3300,7 +3300,7 @@ const ShapeOptionRow = ({
         )}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 items-start">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 items-start">
         <div>
           <label className="text-[11px] text-muted-foreground">X (mm)</label>
           <input
@@ -3322,23 +3322,9 @@ const ShapeOptionRow = ({
           />
         </div>
         <SvgAnchorPicker val={s.anchor} onPick={(a) => update(k, { anchor: a })} />
-        <div className="md:col-span-2">
-          <label className="text-[11px] text-muted-foreground">색상 (테스트)</label>
-          <div className="flex items-center gap-1">
-            <input
-              type="color"
-              value={s.color}
-              onChange={(e) => update(k, { color: e.target.value })}
-              className="h-8 w-10 rounded border bg-background"
-            />
-            <input
-              type="text"
-              value={s.color}
-              onChange={(e) => update(k, { color: e.target.value })}
-              className="flex-1 h-8 rounded border bg-background px-2 text-xs font-mono"
-            />
-          </div>
-        </div>
+      </div>
+      <div className="text-[11px] text-muted-foreground">
+        색상은 업로드한 SVG 파일의 원본 색상이 그대로 사용됩니다.
       </div>
     </div>
   );
