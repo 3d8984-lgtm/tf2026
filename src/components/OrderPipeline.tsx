@@ -26,7 +26,11 @@ function pct(count: number, total: number) {
   return total === 0 ? 0 : Math.min(100, Math.round((count / total) * 100));
 }
 
-export default function OrderPipeline() {
+interface OrderPipelineProps {
+  onStageClick?: (orderId: string, stage: StageKey) => void;
+}
+
+export default function OrderPipeline({ onStageClick }: OrderPipelineProps = {}) {
   const { lang } = useLang();
   const isKo = lang === "ko";
   const { data: orders, isLoading: ordersLoading } = useOrders();
