@@ -1224,8 +1224,9 @@ function DetailView({
     try {
       let uploadFile: Blob = file;
       let uploadName = file.name;
-      let contentType = file.type || "image/png";
-      const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+      const isSvg = file.type === "image/svg+xml" || /\.svg$/i.test(file.name);
+      let contentType = isSvg ? "image/svg+xml" : (file.type || "image/png");
+      const isPdf = !isSvg && (file.type === "application/pdf" || /\.pdf$/i.test(file.name));
       if (isPdf) {
         const bytes = new Uint8Array(await file.arrayBuffer());
         const { dataUrl } = await renderPdfFirstPagePng(bytes);
@@ -1557,9 +1558,27 @@ function DetailView({
     ) => {
       const page = out.addPage([pageWpt, pageHpt]);
 
-      // === Background (raster PNG) ===
-      const designUrl = testImages[side]?.url || (side === "front" ? card.frontImageUrl : card.backImageUrl);
-      if (designUrl) {
+      // === Background design ===
+      const testAsset = testImages[side];
+      const testIsSvg = !!testAsset && /\.svg$/i.test(testAsset.name || "");
+      const designUrl = testAsset?.url || (side === "front" ? card.frontImageUrl : card.backImageUrl);
+      if (testIsSvg && testAsset) {
+        // SVG 테스트 이미지: 파일에 지정된 원본 크기(mm)와 색상을 그대로 사용해 벡터 임베드(중앙 정렬).
+        try {
+          const svgText = await (await fetch(testAsset.url)).text();
+          const nat = svgNaturalSizeMm(svgText);
+          const subBytes = await svgStringToPdfBytes(svgText, nat.w * MM, nat.h * MM);
+          const [embedded] = await out.embedPdf(subBytes, [0]);
+          const xMm = (cardSize.width - nat.w) / 2;
+          const yMm = (cardSize.height - nat.h) / 2;
+          page.drawPage(embedded, {
+            x: xMm * MM,
+            y: pageHpt - (yMm + nat.h) * MM,
+            width: nat.w * MM,
+            height: nat.h * MM,
+          });
+        } catch (e) { console.warn("svg test image embed failed", e); }
+      } else if (designUrl) {
         try {
           const pxPerMm = 300 / 25.4;
           const bgW = Math.max(64, Math.round(cardSize.width * pxPerMm));
@@ -1981,7 +2000,7 @@ function DetailView({
                   <label className="flex-1 flex items-center justify-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
                     <Upload className="w-3 h-3" />
                     <span>{testImages[side] ? "변경" : "이미지 업로드"}</span>
-                    <input type="file" accept="image/png,image/jpeg,image/webp,application/pdf" className="hidden"
+                    <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg,application/pdf" className="hidden"
                       onChange={e => { const f = e.target.files?.[0] || null; e.currentTarget.value = ""; if (f) onUploadTestImage(side, f); }} />
                   </label>
                   {testImages[side] && (
@@ -2436,15 +2455,23 @@ function CardSideEditor({
 
   const designUrl = testImageUrl || (side === "front" ? cardPreview?.frontImageUrl : cardPreview?.backImageUrl) || null;
   const [clippedPreview, setClippedPreview] = useState<string | null>(null);
+  const [svgPreview, setSvgPreview] = useState<{ url: string; wMm: number; hMm: number } | null>(null);
   useEffect(() => {
     let cancelled = false;
-    if (!designUrl) { setClippedPreview(null); return; }
+    if (!designUrl) { setClippedPreview(null); setSvgPreview(null); return; }
     (async () => {
       try {
+        // SVG 감지 — 원본 크기/색상 보존 모드로 렌더
+        const head = await (await fetch(designUrl)).text().catch(() => "");
+        if (/^\s*<\?xml[\s\S]*?<svg[\s>]/i.test(head) || /^\s*<svg[\s>]/i.test(head)) {
+          const nat = svgNaturalSizeMm(head);
+          if (!cancelled) { setSvgPreview({ url: designUrl, wMm: nat.w, hMm: nat.h }); setClippedPreview(null); }
+          return;
+        }
         const canvas = await composeMaskedCardCanvas(designUrl, null, previewW, previewH);
-        if (!cancelled) setClippedPreview(canvas.toDataURL("image/png"));
+        if (!cancelled) { setClippedPreview(canvas.toDataURL("image/png")); setSvgPreview(null); }
       } catch {
-        if (!cancelled) setClippedPreview(designUrl);
+        if (!cancelled) { setClippedPreview(designUrl); setSvgPreview(null); }
       }
     })();
     return () => { cancelled = true; };
@@ -2663,14 +2690,28 @@ function CardSideEditor({
           >
 
             {/* 열전사 디자인 공장과 동일하게 PDF를 마스크 캔버스로 변환해 디자인을 먼저 합성합니다. */}
-            {clippedPreview && (
+            {clippedPreview && !svgPreview && (
               <img
                 src={clippedPreview}
                 alt=""
                 className="absolute inset-0 w-full h-full object-fill pointer-events-none"
               />
             )}
-            {!clippedPreview && (
+            {svgPreview && (
+              <img
+                src={svgPreview.url}
+                alt=""
+                aria-hidden
+                className="absolute pointer-events-none"
+                style={{
+                  left: ((cardWmm - svgPreview.wMm) / 2) * pxPerMm,
+                  top: ((cardHmm - svgPreview.hMm) / 2) * pxPerMm,
+                  width: svgPreview.wMm * pxPerMm,
+                  height: svgPreview.hMm * pxPerMm,
+                }}
+              />
+            )}
+            {!clippedPreview && !svgPreview && (
               <div className="absolute inset-0 flex items-center justify-center text-[11px] text-muted-foreground pointer-events-none">
                 테스트 이미지 또는 API 디자인이 없습니다
               </div>
