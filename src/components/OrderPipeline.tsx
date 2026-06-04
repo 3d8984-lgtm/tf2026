@@ -157,8 +157,10 @@ export default function OrderPipeline({ onStageClick }: OrderPipelineProps = {})
 
                 return (
                   <div key={s.key} className="flex items-center flex-1 min-w-0">
-                    <div
-                      className="flex-1 rounded-lg p-2.5 transition-all duration-200"
+                    <button
+                      type="button"
+                      onClick={() => onStageClick?.(order.id, s.key)}
+                      className="flex-1 rounded-lg p-2.5 transition-all duration-200 text-left hover:ring-1 hover:ring-primary/40 cursor-pointer"
                       style={{
                         background: isFuture ? "hsl(var(--surface-sunken))" : stageBgColors[s.key],
                         opacity: isFuture ? 0.5 : 1,
