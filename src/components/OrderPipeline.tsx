@@ -26,7 +26,11 @@ function pct(count: number, total: number) {
   return total === 0 ? 0 : Math.min(100, Math.round((count / total) * 100));
 }
 
-export default function OrderPipeline() {
+interface OrderPipelineProps {
+  onStageClick?: (orderId: string, stage: StageKey) => void;
+}
+
+export default function OrderPipeline({ onStageClick }: OrderPipelineProps = {}) {
   const { lang } = useLang();
   const isKo = lang === "ko";
   const { data: orders, isLoading: ordersLoading } = useOrders();
@@ -153,8 +157,10 @@ export default function OrderPipeline() {
 
                 return (
                   <div key={s.key} className="flex items-center flex-1 min-w-0">
-                    <div
-                      className="flex-1 rounded-lg p-2.5 transition-all duration-200"
+                    <button
+                      type="button"
+                      onClick={() => onStageClick?.(order.id, s.key)}
+                      className="flex-1 rounded-lg p-2.5 transition-all duration-200 text-left hover:ring-1 hover:ring-primary/40 cursor-pointer"
                       style={{
                         background: isFuture ? "hsl(var(--surface-sunken))" : stageBgColors[s.key],
                         opacity: isFuture ? 0.5 : 1,
@@ -178,7 +184,7 @@ export default function OrderPipeline() {
                         </span>
                         <span className="text-[10px] tabular-nums text-muted-foreground">{stagePct > 0 ? `${stagePct}%` : ""}</span>
                       </div>
-                    </div>
+                    </button>
 
                     {si < stages.length - 1 && (
                       <div className="flex flex-col items-center justify-center px-0.5 shrink-0">
