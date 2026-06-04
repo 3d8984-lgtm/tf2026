@@ -422,6 +422,7 @@ export type Database = {
           expected_at: string | null
           factory: Database["public"]["Enums"]["outsource_factory"]
           id: string
+          image_url: string | null
           note: string | null
           order_no: string
           ordered_at: string
@@ -434,6 +435,8 @@ export type Database = {
           status: Database["public"]["Enums"]["outsource_status"]
           tracking_no: string | null
           updated_at: string
+          us_due_at: string | null
+          wechat_sent_at: string | null
         }
         Insert: {
           carrier?: string | null
@@ -441,6 +444,7 @@ export type Database = {
           expected_at?: string | null
           factory: Database["public"]["Enums"]["outsource_factory"]
           id?: string
+          image_url?: string | null
           note?: string | null
           order_no: string
           ordered_at?: string
@@ -453,6 +457,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["outsource_status"]
           tracking_no?: string | null
           updated_at?: string
+          us_due_at?: string | null
+          wechat_sent_at?: string | null
         }
         Update: {
           carrier?: string | null
@@ -460,6 +466,7 @@ export type Database = {
           expected_at?: string | null
           factory?: Database["public"]["Enums"]["outsource_factory"]
           id?: string
+          image_url?: string | null
           note?: string | null
           order_no?: string
           ordered_at?: string
@@ -472,6 +479,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["outsource_status"]
           tracking_no?: string | null
           updated_at?: string
+          us_due_at?: string | null
+          wechat_sent_at?: string | null
         }
         Relationships: []
       }
