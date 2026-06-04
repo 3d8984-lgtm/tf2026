@@ -2455,15 +2455,23 @@ function CardSideEditor({
 
   const designUrl = testImageUrl || (side === "front" ? cardPreview?.frontImageUrl : cardPreview?.backImageUrl) || null;
   const [clippedPreview, setClippedPreview] = useState<string | null>(null);
+  const [svgPreview, setSvgPreview] = useState<{ url: string; wMm: number; hMm: number } | null>(null);
   useEffect(() => {
     let cancelled = false;
-    if (!designUrl) { setClippedPreview(null); return; }
+    if (!designUrl) { setClippedPreview(null); setSvgPreview(null); return; }
     (async () => {
       try {
+        // SVG 감지 — 원본 크기/색상 보존 모드로 렌더
+        const head = await (await fetch(designUrl)).text().catch(() => "");
+        if (/^\s*<\?xml[\s\S]*?<svg[\s>]/i.test(head) || /^\s*<svg[\s>]/i.test(head)) {
+          const nat = svgNaturalSizeMm(head);
+          if (!cancelled) { setSvgPreview({ url: designUrl, wMm: nat.w, hMm: nat.h }); setClippedPreview(null); }
+          return;
+        }
         const canvas = await composeMaskedCardCanvas(designUrl, null, previewW, previewH);
-        if (!cancelled) setClippedPreview(canvas.toDataURL("image/png"));
+        if (!cancelled) { setClippedPreview(canvas.toDataURL("image/png")); setSvgPreview(null); }
       } catch {
-        if (!cancelled) setClippedPreview(designUrl);
+        if (!cancelled) { setClippedPreview(designUrl); setSvgPreview(null); }
       }
     })();
     return () => { cancelled = true; };
