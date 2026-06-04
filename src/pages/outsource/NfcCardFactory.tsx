@@ -2336,8 +2336,8 @@ function CardSideEditor({
   const previewW = cardWmm * pxPerMm;
   const previewH = cardHmm * pxPerMm;
   // 인쇄에 포함되지 않는 가이드 라인 (57×87mm 정중앙 기준)
-  const GUIDE_W_MM = CARD_W_MM;
-  const GUIDE_H_MM = CARD_H_MM;
+  const GUIDE_W_MM = 57;
+  const GUIDE_H_MM = 87;
   const guideWpx = GUIDE_W_MM * pxPerMm;
   const guideHpx = GUIDE_H_MM * pxPerMm;
   const guideLeftPx = ((cardWmm - GUIDE_W_MM) / 2) * pxPerMm;
