@@ -449,7 +449,15 @@ export default function TshirtWork() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead><tr className="border-b text-left">
-                  {["#", t("tshirtWork.color"), t("tshirtWork.size"), t("tshirtWork.siliconQR"), t("tshirtWork.hologramQR"), t("tshirtWork.status")].map(h =>
+                  {[
+                    isKo ? "주문번호" : "订单号",
+                    t("tshirtWork.color"),
+                    t("tshirtWork.size"),
+                    isKo ? "마크고유번호" : "标识唯一编号",
+                    isKo ? "디자인 고유번호" : "设计唯一编号",
+                    isKo ? "스티커 고유번호" : "贴纸唯一编号",
+                    t("tshirtWork.status"),
+                  ].map(h =>
                     <th key={h} className="pb-2 font-medium text-muted-foreground whitespace-nowrap pr-4">{h}</th>
                   )}
                   <th className="pb-2"></th>
@@ -457,11 +465,12 @@ export default function TshirtWork() {
                 <tbody>
                   {selectedOrder.items.map(item => (
                     <tr key={item.seq} className={`border-b last:border-0 transition-colors ${item.status === "pending" ? "hover:bg-muted/30" : ""}`}>
-                      <td className="py-2.5 tabular-nums text-muted-foreground pr-4">{item.seq}</td>
+                      <td className="py-2.5 font-mono text-xs pr-4">{selectedOrder.orderNo}</td>
                       <td className="py-2.5 pr-4 font-medium">{item.color}</td>
                       <td className="py-2.5 pr-4">{item.size}</td>
-                      <td className="py-2.5 font-mono text-xs pr-4">{item.siliconQR}</td>
-                      <td className="py-2.5 font-mono text-xs pr-4">{item.hologramQR}</td>
+                      <td className="py-2.5 font-mono text-xs pr-4">{selectedOrder.orderNo}-1</td>
+                      <td className="py-2.5 font-mono text-xs pr-4">{selectedOrder.orderNo}-2</td>
+                      <td className="py-2.5 font-mono text-xs pr-4">{selectedOrder.orderNo}-3</td>
                       <td className="py-2.5 pr-4"><StatusBadge status={item.status} t={t} /></td>
                       <td className="py-2.5">
                         {item.status === "pending" && (
