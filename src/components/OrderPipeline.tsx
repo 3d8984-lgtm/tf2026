@@ -184,7 +184,7 @@ export default function OrderPipeline({ onStageClick }: OrderPipelineProps = {})
                         </span>
                         <span className="text-[10px] tabular-nums text-muted-foreground">{stagePct > 0 ? `${stagePct}%` : ""}</span>
                       </div>
-                    </div>
+                    </button>
 
                     {si < stages.length - 1 && (
                       <div className="flex flex-col items-center justify-center px-0.5 shrink-0">
