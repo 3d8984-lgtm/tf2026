@@ -535,11 +535,13 @@ export interface ShapeOptions {
   frontCenter: ShapeOption;
   frontOutline: ShapeOption;
   back: ShapeOption;
+  backLine: ShapeOption;
 }
 const DEFAULT_SHAPE_OPTIONS: ShapeOptions = {
   frontCenter: makeShapeOption("#E63946"),
   frontOutline: makeShapeOption("#1D3557"),
   back: makeShapeOption("#457B9D"),
+  backLine: makeShapeOption("#000000"),
 };
 const SHAPE_ANCHORS: { value: ShapeAnchor; label: string }[] = [
   { value: "tl", label: "좌상" }, { value: "tc", label: "상중" }, { value: "tr", label: "우상" },
@@ -1421,6 +1423,7 @@ function DetailView({
             frontCenter:  { ...prev.frontCenter,  ...(v.shapeOptions.frontCenter  || {}) },
             frontOutline: { ...prev.frontOutline, ...(v.shapeOptions.frontOutline || {}) },
             back:         { ...prev.back,         ...(v.shapeOptions.back         || {}) },
+            backLine:     { ...prev.backLine,     ...(v.shapeOptions.backLine     || {}) },
           }));
           if (v.masterFont && FONT_OPTIONS.some(f => f.id === v.masterFont)) setMasterFont(v.masterFont);
           if (typeof v.masterFontWeight === "number") setMasterFontWeight(v.masterFontWeight);
@@ -1569,19 +1572,18 @@ function DetailView({
       }
 
       // === 기본 도형 옵션 (디자인 위 / 옵션 요소 아래) ===
-      // SVG 원본 크기(mm) 그대로 사용, 테스트 색상으로 fill/stroke를 일괄 치환해 벡터 임베드.
+      // SVG 원본 크기(mm) 및 원본 색상을 그대로 사용해 벡터 임베드 — 색상 변형 금지.
       const shapesForSide: ShapeOption[] = side === "front"
         ? [shapeOptions.frontOutline, shapeOptions.frontCenter]
-        : [shapeOptions.back];
+        : [shapeOptions.back, shapeOptions.backLine];
       for (const s of shapesForSide) {
         if (!s?.svgDataUrl) continue;
         try {
           const raw = decodeSvgDataUrl(s.svgDataUrl);
           if (!raw) continue;
           const nat = svgNaturalSizeMm(raw);
-          const colored = recolorSvgString(raw, s.color || "#000000");
           const tl = anchorTopLeft(s.x_mm, s.y_mm, nat.w, nat.h, s.anchor);
-          const subBytes = await svgStringToPdfBytes(colored, nat.w * MM, nat.h * MM);
+          const subBytes = await svgStringToPdfBytes(raw, nat.w * MM, nat.h * MM);
           const [embedded] = await out.embedPdf(subBytes, [0]);
           page.drawPage(embedded, {
             x: tl.left * MM,
@@ -2687,19 +2689,21 @@ function CardSideEditor({
                 }}
               />
             )}
-            {/* 기본 도형 옵션 미리보기 — 이미지 위, 텍스트 옵션 아래 */}
+            {/* 기본 도형 옵션 미리보기 — 이미지 위, 텍스트 옵션 아래. 원본 색상 보존 */}
             {(() => {
               const list: ShapeOption[] = side === "front"
                 ? [shapeOptions?.frontOutline, shapeOptions?.frontCenter].filter(Boolean) as ShapeOption[]
-                : [shapeOptions?.back].filter(Boolean) as ShapeOption[];
+                : [shapeOptions?.back, shapeOptions?.backLine].filter(Boolean) as ShapeOption[];
               return list.map((s, i) => {
                 if (!s?.svgDataUrl) return null;
                 const svgStr = decodeSvgDataUrl(s.svgDataUrl);
                 const nat = svgStr ? svgNaturalSizeMm(svgStr) : { w: 10, h: 10 };
                 const tl = anchorTopLeft(s.x_mm, s.y_mm, nat.w, nat.h, s.anchor);
                 return (
-                  <div
+                  <img
                     key={`shape-${side}-${i}`}
+                    src={s.svgDataUrl}
+                    alt=""
                     aria-hidden
                     className="absolute pointer-events-none"
                     style={{
@@ -2707,15 +2711,6 @@ function CardSideEditor({
                       top: tl.top * pxPerMm,
                       width: nat.w * pxPerMm,
                       height: nat.h * pxPerMm,
-                      backgroundColor: s.color,
-                      WebkitMaskImage: `url(${s.svgDataUrl})`,
-                      maskImage: `url(${s.svgDataUrl})`,
-                      WebkitMaskRepeat: "no-repeat",
-                      maskRepeat: "no-repeat",
-                      WebkitMaskSize: "100% 100%",
-                      maskSize: "100% 100%",
-                      WebkitMaskPosition: "center",
-                      maskPosition: "center",
                     }}
                   />
                 );
@@ -3305,7 +3300,7 @@ const ShapeOptionRow = ({
         )}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 items-start">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 items-start">
         <div>
           <label className="text-[11px] text-muted-foreground">X (mm)</label>
           <input
@@ -3327,23 +3322,9 @@ const ShapeOptionRow = ({
           />
         </div>
         <SvgAnchorPicker val={s.anchor} onPick={(a) => update(k, { anchor: a })} />
-        <div className="md:col-span-2">
-          <label className="text-[11px] text-muted-foreground">색상 (테스트)</label>
-          <div className="flex items-center gap-1">
-            <input
-              type="color"
-              value={s.color}
-              onChange={(e) => update(k, { color: e.target.value })}
-              className="h-8 w-10 rounded border bg-background"
-            />
-            <input
-              type="text"
-              value={s.color}
-              onChange={(e) => update(k, { color: e.target.value })}
-              className="flex-1 h-8 rounded border bg-background px-2 text-xs font-mono"
-            />
-          </div>
-        </div>
+      </div>
+      <div className="text-[11px] text-muted-foreground">
+        색상은 업로드한 SVG 파일의 원본 색상이 그대로 사용됩니다.
       </div>
     </div>
   );
@@ -3420,8 +3401,9 @@ function ShapeOptionsCard({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           <ShapeOptionRow title="카드 앞면 · 중심 도형" desc="앞면 2개 도형 중 중심부 SVG" k="frontCenter" s={value.frontCenter} update={update} onPickFile={onPickFile} />
           <ShapeOptionRow title="카드 앞면 · 외곽 도형" desc="앞면 2개 도형 중 외곽부 SVG" k="frontOutline" s={value.frontOutline} update={update} onPickFile={onPickFile} />
+          <ShapeOptionRow title="카드 뒷면 · 도형" desc="뒷면 단일 SVG" k="back" s={value.back} update={update} onPickFile={onPickFile} />
+          <ShapeOptionRow title="카드 뒷면 · 라인" desc="뒷면 라인 SVG (원본 색상 유지)" k="backLine" s={value.backLine} update={update} onPickFile={onPickFile} />
         </div>
-        <ShapeOptionRow title="카드 뒷면 · 도형" desc="뒷면 단일 SVG" k="back" s={value.back} update={update} onPickFile={onPickFile} />
       </CardContent>
     </Card>
   );
