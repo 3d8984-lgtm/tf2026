@@ -1558,9 +1558,27 @@ function DetailView({
     ) => {
       const page = out.addPage([pageWpt, pageHpt]);
 
-      // === Background (raster PNG) ===
-      const designUrl = testImages[side]?.url || (side === "front" ? card.frontImageUrl : card.backImageUrl);
-      if (designUrl) {
+      // === Background design ===
+      const testAsset = testImages[side];
+      const testIsSvg = !!testAsset && /\.svg$/i.test(testAsset.name || "");
+      const designUrl = testAsset?.url || (side === "front" ? card.frontImageUrl : card.backImageUrl);
+      if (testIsSvg && testAsset) {
+        // SVG 테스트 이미지: 파일에 지정된 원본 크기(mm)와 색상을 그대로 사용해 벡터 임베드(중앙 정렬).
+        try {
+          const svgText = await (await fetch(testAsset.url)).text();
+          const nat = svgNaturalSizeMm(svgText);
+          const subBytes = await svgStringToPdfBytes(svgText, nat.w * MM, nat.h * MM);
+          const [embedded] = await out.embedPdf(subBytes, [0]);
+          const xMm = (cardSize.width - nat.w) / 2;
+          const yMm = (cardSize.height - nat.h) / 2;
+          page.drawPage(embedded, {
+            x: xMm * MM,
+            y: pageHpt - (yMm + nat.h) * MM,
+            width: nat.w * MM,
+            height: nat.h * MM,
+          });
+        } catch (e) { console.warn("svg test image embed failed", e); }
+      } else if (designUrl) {
         try {
           const pxPerMm = 300 / 25.4;
           const bgW = Math.max(64, Math.round(cardSize.width * pxPerMm));
