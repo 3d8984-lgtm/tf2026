@@ -1066,6 +1066,7 @@ function buildSiliconWorkOrderHtml(
   templates: Record<Grade, { name: string; bytes: Uint8Array; preview: string; aspect: number } | null>,
   colorNames: GradeColorNames = DEFAULT_GRADE_COLOR_NAMES,
   colorStyle: GradeColorStyle = DEFAULT_GRADE_COLOR_STYLE,
+  exampleImages: Partial<Record<Grade, string>> = {},
   opts?: { autoPrint?: boolean },
 ): string {
   const esc = (s: any) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
@@ -1075,9 +1076,11 @@ function buildSiliconWorkOrderHtml(
     ? `${g} · <span class="g-color" ${styleAttr}>${esc(colorNames[g])}</span>`
     : g;
   const gradeRow = (g: Grade) => {
+    const example = exampleImages[g];
     const t = templates[g];
-    const img = t?.preview
-      ? `<img src="${t.preview}" alt="${g}" />`
+    const src = example || t?.preview || "";
+    const img = src
+      ? `<img src="${src}" alt="${g}" />`
       : `<div class="ph">未上传</div>`;
     return `<div class="g-cell"><div class="g-name">${gradeLabel(g)}</div><div class="g-img">${img}</div></div>`;
   };
