@@ -1774,11 +1774,12 @@ function SiliconOrderProgressBox({
     } catch {}
     return DEFAULT_GRADE_COLOR_STYLE;
   }, [open1]);
+  const exampleImageMap = useMemo(() => exampleImageUrls(readExampleImages()), [open1]);
 
   const woData = useMemo(() => computeSiliconWorkOrder(order, items), [order, items]);
   const woHtml = useMemo(
-    () => buildSiliconWorkOrderHtml(woData, templates, colorNames, colorStyle),
-    [woData, templates, colorNames, colorStyle],
+    () => buildSiliconWorkOrderHtml(woData, templates, colorNames, colorStyle, exampleImageMap),
+    [woData, templates, colorNames, colorStyle, exampleImageMap],
   );
 
   const saveWebhook = () => {
