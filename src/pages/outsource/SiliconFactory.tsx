@@ -1048,6 +1048,21 @@ function TxtField({ label, v, set, type = "text" }: { label: string; v: string; 
 const PROOF_LS_KEY = "silicon.proofSettings.v1";
 const GRADE_COLOR_LS_KEY = "silicon.gradeColorNames.v1";
 const GRADE_COLOR_STYLE_LS_KEY = "silicon.gradeColorStyle.v1";
+const EXAMPLE_IMAGES_LS_KEY = "silicon.exampleImages.v1";
+
+type GradeExampleImages = Partial<Record<Grade, { name: string; dataUrl: string }>>;
+function readExampleImages(): GradeExampleImages {
+  try {
+    const raw = typeof window !== "undefined" ? localStorage.getItem(EXAMPLE_IMAGES_LS_KEY) : null;
+    if (raw) return JSON.parse(raw) as GradeExampleImages;
+  } catch {}
+  return {};
+}
+function exampleImageUrls(m: GradeExampleImages): Partial<Record<Grade, string>> {
+  const out: Partial<Record<Grade, string>> = {};
+  (Object.keys(m) as Grade[]).forEach(g => { if (m[g]?.dataUrl) out[g] = m[g]!.dataUrl; });
+  return out;
+}
 
 type GradeColorNames = Record<Grade, string>;
 const DEFAULT_GRADE_COLOR_NAMES: GradeColorNames = { COMMON: "", RARE: "", EPIC: "", LEGEND: "" };
