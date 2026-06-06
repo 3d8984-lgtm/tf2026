@@ -1119,8 +1119,9 @@ function buildSiliconWorkOrderHtml(
   h2 { font-size: 12pt; margin: 8mm 0 3mm; padding-bottom: 1.5mm; border-bottom: 1px solid #999; }
   .grades { display:grid; grid-template-columns: repeat(4, 1fr); gap: 4mm; }
   .g-cell { border:1px solid #333; padding: 3mm; text-align:center; }
-  .g-name { font-weight:700; font-size: 10pt; margin-bottom: 2mm; letter-spacing: 1px; }
-  .g-img { height: 32mm; display:flex; align-items:center; justify-content:center; background:#fafafa; }
+  .g-name { font-weight:700; font-size: 7pt !important; margin-bottom: 1.5mm; letter-spacing: 0.5px; line-height: 1.2; }
+  .g-name .g-color { font-size: 8pt !important; font-weight: 700 !important; }
+  .g-img { height: 36mm; display:flex; align-items:center; justify-content:center; background:#fafafa; }
   .g-img img { max-width:100%; max-height:100%; object-fit: contain; }
   .ph { color:#999; font-size: 9pt; }
   .sig { margin-top: 10mm; display:flex; justify-content:flex-end; gap: 10mm; font-size: 10pt; }
