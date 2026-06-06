@@ -1048,6 +1048,21 @@ function TxtField({ label, v, set, type = "text" }: { label: string; v: string; 
 const PROOF_LS_KEY = "silicon.proofSettings.v1";
 const GRADE_COLOR_LS_KEY = "silicon.gradeColorNames.v1";
 const GRADE_COLOR_STYLE_LS_KEY = "silicon.gradeColorStyle.v1";
+const EXAMPLE_IMAGES_LS_KEY = "silicon.exampleImages.v1";
+
+type GradeExampleImages = Partial<Record<Grade, { name: string; dataUrl: string }>>;
+function readExampleImages(): GradeExampleImages {
+  try {
+    const raw = typeof window !== "undefined" ? localStorage.getItem(EXAMPLE_IMAGES_LS_KEY) : null;
+    if (raw) return JSON.parse(raw) as GradeExampleImages;
+  } catch {}
+  return {};
+}
+function exampleImageUrls(m: GradeExampleImages): Partial<Record<Grade, string>> {
+  const out: Partial<Record<Grade, string>> = {};
+  (Object.keys(m) as Grade[]).forEach(g => { if (m[g]?.dataUrl) out[g] = m[g]!.dataUrl; });
+  return out;
+}
 
 type GradeColorNames = Record<Grade, string>;
 const DEFAULT_GRADE_COLOR_NAMES: GradeColorNames = { COMMON: "", RARE: "", EPIC: "", LEGEND: "" };
@@ -1066,6 +1081,7 @@ function buildSiliconWorkOrderHtml(
   templates: Record<Grade, { name: string; bytes: Uint8Array; preview: string; aspect: number } | null>,
   colorNames: GradeColorNames = DEFAULT_GRADE_COLOR_NAMES,
   colorStyle: GradeColorStyle = DEFAULT_GRADE_COLOR_STYLE,
+  exampleImages: Partial<Record<Grade, string>> = {},
   opts?: { autoPrint?: boolean },
 ): string {
   const esc = (s: any) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
@@ -1075,9 +1091,11 @@ function buildSiliconWorkOrderHtml(
     ? `${g} · <span class="g-color" ${styleAttr}>${esc(colorNames[g])}</span>`
     : g;
   const gradeRow = (g: Grade) => {
+    const example = exampleImages[g];
     const t = templates[g];
-    const img = t?.preview
-      ? `<img src="${t.preview}" alt="${g}" />`
+    const src = example || t?.preview || "";
+    const img = src
+      ? `<img src="${src}" alt="${g}" />`
       : `<div class="ph">未上传</div>`;
     return `<div class="g-cell"><div class="g-name">${gradeLabel(g)}</div><div class="g-img">${img}</div></div>`;
   };
@@ -1142,8 +1160,9 @@ function printWorkOrder(
   templates: Record<Grade, { name: string; bytes: Uint8Array; preview: string; aspect: number } | null>,
   colorNames: GradeColorNames = DEFAULT_GRADE_COLOR_NAMES,
   colorStyle: GradeColorStyle = DEFAULT_GRADE_COLOR_STYLE,
+  exampleImages: Partial<Record<Grade, string>> = {},
 ) {
-  const html = buildSiliconWorkOrderHtml(wo, templates, colorNames, colorStyle, { autoPrint: true });
+  const html = buildSiliconWorkOrderHtml(wo, templates, colorNames, colorStyle, exampleImages, { autoPrint: true });
   const w = window.open("", "_blank", "width=900,height=1100");
   if (!w) { toast({ title: "팝업 차단됨", description: "팝업을 허용해주세요", variant: "destructive" }); return; }
   w.document.open(); w.document.write(html); w.document.close();
@@ -1755,11 +1774,12 @@ function SiliconOrderProgressBox({
     } catch {}
     return DEFAULT_GRADE_COLOR_STYLE;
   }, [open1]);
+  const exampleImageMap = useMemo(() => exampleImageUrls(readExampleImages()), [open1]);
 
   const woData = useMemo(() => computeSiliconWorkOrder(order, items), [order, items]);
   const woHtml = useMemo(
-    () => buildSiliconWorkOrderHtml(woData, templates, colorNames, colorStyle),
-    [woData, templates, colorNames, colorStyle],
+    () => buildSiliconWorkOrderHtml(woData, templates, colorNames, colorStyle, exampleImageMap),
+    [woData, templates, colorNames, colorStyle, exampleImageMap],
   );
 
   const saveWebhook = () => {
@@ -2064,6 +2084,34 @@ function ProofBox({
     } catch {}
     return DEFAULT_GRADE_COLOR_STYLE;
   });
+
+  // ===== 등급별 예시 이미지 (작업지시서) =====
+  const [exampleImages, setExampleImages] = useState<GradeExampleImages>(() => readExampleImages());
+  const persistExampleImages = (next: GradeExampleImages) => {
+    setExampleImages(next);
+    try { localStorage.setItem(EXAMPLE_IMAGES_LS_KEY, JSON.stringify(next)); } catch {}
+  };
+  const onUploadExampleImage = async (grade: Grade, file: File | null) => {
+    if (!file) {
+      const next = { ...exampleImages };
+      delete next[grade];
+      persistExampleImages(next);
+      toast({ title: "예시 이미지 삭제됨", description: grade });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "파일이 너무 큽니다", description: "5MB 이하 이미지만 업로드할 수 있습니다", variant: "destructive" });
+      return;
+    }
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result || ""));
+      fr.onerror = () => reject(fr.error);
+      fr.readAsDataURL(file);
+    });
+    persistExampleImages({ ...exampleImages, [grade]: { name: file.name, dataUrl } });
+    toast({ title: "예시 이미지 업로드됨", description: `${grade} · ${file.name}` });
+  };
   const labelFor = (it: ProofItem) => {
     const c = gradeColorNames[it.grade];
     if (!c) return <>{it.uniqueNo}</>;
@@ -2304,7 +2352,7 @@ function ProofBox({
                     toast({ title: "작업지시서 저장됨" });
                   } catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" }); }
                 }}>저장</Button>
-                <Button size="sm" variant="outline" onClick={() => printWorkOrder({ ...workOrder, total: woTotal }, templates, gradeColorNames, gradeColorStyle)}>
+                <Button size="sm" variant="outline" onClick={() => printWorkOrder({ ...workOrder, total: woTotal }, templates, gradeColorNames, gradeColorStyle, exampleImageUrls(exampleImages))}>
                   <FileText className="w-4 h-4 mr-1" />작업지시서 출력
                 </Button>
               </div>
@@ -2341,6 +2389,80 @@ function ProofBox({
             </div>
           </CardContent>
         </Card>
+
+        {/* ============== 등급별 예시 이미지 (작업지시서) ============== */}
+        <Card className="border-dashed">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center justify-between">
+              <span>등급별 예시 이미지 (작업지시서)</span>
+              <span className="text-xs text-muted-foreground font-normal">
+                업로드 시 작업지시서의 "各等级硅胶标识(示例)" 이미지를 대체합니다 · PNG / JPG / SVG (≤5MB)
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {GRADES.map(g => {
+                const ex = exampleImages[g];
+                const label =
+                  g === "COMMON" ? "COMMON / Black" :
+                  g === "RARE" ? "RARE / Silver" :
+                  g === "EPIC" ? "EPIC / Gold" : "LEGEND / Hologram";
+                return (
+                  <div key={g} className="border rounded-md p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">{label}</Label>
+                    </div>
+                    <div className="w-full h-32 border rounded bg-muted/30 overflow-hidden flex items-center justify-center">
+                      {ex?.dataUrl ? (
+                        <img src={ex.dataUrl} alt={`${g} example`} className="w-full h-full object-contain bg-white" />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">예시 이미지 없음</span>
+                      )}
+                    </div>
+                    {ex ? (
+                      <div className="flex items-center gap-2">
+                        <label className="flex-1 flex items-center justify-center gap-1 cursor-pointer text-xs px-3 py-2 border rounded hover:bg-accent">
+                          <Upload className="w-3 h-3" />
+                          <span>변경</span>
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
+                            className="hidden"
+                            onChange={e => onUploadExampleImage(g, e.target.files?.[0] || null)}
+                          />
+                        </label>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs px-3 py-2 h-auto"
+                          onClick={() => onUploadExampleImage(g, null)}
+                        >
+                          삭제
+                        </Button>
+                      </div>
+                    ) : (
+                      <label className="flex items-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
+                        <Upload className="w-3 h-3" />
+                        <span className="truncate">이미지 업로드</span>
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
+                          className="hidden"
+                          onChange={e => onUploadExampleImage(g, e.target.files?.[0] || null)}
+                        />
+                      </label>
+                    )}
+                    {ex?.name && (
+                      <div className="text-[10px] text-muted-foreground truncate" title={ex.name}>{ex.name}</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
 
         {/* ============== 등급별 색상명 설정 ============== */}
         <Card className="border-dashed">
