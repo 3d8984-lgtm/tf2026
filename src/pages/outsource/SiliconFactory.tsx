@@ -2084,6 +2084,34 @@ function ProofBox({
     } catch {}
     return DEFAULT_GRADE_COLOR_STYLE;
   });
+
+  // ===== 등급별 예시 이미지 (작업지시서) =====
+  const [exampleImages, setExampleImages] = useState<GradeExampleImages>(() => readExampleImages());
+  const persistExampleImages = (next: GradeExampleImages) => {
+    setExampleImages(next);
+    try { localStorage.setItem(EXAMPLE_IMAGES_LS_KEY, JSON.stringify(next)); } catch {}
+  };
+  const onUploadExampleImage = async (grade: Grade, file: File | null) => {
+    if (!file) {
+      const next = { ...exampleImages };
+      delete next[grade];
+      persistExampleImages(next);
+      toast({ title: "예시 이미지 삭제됨", description: grade });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "파일이 너무 큽니다", description: "5MB 이하 이미지만 업로드할 수 있습니다", variant: "destructive" });
+      return;
+    }
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result || ""));
+      fr.onerror = () => reject(fr.error);
+      fr.readAsDataURL(file);
+    });
+    persistExampleImages({ ...exampleImages, [grade]: { name: file.name, dataUrl } });
+    toast({ title: "예시 이미지 업로드됨", description: `${grade} · ${file.name}` });
+  };
   const labelFor = (it: ProofItem) => {
     const c = gradeColorNames[it.grade];
     if (!c) return <>{it.uniqueNo}</>;
