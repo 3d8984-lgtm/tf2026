@@ -2390,6 +2390,80 @@ function ProofBox({
           </CardContent>
         </Card>
 
+        {/* ============== 등급별 예시 이미지 (작업지시서) ============== */}
+        <Card className="border-dashed">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center justify-between">
+              <span>등급별 예시 이미지 (작업지시서)</span>
+              <span className="text-xs text-muted-foreground font-normal">
+                업로드 시 작업지시서의 "各等级硅胶标识(示例)" 이미지를 대체합니다 · PNG / JPG / SVG (≤5MB)
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {GRADES.map(g => {
+                const ex = exampleImages[g];
+                const label =
+                  g === "COMMON" ? "COMMON / Black" :
+                  g === "RARE" ? "RARE / Silver" :
+                  g === "EPIC" ? "EPIC / Gold" : "LEGEND / Hologram";
+                return (
+                  <div key={g} className="border rounded-md p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">{label}</Label>
+                    </div>
+                    <div className="w-full h-32 border rounded bg-muted/30 overflow-hidden flex items-center justify-center">
+                      {ex?.dataUrl ? (
+                        <img src={ex.dataUrl} alt={`${g} example`} className="w-full h-full object-contain bg-white" />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">예시 이미지 없음</span>
+                      )}
+                    </div>
+                    {ex ? (
+                      <div className="flex items-center gap-2">
+                        <label className="flex-1 flex items-center justify-center gap-1 cursor-pointer text-xs px-3 py-2 border rounded hover:bg-accent">
+                          <Upload className="w-3 h-3" />
+                          <span>변경</span>
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
+                            className="hidden"
+                            onChange={e => onUploadExampleImage(g, e.target.files?.[0] || null)}
+                          />
+                        </label>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs px-3 py-2 h-auto"
+                          onClick={() => onUploadExampleImage(g, null)}
+                        >
+                          삭제
+                        </Button>
+                      </div>
+                    ) : (
+                      <label className="flex items-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
+                        <Upload className="w-3 h-3" />
+                        <span className="truncate">이미지 업로드</span>
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
+                          className="hidden"
+                          onChange={e => onUploadExampleImage(g, e.target.files?.[0] || null)}
+                        />
+                      </label>
+                    )}
+                    {ex?.name && (
+                      <div className="text-[10px] text-muted-foreground truncate" title={ex.name}>{ex.name}</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+
         {/* ============== 등급별 색상명 설정 ============== */}
         <Card className="border-dashed">
           <CardHeader className="pb-3">
