@@ -1145,8 +1145,9 @@ function printWorkOrder(
   templates: Record<Grade, { name: string; bytes: Uint8Array; preview: string; aspect: number } | null>,
   colorNames: GradeColorNames = DEFAULT_GRADE_COLOR_NAMES,
   colorStyle: GradeColorStyle = DEFAULT_GRADE_COLOR_STYLE,
+  exampleImages: Partial<Record<Grade, string>> = {},
 ) {
-  const html = buildSiliconWorkOrderHtml(wo, templates, colorNames, colorStyle, { autoPrint: true });
+  const html = buildSiliconWorkOrderHtml(wo, templates, colorNames, colorStyle, exampleImages, { autoPrint: true });
   const w = window.open("", "_blank", "width=900,height=1100");
   if (!w) { toast({ title: "팝업 차단됨", description: "팝업을 허용해주세요", variant: "destructive" }); return; }
   w.document.open(); w.document.write(html); w.document.close();
