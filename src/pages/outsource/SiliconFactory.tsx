@@ -467,13 +467,7 @@ export default function SiliconFactory() {
       const orderNo = o.external_order_id;
       const url = findSvgUrl(o);
       const dup = (seen.get(orderNo) || 0) > 1;
-      const rawGrade = String(
-        o.source_data?.items?.[0]?.grade ??
-        o.source_data?.grade ??
-        o.grade ??
-        "COMMON"
-      ).toUpperCase();
-      const grade: Grade = (GRADES as string[]).includes(rawGrade) ? (rawGrade as Grade) : "COMMON";
+      const grade: Grade = resolveGrade(o.source_data?.items?.[0], o);
       const status: Row["status"] = dup ? "duplicate" : url ? "ok" : "no-svg";
       const items: any[] = Array.isArray(o.source_data?.items) ? o.source_data.items : [];
       const svgCount = items.filter(it =>
