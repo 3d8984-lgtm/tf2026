@@ -86,7 +86,7 @@ export default function TshirtFactory() {
   const [onlyWarning, setOnlyWarning] = useState(false);
 
   const [skuDetail, setSkuDetail] = useState<Inventory | null>(null);
-  const [poDetail, setPoDetail] = useState<PO | null>(null);
+  const [poDetail, setPoDetail] = useState<PO[] | null>(null);
 
   // PO form prefill
   const [prefillType, setPrefillType] = useState<string | null>(null);
@@ -133,12 +133,13 @@ export default function TshirtFactory() {
   }, [inventory]);
 
   const kpi = useMemo(() => {
-    let ok = 0, low = 0, critical = 0, out = 0;
+    let ok = 0, low = 0, critical = 0, out = 0, todayWork = 0;
     for (const i of inventory) {
       const s = statusInfo(i.available, i.safety_stock).key;
       if (s === "ok") ok++; else if (s === "low") low++; else if (s === "critical") critical++; else out++;
+      todayWork += Number(i.in_progress) || 0;
     }
-    return { ok, low, critical, out };
+    return { ok, low, critical, out, todayWork };
   }, [inventory]);
 
   const warnings = useMemo(() => {
@@ -223,8 +224,9 @@ export default function TshirtFactory() {
 
         <TabsContent value="inventory" className="space-y-6">
           {/* KPI cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <KpiTile icon={<CheckCircle2 className="w-5 h-5" />} label="정상 재고" value={kpi.ok} accent="text-emerald-500" dot="bg-emerald-500" />
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <KpiTile icon={<CheckCircle2 className="w-5 h-5" />} label="정상 재고 (작업분 제외)" value={kpi.ok} accent="text-emerald-500" dot="bg-emerald-500" />
+            <KpiTile icon={<Package className="w-5 h-5" />} label="오늘 작업 재고" value={kpi.todayWork} accent="text-sky-500" dot="bg-sky-500" />
             <KpiTile icon={<AlertTriangle className="w-5 h-5" />} label="재고 부족" value={kpi.low} accent="text-yellow-500" dot="bg-yellow-500" />
             <KpiTile icon={<AlertTriangle className="w-5 h-5" />} label="품절 임박" value={kpi.critical} accent="text-red-500" dot="bg-red-500" />
             <KpiTile icon={<CircleSlash className="w-5 h-5" />} label="품절" value={kpi.out} accent="text-zinc-400" dot="bg-zinc-500" />
@@ -409,8 +411,8 @@ export default function TshirtFactory() {
                       <TableHead>발주번호</TableHead>
                       <TableHead>발주일</TableHead>
                       <TableHead>예상 입고</TableHead>
-                      <TableHead>실제 입고</TableHead>
-                      <TableHead>종류 / 색상</TableHead>
+                      <TableHead>종류</TableHead>
+                      <TableHead>색상</TableHead>
                       {SIZES.map(s => <TableHead key={s} className="text-center text-xs">{s}</TableHead>)}
                       <TableHead className="text-center">합계</TableHead>
                       <TableHead>상태</TableHead>
@@ -421,33 +423,60 @@ export default function TshirtFactory() {
                     {filteredPos.length === 0 && (
                       <TableRow><TableCell colSpan={14} className="text-center py-8 text-muted-foreground">발주 내역이 없습니다.</TableCell></TableRow>
                     )}
-                    {filteredPos.map(p => {
-                      const sizeMap = new Map(p.items?.map(i => [i.size, i.quantity]));
-                      const total = (p.items ?? []).reduce((s, i) => s + i.quantity, 0);
-                      const pt = productTypes.find(t => t.code === p.product_type_code);
-                      const c = colors.find(c => c.code === p.color_code);
-                      const st = poStatusBadge(p.status);
-                      return (
-                        <TableRow key={p.id}>
-                          <TableCell className="font-mono text-xs">{p.po_number}</TableCell>
-                          <TableCell className="text-xs">{p.ordered_at}</TableCell>
-                          <TableCell className="text-xs">{p.expected_at ?? "-"}</TableCell>
-                          <TableCell className="text-xs">{p.received_at ?? <span className="text-muted-foreground">대기 중</span>}</TableCell>
-                          <TableCell className="text-xs">{pt ? nameOf(pt) : p.product_type_code} / {c ? nameOf(c) : p.color_code}</TableCell>
-                          {SIZES.map(s => <TableCell key={s} className="text-center text-xs">{sizeMap.get(s) || ""}</TableCell>)}
-                          <TableCell className="text-center font-semibold">{total}</TableCell>
-                          <TableCell><Badge variant={st.variant}>{st.label}</Badge></TableCell>
-                          <TableCell className="text-right space-x-1">
-                            <Button size="sm" variant="ghost" onClick={() => setPoDetail(p)}><Eye className="w-3.5 h-3.5" /></Button>
-                            {p.status !== "received" && (
-                              <Button size="sm" variant="outline" onClick={() => markReceived(p)}>
-                                <PackageCheck className="w-3.5 h-3.5 mr-1" /> 입고
-                              </Button>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                    {(() => {
+                      // Group POs by ordered_at + product_type + created_by + notes
+                      const groups = new Map<string, PO[]>();
+                      for (const p of filteredPos) {
+                        const k = `${p.ordered_at}|${p.product_type_code}|${p.created_by_label ?? ""}|${p.notes ?? ""}`;
+                        const arr = groups.get(k) ?? [];
+                        arr.push(p);
+                        groups.set(k, arr);
+                      }
+                      const rows: React.ReactNode[] = [];
+                      let gi = 0;
+                      groups.forEach((groupPos) => {
+                        gi++;
+                        const pt = productTypes.find(t => t.code === groupPos[0].product_type_code);
+                        const groupTotal = groupPos.reduce((s, p) => s + (p.items ?? []).reduce((x, i) => x + i.quantity, 0), 0);
+                        groupPos.forEach((p, idx) => {
+                          const sizeMap = new Map(p.items?.map(i => [i.size, i.quantity]));
+                          const total = (p.items ?? []).reduce((s, i) => s + i.quantity, 0);
+                          const c = colors.find(c => c.code === p.color_code);
+                          const st = poStatusBadge(p.status);
+                          const isFirst = idx === 0;
+                          return rows.push(
+                            <TableRow key={p.id} className={isFirst && gi > 1 ? "border-t-2 border-primary/30" : ""}>
+                              <TableCell className="font-mono text-xs">{isFirst ? p.po_number : <span className="text-muted-foreground">↳</span>}</TableCell>
+                              <TableCell className="text-xs">{isFirst ? p.ordered_at : ""}</TableCell>
+                              <TableCell className="text-xs">{isFirst ? (p.expected_at ?? "-") : ""}</TableCell>
+                              <TableCell className="text-xs">{isFirst ? (pt ? nameOf(pt) : p.product_type_code) : ""}</TableCell>
+                              <TableCell className="text-xs">
+                                <span className="inline-flex items-center gap-1.5">
+                                  {c && <span className="inline-block w-3 h-3 rounded-full border" style={{ background: c.hex }} />}
+                                  {c ? nameOf(c) : p.color_code}
+                                </span>
+                              </TableCell>
+                              {SIZES.map(s => <TableCell key={s} className="text-center text-xs tabular-nums">{sizeMap.get(s) || ""}</TableCell>)}
+                              <TableCell className="text-center font-semibold tabular-nums">{total}</TableCell>
+                              <TableCell><Badge variant={st.variant}>{st.label}</Badge></TableCell>
+                              <TableCell className="text-right space-x-1">
+                                {isFirst && (
+                                  <>
+                                    <Button size="sm" variant="ghost" onClick={() => setPoDetail(groupPos)} title={`그룹 총수량 ${groupTotal}`}><Eye className="w-3.5 h-3.5" /></Button>
+                                  </>
+                                )}
+                                {p.status !== "received" && (
+                                  <Button size="sm" variant="outline" onClick={() => markReceived(p)}>
+                                    <PackageCheck className="w-3.5 h-3.5 mr-1" /> 입고
+                                  </Button>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        });
+                      });
+                      return rows;
+                    })()}
                   </TableBody>
                 </Table>
               </div>
@@ -502,9 +531,9 @@ export default function TshirtFactory() {
 
       {/* PO detail dialog */}
       <Dialog open={!!poDetail} onOpenChange={o => !o && setPoDetail(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader><DialogTitle>발주 상세 {poDetail?.po_number}</DialogTitle></DialogHeader>
-          {poDetail && <PoDetailView po={poDetail} productTypes={productTypes} colors={colors} nameOf={nameOf} />}
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>발주 상세 {poDetail?.[0]?.po_number}{poDetail && poDetail.length > 1 ? ` 외 ${poDetail.length - 1}건` : ""}</DialogTitle></DialogHeader>
+          {poDetail && <PoDetailView group={poDetail} productTypes={productTypes} colors={colors} nameOf={nameOf} />}
         </DialogContent>
       </Dialog>
     </div>
@@ -535,64 +564,97 @@ function Stat({ label, value, accent }: { label: string; value: number; accent?:
   );
 }
 
-function PoDetailView({ po, productTypes, colors, nameOf }: {
-  po: PO; productTypes: ProductType[]; colors: Color[]; nameOf: (t: any) => string;
+function PoDetailView({ group, productTypes, colors, nameOf }: {
+  group: PO[]; productTypes: ProductType[]; colors: Color[]; nameOf: (t: any) => string;
 }) {
-  const pt = productTypes.find(t => t.code === po.product_type_code);
-  const c = colors.find(c => c.code === po.color_code);
-  const st = poStatusBadge(po.status);
-  const total = (po.items ?? []).reduce((s, i) => s + i.quantity, 0);
+  const first = group[0];
+  const pt = productTypes.find(t => t.code === first.product_type_code);
+  const grandTotal = group.reduce((s, p) => s + (p.items ?? []).reduce((x, i) => x + i.quantity, 0), 0);
+  const allAttachments = group.flatMap(p => p.attachments ?? []);
 
   const [urls, setUrls] = useState<Record<string, string>>({});
   useEffect(() => {
     (async () => {
       const next: Record<string, string> = {};
-      for (const a of po.attachments ?? []) {
+      for (const a of allAttachments) {
         const { data } = await supabase.storage.from(BUCKET).createSignedUrl(a.file_path, 3600);
         if (data?.signedUrl) next[a.id] = data.signedUrl;
       }
       setUrls(next);
     })();
-  }, [po.id]);
+  }, [group.map(p => p.id).join(",")]);
 
   return (
     <div className="space-y-4 text-sm">
       <div className="grid grid-cols-2 gap-3">
-        <div><span className="text-muted-foreground">발주일:</span> {po.ordered_at}</div>
-        <div><span className="text-muted-foreground">예상 입고일:</span> {po.expected_at ?? "-"}</div>
-        <div><span className="text-muted-foreground">실제 입고일:</span> {po.received_at ?? "-"}</div>
-        <div><span className="text-muted-foreground">상태:</span> <Badge variant={st.variant}>{st.label}</Badge></div>
-        <div><span className="text-muted-foreground">종류:</span> {pt ? nameOf(pt) : po.product_type_code}</div>
-        <div><span className="text-muted-foreground">색상:</span> {c ? nameOf(c) : po.color_code}</div>
-        <div><span className="text-muted-foreground">작성자:</span> {po.created_by_label ?? "-"}</div>
-        <div><span className="text-muted-foreground">총 수량:</span> <b>{total}</b></div>
+        <div><span className="text-muted-foreground">발주일:</span> {first.ordered_at}</div>
+        <div><span className="text-muted-foreground">예상 입고일:</span> {first.expected_at ?? "-"}</div>
+        <div><span className="text-muted-foreground">종류:</span> {pt ? nameOf(pt) : first.product_type_code}</div>
+        <div><span className="text-muted-foreground">색상 수:</span> {group.length}</div>
+        <div><span className="text-muted-foreground">작성자:</span> {first.created_by_label ?? "-"}</div>
+        <div><span className="text-muted-foreground">총 수량:</span> <b>{grandTotal}</b></div>
       </div>
 
       <div>
-        <div className="font-medium mb-2">사이즈별 수량</div>
-        <div className="grid grid-cols-7 gap-2">
-          {SIZES.map(s => {
-            const q = po.items?.find(i => i.size === s)?.quantity ?? 0;
-            return <div key={s} className="border rounded p-2 text-center">
-              <div className="text-xs text-muted-foreground">{s}</div>
-              <div className="font-semibold">{q}</div>
-            </div>;
-          })}
+        <div className="font-medium mb-2">색상 × 사이즈별 수량</div>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-40">색상</TableHead>
+                {SIZES.map(s => <TableHead key={s} className="text-center text-xs">{s}</TableHead>)}
+                <TableHead className="text-center">합계</TableHead>
+                <TableHead>상태</TableHead>
+                <TableHead>발주번호</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {group.map(p => {
+                const c = colors.find(c => c.code === p.color_code);
+                const sizeMap = new Map(p.items?.map(i => [i.size, i.quantity]));
+                const total = (p.items ?? []).reduce((s, i) => s + i.quantity, 0);
+                const st = poStatusBadge(p.status);
+                return (
+                  <TableRow key={p.id}>
+                    <TableCell>
+                      <span className="inline-flex items-center gap-2">
+                        {c && <span className="inline-block w-3 h-3 rounded-full border" style={{ background: c.hex }} />}
+                        {c ? nameOf(c) : p.color_code}
+                      </span>
+                    </TableCell>
+                    {SIZES.map(s => <TableCell key={s} className="text-center tabular-nums">{sizeMap.get(s) || ""}</TableCell>)}
+                    <TableCell className="text-center font-semibold tabular-nums">{total}</TableCell>
+                    <TableCell><Badge variant={st.variant}>{st.label}</Badge></TableCell>
+                    <TableCell className="font-mono text-xs">{p.po_number}</TableCell>
+                  </TableRow>
+                );
+              })}
+              <TableRow>
+                <TableCell className="font-semibold">합계</TableCell>
+                {SIZES.map(s => {
+                  const t = group.reduce((sum, p) => sum + (p.items?.find(i => i.size === s)?.quantity ?? 0), 0);
+                  return <TableCell key={s} className="text-center font-semibold tabular-nums">{t || ""}</TableCell>;
+                })}
+                <TableCell className="text-center font-bold tabular-nums">{grandTotal}</TableCell>
+                <TableCell colSpan={2}></TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
         </div>
       </div>
 
-      {po.notes && (
+      {first.notes && (
         <div>
           <div className="font-medium mb-1">특이사항</div>
-          <div className="whitespace-pre-wrap text-muted-foreground border rounded p-2">{po.notes}</div>
+          <div className="whitespace-pre-wrap text-muted-foreground border rounded p-2">{first.notes}</div>
         </div>
       )}
 
-      {(po.attachments ?? []).length > 0 && (
+      {allAttachments.length > 0 && (
         <div>
-          <div className="font-medium mb-2">참고 도면 ({po.attachments?.length})</div>
+          <div className="font-medium mb-2">참고 도면 ({allAttachments.length})</div>
           <div className="grid grid-cols-3 gap-2">
-            {po.attachments?.map(a => {
+            {allAttachments.map(a => {
               const url = urls[a.id];
               const isImg = (a.mime_type ?? "").startsWith("image/");
               return (
