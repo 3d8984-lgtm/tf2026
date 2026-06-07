@@ -16,6 +16,32 @@ Deno.serve(async (req) => {
     const { imageBase64, mode = 'test' } = body as { imageBase64?: string; mode?: string; scale?: number };
     const scale = body?.scale === 4 ? 4 : 2;
 
+    // RunPod (PiD) probe: check that PID_ENDPOINT_URL + PID_API_KEY are configured and reachable
+    if (mode === 'pid-test') {
+      const pidUrlRaw = Deno.env.get('PID_ENDPOINT_URL');
+      const pidKey = Deno.env.get('PID_API_KEY');
+      if (!pidUrlRaw || !pidKey) {
+        return new Response(JSON.stringify({
+          error: 'PID_ENDPOINT_URL or PID_API_KEY not configured',
+          hasUrl: !!pidUrlRaw, hasKey: !!pidKey,
+        }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      const base = pidUrlRaw.trim().replace(/\/(run|runsync)\/?$/, '');
+      const healthUrl = `${base}/health`;
+      try {
+        const r = await fetch(healthUrl, { headers: { Authorization: `Bearer ${pidKey}` } });
+        const t = await r.text();
+        let parsed: any = null; try { parsed = JSON.parse(t); } catch {}
+        return new Response(JSON.stringify({
+          ok: r.ok, status: r.status, endpoint: base, health: parsed ?? t.slice(0, 400),
+        }), { status: r.ok ? 200 : 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      } catch (e) {
+        return new Response(JSON.stringify({
+          error: e instanceof Error ? e.message : String(e), endpoint: base,
+        }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+    }
+
     // Test mode: just verify the API key
     if (mode === 'test' || !imageBase64) {
       const resp = await fetch('https://image-api.photoroom.com/v2/account', {
@@ -33,6 +59,7 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
 
     // Memory-efficient base64 decode
     const base64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
