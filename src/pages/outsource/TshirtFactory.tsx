@@ -86,7 +86,7 @@ export default function TshirtFactory() {
   const [onlyWarning, setOnlyWarning] = useState(false);
 
   const [skuDetail, setSkuDetail] = useState<Inventory | null>(null);
-  const [poDetail, setPoDetail] = useState<PO | null>(null);
+  const [poDetail, setPoDetail] = useState<PO[] | null>(null);
 
   // PO form prefill
   const [prefillType, setPrefillType] = useState<string | null>(null);
