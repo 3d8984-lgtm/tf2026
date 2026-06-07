@@ -702,6 +702,40 @@ function PurchaseOrderForm({
     }
   };
 
+  const downloadExcel = () => {
+    const typeName = productTypes.find(t => t.code === typeCode) ? nameOf(productTypes.find(t => t.code === typeCode)!) : "";
+    const colorName = colors.find(c => c.code === colorCode) ? nameOf(colors.find(c => c.code === colorCode)!) : "";
+    const header: any[][] = [
+      ["발 주 서 (PURCHASE ORDER)"],
+      [],
+      ["발주업체명", company, "", "작업번호", jobNo || ""],
+      ["발주일", orderedAt, "", "납품일", expectedAt || ""],
+      ["받을사람", recipient, "", "전화번호", phone],
+      ["주소", address],
+      ["작성자", author, "", "총수량", total],
+      [],
+      ["상품 정보"],
+      ["티셔츠 종류", "색상", ...SIZES, "합계"],
+      [typeName, colorName, ...SIZES.map(s => qty[s] || 0), total],
+      [],
+      ["발주 특이사항"],
+      [notes || ""],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(header);
+    ws["!cols"] = [{ wch: 16 }, { wch: 20 }, { wch: 4 }, { wch: 16 }, { wch: 20 }, ...SIZES.map(() => ({ wch: 8 })), { wch: 10 }];
+    ws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } },
+      { s: { r: 5, c: 1 }, e: { r: 5, c: 10 } },
+      { s: { r: 13, c: 0 }, e: { r: 13, c: 10 } },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "발주서");
+    const fname = `발주서_${jobNo || orderedAt}_${typeName || "tshirt"}.xlsx`;
+    XLSX.writeFile(wb, fname);
+    toast({ title: "엑셀 다운로드 완료", description: fname });
+  };
+
+
   return (
     <div className="space-y-6">
       <Card>
