@@ -411,8 +411,8 @@ export default function TshirtFactory() {
                       <TableHead>발주번호</TableHead>
                       <TableHead>발주일</TableHead>
                       <TableHead>예상 입고</TableHead>
-                      <TableHead>실제 입고</TableHead>
-                      <TableHead>종류 / 색상</TableHead>
+                      <TableHead>종류</TableHead>
+                      <TableHead>색상</TableHead>
                       {SIZES.map(s => <TableHead key={s} className="text-center text-xs">{s}</TableHead>)}
                       <TableHead className="text-center">합계</TableHead>
                       <TableHead>상태</TableHead>
@@ -423,33 +423,60 @@ export default function TshirtFactory() {
                     {filteredPos.length === 0 && (
                       <TableRow><TableCell colSpan={14} className="text-center py-8 text-muted-foreground">발주 내역이 없습니다.</TableCell></TableRow>
                     )}
-                    {filteredPos.map(p => {
-                      const sizeMap = new Map(p.items?.map(i => [i.size, i.quantity]));
-                      const total = (p.items ?? []).reduce((s, i) => s + i.quantity, 0);
-                      const pt = productTypes.find(t => t.code === p.product_type_code);
-                      const c = colors.find(c => c.code === p.color_code);
-                      const st = poStatusBadge(p.status);
-                      return (
-                        <TableRow key={p.id}>
-                          <TableCell className="font-mono text-xs">{p.po_number}</TableCell>
-                          <TableCell className="text-xs">{p.ordered_at}</TableCell>
-                          <TableCell className="text-xs">{p.expected_at ?? "-"}</TableCell>
-                          <TableCell className="text-xs">{p.received_at ?? <span className="text-muted-foreground">대기 중</span>}</TableCell>
-                          <TableCell className="text-xs">{pt ? nameOf(pt) : p.product_type_code} / {c ? nameOf(c) : p.color_code}</TableCell>
-                          {SIZES.map(s => <TableCell key={s} className="text-center text-xs">{sizeMap.get(s) || ""}</TableCell>)}
-                          <TableCell className="text-center font-semibold">{total}</TableCell>
-                          <TableCell><Badge variant={st.variant}>{st.label}</Badge></TableCell>
-                          <TableCell className="text-right space-x-1">
-                            <Button size="sm" variant="ghost" onClick={() => setPoDetail(p)}><Eye className="w-3.5 h-3.5" /></Button>
-                            {p.status !== "received" && (
-                              <Button size="sm" variant="outline" onClick={() => markReceived(p)}>
-                                <PackageCheck className="w-3.5 h-3.5 mr-1" /> 입고
-                              </Button>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                    {(() => {
+                      // Group POs by ordered_at + product_type + created_by + notes
+                      const groups = new Map<string, PO[]>();
+                      for (const p of filteredPos) {
+                        const k = `${p.ordered_at}|${p.product_type_code}|${p.created_by_label ?? ""}|${p.notes ?? ""}`;
+                        const arr = groups.get(k) ?? [];
+                        arr.push(p);
+                        groups.set(k, arr);
+                      }
+                      const rows: React.ReactNode[] = [];
+                      let gi = 0;
+                      groups.forEach((groupPos) => {
+                        gi++;
+                        const pt = productTypes.find(t => t.code === groupPos[0].product_type_code);
+                        const groupTotal = groupPos.reduce((s, p) => s + (p.items ?? []).reduce((x, i) => x + i.quantity, 0), 0);
+                        groupPos.forEach((p, idx) => {
+                          const sizeMap = new Map(p.items?.map(i => [i.size, i.quantity]));
+                          const total = (p.items ?? []).reduce((s, i) => s + i.quantity, 0);
+                          const c = colors.find(c => c.code === p.color_code);
+                          const st = poStatusBadge(p.status);
+                          const isFirst = idx === 0;
+                          return rows.push(
+                            <TableRow key={p.id} className={isFirst && gi > 1 ? "border-t-2 border-primary/30" : ""}>
+                              <TableCell className="font-mono text-xs">{isFirst ? p.po_number : <span className="text-muted-foreground">↳</span>}</TableCell>
+                              <TableCell className="text-xs">{isFirst ? p.ordered_at : ""}</TableCell>
+                              <TableCell className="text-xs">{isFirst ? (p.expected_at ?? "-") : ""}</TableCell>
+                              <TableCell className="text-xs">{isFirst ? (pt ? nameOf(pt) : p.product_type_code) : ""}</TableCell>
+                              <TableCell className="text-xs">
+                                <span className="inline-flex items-center gap-1.5">
+                                  {c && <span className="inline-block w-3 h-3 rounded-full border" style={{ background: c.hex }} />}
+                                  {c ? nameOf(c) : p.color_code}
+                                </span>
+                              </TableCell>
+                              {SIZES.map(s => <TableCell key={s} className="text-center text-xs tabular-nums">{sizeMap.get(s) || ""}</TableCell>)}
+                              <TableCell className="text-center font-semibold tabular-nums">{total}</TableCell>
+                              <TableCell><Badge variant={st.variant}>{st.label}</Badge></TableCell>
+                              <TableCell className="text-right space-x-1">
+                                {isFirst && (
+                                  <>
+                                    <Button size="sm" variant="ghost" onClick={() => setPoDetail(groupPos)} title={`그룹 총수량 ${groupTotal}`}><Eye className="w-3.5 h-3.5" /></Button>
+                                  </>
+                                )}
+                                {p.status !== "received" && (
+                                  <Button size="sm" variant="outline" onClick={() => markReceived(p)}>
+                                    <PackageCheck className="w-3.5 h-3.5 mr-1" /> 입고
+                                  </Button>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        });
+                      });
+                      return rows;
+                    })()}
                   </TableBody>
                 </Table>
               </div>
