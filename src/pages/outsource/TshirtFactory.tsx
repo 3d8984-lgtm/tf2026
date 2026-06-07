@@ -868,10 +868,91 @@ function PurchaseOrderForm({
         </CardContent>
       </Card>
 
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button variant="outline" onClick={() => setPreviewOpen(true)}>
+          <Eye className="w-4 h-4 mr-1" />발주서 미리보기
+        </Button>
+        <Button variant="outline" onClick={() => downloadExcel()}>
+          <FileSpreadsheet className="w-4 h-4 mr-1" />엑셀 다운로드
+        </Button>
         <Button variant="outline" disabled={saving} onClick={() => submit("draft")}>임시 저장</Button>
         <Button disabled={saving} onClick={() => submit("ordered")}>발주 등록</Button>
       </div>
+
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>발주서 미리보기</DialogTitle></DialogHeader>
+          <PurchaseOrderPreview
+            company={company} jobNo={jobNo} author={author}
+            orderedAt={orderedAt} expectedAt={expectedAt}
+            recipient={recipient} phone={phone} address={address}
+            typeName={productTypes.find(t => t.code === typeCode) ? nameOf(productTypes.find(t => t.code === typeCode)!) : ""}
+            colorName={colors.find(c => c.code === colorCode) ? nameOf(colors.find(c => c.code === colorCode)!) : ""}
+            qty={qty} total={total} notes={notes}
+          />
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => downloadExcel()}>
+              <FileSpreadsheet className="w-4 h-4 mr-1" />엑셀 다운로드
+            </Button>
+            <Button variant="outline" onClick={() => window.print()}>인쇄</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function PurchaseOrderPreview({
+  company, jobNo, author, orderedAt, expectedAt, recipient, phone, address,
+  typeName, colorName, qty, total, notes,
+}: {
+  company: string; jobNo: string; author: string; orderedAt: string; expectedAt: string;
+  recipient: string; phone: string; address: string;
+  typeName: string; colorName: string; qty: Record<Size, number>; total: number; notes: string;
+}) {
+  return (
+    <div className="bg-white text-black p-6 rounded border print:border-0">
+      <h2 className="text-2xl font-bold text-center mb-4">발 주 서 (PURCHASE ORDER)</h2>
+      <table className="w-full text-sm border-collapse mb-4">
+        <tbody>
+          <tr><th className="border p-2 bg-gray-100 w-32 text-left">발주업체명</th><td className="border p-2">{company}</td>
+              <th className="border p-2 bg-gray-100 w-32 text-left">작업번호</th><td className="border p-2">{jobNo || "-"}</td></tr>
+          <tr><th className="border p-2 bg-gray-100 text-left">발주일</th><td className="border p-2">{orderedAt}</td>
+              <th className="border p-2 bg-gray-100 text-left">납품일</th><td className="border p-2">{expectedAt || "-"}</td></tr>
+          <tr><th className="border p-2 bg-gray-100 text-left">받을사람</th><td className="border p-2">{recipient}</td>
+              <th className="border p-2 bg-gray-100 text-left">전화번호</th><td className="border p-2">{phone}</td></tr>
+          <tr><th className="border p-2 bg-gray-100 text-left">주소</th><td className="border p-2" colSpan={3}>{address}</td></tr>
+          <tr><th className="border p-2 bg-gray-100 text-left">작성자</th><td className="border p-2">{author}</td>
+              <th className="border p-2 bg-gray-100 text-left">총수량</th><td className="border p-2 font-bold">{total}</td></tr>
+        </tbody>
+      </table>
+
+      <h3 className="font-semibold mb-2">상품 정보</h3>
+      <table className="w-full text-sm border-collapse mb-4">
+        <thead>
+          <tr className="bg-gray-100">
+            <th className="border p-2">티셔츠 종류</th>
+            <th className="border p-2">색상</th>
+            {SIZES.map(s => <th key={s} className="border p-2">{s}</th>)}
+            <th className="border p-2">합계</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td className="border p-2 text-center">{typeName || "-"}</td>
+            <td className="border p-2 text-center">{colorName || "-"}</td>
+            {SIZES.map(s => <td key={s} className="border p-2 text-center">{qty[s] || 0}</td>)}
+            <td className="border p-2 text-center font-bold">{total}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      {notes && (
+        <>
+          <h3 className="font-semibold mb-2">발주 특이사항</h3>
+          <div className="border p-3 whitespace-pre-wrap text-sm min-h-[60px]">{notes}</div>
+        </>
+      )}
     </div>
   );
 }
