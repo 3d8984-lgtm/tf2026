@@ -95,6 +95,7 @@ function ProtectedRoutes() {
         <Route path="/outsource/hologram" element={<HologramFactory />} />
         <Route path="/outsource/nfc-card" element={<NfcCardFactory />} />
         <Route path="/outsource/logo" element={<LogoFactory />} />
+        <Route path="/outsource/tshirt-factory" element={<TshirtFactory />} />
         <Route path="/outsource/history" element={<OutsourceHistory />} />
         <Route path="/outsource/jobs" element={<OrderJobsDashboard />} />
         <Route path="/outsource/settings" element={<OutsourceSettings />} />
