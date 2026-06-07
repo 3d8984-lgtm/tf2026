@@ -528,18 +528,18 @@ export default function TshirtFactory() {
 
       {/* SKU detail dialog */}
       <Dialog open={!!skuDetail} onOpenChange={o => !o && setSkuDetail(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-4xl max-h-[88vh] overflow-y-auto">
           <DialogHeader><DialogTitle>SKU 상세</DialogTitle></DialogHeader>
           {skuDetail && (() => {
             const pt = productTypes.find(t => t.code === skuDetail.product_type_code);
             const c = colors.find(c => c.code === skuDetail.color_code);
             const st = statusInfo(skuDetail.available, skuDetail.safety_stock);
             return (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div className="text-sm">
                   <span className="font-medium">{pt ? nameOf(pt) : ""}</span> · {c ? nameOf(c) : ""} · <span className="font-mono">{skuDetail.size}</span>
                 </div>
-                <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                   <Stat label="입고 재고" value={skuDetail.in_stock} />
                   <Stat label="작업 중 재고" value={skuDetail.in_progress} />
                   <Stat label="실 가용 재고" value={skuDetail.available} accent={st.text} />
@@ -549,11 +549,13 @@ export default function TshirtFactory() {
                 <Button onClick={() => { goPurchase(skuDetail.product_type_code, skuDetail.color_code, skuDetail.size); setSkuDetail(null); }}>
                   <ShoppingCart className="w-4 h-4 mr-1" /> 이 색상 발주하기
                 </Button>
+                <SkuHistory sku={skuDetail} />
               </div>
             );
           })()}
         </DialogContent>
       </Dialog>
+
 
       {/* PO detail dialog */}
       <Dialog open={!!poDetail} onOpenChange={o => !o && setPoDetail(null)}>
