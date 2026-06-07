@@ -406,6 +406,37 @@ interface DesignDetail {
   tshirtType: string;
   tshirtColor: string;
   tshirtSize: string;
+  grade: string;
+}
+
+// Normalize grade values from various sources (full names, abbreviations, colors)
+function resolveGrade(item: any, order?: any): string {
+  const raw = String(
+    item?.grade ??
+    item?.card_grade ??
+    order?.source_data?.grade ??
+    order?.source_data?.card_grade ??
+    order?.grade ??
+    ""
+  ).trim().toUpperCase();
+  if (!raw) return "COMMON";
+  const known = ["COMMON", "RARE", "EPIC", "LEGEND"];
+  if (known.includes(raw)) return raw;
+  const abbrMap: Record<string, string> = {
+    C: "COMMON", R: "RARE", E: "EPIC", L: "LEGEND",
+    COM: "COMMON", RAR: "RARE", EPI: "EPIC", LEG: "LEGEND", LGD: "LEGEND",
+    BLACK: "COMMON", SILVER: "RARE", GOLD: "EPIC", HOLOGRAM: "LEGEND", HOLO: "LEGEND",
+  };
+  return abbrMap[raw] ?? "COMMON";
+}
+
+function gradeBadgeVariant(grade: string): "secondary" | "default" | "outline" | "destructive" {
+  switch (grade) {
+    case "LEGEND": return "destructive";
+    case "EPIC": return "default";
+    case "RARE": return "secondary";
+    default: return "outline";
+  }
 }
 
 type PngJobRow = {
@@ -1090,6 +1121,7 @@ function OrderDetail({
         tshirtType: String(it.tshirt_type ?? "").trim(),
         tshirtColor: String(it.tshirt_color ?? "").trim(),
         tshirtSize: String(it.tshirt_size ?? "").trim(),
+        grade: resolveGrade(it, order.raw),
       });
     }
     return arr;
@@ -3145,6 +3177,7 @@ function OrderDetailList({
               <TableHead className="w-12">순번</TableHead>
               <TableHead>주문번호</TableHead>
               <TableHead>디자인고유번호</TableHead>
+              <TableHead>등급</TableHead>
               <TableHead>티셔츠 종류</TableHead>
               <TableHead>티셔츠 컬러</TableHead>
               <TableHead>티셔츠 사이즈</TableHead>
@@ -3160,6 +3193,7 @@ function OrderDetailList({
                   <TableCell>{d.serial}</TableCell>
                   <TableCell className="font-mono">{d.orderNo}</TableCell>
                   <TableCell className="font-mono">{d.designUid}</TableCell>
+                  <TableCell><Badge variant={gradeBadgeVariant(d.grade)}>{d.grade}</Badge></TableCell>
                   <TableCell>{d.tshirtType || "—"}</TableCell>
                   <TableCell>{d.tshirtColor || "—"}</TableCell>
                   <TableCell>{d.tshirtSize || "—"}</TableCell>
@@ -3169,7 +3203,7 @@ function OrderDetailList({
               );
             })}
             {details.length === 0 && (
-              <TableRow><TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">—</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-8">—</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
