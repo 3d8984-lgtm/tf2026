@@ -26,9 +26,6 @@ const WECHAT_CHANNELS: { key: WeChatChannel; label: { ko: string; zh: string } }
 export const VECTORIZER_MODE_KEY = "vectorizer.ai.mode.v1";
 export type VectorizerMode = "test" | "preview" | "production";
 
-export const UPSCALER_PROVIDER_KEY = "upscaler.provider.v1";
-export const UPSCALER_SCALE_KEY = "upscaler.scale.v1";
-export type UpscalerProvider = "photoroom";
 
 type Factory = "silicon" | "heat" | "hologram" | "nfc" | "logo";
 
