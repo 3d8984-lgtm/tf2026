@@ -194,28 +194,6 @@ export default function OutsourceSettings() {
     }
   };
 
-  const testPhotoroom = async () => {
-    setPhotoroomTesting(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("photoroom-upscale", {
-        body: { mode: "test" },
-      });
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
-      toast({
-        title: lang === "ko" ? "Photoroom 연결 성공" : "Photoroom 连接成功",
-        description: lang === "ko" ? "API 키가 유효합니다." : "API 密钥有效。",
-      });
-    } catch (e) {
-      toast({
-        title: lang === "ko" ? "Photoroom 연결 실패" : "Photoroom 连接失败",
-        description: e instanceof Error ? e.message : String(e),
-        variant: "destructive",
-      });
-    } finally {
-      setPhotoroomTesting(false);
-    }
-  };
 
   // RunPod (PiD) 연결 테스트
   const [pidTesting, setPidTesting] = useState(false);
