@@ -133,12 +133,13 @@ export default function TshirtFactory() {
   }, [inventory]);
 
   const kpi = useMemo(() => {
-    let ok = 0, low = 0, critical = 0, out = 0;
+    let ok = 0, low = 0, critical = 0, out = 0, todayWork = 0;
     for (const i of inventory) {
       const s = statusInfo(i.available, i.safety_stock).key;
       if (s === "ok") ok++; else if (s === "low") low++; else if (s === "critical") critical++; else out++;
+      todayWork += Number(i.in_progress) || 0;
     }
-    return { ok, low, critical, out };
+    return { ok, low, critical, out, todayWork };
   }, [inventory]);
 
   const warnings = useMemo(() => {
