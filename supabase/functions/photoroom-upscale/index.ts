@@ -68,9 +68,12 @@ Deno.serve(async (req) => {
           const j = await r.json().catch(() => ({} as any));
           const out = j?.output ?? j;
           if (!r.ok || !out?.image_b64) {
+            console.log('[PiD] non-image response', JSON.stringify(j).slice(0, 500));
+            const hint = j?.status === 'IN_QUEUE' || j?.status === 'IN_PROGRESS'
+              ? 'RunPod URL이 /run (비동기) 입니다. /runsync 로 변경하세요.'
+              : (out?.error || j?.error || `PiD 업스케일 실패 (${r.status}). 응답: ${JSON.stringify(j).slice(0, 200)}`);
             return new Response(JSON.stringify({
-              ok: false, code: `PID_${r.status}`,
-              error: out?.error || j?.error || `PiD 업스케일 실패 (${r.status})`,
+              ok: false, code: `PID_${r.status}`, error: hint, raw: j,
             }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
           }
           const bin2 = decodeBase64(out.image_b64);
