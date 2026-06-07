@@ -2211,17 +2211,19 @@ function ProofBox({
       toast({ title: "업로드 실패", description: e?.message || String(e), variant: "destructive" });
     }
   };
-  const labelFor = (it: ProofItem) => {
-    const c = gradeColorNames[it.grade];
+  const makeLabel = (names: GradeColorNames, style: GradeColorStyle) => (it: ProofItem) => {
+    const c = names[it.grade];
     if (!c) return <>{it.uniqueNo}</>;
     return (
       <>
-        {it.uniqueNo} · <span style={{ fontSize: `${gradeColorStyle.fontSize}px`, fontWeight: gradeColorStyle.fontWeight }}>{c}</span>
+        {it.uniqueNo} · <span style={{ fontSize: `${style.fontSize}px`, fontWeight: style.fontWeight }}>{c}</span>
       </>
     );
   };
-  const labelText = (it: ProofItem) => {
-    const c = gradeColorNames[it.grade];
+  const labelForTwin = makeLabel(gradeColorNamesTwin, gradeColorStyleTwin);
+  const labelForQr = makeLabel(gradeColorNamesQr, gradeColorStyleQr);
+  const labelTextTwin = (it: ProofItem) => {
+    const c = gradeColorNamesTwin[it.grade];
     return c ? `${it.uniqueNo} · ${c}` : it.uniqueNo;
   };
 
