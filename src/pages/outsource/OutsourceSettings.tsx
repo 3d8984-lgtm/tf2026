@@ -65,15 +65,6 @@ export default function OutsourceSettings() {
   const [vecTesting, setVecTesting] = useState(false);
   useEffect(() => { localStorage.setItem(VECTORIZER_MODE_KEY, vecMode); }, [vecMode]);
 
-  // 업스케일링 (Photoroom) 설정
-  const [upscaleProvider, setUpscaleProvider] = useState<UpscalerProvider>("photoroom");
-  const [upscaleScale, setUpscaleScale] = useState<number>(() => {
-    const v = typeof window !== "undefined" ? Number(localStorage.getItem(UPSCALER_SCALE_KEY)) : 0;
-    return v === 2 || v === 4 ? v : 2;
-  });
-  const [photoroomTesting, setPhotoroomTesting] = useState(false);
-  useEffect(() => { localStorage.setItem(UPSCALER_PROVIDER_KEY, upscaleProvider); }, [upscaleProvider]);
-  useEffect(() => { localStorage.setItem(UPSCALER_SCALE_KEY, String(upscaleScale)); }, [upscaleScale]);
 
   // Render 워커 URL
   const [workerUrl, setWorkerUrl] = useState<string>(() =>
