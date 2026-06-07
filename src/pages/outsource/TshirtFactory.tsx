@@ -230,43 +230,63 @@ export default function TshirtFactory() {
             <KpiTile icon={<CircleSlash className="w-5 h-5" />} label="품절" value={kpi.out} accent="text-zinc-400" dot="bg-zinc-500" />
           </div>
 
-          {/* Warnings */}
-          {warnings.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <AlertTriangle className="w-4 h-4 text-yellow-500" /> 안전 재고 경고 ({warnings.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="max-h-72 overflow-y-auto divide-y">
-                  {warnings.slice(0, 20).map(w => {
-                    const pt = productTypes.find(t => t.code === w.product_type_code);
-                    const c = colors.find(c => c.code === w.color_code);
-                    const s = statusInfo(w.available, w.safety_stock);
-                    return (
-                      <div key={w.id} className="flex items-center justify-between py-2 gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span className={`inline-block w-2.5 h-2.5 rounded-full ${s.color}`} />
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium truncate">
-                              {pt ? nameOf(pt) : w.product_type_code} · {c ? nameOf(c) : w.color_code} · {w.size}
+          {/* Safety stock setting & warnings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <AlertTriangle className="w-4 h-4 text-yellow-500" /> 안전 재고 설정 및 경고
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Tabs defaultValue="warnings">
+                <TabsList>
+                  <TabsTrigger value="settings">안전재고 설정</TabsTrigger>
+                  <TabsTrigger value="warnings">안전 재고 경고 ({warnings.length})</TabsTrigger>
+                </TabsList>
+                <TabsContent value="settings" className="pt-3">
+                  <SafetyStockSettings
+                    productTypes={productTypes}
+                    colors={colors}
+                    invMap={invMap}
+                    nameOf={nameOf}
+                    onSaved={loadAll}
+                  />
+                </TabsContent>
+                <TabsContent value="warnings" className="pt-3">
+                  {warnings.length === 0 ? (
+                    <div className="text-sm text-muted-foreground py-6 text-center">경고 항목이 없습니다.</div>
+                  ) : (
+                    <div className="max-h-72 overflow-y-auto divide-y">
+                      {warnings.slice(0, 20).map(w => {
+                        const pt = productTypes.find(t => t.code === w.product_type_code);
+                        const c = colors.find(c => c.code === w.color_code);
+                        const s = statusInfo(w.available, w.safety_stock);
+                        return (
+                          <div key={w.id} className="flex items-center justify-between py-2 gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <span className={`inline-block w-2.5 h-2.5 rounded-full ${s.color}`} />
+                              <div className="min-w-0">
+                                <div className="text-sm font-medium truncate text-red-600">
+                                  {pt ? nameOf(pt) : w.product_type_code} · {c ? nameOf(c) : w.color_code} · {w.size}
+                                </div>
+                                <div className="text-xs text-red-600">
+                                  가용 {w.available} / 안전 {w.safety_stock}
+                                </div>
+                              </div>
                             </div>
-                            <div className="text-xs text-muted-foreground">
-                              가용 {w.available} / 안전 {w.safety_stock}
-                            </div>
+                            <Button size="sm" onClick={() => goPurchase(w.product_type_code, w.color_code, w.size)}>
+                              <ShoppingCart className="w-3.5 h-3.5 mr-1" /> 발주하기
+                            </Button>
                           </div>
-                        </div>
-                        <Button size="sm" onClick={() => goPurchase(w.product_type_code, w.color_code, w.size)}>
-                          <ShoppingCart className="w-3.5 h-3.5 mr-1" /> 발주하기
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                        );
+                      })}
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+
 
           {/* Filters */}
           <Card>
@@ -759,6 +779,50 @@ function PurchaseOrderForm({
         title: status === "draft" ? "임시 저장 완료" : "발주가 등록되었습니다",
         description: createdNumbers.join(", "),
       });
+
+      // Send to WeChat group on official PO registration
+      if (status === "ordered") {
+        try {
+          const raw = localStorage.getItem("wechat.webhook.keys.v1");
+          const parsed = raw ? JSON.parse(raw) : {};
+          const key = (parsed?.tshirt || "").trim();
+          if (key) {
+            const lines = [
+              `[발주서] ${typeName || typeCode}`,
+              `작업번호: ${jobNo || "-"}`,
+              `발주업체: ${company}`,
+              `발주일: ${orderedAt}  납품일: ${expectedAt || "-"}`,
+              `받는사람: ${recipient} (${phone})`,
+              garmentType ? `의류: ${garmentType}` : "",
+              fabricName || fabricWeight ? `원단: ${fabricName} ${fabricWeight}`.trim() : "",
+              "",
+              "▶ 색상×사이즈 수량",
+              ...targets.map(c => {
+                const q = qtyByColor[c.code] || ({} as any);
+                const parts = SIZES.filter(s => (q[s] || 0) > 0).map(s => `${s}:${q[s]}`);
+                return `- ${nameOf(c)}: ${parts.join(", ")} (합계 ${colorTotals[c.code] || 0})`;
+              }),
+              `총 수량: ${total}`,
+              notes ? `\n[특이사항]\n${notes}` : "",
+              `\n발주번호: ${createdNumbers.join(", ")}`,
+            ].filter(Boolean).join("\n");
+            const webhookUrl = `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${encodeURIComponent(key)}`;
+            const { error: we } = await supabase.functions.invoke("wechat-send", {
+              body: { webhookUrl, message: lines },
+            });
+            if (we) throw we;
+            toast({ title: "위챗 발송 완료", description: "티셔츠 채널로 발주서를 전송했습니다." });
+          } else {
+            toast({
+              title: "위챗 키 미설정",
+              description: "외주 시스템 설정 > 위챗 알림 채널 > 티셔츠 공장 키를 등록하세요.",
+            });
+          }
+        } catch (we: any) {
+          toast({ title: "위챗 발송 실패", description: we?.message ?? String(we), variant: "destructive" });
+        }
+      }
+
       onDone();
     } catch (e: any) {
       toast({ title: "저장 실패", description: e.message ?? String(e), variant: "destructive" });
@@ -945,7 +1009,7 @@ function PurchaseOrderForm({
                             onChange={e => setQty(c.code, s, Number(e.target.value) || 0)}
                             className="text-right h-8 px-2"
                           />
-                          <div className={`text-[10px] text-center mt-0.5 ${low ? "text-yellow-500" : "text-muted-foreground"}`}>
+                          <div className={`text-xs text-center mt-1 font-medium ${low ? "text-red-600" : "text-black dark:text-foreground"}`}>
                             재고 {inv?.available ?? "-"} / 안전 {inv?.safety_stock ?? "-"}
                           </div>
                         </TableCell>
@@ -1131,3 +1195,121 @@ function PurchaseOrderPreview({
     </div>
   );
 }
+
+function SafetyStockSettings({
+  productTypes, colors, invMap, nameOf, onSaved,
+}: {
+  productTypes: ProductType[];
+  colors: Color[];
+  invMap: Map<string, Inventory>;
+  nameOf: (t: any) => string;
+  onSaved: () => void | Promise<void>;
+}) {
+  const [typeCode, setTypeCode] = useState<string>(productTypes[0]?.code ?? "");
+  const [values, setValues] = useState<Record<string, Record<Size, number>>>({});
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!typeCode && productTypes[0]) setTypeCode(productTypes[0].code);
+  }, [productTypes, typeCode]);
+
+  useEffect(() => {
+    if (!typeCode) return;
+    const next: Record<string, Record<Size, number>> = {};
+    for (const c of colors) {
+      next[c.code] = Object.fromEntries(SIZES.map(s => {
+        const inv = invMap.get(`${typeCode}|${c.code}|${s}`);
+        return [s, inv?.safety_stock ?? 0];
+      })) as Record<Size, number>;
+    }
+    setValues(next);
+  }, [typeCode, colors, invMap]);
+
+  const setVal = (colorCode: string, size: Size, v: number) => {
+    setValues(prev => ({
+      ...prev,
+      [colorCode]: { ...(prev[colorCode] ?? ({} as any)), [size]: Math.max(0, v) },
+    }));
+  };
+
+  const saveAll = async () => {
+    if (!typeCode) return;
+    setSaving(true);
+    try {
+      const rows: any[] = [];
+      for (const c of colors) {
+        for (const s of SIZES) {
+          const v = Number(values[c.code]?.[s]) || 0;
+          rows.push({
+            product_type_code: typeCode,
+            color_code: c.code,
+            size: s,
+            safety_stock: v,
+            in_stock: invMap.get(`${typeCode}|${c.code}|${s}`)?.in_stock ?? 0,
+            available: invMap.get(`${typeCode}|${c.code}|${s}`)?.available ?? 0,
+          });
+        }
+      }
+      const { error } = await supabase
+        .from("tshirt_inventory")
+        .upsert(rows, { onConflict: "product_type_code,color_code,size" });
+      if (error) throw error;
+      toast({ title: "안전재고가 저장되었습니다" });
+      await onSaved();
+    } catch (e: any) {
+      toast({ title: "저장 실패", description: e.message ?? String(e), variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-sm text-muted-foreground">상품 유형</span>
+        <Select value={typeCode} onValueChange={setTypeCode}>
+          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {productTypes.map(t => <SelectItem key={t.code} value={t.code}>{nameOf(t)}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Button size="sm" className="ml-auto" disabled={saving} onClick={saveAll}>
+          {saving ? "저장 중..." : "안전재고 저장"}
+        </Button>
+      </div>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-32">색상</TableHead>
+              {SIZES.map(s => <TableHead key={s} className="text-center">{s}</TableHead>)}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {colors.map(c => (
+              <TableRow key={c.code}>
+                <TableCell className="font-medium">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full border shrink-0" style={{ background: c.hex }} />
+                    {nameOf(c)}
+                  </div>
+                </TableCell>
+                {SIZES.map(s => (
+                  <TableCell key={s} className="p-1">
+                    <Input
+                      type="number" min={0}
+                      value={values[c.code]?.[s] ?? 0}
+                      onChange={e => setVal(c.code, s, Number(e.target.value) || 0)}
+                      className="text-right h-8 px-2"
+                    />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+

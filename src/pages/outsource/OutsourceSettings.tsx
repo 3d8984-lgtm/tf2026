@@ -13,13 +13,14 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const WORKER_URL_KEY = "render.worker.url.v1";
 export const WECHAT_KEYS_KEY = "wechat.webhook.keys.v1";
-type WeChatChannel = "silicon" | "heat" | "hologram" | "nfc" | "logo";
+type WeChatChannel = "silicon" | "heat" | "hologram" | "nfc" | "logo" | "tshirt";
 const WECHAT_CHANNELS: { key: WeChatChannel; label: { ko: string; zh: string } }[] = [
   { key: "silicon", label: { ko: "실리콘 마크 공장 (silicon)", zh: "硅胶标识工厂 (silicon)" } },
   { key: "heat", label: { ko: "열전사 디자인 공장 (heat)", zh: "热转印设计工厂 (heat)" } },
   { key: "hologram", label: { ko: "홀로그램 스티커 공장 (hologram)", zh: "全息贴纸工厂 (hologram)" } },
   { key: "nfc", label: { ko: "NFC 카드 공장 (nfc)", zh: "NFC卡片工厂 (nfc)" } },
   { key: "logo", label: { ko: "LOGO 공장 (logo)", zh: "LOGO工厂 (logo)" } },
+  { key: "tshirt", label: { ko: "티셔츠 공장 (tshirt)", zh: "T恤工厂 (tshirt)" } },
 ];
 
 export const VECTORIZER_MODE_KEY = "vectorizer.ai.mode.v1";
@@ -85,7 +86,7 @@ export default function OutsourceSettings() {
 
   // 위챗 채널별 웹훅 키
   const [wechatKeys, setWechatKeys] = useState<Record<WeChatChannel, string>>(() => {
-    const empty: Record<WeChatChannel, string> = { silicon: "", heat: "", hologram: "", nfc: "", logo: "" };
+    const empty: Record<WeChatChannel, string> = { silicon: "", heat: "", hologram: "", nfc: "", logo: "", tshirt: "" };
     if (typeof window === "undefined") return empty;
     try {
       const raw = localStorage.getItem(WECHAT_KEYS_KEY);
@@ -96,6 +97,7 @@ export default function OutsourceSettings() {
         hologram: parsed.hologram || "",
         nfc: parsed.nfc || "",
         logo: parsed.logo || "",
+        tshirt: parsed.tshirt || "",
       };
     } catch {
       return empty;
