@@ -965,7 +965,7 @@ function PurchaseOrderForm({
                             onChange={e => setQty(c.code, s, Number(e.target.value) || 0)}
                             className="text-right h-8 px-2"
                           />
-                          <div className={`text-[10px] text-center mt-0.5 ${low ? "text-yellow-500" : "text-muted-foreground"}`}>
+                          <div className={`text-xs text-center mt-1 font-medium ${low ? "text-red-600" : "text-black dark:text-foreground"}`}>
                             재고 {inv?.available ?? "-"} / 안전 {inv?.safety_stock ?? "-"}
                           </div>
                         </TableCell>
