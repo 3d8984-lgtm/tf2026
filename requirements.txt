@@ -1,0 +1,4 @@
+runpod==1.7.0
+pillow
+numpy
+# torch/torchvision are installed via the CUDA wheel index inside the Dockerfile
