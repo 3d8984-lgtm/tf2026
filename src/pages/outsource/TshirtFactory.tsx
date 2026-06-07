@@ -42,7 +42,7 @@ type PO = {
   received_at: string | null;
   product_type_code: string;
   color_code: string;
-  status: "draft" | "ordered" | "in_production" | "received";
+  status: "draft" | "ordered" | "in_production" | "shipped" | "received";
   notes: string | null;
   created_by_label: string | null;
   items?: { size: Size; quantity: number }[];
@@ -59,15 +59,24 @@ function statusInfo(available: number, safety: number) {
   return { key: "ok", color: "bg-emerald-500", label: "정상", icon: "🟢", text: "text-emerald-500" };
 }
 
+const PO_STATUS_OPTIONS: { value: PO["status"]; label: string }[] = [
+  { value: "ordered", label: "발주 완료" },
+  { value: "in_production", label: "생산 중" },
+  { value: "shipped", label: "발송 완료" },
+  { value: "received", label: "입고 완료" },
+];
+
 function poStatusBadge(status: PO["status"]) {
   const map: Record<PO["status"], { label: string; variant: any }> = {
     draft: { label: "임시 저장", variant: "outline" },
     ordered: { label: "발주 완료", variant: "secondary" },
     in_production: { label: "생산 중", variant: "default" },
+    shipped: { label: "발송 완료", variant: "default" },
     received: { label: "입고 완료", variant: "default" },
   };
   return map[status];
 }
+
 
 export default function TshirtFactory() {
   const { lang } = useLang();
@@ -207,6 +216,17 @@ export default function TshirtFactory() {
     loadAll();
   };
 
+  const changePoStatus = async (po: PO, next: PO["status"]) => {
+    if (po.status === next) return;
+    const patch: any = { status: next };
+    if (next === "received") patch.received_at = po.received_at ?? new Date().toISOString().slice(0, 10);
+    const { error } = await supabase.from("tshirt_purchase_orders").update(patch).eq("id", po.id);
+    if (error) { toast({ title: "상태 변경 실패", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "상태 변경됨", description: `${po.po_number} → ${poStatusBadge(next).label}` });
+    loadAll();
+  };
+
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -225,12 +245,13 @@ export default function TshirtFactory() {
         <TabsContent value="inventory" className="space-y-6">
           {/* KPI cards */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <KpiTile icon={<CheckCircle2 className="w-5 h-5" />} label="정상 재고 (작업분 제외)" value={kpi.ok} accent="text-emerald-500" dot="bg-emerald-500" />
             <KpiTile icon={<Package className="w-5 h-5" />} label="오늘 작업 재고" value={kpi.todayWork} accent="text-sky-500" dot="bg-sky-500" />
+            <KpiTile icon={<CheckCircle2 className="w-5 h-5" />} label="정상 재고 (작업분 제외)" value={kpi.ok} accent="text-emerald-500" dot="bg-emerald-500" />
             <KpiTile icon={<AlertTriangle className="w-5 h-5" />} label="재고 부족" value={kpi.low} accent="text-yellow-500" dot="bg-yellow-500" />
             <KpiTile icon={<AlertTriangle className="w-5 h-5" />} label="품절 임박" value={kpi.critical} accent="text-red-500" dot="bg-red-500" />
             <KpiTile icon={<CircleSlash className="w-5 h-5" />} label="품절" value={kpi.out} accent="text-zinc-400" dot="bg-zinc-500" />
           </div>
+
 
           {/* Safety stock setting & warnings */}
           <Card>
@@ -395,10 +416,12 @@ export default function TshirtFactory() {
                     <SelectItem value="all">전체 상태</SelectItem>
                     <SelectItem value="ordered">발주 완료</SelectItem>
                     <SelectItem value="in_production">생산 중</SelectItem>
+                    <SelectItem value="shipped">발송 완료</SelectItem>
                     <SelectItem value="received">입고 완료</SelectItem>
                     <SelectItem value="draft">임시 저장</SelectItem>
                   </SelectContent>
                 </Select>
+
                 <Input type="date" className="w-40" value={poFrom} onChange={e => setPoFrom(e.target.value)} />
                 <span className="text-muted-foreground">~</span>
                 <Input type="date" className="w-40" value={poTo} onChange={e => setPoTo(e.target.value)} />
@@ -458,19 +481,22 @@ export default function TshirtFactory() {
                               </TableCell>
                               {SIZES.map(s => <TableCell key={s} className="text-center text-xs tabular-nums">{sizeMap.get(s) || ""}</TableCell>)}
                               <TableCell className="text-center font-semibold tabular-nums">{total}</TableCell>
-                              <TableCell><Badge variant={st.variant}>{st.label}</Badge></TableCell>
+                              <TableCell>
+                                <Select value={p.status} onValueChange={(v) => changePoStatus(p, v as PO["status"])}>
+                                  <SelectTrigger className="h-7 w-28 text-xs"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    {PO_STATUS_OPTIONS.map(o => (
+                                      <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
                               <TableCell className="text-right space-x-1">
                                 {isFirst && (
-                                  <>
-                                    <Button size="sm" variant="ghost" onClick={() => setPoDetail(groupPos)} title={`그룹 총수량 ${groupTotal}`}><Eye className="w-3.5 h-3.5" /></Button>
-                                  </>
-                                )}
-                                {p.status !== "received" && (
-                                  <Button size="sm" variant="outline" onClick={() => markReceived(p)}>
-                                    <PackageCheck className="w-3.5 h-3.5 mr-1" /> 입고
-                                  </Button>
+                                  <Button size="sm" variant="ghost" onClick={() => setPoDetail(groupPos)} title={`그룹 총수량 ${groupTotal}`}><Eye className="w-3.5 h-3.5" /></Button>
                                 )}
                               </TableCell>
+
                             </TableRow>
                           );
                         });
@@ -502,18 +528,18 @@ export default function TshirtFactory() {
 
       {/* SKU detail dialog */}
       <Dialog open={!!skuDetail} onOpenChange={o => !o && setSkuDetail(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-4xl max-h-[88vh] overflow-y-auto">
           <DialogHeader><DialogTitle>SKU 상세</DialogTitle></DialogHeader>
           {skuDetail && (() => {
             const pt = productTypes.find(t => t.code === skuDetail.product_type_code);
             const c = colors.find(c => c.code === skuDetail.color_code);
             const st = statusInfo(skuDetail.available, skuDetail.safety_stock);
             return (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div className="text-sm">
                   <span className="font-medium">{pt ? nameOf(pt) : ""}</span> · {c ? nameOf(c) : ""} · <span className="font-mono">{skuDetail.size}</span>
                 </div>
-                <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                   <Stat label="입고 재고" value={skuDetail.in_stock} />
                   <Stat label="작업 중 재고" value={skuDetail.in_progress} />
                   <Stat label="실 가용 재고" value={skuDetail.available} accent={st.text} />
@@ -523,11 +549,13 @@ export default function TshirtFactory() {
                 <Button onClick={() => { goPurchase(skuDetail.product_type_code, skuDetail.color_code, skuDetail.size); setSkuDetail(null); }}>
                   <ShoppingCart className="w-4 h-4 mr-1" /> 이 색상 발주하기
                 </Button>
+                <SkuHistory sku={skuDetail} />
               </div>
             );
           })()}
         </DialogContent>
       </Dialog>
+
 
       {/* PO detail dialog */}
       <Dialog open={!!poDetail} onOpenChange={o => !o && setPoDetail(null)}>
@@ -560,6 +588,184 @@ function Stat({ label, value, accent }: { label: string; value: number; accent?:
     <div className="border rounded p-2">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className={`text-lg font-semibold ${accent ?? ""}`}>{value}</div>
+    </div>
+  );
+}
+
+function SkuHistory({ sku }: { sku: Inventory }) {
+  type Period = "day" | "week" | "month" | "custom";
+  const [period, setPeriod] = useState<Period>("week");
+  const today = new Date();
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const defaultRange = (p: Period): { from: string; to: string } => {
+    const to = new Date(today);
+    const from = new Date(today);
+    if (p === "day") from.setDate(to.getDate());
+    else if (p === "week") from.setDate(to.getDate() - 6);
+    else if (p === "month") from.setMonth(to.getMonth() - 1);
+    else from.setDate(to.getDate() - 13);
+    return { from: fmt(from), to: fmt(to) };
+  };
+  const [from, setFrom] = useState(() => defaultRange("week").from);
+  const [to, setTo] = useState(() => defaultRange("week").to);
+
+  const onPeriodChange = (p: Period) => {
+    setPeriod(p);
+    if (p !== "custom") {
+      const r = defaultRange(p);
+      setFrom(r.from); setTo(r.to);
+    }
+  };
+
+  const [receipts, setReceipts] = useState<Array<{ date: string; qty: number; po_number: string; status: string }>>([]);
+  const [works, setWorks] = useState<Array<{ date: string; qty: number; kind: string; note: string | null }>>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const fromIso = new Date(from + "T00:00:00").toISOString();
+      const toIso = new Date(to + "T23:59:59").toISOString();
+
+      // Receipts: POs received in range, items for our size
+      const { data: pos } = await supabase
+        .from("tshirt_purchase_orders")
+        .select("id, po_number, received_at, status")
+        .eq("product_type_code", sku.product_type_code)
+        .eq("color_code", sku.color_code)
+        .eq("status", "received")
+        .gte("received_at", from)
+        .lte("received_at", to)
+        .order("received_at", { ascending: false });
+
+      let rcpt: typeof receipts = [];
+      if (pos && pos.length) {
+        const ids = pos.map((p: any) => p.id);
+        const { data: items } = await supabase
+          .from("tshirt_purchase_order_items")
+          .select("po_id, size, quantity")
+          .in("po_id", ids)
+          .eq("size", sku.size);
+        const byPo = new Map<string, number>();
+        (items ?? []).forEach((i: any) => byPo.set(i.po_id, (byPo.get(i.po_id) ?? 0) + Number(i.quantity)));
+        rcpt = pos
+          .map((p: any) => ({
+            date: p.received_at ?? "",
+            qty: byPo.get(p.id) ?? 0,
+            po_number: p.po_number,
+            status: p.status,
+          }))
+          .filter(r => r.qty > 0);
+      }
+
+      const { data: wlogs } = await supabase
+        .from("tshirt_work_logs")
+        .select("worked_at, quantity, kind, note")
+        .eq("product_type_code", sku.product_type_code)
+        .eq("color_code", sku.color_code)
+        .eq("size", sku.size)
+        .gte("worked_at", fromIso)
+        .lte("worked_at", toIso)
+        .order("worked_at", { ascending: false });
+
+      if (cancelled) return;
+      setReceipts(rcpt);
+      setWorks((wlogs ?? []).map((w: any) => ({
+        date: String(w.worked_at).slice(0, 10),
+        qty: Number(w.quantity) || 0,
+        kind: w.kind,
+        note: w.note,
+      })));
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [sku.product_type_code, sku.color_code, sku.size, from, to]);
+
+  const totalReceipts = receipts.reduce((s, r) => s + r.qty, 0);
+  const totalWorks = works.reduce((s, r) => s + r.qty, 0);
+
+  return (
+    <div className="border rounded-lg p-3 space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium">기간별 이력</span>
+        <div className="flex gap-1 ml-2">
+          {([
+            { v: "day", l: "일간" },
+            { v: "week", l: "주간" },
+            { v: "month", l: "월간" },
+            { v: "custom", l: "기간선택" },
+          ] as { v: Period; l: string }[]).map(o => (
+            <Button key={o.v} size="sm" variant={period === o.v ? "default" : "outline"} onClick={() => onPeriodChange(o.v)} className="h-7 text-xs">
+              {o.l}
+            </Button>
+          ))}
+        </div>
+        <Input type="date" className="w-36 h-8 text-xs" value={from} onChange={e => { setFrom(e.target.value); setPeriod("custom"); }} />
+        <span className="text-muted-foreground text-xs">~</span>
+        <Input type="date" className="w-36 h-8 text-xs" value={to} onChange={e => { setTo(e.target.value); setPeriod("custom"); }} />
+      </div>
+
+      <Tabs defaultValue="receipts">
+        <TabsList>
+          <TabsTrigger value="receipts">입고 기록 ({totalReceipts})</TabsTrigger>
+          <TabsTrigger value="work">작업 기록 ({totalWorks})</TabsTrigger>
+        </TabsList>
+        <TabsContent value="receipts" className="pt-2">
+          {loading ? (
+            <div className="text-sm text-muted-foreground py-4 text-center">불러오는 중...</div>
+          ) : receipts.length === 0 ? (
+            <div className="text-sm text-muted-foreground py-4 text-center">입고 기록이 없습니다.</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs">입고일</TableHead>
+                  <TableHead className="text-xs">발주번호</TableHead>
+                  <TableHead className="text-xs text-right">수량</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {receipts.map((r, i) => (
+                  <TableRow key={i}>
+                    <TableCell className="text-xs">{r.date}</TableCell>
+                    <TableCell className="font-mono text-xs">{r.po_number}</TableCell>
+                    <TableCell className="text-right tabular-nums text-xs">+{r.qty}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </TabsContent>
+        <TabsContent value="work" className="pt-2">
+          {loading ? (
+            <div className="text-sm text-muted-foreground py-4 text-center">불러오는 중...</div>
+          ) : works.length === 0 ? (
+            <div className="text-sm text-muted-foreground py-4 text-center">작업 기록이 없습니다.</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs">작업일</TableHead>
+                  <TableHead className="text-xs">구분</TableHead>
+                  <TableHead className="text-xs">메모</TableHead>
+                  <TableHead className="text-xs text-right">수량</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {works.map((w, i) => (
+                  <TableRow key={i}>
+                    <TableCell className="text-xs">{w.date}</TableCell>
+                    <TableCell className="text-xs">{w.kind}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{w.note ?? ""}</TableCell>
+                    <TableCell className="text-right tabular-nums text-xs">{w.qty}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

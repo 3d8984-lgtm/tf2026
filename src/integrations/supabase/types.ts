@@ -1002,6 +1002,45 @@ export type Database = {
           },
         ]
       }
+      tshirt_work_logs: {
+        Row: {
+          color_code: string
+          created_at: string
+          created_by: string | null
+          id: string
+          kind: string
+          note: string | null
+          product_type_code: string
+          quantity: number
+          size: Database["public"]["Enums"]["tshirt_size"]
+          worked_at: string
+        }
+        Insert: {
+          color_code: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind?: string
+          note?: string | null
+          product_type_code: string
+          quantity?: number
+          size: Database["public"]["Enums"]["tshirt_size"]
+          worked_at?: string
+        }
+        Update: {
+          color_code?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind?: string
+          note?: string | null
+          product_type_code?: string
+          quantity?: number
+          size?: Database["public"]["Enums"]["tshirt_size"]
+          worked_at?: string
+        }
+        Relationships: []
+      }
       upload_history: {
         Row: {
           created_at: string
@@ -1156,7 +1195,12 @@ export type Database = {
         | "in_transit"
         | "delivered"
         | "hold"
-      tshirt_po_status: "draft" | "ordered" | "in_production" | "received"
+      tshirt_po_status:
+        | "draft"
+        | "ordered"
+        | "in_production"
+        | "shipped"
+        | "received"
       tshirt_size: "S" | "M" | "L" | "XL" | "2XL" | "3XL" | "4XL"
     }
     CompositeTypes: {
@@ -1329,7 +1373,13 @@ export const Constants = {
         "delivered",
         "hold",
       ],
-      tshirt_po_status: ["draft", "ordered", "in_production", "received"],
+      tshirt_po_status: [
+        "draft",
+        "ordered",
+        "in_production",
+        "shipped",
+        "received",
+      ],
       tshirt_size: ["S", "M", "L", "XL", "2XL", "3XL", "4XL"],
     },
   },
