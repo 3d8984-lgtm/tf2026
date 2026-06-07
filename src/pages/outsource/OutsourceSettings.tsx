@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useLang } from "@/contexts/LangContext";
 import { toast } from "@/hooks/use-toast";
-import { Mail, Save, Send, Wand2, ExternalLink, Loader2, Sparkles, Server, Copy, MessageSquare, Cpu } from "lucide-react";
+import { Mail, Save, Send, Wand2, ExternalLink, Loader2, Server, Copy, MessageSquare, Cpu } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 export const WORKER_URL_KEY = "render.worker.url.v1";
@@ -26,9 +26,6 @@ const WECHAT_CHANNELS: { key: WeChatChannel; label: { ko: string; zh: string } }
 export const VECTORIZER_MODE_KEY = "vectorizer.ai.mode.v1";
 export type VectorizerMode = "test" | "preview" | "production";
 
-export const UPSCALER_PROVIDER_KEY = "upscaler.provider.v1";
-export const UPSCALER_SCALE_KEY = "upscaler.scale.v1";
-export type UpscalerProvider = "photoroom";
 
 type Factory = "silicon" | "heat" | "hologram" | "nfc" | "logo";
 
@@ -68,15 +65,6 @@ export default function OutsourceSettings() {
   const [vecTesting, setVecTesting] = useState(false);
   useEffect(() => { localStorage.setItem(VECTORIZER_MODE_KEY, vecMode); }, [vecMode]);
 
-  // 업스케일링 (Photoroom) 설정
-  const [upscaleProvider, setUpscaleProvider] = useState<UpscalerProvider>("photoroom");
-  const [upscaleScale, setUpscaleScale] = useState<number>(() => {
-    const v = typeof window !== "undefined" ? Number(localStorage.getItem(UPSCALER_SCALE_KEY)) : 0;
-    return v === 2 || v === 4 ? v : 2;
-  });
-  const [photoroomTesting, setPhotoroomTesting] = useState(false);
-  useEffect(() => { localStorage.setItem(UPSCALER_PROVIDER_KEY, upscaleProvider); }, [upscaleProvider]);
-  useEffect(() => { localStorage.setItem(UPSCALER_SCALE_KEY, String(upscaleScale)); }, [upscaleScale]);
 
   // Render 워커 URL
   const [workerUrl, setWorkerUrl] = useState<string>(() =>
@@ -206,28 +194,6 @@ export default function OutsourceSettings() {
     }
   };
 
-  const testPhotoroom = async () => {
-    setPhotoroomTesting(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("photoroom-upscale", {
-        body: { mode: "test" },
-      });
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
-      toast({
-        title: lang === "ko" ? "Photoroom 연결 성공" : "Photoroom 连接成功",
-        description: lang === "ko" ? "API 키가 유효합니다." : "API 密钥有效。",
-      });
-    } catch (e) {
-      toast({
-        title: lang === "ko" ? "Photoroom 연결 실패" : "Photoroom 连接失败",
-        description: e instanceof Error ? e.message : String(e),
-        variant: "destructive",
-      });
-    } finally {
-      setPhotoroomTesting(false);
-    }
-  };
 
   // RunPod (PiD) 연결 테스트
   const [pidTesting, setPidTesting] = useState(false);
@@ -462,95 +428,6 @@ export default function OutsourceSettings() {
         </div>
       </Card>
 
-      {/* Photoroom 업스케일링 설정 */}
-      <Card className="p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold flex items-center gap-2">
-            <Sparkles className="w-4 h-4" />
-            {lang === "ko" ? "이미지 업스케일링 (Photoroom)" : "图片放大 (Photoroom)"}
-          </h3>
-          <a
-            href="https://app.photoroom.com/"
-            target="_blank" rel="noreferrer"
-            className="text-xs text-primary flex items-center gap-1 hover:underline"
-          >
-            {lang === "ko" ? "Photoroom 대시보드" : "Photoroom 控制台"}
-            <ExternalLink className="w-3 h-3" />
-          </a>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          {lang === "ko"
-            ? "로고/이미지를 AI로 고해상도로 업스케일링합니다. API 키는 안전한 서버 환경변수(PHOTOROOM_API_KEY)로 저장됩니다."
-            : "通过 AI 将徽标/图像放大为高分辨率。API 密钥安全存储在服务器环境变量(PHOTOROOM_API_KEY)中。"}
-        </p>
-
-        <div className="rounded-md border bg-muted/30 p-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <Label className="text-xs">{lang === "ko" ? "API 키 상태" : "API 密钥状态"}</Label>
-            <Badge variant="secondary" className="text-[10px]">PHOTOROOM_API_KEY</Badge>
-          </div>
-          <p className="text-[11px] text-muted-foreground">
-            {lang === "ko"
-              ? "키를 변경하려면 우측 상단의 '연결 테스트'로 검증한 뒤, 시스템 시크릿에서 업데이트하세요."
-              : "如需更换密钥,请先用'连接测试'验证,然后在系统密钥中更新。"}
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="space-y-1.5">
-            <Label>{lang === "ko" ? "제공자" : "提供商"}</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {(["photoroom"] as UpscalerProvider[]).map(p => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setUpscaleProvider(p)}
-                  className={`rounded-md border px-3 py-2 text-xs font-semibold uppercase transition ${
-                    upscaleProvider === p ? "border-primary bg-primary/10" : "hover:bg-accent"
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>{lang === "ko" ? "배율" : "倍数"}</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {[2, 4].map(s => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setUpscaleScale(s)}
-                  className={`rounded-md border px-3 py-2 text-xs font-semibold transition ${
-                    upscaleScale === s ? "border-primary bg-primary/10" : "hover:bg-accent"
-                  }`}
-                >
-                  {s}x
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="opacity-0 hidden md:block">&nbsp;</Label>
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full gap-1"
-              onClick={testPhotoroom}
-              disabled={photoroomTesting}
-            >
-              {photoroomTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-              {lang === "ko" ? "연결 테스트" : "连接测试"}
-            </Button>
-            <Badge variant="secondary" className="w-full justify-center text-[10px]">
-              {upscaleProvider} · {upscaleScale}x
-            </Badge>
-          </div>
-        </div>
-      </Card>
 
       {/* Render 워커 설정 */}
       <Card className="p-4 space-y-4">
