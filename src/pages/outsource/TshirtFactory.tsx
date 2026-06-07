@@ -15,8 +15,9 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import {
   AlertTriangle, CheckCircle2, CircleSlash, Package, Upload, X, FileText, Image as ImageIcon,
-  PackageCheck, Filter, Download, Eye, ShoppingCart, Shirt,
+  PackageCheck, Filter, Download, Eye, ShoppingCart, Shirt, FileSpreadsheet,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 
 const SIZES = ["S", "M", "L", "XL", "2XL", "3XL", "4XL"] as const;
 type Size = typeof SIZES[number];
