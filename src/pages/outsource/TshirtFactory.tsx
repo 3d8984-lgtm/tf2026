@@ -1195,3 +1195,121 @@ function PurchaseOrderPreview({
     </div>
   );
 }
+
+function SafetyStockSettings({
+  productTypes, colors, invMap, nameOf, onSaved,
+}: {
+  productTypes: ProductType[];
+  colors: Color[];
+  invMap: Map<string, Inventory>;
+  nameOf: (t: any) => string;
+  onSaved: () => void | Promise<void>;
+}) {
+  const [typeCode, setTypeCode] = useState<string>(productTypes[0]?.code ?? "");
+  const [values, setValues] = useState<Record<string, Record<Size, number>>>({});
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!typeCode && productTypes[0]) setTypeCode(productTypes[0].code);
+  }, [productTypes, typeCode]);
+
+  useEffect(() => {
+    if (!typeCode) return;
+    const next: Record<string, Record<Size, number>> = {};
+    for (const c of colors) {
+      next[c.code] = Object.fromEntries(SIZES.map(s => {
+        const inv = invMap.get(`${typeCode}|${c.code}|${s}`);
+        return [s, inv?.safety_stock ?? 0];
+      })) as Record<Size, number>;
+    }
+    setValues(next);
+  }, [typeCode, colors, invMap]);
+
+  const setVal = (colorCode: string, size: Size, v: number) => {
+    setValues(prev => ({
+      ...prev,
+      [colorCode]: { ...(prev[colorCode] ?? ({} as any)), [size]: Math.max(0, v) },
+    }));
+  };
+
+  const saveAll = async () => {
+    if (!typeCode) return;
+    setSaving(true);
+    try {
+      const rows: any[] = [];
+      for (const c of colors) {
+        for (const s of SIZES) {
+          const v = Number(values[c.code]?.[s]) || 0;
+          rows.push({
+            product_type_code: typeCode,
+            color_code: c.code,
+            size: s,
+            safety_stock: v,
+            in_stock: invMap.get(`${typeCode}|${c.code}|${s}`)?.in_stock ?? 0,
+            available: invMap.get(`${typeCode}|${c.code}|${s}`)?.available ?? 0,
+          });
+        }
+      }
+      const { error } = await supabase
+        .from("tshirt_inventory")
+        .upsert(rows, { onConflict: "product_type_code,color_code,size" });
+      if (error) throw error;
+      toast({ title: "안전재고가 저장되었습니다" });
+      await onSaved();
+    } catch (e: any) {
+      toast({ title: "저장 실패", description: e.message ?? String(e), variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-sm text-muted-foreground">상품 유형</span>
+        <Select value={typeCode} onValueChange={setTypeCode}>
+          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {productTypes.map(t => <SelectItem key={t.code} value={t.code}>{nameOf(t)}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Button size="sm" className="ml-auto" disabled={saving} onClick={saveAll}>
+          {saving ? "저장 중..." : "안전재고 저장"}
+        </Button>
+      </div>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-32">색상</TableHead>
+              {SIZES.map(s => <TableHead key={s} className="text-center">{s}</TableHead>)}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {colors.map(c => (
+              <TableRow key={c.code}>
+                <TableCell className="font-medium">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full border shrink-0" style={{ background: c.hex }} />
+                    {nameOf(c)}
+                  </div>
+                </TableCell>
+                {SIZES.map(s => (
+                  <TableCell key={s} className="p-1">
+                    <Input
+                      type="number" min={0}
+                      value={values[c.code]?.[s] ?? 0}
+                      onChange={e => setVal(c.code, s, Number(e.target.value) || 0)}
+                      className="text-right h-8 px-2"
+                    />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
