@@ -229,6 +229,39 @@ export default function OutsourceSettings() {
     }
   };
 
+  // RunPod (PiD) 연결 테스트
+  const [pidTesting, setPidTesting] = useState(false);
+  const [pidResult, setPidResult] = useState<string>("");
+  const testPid = async () => {
+    setPidTesting(true);
+    setPidResult("");
+    try {
+      const { data, error } = await supabase.functions.invoke("photoroom-upscale", {
+        body: { mode: "pid-test" },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const workers = (data as any)?.health?.workers;
+      const summary = workers
+        ? `ready=${workers.ready ?? 0} · running=${workers.running ?? 0} · idle=${workers.idle ?? 0}`
+        : "OK";
+      setPidResult(summary);
+      toast({
+        title: lang === "ko" ? "RunPod 연결 성공" : "RunPod 连接成功",
+        description: summary,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setPidResult(msg);
+      toast({
+        title: lang === "ko" ? "RunPod 연결 실패" : "RunPod 连接失败",
+        description: msg,
+        variant: "destructive",
+      });
+    } finally {
+      setPidTesting(false);
+    }
+
 
 
   const testVectorizer = async () => {
