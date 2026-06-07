@@ -3177,6 +3177,7 @@ function OrderDetailList({
               <TableHead className="w-12">순번</TableHead>
               <TableHead>주문번호</TableHead>
               <TableHead>디자인고유번호</TableHead>
+              <TableHead>등급</TableHead>
               <TableHead>티셔츠 종류</TableHead>
               <TableHead>티셔츠 컬러</TableHead>
               <TableHead>티셔츠 사이즈</TableHead>
@@ -3192,6 +3193,7 @@ function OrderDetailList({
                   <TableCell>{d.serial}</TableCell>
                   <TableCell className="font-mono">{d.orderNo}</TableCell>
                   <TableCell className="font-mono">{d.designUid}</TableCell>
+                  <TableCell><Badge variant={gradeBadgeVariant(d.grade)}>{d.grade}</Badge></TableCell>
                   <TableCell>{d.tshirtType || "—"}</TableCell>
                   <TableCell>{d.tshirtColor || "—"}</TableCell>
                   <TableCell>{d.tshirtSize || "—"}</TableCell>
@@ -3201,7 +3203,7 @@ function OrderDetailList({
               );
             })}
             {details.length === 0 && (
-              <TableRow><TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">—</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-8">—</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
