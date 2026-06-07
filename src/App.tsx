@@ -21,6 +21,7 @@ import Defects from "@/pages/Defects";
 import Reports from "@/pages/Reports";
 import SystemSettings from "@/pages/SystemSettings";
 import Manual from "@/pages/Manual";
+import Licenses from "@/pages/Licenses";
 import OutsourceDashboard from "@/pages/outsource/OutsourceDashboard";
 import OutsourceOrders from "@/pages/outsource/OutsourceOrders";
 import SiliconFactory from "@/pages/outsource/SiliconFactory";
@@ -88,6 +89,7 @@ function ProtectedRoutes() {
         <Route path="/reports" element={<Reports />} />
         <Route path="/manual" element={<Manual />} />
         <Route path="/settings" element={<SystemSettings />} />
+        <Route path="/licenses" element={<Licenses />} />
         <Route path="/outsource" element={<OutsourceDashboard />} />
         <Route path="/outsource/orders" element={<OutsourceOrders />} />
         <Route path="/outsource/silicon" element={<SiliconFactory />} />
