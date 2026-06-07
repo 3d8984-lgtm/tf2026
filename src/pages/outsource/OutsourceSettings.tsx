@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useLang } from "@/contexts/LangContext";
 import { toast } from "@/hooks/use-toast";
-import { Mail, Save, Send, Wand2, ExternalLink, Loader2, Sparkles, Server, Copy, MessageSquare } from "lucide-react";
+import { Mail, Save, Send, Wand2, ExternalLink, Loader2, Sparkles, Server, Copy, MessageSquare, Cpu } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 export const WORKER_URL_KEY = "render.worker.url.v1";
