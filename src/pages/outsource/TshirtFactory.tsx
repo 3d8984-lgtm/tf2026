@@ -708,16 +708,40 @@ function PurchaseOrderForm({
         <CardHeader><CardTitle className="text-base">① 기본 정보</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="text-xs text-muted-foreground">발주일</label>
-            <Input type="date" value={orderedAt} onChange={e => setOrderedAt(e.target.value)} />
+            <label className="text-xs text-muted-foreground">발주업체명</label>
+            <Input value={company} onChange={e => setCompany(e.target.value)} />
           </div>
           <div>
-            <label className="text-xs text-muted-foreground">예상 입고일</label>
-            <Input type="date" value={expectedAt} onChange={e => setExpectedAt(e.target.value)} />
+            <label className="text-xs text-muted-foreground">작업번호</label>
+            <Input value={jobNo} onChange={e => setJobNo(e.target.value)} placeholder="자동 생성 (발주 등록 시)" />
           </div>
           <div>
             <label className="text-xs text-muted-foreground">작성자</label>
             <Input value={author} onChange={e => setAuthor(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">발주일</label>
+            <Input type="date" value={orderedAt} onChange={e => setOrderedAt(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">납품일 (예상 입고일)</label>
+            <Input type="date" value={expectedAt} onChange={e => setExpectedAt(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">총수량</label>
+            <Input value={total} readOnly className="bg-muted" />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">받을사람</label>
+            <Input value={recipient} onChange={e => setRecipient(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">전화번호</label>
+            <Input value={phone} onChange={e => setPhone(e.target.value)} />
+          </div>
+          <div className="md:col-span-3">
+            <label className="text-xs text-muted-foreground">주소</label>
+            <Input value={address} onChange={e => setAddress(e.target.value)} />
           </div>
         </CardContent>
       </Card>
