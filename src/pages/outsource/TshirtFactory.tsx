@@ -592,7 +592,7 @@ function PoDetailView({ po, productTypes, colors, nameOf }: {
 }
 
 function PurchaseOrderForm({
-  productTypes, colors, invMap, prefillType, prefillColor, authorLabel, userId, nameOf, onDone,
+  productTypes, colors, invMap, prefillType, prefillColor, authorLabel, userId, nameOf, onReload, onDone,
 }: {
   productTypes: ProductType[];
   colors: Color[];
@@ -602,6 +602,7 @@ function PurchaseOrderForm({
   authorLabel: string;
   userId: string | null;
   nameOf: (t: any) => string;
+  onReload: () => void | Promise<void>;
   onDone: () => void;
 }) {
   const today = new Date().toISOString().slice(0, 10);
@@ -614,16 +615,25 @@ function PurchaseOrderForm({
   const [recipient, setRecipient] = useState("TWINMETA");
   const [phone, setPhone] = useState("18562757070");
   const [address, setAddress] = useState("山东省 青岛市 城阳区 青岛市城阳区流亭街道杨埠寨社区工业园6号厂房东侧1楼 TWINMETA");
+  const [fabricName, setFabricName] = useState("");
+  const [fabricWeight, setFabricWeight] = useState("");
+  const [garmentType, setGarmentType] = useState("");
   const [typeCode, setTypeCode] = useState<string>("");
-  const [colorCode, setColorCode] = useState<string>("");
-  const [qty, setQty] = useState<Record<Size, number>>(() => Object.fromEntries(SIZES.map(s => [s, 0])) as any);
+  // qty per color × size
+  const emptyQty = () => Object.fromEntries(SIZES.map(s => [s, 0])) as Record<Size, number>;
+  const [qtyByColor, setQtyByColor] = useState<Record<string, Record<Size, number>>>({});
   const [files, setFiles] = useState<File[]>([]);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [addTypeOpen, setAddTypeOpen] = useState(false);
+  const [newTypeCode, setNewTypeCode] = useState("");
+  const [newTypeKo, setNewTypeKo] = useState("");
+  const [newTypeZh, setNewTypeZh] = useState("");
+  const [addingType, setAddingType] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Load saved defaults (basic info persists across sessions until submitted)
+  // Load saved defaults
   useEffect(() => {
     try {
       const raw = typeof window !== "undefined" ? localStorage.getItem(LS_KEY) : null;
@@ -633,22 +643,53 @@ function PurchaseOrderForm({
         if (d.recipient) setRecipient(d.recipient);
         if (d.phone) setPhone(d.phone);
         if (d.address) setAddress(d.address);
+        if (d.fabricName) setFabricName(d.fabricName);
+        if (d.fabricWeight) setFabricWeight(d.fabricWeight);
+        if (d.garmentType) setGarmentType(d.garmentType);
       }
     } catch { /* ignore */ }
   }, []);
   useEffect(() => {
-    try { localStorage.setItem(LS_KEY, JSON.stringify({ company, recipient, phone, address })); } catch { /* */ }
-  }, [company, recipient, phone, address]);
+    try { localStorage.setItem(LS_KEY, JSON.stringify({ company, recipient, phone, address, fabricName, fabricWeight, garmentType })); } catch { /* */ }
+  }, [company, recipient, phone, address, fabricName, fabricWeight, garmentType]);
 
   useEffect(() => { setAuthor(authorLabel); }, [authorLabel]);
   useEffect(() => {
     if (prefillType) setTypeCode(prefillType);
     else if (productTypes[0] && !typeCode) setTypeCode(productTypes[0].code);
-    if (prefillColor) setColorCode(prefillColor);
-    else if (colors[0] && !colorCode) setColorCode(colors[0].code);
-  }, [prefillType, prefillColor, productTypes, colors]);
+  }, [prefillType, productTypes]);
+  useEffect(() => {
+    if (prefillColor) {
+      setQtyByColor(prev => ({ ...prev, [prefillColor]: prev[prefillColor] ?? emptyQty() }));
+    }
+  }, [prefillColor]);
+  // ensure all colors have a row
+  useEffect(() => {
+    setQtyByColor(prev => {
+      const next = { ...prev };
+      for (const c of colors) if (!next[c.code]) next[c.code] = emptyQty();
+      return next;
+    });
+  }, [colors]);
 
-  const total = useMemo(() => SIZES.reduce((s, k) => s + (Number(qty[k]) || 0), 0), [qty]);
+  const colorTotals = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const c of colors) m[c.code] = SIZES.reduce((s, k) => s + (Number(qtyByColor[c.code]?.[k]) || 0), 0);
+    return m;
+  }, [qtyByColor, colors]);
+  const sizeTotals = useMemo(() => {
+    const m = Object.fromEntries(SIZES.map(s => [s, 0])) as Record<Size, number>;
+    for (const c of colors) for (const s of SIZES) m[s] += Number(qtyByColor[c.code]?.[s]) || 0;
+    return m;
+  }, [qtyByColor, colors]);
+  const total = useMemo(() => Object.values(colorTotals).reduce((s, v) => s + v, 0), [colorTotals]);
+
+  const setQty = (colorCode: string, size: Size, v: number) => {
+    setQtyByColor(prev => ({
+      ...prev,
+      [colorCode]: { ...(prev[colorCode] ?? emptyQty()), [size]: Math.max(0, v) },
+    }));
+  };
 
   const onFiles = (list: FileList | null) => {
     if (!list) return;
@@ -656,45 +697,68 @@ function PurchaseOrderForm({
     setFiles(prev => [...prev, ...arr]);
   };
 
+  const buildNotesWithMeta = () => {
+    const meta: string[] = [];
+    if (garmentType) meta.push(`의류 종류: ${garmentType}`);
+    if (fabricName) meta.push(`원단: ${fabricName}`);
+    if (fabricWeight) meta.push(`원단 중량: ${fabricWeight}`);
+    const metaLine = meta.length ? `[${meta.join(" / ")}]\n` : "";
+    return (metaLine + (notes || "")).trim() || null;
+  };
+
   const submit = async (status: "draft" | "ordered") => {
-    if (!typeCode || !colorCode) { toast({ title: "상품/색상을 선택하세요", variant: "destructive" }); return; }
-    if (status === "ordered" && total <= 0) { toast({ title: "수량을 1개 이상 입력하세요", variant: "destructive" }); return; }
+    if (!typeCode) { toast({ title: "티셔츠 종류를 선택하세요", variant: "destructive" }); return; }
+    const activeColors = colors.filter(c => colorTotals[c.code] > 0);
+    if (status === "ordered" && activeColors.length === 0) {
+      toast({ title: "색상별 수량을 1개 이상 입력하세요", variant: "destructive" }); return;
+    }
     setSaving(true);
     try {
-      const { data: po, error } = await supabase
-        .from("tshirt_purchase_orders")
-        .insert({
-          ordered_at: orderedAt,
-          expected_at: expectedAt || null,
-          product_type_code: typeCode,
-          color_code: colorCode,
-          status,
-          notes: notes || null,
-          created_by: userId,
-          created_by_label: author || null,
-        })
-        .select()
-        .single();
-      if (error) throw error;
+      // If draft and no quantities, save a single empty PO under first color
+      const targets = activeColors.length > 0 ? activeColors : [colors[0]];
+      const createdNumbers: string[] = [];
+      const fullNotes = buildNotesWithMeta();
 
-      const items = SIZES
-        .map(s => ({ po_id: po.id, size: s, quantity: Number(qty[s]) || 0 }))
-        .filter(i => i.quantity > 0);
-      if (items.length > 0) {
-        const { error: e2 } = await supabase.from("tshirt_purchase_order_items").insert(items);
-        if (e2) throw e2;
+      for (const c of targets) {
+        const { data: po, error } = await supabase
+          .from("tshirt_purchase_orders")
+          .insert({
+            ordered_at: orderedAt,
+            expected_at: expectedAt || null,
+            product_type_code: typeCode,
+            color_code: c.code,
+            status,
+            notes: fullNotes,
+            created_by: userId,
+            created_by_label: author || null,
+          })
+          .select()
+          .single();
+        if (error) throw error;
+        createdNumbers.push(po.po_number);
+
+        const items = SIZES
+          .map(s => ({ po_id: po.id, size: s, quantity: Number(qtyByColor[c.code]?.[s]) || 0 }))
+          .filter(i => i.quantity > 0);
+        if (items.length > 0) {
+          const { error: e2 } = await supabase.from("tshirt_purchase_order_items").insert(items);
+          if (e2) throw e2;
+        }
+
+        for (const f of files) {
+          const path = `${po.id}/${Date.now()}__${f.name}`;
+          const { error: ue } = await supabase.storage.from(BUCKET).upload(path, f, { upsert: false, contentType: f.type });
+          if (ue) throw ue;
+          await supabase.from("tshirt_purchase_order_attachments").insert({
+            po_id: po.id, file_path: path, file_name: f.name, mime_type: f.type, size_bytes: f.size,
+          });
+        }
       }
 
-      for (const f of files) {
-        const path = `${po.id}/${Date.now()}__${f.name}`;
-        const { error: ue } = await supabase.storage.from(BUCKET).upload(path, f, { upsert: false, contentType: f.type });
-        if (ue) throw ue;
-        await supabase.from("tshirt_purchase_order_attachments").insert({
-          po_id: po.id, file_path: path, file_name: f.name, mime_type: f.type, size_bytes: f.size,
-        });
-      }
-
-      toast({ title: status === "draft" ? "임시 저장 완료" : "발주가 등록되었습니다", description: po.po_number });
+      toast({
+        title: status === "draft" ? "임시 저장 완료" : "발주가 등록되었습니다",
+        description: createdNumbers.join(", "),
+      });
       onDone();
     } catch (e: any) {
       toast({ title: "저장 실패", description: e.message ?? String(e), variant: "destructive" });
@@ -703,31 +767,61 @@ function PurchaseOrderForm({
     }
   };
 
+  const addProductType = async () => {
+    const code = newTypeCode.trim().toUpperCase().replace(/\s+/g, "_");
+    const ko = newTypeKo.trim();
+    if (!code || !ko) { toast({ title: "코드와 한국어 이름을 입력하세요", variant: "destructive" }); return; }
+    setAddingType(true);
+    try {
+      const maxOrder = productTypes.reduce((m, t) => Math.max(m, t.sort_order ?? 0), 0);
+      const { error } = await supabase.from("tshirt_product_types").insert({
+        code, name_ko: ko, name_zh: newTypeZh.trim() || ko, sort_order: maxOrder + 10, active: true,
+      });
+      if (error) throw error;
+      toast({ title: "티셔츠 종류가 추가되었습니다", description: ko });
+      setNewTypeCode(""); setNewTypeKo(""); setNewTypeZh("");
+      setAddTypeOpen(false);
+      await onReload();
+      setTypeCode(code);
+    } catch (e: any) {
+      toast({ title: "추가 실패", description: e.message ?? String(e), variant: "destructive" });
+    } finally {
+      setAddingType(false);
+    }
+  };
+
+  const typeName = productTypes.find(t => t.code === typeCode) ? nameOf(productTypes.find(t => t.code === typeCode)!) : "";
+
   const downloadExcel = () => {
-    const typeName = productTypes.find(t => t.code === typeCode) ? nameOf(productTypes.find(t => t.code === typeCode)!) : "";
-    const colorName = colors.find(c => c.code === colorCode) ? nameOf(colors.find(c => c.code === colorCode)!) : "";
-    const header: any[][] = [
-      ["발 주 서 (PURCHASE ORDER)"],
+    const head1 = ["발 주 서 (PURCHASE ORDER)"];
+    const rows: any[][] = [
+      head1,
       [],
       ["발주업체명", company, "", "작업번호", jobNo || ""],
       ["발주일", orderedAt, "", "납품일", expectedAt || ""],
       ["받을사람", recipient, "", "전화번호", phone],
       ["주소", address],
       ["작성자", author, "", "총수량", total],
+      ["의류 종류", garmentType || "", "", "티셔츠 종류", typeName],
+      ["원단 이름", fabricName || "", "", "원단 중량", fabricWeight || ""],
       [],
-      ["상품 정보"],
-      ["티셔츠 종류", "색상", ...SIZES, "합계"],
-      [typeName, colorName, ...SIZES.map(s => qty[s] || 0), total],
-      [],
-      ["발주 특이사항"],
-      [notes || ""],
+      ["색상별 수량"],
+      ["색상", ...SIZES, "합계"],
     ];
-    const ws = XLSX.utils.aoa_to_sheet(header);
-    ws["!cols"] = [{ wch: 16 }, { wch: 20 }, { wch: 4 }, { wch: 16 }, { wch: 20 }, ...SIZES.map(() => ({ wch: 8 })), { wch: 10 }];
+    for (const c of colors) {
+      rows.push([nameOf(c), ...SIZES.map(s => qtyByColor[c.code]?.[s] || 0), colorTotals[c.code] || 0]);
+    }
+    rows.push(["사이즈 합계", ...SIZES.map(s => sizeTotals[s] || 0), total]);
+    rows.push([]);
+    rows.push(["발주 특이사항"]);
+    rows.push([notes || ""]);
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const colCount = SIZES.length + 2;
+    ws["!cols"] = [{ wch: 16 }, ...SIZES.map(() => ({ wch: 8 })), { wch: 10 }];
     ws["!merges"] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } },
-      { s: { r: 5, c: 1 }, e: { r: 5, c: 10 } },
-      { s: { r: 13, c: 0 }, e: { r: 13, c: 10 } },
+      { s: { r: 0, c: 0 }, e: { r: 0, c: colCount - 1 } },
+      { s: { r: 5, c: 1 }, e: { r: 5, c: colCount - 1 } },
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "발주서");
@@ -735,7 +829,6 @@ function PurchaseOrderForm({
     XLSX.writeFile(wb, fname);
     toast({ title: "엑셀 다운로드 완료", description: fname });
   };
-
 
   return (
     <div className="space-y-6">
@@ -774,84 +867,103 @@ function PurchaseOrderForm({
             <label className="text-xs text-muted-foreground">전화번호</label>
             <Input value={phone} onChange={e => setPhone(e.target.value)} />
           </div>
+          <div>
+            <label className="text-xs text-muted-foreground">의류 종류</label>
+            <Input value={garmentType} onChange={e => setGarmentType(e.target.value)} placeholder="예: 반팔 라운드넥" />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">원단 이름</label>
+            <Input value={fabricName} onChange={e => setFabricName(e.target.value)} placeholder="예: 30수 싱글 코마사" />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">원단 중량</label>
+            <Input value={fabricWeight} onChange={e => setFabricWeight(e.target.value)} placeholder="예: 180g/㎡" />
+          </div>
           <div className="md:col-span-3">
             <label className="text-xs text-muted-foreground">주소</label>
             <Input value={address} onChange={e => setAddress(e.target.value)} />
+          </div>
+          <div className="md:col-span-3">
+            <label className="text-xs text-muted-foreground">발주 특이사항</label>
+            <Textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value.slice(0, 1000))}
+              placeholder="예: 원단 변경 요청, 납기 조정, 포장 방식 등 특이사항을 입력하세요"
+              rows={3}
+            />
+            <div className="text-xs text-right text-muted-foreground mt-1">{notes.length} / 1000</div>
           </div>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader><CardTitle className="text-base">② 상품 선택</CardTitle></CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs text-muted-foreground">티셔츠 종류</label>
+        <CardContent>
+          <label className="text-xs text-muted-foreground">티셔츠 종류</label>
+          <div className="flex gap-2 mt-1">
             <Select value={typeCode} onValueChange={setTypeCode}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {productTypes.map(t => <SelectItem key={t.code} value={t.code}>{nameOf(t)}</SelectItem>)}
               </SelectContent>
             </Select>
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground">색상</label>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {colors.map(c => (
-                <button
-                  key={c.code}
-                  type="button"
-                  onClick={() => setColorCode(c.code)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded border text-sm ${colorCode === c.code ? "border-primary bg-primary/10" : "border-input"}`}
-                >
-                  <span className="w-3 h-3 rounded-full border" style={{ background: c.hex }} />
-                  {nameOf(c)}
-                </button>
-              ))}
-            </div>
+            <Button variant="outline" onClick={() => setAddTypeOpen(true)}>+ 종류 추가</Button>
           </div>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">③ 수량 입력 (현재 재고 참고)</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">③ 색상별 수량 입력 (현재 재고 참고)</CardTitle></CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>사이즈</TableHead>
-                <TableHead className="text-right">현재 재고</TableHead>
-                <TableHead className="text-right">안전 재고</TableHead>
-                <TableHead className="text-right w-40">발주 수량</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {SIZES.map(s => {
-                const inv = typeCode && colorCode ? invMap.get(`${typeCode}|${colorCode}|${s}`) : undefined;
-                const st = inv ? statusInfo(inv.available, inv.safety_stock) : null;
-                const low = st && st.key !== "ok";
-                return (
-                  <TableRow key={s}>
-                    <TableCell className="font-medium">{s}</TableCell>
-                    <TableCell className={`text-right ${low ? "text-yellow-600 font-semibold" : ""}`}>
-                      {inv?.available ?? "-"} {low && <AlertTriangle className="inline w-3.5 h-3.5 ml-1 text-yellow-500" />}
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-32">색상</TableHead>
+                  {SIZES.map(s => <TableHead key={s} className="text-center">{s}</TableHead>)}
+                  <TableHead className="text-right w-20">합계</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {colors.map(c => (
+                  <TableRow key={c.code}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full border shrink-0" style={{ background: c.hex }} />
+                        {nameOf(c)}
+                      </div>
                     </TableCell>
-                    <TableCell className="text-right text-muted-foreground">{inv?.safety_stock ?? "-"}</TableCell>
-                    <TableCell className="text-right">
-                      <Input
-                        type="number" min={0} value={qty[s]}
-                        onChange={e => setQty(prev => ({ ...prev, [s]: Math.max(0, Number(e.target.value) || 0) }))}
-                        className="text-right"
-                      />
-                    </TableCell>
+                    {SIZES.map(s => {
+                      const inv = typeCode ? invMap.get(`${typeCode}|${c.code}|${s}`) : undefined;
+                      const st = inv ? statusInfo(inv.available, inv.safety_stock) : null;
+                      const low = st && st.key !== "ok";
+                      return (
+                        <TableCell key={s} className="p-1">
+                          <Input
+                            type="number" min={0}
+                            value={qtyByColor[c.code]?.[s] ?? 0}
+                            onChange={e => setQty(c.code, s, Number(e.target.value) || 0)}
+                            className="text-right h-8 px-2"
+                          />
+                          <div className={`text-[10px] text-center mt-0.5 ${low ? "text-yellow-500" : "text-muted-foreground"}`}>
+                            재고 {inv?.available ?? "-"} / 안전 {inv?.safety_stock ?? "-"}
+                          </div>
+                        </TableCell>
+                      );
+                    })}
+                    <TableCell className="text-right font-semibold">{colorTotals[c.code] || 0}</TableCell>
                   </TableRow>
-                );
-              })}
-              <TableRow>
-                <TableCell colSpan={3} className="text-right font-semibold">총 합계</TableCell>
-                <TableCell className="text-right font-bold text-lg">{total}</TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
+                ))}
+                <TableRow>
+                  <TableCell className="font-semibold text-right">사이즈 합계</TableCell>
+                  {SIZES.map(s => (
+                    <TableCell key={s} className="text-center font-semibold">{sizeTotals[s] || 0}</TableCell>
+                  ))}
+                  <TableCell className="text-right font-bold text-lg">{total}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 
@@ -890,19 +1002,6 @@ function PurchaseOrderForm({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader><CardTitle className="text-base">⑤ 발주 특이사항</CardTitle></CardHeader>
-        <CardContent>
-          <Textarea
-            value={notes}
-            onChange={e => setNotes(e.target.value.slice(0, 1000))}
-            placeholder="예: 원단 변경 요청, 납기 조정, 포장 방식 등 특이사항을 입력하세요"
-            rows={4}
-          />
-          <div className="text-xs text-right text-muted-foreground mt-1">{notes.length} / 1000</div>
-        </CardContent>
-      </Card>
-
       <div className="flex flex-wrap justify-end gap-2">
         <Button variant="outline" onClick={() => setPreviewOpen(true)}>
           <Eye className="w-4 h-4 mr-1" />발주서 미리보기
@@ -915,15 +1014,17 @@ function PurchaseOrderForm({
       </div>
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>발주서 미리보기</DialogTitle></DialogHeader>
           <PurchaseOrderPreview
             company={company} jobNo={jobNo} author={author}
             orderedAt={orderedAt} expectedAt={expectedAt}
             recipient={recipient} phone={phone} address={address}
-            typeName={productTypes.find(t => t.code === typeCode) ? nameOf(productTypes.find(t => t.code === typeCode)!) : ""}
-            colorName={colors.find(c => c.code === colorCode) ? nameOf(colors.find(c => c.code === colorCode)!) : ""}
-            qty={qty} total={total} notes={notes}
+            garmentType={garmentType} fabricName={fabricName} fabricWeight={fabricWeight}
+            typeName={typeName}
+            colors={colors} nameOf={nameOf}
+            qtyByColor={qtyByColor} colorTotals={colorTotals} sizeTotals={sizeTotals}
+            total={total} notes={notes}
           />
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => downloadExcel()}>
@@ -933,17 +1034,47 @@ function PurchaseOrderForm({
           </div>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={addTypeOpen} onOpenChange={setAddTypeOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>티셔츠 종류 추가</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground">코드 (영문/숫자, 예: LONG_SLEEVE)</label>
+              <Input value={newTypeCode} onChange={e => setNewTypeCode(e.target.value)} placeholder="LONG_SLEEVE" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">한국어 이름</label>
+              <Input value={newTypeKo} onChange={e => setNewTypeKo(e.target.value)} placeholder="긴팔 티셔츠" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">중국어 이름 (선택)</label>
+              <Input value={newTypeZh} onChange={e => setNewTypeZh(e.target.value)} placeholder="长袖T恤" />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setAddTypeOpen(false)}>취소</Button>
+              <Button disabled={addingType} onClick={addProductType}>추가</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
 function PurchaseOrderPreview({
   company, jobNo, author, orderedAt, expectedAt, recipient, phone, address,
-  typeName, colorName, qty, total, notes,
+  garmentType, fabricName, fabricWeight, typeName,
+  colors, nameOf, qtyByColor, colorTotals, sizeTotals, total, notes,
 }: {
   company: string; jobNo: string; author: string; orderedAt: string; expectedAt: string;
   recipient: string; phone: string; address: string;
-  typeName: string; colorName: string; qty: Record<Size, number>; total: number; notes: string;
+  garmentType: string; fabricName: string; fabricWeight: string; typeName: string;
+  colors: Color[]; nameOf: (t: any) => string;
+  qtyByColor: Record<string, Record<Size, number>>;
+  colorTotals: Record<string, number>;
+  sizeTotals: Record<Size, number>;
+  total: number; notes: string;
 }) {
   return (
     <div className="bg-white text-black p-6 rounded border print:border-0">
@@ -957,26 +1088,35 @@ function PurchaseOrderPreview({
           <tr><th className="border p-2 bg-gray-100 text-left">받을사람</th><td className="border p-2">{recipient}</td>
               <th className="border p-2 bg-gray-100 text-left">전화번호</th><td className="border p-2">{phone}</td></tr>
           <tr><th className="border p-2 bg-gray-100 text-left">주소</th><td className="border p-2" colSpan={3}>{address}</td></tr>
+          <tr><th className="border p-2 bg-gray-100 text-left">의류 종류</th><td className="border p-2">{garmentType || "-"}</td>
+              <th className="border p-2 bg-gray-100 text-left">티셔츠 종류</th><td className="border p-2">{typeName || "-"}</td></tr>
+          <tr><th className="border p-2 bg-gray-100 text-left">원단 이름</th><td className="border p-2">{fabricName || "-"}</td>
+              <th className="border p-2 bg-gray-100 text-left">원단 중량</th><td className="border p-2">{fabricWeight || "-"}</td></tr>
           <tr><th className="border p-2 bg-gray-100 text-left">작성자</th><td className="border p-2">{author}</td>
               <th className="border p-2 bg-gray-100 text-left">총수량</th><td className="border p-2 font-bold">{total}</td></tr>
         </tbody>
       </table>
 
-      <h3 className="font-semibold mb-2">상품 정보</h3>
+      <h3 className="font-semibold mb-2">색상별 수량</h3>
       <table className="w-full text-sm border-collapse mb-4">
         <thead>
           <tr className="bg-gray-100">
-            <th className="border p-2">티셔츠 종류</th>
             <th className="border p-2">색상</th>
             {SIZES.map(s => <th key={s} className="border p-2">{s}</th>)}
             <th className="border p-2">합계</th>
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td className="border p-2 text-center">{typeName || "-"}</td>
-            <td className="border p-2 text-center">{colorName || "-"}</td>
-            {SIZES.map(s => <td key={s} className="border p-2 text-center">{qty[s] || 0}</td>)}
+          {colors.map(c => (
+            <tr key={c.code}>
+              <td className="border p-2">{nameOf(c)}</td>
+              {SIZES.map(s => <td key={s} className="border p-2 text-center">{qtyByColor[c.code]?.[s] || 0}</td>)}
+              <td className="border p-2 text-center font-semibold">{colorTotals[c.code] || 0}</td>
+            </tr>
+          ))}
+          <tr className="bg-gray-50">
+            <td className="border p-2 font-semibold text-right">사이즈 합계</td>
+            {SIZES.map(s => <td key={s} className="border p-2 text-center font-semibold">{sizeTotals[s] || 0}</td>)}
             <td className="border p-2 text-center font-bold">{total}</td>
           </tr>
         </tbody>
