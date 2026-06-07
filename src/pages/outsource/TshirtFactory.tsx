@@ -445,6 +445,7 @@ export default function TshirtFactory() {
             authorLabel={user?.email || ""}
             userId={user?.id ?? null}
             nameOf={nameOf}
+            onReload={loadAll}
             onDone={() => { setTab("inventory"); loadAll(); }}
           />
         </TabsContent>
