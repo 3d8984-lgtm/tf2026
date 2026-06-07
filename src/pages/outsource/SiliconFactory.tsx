@@ -1129,6 +1129,27 @@ const DEFAULT_GRADE_COLOR_NAMES: GradeColorNames = { COMMON: "", RARE: "", EPIC:
 interface GradeColorStyle { fontSize: number; fontWeight: number; }
 const DEFAULT_GRADE_COLOR_STYLE: GradeColorStyle = { fontSize: 14, fontWeight: 700 };
 
+function readGradeColorNames(key: string): GradeColorNames {
+  try {
+    if (typeof window === "undefined") return DEFAULT_GRADE_COLOR_NAMES;
+    const raw = localStorage.getItem(key);
+    if (raw) return { ...DEFAULT_GRADE_COLOR_NAMES, ...JSON.parse(raw) };
+    const legacy = localStorage.getItem(GRADE_COLOR_LS_KEY);
+    if (legacy) return { ...DEFAULT_GRADE_COLOR_NAMES, ...JSON.parse(legacy) };
+  } catch {}
+  return DEFAULT_GRADE_COLOR_NAMES;
+}
+function readGradeColorStyle(key: string): GradeColorStyle {
+  try {
+    if (typeof window === "undefined") return DEFAULT_GRADE_COLOR_STYLE;
+    const raw = localStorage.getItem(key);
+    if (raw) return { ...DEFAULT_GRADE_COLOR_STYLE, ...JSON.parse(raw) };
+    const legacy = localStorage.getItem(GRADE_COLOR_STYLE_LS_KEY);
+    if (legacy) return { ...DEFAULT_GRADE_COLOR_STYLE, ...JSON.parse(legacy) };
+  } catch {}
+  return DEFAULT_GRADE_COLOR_STYLE;
+}
+
 interface WorkOrderData {
   company: string; orderNo: string; orderDate: string; deliveryDate: string;
   common: number; rare: number; epic: number; legend: number; total: number;
