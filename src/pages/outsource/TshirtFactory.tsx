@@ -779,6 +779,50 @@ function PurchaseOrderForm({
         title: status === "draft" ? "임시 저장 완료" : "발주가 등록되었습니다",
         description: createdNumbers.join(", "),
       });
+
+      // Send to WeChat group on official PO registration
+      if (status === "ordered") {
+        try {
+          const raw = localStorage.getItem("wechat.webhook.keys.v1");
+          const parsed = raw ? JSON.parse(raw) : {};
+          const key = (parsed?.tshirt || "").trim();
+          if (key) {
+            const lines = [
+              `[발주서] ${typeName || typeCode}`,
+              `작업번호: ${jobNo || "-"}`,
+              `발주업체: ${company}`,
+              `발주일: ${orderedAt}  납품일: ${expectedAt || "-"}`,
+              `받는사람: ${recipient} (${phone})`,
+              garmentType ? `의류: ${garmentType}` : "",
+              fabricName || fabricWeight ? `원단: ${fabricName} ${fabricWeight}`.trim() : "",
+              "",
+              "▶ 색상×사이즈 수량",
+              ...targets.map(c => {
+                const q = qtyByColor[c.code] || ({} as any);
+                const parts = SIZES.filter(s => (q[s] || 0) > 0).map(s => `${s}:${q[s]}`);
+                return `- ${nameOf(c)}: ${parts.join(", ")} (합계 ${colorTotals[c.code] || 0})`;
+              }),
+              `총 수량: ${total}`,
+              notes ? `\n[특이사항]\n${notes}` : "",
+              `\n발주번호: ${createdNumbers.join(", ")}`,
+            ].filter(Boolean).join("\n");
+            const webhookUrl = `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${encodeURIComponent(key)}`;
+            const { error: we } = await supabase.functions.invoke("wechat-send", {
+              body: { webhookUrl, message: lines },
+            });
+            if (we) throw we;
+            toast({ title: "위챗 발송 완료", description: "티셔츠 채널로 발주서를 전송했습니다." });
+          } else {
+            toast({
+              title: "위챗 키 미설정",
+              description: "외주 시스템 설정 > 위챗 알림 채널 > 티셔츠 공장 키를 등록하세요.",
+            });
+          }
+        } catch (we: any) {
+          toast({ title: "위챗 발송 실패", description: we?.message ?? String(we), variant: "destructive" });
+        }
+      }
+
       onDone();
     } catch (e: any) {
       toast({ title: "저장 실패", description: e.message ?? String(e), variant: "destructive" });
