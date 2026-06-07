@@ -2158,22 +2158,16 @@ function ProofBox({
   const setWO = (patch: Partial<typeof workOrder>) => setWorkOrder(prev => ({ ...prev, ...patch }));
   const woTotal = (Number(workOrder.common) || 0) + (Number(workOrder.rare) || 0) + (Number(workOrder.epic) || 0) + (Number(workOrder.legend) || 0);
 
-  // ===== 등급별 색상명 (전역 설정) =====
-  const [gradeColorNames, setGradeColorNames] = useState<GradeColorNames>(() => {
-    try {
-      const raw = typeof window !== "undefined" ? localStorage.getItem(GRADE_COLOR_LS_KEY) : null;
-      if (raw) return { ...DEFAULT_GRADE_COLOR_NAMES, ...JSON.parse(raw) };
-    } catch {}
-    return DEFAULT_GRADE_COLOR_NAMES;
-  });
-  const setGradeColor = (g: Grade, v: string) => setGradeColorNames(prev => ({ ...prev, [g]: v }));
-  const [gradeColorStyle, setGradeColorStyle] = useState<GradeColorStyle>(() => {
-    try {
-      const raw = typeof window !== "undefined" ? localStorage.getItem(GRADE_COLOR_STYLE_LS_KEY) : null;
-      if (raw) return { ...DEFAULT_GRADE_COLOR_STYLE, ...JSON.parse(raw) };
-    } catch {}
-    return DEFAULT_GRADE_COLOR_STYLE;
-  });
+  // ===== 등급별 색상명 (탭별 설정 — 트윈코드 시안 / 큐알코드 시안) =====
+  const [gradeColorNamesTwin, setGradeColorNamesTwin] = useState<GradeColorNames>(() => readGradeColorNames(GRADE_COLOR_TWIN_LS_KEY));
+  const [gradeColorStyleTwin, setGradeColorStyleTwin] = useState<GradeColorStyle>(() => readGradeColorStyle(GRADE_COLOR_STYLE_TWIN_LS_KEY));
+  const [gradeColorNamesQr, setGradeColorNamesQr] = useState<GradeColorNames>(() => readGradeColorNames(GRADE_COLOR_QR_LS_KEY));
+  const [gradeColorStyleQr, setGradeColorStyleQr] = useState<GradeColorStyle>(() => readGradeColorStyle(GRADE_COLOR_STYLE_QR_LS_KEY));
+  const setGradeColorTwin = (g: Grade, v: string) => setGradeColorNamesTwin(prev => ({ ...prev, [g]: v }));
+  const setGradeColorQr = (g: Grade, v: string) => setGradeColorNamesQr(prev => ({ ...prev, [g]: v }));
+  // 작업지시서 출력 / 트윈코드 PDF용 기본값 (twin 사용)
+  const gradeColorNames = gradeColorNamesTwin;
+  const gradeColorStyle = gradeColorStyleTwin;
 
   // ===== 등급별 예시 이미지 (작업지시서) — Supabase Storage 영구 저장 =====
   const [exampleImages, setExampleImages] = useState<GradeExampleImages>({});
