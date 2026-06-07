@@ -647,7 +647,84 @@ export default function OutsourceSettings() {
         </div>
       </Card>
 
+      {/* RunPod (PiD) 설정 */}
+      <Card className="p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold flex items-center gap-2">
+            <Cpu className="w-4 h-4" />
+            {lang === "ko" ? "RunPod (PiD 업스케일러)" : "RunPod (PiD 放大器)"}
+          </h3>
+          <a
+            href="https://www.runpod.io/console/serverless"
+            target="_blank" rel="noreferrer"
+            className="text-xs text-primary flex items-center gap-1 hover:underline"
+          >
+            RunPod Console
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {lang === "ko"
+            ? "NVIDIA PiD 모델을 RunPod Serverless에서 호출합니다. 엔드포인트 URL과 API 키는 Lovable Cloud 시크릿(PID_ENDPOINT_URL, PID_API_KEY)으로 안전하게 저장됩니다."
+            : "在 RunPod Serverless 上调用 NVIDIA PiD 模型。Endpoint URL 与 API Key 安全存储于 Lovable Cloud 密钥(PID_ENDPOINT_URL、PID_API_KEY)。"}
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="rounded-md border bg-muted/30 p-3 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">Endpoint URL</Label>
+              <Badge variant="secondary" className="text-[10px] font-mono">PID_ENDPOINT_URL</Badge>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {lang === "ko"
+                ? "형식: https://api.runpod.ai/v2/<endpoint-id>/runsync"
+                : "格式:https://api.runpod.ai/v2/<endpoint-id>/runsync"}
+            </p>
+          </div>
+          <div className="rounded-md border bg-muted/30 p-3 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">API Key</Label>
+              <Badge variant="secondary" className="text-[10px] font-mono">PID_API_KEY</Badge>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {lang === "ko"
+                ? "RunPod 콘솔 → Settings → API Keys 에서 발급"
+                : "RunPod Console → Settings → API Keys 处生成"}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            {pidResult && (
+              <Badge variant="outline" className="text-[10px] font-mono truncate max-w-full">
+                {pidResult}
+              </Badge>
+            )}
+          </div>
+          <Button size="sm" variant="outline" className="gap-1" onClick={testPid} disabled={pidTesting}>
+            {pidTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+            {lang === "ko" ? "연결 테스트 (/health)" : "连接测试 (/health)"}
+          </Button>
+        </div>
+
+        <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3">
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            {lang === "ko"
+              ? "키 또는 엔드포인트를 변경하려면 채팅으로 '" 
+              : "如需更换密钥或 Endpoint,请在聊天中说\""}
+            <span className="font-semibold text-foreground">
+              {lang === "ko" ? "PID_ENDPOINT_URL 업데이트" : "更新 PID_ENDPOINT_URL"}
+            </span>
+            {lang === "ko"
+              ? "' 또는 'PID_API_KEY 업데이트'라고 요청하세요. 안전한 입력 폼이 열립니다."
+              : "\"或\"更新 PID_API_KEY\",将打开安全输入表单。"}
+          </p>
+        </div>
+      </Card>
+
     </div>
+
 
   );
 }
