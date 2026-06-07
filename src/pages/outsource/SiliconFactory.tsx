@@ -1069,20 +1069,54 @@ function TxtField({ label, v, set, type = "text" }: { label: string; v: string; 
 const PROOF_LS_KEY = "silicon.proofSettings.v1";
 const GRADE_COLOR_LS_KEY = "silicon.gradeColorNames.v1";
 const GRADE_COLOR_STYLE_LS_KEY = "silicon.gradeColorStyle.v1";
-const EXAMPLE_IMAGES_LS_KEY = "silicon.exampleImages.v1";
+const EXAMPLE_IMAGES_BUCKET = "silicon-examples";
+const EXAMPLE_IMAGES_PREFIX = "examples";
 
-type GradeExampleImages = Partial<Record<Grade, { name: string; dataUrl: string }>>;
-function readExampleImages(): GradeExampleImages {
-  try {
-    const raw = typeof window !== "undefined" ? localStorage.getItem(EXAMPLE_IMAGES_LS_KEY) : null;
-    if (raw) return JSON.parse(raw) as GradeExampleImages;
-  } catch {}
-  return {};
-}
+type GradeExampleImages = Partial<Record<Grade, { name: string; dataUrl: string; path?: string }>>;
+
 function exampleImageUrls(m: GradeExampleImages): Partial<Record<Grade, string>> {
   const out: Partial<Record<Grade, string>> = {};
   (Object.keys(m) as Grade[]).forEach(g => { if (m[g]?.dataUrl) out[g] = m[g]!.dataUrl; });
   return out;
+}
+
+async function loadExampleImagesFromStorage(): Promise<GradeExampleImages> {
+  const out: GradeExampleImages = {};
+  try {
+    const { data: list, error } = await supabase.storage
+      .from(EXAMPLE_IMAGES_BUCKET)
+      .list(EXAMPLE_IMAGES_PREFIX, { limit: 1000, sortBy: { column: "created_at", order: "desc" } });
+    if (error || !list) return out;
+    const seen = new Set<Grade>();
+    for (const item of list) {
+      const m = item.name.match(/^(COMMON|RARE|EPIC|LEGEND)__\d+__(.+)$/);
+      if (!m) continue;
+      const g = m[1] as Grade;
+      if (seen.has(g)) continue;
+      seen.add(g);
+      const path = `${EXAMPLE_IMAGES_PREFIX}/${item.name}`;
+      const { data: signed } = await supabase.storage
+        .from(EXAMPLE_IMAGES_BUCKET)
+        .createSignedUrl(path, 60 * 60 * 24);
+      if (signed?.signedUrl) {
+        out[g] = { name: m[2], dataUrl: signed.signedUrl, path };
+      }
+    }
+  } catch (e) {
+    console.warn("loadExampleImagesFromStorage failed", e);
+  }
+  return out;
+}
+
+async function removeExampleImagesForGrade(grade: Grade) {
+  const { data: list } = await supabase.storage
+    .from(EXAMPLE_IMAGES_BUCKET)
+    .list(EXAMPLE_IMAGES_PREFIX, { limit: 1000 });
+  if (!list) return;
+  const paths = list
+    .filter(i => i.name.startsWith(`${grade}__`))
+    .map(i => `${EXAMPLE_IMAGES_PREFIX}/${i.name}`);
+  if (paths.length) await supabase.storage.from(EXAMPLE_IMAGES_BUCKET).remove(paths);
 }
 
 type GradeColorNames = Record<Grade, string>;
@@ -1796,7 +1830,12 @@ function SiliconOrderProgressBox({
     } catch {}
     return DEFAULT_GRADE_COLOR_STYLE;
   }, [open1]);
-  const exampleImageMap = useMemo(() => exampleImageUrls(readExampleImages()), [open1]);
+  const [exampleImageMap, setExampleImageMap] = useState<Partial<Record<Grade, string>>>({});
+  useEffect(() => {
+    let cancelled = false;
+    loadExampleImagesFromStorage().then(m => { if (!cancelled) setExampleImageMap(exampleImageUrls(m)); });
+    return () => { cancelled = true; };
+  }, [open1]);
 
   const woData = useMemo(() => computeSiliconWorkOrder(order, items), [order, items]);
   const woHtml = useMemo(
@@ -2107,32 +2146,47 @@ function ProofBox({
     return DEFAULT_GRADE_COLOR_STYLE;
   });
 
-  // ===== 등급별 예시 이미지 (작업지시서) =====
-  const [exampleImages, setExampleImages] = useState<GradeExampleImages>(() => readExampleImages());
-  const persistExampleImages = (next: GradeExampleImages) => {
-    setExampleImages(next);
-    try { localStorage.setItem(EXAMPLE_IMAGES_LS_KEY, JSON.stringify(next)); } catch {}
-  };
+  // ===== 등급별 예시 이미지 (작업지시서) — Supabase Storage 영구 저장 =====
+  const [exampleImages, setExampleImages] = useState<GradeExampleImages>({});
+  useEffect(() => {
+    let cancelled = false;
+    loadExampleImagesFromStorage().then(m => { if (!cancelled) setExampleImages(m); });
+    return () => { cancelled = true; };
+  }, []);
   const onUploadExampleImage = async (grade: Grade, file: File | null) => {
     if (!file) {
-      const next = { ...exampleImages };
-      delete next[grade];
-      persistExampleImages(next);
-      toast({ title: "예시 이미지 삭제됨", description: grade });
+      try {
+        await removeExampleImagesForGrade(grade);
+        const next = { ...exampleImages };
+        delete next[grade];
+        setExampleImages(next);
+        toast({ title: "예시 이미지 삭제됨", description: grade });
+      } catch (e: any) {
+        toast({ title: "삭제 실패", description: e?.message || String(e), variant: "destructive" });
+      }
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
       toast({ title: "파일이 너무 큽니다", description: "5MB 이하 이미지만 업로드할 수 있습니다", variant: "destructive" });
       return;
     }
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const fr = new FileReader();
-      fr.onload = () => resolve(String(fr.result || ""));
-      fr.onerror = () => reject(fr.error);
-      fr.readAsDataURL(file);
-    });
-    persistExampleImages({ ...exampleImages, [grade]: { name: file.name, dataUrl } });
-    toast({ title: "예시 이미지 업로드됨", description: `${grade} · ${file.name}` });
+    try {
+      await removeExampleImagesForGrade(grade);
+      const safeName = file.name.replace(/[^\w.\-]+/g, "_") || "example";
+      const path = `${EXAMPLE_IMAGES_PREFIX}/${grade}__${Date.now()}__${safeName}`;
+      const { error: upErr } = await supabase.storage
+        .from(EXAMPLE_IMAGES_BUCKET)
+        .upload(path, file, { upsert: true, contentType: file.type || "image/png", cacheControl: "3600" });
+      if (upErr) throw upErr;
+      const { data: signed, error: sErr } = await supabase.storage
+        .from(EXAMPLE_IMAGES_BUCKET)
+        .createSignedUrl(path, 60 * 60 * 24);
+      if (sErr) throw sErr;
+      setExampleImages({ ...exampleImages, [grade]: { name: file.name, dataUrl: signed.signedUrl, path } });
+      toast({ title: "예시 이미지 업로드됨", description: `${grade} · ${file.name}` });
+    } catch (e: any) {
+      toast({ title: "업로드 실패", description: e?.message || String(e), variant: "destructive" });
+    }
   };
   const labelFor = (it: ProofItem) => {
     const c = gradeColorNames[it.grade];
