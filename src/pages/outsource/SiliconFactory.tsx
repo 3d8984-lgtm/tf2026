@@ -1636,7 +1636,10 @@ async function renderPdfAllPagesToPng(bytes: Uint8Array, scale = 1.5): Promise<s
 }
 
 function Step2PdfPreviewDialog({
-  open, onOpenChange, items, proof, templates, qrMap, gradeColorNames, gradeColorStyle, orderNo, onConfirm,
+  open, onOpenChange, items, proof, templates, qrMap,
+  gradeColorNamesTwin, gradeColorStyleTwin,
+  gradeColorNamesQr, gradeColorStyleQr,
+  orderNo, onConfirm,
   overrideTwinSvgUrl,
 }: {
   open: boolean;
@@ -1645,8 +1648,10 @@ function Step2PdfPreviewDialog({
   proof: ProofSettings;
   templates: Record<Grade, { name: string; bytes: Uint8Array; preview: string; aspect: number } | null>;
   qrMap: Record<string, string>;
-  gradeColorNames: GradeColorNames;
-  gradeColorStyle: GradeColorStyle;
+  gradeColorNamesTwin: GradeColorNames;
+  gradeColorStyleTwin: GradeColorStyle;
+  gradeColorNamesQr: GradeColorNames;
+  gradeColorStyleQr: GradeColorStyle;
   orderNo: string;
   onConfirm: () => void;
   overrideTwinSvgUrl?: string | null;
@@ -1678,7 +1683,8 @@ function Step2PdfPreviewDialog({
         setTwinImgs([...imgs]);
         for (let p = 0; p < totalTwin; p++) {
           const bytes = await buildSiliconTwinPdfPage({
-            items, pageIdx: p, proof, templates, gradeColorNames, gradeColorStyle,
+            items, pageIdx: p, proof, templates,
+            gradeColorNames: gradeColorNamesTwin, gradeColorStyle: gradeColorStyleTwin,
             overrideTwinSvgUrl: overrideTwinSvgUrl || null,
           });
           if (cancelled) return;
@@ -1692,7 +1698,7 @@ function Step2PdfPreviewDialog({
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, items, proof, templates, gradeColorNames, gradeColorStyle, totalTwin, overrideTwinSvgUrl]);
+  }, [open, items, proof, templates, gradeColorNamesTwin, gradeColorStyleTwin, totalTwin, overrideTwinSvgUrl]);
 
   useEffect(() => {
     if (!open || items.length === 0) return;
@@ -1700,7 +1706,10 @@ function Step2PdfPreviewDialog({
     (async () => {
       setQrBusy(true);
       try {
-        const bytes = await buildSiliconQrPdfAll({ items, proof, qrMap, gradeColorNames, gradeColorStyle });
+        const bytes = await buildSiliconQrPdfAll({
+          items, proof, qrMap,
+          gradeColorNames: gradeColorNamesQr, gradeColorStyle: gradeColorStyleQr,
+        });
         if (cancelled) return;
         const imgs = await renderPdfAllPagesToPng(bytes, 1.5);
         if (cancelled) return;
@@ -1711,7 +1720,7 @@ function Step2PdfPreviewDialog({
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, items, proof, qrMap, gradeColorNames, gradeColorStyle]);
+  }, [open, items, proof, qrMap, gradeColorNamesQr, gradeColorStyleQr]);
 
   const currentTwinImg = twinImgs[twinIdx] || null;
   const currentQrImg = qrImgs[qrIdx] || null;
