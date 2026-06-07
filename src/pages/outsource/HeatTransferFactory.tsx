@@ -406,6 +406,37 @@ interface DesignDetail {
   tshirtType: string;
   tshirtColor: string;
   tshirtSize: string;
+  grade: string;
+}
+
+// Normalize grade values from various sources (full names, abbreviations, colors)
+function resolveGrade(item: any, order?: any): string {
+  const raw = String(
+    item?.grade ??
+    item?.card_grade ??
+    order?.source_data?.grade ??
+    order?.source_data?.card_grade ??
+    order?.grade ??
+    ""
+  ).trim().toUpperCase();
+  if (!raw) return "COMMON";
+  const known = ["COMMON", "RARE", "EPIC", "LEGEND"];
+  if (known.includes(raw)) return raw;
+  const abbrMap: Record<string, string> = {
+    C: "COMMON", R: "RARE", E: "EPIC", L: "LEGEND",
+    COM: "COMMON", RAR: "RARE", EPI: "EPIC", LEG: "LEGEND", LGD: "LEGEND",
+    BLACK: "COMMON", SILVER: "RARE", GOLD: "EPIC", HOLOGRAM: "LEGEND", HOLO: "LEGEND",
+  };
+  return abbrMap[raw] ?? "COMMON";
+}
+
+function gradeBadgeVariant(grade: string): "secondary" | "default" | "outline" | "destructive" {
+  switch (grade) {
+    case "LEGEND": return "destructive";
+    case "EPIC": return "default";
+    case "RARE": return "secondary";
+    default: return "outline";
+  }
 }
 
 type PngJobRow = {
