@@ -2157,8 +2157,24 @@ function ProofBox({
     setExampleImages(next);
     try { localStorage.setItem(EXAMPLE_IMAGES_LS_KEY, JSON.stringify(next)); } catch {}
   };
+  // 서버에서 동기화 (마운트 시 1회)
+  useEffect(() => {
+    (async () => {
+      try {
+        const server = await fetchExampleImagesFromServer();
+        if (Object.keys(server).length > 0) persistExampleImages(server);
+      } catch (e) {
+        console.warn("[silicon] sync example images failed", e);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const onUploadExampleImage = async (grade: Grade, file: File | null) => {
     if (!file) {
+      try { await deleteExampleImageFromServer(grade); } catch (e: any) {
+        toast({ title: "삭제 실패", description: e?.message || String(e), variant: "destructive" });
+        return;
+      }
       const next = { ...exampleImages };
       delete next[grade];
       persistExampleImages(next);
@@ -2167,6 +2183,12 @@ function ProofBox({
     }
     if (file.size > 5 * 1024 * 1024) {
       toast({ title: "파일이 너무 큽니다", description: "5MB 이하 이미지만 업로드할 수 있습니다", variant: "destructive" });
+      return;
+    }
+    try {
+      await uploadExampleImageToServer(grade, file);
+    } catch (e: any) {
+      toast({ title: "업로드 실패", description: e?.message || String(e), variant: "destructive" });
       return;
     }
     const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -2178,6 +2200,7 @@ function ProofBox({
     persistExampleImages({ ...exampleImages, [grade]: { name: file.name, dataUrl } });
     toast({ title: "예시 이미지 업로드됨", description: `${grade} · ${file.name}` });
   };
+
   const labelFor = (it: ProofItem) => {
     const c = gradeColorNames[it.grade];
     if (!c) return <>{it.uniqueNo}</>;
