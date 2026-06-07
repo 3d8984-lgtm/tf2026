@@ -42,7 +42,7 @@ type PO = {
   received_at: string | null;
   product_type_code: string;
   color_code: string;
-  status: "draft" | "ordered" | "in_production" | "received";
+  status: "draft" | "ordered" | "in_production" | "shipped" | "received";
   notes: string | null;
   created_by_label: string | null;
   items?: { size: Size; quantity: number }[];
@@ -59,15 +59,24 @@ function statusInfo(available: number, safety: number) {
   return { key: "ok", color: "bg-emerald-500", label: "정상", icon: "🟢", text: "text-emerald-500" };
 }
 
+const PO_STATUS_OPTIONS: { value: PO["status"]; label: string }[] = [
+  { value: "ordered", label: "발주 완료" },
+  { value: "in_production", label: "생산 중" },
+  { value: "shipped", label: "발송 완료" },
+  { value: "received", label: "입고 완료" },
+];
+
 function poStatusBadge(status: PO["status"]) {
   const map: Record<PO["status"], { label: string; variant: any }> = {
     draft: { label: "임시 저장", variant: "outline" },
     ordered: { label: "발주 완료", variant: "secondary" },
     in_production: { label: "생산 중", variant: "default" },
+    shipped: { label: "발송 완료", variant: "default" },
     received: { label: "입고 완료", variant: "default" },
   };
   return map[status];
 }
+
 
 export default function TshirtFactory() {
   const { lang } = useLang();
