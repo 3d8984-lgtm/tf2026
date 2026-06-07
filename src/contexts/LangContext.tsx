@@ -41,6 +41,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "menu.outNfcCard": "NFC 카드 공장",
     "menu.outCardOrder": "카드 발주 시스템",
     "menu.outLogo": "LOGO 공장",
+    "menu.outTshirtFactory": "티셔츠 공장",
     "menu.outHistory": "발주 이력 관리",
     "menu.outJobs": "발주 진행 상황",
     "menu.outSettings": "시스템 설정",
