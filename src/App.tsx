@@ -28,6 +28,7 @@ import HeatTransferFactory from "@/pages/outsource/HeatTransferFactory";
 import HologramFactory from "@/pages/outsource/HologramFactory";
 import NfcCardFactory from "@/pages/outsource/NfcCardFactory";
 import LogoFactory from "@/pages/outsource/LogoFactory";
+import TshirtFactory from "@/pages/outsource/TshirtFactory";
 import OutsourceHistory from "@/pages/outsource/OutsourceHistory";
 import OutsourceSettings from "@/pages/outsource/OutsourceSettings";
 import OrderJobsDashboard from "@/pages/outsource/OrderJobsDashboard";
