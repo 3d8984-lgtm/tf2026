@@ -1069,20 +1069,54 @@ function TxtField({ label, v, set, type = "text" }: { label: string; v: string; 
 const PROOF_LS_KEY = "silicon.proofSettings.v1";
 const GRADE_COLOR_LS_KEY = "silicon.gradeColorNames.v1";
 const GRADE_COLOR_STYLE_LS_KEY = "silicon.gradeColorStyle.v1";
-const EXAMPLE_IMAGES_LS_KEY = "silicon.exampleImages.v1";
+const EXAMPLE_IMAGES_BUCKET = "silicon-examples";
+const EXAMPLE_IMAGES_PREFIX = "examples";
 
-type GradeExampleImages = Partial<Record<Grade, { name: string; dataUrl: string }>>;
-function readExampleImages(): GradeExampleImages {
-  try {
-    const raw = typeof window !== "undefined" ? localStorage.getItem(EXAMPLE_IMAGES_LS_KEY) : null;
-    if (raw) return JSON.parse(raw) as GradeExampleImages;
-  } catch {}
-  return {};
-}
+type GradeExampleImages = Partial<Record<Grade, { name: string; dataUrl: string; path?: string }>>;
+
 function exampleImageUrls(m: GradeExampleImages): Partial<Record<Grade, string>> {
   const out: Partial<Record<Grade, string>> = {};
   (Object.keys(m) as Grade[]).forEach(g => { if (m[g]?.dataUrl) out[g] = m[g]!.dataUrl; });
   return out;
+}
+
+async function loadExampleImagesFromStorage(): Promise<GradeExampleImages> {
+  const out: GradeExampleImages = {};
+  try {
+    const { data: list, error } = await supabase.storage
+      .from(EXAMPLE_IMAGES_BUCKET)
+      .list(EXAMPLE_IMAGES_PREFIX, { limit: 1000, sortBy: { column: "created_at", order: "desc" } });
+    if (error || !list) return out;
+    const seen = new Set<Grade>();
+    for (const item of list) {
+      const m = item.name.match(/^(COMMON|RARE|EPIC|LEGEND)__\d+__(.+)$/);
+      if (!m) continue;
+      const g = m[1] as Grade;
+      if (seen.has(g)) continue;
+      seen.add(g);
+      const path = `${EXAMPLE_IMAGES_PREFIX}/${item.name}`;
+      const { data: signed } = await supabase.storage
+        .from(EXAMPLE_IMAGES_BUCKET)
+        .createSignedUrl(path, 60 * 60 * 24);
+      if (signed?.signedUrl) {
+        out[g] = { name: m[2], dataUrl: signed.signedUrl, path };
+      }
+    }
+  } catch (e) {
+    console.warn("loadExampleImagesFromStorage failed", e);
+  }
+  return out;
+}
+
+async function removeExampleImagesForGrade(grade: Grade) {
+  const { data: list } = await supabase.storage
+    .from(EXAMPLE_IMAGES_BUCKET)
+    .list(EXAMPLE_IMAGES_PREFIX, { limit: 1000 });
+  if (!list) return;
+  const paths = list
+    .filter(i => i.name.startsWith(`${grade}__`))
+    .map(i => `${EXAMPLE_IMAGES_PREFIX}/${i.name}`);
+  if (paths.length) await supabase.storage.from(EXAMPLE_IMAGES_BUCKET).remove(paths);
 }
 
 type GradeColorNames = Record<Grade, string>;
