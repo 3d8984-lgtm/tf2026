@@ -234,12 +234,13 @@ export default function TshirtFactory() {
         <TabsContent value="inventory" className="space-y-6">
           {/* KPI cards */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <KpiTile icon={<CheckCircle2 className="w-5 h-5" />} label="정상 재고 (작업분 제외)" value={kpi.ok} accent="text-emerald-500" dot="bg-emerald-500" />
             <KpiTile icon={<Package className="w-5 h-5" />} label="오늘 작업 재고" value={kpi.todayWork} accent="text-sky-500" dot="bg-sky-500" />
+            <KpiTile icon={<CheckCircle2 className="w-5 h-5" />} label="정상 재고 (작업분 제외)" value={kpi.ok} accent="text-emerald-500" dot="bg-emerald-500" />
             <KpiTile icon={<AlertTriangle className="w-5 h-5" />} label="재고 부족" value={kpi.low} accent="text-yellow-500" dot="bg-yellow-500" />
             <KpiTile icon={<AlertTriangle className="w-5 h-5" />} label="품절 임박" value={kpi.critical} accent="text-red-500" dot="bg-red-500" />
             <KpiTile icon={<CircleSlash className="w-5 h-5" />} label="품절" value={kpi.out} accent="text-zinc-400" dot="bg-zinc-500" />
           </div>
+
 
           {/* Safety stock setting & warnings */}
           <Card>
