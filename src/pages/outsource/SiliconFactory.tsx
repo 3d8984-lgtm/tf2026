@@ -1063,6 +1063,7 @@ const PROOF_LS_KEY = "silicon.proofSettings.v1";
 const GRADE_COLOR_LS_KEY = "silicon.gradeColorNames.v1";
 const GRADE_COLOR_STYLE_LS_KEY = "silicon.gradeColorStyle.v1";
 const EXAMPLE_IMAGES_LS_KEY = "silicon.exampleImages.v1";
+const EXAMPLE_IMAGES_BUCKET = "silicon-examples";
 
 type GradeExampleImages = Partial<Record<Grade, { name: string; dataUrl: string }>>;
 function readExampleImages(): GradeExampleImages {
@@ -1077,6 +1078,56 @@ function exampleImageUrls(m: GradeExampleImages): Partial<Record<Grade, string>>
   (Object.keys(m) as Grade[]).forEach(g => { if (m[g]?.dataUrl) out[g] = m[g]!.dataUrl; });
   return out;
 }
+
+async function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(String(fr.result || ""));
+    fr.onerror = () => reject(fr.error);
+    fr.readAsDataURL(blob);
+  });
+}
+
+async function fetchExampleImagesFromServer(): Promise<GradeExampleImages> {
+  const out: GradeExampleImages = {};
+  await Promise.all((["COMMON", "RARE", "EPIC", "LEGEND"] as Grade[]).map(async (g) => {
+    try {
+      const { data: list } = await supabase.storage.from(EXAMPLE_IMAGES_BUCKET).list(g, { limit: 1, sortBy: { column: "created_at", order: "desc" } });
+      const file = list?.[0];
+      if (!file) return;
+      const { data: blob } = await supabase.storage.from(EXAMPLE_IMAGES_BUCKET).download(`${g}/${file.name}`);
+      if (!blob) return;
+      out[g] = { name: file.name.replace(/^\d+__/, ""), dataUrl: await blobToDataUrl(blob) };
+    } catch (e) {
+      console.warn("[silicon] fetch example image failed", g, e);
+    }
+  }));
+  return out;
+}
+
+async function uploadExampleImageToServer(grade: Grade, file: File): Promise<void> {
+  // remove existing files in folder first
+  const { data: list } = await supabase.storage.from(EXAMPLE_IMAGES_BUCKET).list(grade);
+  if (list?.length) {
+    await supabase.storage.from(EXAMPLE_IMAGES_BUCKET).remove(list.map((f) => `${grade}/${f.name}`));
+  }
+  const safe = file.name.replace(/[^\w.-]+/g, "_");
+  const path = `${grade}/${Date.now()}__${safe}`;
+  const { error } = await supabase.storage.from(EXAMPLE_IMAGES_BUCKET).upload(path, file, {
+    upsert: true,
+    contentType: file.type || "application/octet-stream",
+    cacheControl: "0",
+  });
+  if (error) throw error;
+}
+
+async function deleteExampleImageFromServer(grade: Grade): Promise<void> {
+  const { data: list } = await supabase.storage.from(EXAMPLE_IMAGES_BUCKET).list(grade);
+  if (list?.length) {
+    await supabase.storage.from(EXAMPLE_IMAGES_BUCKET).remove(list.map((f) => `${grade}/${f.name}`));
+  }
+}
+
 
 type GradeColorNames = Record<Grade, string>;
 const DEFAULT_GRADE_COLOR_NAMES: GradeColorNames = { COMMON: "", RARE: "", EPIC: "", LEGEND: "" };
