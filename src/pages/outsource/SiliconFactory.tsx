@@ -1850,20 +1850,13 @@ function SiliconOrderProgressBox({
     try { localStorage.setItem(stateKey, JSON.stringify(merged)); } catch {}
   };
 
-  const colorNames = useMemo<GradeColorNames>(() => {
-    try {
-      const raw = localStorage.getItem(GRADE_COLOR_LS_KEY);
-      if (raw) return { ...DEFAULT_GRADE_COLOR_NAMES, ...JSON.parse(raw) };
-    } catch {}
-    return DEFAULT_GRADE_COLOR_NAMES;
-  }, [open1]);
-  const colorStyle = useMemo<GradeColorStyle>(() => {
-    try {
-      const raw = localStorage.getItem(GRADE_COLOR_STYLE_LS_KEY);
-      if (raw) return { ...DEFAULT_GRADE_COLOR_STYLE, ...JSON.parse(raw) };
-    } catch {}
-    return DEFAULT_GRADE_COLOR_STYLE;
-  }, [open1]);
+  const colorNamesTwin = useMemo<GradeColorNames>(() => readGradeColorNames(GRADE_COLOR_TWIN_LS_KEY), [open1, open2]);
+  const colorStyleTwin = useMemo<GradeColorStyle>(() => readGradeColorStyle(GRADE_COLOR_STYLE_TWIN_LS_KEY), [open1, open2]);
+  const colorNamesQr = useMemo<GradeColorNames>(() => readGradeColorNames(GRADE_COLOR_QR_LS_KEY), [open1, open2]);
+  const colorStyleQr = useMemo<GradeColorStyle>(() => readGradeColorStyle(GRADE_COLOR_STYLE_QR_LS_KEY), [open1, open2]);
+  // Work order uses twin set
+  const colorNames = colorNamesTwin;
+  const colorStyle = colorStyleTwin;
   const [exampleImageMap, setExampleImageMap] = useState<Partial<Record<Grade, string>>>({});
   useEffect(() => {
     let cancelled = false;
