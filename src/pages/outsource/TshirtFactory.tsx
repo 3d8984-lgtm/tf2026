@@ -604,16 +604,40 @@ function PurchaseOrderForm({
   onDone: () => void;
 }) {
   const today = new Date().toISOString().slice(0, 10);
+  const LS_KEY = "tshirt.workOrder.v1.draft";
   const [orderedAt, setOrderedAt] = useState(today);
   const [expectedAt, setExpectedAt] = useState("");
   const [author, setAuthor] = useState(authorLabel);
+  const [company, setCompany] = useState("TWINMETA");
+  const [jobNo, setJobNo] = useState("");
+  const [recipient, setRecipient] = useState("TWINMETA");
+  const [phone, setPhone] = useState("18562757070");
+  const [address, setAddress] = useState("山东省 青岛市 城阳区 青岛市城阳区流亭街道杨埠寨社区工业园6号厂房东侧1楼 TWINMETA");
   const [typeCode, setTypeCode] = useState<string>("");
   const [colorCode, setColorCode] = useState<string>("");
   const [qty, setQty] = useState<Record<Size, number>>(() => Object.fromEntries(SIZES.map(s => [s, 0])) as any);
   const [files, setFiles] = useState<File[]>([]);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Load saved defaults (basic info persists across sessions until submitted)
+  useEffect(() => {
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem(LS_KEY) : null;
+      if (raw) {
+        const d = JSON.parse(raw);
+        if (d.company) setCompany(d.company);
+        if (d.recipient) setRecipient(d.recipient);
+        if (d.phone) setPhone(d.phone);
+        if (d.address) setAddress(d.address);
+      }
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem(LS_KEY, JSON.stringify({ company, recipient, phone, address })); } catch { /* */ }
+  }, [company, recipient, phone, address]);
 
   useEffect(() => { setAuthor(authorLabel); }, [authorLabel]);
   useEffect(() => {
