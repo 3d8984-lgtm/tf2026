@@ -15,8 +15,9 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import {
   AlertTriangle, CheckCircle2, CircleSlash, Package, Upload, X, FileText, Image as ImageIcon,
-  PackageCheck, Filter, Download, Eye, ShoppingCart, Shirt,
+  PackageCheck, Filter, Download, Eye, ShoppingCart, Shirt, FileSpreadsheet,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 
 const SIZES = ["S", "M", "L", "XL", "2XL", "3XL", "4XL"] as const;
 type Size = typeof SIZES[number];
@@ -603,16 +604,40 @@ function PurchaseOrderForm({
   onDone: () => void;
 }) {
   const today = new Date().toISOString().slice(0, 10);
+  const LS_KEY = "tshirt.workOrder.v1.draft";
   const [orderedAt, setOrderedAt] = useState(today);
   const [expectedAt, setExpectedAt] = useState("");
   const [author, setAuthor] = useState(authorLabel);
+  const [company, setCompany] = useState("TWINMETA");
+  const [jobNo, setJobNo] = useState("");
+  const [recipient, setRecipient] = useState("TWINMETA");
+  const [phone, setPhone] = useState("18562757070");
+  const [address, setAddress] = useState("山东省 青岛市 城阳区 青岛市城阳区流亭街道杨埠寨社区工业园6号厂房东侧1楼 TWINMETA");
   const [typeCode, setTypeCode] = useState<string>("");
   const [colorCode, setColorCode] = useState<string>("");
   const [qty, setQty] = useState<Record<Size, number>>(() => Object.fromEntries(SIZES.map(s => [s, 0])) as any);
   const [files, setFiles] = useState<File[]>([]);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Load saved defaults (basic info persists across sessions until submitted)
+  useEffect(() => {
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem(LS_KEY) : null;
+      if (raw) {
+        const d = JSON.parse(raw);
+        if (d.company) setCompany(d.company);
+        if (d.recipient) setRecipient(d.recipient);
+        if (d.phone) setPhone(d.phone);
+        if (d.address) setAddress(d.address);
+      }
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem(LS_KEY, JSON.stringify({ company, recipient, phone, address })); } catch { /* */ }
+  }, [company, recipient, phone, address]);
 
   useEffect(() => { setAuthor(authorLabel); }, [authorLabel]);
   useEffect(() => {
@@ -677,22 +702,80 @@ function PurchaseOrderForm({
     }
   };
 
+  const downloadExcel = () => {
+    const typeName = productTypes.find(t => t.code === typeCode) ? nameOf(productTypes.find(t => t.code === typeCode)!) : "";
+    const colorName = colors.find(c => c.code === colorCode) ? nameOf(colors.find(c => c.code === colorCode)!) : "";
+    const header: any[][] = [
+      ["발 주 서 (PURCHASE ORDER)"],
+      [],
+      ["발주업체명", company, "", "작업번호", jobNo || ""],
+      ["발주일", orderedAt, "", "납품일", expectedAt || ""],
+      ["받을사람", recipient, "", "전화번호", phone],
+      ["주소", address],
+      ["작성자", author, "", "총수량", total],
+      [],
+      ["상품 정보"],
+      ["티셔츠 종류", "색상", ...SIZES, "합계"],
+      [typeName, colorName, ...SIZES.map(s => qty[s] || 0), total],
+      [],
+      ["발주 특이사항"],
+      [notes || ""],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(header);
+    ws["!cols"] = [{ wch: 16 }, { wch: 20 }, { wch: 4 }, { wch: 16 }, { wch: 20 }, ...SIZES.map(() => ({ wch: 8 })), { wch: 10 }];
+    ws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } },
+      { s: { r: 5, c: 1 }, e: { r: 5, c: 10 } },
+      { s: { r: 13, c: 0 }, e: { r: 13, c: 10 } },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "발주서");
+    const fname = `발주서_${jobNo || orderedAt}_${typeName || "tshirt"}.xlsx`;
+    XLSX.writeFile(wb, fname);
+    toast({ title: "엑셀 다운로드 완료", description: fname });
+  };
+
+
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader><CardTitle className="text-base">① 기본 정보</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="text-xs text-muted-foreground">발주일</label>
-            <Input type="date" value={orderedAt} onChange={e => setOrderedAt(e.target.value)} />
+            <label className="text-xs text-muted-foreground">발주업체명</label>
+            <Input value={company} onChange={e => setCompany(e.target.value)} />
           </div>
           <div>
-            <label className="text-xs text-muted-foreground">예상 입고일</label>
-            <Input type="date" value={expectedAt} onChange={e => setExpectedAt(e.target.value)} />
+            <label className="text-xs text-muted-foreground">작업번호</label>
+            <Input value={jobNo} onChange={e => setJobNo(e.target.value)} placeholder="자동 생성 (발주 등록 시)" />
           </div>
           <div>
             <label className="text-xs text-muted-foreground">작성자</label>
             <Input value={author} onChange={e => setAuthor(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">발주일</label>
+            <Input type="date" value={orderedAt} onChange={e => setOrderedAt(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">납품일 (예상 입고일)</label>
+            <Input type="date" value={expectedAt} onChange={e => setExpectedAt(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">총수량</label>
+            <Input value={total} readOnly className="bg-muted" />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">받을사람</label>
+            <Input value={recipient} onChange={e => setRecipient(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">전화번호</label>
+            <Input value={phone} onChange={e => setPhone(e.target.value)} />
+          </div>
+          <div className="md:col-span-3">
+            <label className="text-xs text-muted-foreground">주소</label>
+            <Input value={address} onChange={e => setAddress(e.target.value)} />
           </div>
         </CardContent>
       </Card>
@@ -819,10 +902,91 @@ function PurchaseOrderForm({
         </CardContent>
       </Card>
 
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button variant="outline" onClick={() => setPreviewOpen(true)}>
+          <Eye className="w-4 h-4 mr-1" />발주서 미리보기
+        </Button>
+        <Button variant="outline" onClick={() => downloadExcel()}>
+          <FileSpreadsheet className="w-4 h-4 mr-1" />엑셀 다운로드
+        </Button>
         <Button variant="outline" disabled={saving} onClick={() => submit("draft")}>임시 저장</Button>
         <Button disabled={saving} onClick={() => submit("ordered")}>발주 등록</Button>
       </div>
+
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>발주서 미리보기</DialogTitle></DialogHeader>
+          <PurchaseOrderPreview
+            company={company} jobNo={jobNo} author={author}
+            orderedAt={orderedAt} expectedAt={expectedAt}
+            recipient={recipient} phone={phone} address={address}
+            typeName={productTypes.find(t => t.code === typeCode) ? nameOf(productTypes.find(t => t.code === typeCode)!) : ""}
+            colorName={colors.find(c => c.code === colorCode) ? nameOf(colors.find(c => c.code === colorCode)!) : ""}
+            qty={qty} total={total} notes={notes}
+          />
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => downloadExcel()}>
+              <FileSpreadsheet className="w-4 h-4 mr-1" />엑셀 다운로드
+            </Button>
+            <Button variant="outline" onClick={() => window.print()}>인쇄</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function PurchaseOrderPreview({
+  company, jobNo, author, orderedAt, expectedAt, recipient, phone, address,
+  typeName, colorName, qty, total, notes,
+}: {
+  company: string; jobNo: string; author: string; orderedAt: string; expectedAt: string;
+  recipient: string; phone: string; address: string;
+  typeName: string; colorName: string; qty: Record<Size, number>; total: number; notes: string;
+}) {
+  return (
+    <div className="bg-white text-black p-6 rounded border print:border-0">
+      <h2 className="text-2xl font-bold text-center mb-4">발 주 서 (PURCHASE ORDER)</h2>
+      <table className="w-full text-sm border-collapse mb-4">
+        <tbody>
+          <tr><th className="border p-2 bg-gray-100 w-32 text-left">발주업체명</th><td className="border p-2">{company}</td>
+              <th className="border p-2 bg-gray-100 w-32 text-left">작업번호</th><td className="border p-2">{jobNo || "-"}</td></tr>
+          <tr><th className="border p-2 bg-gray-100 text-left">발주일</th><td className="border p-2">{orderedAt}</td>
+              <th className="border p-2 bg-gray-100 text-left">납품일</th><td className="border p-2">{expectedAt || "-"}</td></tr>
+          <tr><th className="border p-2 bg-gray-100 text-left">받을사람</th><td className="border p-2">{recipient}</td>
+              <th className="border p-2 bg-gray-100 text-left">전화번호</th><td className="border p-2">{phone}</td></tr>
+          <tr><th className="border p-2 bg-gray-100 text-left">주소</th><td className="border p-2" colSpan={3}>{address}</td></tr>
+          <tr><th className="border p-2 bg-gray-100 text-left">작성자</th><td className="border p-2">{author}</td>
+              <th className="border p-2 bg-gray-100 text-left">총수량</th><td className="border p-2 font-bold">{total}</td></tr>
+        </tbody>
+      </table>
+
+      <h3 className="font-semibold mb-2">상품 정보</h3>
+      <table className="w-full text-sm border-collapse mb-4">
+        <thead>
+          <tr className="bg-gray-100">
+            <th className="border p-2">티셔츠 종류</th>
+            <th className="border p-2">색상</th>
+            {SIZES.map(s => <th key={s} className="border p-2">{s}</th>)}
+            <th className="border p-2">합계</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td className="border p-2 text-center">{typeName || "-"}</td>
+            <td className="border p-2 text-center">{colorName || "-"}</td>
+            {SIZES.map(s => <td key={s} className="border p-2 text-center">{qty[s] || 0}</td>)}
+            <td className="border p-2 text-center font-bold">{total}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      {notes && (
+        <>
+          <h3 className="font-semibold mb-2">발주 특이사항</h3>
+          <div className="border p-3 whitespace-pre-wrap text-sm min-h-[60px]">{notes}</div>
+        </>
+      )}
     </div>
   );
 }
