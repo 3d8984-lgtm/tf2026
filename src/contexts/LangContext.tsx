@@ -530,6 +530,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "menu.outNfcCard": "NFC卡片工厂",
     "menu.outCardOrder": "卡片发单系统",
     "menu.outLogo": "LOGO工厂",
+    "menu.outTshirtFactory": "T恤工厂",
     "menu.outHistory": "发货历史管理",
     "menu.outJobs": "发货进度",
     "menu.outSettings": "系统设置",
