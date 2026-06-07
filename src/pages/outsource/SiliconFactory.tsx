@@ -1910,7 +1910,7 @@ function SiliconOrderProgressBox({
       for (let p = 0; p < totalTwin; p++) {
         const bytes = await buildSiliconTwinPdfPage({
           items: proofItems, pageIdx: p, proof, templates,
-          gradeColorNames: colorNames, gradeColorStyle: colorStyle,
+          gradeColorNames: colorNamesTwin, gradeColorStyle: colorStyleTwin,
           overrideTwinSvgUrl: testTwinSvgUrl || null,
         });
         tpuFolder.file(`${folderName}(${p + 1}).pdf`, bytes);
@@ -1919,7 +1919,7 @@ function SiliconOrderProgressBox({
       // 3) QRcode.pdf — 단일 PDF에 A4 여러 페이지
       const qrBytes = await buildSiliconQrPdfAll({
         items: proofItems, proof, qrMap: proofQrMap,
-        gradeColorNames: colorNames, gradeColorStyle: colorStyle,
+        gradeColorNames: colorNamesQr, gradeColorStyle: colorStyleQr,
       });
       folder.file("QRcode.pdf", qrBytes);
 
