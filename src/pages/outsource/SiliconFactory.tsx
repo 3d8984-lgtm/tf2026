@@ -1830,7 +1830,12 @@ function SiliconOrderProgressBox({
     } catch {}
     return DEFAULT_GRADE_COLOR_STYLE;
   }, [open1]);
-  const exampleImageMap = useMemo(() => exampleImageUrls(readExampleImages()), [open1]);
+  const [exampleImageMap, setExampleImageMap] = useState<Partial<Record<Grade, string>>>({});
+  useEffect(() => {
+    let cancelled = false;
+    loadExampleImagesFromStorage().then(m => { if (!cancelled) setExampleImageMap(exampleImageUrls(m)); });
+    return () => { cancelled = true; };
+  }, [open1]);
 
   const woData = useMemo(() => computeSiliconWorkOrder(order, items), [order, items]);
   const woHtml = useMemo(
