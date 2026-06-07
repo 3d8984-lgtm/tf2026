@@ -2146,32 +2146,47 @@ function ProofBox({
     return DEFAULT_GRADE_COLOR_STYLE;
   });
 
-  // ===== 등급별 예시 이미지 (작업지시서) =====
-  const [exampleImages, setExampleImages] = useState<GradeExampleImages>(() => readExampleImages());
-  const persistExampleImages = (next: GradeExampleImages) => {
-    setExampleImages(next);
-    try { localStorage.setItem(EXAMPLE_IMAGES_LS_KEY, JSON.stringify(next)); } catch {}
-  };
+  // ===== 등급별 예시 이미지 (작업지시서) — Supabase Storage 영구 저장 =====
+  const [exampleImages, setExampleImages] = useState<GradeExampleImages>({});
+  useEffect(() => {
+    let cancelled = false;
+    loadExampleImagesFromStorage().then(m => { if (!cancelled) setExampleImages(m); });
+    return () => { cancelled = true; };
+  }, []);
   const onUploadExampleImage = async (grade: Grade, file: File | null) => {
     if (!file) {
-      const next = { ...exampleImages };
-      delete next[grade];
-      persistExampleImages(next);
-      toast({ title: "예시 이미지 삭제됨", description: grade });
+      try {
+        await removeExampleImagesForGrade(grade);
+        const next = { ...exampleImages };
+        delete next[grade];
+        setExampleImages(next);
+        toast({ title: "예시 이미지 삭제됨", description: grade });
+      } catch (e: any) {
+        toast({ title: "삭제 실패", description: e?.message || String(e), variant: "destructive" });
+      }
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
       toast({ title: "파일이 너무 큽니다", description: "5MB 이하 이미지만 업로드할 수 있습니다", variant: "destructive" });
       return;
     }
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const fr = new FileReader();
-      fr.onload = () => resolve(String(fr.result || ""));
-      fr.onerror = () => reject(fr.error);
-      fr.readAsDataURL(file);
-    });
-    persistExampleImages({ ...exampleImages, [grade]: { name: file.name, dataUrl } });
-    toast({ title: "예시 이미지 업로드됨", description: `${grade} · ${file.name}` });
+    try {
+      await removeExampleImagesForGrade(grade);
+      const safeName = file.name.replace(/[^\w.\-]+/g, "_") || "example";
+      const path = `${EXAMPLE_IMAGES_PREFIX}/${grade}__${Date.now()}__${safeName}`;
+      const { error: upErr } = await supabase.storage
+        .from(EXAMPLE_IMAGES_BUCKET)
+        .upload(path, file, { upsert: true, contentType: file.type || "image/png", cacheControl: "3600" });
+      if (upErr) throw upErr;
+      const { data: signed, error: sErr } = await supabase.storage
+        .from(EXAMPLE_IMAGES_BUCKET)
+        .createSignedUrl(path, 60 * 60 * 24);
+      if (sErr) throw sErr;
+      setExampleImages({ ...exampleImages, [grade]: { name: file.name, dataUrl: signed.signedUrl, path } });
+      toast({ title: "예시 이미지 업로드됨", description: `${grade} · ${file.name}` });
+    } catch (e: any) {
+      toast({ title: "업로드 실패", description: e?.message || String(e), variant: "destructive" });
+    }
   };
   const labelFor = (it: ProofItem) => {
     const c = gradeColorNames[it.grade];
