@@ -1069,6 +1069,10 @@ function TxtField({ label, v, set, type = "text" }: { label: string; v: string; 
 const PROOF_LS_KEY = "silicon.proofSettings.v1";
 const GRADE_COLOR_LS_KEY = "silicon.gradeColorNames.v1";
 const GRADE_COLOR_STYLE_LS_KEY = "silicon.gradeColorStyle.v1";
+const GRADE_COLOR_TWIN_LS_KEY = "silicon.gradeColorNames.twin.v1";
+const GRADE_COLOR_QR_LS_KEY = "silicon.gradeColorNames.qr.v1";
+const GRADE_COLOR_STYLE_TWIN_LS_KEY = "silicon.gradeColorStyle.twin.v1";
+const GRADE_COLOR_STYLE_QR_LS_KEY = "silicon.gradeColorStyle.qr.v1";
 const EXAMPLE_IMAGES_BUCKET = "silicon-examples";
 const EXAMPLE_IMAGES_PREFIX = "examples";
 
