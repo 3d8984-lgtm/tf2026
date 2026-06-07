@@ -1,0 +1,12 @@
+.git
+node_modules
+src
+public
+supabase
+worker
+*.md
+*.lock
+*.log
+__pycache__
+*.pyc
+.env*
