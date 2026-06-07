@@ -1063,7 +1063,6 @@ const PROOF_LS_KEY = "silicon.proofSettings.v1";
 const GRADE_COLOR_LS_KEY = "silicon.gradeColorNames.v1";
 const GRADE_COLOR_STYLE_LS_KEY = "silicon.gradeColorStyle.v1";
 const EXAMPLE_IMAGES_LS_KEY = "silicon.exampleImages.v1";
-const EXAMPLE_IMAGES_BUCKET = "silicon-examples";
 
 type GradeExampleImages = Partial<Record<Grade, { name: string; dataUrl: string }>>;
 function readExampleImages(): GradeExampleImages {
@@ -1078,56 +1077,6 @@ function exampleImageUrls(m: GradeExampleImages): Partial<Record<Grade, string>>
   (Object.keys(m) as Grade[]).forEach(g => { if (m[g]?.dataUrl) out[g] = m[g]!.dataUrl; });
   return out;
 }
-
-async function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const fr = new FileReader();
-    fr.onload = () => resolve(String(fr.result || ""));
-    fr.onerror = () => reject(fr.error);
-    fr.readAsDataURL(blob);
-  });
-}
-
-async function fetchExampleImagesFromServer(): Promise<GradeExampleImages> {
-  const out: GradeExampleImages = {};
-  await Promise.all((["COMMON", "RARE", "EPIC", "LEGEND"] as Grade[]).map(async (g) => {
-    try {
-      const { data: list } = await supabase.storage.from(EXAMPLE_IMAGES_BUCKET).list(g, { limit: 1, sortBy: { column: "created_at", order: "desc" } });
-      const file = list?.[0];
-      if (!file) return;
-      const { data: blob } = await supabase.storage.from(EXAMPLE_IMAGES_BUCKET).download(`${g}/${file.name}`);
-      if (!blob) return;
-      out[g] = { name: file.name.replace(/^\d+__/, ""), dataUrl: await blobToDataUrl(blob) };
-    } catch (e) {
-      console.warn("[silicon] fetch example image failed", g, e);
-    }
-  }));
-  return out;
-}
-
-async function uploadExampleImageToServer(grade: Grade, file: File): Promise<void> {
-  // remove existing files in folder first
-  const { data: list } = await supabase.storage.from(EXAMPLE_IMAGES_BUCKET).list(grade);
-  if (list?.length) {
-    await supabase.storage.from(EXAMPLE_IMAGES_BUCKET).remove(list.map((f) => `${grade}/${f.name}`));
-  }
-  const safe = file.name.replace(/[^\w.-]+/g, "_");
-  const path = `${grade}/${Date.now()}__${safe}`;
-  const { error } = await supabase.storage.from(EXAMPLE_IMAGES_BUCKET).upload(path, file, {
-    upsert: true,
-    contentType: file.type || "application/octet-stream",
-    cacheControl: "0",
-  });
-  if (error) throw error;
-}
-
-async function deleteExampleImageFromServer(grade: Grade): Promise<void> {
-  const { data: list } = await supabase.storage.from(EXAMPLE_IMAGES_BUCKET).list(grade);
-  if (list?.length) {
-    await supabase.storage.from(EXAMPLE_IMAGES_BUCKET).remove(list.map((f) => `${grade}/${f.name}`));
-  }
-}
-
 
 type GradeColorNames = Record<Grade, string>;
 const DEFAULT_GRADE_COLOR_NAMES: GradeColorNames = { COMMON: "", RARE: "", EPIC: "", LEGEND: "" };
@@ -2157,24 +2106,8 @@ function ProofBox({
     setExampleImages(next);
     try { localStorage.setItem(EXAMPLE_IMAGES_LS_KEY, JSON.stringify(next)); } catch {}
   };
-  // 서버에서 동기화 (마운트 시 1회)
-  useEffect(() => {
-    (async () => {
-      try {
-        const server = await fetchExampleImagesFromServer();
-        if (Object.keys(server).length > 0) persistExampleImages(server);
-      } catch (e) {
-        console.warn("[silicon] sync example images failed", e);
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
   const onUploadExampleImage = async (grade: Grade, file: File | null) => {
     if (!file) {
-      try { await deleteExampleImageFromServer(grade); } catch (e: any) {
-        toast({ title: "삭제 실패", description: e?.message || String(e), variant: "destructive" });
-        return;
-      }
       const next = { ...exampleImages };
       delete next[grade];
       persistExampleImages(next);
@@ -2183,12 +2116,6 @@ function ProofBox({
     }
     if (file.size > 5 * 1024 * 1024) {
       toast({ title: "파일이 너무 큽니다", description: "5MB 이하 이미지만 업로드할 수 있습니다", variant: "destructive" });
-      return;
-    }
-    try {
-      await uploadExampleImageToServer(grade, file);
-    } catch (e: any) {
-      toast({ title: "업로드 실패", description: e?.message || String(e), variant: "destructive" });
       return;
     }
     const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -2200,7 +2127,6 @@ function ProofBox({
     persistExampleImages({ ...exampleImages, [grade]: { name: file.name, dataUrl } });
     toast({ title: "예시 이미지 업로드됨", description: `${grade} · ${file.name}` });
   };
-
   const labelFor = (it: ProofItem) => {
     const c = gradeColorNames[it.grade];
     if (!c) return <>{it.uniqueNo}</>;
