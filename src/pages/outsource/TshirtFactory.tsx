@@ -70,7 +70,7 @@ function poStatusBadge(status: PO["status"]) {
 
 export default function TshirtFactory() {
   const { lang } = useLang();
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const [tab, setTab] = useState("inventory");
   const [productTypes, setProductTypes] = useState<ProductType[]>([]);
   const [colors, setColors] = useState<Color[]>([]);
