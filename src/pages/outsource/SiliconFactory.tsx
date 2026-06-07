@@ -337,27 +337,34 @@ export default function SiliconFactory() {
           nameByGrade.set(grade, f.name);
         }
       });
-      for (const g of GRADES) {
+      // Parallel download + render of all grade templates for faster initial load
+      await Promise.all(GRADES.map(async (g) => {
         const stored = nameByGrade.get(g);
-        if (!stored) continue;
+        if (!stored) return;
         const path = `${user.id}/${stored}`;
-        const { data: file, error } = await supabase.storage
-          .from("silicon-templates")
-          .download(path);
-        if (cancelled || error || !file) continue;
         try {
+          const { data: file, error } = await supabase.storage
+            .from("silicon-templates")
+            .download(path);
+          if (cancelled || error || !file) return;
           const buf = new Uint8Array(await file.arrayBuffer());
-          const { dataUrl, aspect } = await renderPdfFirstPagePng(buf);
-          if (cancelled) return;
           const origName = stored.replace(/^[A-Z]+__(?:\d+__[-\w]+__)?/, "");
+          // Show the template immediately with a placeholder preview; render PNG preview in background.
           setTemplates(prev => ({
             ...prev,
-            [g]: { name: origName, bytes: buf, preview: dataUrl, aspect },
+            [g]: { name: origName, bytes: buf, preview: prev[g]?.preview || "", aspect: prev[g]?.aspect || 3 / 4 },
           }));
+          renderPdfFirstPagePng(buf).then(({ dataUrl, aspect }) => {
+            if (cancelled) return;
+            setTemplates(prev => ({
+              ...prev,
+              [g]: { name: origName, bytes: buf, preview: dataUrl, aspect },
+            }));
+          }).catch(e => console.warn("preview render failed", g, e));
         } catch (e) {
           console.error("Failed to load template", g, e);
         }
-      }
+      }));
     })();
     return () => { cancelled = true; };
   }, [user?.id]);
