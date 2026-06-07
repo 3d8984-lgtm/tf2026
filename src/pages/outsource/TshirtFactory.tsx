@@ -216,6 +216,17 @@ export default function TshirtFactory() {
     loadAll();
   };
 
+  const changePoStatus = async (po: PO, next: PO["status"]) => {
+    if (po.status === next) return;
+    const patch: any = { status: next };
+    if (next === "received") patch.received_at = po.received_at ?? new Date().toISOString().slice(0, 10);
+    const { error } = await supabase.from("tshirt_purchase_orders").update(patch).eq("id", po.id);
+    if (error) { toast({ title: "상태 변경 실패", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "상태 변경됨", description: `${po.po_number} → ${poStatusBadge(next).label}` });
+    loadAll();
+  };
+
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
