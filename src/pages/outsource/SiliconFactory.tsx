@@ -183,6 +183,27 @@ type Grade = "COMMON" | "RARE" | "EPIC" | "LEGEND";
 const GRADES: Grade[] = ["COMMON", "RARE", "EPIC", "LEGEND"];
 type WebhookLogInsert = Database["public"]["Tables"]["webhook_logs"]["Insert"];
 
+// Normalize grade values from various sources (full names, abbreviations, colors)
+function resolveGrade(item: any, order?: any): Grade {
+  const raw = String(
+    item?.grade ??
+    item?.card_grade ??
+    order?.source_data?.grade ??
+    order?.source_data?.card_grade ??
+    order?.grade ??
+    ""
+  ).trim().toUpperCase();
+  if (!raw) return "COMMON";
+  if ((GRADES as string[]).includes(raw)) return raw as Grade;
+  // Abbreviations: C/R/E/L
+  const abbrMap: Record<string, Grade> = {
+    C: "COMMON", R: "RARE", E: "EPIC", L: "LEGEND",
+    COM: "COMMON", RAR: "RARE", EPI: "EPIC", LEG: "LEGEND", LGD: "LEGEND",
+    BLACK: "COMMON", SILVER: "RARE", GOLD: "EPIC", HOLOGRAM: "LEGEND", HOLO: "LEGEND",
+  };
+  return abbrMap[raw] ?? "COMMON";
+}
+
 function tsName() {
   const d = new Date();
   const p = (n: number) => String(n).padStart(2, "0");
@@ -446,13 +467,7 @@ export default function SiliconFactory() {
       const orderNo = o.external_order_id;
       const url = findSvgUrl(o);
       const dup = (seen.get(orderNo) || 0) > 1;
-      const rawGrade = String(
-        o.source_data?.items?.[0]?.grade ??
-        o.source_data?.grade ??
-        o.grade ??
-        "COMMON"
-      ).toUpperCase();
-      const grade: Grade = (GRADES as string[]).includes(rawGrade) ? (rawGrade as Grade) : "COMMON";
+      const grade: Grade = resolveGrade(o.source_data?.items?.[0], o);
       const status: Row["status"] = dup ? "duplicate" : url ? "ok" : "no-svg";
       const items: any[] = Array.isArray(o.source_data?.items) ? o.source_data.items : [];
       const svgCount = items.filter(it =>
@@ -525,8 +540,7 @@ export default function SiliconFactory() {
         (typeof it.svg_url === "string" && it.svg_url) ||
         (typeof it.twin_code_svg_url === "string" && it.twin_code_svg_url) ||
         orderSvg || null;
-      const rawGrade = String(it.grade ?? order.source_data?.grade ?? order.grade ?? "COMMON").toUpperCase();
-      const grade: Grade = (GRADES as string[]).includes(rawGrade) ? (rawGrade as Grade) : "COMMON";
+      const grade: Grade = resolveGrade(it, order);
       return {
         seq: idx + 1,
         orderNo: detailOrderNo,
