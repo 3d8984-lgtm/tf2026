@@ -564,64 +564,97 @@ function Stat({ label, value, accent }: { label: string; value: number; accent?:
   );
 }
 
-function PoDetailView({ po, productTypes, colors, nameOf }: {
-  po: PO; productTypes: ProductType[]; colors: Color[]; nameOf: (t: any) => string;
+function PoDetailView({ group, productTypes, colors, nameOf }: {
+  group: PO[]; productTypes: ProductType[]; colors: Color[]; nameOf: (t: any) => string;
 }) {
-  const pt = productTypes.find(t => t.code === po.product_type_code);
-  const c = colors.find(c => c.code === po.color_code);
-  const st = poStatusBadge(po.status);
-  const total = (po.items ?? []).reduce((s, i) => s + i.quantity, 0);
+  const first = group[0];
+  const pt = productTypes.find(t => t.code === first.product_type_code);
+  const grandTotal = group.reduce((s, p) => s + (p.items ?? []).reduce((x, i) => x + i.quantity, 0), 0);
+  const allAttachments = group.flatMap(p => p.attachments ?? []);
 
   const [urls, setUrls] = useState<Record<string, string>>({});
   useEffect(() => {
     (async () => {
       const next: Record<string, string> = {};
-      for (const a of po.attachments ?? []) {
+      for (const a of allAttachments) {
         const { data } = await supabase.storage.from(BUCKET).createSignedUrl(a.file_path, 3600);
         if (data?.signedUrl) next[a.id] = data.signedUrl;
       }
       setUrls(next);
     })();
-  }, [po.id]);
+  }, [group.map(p => p.id).join(",")]);
 
   return (
     <div className="space-y-4 text-sm">
       <div className="grid grid-cols-2 gap-3">
-        <div><span className="text-muted-foreground">발주일:</span> {po.ordered_at}</div>
-        <div><span className="text-muted-foreground">예상 입고일:</span> {po.expected_at ?? "-"}</div>
-        <div><span className="text-muted-foreground">실제 입고일:</span> {po.received_at ?? "-"}</div>
-        <div><span className="text-muted-foreground">상태:</span> <Badge variant={st.variant}>{st.label}</Badge></div>
-        <div><span className="text-muted-foreground">종류:</span> {pt ? nameOf(pt) : po.product_type_code}</div>
-        <div><span className="text-muted-foreground">색상:</span> {c ? nameOf(c) : po.color_code}</div>
-        <div><span className="text-muted-foreground">작성자:</span> {po.created_by_label ?? "-"}</div>
-        <div><span className="text-muted-foreground">총 수량:</span> <b>{total}</b></div>
+        <div><span className="text-muted-foreground">발주일:</span> {first.ordered_at}</div>
+        <div><span className="text-muted-foreground">예상 입고일:</span> {first.expected_at ?? "-"}</div>
+        <div><span className="text-muted-foreground">종류:</span> {pt ? nameOf(pt) : first.product_type_code}</div>
+        <div><span className="text-muted-foreground">색상 수:</span> {group.length}</div>
+        <div><span className="text-muted-foreground">작성자:</span> {first.created_by_label ?? "-"}</div>
+        <div><span className="text-muted-foreground">총 수량:</span> <b>{grandTotal}</b></div>
       </div>
 
       <div>
-        <div className="font-medium mb-2">사이즈별 수량</div>
-        <div className="grid grid-cols-7 gap-2">
-          {SIZES.map(s => {
-            const q = po.items?.find(i => i.size === s)?.quantity ?? 0;
-            return <div key={s} className="border rounded p-2 text-center">
-              <div className="text-xs text-muted-foreground">{s}</div>
-              <div className="font-semibold">{q}</div>
-            </div>;
-          })}
+        <div className="font-medium mb-2">색상 × 사이즈별 수량</div>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-40">색상</TableHead>
+                {SIZES.map(s => <TableHead key={s} className="text-center text-xs">{s}</TableHead>)}
+                <TableHead className="text-center">합계</TableHead>
+                <TableHead>상태</TableHead>
+                <TableHead>발주번호</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {group.map(p => {
+                const c = colors.find(c => c.code === p.color_code);
+                const sizeMap = new Map(p.items?.map(i => [i.size, i.quantity]));
+                const total = (p.items ?? []).reduce((s, i) => s + i.quantity, 0);
+                const st = poStatusBadge(p.status);
+                return (
+                  <TableRow key={p.id}>
+                    <TableCell>
+                      <span className="inline-flex items-center gap-2">
+                        {c && <span className="inline-block w-3 h-3 rounded-full border" style={{ background: c.hex }} />}
+                        {c ? nameOf(c) : p.color_code}
+                      </span>
+                    </TableCell>
+                    {SIZES.map(s => <TableCell key={s} className="text-center tabular-nums">{sizeMap.get(s) || ""}</TableCell>)}
+                    <TableCell className="text-center font-semibold tabular-nums">{total}</TableCell>
+                    <TableCell><Badge variant={st.variant}>{st.label}</Badge></TableCell>
+                    <TableCell className="font-mono text-xs">{p.po_number}</TableCell>
+                  </TableRow>
+                );
+              })}
+              <TableRow>
+                <TableCell className="font-semibold">합계</TableCell>
+                {SIZES.map(s => {
+                  const t = group.reduce((sum, p) => sum + (p.items?.find(i => i.size === s)?.quantity ?? 0), 0);
+                  return <TableCell key={s} className="text-center font-semibold tabular-nums">{t || ""}</TableCell>;
+                })}
+                <TableCell className="text-center font-bold tabular-nums">{grandTotal}</TableCell>
+                <TableCell colSpan={2}></TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
         </div>
       </div>
 
-      {po.notes && (
+      {first.notes && (
         <div>
           <div className="font-medium mb-1">특이사항</div>
-          <div className="whitespace-pre-wrap text-muted-foreground border rounded p-2">{po.notes}</div>
+          <div className="whitespace-pre-wrap text-muted-foreground border rounded p-2">{first.notes}</div>
         </div>
       )}
 
-      {(po.attachments ?? []).length > 0 && (
+      {allAttachments.length > 0 && (
         <div>
-          <div className="font-medium mb-2">참고 도면 ({po.attachments?.length})</div>
+          <div className="font-medium mb-2">참고 도면 ({allAttachments.length})</div>
           <div className="grid grid-cols-3 gap-2">
-            {po.attachments?.map(a => {
+            {allAttachments.map(a => {
               const url = urls[a.id];
               const isImg = (a.mime_type ?? "").startsWith("image/");
               return (
