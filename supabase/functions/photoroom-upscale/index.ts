@@ -50,7 +50,8 @@ Deno.serve(async (req) => {
       fd.append('export.format', 'png');
     } else {
       // === PiD (NVIDIA) on RunPod Serverless — preferred upscaler if configured ===
-      const pidUrl = Deno.env.get('PID_ENDPOINT_URL');
+      const pidUrlRaw = Deno.env.get('PID_ENDPOINT_URL');
+      const pidUrl = pidUrlRaw?.trim().replace(/\/run\/?$/, '/runsync');
       const pidKey = Deno.env.get('PID_API_KEY');
       if (pidUrl && pidKey) {
         const ctrl = new AbortController();
