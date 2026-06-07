@@ -3,7 +3,7 @@ import PageHeader from "@/components/PageHeader";
 export default function Licenses() {
   return (
     <div className="space-y-6">
-      <PageHeader title="오픈소스 라이선스" subtitle="이 시스템에 포함된 오픈소스 소프트웨어 고지" />
+      <PageHeader title="오픈소스 라이선스" description="이 시스템에 포함된 오픈소스 소프트웨어 고지" />
 
       <section className="rounded-lg border border-border bg-card p-6 space-y-3">
         <h2 className="text-lg font-semibold text-foreground">PiD (Pixel-aware Image Diffusion)</h2>
