@@ -752,6 +752,256 @@ export type Database = {
           },
         ]
       }
+      tshirt_colors: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          hex: string
+          name_ko: string
+          name_zh: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          hex?: string
+          name_ko: string
+          name_zh: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          hex?: string
+          name_ko?: string
+          name_zh?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tshirt_inventory: {
+        Row: {
+          available: number
+          color_code: string
+          created_at: string
+          id: string
+          in_progress: number
+          in_stock: number
+          product_type_code: string
+          safety_stock: number
+          size: Database["public"]["Enums"]["tshirt_size"]
+          updated_at: string
+        }
+        Insert: {
+          available?: number
+          color_code: string
+          created_at?: string
+          id?: string
+          in_progress?: number
+          in_stock?: number
+          product_type_code: string
+          safety_stock?: number
+          size: Database["public"]["Enums"]["tshirt_size"]
+          updated_at?: string
+        }
+        Update: {
+          available?: number
+          color_code?: string
+          created_at?: string
+          id?: string
+          in_progress?: number
+          in_stock?: number
+          product_type_code?: string
+          safety_stock?: number
+          size?: Database["public"]["Enums"]["tshirt_size"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tshirt_inventory_color_code_fkey"
+            columns: ["color_code"]
+            isOneToOne: false
+            referencedRelation: "tshirt_colors"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "tshirt_inventory_product_type_code_fkey"
+            columns: ["product_type_code"]
+            isOneToOne: false
+            referencedRelation: "tshirt_product_types"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
+      tshirt_product_types: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          name_ko: string
+          name_zh: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          name_ko: string
+          name_zh: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          name_ko?: string
+          name_zh?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tshirt_purchase_order_attachments: {
+        Row: {
+          created_at: string
+          file_name: string
+          file_path: string
+          id: string
+          mime_type: string | null
+          po_id: string
+          size_bytes: number | null
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          file_path: string
+          id?: string
+          mime_type?: string | null
+          po_id: string
+          size_bytes?: number | null
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          file_path?: string
+          id?: string
+          mime_type?: string | null
+          po_id?: string
+          size_bytes?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tshirt_purchase_order_attachments_po_id_fkey"
+            columns: ["po_id"]
+            isOneToOne: false
+            referencedRelation: "tshirt_purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tshirt_purchase_order_items: {
+        Row: {
+          created_at: string
+          id: string
+          po_id: string
+          quantity: number
+          size: Database["public"]["Enums"]["tshirt_size"]
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          po_id: string
+          quantity?: number
+          size: Database["public"]["Enums"]["tshirt_size"]
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          po_id?: string
+          quantity?: number
+          size?: Database["public"]["Enums"]["tshirt_size"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tshirt_purchase_order_items_po_id_fkey"
+            columns: ["po_id"]
+            isOneToOne: false
+            referencedRelation: "tshirt_purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tshirt_purchase_orders: {
+        Row: {
+          color_code: string
+          created_at: string
+          created_by: string | null
+          created_by_label: string | null
+          expected_at: string | null
+          id: string
+          notes: string | null
+          ordered_at: string
+          po_number: string
+          product_type_code: string
+          received_at: string | null
+          status: Database["public"]["Enums"]["tshirt_po_status"]
+          updated_at: string
+        }
+        Insert: {
+          color_code: string
+          created_at?: string
+          created_by?: string | null
+          created_by_label?: string | null
+          expected_at?: string | null
+          id?: string
+          notes?: string | null
+          ordered_at?: string
+          po_number?: string
+          product_type_code: string
+          received_at?: string | null
+          status?: Database["public"]["Enums"]["tshirt_po_status"]
+          updated_at?: string
+        }
+        Update: {
+          color_code?: string
+          created_at?: string
+          created_by?: string | null
+          created_by_label?: string | null
+          expected_at?: string | null
+          id?: string
+          notes?: string | null
+          ordered_at?: string
+          po_number?: string
+          product_type_code?: string
+          received_at?: string | null
+          status?: Database["public"]["Enums"]["tshirt_po_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tshirt_purchase_orders_color_code_fkey"
+            columns: ["color_code"]
+            isOneToOne: false
+            referencedRelation: "tshirt_colors"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "tshirt_purchase_orders_product_type_code_fkey"
+            columns: ["product_type_code"]
+            isOneToOne: false
+            referencedRelation: "tshirt_product_types"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
       upload_history: {
         Row: {
           created_at: string
@@ -862,6 +1112,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_tshirt_po_number: { Args: never; Returns: string }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_approved: { Args: { _user_id: string }; Returns: boolean }
     }
@@ -905,6 +1156,8 @@ export type Database = {
         | "in_transit"
         | "delivered"
         | "hold"
+      tshirt_po_status: "draft" | "ordered" | "in_production" | "received"
+      tshirt_size: "S" | "M" | "L" | "XL" | "2XL" | "3XL" | "4XL"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1076,6 +1329,8 @@ export const Constants = {
         "delivered",
         "hold",
       ],
+      tshirt_po_status: ["draft", "ordered", "in_production", "received"],
+      tshirt_size: ["S", "M", "L", "XL", "2XL", "3XL", "4XL"],
     },
   },
 } as const
