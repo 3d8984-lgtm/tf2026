@@ -441,7 +441,7 @@ export default function TshirtFactory() {
             invMap={invMap}
             prefillType={prefillType}
             prefillColor={prefillColor}
-            authorLabel={profile?.name || user?.email || ""}
+            authorLabel={user?.email || ""}
             userId={user?.id ?? null}
             nameOf={nameOf}
             onDone={() => { setTab("inventory"); loadAll(); }}
