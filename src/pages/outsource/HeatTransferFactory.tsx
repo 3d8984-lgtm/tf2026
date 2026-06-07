@@ -1121,6 +1121,7 @@ function OrderDetail({
         tshirtType: String(it.tshirt_type ?? "").trim(),
         tshirtColor: String(it.tshirt_color ?? "").trim(),
         tshirtSize: String(it.tshirt_size ?? "").trim(),
+        grade: resolveGrade(it, order.raw),
       });
     }
     return arr;
