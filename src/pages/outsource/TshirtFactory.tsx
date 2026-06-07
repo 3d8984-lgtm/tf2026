@@ -481,19 +481,22 @@ export default function TshirtFactory() {
                               </TableCell>
                               {SIZES.map(s => <TableCell key={s} className="text-center text-xs tabular-nums">{sizeMap.get(s) || ""}</TableCell>)}
                               <TableCell className="text-center font-semibold tabular-nums">{total}</TableCell>
-                              <TableCell><Badge variant={st.variant}>{st.label}</Badge></TableCell>
+                              <TableCell>
+                                <Select value={p.status} onValueChange={(v) => changePoStatus(p, v as PO["status"])}>
+                                  <SelectTrigger className="h-7 w-28 text-xs"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    {PO_STATUS_OPTIONS.map(o => (
+                                      <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
                               <TableCell className="text-right space-x-1">
                                 {isFirst && (
-                                  <>
-                                    <Button size="sm" variant="ghost" onClick={() => setPoDetail(groupPos)} title={`그룹 총수량 ${groupTotal}`}><Eye className="w-3.5 h-3.5" /></Button>
-                                  </>
-                                )}
-                                {p.status !== "received" && (
-                                  <Button size="sm" variant="outline" onClick={() => markReceived(p)}>
-                                    <PackageCheck className="w-3.5 h-3.5 mr-1" /> 입고
-                                  </Button>
+                                  <Button size="sm" variant="ghost" onClick={() => setPoDetail(groupPos)} title={`그룹 총수량 ${groupTotal}`}><Eye className="w-3.5 h-3.5" /></Button>
                                 )}
                               </TableCell>
+
                             </TableRow>
                           );
                         });
