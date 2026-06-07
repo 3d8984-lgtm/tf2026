@@ -1069,6 +1069,10 @@ function TxtField({ label, v, set, type = "text" }: { label: string; v: string; 
 const PROOF_LS_KEY = "silicon.proofSettings.v1";
 const GRADE_COLOR_LS_KEY = "silicon.gradeColorNames.v1";
 const GRADE_COLOR_STYLE_LS_KEY = "silicon.gradeColorStyle.v1";
+const GRADE_COLOR_TWIN_LS_KEY = "silicon.gradeColorNames.twin.v1";
+const GRADE_COLOR_QR_LS_KEY = "silicon.gradeColorNames.qr.v1";
+const GRADE_COLOR_STYLE_TWIN_LS_KEY = "silicon.gradeColorStyle.twin.v1";
+const GRADE_COLOR_STYLE_QR_LS_KEY = "silicon.gradeColorStyle.qr.v1";
 const EXAMPLE_IMAGES_BUCKET = "silicon-examples";
 const EXAMPLE_IMAGES_PREFIX = "examples";
 
@@ -1124,6 +1128,27 @@ const DEFAULT_GRADE_COLOR_NAMES: GradeColorNames = { COMMON: "", RARE: "", EPIC:
 
 interface GradeColorStyle { fontSize: number; fontWeight: number; }
 const DEFAULT_GRADE_COLOR_STYLE: GradeColorStyle = { fontSize: 14, fontWeight: 700 };
+
+function readGradeColorNames(key: string): GradeColorNames {
+  try {
+    if (typeof window === "undefined") return DEFAULT_GRADE_COLOR_NAMES;
+    const raw = localStorage.getItem(key);
+    if (raw) return { ...DEFAULT_GRADE_COLOR_NAMES, ...JSON.parse(raw) };
+    const legacy = localStorage.getItem(GRADE_COLOR_LS_KEY);
+    if (legacy) return { ...DEFAULT_GRADE_COLOR_NAMES, ...JSON.parse(legacy) };
+  } catch {}
+  return DEFAULT_GRADE_COLOR_NAMES;
+}
+function readGradeColorStyle(key: string): GradeColorStyle {
+  try {
+    if (typeof window === "undefined") return DEFAULT_GRADE_COLOR_STYLE;
+    const raw = localStorage.getItem(key);
+    if (raw) return { ...DEFAULT_GRADE_COLOR_STYLE, ...JSON.parse(raw) };
+    const legacy = localStorage.getItem(GRADE_COLOR_STYLE_LS_KEY);
+    if (legacy) return { ...DEFAULT_GRADE_COLOR_STYLE, ...JSON.parse(legacy) };
+  } catch {}
+  return DEFAULT_GRADE_COLOR_STYLE;
+}
 
 interface WorkOrderData {
   company: string; orderNo: string; orderDate: string; deliveryDate: string;
@@ -1611,7 +1636,10 @@ async function renderPdfAllPagesToPng(bytes: Uint8Array, scale = 1.5): Promise<s
 }
 
 function Step2PdfPreviewDialog({
-  open, onOpenChange, items, proof, templates, qrMap, gradeColorNames, gradeColorStyle, orderNo, onConfirm,
+  open, onOpenChange, items, proof, templates, qrMap,
+  gradeColorNamesTwin, gradeColorStyleTwin,
+  gradeColorNamesQr, gradeColorStyleQr,
+  orderNo, onConfirm,
   overrideTwinSvgUrl,
 }: {
   open: boolean;
@@ -1620,8 +1648,10 @@ function Step2PdfPreviewDialog({
   proof: ProofSettings;
   templates: Record<Grade, { name: string; bytes: Uint8Array; preview: string; aspect: number } | null>;
   qrMap: Record<string, string>;
-  gradeColorNames: GradeColorNames;
-  gradeColorStyle: GradeColorStyle;
+  gradeColorNamesTwin: GradeColorNames;
+  gradeColorStyleTwin: GradeColorStyle;
+  gradeColorNamesQr: GradeColorNames;
+  gradeColorStyleQr: GradeColorStyle;
   orderNo: string;
   onConfirm: () => void;
   overrideTwinSvgUrl?: string | null;
@@ -1653,7 +1683,8 @@ function Step2PdfPreviewDialog({
         setTwinImgs([...imgs]);
         for (let p = 0; p < totalTwin; p++) {
           const bytes = await buildSiliconTwinPdfPage({
-            items, pageIdx: p, proof, templates, gradeColorNames, gradeColorStyle,
+            items, pageIdx: p, proof, templates,
+            gradeColorNames: gradeColorNamesTwin, gradeColorStyle: gradeColorStyleTwin,
             overrideTwinSvgUrl: overrideTwinSvgUrl || null,
           });
           if (cancelled) return;
@@ -1667,7 +1698,7 @@ function Step2PdfPreviewDialog({
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, items, proof, templates, gradeColorNames, gradeColorStyle, totalTwin, overrideTwinSvgUrl]);
+  }, [open, items, proof, templates, gradeColorNamesTwin, gradeColorStyleTwin, totalTwin, overrideTwinSvgUrl]);
 
   useEffect(() => {
     if (!open || items.length === 0) return;
@@ -1675,7 +1706,10 @@ function Step2PdfPreviewDialog({
     (async () => {
       setQrBusy(true);
       try {
-        const bytes = await buildSiliconQrPdfAll({ items, proof, qrMap, gradeColorNames, gradeColorStyle });
+        const bytes = await buildSiliconQrPdfAll({
+          items, proof, qrMap,
+          gradeColorNames: gradeColorNamesQr, gradeColorStyle: gradeColorStyleQr,
+        });
         if (cancelled) return;
         const imgs = await renderPdfAllPagesToPng(bytes, 1.5);
         if (cancelled) return;
@@ -1686,7 +1720,7 @@ function Step2PdfPreviewDialog({
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, items, proof, qrMap, gradeColorNames, gradeColorStyle]);
+  }, [open, items, proof, qrMap, gradeColorNamesQr, gradeColorStyleQr]);
 
   const currentTwinImg = twinImgs[twinIdx] || null;
   const currentQrImg = qrImgs[qrIdx] || null;
@@ -1816,20 +1850,13 @@ function SiliconOrderProgressBox({
     try { localStorage.setItem(stateKey, JSON.stringify(merged)); } catch {}
   };
 
-  const colorNames = useMemo<GradeColorNames>(() => {
-    try {
-      const raw = localStorage.getItem(GRADE_COLOR_LS_KEY);
-      if (raw) return { ...DEFAULT_GRADE_COLOR_NAMES, ...JSON.parse(raw) };
-    } catch {}
-    return DEFAULT_GRADE_COLOR_NAMES;
-  }, [open1]);
-  const colorStyle = useMemo<GradeColorStyle>(() => {
-    try {
-      const raw = localStorage.getItem(GRADE_COLOR_STYLE_LS_KEY);
-      if (raw) return { ...DEFAULT_GRADE_COLOR_STYLE, ...JSON.parse(raw) };
-    } catch {}
-    return DEFAULT_GRADE_COLOR_STYLE;
-  }, [open1]);
+  const colorNamesTwin = useMemo<GradeColorNames>(() => readGradeColorNames(GRADE_COLOR_TWIN_LS_KEY), [open1, open2]);
+  const colorStyleTwin = useMemo<GradeColorStyle>(() => readGradeColorStyle(GRADE_COLOR_STYLE_TWIN_LS_KEY), [open1, open2]);
+  const colorNamesQr = useMemo<GradeColorNames>(() => readGradeColorNames(GRADE_COLOR_QR_LS_KEY), [open1, open2]);
+  const colorStyleQr = useMemo<GradeColorStyle>(() => readGradeColorStyle(GRADE_COLOR_STYLE_QR_LS_KEY), [open1, open2]);
+  // Work order uses twin set
+  const colorNames = colorNamesTwin;
+  const colorStyle = colorStyleTwin;
   const [exampleImageMap, setExampleImageMap] = useState<Partial<Record<Grade, string>>>({});
   useEffect(() => {
     let cancelled = false;
@@ -1883,7 +1910,7 @@ function SiliconOrderProgressBox({
       for (let p = 0; p < totalTwin; p++) {
         const bytes = await buildSiliconTwinPdfPage({
           items: proofItems, pageIdx: p, proof, templates,
-          gradeColorNames: colorNames, gradeColorStyle: colorStyle,
+          gradeColorNames: colorNamesTwin, gradeColorStyle: colorStyleTwin,
           overrideTwinSvgUrl: testTwinSvgUrl || null,
         });
         tpuFolder.file(`${folderName}(${p + 1}).pdf`, bytes);
@@ -1892,7 +1919,7 @@ function SiliconOrderProgressBox({
       // 3) QRcode.pdf — 단일 PDF에 A4 여러 페이지
       const qrBytes = await buildSiliconQrPdfAll({
         items: proofItems, proof, qrMap: proofQrMap,
-        gradeColorNames: colorNames, gradeColorStyle: colorStyle,
+        gradeColorNames: colorNamesQr, gradeColorStyle: colorStyleQr,
       });
       folder.file("QRcode.pdf", qrBytes);
 
@@ -2007,8 +2034,10 @@ function SiliconOrderProgressBox({
           proof={proof}
           templates={templates}
           qrMap={proofQrMap}
-          gradeColorNames={colorNames}
-          gradeColorStyle={colorStyle}
+          gradeColorNamesTwin={colorNamesTwin}
+          gradeColorStyleTwin={colorStyleTwin}
+          gradeColorNamesQr={colorNamesQr}
+          gradeColorStyleQr={colorStyleQr}
           orderNo={orderNo}
           overrideTwinSvgUrl={testTwinSvgUrl || null}
           onConfirm={() => { setConfirmed2(true); persist({ confirmed2: true }); setOpen2(false); toast({ title: "작업파일 확인 완료" }); }}
@@ -2129,22 +2158,16 @@ function ProofBox({
   const setWO = (patch: Partial<typeof workOrder>) => setWorkOrder(prev => ({ ...prev, ...patch }));
   const woTotal = (Number(workOrder.common) || 0) + (Number(workOrder.rare) || 0) + (Number(workOrder.epic) || 0) + (Number(workOrder.legend) || 0);
 
-  // ===== 등급별 색상명 (전역 설정) =====
-  const [gradeColorNames, setGradeColorNames] = useState<GradeColorNames>(() => {
-    try {
-      const raw = typeof window !== "undefined" ? localStorage.getItem(GRADE_COLOR_LS_KEY) : null;
-      if (raw) return { ...DEFAULT_GRADE_COLOR_NAMES, ...JSON.parse(raw) };
-    } catch {}
-    return DEFAULT_GRADE_COLOR_NAMES;
-  });
-  const setGradeColor = (g: Grade, v: string) => setGradeColorNames(prev => ({ ...prev, [g]: v }));
-  const [gradeColorStyle, setGradeColorStyle] = useState<GradeColorStyle>(() => {
-    try {
-      const raw = typeof window !== "undefined" ? localStorage.getItem(GRADE_COLOR_STYLE_LS_KEY) : null;
-      if (raw) return { ...DEFAULT_GRADE_COLOR_STYLE, ...JSON.parse(raw) };
-    } catch {}
-    return DEFAULT_GRADE_COLOR_STYLE;
-  });
+  // ===== 등급별 색상명 (탭별 설정 — 트윈코드 시안 / 큐알코드 시안) =====
+  const [gradeColorNamesTwin, setGradeColorNamesTwin] = useState<GradeColorNames>(() => readGradeColorNames(GRADE_COLOR_TWIN_LS_KEY));
+  const [gradeColorStyleTwin, setGradeColorStyleTwin] = useState<GradeColorStyle>(() => readGradeColorStyle(GRADE_COLOR_STYLE_TWIN_LS_KEY));
+  const [gradeColorNamesQr, setGradeColorNamesQr] = useState<GradeColorNames>(() => readGradeColorNames(GRADE_COLOR_QR_LS_KEY));
+  const [gradeColorStyleQr, setGradeColorStyleQr] = useState<GradeColorStyle>(() => readGradeColorStyle(GRADE_COLOR_STYLE_QR_LS_KEY));
+  const setGradeColorTwin = (g: Grade, v: string) => setGradeColorNamesTwin(prev => ({ ...prev, [g]: v }));
+  const setGradeColorQr = (g: Grade, v: string) => setGradeColorNamesQr(prev => ({ ...prev, [g]: v }));
+  // 작업지시서 출력 / 트윈코드 PDF용 기본값 (twin 사용)
+  const gradeColorNames = gradeColorNamesTwin;
+  const gradeColorStyle = gradeColorStyleTwin;
 
   // ===== 등급별 예시 이미지 (작업지시서) — Supabase Storage 영구 저장 =====
   const [exampleImages, setExampleImages] = useState<GradeExampleImages>({});
@@ -2188,17 +2211,19 @@ function ProofBox({
       toast({ title: "업로드 실패", description: e?.message || String(e), variant: "destructive" });
     }
   };
-  const labelFor = (it: ProofItem) => {
-    const c = gradeColorNames[it.grade];
+  const makeLabel = (names: GradeColorNames, style: GradeColorStyle) => (it: ProofItem) => {
+    const c = names[it.grade];
     if (!c) return <>{it.uniqueNo}</>;
     return (
       <>
-        {it.uniqueNo} · <span style={{ fontSize: `${gradeColorStyle.fontSize}px`, fontWeight: gradeColorStyle.fontWeight }}>{c}</span>
+        {it.uniqueNo} · <span style={{ fontSize: `${style.fontSize}px`, fontWeight: style.fontWeight }}>{c}</span>
       </>
     );
   };
-  const labelText = (it: ProofItem) => {
-    const c = gradeColorNames[it.grade];
+  const labelForTwin = makeLabel(gradeColorNamesTwin, gradeColorStyleTwin);
+  const labelForQr = makeLabel(gradeColorNamesQr, gradeColorStyleQr);
+  const labelTextTwin = (it: ProofItem) => {
+    const c = gradeColorNamesTwin[it.grade];
     return c ? `${it.uniqueNo} · ${c}` : it.uniqueNo;
   };
 
@@ -2540,72 +2565,141 @@ function ProofBox({
         </Card>
 
 
-        {/* ============== 등급별 색상명 설정 ============== */}
+        {/* ============== 등급별 색상명 설정 (탭별) ============== */}
         <Card className="border-dashed">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center justify-between">
+            <CardTitle className="text-sm">
               <span>등급별 색상명 설정</span>
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="ghost" onClick={() => {
-                  setGradeColorNames(DEFAULT_GRADE_COLOR_NAMES);
-                  try { localStorage.removeItem(GRADE_COLOR_LS_KEY); } catch {}
-                  toast({ title: "색상명 초기화됨" });
-                }}>초기화</Button>
-                <Button size="sm" variant="default" onClick={() => {
-                  try {
-                    localStorage.setItem(GRADE_COLOR_LS_KEY, JSON.stringify(gradeColorNames));
-                    localStorage.setItem(GRADE_COLOR_STYLE_LS_KEY, JSON.stringify(gradeColorStyle));
-                    toast({ title: "등급별 색상명 저장됨" });
-                  } catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" }); }
-                }}>저장</Button>
-              </div>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {/* 일괄 타이포그래피 컨트롤 */}
-            <div className="rounded-md border bg-muted/30 p-3 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs">글자 크기 (모든 등급 일괄)</Label>
-                  <span className="text-xs font-mono text-muted-foreground">{gradeColorStyle.fontSize}pt</span>
-                </div>
-                <Slider
-                  min={6} max={36} step={1}
-                  value={[gradeColorStyle.fontSize]}
-                  onValueChange={([v]) => setGradeColorStyle(s => ({ ...s, fontSize: v }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs">Bold 강도 (모든 등급 일괄)</Label>
-                  <span className="text-xs font-mono text-muted-foreground">{gradeColorStyle.fontWeight}</span>
-                </div>
-                <Slider
-                  min={100} max={900} step={100}
-                  value={[gradeColorStyle.fontWeight]}
-                  onValueChange={([v]) => setGradeColorStyle(s => ({ ...s, fontWeight: v }))}
-                />
-              </div>
-            </div>
+          <CardContent>
+            <Tabs defaultValue="twin">
+              <TabsList>
+                <TabsTrigger value="twin">트윈코드 시안</TabsTrigger>
+                <TabsTrigger value="qr">큐알코드 시안</TabsTrigger>
+              </TabsList>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {(["COMMON","RARE","EPIC","LEGEND"] as Grade[]).map(g => (
-                <div key={g} className="space-y-1">
-                  <Label className="text-xs flex items-center gap-2">
-                    <Badge variant="outline" className="font-mono">{g}</Badge>
-                  </Label>
-                  <Input
-                    value={gradeColorNames[g]}
-                    onChange={e => setGradeColor(g, e.target.value)}
-                    placeholder="예: 화이트 / 红色 / Black"
-                    className="h-9"
-                    style={{ fontSize: `${gradeColorStyle.fontSize}px`, fontWeight: gradeColorStyle.fontWeight }}
-                  />
+              {/* ----- 트윈코드 시안 설정 ----- */}
+              <TabsContent value="twin" className="pt-4 space-y-4">
+                <div className="flex items-center justify-end gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => {
+                    setGradeColorNamesTwin(DEFAULT_GRADE_COLOR_NAMES);
+                    setGradeColorStyleTwin(DEFAULT_GRADE_COLOR_STYLE);
+                    try { localStorage.removeItem(GRADE_COLOR_TWIN_LS_KEY); localStorage.removeItem(GRADE_COLOR_STYLE_TWIN_LS_KEY); } catch {}
+                    toast({ title: "트윈코드 색상명 초기화됨" });
+                  }}>초기화</Button>
+                  <Button size="sm" variant="default" onClick={() => {
+                    try {
+                      localStorage.setItem(GRADE_COLOR_TWIN_LS_KEY, JSON.stringify(gradeColorNamesTwin));
+                      localStorage.setItem(GRADE_COLOR_STYLE_TWIN_LS_KEY, JSON.stringify(gradeColorStyleTwin));
+                      toast({ title: "트윈코드 색상명 저장됨" });
+                    } catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" }); }
+                  }}>저장</Button>
                 </div>
-              ))}
-            </div>
+                <div className="rounded-md border bg-muted/30 p-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">글자 크기 (모든 등급 일괄)</Label>
+                      <span className="text-xs font-mono text-muted-foreground">{gradeColorStyleTwin.fontSize}pt</span>
+                    </div>
+                    <Slider
+                      min={6} max={36} step={1}
+                      value={[gradeColorStyleTwin.fontSize]}
+                      onValueChange={([v]) => setGradeColorStyleTwin(s => ({ ...s, fontSize: v }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">Bold 강도 (모든 등급 일괄)</Label>
+                      <span className="text-xs font-mono text-muted-foreground">{gradeColorStyleTwin.fontWeight}</span>
+                    </div>
+                    <Slider
+                      min={100} max={900} step={100}
+                      value={[gradeColorStyleTwin.fontWeight]}
+                      onValueChange={([v]) => setGradeColorStyleTwin(s => ({ ...s, fontWeight: v }))}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {(["COMMON","RARE","EPIC","LEGEND"] as Grade[]).map(g => (
+                    <div key={g} className="space-y-1">
+                      <Label className="text-xs flex items-center gap-2">
+                        <Badge variant="outline" className="font-mono">{g}</Badge>
+                      </Label>
+                      <Input
+                        value={gradeColorNamesTwin[g]}
+                        onChange={e => setGradeColorTwin(g, e.target.value)}
+                        placeholder="예: 화이트 / 红色 / Black"
+                        className="h-9"
+                        style={{ fontSize: `${gradeColorStyleTwin.fontSize}px`, fontWeight: gradeColorStyleTwin.fontWeight }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </TabsContent>
+
+              {/* ----- 큐알코드 시안 설정 ----- */}
+              <TabsContent value="qr" className="pt-4 space-y-4">
+                <div className="flex items-center justify-end gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => {
+                    setGradeColorNamesQr(DEFAULT_GRADE_COLOR_NAMES);
+                    setGradeColorStyleQr(DEFAULT_GRADE_COLOR_STYLE);
+                    try { localStorage.removeItem(GRADE_COLOR_QR_LS_KEY); localStorage.removeItem(GRADE_COLOR_STYLE_QR_LS_KEY); } catch {}
+                    toast({ title: "큐알코드 색상명 초기화됨" });
+                  }}>초기화</Button>
+                  <Button size="sm" variant="default" onClick={() => {
+                    try {
+                      localStorage.setItem(GRADE_COLOR_QR_LS_KEY, JSON.stringify(gradeColorNamesQr));
+                      localStorage.setItem(GRADE_COLOR_STYLE_QR_LS_KEY, JSON.stringify(gradeColorStyleQr));
+                      toast({ title: "큐알코드 색상명 저장됨" });
+                    } catch (e: any) { toast({ title: "저장 실패", description: e?.message, variant: "destructive" }); }
+                  }}>저장</Button>
+                </div>
+                <div className="rounded-md border bg-muted/30 p-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">글자 크기 (모든 등급 일괄)</Label>
+                      <span className="text-xs font-mono text-muted-foreground">{gradeColorStyleQr.fontSize}pt</span>
+                    </div>
+                    <Slider
+                      min={6} max={36} step={1}
+                      value={[gradeColorStyleQr.fontSize]}
+                      onValueChange={([v]) => setGradeColorStyleQr(s => ({ ...s, fontSize: v }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">Bold 강도 (모든 등급 일괄)</Label>
+                      <span className="text-xs font-mono text-muted-foreground">{gradeColorStyleQr.fontWeight}</span>
+                    </div>
+                    <Slider
+                      min={100} max={900} step={100}
+                      value={[gradeColorStyleQr.fontWeight]}
+                      onValueChange={([v]) => setGradeColorStyleQr(s => ({ ...s, fontWeight: v }))}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {(["COMMON","RARE","EPIC","LEGEND"] as Grade[]).map(g => (
+                    <div key={g} className="space-y-1">
+                      <Label className="text-xs flex items-center gap-2">
+                        <Badge variant="outline" className="font-mono">{g}</Badge>
+                      </Label>
+                      <Input
+                        value={gradeColorNamesQr[g]}
+                        onChange={e => setGradeColorQr(g, e.target.value)}
+                        placeholder="예: 화이트 / 红色 / Black"
+                        className="h-9"
+                        style={{ fontSize: `${gradeColorStyleQr.fontSize}px`, fontWeight: gradeColorStyleQr.fontWeight }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
+
 
 
         <Tabs defaultValue="twin">
@@ -2757,7 +2851,7 @@ function ProofBox({
                             className="absolute left-0 right-0 text-center font-mono text-foreground leading-none"
                             style={{ top: h + proof.twinTextGap * fitPx, fontSize: Math.max(6, proof.twinTextSize * fitPx) }}
                           >
-                            {labelFor(it)}
+                            {labelForTwin(it)}
                           </div>
                         </div>
                       );
@@ -2825,7 +2919,7 @@ function ProofBox({
                         className="font-mono text-foreground leading-none"
                         style={{ fontSize: labelPx, marginTop: gapPx }}
                       >
-                        {labelFor(it)}
+                        {labelForQr(it)}
                       </div>
                     </div>
                   );
