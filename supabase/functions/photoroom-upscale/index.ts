@@ -49,6 +49,52 @@ Deno.serve(async (req) => {
       fd.append('padding', '0');
       fd.append('export.format', 'png');
     } else {
+      // === PiD (NVIDIA) on RunPod Serverless — preferred upscaler if configured ===
+      const pidUrl = Deno.env.get('PID_ENDPOINT_URL');
+      const pidKey = Deno.env.get('PID_API_KEY');
+      if (pidUrl && pidKey) {
+        const ctrl = new AbortController();
+        const to = setTimeout(() => ctrl.abort(), 120_000);
+        try {
+          const r = await fetch(pidUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${pidKey}`,
+            },
+            body: JSON.stringify({ input: { image_b64: base64, scale } }),
+            signal: ctrl.signal,
+          });
+          const j = await r.json().catch(() => ({} as any));
+          const out = j?.output ?? j;
+          if (!r.ok || !out?.image_b64) {
+            return new Response(JSON.stringify({
+              ok: false, code: `PID_${r.status}`,
+              error: out?.error || j?.error || `PiD 업스케일 실패 (${r.status})`,
+            }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+          }
+          const bin2 = decodeBase64(out.image_b64);
+          return new Response(bin2, {
+            status: 200,
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/octet-stream',
+              'X-Image-Content-Type': 'image/png',
+              'X-Upscale-Engine': 'PiD',
+            },
+          });
+        } catch (e) {
+          const isAbort = e instanceof DOMException && e.name === 'AbortError';
+          return new Response(JSON.stringify({
+            ok: false,
+            code: isAbort ? 'PID_TIMEOUT' : 'PID_FETCH_FAILED',
+            error: isAbort ? 'PiD 추론 시간이 초과되었습니다.' : (e instanceof Error ? e.message : String(e)),
+          }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        } finally {
+          clearTimeout(to);
+        }
+      }
+      // Fallback: Photoroom AI upscale
       fd.append('upscale.mode', 'ai.fast');
       fd.append('upscale.scale', String(scale));
     }
