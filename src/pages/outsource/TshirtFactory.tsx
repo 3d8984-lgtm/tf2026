@@ -531,9 +531,9 @@ export default function TshirtFactory() {
 
       {/* PO detail dialog */}
       <Dialog open={!!poDetail} onOpenChange={o => !o && setPoDetail(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader><DialogTitle>발주 상세 {poDetail?.po_number}</DialogTitle></DialogHeader>
-          {poDetail && <PoDetailView po={poDetail} productTypes={productTypes} colors={colors} nameOf={nameOf} />}
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>발주 상세 {poDetail?.[0]?.po_number}{poDetail && poDetail.length > 1 ? ` 외 ${poDetail.length - 1}건` : ""}</DialogTitle></DialogHeader>
+          {poDetail && <PoDetailView group={poDetail} productTypes={productTypes} colors={colors} nameOf={nameOf} />}
         </DialogContent>
       </Dialog>
     </div>
