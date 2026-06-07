@@ -2034,8 +2034,10 @@ function SiliconOrderProgressBox({
           proof={proof}
           templates={templates}
           qrMap={proofQrMap}
-          gradeColorNames={colorNames}
-          gradeColorStyle={colorStyle}
+          gradeColorNamesTwin={colorNamesTwin}
+          gradeColorStyleTwin={colorStyleTwin}
+          gradeColorNamesQr={colorNamesQr}
+          gradeColorStyleQr={colorStyleQr}
           orderNo={orderNo}
           overrideTwinSvgUrl={testTwinSvgUrl || null}
           onConfirm={() => { setConfirmed2(true); persist({ confirmed2: true }); setOpen2(false); toast({ title: "작업파일 확인 완료" }); }}
