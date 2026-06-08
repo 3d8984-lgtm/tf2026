@@ -155,6 +155,11 @@ async function renderPdfFirstPagePng(bytes: Uint8Array): Promise<string> {
   return canvas.toDataURL("image/png");
 }
 
+function unitCn(unit: string) {
+  if (unit === "장") return "张";
+  return unit;
+}
+
 function buildPoText(args: {
   vendor: Vendor; kind?: VinylKind; qty: number; unit: string;
   expectedAt: string; notes: string; info: VendorInfo; poNumber: string;
@@ -162,25 +167,26 @@ function buildPoText(args: {
 }) {
   const { vendor, kind, qty, unit, expectedAt, notes, info, poNumber, fabric } = args;
   const itemName = vendor === "vinyl"
-    ? (kind === "card" ? "비닐포장지 (카드용)" : "비닐포장지 (티셔츠용)")
-    : "택배봉투";
+    ? (kind === "card" ? "塑料包装袋 (卡片用)" : "塑料包装袋 (T恤用)")
+    : "快递袋";
   return [
-    `📦 [TWINMETA] 발주서 / 发货单`,
+    `📦 [TWINMETA] 采购订单 / 发货单`,
     `────────────────`,
-    `발주번호: ${poNumber}`,
-    `공장: ${VENDOR_NAME[vendor]}`,
-    `품목: ${itemName}`,
-    fabric ? `원단: ${fabric}` : ``,
-    `수량: ${qty.toLocaleString()} ${unit}`,
-    `발주일: ${todayStr()}`,
-    `예상 입고일: ${expectedAt || "-"}`,
+    `订单编号: ${poNumber}`,
+    `工厂: ${VENDOR_NAME_CN[vendor]}`,
+    `品名: ${itemName}`,
+    fabric ? `面料: ${fabric}` : ``,
+    `数量: ${qty.toLocaleString()} ${unitCn(unit)}`,
+    `下单日期: ${todayStr()}`,
+    `预计到货日: ${expectedAt || "-"}`,
     ``,
-    `[수령 정보]`,
-    `업체명: ${info.company || "-"}`,
-    `받는사람: ${info.recipient || "-"}`,
-    `전화번호: ${info.phone || "-"}`,
-    `주소: ${info.address || "-"}`,
-    notes ? `\n[비고]\n${notes}` : ``,
+    `[收货信息]`,
+    `公司名称: ${info.company || "-"}`,
+    `收件人: ${info.recipient || "-"}`,
+    `联系电话: ${info.phone || "-"}`,
+    `收货地址: ${info.address || "-"}`,
+    vendor === "mailer" && info.siteUrl ? `快递袋网址: ${info.siteUrl}` : ``,
+    notes ? `\n[备注]\n${notes}` : ``,
   ].filter(Boolean).join("\n");
 }
 
