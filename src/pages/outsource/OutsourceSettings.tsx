@@ -76,7 +76,7 @@ export default function OutsourceSettings() {
 
   // 위챗 채널별 웹훅 키
   const [wechatKeys, setWechatKeys] = useState<Record<WeChatChannel, string>>(() => {
-    const empty: Record<WeChatChannel, string> = { silicon: "", heat: "", hologram: "", nfc: "", logo: "", tshirt: "" };
+    const empty: Record<WeChatChannel, string> = { silicon: "", heat: "", hologram: "", nfc: "", logo: "", tshirt: "", vinyl: "", mailer: "" };
     if (typeof window === "undefined") return empty;
     try {
       const raw = localStorage.getItem(WECHAT_KEYS_KEY);
@@ -88,6 +88,8 @@ export default function OutsourceSettings() {
         nfc: parsed.nfc || "",
         logo: parsed.logo || "",
         tshirt: parsed.tshirt || "",
+        vinyl: parsed.vinyl || "",
+        mailer: parsed.mailer || "",
       };
     } catch {
       return empty;
