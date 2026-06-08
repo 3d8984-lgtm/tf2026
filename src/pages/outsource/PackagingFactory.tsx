@@ -805,25 +805,28 @@ export default function PackagingFactory() {
 /* ============================================================
  * A4 발주서 (210 × 297 mm)
  * ============================================================ */
-const A4OrderSheet = (() => {
-  const Comp = ({
-    poNumber, vendor, vendorName, kind, qty, unit, fabric, designPreview, designName,
-    orderedAt, expectedAt, info, notes,
-  }: {
-    poNumber: string;
-    vendor: Vendor;
-    vendorName: string;
-    kind?: VinylKind;
-    qty: number;
-    unit: string;
-    fabric: string;
-    designPreview: string;
-    designName: string;
-    orderedAt: string;
-    expectedAt: string;
-    info: VendorInfo;
-    notes: string;
-  }, ref: React.Ref<HTMLDivElement>) => {
+type A4OrderSheetProps = {
+  poNumber: string;
+  vendor: Vendor;
+  vendorName: string;
+  kind?: VinylKind;
+  qty: number;
+  unit: string;
+  fabric: string;
+  designPreview: string;
+  designName: string;
+  orderedAt: string;
+  expectedAt: string;
+  info: VendorInfo;
+  notes: string;
+};
+
+const A4OrderSheet = forwardRef<HTMLDivElement, A4OrderSheetProps>(function A4OrderSheet({
+  poNumber, vendor, vendorName, kind, qty, unit, fabric, designPreview, designName,
+  orderedAt, expectedAt, info, notes,
+}, ref) {
+  {
+
     const itemName = vendor === "vinyl"
       ? (kind === "card" ? "비닐포장지 (카드용)" : "비닐포장지 (티셔츠용)")
       : "택배봉투";
