@@ -60,6 +60,7 @@ type VendorInfo = {
   recipient: string;
   phone: string;
   address: string;
+  siteUrl?: string;
 };
 
 type VinylKindMeta = {
@@ -79,13 +80,18 @@ const VENDOR_NAME: Record<Vendor, string> = {
   mailer: "택배봉투 공장 (업체 B)",
 };
 
+const VENDOR_NAME_CN: Record<Vendor, string> = {
+  vinyl: "塑料包装工厂 (供应商 A)",
+  mailer: "快递袋工厂 (供应商 B)",
+};
+
 const VENDOR_INFO_KEY = "packaging.vendor.info.v1";
 const WECHAT_KEYS_KEY = "wechat.webhook.keys.v1";
 const VINYL_META_KEY = "packaging.vinyl.meta.v1";
 
 const DEFAULT_VENDOR_INFO: Record<Vendor, VendorInfo> = {
   vinyl: { company: "", recipient: "", phone: "", address: "" },
-  mailer: { company: "", recipient: "", phone: "", address: "" },
+  mailer: { company: "", recipient: "", phone: "", address: "", siteUrl: "" },
 };
 
 const DEFAULT_VINYL_META: Record<VinylKind, VinylKindMeta> = {
