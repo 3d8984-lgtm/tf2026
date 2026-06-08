@@ -305,10 +305,11 @@ export default function PackagingFactory() {
   const currentUnit = unitOf(vendor, currentKind);
   const currentFabric = vendor === "vinyl" ? vinylMeta[vinylKind].fabric : undefined;
   const currentDesignPreview = vendor === "vinyl" ? vinylMeta[vinylKind].designPreview : "";
+  const currentMailerSize = vendor === "mailer" ? mailerSize : undefined;
   const previewText = buildPoText({
     vendor, kind: currentKind, qty, unit: currentUnit,
     expectedAt, notes, info: vendorInfo[vendor], poNumber: currentPreviewNumber,
-    fabric: currentFabric,
+    fabric: currentFabric, mailerSize: currentMailerSize,
   });
 
   const sendWechat = async (vKey: Vendor, text: string) => {
