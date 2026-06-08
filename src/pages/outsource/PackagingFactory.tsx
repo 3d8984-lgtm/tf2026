@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,8 +12,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  Package, AlertTriangle, CheckCircle2, CircleSlash, Mail, ShoppingCart, CreditCard, Shirt, Building2, Eye, Save, Send,
+  Package, AlertTriangle, CheckCircle2, CircleSlash, Mail, ShoppingCart, CreditCard, Shirt, Building2,
+  Eye, Save, Send, Upload, FileText, Download, Trash2, Printer,
 } from "lucide-react";
+import * as pdfjsLib from "pdfjs-dist";
+// @ts-ignore
+import PdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?worker";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
+
+(pdfjsLib as any).GlobalWorkerOptions.workerPort = new PdfWorker();
 
 /**
  * 부자재(포장용품) 공장
@@ -54,6 +62,12 @@ type VendorInfo = {
   address: string;
 };
 
+type VinylKindMeta = {
+  fabric: string;
+  designName: string;
+  designPreview: string; // PNG data URL of PDF first page
+};
+
 const INITIAL_INVENTORY: InventoryRow[] = [
   { id: "v-card", vendor: "vinyl", kind: "card", label: "비닐포장지 - 카드용", unit: "kg", in_stock: 80, safety_stock: 100 },
   { id: "v-tshirt", vendor: "vinyl", kind: "tshirt", label: "비닐포장지 - 티셔츠용", unit: "장", in_stock: 12000, safety_stock: 10000 },
@@ -67,10 +81,16 @@ const VENDOR_NAME: Record<Vendor, string> = {
 
 const VENDOR_INFO_KEY = "packaging.vendor.info.v1";
 const WECHAT_KEYS_KEY = "wechat.webhook.keys.v1";
+const VINYL_META_KEY = "packaging.vinyl.meta.v1";
 
 const DEFAULT_VENDOR_INFO: Record<Vendor, VendorInfo> = {
   vinyl: { company: "", recipient: "", phone: "", address: "" },
   mailer: { company: "", recipient: "", phone: "", address: "" },
+};
+
+const DEFAULT_VINYL_META: Record<VinylKind, VinylKindMeta> = {
+  card: { fabric: "", designName: "", designPreview: "" },
+  tshirt: { fabric: "", designName: "", designPreview: "" },
 };
 
 function statusInfo(stock: number, safety: number) {
@@ -102,11 +122,39 @@ function loadVendorInfo(): Record<Vendor, VendorInfo> {
   }
 }
 
+function loadVinylMeta(): Record<VinylKind, VinylKindMeta> {
+  if (typeof window === "undefined") return DEFAULT_VINYL_META;
+  try {
+    const raw = localStorage.getItem(VINYL_META_KEY);
+    if (!raw) return DEFAULT_VINYL_META;
+    const p = JSON.parse(raw);
+    return {
+      card: { ...DEFAULT_VINYL_META.card, ...(p.card || {}) },
+      tshirt: { ...DEFAULT_VINYL_META.tshirt, ...(p.tshirt || {}) },
+    };
+  } catch {
+    return DEFAULT_VINYL_META;
+  }
+}
+
+async function renderPdfFirstPagePng(bytes: Uint8Array): Promise<string> {
+  const doc = await (pdfjsLib as any).getDocument({ data: bytes.slice(0) }).promise;
+  const page = await doc.getPage(1);
+  const viewport = page.getViewport({ scale: 1.8 });
+  const canvas = document.createElement("canvas");
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  const ctx = canvas.getContext("2d")!;
+  await page.render({ canvasContext: ctx, viewport, canvas } as any).promise;
+  return canvas.toDataURL("image/png");
+}
+
 function buildPoText(args: {
   vendor: Vendor; kind?: VinylKind; qty: number; unit: string;
   expectedAt: string; notes: string; info: VendorInfo; poNumber: string;
+  fabric?: string;
 }) {
-  const { vendor, kind, qty, unit, expectedAt, notes, info, poNumber } = args;
+  const { vendor, kind, qty, unit, expectedAt, notes, info, poNumber, fabric } = args;
   const itemName = vendor === "vinyl"
     ? (kind === "card" ? "비닐포장지 (카드용)" : "비닐포장지 (티셔츠용)")
     : "택배봉투";
@@ -116,6 +164,7 @@ function buildPoText(args: {
     `발주번호: ${poNumber}`,
     `공장: ${VENDOR_NAME[vendor]}`,
     `품목: ${itemName}`,
+    fabric ? `원단: ${fabric}` : ``,
     `수량: ${qty.toLocaleString()} ${unit}`,
     `발주일: ${todayStr()}`,
     `예상 입고일: ${expectedAt || "-"}`,
@@ -144,8 +193,17 @@ export default function PackagingFactory() {
   // Vendor base info (persistent)
   const [vendorInfo, setVendorInfo] = useState<Record<Vendor, VendorInfo>>(loadVendorInfo);
 
+  // Vinyl per-kind meta (fabric + design preview), persistent
+  const [vinylMeta, setVinylMeta] = useState<Record<VinylKind, VinylKindMeta>>(loadVinylMeta);
+
   // Preview dialog
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const a4Ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    try { localStorage.setItem(VINYL_META_KEY, JSON.stringify(vinylMeta)); } catch {}
+  }, [vinylMeta]);
 
   const unitOf = (v: Vendor, k?: VinylKind) => {
     if (v === "mailer") return "장";
@@ -203,11 +261,39 @@ export default function PackagingFactory() {
     toast({ title: "기본정보 저장됨", description: VENDOR_NAME[v] });
   };
 
+  const updateVinylMeta = (k: VinylKind, patch: Partial<VinylKindMeta>) => {
+    setVinylMeta(prev => ({ ...prev, [k]: { ...prev[k], ...patch } }));
+  };
+
+  const onUploadDesign = async (k: VinylKind, file: File) => {
+    if (!file) return;
+    if (file.type !== "application/pdf") {
+      toast({ title: "PDF 파일만 업로드 가능합니다", variant: "destructive" });
+      return;
+    }
+    try {
+      const buf = new Uint8Array(await file.arrayBuffer());
+      const png = await renderPdfFirstPagePng(buf);
+      updateVinylMeta(k, { designName: file.name, designPreview: png });
+      toast({ title: "시안 업로드 완료", description: file.name });
+    } catch (e) {
+      toast({ title: "PDF 처리 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    }
+  };
+
+  const clearDesign = (k: VinylKind) => {
+    updateVinylMeta(k, { designName: "", designPreview: "" });
+  };
+
   const currentPreviewNumber = `PKG-${new Date().getFullYear()}-${String(pos.length + 1).padStart(4, "0")}`;
+  const currentKind = vendor === "vinyl" ? vinylKind : undefined;
+  const currentUnit = unitOf(vendor, currentKind);
+  const currentFabric = vendor === "vinyl" ? vinylMeta[vinylKind].fabric : undefined;
+  const currentDesignPreview = vendor === "vinyl" ? vinylMeta[vinylKind].designPreview : "";
   const previewText = buildPoText({
-    vendor, kind: vendor === "vinyl" ? vinylKind : undefined,
-    qty, unit: unitOf(vendor, vendor === "vinyl" ? vinylKind : undefined),
+    vendor, kind: currentKind, qty, unit: currentUnit,
     expectedAt, notes, info: vendorInfo[vendor], poNumber: currentPreviewNumber,
+    fabric: currentFabric,
   });
 
   const sendWechat = async (vKey: Vendor, text: string) => {
@@ -239,13 +325,75 @@ export default function PackagingFactory() {
     }
   };
 
+  /** Render the A4 preview element to a single-page A4 PDF Blob. */
+  const generatePdfBlob = async (): Promise<Blob | null> => {
+    const el = a4Ref.current;
+    if (!el) return null;
+    const canvas = await html2canvas(el, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+    const imgData = canvas.toDataURL("image/jpeg", 0.95);
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    pdf.addImage(imgData, "JPEG", 0, 0, pageW, pageH);
+    return pdf.output("blob");
+  };
+
+  const downloadPdf = async () => {
+    setGenerating(true);
+    try {
+      // ensure preview is mounted
+      const wasOpen = previewOpen;
+      if (!wasOpen) setPreviewOpen(true);
+      // wait for render
+      await new Promise(r => setTimeout(r, 200));
+      const blob = await generatePdfBlob();
+      if (!blob) {
+        toast({ title: "미리보기가 준비되지 않았습니다", variant: "destructive" });
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${currentPreviewNumber}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({ title: "PDF 다운로드", description: `${currentPreviewNumber}.pdf` });
+    } catch (e) {
+      toast({ title: "PDF 생성 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const printPdf = async () => {
+    setGenerating(true);
+    try {
+      if (!previewOpen) setPreviewOpen(true);
+      await new Promise(r => setTimeout(r, 200));
+      const blob = await generatePdfBlob();
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const w = window.open(url, "_blank");
+      if (w) {
+        w.addEventListener("load", () => {
+          try { w.print(); } catch {}
+        });
+      }
+    } catch (e) {
+      toast({ title: "출력 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   const submitPo = async () => {
-    const min = minQtyOf(vendor, vendor === "vinyl" ? vinylKind : undefined);
-    const unit = unitOf(vendor, vendor === "vinyl" ? vinylKind : undefined);
+    const min = minQtyOf(vendor, currentKind);
     if (!qty || qty < min) {
       toast({
         title: "최소 주문 수량 미달",
-        description: `${vendor === "vinyl" ? (vinylKind === "card" ? "카드포장지" : "티셔츠포장지") : "택배봉투"} 최소 주문은 ${min}${unit} 입니다.`,
+        description: `${vendor === "vinyl" ? (vinylKind === "card" ? "카드포장지" : "티셔츠포장지") : "택배봉투"} 최소 주문은 ${min}${currentUnit} 입니다.`,
         variant: "destructive",
       });
       return;
@@ -257,24 +405,43 @@ export default function PackagingFactory() {
       ordered_at: todayStr(),
       expected_at: expectedAt || null,
       vendor,
-      kind: vendor === "vinyl" ? vinylKind : undefined,
+      kind: currentKind,
       quantity: qty,
-      unit,
+      unit: currentUnit,
       status: "ordered",
       notes,
     };
     setPos(prev => [po, ...prev]);
-    toast({ title: "발주 등록됨", description: `${po.po_number} · ${qty}${unit}` });
+    toast({ title: "발주 등록됨", description: `${po.po_number} · ${qty}${currentUnit}` });
 
-    // Send to WeChat
+    // Generate PDF and trigger download
+    try {
+      if (!previewOpen) setPreviewOpen(true);
+      await new Promise(r => setTimeout(r, 200));
+      const blob = await generatePdfBlob();
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${po.po_number}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch {}
+
+    // Send text summary to WeChat (PDF is downloaded for manual attachment)
     const text = buildPoText({
-      vendor, kind: vendor === "vinyl" ? vinylKind : undefined,
-      qty, unit, expectedAt, notes, info: vendorInfo[vendor], poNumber: po.po_number,
+      vendor, kind: currentKind, qty, unit: currentUnit,
+      expectedAt, notes, info: vendorInfo[vendor], poNumber: po.po_number,
+      fabric: currentFabric,
     });
     await sendWechat(vendor, text);
 
     setNotes("");
     setExpectedAt("");
+    setPreviewOpen(false);
     setTab("inventory");
   };
 
@@ -486,6 +653,29 @@ export default function PackagingFactory() {
             </CardContent>
           </Card>
 
+          {/* 비닐포장: 원단/시안 (카드 + 티셔츠) */}
+          {vendor === "vinyl" && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">비닐포장 — 원단 / 시안 설정</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {(["card", "tshirt"] as VinylKind[]).map(k => (
+                    <DesignFabricBlock
+                      key={k}
+                      kind={k}
+                      meta={vinylMeta[k]}
+                      onChangeFabric={(val) => updateVinylMeta(k, { fabric: val })}
+                      onUpload={(f) => onUploadDesign(k, f)}
+                      onClear={() => clearDesign(k)}
+                    />
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">
@@ -518,16 +708,16 @@ export default function PackagingFactory() {
                   <div className="flex items-center gap-2">
                     <Input
                       type="number"
-                      min={minQtyOf(vendor, vendor === "vinyl" ? vinylKind : undefined)}
+                      min={minQtyOf(vendor, currentKind)}
                       value={qty}
                       onChange={(e) => setQty(Number(e.target.value) || 0)}
                     />
                     <span className="text-sm text-muted-foreground w-10">
-                      {unitOf(vendor, vendor === "vinyl" ? vinylKind : undefined)}
+                      {currentUnit}
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    최소: {minQtyOf(vendor, vendor === "vinyl" ? vinylKind : undefined).toLocaleString()} {unitOf(vendor, vendor === "vinyl" ? vinylKind : undefined)}
+                    최소: {minQtyOf(vendor, currentKind).toLocaleString()} {currentUnit}
                   </p>
                 </div>
                 <div className="space-y-1.5">
@@ -550,13 +740,13 @@ export default function PackagingFactory() {
                 />
               </div>
 
-              <div className="flex justify-end gap-2">
+              <div className="flex justify-end gap-2 flex-wrap">
                 <Button variant="outline" onClick={() => setTab("inventory")}>취소</Button>
                 <Button variant="outline" onClick={() => setPreviewOpen(true)} className="gap-1">
-                  <Eye className="w-4 h-4" /> 발주서 미리보기
+                  <Eye className="w-4 h-4" /> 발주서 미리보기 (A4)
                 </Button>
-                <Button onClick={submitPo} className="gap-1">
-                  <ShoppingCart className="w-4 h-4" /> 발주 등록 (위챗 발송)
+                <Button onClick={submitPo} className="gap-1" disabled={generating}>
+                  <ShoppingCart className="w-4 h-4" /> 발주 등록 (PDF + 위챗)
                 </Button>
               </div>
             </CardContent>
@@ -564,17 +754,40 @@ export default function PackagingFactory() {
         </TabsContent>
       </Tabs>
 
-      {/* Preview Dialog */}
+      {/* Preview Dialog — A4 출력 미리보기 */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-[900px] max-h-[90vh] overflow-auto">
           <DialogHeader>
-            <DialogTitle>발주서 미리보기 — {VENDOR_NAME[vendor]}</DialogTitle>
+            <DialogTitle>발주서 미리보기 (A4) — {VENDOR_NAME[vendor]}</DialogTitle>
           </DialogHeader>
-          <pre className="whitespace-pre-wrap text-sm bg-muted/40 rounded-md p-4 font-mono leading-relaxed max-h-[60vh] overflow-auto">
-            {previewText}
-          </pre>
-          <DialogFooter className="gap-2">
+
+          <div className="bg-muted/40 p-4 rounded-md overflow-auto flex justify-center">
+            <A4OrderSheet
+              ref={a4Ref}
+              poNumber={currentPreviewNumber}
+              vendor={vendor}
+              vendorName={VENDOR_NAME[vendor]}
+              kind={currentKind}
+              qty={qty}
+              unit={currentUnit}
+              fabric={currentFabric || ""}
+              designPreview={currentDesignPreview}
+              designName={vendor === "vinyl" ? vinylMeta[vinylKind].designName : ""}
+              orderedAt={todayStr()}
+              expectedAt={expectedAt}
+              info={vendorInfo[vendor]}
+              notes={notes}
+            />
+          </div>
+
+          <DialogFooter className="gap-2 flex-wrap">
             <Button variant="outline" onClick={() => setPreviewOpen(false)}>닫기</Button>
+            <Button variant="outline" className="gap-1" onClick={printPdf} disabled={generating}>
+              <Printer className="w-4 h-4" /> A4 출력
+            </Button>
+            <Button variant="outline" className="gap-1" onClick={downloadPdf} disabled={generating}>
+              <Download className="w-4 h-4" /> PDF 다운로드
+            </Button>
             <Button
               variant="outline"
               className="gap-1"
@@ -589,6 +802,189 @@ export default function PackagingFactory() {
   );
 }
 
+/* ============================================================
+ * A4 발주서 (210 × 297 mm)
+ * ============================================================ */
+const A4OrderSheet = (() => {
+  const Comp = ({
+    poNumber, vendor, vendorName, kind, qty, unit, fabric, designPreview, designName,
+    orderedAt, expectedAt, info, notes,
+  }: {
+    poNumber: string;
+    vendor: Vendor;
+    vendorName: string;
+    kind?: VinylKind;
+    qty: number;
+    unit: string;
+    fabric: string;
+    designPreview: string;
+    designName: string;
+    orderedAt: string;
+    expectedAt: string;
+    info: VendorInfo;
+    notes: string;
+  }, ref: React.Ref<HTMLDivElement>) => {
+    const itemName = vendor === "vinyl"
+      ? (kind === "card" ? "비닐포장지 (카드용)" : "비닐포장지 (티셔츠용)")
+      : "택배봉투";
+    return (
+      <div
+        ref={ref}
+        style={{
+          width: "210mm",
+          minHeight: "297mm",
+          padding: "16mm 14mm",
+          background: "#ffffff",
+          color: "#111111",
+          fontFamily: "'Noto Sans KR', 'Spoqa Han Sans Neo', system-ui, sans-serif",
+          fontSize: "11pt",
+          lineHeight: 1.45,
+          boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
+        }}
+      >
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #111", paddingBottom: 10 }}>
+          <div>
+            <div style={{ fontSize: "10pt", letterSpacing: 2, color: "#666" }}>TWINMETA FACTORY</div>
+            <h1 style={{ fontSize: "26pt", fontWeight: 800, margin: "4px 0 0" }}>발주서 / 发货单</h1>
+          </div>
+          <div style={{ textAlign: "right", fontSize: "10pt" }}>
+            <div><b>발주번호 PO No.</b> {poNumber}</div>
+            <div><b>발주일 Date</b> {orderedAt}</div>
+            <div><b>예상 입고 ETA</b> {expectedAt || "-"}</div>
+          </div>
+        </div>
+
+        {/* Vendor + Recipient */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 14 }}>
+          <Block title="공급 공장 / Supplier">
+            <Kv k="공장명" v={vendorName} />
+          </Block>
+          <Block title="수령 정보 / Ship To">
+            <Kv k="업체명" v={info.company || "-"} />
+            <Kv k="담당자" v={info.recipient || "-"} />
+            <Kv k="전화번호" v={info.phone || "-"} />
+            <Kv k="주소" v={info.address || "-"} />
+          </Block>
+        </div>
+
+        {/* Item table */}
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontWeight: 700, fontSize: "12pt", marginBottom: 6 }}>발주 품목 / Items</div>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10.5pt" }}>
+            <thead>
+              <tr style={{ background: "#f1f1f1" }}>
+                <th style={tdHead}>NO</th>
+                <th style={tdHead}>품목 Item</th>
+                <th style={tdHead}>원단 / 사양 Spec</th>
+                <th style={tdHead}>수량 Qty</th>
+                <th style={tdHead}>단위 Unit</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style={td}>1</td>
+                <td style={td}>{itemName}</td>
+                <td style={td}>{fabric || "-"}</td>
+                <td style={{ ...td, textAlign: "right" }}>{qty.toLocaleString()}</td>
+                <td style={td}>{unit}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Design preview */}
+        {vendor === "vinyl" && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontWeight: 700, fontSize: "12pt", marginBottom: 6 }}>
+              시안 / Artwork {designName ? <span style={{ fontWeight: 400, color: "#666", fontSize: "10pt" }}>· {designName}</span> : null}
+            </div>
+            <div style={{
+              border: "1px solid #ddd",
+              padding: 8,
+              minHeight: 220,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "#fafafa",
+            }}>
+              {designPreview ? (
+                <img
+                  src={designPreview}
+                  alt="design preview"
+                  style={{ maxWidth: "100%", maxHeight: "80mm", objectFit: "contain" }}
+                  crossOrigin="anonymous"
+                />
+              ) : (
+                <div style={{ color: "#999", fontSize: "10pt" }}>시안 PDF를 업로드하면 여기에 표시됩니다.</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Notes */}
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontWeight: 700, fontSize: "12pt", marginBottom: 6 }}>비고 / Notes</div>
+          <div style={{ border: "1px solid #ddd", padding: 10, minHeight: 60, whiteSpace: "pre-wrap" }}>
+            {notes || "-"}
+          </div>
+        </div>
+
+        {/* Signatures */}
+        <div style={{ marginTop: 24, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+          <SignBox title="발주자 Issued By" />
+          <SignBox title="수신 확인 Acknowledged" />
+        </div>
+
+        <div style={{ marginTop: 18, textAlign: "center", color: "#999", fontSize: "9pt", borderTop: "1px solid #eee", paddingTop: 8 }}>
+          TWINMETA FACTORY · Packaging Material Purchase Order
+        </div>
+      </div>
+    );
+  };
+  return Object.assign(
+    (require("react") as typeof import("react")).forwardRef(Comp),
+    { displayName: "A4OrderSheet" },
+  );
+})();
+
+const td: React.CSSProperties = { border: "1px solid #ccc", padding: "8px 10px", verticalAlign: "middle" };
+const tdHead: React.CSSProperties = { ...td, fontWeight: 700, textAlign: "left" };
+
+function Block({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ border: "1px solid #ddd", padding: 10 }}>
+      <div style={{ fontWeight: 700, fontSize: "10.5pt", marginBottom: 6, color: "#333" }}>{title}</div>
+      <div>{children}</div>
+    </div>
+  );
+}
+
+function Kv({ k, v }: { k: string; v: string }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "70px 1fr", gap: 6, fontSize: "10.5pt", padding: "3px 0" }}>
+      <div style={{ color: "#666" }}>{k}</div>
+      <div>{v}</div>
+    </div>
+  );
+}
+
+function SignBox({ title }: { title: string }) {
+  return (
+    <div style={{ border: "1px solid #ddd", padding: 10, minHeight: 70 }}>
+      <div style={{ fontSize: "10pt", color: "#666", marginBottom: 6 }}>{title}</div>
+      <div style={{ borderBottom: "1px solid #999", height: 30 }} />
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9pt", color: "#888", marginTop: 4 }}>
+        <span>서명 Signature</span>
+        <span>날짜 Date</span>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+ * Reusable presentational components
+ * ============================================================ */
 function KpiTile({ icon, label, value, color, dot }: { icon: React.ReactNode; label: string; value: number; color: string; dot: string }) {
   return (
     <Card>
@@ -701,5 +1097,70 @@ function KindPickCard({ active, onClick, icon, title, desc }: { active: boolean;
         </div>
       </div>
     </button>
+  );
+}
+
+function DesignFabricBlock({
+  kind, meta, onChangeFabric, onUpload, onClear,
+}: {
+  kind: VinylKind;
+  meta: VinylKindMeta;
+  onChangeFabric: (v: string) => void;
+  onUpload: (file: File) => void;
+  onClear: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const title = kind === "card" ? "카드포장지" : "티셔츠포장지";
+  const icon = kind === "card" ? <CreditCard className="w-4 h-4" /> : <Shirt className="w-4 h-4" />;
+  return (
+    <div className="border rounded-lg p-4 space-y-3">
+      <div className="flex items-center gap-2 font-medium">
+        {icon} {title}
+      </div>
+      <div className="space-y-1.5">
+        <Label>원단 종류</Label>
+        <Input
+          value={meta.fabric}
+          onChange={(e) => onChangeFabric(e.target.value)}
+          placeholder={kind === "card" ? "예: OPP 30µ 투명" : "예: LDPE 50µ 무광"}
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label>시안 파일 (PDF)</Label>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="application/pdf"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onUpload(f);
+            if (inputRef.current) inputRef.current.value = "";
+          }}
+        />
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()} className="gap-1">
+            <Upload className="w-3.5 h-3.5" /> PDF 업로드
+          </Button>
+          {meta.designPreview && (
+            <Button type="button" variant="ghost" size="sm" onClick={onClear} className="gap-1 text-destructive">
+              <Trash2 className="w-3.5 h-3.5" /> 제거
+            </Button>
+          )}
+        </div>
+        {meta.designName && (
+          <div className="text-xs text-muted-foreground flex items-center gap-1">
+            <FileText className="w-3 h-3" /> {meta.designName}
+          </div>
+        )}
+        <div className="border rounded-md bg-muted/30 h-48 flex items-center justify-center overflow-hidden">
+          {meta.designPreview ? (
+            <img src={meta.designPreview} alt={`${title} 시안`} className="max-w-full max-h-full object-contain" />
+          ) : (
+            <div className="text-xs text-muted-foreground">시안 미리보기 없음</div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
