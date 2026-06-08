@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { ArrowUpRight, TestTube, CheckCircle2, XCircle, Loader2, Copy, Check, Globe, Send, KeyRound, RefreshCw } from "lucide-react";
+import { ArrowUpRight, ArrowDownLeft, TestTube, CheckCircle2, XCircle, Loader2, Copy, Check, Globe, Send, KeyRound, RefreshCw, Link2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
