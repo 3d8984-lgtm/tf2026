@@ -848,16 +848,19 @@ type A4OrderSheetProps = {
   expectedAt: string;
   info: VendorInfo;
   notes: string;
+  mailerSize: string;
 };
 
 const A4OrderSheet = forwardRef<HTMLDivElement, A4OrderSheetProps>(function A4OrderSheet({
   poNumber, vendor, vendorName, kind, qty, unit, fabric, designPreview, designName,
-  orderedAt, expectedAt, info, notes,
+  orderedAt, expectedAt, info, notes, mailerSize,
 }, ref) {
 
     const itemName = vendor === "vinyl"
-      ? (kind === "card" ? "비닐포장지 (카드용)" : "비닐포장지 (티셔츠용)")
-      : "택배봉투";
+      ? (kind === "card" ? "卡片包装袋" : "T恤包装袋")
+      : "快递袋";
+    const unitCn = unit === "장" ? "个" : unit;
+    const spec = vendor === "vinyl" ? (fabric || "-") : (mailerSize || "-");
     return (
       <div
         ref={ref}
@@ -867,7 +870,7 @@ const A4OrderSheet = forwardRef<HTMLDivElement, A4OrderSheetProps>(function A4Or
           padding: "16mm 14mm",
           background: "#ffffff",
           color: "#111111",
-          fontFamily: "'Noto Sans KR', 'Spoqa Han Sans Neo', system-ui, sans-serif",
+          fontFamily: "'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif",
           fontSize: "11pt",
           lineHeight: 1.45,
           boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
@@ -877,48 +880,48 @@ const A4OrderSheet = forwardRef<HTMLDivElement, A4OrderSheetProps>(function A4Or
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #111", paddingBottom: 10 }}>
           <div>
             <div style={{ fontSize: "10pt", letterSpacing: 2, color: "#666" }}>TWINMETA FACTORY</div>
-            <h1 style={{ fontSize: "26pt", fontWeight: 800, margin: "4px 0 0" }}>발주서 / 发货单</h1>
+            <h1 style={{ fontSize: "26pt", fontWeight: 800, margin: "4px 0 0" }}>采 购 订 单</h1>
           </div>
           <div style={{ textAlign: "right", fontSize: "10pt" }}>
-            <div><b>발주번호 PO No.</b> {poNumber}</div>
-            <div><b>발주일 Date</b> {orderedAt}</div>
-            <div><b>예상 입고 ETA</b> {expectedAt || "-"}</div>
+            <div><b>订单编号</b> {poNumber}</div>
+            <div><b>下单日期</b> {orderedAt}</div>
+            <div><b>预计到货</b> {expectedAt || "-"}</div>
           </div>
         </div>
 
         {/* Vendor + Recipient */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 14 }}>
-          <Block title="공급 공장 / Supplier">
-            <Kv k="공장명" v={vendorName} />
+          <Block title="供应工厂">
+            <Kv k="工厂名称" v={vendorName} />
           </Block>
-          <Block title="수령 정보 / Ship To">
-            <Kv k="업체명" v={info.company || "-"} />
-            <Kv k="담당자" v={info.recipient || "-"} />
-            <Kv k="전화번호" v={info.phone || "-"} />
-            <Kv k="주소" v={info.address || "-"} />
+          <Block title="收货信息">
+            <Kv k="公司名称" v={info.company || "-"} />
+            <Kv k="收件人" v={info.recipient || "-"} />
+            <Kv k="联系电话" v={info.phone || "-"} />
+            <Kv k="收货地址" v={info.address || "-"} />
           </Block>
         </div>
 
         {/* Item table */}
         <div style={{ marginTop: 14 }}>
-          <div style={{ fontWeight: 700, fontSize: "12pt", marginBottom: 6 }}>발주 품목 / Items</div>
+          <div style={{ fontWeight: 700, fontSize: "12pt", marginBottom: 6 }}>订购品项</div>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10.5pt" }}>
             <thead>
               <tr style={{ background: "#f1f1f1" }}>
-                <th style={tdHead}>NO</th>
-                <th style={tdHead}>품목 Item</th>
-                <th style={tdHead}>원단 / 사양 Spec</th>
-                <th style={tdHead}>수량 Qty</th>
-                <th style={tdHead}>단위 Unit</th>
+                <th style={tdHead}>序号</th>
+                <th style={tdHead}>品名</th>
+                <th style={tdHead}>{vendor === "vinyl" ? "面料 / 规格" : "尺寸 / 规格"}</th>
+                <th style={tdHead}>数量</th>
+                <th style={tdHead}>单位</th>
               </tr>
             </thead>
             <tbody>
               <tr>
                 <td style={td}>1</td>
                 <td style={td}>{itemName}</td>
-                <td style={td}>{fabric || "-"}</td>
+                <td style={td}>{spec}</td>
                 <td style={{ ...td, textAlign: "right" }}>{qty.toLocaleString()}</td>
-                <td style={td}>{unit}</td>
+                <td style={td}>{unitCn}</td>
               </tr>
             </tbody>
           </table>
@@ -928,7 +931,7 @@ const A4OrderSheet = forwardRef<HTMLDivElement, A4OrderSheetProps>(function A4Or
         {vendor === "vinyl" && (
           <div style={{ marginTop: 14 }}>
             <div style={{ fontWeight: 700, fontSize: "12pt", marginBottom: 6 }}>
-              시안 / Artwork {designName ? <span style={{ fontWeight: 400, color: "#666", fontSize: "10pt" }}>· {designName}</span> : null}
+              设计稿 {designName ? <span style={{ fontWeight: 400, color: "#666", fontSize: "10pt" }}>· {designName}</span> : null}
             </div>
             <div style={{
               border: "1px solid #ddd",
@@ -947,7 +950,7 @@ const A4OrderSheet = forwardRef<HTMLDivElement, A4OrderSheetProps>(function A4Or
                   crossOrigin="anonymous"
                 />
               ) : (
-                <div style={{ color: "#999", fontSize: "10pt" }}>시안 PDF를 업로드하면 여기에 표시됩니다.</div>
+                <div style={{ color: "#999", fontSize: "10pt" }}>上传设计稿 PDF 后将在此显示。</div>
               )}
             </div>
           </div>
@@ -955,7 +958,7 @@ const A4OrderSheet = forwardRef<HTMLDivElement, A4OrderSheetProps>(function A4Or
 
         {/* Notes */}
         <div style={{ marginTop: 14 }}>
-          <div style={{ fontWeight: 700, fontSize: "12pt", marginBottom: 6 }}>비고 / Notes</div>
+          <div style={{ fontWeight: 700, fontSize: "12pt", marginBottom: 6 }}>备注</div>
           <div style={{ border: "1px solid #ddd", padding: 10, minHeight: 60, whiteSpace: "pre-wrap" }}>
             {notes || "-"}
           </div>
@@ -963,12 +966,12 @@ const A4OrderSheet = forwardRef<HTMLDivElement, A4OrderSheetProps>(function A4Or
 
         {/* Signatures */}
         <div style={{ marginTop: 24, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-          <SignBox title="발주자 Issued By" />
-          <SignBox title="수신 확인 Acknowledged" />
+          <SignBox title="下单方" />
+          <SignBox title="收件确认" />
         </div>
 
         <div style={{ marginTop: 18, textAlign: "center", color: "#999", fontSize: "9pt", borderTop: "1px solid #eee", paddingTop: 8 }}>
-          TWINMETA FACTORY · Packaging Material Purchase Order
+          TWINMETA FACTORY · 包装材料采购订单
         </div>
       </div>
     );
@@ -989,7 +992,7 @@ function Block({ title, children }: { title: string; children: React.ReactNode }
 
 function Kv({ k, v }: { k: string; v: string }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "70px 1fr", gap: 6, fontSize: "10.5pt", padding: "3px 0" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "80px 1fr", gap: 6, fontSize: "10.5pt", padding: "3px 0" }}>
       <div style={{ color: "#666" }}>{k}</div>
       <div>{v}</div>
     </div>
@@ -1002,8 +1005,8 @@ function SignBox({ title }: { title: string }) {
       <div style={{ fontSize: "10pt", color: "#666", marginBottom: 6 }}>{title}</div>
       <div style={{ borderBottom: "1px solid #999", height: 30 }} />
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9pt", color: "#888", marginTop: 4 }}>
-        <span>서명 Signature</span>
-        <span>날짜 Date</span>
+        <span>签字</span>
+        <span>日期</span>
       </div>
     </div>
   );
