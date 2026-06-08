@@ -451,7 +451,7 @@ export default function PackagingFactory() {
     const text = buildPoText({
       vendor, kind: currentKind, qty, unit: currentUnit,
       expectedAt, notes, info: vendorInfo[vendor], poNumber: po.po_number,
-      fabric: currentFabric,
+      fabric: currentFabric, mailerSize: currentMailerSize,
     });
     await sendWechat(vendor, text);
 
