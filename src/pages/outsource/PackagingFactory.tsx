@@ -943,12 +943,8 @@ const A4OrderSheet = forwardRef<HTMLDivElement, A4OrderSheetProps>(function A4Or
         </div>
       </div>
     );
-  };
-  return Object.assign(
-    (require("react") as typeof import("react")).forwardRef(Comp),
-    { displayName: "A4OrderSheet" },
-  );
-})();
+});
+
 
 const td: React.CSSProperties = { border: "1px solid #ccc", padding: "8px 10px", verticalAlign: "middle" };
 const tdHead: React.CSSProperties = { ...td, fontWeight: 700, textAlign: "left" };
