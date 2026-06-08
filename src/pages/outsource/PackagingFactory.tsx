@@ -630,6 +630,16 @@ export default function PackagingFactory() {
                         placeholder="배송 주소"
                       />
                     </div>
+                    {v === "mailer" && (
+                      <div className="space-y-1.5 md:col-span-2">
+                        <Label>택배봉투 사이트 (URL)</Label>
+                        <Input
+                          value={vendorInfo.mailer.siteUrl || ""}
+                          onChange={(e) => updateVendorInfo("mailer", { siteUrl: e.target.value })}
+                          placeholder="https://example.com/product"
+                        />
+                      </div>
+                    )}
                   </div>
                   <div className="flex justify-end">
                     <Button size="sm" onClick={() => saveVendorInfo(v)} className="gap-1">
