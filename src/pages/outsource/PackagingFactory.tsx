@@ -718,6 +718,18 @@ export default function PackagingFactory() {
                 </div>
               )}
 
+              {vendor === "mailer" && (
+                <div className="space-y-1.5">
+                  <Label>택배봉투 사이즈</Label>
+                  <Input
+                    value={mailerSize}
+                    onChange={(e) => setMailerSize(e.target.value)}
+                    placeholder="예: 25 × 35 cm (W × H)"
+                  />
+                  <p className="text-xs text-muted-foreground">발주서에 사양으로 포함됩니다. 입력값은 자동 저장됩니다.</p>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="space-y-1.5">
                   <Label>수량</Label>
