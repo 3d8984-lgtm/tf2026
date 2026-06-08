@@ -825,7 +825,6 @@ const A4OrderSheet = forwardRef<HTMLDivElement, A4OrderSheetProps>(function A4Or
   poNumber, vendor, vendorName, kind, qty, unit, fabric, designPreview, designName,
   orderedAt, expectedAt, info, notes,
 }, ref) {
-  {
 
     const itemName = vendor === "vinyl"
       ? (kind === "card" ? "비닐포장지 (카드용)" : "비닐포장지 (티셔츠용)")
