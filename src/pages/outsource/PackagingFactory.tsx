@@ -1,22 +1,24 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import {
-  Package, AlertTriangle, CheckCircle2, CircleSlash, Mail, ShoppingCart, CreditCard, Shirt, Truck, Building2,
+  Package, AlertTriangle, CheckCircle2, CircleSlash, Mail, ShoppingCart, CreditCard, Shirt, Building2, Eye, Save, Send,
 } from "lucide-react";
 
 /**
  * 부자재(포장용품) 공장
  * - 비닐포장(카드포장지/티셔츠포장지) — 업체 A
  * - 택배봉투 — 업체 B
- * 페이지 구조: [재고현황 & 발주목록] / [발주지시]
  */
 
 type Vendor = "vinyl" | "mailer";
@@ -45,6 +47,13 @@ type PO = {
   notes?: string;
 };
 
+type VendorInfo = {
+  company: string;
+  recipient: string;
+  phone: string;
+  address: string;
+};
+
 const INITIAL_INVENTORY: InventoryRow[] = [
   { id: "v-card", vendor: "vinyl", kind: "card", label: "비닐포장지 - 카드용", unit: "kg", in_stock: 80, safety_stock: 100 },
   { id: "v-tshirt", vendor: "vinyl", kind: "tshirt", label: "비닐포장지 - 티셔츠용", unit: "장", in_stock: 12000, safety_stock: 10000 },
@@ -54,6 +63,14 @@ const INITIAL_INVENTORY: InventoryRow[] = [
 const VENDOR_NAME: Record<Vendor, string> = {
   vinyl: "비닐포장 공장 (업체 A)",
   mailer: "택배봉투 공장 (업체 B)",
+};
+
+const VENDOR_INFO_KEY = "packaging.vendor.info.v1";
+const WECHAT_KEYS_KEY = "wechat.webhook.keys.v1";
+
+const DEFAULT_VENDOR_INFO: Record<Vendor, VendorInfo> = {
+  vinyl: { company: "", recipient: "", phone: "", address: "" },
+  mailer: { company: "", recipient: "", phone: "", address: "" },
 };
 
 function statusInfo(stock: number, safety: number) {
@@ -70,6 +87,48 @@ function poStatusLabel(s: PO["status"]) {
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
+function loadVendorInfo(): Record<Vendor, VendorInfo> {
+  if (typeof window === "undefined") return DEFAULT_VENDOR_INFO;
+  try {
+    const raw = localStorage.getItem(VENDOR_INFO_KEY);
+    if (!raw) return DEFAULT_VENDOR_INFO;
+    const p = JSON.parse(raw);
+    return {
+      vinyl: { ...DEFAULT_VENDOR_INFO.vinyl, ...(p.vinyl || {}) },
+      mailer: { ...DEFAULT_VENDOR_INFO.mailer, ...(p.mailer || {}) },
+    };
+  } catch {
+    return DEFAULT_VENDOR_INFO;
+  }
+}
+
+function buildPoText(args: {
+  vendor: Vendor; kind?: VinylKind; qty: number; unit: string;
+  expectedAt: string; notes: string; info: VendorInfo; poNumber: string;
+}) {
+  const { vendor, kind, qty, unit, expectedAt, notes, info, poNumber } = args;
+  const itemName = vendor === "vinyl"
+    ? (kind === "card" ? "비닐포장지 (카드용)" : "비닐포장지 (티셔츠용)")
+    : "택배봉투";
+  return [
+    `📦 [TWINMETA] 발주서 / 发货单`,
+    `────────────────`,
+    `발주번호: ${poNumber}`,
+    `공장: ${VENDOR_NAME[vendor]}`,
+    `품목: ${itemName}`,
+    `수량: ${qty.toLocaleString()} ${unit}`,
+    `발주일: ${todayStr()}`,
+    `예상 입고일: ${expectedAt || "-"}`,
+    ``,
+    `[수령 정보]`,
+    `업체명: ${info.company || "-"}`,
+    `받는사람: ${info.recipient || "-"}`,
+    `전화번호: ${info.phone || "-"}`,
+    `주소: ${info.address || "-"}`,
+    notes ? `\n[비고]\n${notes}` : ``,
+  ].filter(Boolean).join("\n");
+}
+
 export default function PackagingFactory() {
   const [tab, setTab] = useState("inventory");
   const [inventory, setInventory] = useState<InventoryRow[]>(INITIAL_INVENTORY);
@@ -82,17 +141,22 @@ export default function PackagingFactory() {
   const [expectedAt, setExpectedAt] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
 
+  // Vendor base info (persistent)
+  const [vendorInfo, setVendorInfo] = useState<Record<Vendor, VendorInfo>>(loadVendorInfo);
+
+  // Preview dialog
+  const [previewOpen, setPreviewOpen] = useState(false);
+
   const unitOf = (v: Vendor, k?: VinylKind) => {
     if (v === "mailer") return "장";
     return k === "card" ? "kg" : "장";
   };
   const minQtyOf = (v: Vendor, k?: VinylKind) => {
-    if (v === "vinyl" && k === "card") return 100;     // 100kg
-    if (v === "vinyl" && k === "tshirt") return 10000; // 10000장
+    if (v === "vinyl" && k === "card") return 100;
+    if (v === "vinyl" && k === "tshirt") return 10000;
     return 1;
   };
 
-  // Adjust qty when vendor/kind changes
   const onVendorChange = (v: Vendor) => {
     setVendor(v);
     setQty(minQtyOf(v, v === "vinyl" ? vinylKind : undefined));
@@ -129,7 +193,53 @@ export default function PackagingFactory() {
     setInventory(prev => prev.map(r => r.id === id ? { ...r, safety_stock: val } : r));
   };
 
-  const submitPo = () => {
+  const updateVendorInfo = (v: Vendor, patch: Partial<VendorInfo>) => {
+    setVendorInfo(prev => ({ ...prev, [v]: { ...prev[v], ...patch } }));
+  };
+
+  const saveVendorInfo = (v: Vendor) => {
+    const next = { ...vendorInfo };
+    localStorage.setItem(VENDOR_INFO_KEY, JSON.stringify(next));
+    toast({ title: "기본정보 저장됨", description: VENDOR_NAME[v] });
+  };
+
+  const currentPreviewNumber = `PKG-${new Date().getFullYear()}-${String(pos.length + 1).padStart(4, "0")}`;
+  const previewText = buildPoText({
+    vendor, kind: vendor === "vinyl" ? vinylKind : undefined,
+    qty, unit: unitOf(vendor, vendor === "vinyl" ? vinylKind : undefined),
+    expectedAt, notes, info: vendorInfo[vendor], poNumber: currentPreviewNumber,
+  });
+
+  const sendWechat = async (vKey: Vendor, text: string) => {
+    try {
+      const raw = localStorage.getItem(WECHAT_KEYS_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      const key = parsed[vKey];
+      if (!key) {
+        toast({
+          title: "위챗 키 미설정",
+          description: `외주 생산 > 시스템 설정에서 ${vKey} 채널 키를 등록하세요.`,
+          variant: "destructive",
+        });
+        return;
+      }
+      const webhookUrl = `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${encodeURIComponent(key)}`;
+      const { data, error } = await supabase.functions.invoke("wechat-send", {
+        body: { webhookUrl, message: text },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      toast({ title: "위챗 발송 성공", description: VENDOR_NAME[vKey] });
+    } catch (e) {
+      toast({
+        title: "위챗 발송 실패",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+    }
+  };
+
+  const submitPo = async () => {
     const min = minQtyOf(vendor, vendor === "vinyl" ? vinylKind : undefined);
     const unit = unitOf(vendor, vendor === "vinyl" ? vinylKind : undefined);
     if (!qty || qty < min) {
@@ -143,7 +253,7 @@ export default function PackagingFactory() {
     const id = crypto.randomUUID();
     const po: PO = {
       id,
-      po_number: `PKG-${new Date().getFullYear()}-${String(pos.length + 1).padStart(4, "0")}`,
+      po_number: currentPreviewNumber,
       ordered_at: todayStr(),
       expected_at: expectedAt || null,
       vendor,
@@ -155,6 +265,14 @@ export default function PackagingFactory() {
     };
     setPos(prev => [po, ...prev]);
     toast({ title: "발주 등록됨", description: `${po.po_number} · ${qty}${unit}` });
+
+    // Send to WeChat
+    const text = buildPoText({
+      vendor, kind: vendor === "vinyl" ? vinylKind : undefined,
+      qty, unit, expectedAt, notes, info: vendorInfo[vendor], poNumber: po.po_number,
+    });
+    await sendWechat(vendor, text);
+
     setNotes("");
     setExpectedAt("");
     setTab("inventory");
@@ -163,7 +281,6 @@ export default function PackagingFactory() {
   const changePoStatus = (id: string, next: PO["status"]) => {
     setPos(prev => prev.map(p => {
       if (p.id !== id) return p;
-      // If received, add to inventory
       if (next === "received" && p.status !== "received") {
         setInventory(inv => inv.map(r => {
           const match = r.vendor === p.vendor && (p.vendor !== "vinyl" || r.kind === p.kind);
@@ -193,7 +310,6 @@ export default function PackagingFactory() {
 
         {/* ============ 재고현황 & 발주목록 ============ */}
         <TabsContent value="inventory" className="space-y-6">
-          {/* KPI */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <KpiTile icon={<CheckCircle2 className="w-5 h-5" />} label="정상" value={kpi.ok} color="text-emerald-500" dot="bg-emerald-500" />
             <KpiTile icon={<AlertTriangle className="w-5 h-5" />} label="재고 부족" value={kpi.low} color="text-yellow-500" dot="bg-yellow-500" />
@@ -201,7 +317,6 @@ export default function PackagingFactory() {
             <KpiTile icon={<CircleSlash className="w-5 h-5" />} label="품절" value={kpi.out} color="text-zinc-400" dot="bg-zinc-500" />
           </div>
 
-          {/* 비닐포장 공장 */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
@@ -221,7 +336,6 @@ export default function PackagingFactory() {
             </CardContent>
           </Card>
 
-          {/* 택배봉투 공장 */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
@@ -239,7 +353,6 @@ export default function PackagingFactory() {
             </CardContent>
           </Card>
 
-          {/* 발주 목록 */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base">발주 목록</CardTitle>
@@ -295,6 +408,60 @@ export default function PackagingFactory() {
 
         {/* ============ 발주 지시 ============ */}
         <TabsContent value="create" className="space-y-6">
+          {/* 공장별 기본정보 */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {(["vinyl", "mailer"] as Vendor[]).map(v => (
+              <Card key={v}>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Building2 className="w-4 h-4" /> {VENDOR_NAME[v]} 기본정보
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label>발주업체명</Label>
+                      <Input
+                        value={vendorInfo[v].company}
+                        onChange={(e) => updateVendorInfo(v, { company: e.target.value })}
+                        placeholder="업체명"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>받는 사람</Label>
+                      <Input
+                        value={vendorInfo[v].recipient}
+                        onChange={(e) => updateVendorInfo(v, { recipient: e.target.value })}
+                        placeholder="담당자명"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>전화번호</Label>
+                      <Input
+                        value={vendorInfo[v].phone}
+                        onChange={(e) => updateVendorInfo(v, { phone: e.target.value })}
+                        placeholder="+86-138-0000-0000"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>주소</Label>
+                      <Input
+                        value={vendorInfo[v].address}
+                        onChange={(e) => updateVendorInfo(v, { address: e.target.value })}
+                        placeholder="배송 주소"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button size="sm" onClick={() => saveVendorInfo(v)} className="gap-1">
+                      <Save className="w-3.5 h-3.5" /> 저장
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">발주 공장 선택</CardTitle>
@@ -347,7 +514,7 @@ export default function PackagingFactory() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium">수량</label>
+                  <Label>수량</Label>
                   <div className="flex items-center gap-2">
                     <Input
                       type="number"
@@ -364,17 +531,17 @@ export default function PackagingFactory() {
                   </p>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium">예상 입고일</label>
+                  <Label>예상 입고일</Label>
                   <Input type="date" value={expectedAt} onChange={(e) => setExpectedAt(e.target.value)} />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium">발주일</label>
+                  <Label>발주일</Label>
                   <Input type="date" value={todayStr()} disabled />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">비고</label>
+                <Label>비고</Label>
                 <Textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
@@ -385,14 +552,39 @@ export default function PackagingFactory() {
 
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setTab("inventory")}>취소</Button>
-                <Button onClick={submitPo}>
-                  <ShoppingCart className="w-4 h-4 mr-1" /> 발주 등록
+                <Button variant="outline" onClick={() => setPreviewOpen(true)} className="gap-1">
+                  <Eye className="w-4 h-4" /> 발주서 미리보기
+                </Button>
+                <Button onClick={submitPo} className="gap-1">
+                  <ShoppingCart className="w-4 h-4" /> 발주 등록 (위챗 발송)
                 </Button>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Preview Dialog */}
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>발주서 미리보기 — {VENDOR_NAME[vendor]}</DialogTitle>
+          </DialogHeader>
+          <pre className="whitespace-pre-wrap text-sm bg-muted/40 rounded-md p-4 font-mono leading-relaxed max-h-[60vh] overflow-auto">
+            {previewText}
+          </pre>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setPreviewOpen(false)}>닫기</Button>
+            <Button
+              variant="outline"
+              className="gap-1"
+              onClick={() => sendWechat(vendor, previewText)}
+            >
+              <Send className="w-4 h-4" /> 위챗으로 보내기
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
