@@ -82,6 +82,7 @@ const VENDOR_NAME: Record<Vendor, string> = {
 const VENDOR_INFO_KEY = "packaging.vendor.info.v1";
 const WECHAT_KEYS_KEY = "wechat.webhook.keys.v1";
 const VINYL_META_KEY = "packaging.vinyl.meta.v1";
+const MAILER_SIZE_KEY = "packaging.mailer.size.v1";
 
 const DEFAULT_VENDOR_INFO: Record<Vendor, VendorInfo> = {
   vinyl: { company: "", recipient: "", phone: "", address: "" },
@@ -92,6 +93,11 @@ const DEFAULT_VINYL_META: Record<VinylKind, VinylKindMeta> = {
   card: { fabric: "", designName: "", designPreview: "" },
   tshirt: { fabric: "", designName: "", designPreview: "" },
 };
+
+function loadMailerSize(): string {
+  if (typeof window === "undefined") return "";
+  try { return localStorage.getItem(MAILER_SIZE_KEY) || ""; } catch { return ""; }
+}
 
 function statusInfo(stock: number, safety: number) {
   if (stock <= 0) return { key: "out", color: "bg-zinc-500", text: "text-zinc-400", label: "품절" };
