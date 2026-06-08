@@ -788,7 +788,7 @@ export default function PackagingFactory() {
               ref={a4Ref}
               poNumber={currentPreviewNumber}
               vendor={vendor}
-              vendorName={VENDOR_NAME[vendor]}
+              vendorName={VENDOR_NAME_CN[vendor]}
               kind={currentKind}
               qty={qty}
               unit={currentUnit}
