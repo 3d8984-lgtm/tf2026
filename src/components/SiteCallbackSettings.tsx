@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { ArrowUpRight, TestTube, CheckCircle2, XCircle, Loader2, Copy, Check, Globe, Send, KeyRound, RefreshCw } from "lucide-react";
+import { ArrowUpRight, ArrowDownLeft, TestTube, CheckCircle2, XCircle, Loader2, Copy, Check, Globe, Send, KeyRound, RefreshCw, Link2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -281,6 +281,144 @@ export default function SiteCallbackSettings() {
         </Button>
         {testStatus === "success" && <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 gap-1"><CheckCircle2 className="w-3 h-3" />{isKo ? "성공" : "成功"}</Badge>}
         {testStatus === "fail" && <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 gap-1"><XCircle className="w-3 h-3" />{isKo ? "실패" : "失败"}</Badge>}
+      </div>
+
+      {/* Inbound Receive API */}
+      <InboundReceiveSettings />
+    </div>
+  );
+}
+
+const INBOUND_KEY_STORAGE = "twinmeta.inbound.api_key.v1";
+const INBOUND_ENABLED_STORAGE = "twinmeta.inbound.enabled.v1";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+
+function InboundReceiveSettings() {
+  const { lang } = useLang();
+  const isKo = lang === "ko";
+  const { toast } = useToast();
+  const [apiKey, setApiKey] = useState("");
+  const [enabled, setEnabled] = useState(true);
+  const [showKey, setShowKey] = useState(false);
+
+  useEffect(() => {
+    setApiKey(localStorage.getItem(INBOUND_KEY_STORAGE) || "");
+    const e = localStorage.getItem(INBOUND_ENABLED_STORAGE);
+    setEnabled(e === null ? true : e === "1");
+  }, []);
+
+  const receiveUrl = `${SUPABASE_URL}/functions/v1/webhook-receive`;
+
+  const generateKey = () => {
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    const key = "tmin_" + Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+    setApiKey(key);
+    toast({ title: isKo ? "새 수신 키가 생성되었습니다" : "已生成新的接收密钥", description: isKo ? "저장 후 TWINMETA 사이트에 등록하세요" : "保存后请在TWINMETA站点登录" });
+  };
+
+  const copy = (v: string) => {
+    if (!v) return;
+    navigator.clipboard.writeText(v);
+    toast({ title: isKo ? "복사됨" : "已复制" });
+  };
+
+  const save = () => {
+    localStorage.setItem(INBOUND_KEY_STORAGE, apiKey);
+    localStorage.setItem(INBOUND_ENABLED_STORAGE, enabled ? "1" : "0");
+    toast({ title: isKo ? "저장됨" : "已保存", description: isKo ? "TWINMETA 수신 API 설정이 저장되었습니다" : "TWINMETA接收API设置已保存" });
+  };
+
+  const samplePayload = JSON.stringify({
+    event: "order.created",
+    external_order_id: "TWINMETA-12345",
+    recipient: { name: "John Doe", phone: "010-0000-0000", address: "..." },
+    items: [{ sku: "TSHIRT-001", qty: 2 }],
+    timestamp: new Date().toISOString(),
+  }, null, 2);
+
+  return (
+    <div className="space-y-6 pt-8 mt-4 border-t">
+      <div>
+        <h3 className="font-semibold text-lg flex items-center gap-2">
+          <ArrowDownLeft className="w-5 h-5 text-primary" />
+          {isKo ? "TWINMETA 수신 API 설정" : "TWINMETA接收API设置"}
+        </h3>
+        <p className="text-sm text-muted-foreground mt-1">
+          {isKo
+            ? "TWINMETA 사이트에서 주문/배송 데이터를 본 공장으로 전송할 때 사용하는 수신 엔드포인트와 인증 키입니다."
+            : "TWINMETA站点向本工厂发送订单/配送数据时使用的接收端点和认证密钥。"}
+        </p>
+      </div>
+
+      <div className="flex items-center justify-between p-4 rounded-lg border">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary/10">
+            <ArrowDownLeft className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <p className="font-medium text-sm">{isKo ? "수신 기능 활성화" : "启用接收功能"}</p>
+            <p className="text-xs text-muted-foreground">{isKo ? "비활성화 시 TWINMETA에서 전송되는 요청을 거부합니다" : "禁用时将拒绝来自TWINMETA的请求"}</p>
+          </div>
+        </div>
+        <Switch checked={enabled} onCheckedChange={setEnabled} />
+      </div>
+
+      <div className="space-y-2">
+        <Label className="flex items-center gap-1.5"><Link2 className="w-3.5 h-3.5 text-primary" />{isKo ? "수신 엔드포인트 URL" : "接收端点URL"}</Label>
+        <div className="flex gap-2">
+          <Input value={receiveUrl} readOnly className="font-mono text-xs" />
+          <Button type="button" variant="outline" size="icon" onClick={() => copy(receiveUrl)} title={isKo ? "복사" : "复制"}>
+            <Copy className="w-4 h-4" />
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {isKo ? "TWINMETA 본사 사이트의 외부 연동(웹훅) 설정에 이 URL을 등록하세요." : "请在TWINMETA总部站点的外部集成（Webhook）设置中登录此URL。"}
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label className="flex items-center gap-1.5"><KeyRound className="w-3.5 h-3.5 text-primary" />{isKo ? "수신 API 인증 키" : "接收API认证密钥"}</Label>
+        <div className="flex gap-2">
+          <Input
+            type={showKey ? "text" : "password"}
+            value={apiKey}
+            onChange={e => setApiKey(e.target.value)}
+            placeholder={isKo ? "키 생성 버튼으로 자동 생성하거나 직접 입력" : "点击生成按钮或手动输入"}
+            className="font-mono text-xs"
+          />
+          <Button type="button" variant="outline" size="sm" onClick={() => setShowKey(s => !s)}>
+            {showKey ? (isKo ? "숨김" : "隐藏") : (isKo ? "표시" : "显示")}
+          </Button>
+          <Button type="button" variant="outline" size="icon" onClick={() => copy(apiKey)} title={isKo ? "복사" : "复制"}>
+            <Copy className="w-4 h-4" />
+          </Button>
+          <Button type="button" variant="default" className="gap-1.5 shrink-0" onClick={generateKey}>
+            <RefreshCw className="w-4 h-4" />
+            {isKo ? "키 생성" : "生成密钥"}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {isKo
+            ? "TWINMETA에서 본 공장으로 데이터를 보낼 때 요청 헤더 x-webhook-secret (또는 x-api-key)에 이 키를 포함해야 합니다."
+            : "TWINMETA向本工厂发送数据时必须在请求头x-webhook-secret（或x-api-key）中包含此密钥。"}
+        </p>
+      </div>
+
+      <div className="rounded-lg border p-4 space-y-3">
+        <h4 className="text-sm font-medium flex items-center gap-2">
+          <Send className="w-4 h-4 text-primary" />
+          {isKo ? "수신 요청 예시" : "接收请求示例"}
+        </h4>
+        <pre className="bg-muted/50 p-3 rounded-md text-xs font-mono overflow-x-auto">{`POST ${receiveUrl}
+Content-Type: application/json
+x-webhook-secret: ${apiKey || "<API_KEY>"}
+
+${samplePayload}`}</pre>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <Button onClick={save} className="gap-1.5">{isKo ? "설정 저장" : "保存设置"}</Button>
       </div>
     </div>
   );
