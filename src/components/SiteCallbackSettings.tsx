@@ -282,6 +282,9 @@ export default function SiteCallbackSettings() {
         {testStatus === "success" && <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 gap-1"><CheckCircle2 className="w-3 h-3" />{isKo ? "성공" : "成功"}</Badge>}
         {testStatus === "fail" && <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 gap-1"><XCircle className="w-3 h-3" />{isKo ? "실패" : "失败"}</Badge>}
       </div>
+
+      {/* Inbound Receive API */}
+      <InboundReceiveSettings />
     </div>
   );
 }
