@@ -805,6 +805,7 @@ export default function PackagingFactory() {
               expectedAt={expectedAt}
               info={vendorInfo[vendor]}
               notes={notes}
+              mailerSize={currentMailerSize || ""}
             />
           </div>
 
