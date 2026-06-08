@@ -204,6 +204,9 @@ export default function PackagingFactory() {
   // Vinyl per-kind meta (fabric + design preview), persistent
   const [vinylMeta, setVinylMeta] = useState<Record<VinylKind, VinylKindMeta>>(loadVinylMeta);
 
+  // Mailer size (persistent)
+  const [mailerSize, setMailerSize] = useState<string>(loadMailerSize);
+
   // Preview dialog
   const [previewOpen, setPreviewOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -212,6 +215,10 @@ export default function PackagingFactory() {
   useEffect(() => {
     try { localStorage.setItem(VINYL_META_KEY, JSON.stringify(vinylMeta)); } catch {}
   }, [vinylMeta]);
+
+  useEffect(() => {
+    try { localStorage.setItem(MAILER_SIZE_KEY, mailerSize); } catch {}
+  }, [mailerSize]);
 
   const unitOf = (v: Vendor, k?: VinylKind) => {
     if (v === "mailer") return "장";
