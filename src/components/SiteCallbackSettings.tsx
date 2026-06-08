@@ -189,13 +189,49 @@ export default function SiteCallbackSettings() {
             />
           </div>
           <div className="space-y-2">
-            <Label>{isKo ? "인증 값" : "认证值"}</Label>
-            <Input
-              type="password"
-              value={config.auth_value}
-              onChange={e => update({ auth_value: e.target.value })}
-              placeholder={isKo ? "TWINMETA 사이트에서 발급받은 키" : "TWINMETA站点提供的密钥"}
-            />
+            <Label className="flex items-center gap-1.5"><KeyRound className="w-3.5 h-3.5 text-primary" />{isKo ? "API 인증 키" : "API认证密钥"}</Label>
+            <div className="flex gap-2">
+              <Input
+                type="text"
+                value={config.auth_value}
+                onChange={e => update({ auth_value: e.target.value })}
+                placeholder={isKo ? "키 생성 버튼으로 자동 생성하거나 직접 입력" : "点击生成按钮或手动输入"}
+                className="font-mono text-xs"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                title={isKo ? "복사" : "复制"}
+                onClick={() => {
+                  if (!config.auth_value) return;
+                  navigator.clipboard.writeText(config.auth_value);
+                  toast({ title: isKo ? "복사됨" : "已复制" });
+                }}
+              >
+                <Copy className="w-4 h-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="default"
+                className="gap-1.5 shrink-0"
+                onClick={() => {
+                  const bytes = new Uint8Array(32);
+                  crypto.getRandomValues(bytes);
+                  const key = "tm_" + Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+                  update({ auth_value: key });
+                  toast({ title: isKo ? "새 API 키가 생성되었습니다" : "已生成新的API密钥", description: isKo ? "저장 후 TWINMETA 사이트에도 동일한 키를 등록하세요" : "保存后请在TWINMETA站点登录相同密钥" });
+                }}
+              >
+                <RefreshCw className="w-4 h-4" />
+                {isKo ? "키 생성" : "生成密钥"}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {isKo
+                ? "이 키는 본 공장에서 TWINMETA 본사 사이트로 송장/배송 정보를 전송할 때 인증 헤더 값으로 사용됩니다. TWINMETA 사이트 측에도 동일한 키를 등록해야 합니다."
+                : "此密钥用作本工厂向TWINMETA总部站点发送运单/配送信息时的认证头值。TWINMETA站点也需注册相同密钥。"}
+            </p>
           </div>
         </div>
       </div>
