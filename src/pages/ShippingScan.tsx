@@ -93,7 +93,7 @@ export default function ShippingScan() {
       cancelled = true;
       const s = scannerRef.current;
       if (s) {
-        s.stop().catch(() => {}).finally(() => s.clear().catch(() => {}));
+        Promise.resolve(s.stop()).catch(() => {}).finally(() => { try { s.clear(); } catch { /* ignore */ } });
         scannerRef.current = null;
       }
     };
