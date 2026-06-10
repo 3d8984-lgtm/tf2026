@@ -1,78 +1,120 @@
-## 티셔츠 공장 메뉴 추가 계획
+## 배송관리 재설계 계획
 
-외주 생산 대분류에 새로운 "티셔츠 공장" 메뉴를 추가하고, 재고 관리 + 발주 관리 통합 페이지를 구축합니다.
+### ⚠️ 주의사항
+"전면 교체"를 선택하셨지만, 현재 `shipments` 테이블은 Dashboard, ProductionMonitor, Reports, FileUpload, 그리고 7단계 생산 워크플로우(`auto_create_order_related` 트리거) 전반에서 사용됩니다. 완전 삭제 시 시스템 전반에 영향이 큽니다.
 
-### 1. 네비게이션 & 라우팅
+따라서 **shipments 테이블은 유지하되 배송관리 페이지만 새 QR 워크플로우로 전면 재작성**하는 방향을 권장합니다. 새 워크플로우에 필요한 컬럼만 shipments에 추가합니다.
 
-- `src/App.tsx`: `/outsource/tshirt-factory` 라우트 추가
-- `src/components/AppLayout.tsx`: outsource 섹션에 `menu.outTshirtFactory` 메뉴 추가 (Shirt 아이콘)
-- `src/contexts/LangContext.tsx`: KO/ZH 번역 키 추가
+---
 
-### 2. 데이터베이스 스키마 (Supabase 마이그레이션)
+### 1. DB 변경 (마이그레이션)
 
-신규 테이블 5개를 `public` 스키마에 생성 (모두 RLS + GRANT 포함):
+**`shipments` 테이블에 컬럼 추가:**
+- `scan_status` enum (`pending`/`scanning`/`ready`/`shipped`/`reported`)
+- `scanned_count` int (default 0)
+- `design_confirmed` bool (default false)
+- `tracking_issued_at` timestamptz
+- `reported_at` timestamptz
 
-- **`tshirt_product_types`** — 상품 유형 마스터 (반팔/긴팔/후드티 확장용)
-  - `code`, `name_ko`, `name_zh`, `sort_order`, `active`
-- **`tshirt_colors`** — 색상 마스터
-  - `code`, `name_ko`, `name_zh`, `hex`, `sort_order`, `active`
-- **`tshirt_inventory`** — SKU별 재고 (product_type × color × size)
-  - `product_type_code`, `color_code`, `size` (S~4XL enum), `in_stock`, `in_progress`, `available`, `safety_stock`
-  - UNIQUE(product_type_code, color_code, size)
-- **`tshirt_purchase_orders`** — 발주 헤더
-  - `po_number` (PO-YYYY-NNNN 자동생성), `ordered_at`, `expected_at`, `received_at`, `product_type_code`, `color_code`, `status` (ordered/in_production/received/draft), `notes`, `created_by`
-- **`tshirt_purchase_order_items`** — 발주 상세
-  - `po_id`, `size`, `quantity`
-- **`tshirt_purchase_order_attachments`** — 첨부파일 메타
-  - `po_id`, `file_path`, `file_name`, `mime_type`, `size_bytes`
+**신규 테이블 `shipment_scan_items`:**
+- `id`, `shipment_id` FK, `order_id` FK
+- `qr_serial` text — `qr_tshirt_master.serial`을 참조 (단순 텍스트로 저장)
+- `product_code`, `design_code`, `design_image_url`
+- `is_scanned` bool, `scanned_at`, `scanned_by`
+- `position` int (주문 내 순서)
 
-추가:
-- enum `tshirt_size` (S, M, L, XL, 2XL, 3XL, 4XL)
-- enum `tshirt_po_status` (draft, ordered, in_production, received)
-- 시퀀스/함수로 `po_number` 자동 생성
-- **입고 처리 트리거**: PO status가 'received'로 바뀌면 해당 PO items의 수량을 `tshirt_inventory.in_stock`에 가산 (그리고 `available` 재계산)
-- 시드 데이터: 반팔 1종 + 색상 4종 + 사이즈 7종 = 28 SKU + 발주 이력 3~5건
+**신규 테이블 `shipping_logs`:**
+- `shipment_id`, `action_type` (`scan`/`mismatch`/`issue_tracking`/`print`/`report`)
+- `worker_id`, `details` jsonb, `created_at`
 
-### 3. Storage 버킷
+주문 생성 시(`auto_create_order_related` 트리거 확장) 주문 수량만큼 `shipment_scan_items` 행을 빈 상태로 생성. QR 매칭은 스캔 시점에 `qr_tshirt_master`에서 product/design 코드로 가능한 후보를 끌어와 채움.
 
-- `tshirt-po-attachments` (private 버킷) — 발주 참고 도면 업로드용
-- RLS 정책: authenticated 사용자만 업로드/조회
+### 2. 페이지 구조
 
-### 4. 프론트엔드 페이지
+```
+/shipping                  → 배송 대기 목록 (재작성)
+/shipping/scan/:orderId    → QR 스캔 작업 화면 (신규)
+/shipping/logs             → 작업 이력 (옵션, 사이드 패널로 처리)
+```
 
-`src/pages/outsource/TshirtFactory.tsx` — 단일 페이지, 상단 Tabs:
+**기존 `/shipping`의 그룹 아코디언 UI는 제거**하고 작업자 친화적인 큰 카드/버튼 기반 대기열로 교체.
 
-**Tab 1: 재고 현황 + 발주 목록** (한 탭에 같이 표시)
+### 3. 배송 대기 목록 (`/shipping`)
 
-- 상단: 4개 신호등 KPI 카드 (정상/부족/품절임박/품절)
-- 중단: 안전재고 이하 경고 알림 리스트 + [발주하기] 버튼 (클릭 시 발주지시 탭으로 이동하며 상품 자동 선택)
-- 하단: 상품 유형별 색상×사이즈 매트릭스 테이블 (셀에 수량 + 상태 아이콘 + 게이지 바, 클릭 시 상세 모달)
-- 필터: 상품 유형 / 색상 / 사이즈 / 경고 상태만 보기 토글
-- 발주 목록 섹션: 테이블 (발주번호, 발주일, 예상/실제 입고일, 종류, 색상, 사이즈별 수량, 합계, 상태, 액션)
-  - [상세 보기] 모달, [입고 처리] 버튼 (status → received)
-  - 상태/기간 필터, CSV 다운로드
+테이블 컬럼: Job No · Twinker(고객) · 상품 수(스캔진행 `n/m`) · 상태 뱃지(대기/스캔중/완료/송장발급/회신완료) · Due Date · [QR 스캔 시작] 버튼
 
-**Tab 2: 발주 지시**
+필터: 상태별 · 검색(Job No, Twinker)
+KPI: 오늘 출고/대기/완료/오류
 
-- 기본 정보 (발주일/예상입고일/작성자)
-- 상품 선택 (티셔츠 종류 드롭다운 + 색상 선택)
-- 수량 입력 매트릭스 (사이즈별 현재재고/안전재고 참고 표시 + 입력란 + 합계 자동계산, 부족 행에 경고 아이콘)
-- 참고 도면 드래그&드롭 업로드 (PNG/JPG/PDF, 다중, 썸네일)
-- 특이사항 textarea (최대 1000자 카운터)
-- [임시 저장] / [발주 등록] 버튼
+### 4. QR 스캔 화면 (`/shipping/scan/:orderId`)
 
-### 5. 컴포넌트 분리
+3패널 레이아웃:
 
-가독성을 위해 일부 서브컴포넌트 분리:
-- `src/pages/outsource/tshirt-factory/InventoryMatrix.tsx`
-- `src/pages/outsource/tshirt-factory/PurchaseOrderList.tsx`
-- `src/pages/outsource/tshirt-factory/PurchaseOrderForm.tsx`
-- `src/pages/outsource/tshirt-factory/SkuDetailDialog.tsx`
+```text
+┌──────────────────────┬────────────────────────┐
+│ ① QR 스캐너          │ ② 주문 정보            │
+│  - 카메라 (html5-qrcode) │  Job No / Twinker  │
+│  - USB 스캐너 input   │  주소 / 수량 진행률  │
+│  (자동 포커스 유지)   │  상태 뱃지            │
+├──────────────────────┴────────────────────────┤
+│ ③ 디자인 검수 그리드 (수량만큼 카드)          │
+│   카드: 디자인 이미지 / QR / 스캔여부 / 확인 │
+├───────────────────────────────────────────────┤
+│  [송장 발급] (모두 스캔 + 모두 확인시 활성화) │
+└───────────────────────────────────────────────┘
+```
 
-### 기술 스택
+**스캔 로직:**
+1. QR 입력 → `qr_tshirt_master`에서 조회
+2. 현재 주문의 product/design과 일치하는지 검증 (불일치 시 부저+경고+log)
+3. 같은 주문 내 미스캔 슬롯에 채움, 중복 차단
+4. 모든 슬롯 스캔 + 작업자 디자인 확인 체크 시 송장발급 버튼 활성화
 
-shadcn/ui (Tabs, Table, Dialog, Card, Badge, Progress, Input, Textarea, Select, Calendar/DatePicker), Tailwind 시맨틱 토큰 사용, Supabase 클라이언트로 CRUD, Storage SDK로 첨부파일.
+**피드백:** 성공/실패 사운드 (Web Audio API), 토스트, 시각 효과
 
-### 확인 필요
+### 5. 송장 발급 (Mock)
 
-작성자 필드는 로그인 사용자 이메일로 자동 입력하면 될까요? (현재 useAuth 사용)
+- 모달: 택배사 선택(드롭다운) + 송장번호 입력(수기) 또는 [자동 발급(MOCK)] → 가상 번호 생성 (`MOCK-YYYYMMDD-XXXX`)
+- DB 업데이트: `tracking_number`, `carrier`, `scan_status='ready'`, `tracking_issued_at`
+- 라벨 미리보기 다이얼로그 + "라벨 PDF 다운로드" / "ZPL 다운로드" 버튼 (브라우저 생성, 실제 프린터 연동 없음)
+
+### 6. 트윈메타 회신 (기존 callback_settings 재사용)
+
+송장 발급 직후 자동 호출: 기존 `notify_tracking_update` 트리거가 이미 `tracking_number` 변경 시 `site-a-callback` 엣지 함수를 호출함. 따라서 **추가 코드 없이 동작**.
+회신 성공 시 `scan_status='reported'`, `reported_at` 기록은 `site-a-callback` 함수에 후처리로 추가.
+
+### 7. 예외 처리
+
+| 상황 | 대응 |
+|---|---|
+| 이미 스캔된 QR | 토스트 + 부저 + `shipping_logs` 기록 |
+| 다른 주문의 QR | 빨간 배너 + 부저 + 거부 |
+| 디자인 미확인 | 송장 버튼 비활성 + 미확인 카드 강조 |
+| 회신 실패 | `scan_status='ready'` 유지, 수동 [재전송] 버튼 |
+| 작업 중단 | 진행 상태 DB 저장으로 자연스럽게 이어서 가능 |
+
+### 8. 영향받는 파일
+
+신규
+- `src/pages/ShippingQueue.tsx` (기존 Shipping.tsx 대체)
+- `src/pages/ShippingScan.tsx`
+- `src/hooks/useShippingQueue.ts`, `useShipmentScan.ts`
+- `src/lib/scan-sound.ts`, `src/lib/mock-tracking.ts`
+
+수정
+- `src/App.tsx` 라우트 교체/추가
+- `src/components/AppLayout.tsx` 메뉴(필요시)
+- `supabase/functions/site-a-callback/index.ts` reported 상태 기록 추가
+
+의존성
+- `html5-qrcode` 추가
+
+### 8단계 외(다음 단계 옵션)
+- 실제 택배사 API 연동 (4PX 등)
+- qz-tray 로컬 ZPL 출력
+- 일별 출고 통계 위젯
+- 송장 취소/반품 워크플로우
+
+---
+
+확인 부탁드려요 — 특히 **shipments 테이블 유지(확장)** 방향이 괜찮은지, 그리고 기존 `/shipping`의 그룹 아코디언 UI를 완전히 제거해도 되는지가 가장 큰 결정입니다.

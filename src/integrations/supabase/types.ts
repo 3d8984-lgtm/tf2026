@@ -678,12 +678,79 @@ export type Database = {
         }
         Relationships: []
       }
+      shipment_scan_items: {
+        Row: {
+          color: string | null
+          created_at: string
+          design_image_url: string | null
+          id: string
+          is_scanned: boolean
+          order_id: string
+          position: number
+          product_code: string | null
+          qr_value: string | null
+          scanned_at: string | null
+          scanned_by: string | null
+          shipment_id: string
+          size: string | null
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          design_image_url?: string | null
+          id?: string
+          is_scanned?: boolean
+          order_id: string
+          position: number
+          product_code?: string | null
+          qr_value?: string | null
+          scanned_at?: string | null
+          scanned_by?: string | null
+          shipment_id: string
+          size?: string | null
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          design_image_url?: string | null
+          id?: string
+          is_scanned?: boolean
+          order_id?: string
+          position?: number
+          product_code?: string | null
+          qr_value?: string | null
+          scanned_at?: string | null
+          scanned_by?: string | null
+          shipment_id?: string
+          size?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shipment_scan_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shipment_scan_items_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "shipments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shipments: {
         Row: {
           carrier: string
           carrier_response: Json | null
           created_at: string
           delivered_at: string | null
+          design_confirmed: boolean
           expected_weight_grams: number | null
           id: string
           inspect_qr_match: boolean | null
@@ -691,11 +758,15 @@ export type Database = {
           inspect_weight: boolean | null
           label_url: string | null
           order_id: string
+          reported_at: string | null
+          scan_status: Database["public"]["Enums"]["scan_status"]
+          scanned_count: number
           set_id: string | null
           shipped_at: string | null
           status: Database["public"]["Enums"]["shipment_status"]
           synced_at: string | null
           synced_to_source: boolean | null
+          tracking_issued_at: string | null
           tracking_number: string | null
           updated_at: string
           weight_grams: number | null
@@ -705,6 +776,7 @@ export type Database = {
           carrier_response?: Json | null
           created_at?: string
           delivered_at?: string | null
+          design_confirmed?: boolean
           expected_weight_grams?: number | null
           id?: string
           inspect_qr_match?: boolean | null
@@ -712,11 +784,15 @@ export type Database = {
           inspect_weight?: boolean | null
           label_url?: string | null
           order_id: string
+          reported_at?: string | null
+          scan_status?: Database["public"]["Enums"]["scan_status"]
+          scanned_count?: number
           set_id?: string | null
           shipped_at?: string | null
           status?: Database["public"]["Enums"]["shipment_status"]
           synced_at?: string | null
           synced_to_source?: boolean | null
+          tracking_issued_at?: string | null
           tracking_number?: string | null
           updated_at?: string
           weight_grams?: number | null
@@ -726,6 +802,7 @@ export type Database = {
           carrier_response?: Json | null
           created_at?: string
           delivered_at?: string | null
+          design_confirmed?: boolean
           expected_weight_grams?: number | null
           id?: string
           inspect_qr_match?: boolean | null
@@ -733,11 +810,15 @@ export type Database = {
           inspect_weight?: boolean | null
           label_url?: string | null
           order_id?: string
+          reported_at?: string | null
+          scan_status?: Database["public"]["Enums"]["scan_status"]
+          scanned_count?: number
           set_id?: string | null
           shipped_at?: string | null
           status?: Database["public"]["Enums"]["shipment_status"]
           synced_at?: string | null
           synced_to_source?: boolean | null
+          tracking_issued_at?: string | null
           tracking_number?: string | null
           updated_at?: string
           weight_grams?: number | null
@@ -748,6 +829,51 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shipping_logs: {
+        Row: {
+          action_type: string
+          created_at: string
+          details: Json | null
+          id: string
+          order_id: string | null
+          shipment_id: string | null
+          worker_id: string | null
+        }
+        Insert: {
+          action_type: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          order_id?: string | null
+          shipment_id?: string | null
+          worker_id?: string | null
+        }
+        Update: {
+          action_type?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          order_id?: string | null
+          shipment_id?: string | null
+          worker_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shipping_logs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shipping_logs_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "shipments"
             referencedColumns: ["id"]
           },
         ]
@@ -1186,6 +1312,7 @@ export type Database = {
         | "courier"
         | "invoice"
         | "done"
+      scan_status: "pending" | "scanning" | "ready" | "shipped" | "reported"
       shipment_status:
         | "pending"
         | "label_requested"
@@ -1363,6 +1490,7 @@ export const Constants = {
         "invoice",
         "done",
       ],
+      scan_status: ["pending", "scanning", "ready", "shipped", "reported"],
       shipment_status: [
         "pending",
         "label_requested",

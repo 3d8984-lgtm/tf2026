@@ -17,6 +17,7 @@ import CardQrInspection from "@/pages/CardQrInspection";
 import CardPhotoInspection from "@/pages/CardPhotoInspection";
 import ProductionMonitor from "@/pages/ProductionMonitor";
 import Shipping from "@/pages/Shipping";
+import ShippingScan from "@/pages/ShippingScan";
 import Defects from "@/pages/Defects";
 import Reports from "@/pages/Reports";
 import SystemSettings from "@/pages/SystemSettings";
@@ -86,6 +87,7 @@ function ProtectedRoutes() {
         <Route path="/tshirt-work" element={<TshirtWork />} />
         <Route path="/monitor" element={<ProductionMonitor />} />
         <Route path="/shipping" element={<Shipping />} />
+        <Route path="/shipping/scan/:orderId" element={<ShippingScan />} />
         <Route path="/defects" element={<Defects />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/manual" element={<Manual />} />
