@@ -258,12 +258,20 @@ export default function PackagingFactory() {
     try { localStorage.setItem(MAILER_SIZE_KEY, mailerSize); } catch {}
   }, [mailerSize]);
 
+  useEffect(() => {
+    try { localStorage.setItem(INVENTORY_KEY, JSON.stringify(inventory)); } catch {}
+  }, [inventory]);
+
+  useEffect(() => {
+    try { localStorage.setItem(ADJUSTMENTS_KEY, JSON.stringify(adjustments)); } catch {}
+  }, [adjustments]);
+
   const unitOf = (v: Vendor, k?: VinylKind) => {
     if (v === "mailer") return "장";
-    return k === "card" ? "kg" : "장";
+    return "장";
   };
   const minQtyOf = (v: Vendor, k?: VinylKind) => {
-    if (v === "vinyl" && k === "card") return 100;
+    if (v === "vinyl" && k === "card") return 10000;
     if (v === "vinyl" && k === "tshirt") return 10000;
     return 1;
   };
