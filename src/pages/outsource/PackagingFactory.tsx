@@ -536,10 +536,10 @@ export default function PackagingFactory() {
     setPos(prev => prev.map(p => {
       if (p.id !== id) return p;
       if (next === "received" && p.status !== "received") {
-        setInventory(inv => inv.map(r => {
-          const match = r.vendor === p.vendor && (p.vendor !== "vinyl" || r.kind === p.kind);
-          return match ? { ...r, in_stock: r.in_stock + p.quantity } : r;
-        }));
+        const target = inventory.find(r => r.vendor === p.vendor && (p.vendor !== "vinyl" || r.kind === p.kind));
+        if (target) {
+          applyAdjustment(target.id, p.quantity, `발주 입고 (${p.po_number})`);
+        }
       }
       return { ...p, status: next };
     }));
