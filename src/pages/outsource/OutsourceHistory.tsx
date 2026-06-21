@@ -256,6 +256,36 @@ export default function OutsourceHistory() {
 
   const active = activeId ? rows.find(r => r.id === activeId) ?? null : null;
 
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<Column | null>(null);
+
+  const moveCardToColumn = (id: string, target: Column) => {
+    const r = rows.find(x => x.id === id);
+    if (!r) return;
+    if (deriveColumn(r) === target) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const nowIso = new Date().toISOString();
+    let patch: Partial<HistoryRow> = {};
+    switch (target) {
+      case "ordered":
+        patch = { started_at: null, produced_at: null, shipped_at: null, received_at: null, status: "ordered" };
+        break;
+      case "started":
+        patch = { started_at: r.started_at ?? today, produced_at: null, shipped_at: null, received_at: null, status: "ordered" };
+        break;
+      case "produced":
+        patch = { started_at: r.started_at ?? today, produced_at: r.produced_at ?? today, shipped_at: null, received_at: null, status: "ordered" };
+        break;
+      case "shipped":
+        patch = { started_at: r.started_at ?? today, produced_at: r.produced_at ?? today, shipped_at: r.shipped_at ?? nowIso, received_at: null, status: "shipped" };
+        break;
+      case "received":
+        patch = { started_at: r.started_at ?? today, produced_at: r.produced_at ?? today, shipped_at: r.shipped_at ?? nowIso, received_at: r.received_at ?? today, status: "received" };
+        break;
+    }
+    persist(id, patch);
+  };
+
   return (
     <div className="p-6 space-y-4">
       <PageHeader
@@ -294,7 +324,19 @@ export default function OutsourceHistory() {
           const Icon = col.icon;
           const items = grouped[col.key];
           return (
-            <div key={col.key} className="rounded-lg border bg-muted/30 flex flex-col min-h-[420px]">
+            <div
+              key={col.key}
+              className={`rounded-lg border flex flex-col min-h-[420px] transition-colors ${dragOverCol === col.key ? "bg-primary/10 border-primary/50" : "bg-muted/30"}`}
+              onDragOver={(e) => { e.preventDefault(); if (dragOverCol !== col.key) setDragOverCol(col.key); }}
+              onDragLeave={() => { if (dragOverCol === col.key) setDragOverCol(null); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                const id = e.dataTransfer.getData("text/plain") || draggingId;
+                setDragOverCol(null);
+                setDraggingId(null);
+                if (id) moveCardToColumn(id, col.key);
+              }}
+            >
               <div className="flex items-center gap-2 px-3 py-2.5 border-b sticky top-0 bg-muted/60 backdrop-blur rounded-t-lg">
                 <div className="w-7 h-7 rounded-md flex items-center justify-center" style={{ background: `${col.color}25` }}>
                   <Icon className="w-4 h-4" style={{ color: col.color }} />
@@ -304,10 +346,19 @@ export default function OutsourceHistory() {
               </div>
               <div className="p-2 space-y-2 flex-1 overflow-y-auto max-h-[68vh]">
                 {items.map(r => (
-                  <button
+                  <div
                     key={r.id}
+                    draggable
+                    onDragStart={(e) => {
+                      setDraggingId(r.id);
+                      e.dataTransfer.setData("text/plain", r.id);
+                      e.dataTransfer.effectAllowed = "move";
+                    }}
+                    onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
                     onClick={() => setActiveId(r.id)}
-                    className="w-full text-left bg-card rounded-md border shadow-sm hover:shadow-md hover:border-primary/40 transition-all p-2.5 group"
+                    role="button"
+                    tabIndex={0}
+                    className={`w-full text-left bg-card rounded-md border shadow-sm hover:shadow-md hover:border-primary/40 transition-all p-2.5 group cursor-grab active:cursor-grabbing ${draggingId === r.id ? "opacity-50" : ""}`}
                   >
                     <div className="flex items-center gap-1.5 mb-1.5">
                       <span className="w-2 h-2 rounded-full shrink-0" style={{ background: FACTORY_DOT[r.factory] }} />
@@ -316,7 +367,7 @@ export default function OutsourceHistory() {
                     </div>
                     {r.image_url ? (
                       <img src={r.image_url} alt={r.order_no}
-                        className="w-full h-24 object-cover rounded mb-2 bg-muted" loading="lazy" />
+                        className="w-full h-24 object-cover rounded mb-2 bg-muted pointer-events-none" loading="lazy" draggable={false} />
                     ) : (
                       <div className="w-full h-24 rounded mb-2 bg-muted flex items-center justify-center text-muted-foreground">
                         <ImageIcon className="w-6 h-6 opacity-40" />
@@ -339,11 +390,11 @@ export default function OutsourceHistory() {
                         </Badge>
                       )}
                     </div>
-                  </button>
+                  </div>
                 ))}
                 {items.length === 0 && (
                   <div className="text-center text-[11px] text-muted-foreground py-6">
-                    {isKo ? "카드 없음" : "暂无卡片"}
+                    {isKo ? "카드를 드래그해서 옮겨주세요" : "拖拽卡片到此列"}
                   </div>
                 )}
               </div>
