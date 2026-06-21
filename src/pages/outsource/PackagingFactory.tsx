@@ -902,6 +902,17 @@ export default function PackagingFactory() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <StockAdjustDialog
+        target={adjustTarget}
+        history={adjustments.filter(a => adjustTarget && a.inventory_id === adjustTarget.id).slice(0, 10)}
+        onClose={() => setAdjustTarget(null)}
+        onApply={(delta, reason) => {
+          if (!adjustTarget) return;
+          applyAdjustment(adjustTarget.id, delta, reason);
+          setAdjustTarget(null);
+        }}
+      />
     </div>
   );
 }
