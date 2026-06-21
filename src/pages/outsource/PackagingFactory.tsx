@@ -781,7 +781,7 @@ export default function PackagingFactory() {
                     onClick={() => onKindChange("card")}
                     icon={<CreditCard className="w-5 h-5" />}
                     title="카드포장지"
-                    desc="최소 주문 100 kg"
+                    desc="최소 주문 10,000 장"
                   />
                   <KindPickCard
                     active={vinylKind === "tshirt"}
