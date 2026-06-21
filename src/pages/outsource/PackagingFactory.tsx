@@ -312,6 +312,31 @@ export default function PackagingFactory() {
     setInventory(prev => prev.map(r => r.id === id ? { ...r, safety_stock: val } : r));
   };
 
+  const setStockExact = (id: string, val: number, reason: string) => {
+    const row = inventory.find(r => r.id === id);
+    if (!row) return;
+    const next = Math.max(0, Math.floor(val));
+    const delta = next - row.in_stock;
+    setInventory(prev => prev.map(r => r.id === id ? { ...r, in_stock: next } : r));
+    if (delta !== 0) {
+      setAdjustments(prev => [
+        { id: crypto.randomUUID(), inventory_id: id, at: new Date().toISOString(), delta, after: next, reason },
+        ...prev,
+      ].slice(0, 200));
+    }
+  };
+
+  const applyAdjustment = (id: string, delta: number, reason: string) => {
+    const row = inventory.find(r => r.id === id);
+    if (!row) return;
+    const next = Math.max(0, row.in_stock + Math.floor(delta));
+    setInventory(prev => prev.map(r => r.id === id ? { ...r, in_stock: next } : r));
+    setAdjustments(prev => [
+      { id: crypto.randomUUID(), inventory_id: id, at: new Date().toISOString(), delta: next - row.in_stock, after: next, reason },
+      ...prev,
+    ].slice(0, 200));
+  };
+
   const updateVendorInfo = (v: Vendor, patch: Partial<VendorInfo>) => {
     setVendorInfo(prev => ({ ...prev, [v]: { ...prev[v], ...patch } }));
   };
