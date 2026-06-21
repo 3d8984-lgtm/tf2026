@@ -232,7 +232,7 @@ export default function PackagingFactory() {
   // PO form state
   const [vendor, setVendor] = useState<Vendor>("vinyl");
   const [vinylKind, setVinylKind] = useState<VinylKind>("card");
-  const [qty, setQty] = useState<number>(100);
+  const [qty, setQty] = useState<number>(10000);
   const [expectedAt, setExpectedAt] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
 
