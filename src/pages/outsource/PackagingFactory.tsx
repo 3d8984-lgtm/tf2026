@@ -13,7 +13,7 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Package, AlertTriangle, CheckCircle2, CircleSlash, Mail, ShoppingCart, CreditCard, Shirt, Building2,
-  Eye, Save, Send, Upload, FileText, Download, Trash2, Printer,
+  Eye, Save, Send, Upload, FileText, Download, Trash2, Printer, Pencil, History, Plus, Minus,
 } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 // @ts-ignore
@@ -69,10 +69,19 @@ type VinylKindMeta = {
 };
 
 const INITIAL_INVENTORY: InventoryRow[] = [
-  { id: "v-card", vendor: "vinyl", kind: "card", label: "비닐포장지 - 카드용", unit: "kg", in_stock: 80, safety_stock: 100 },
+  { id: "v-card", vendor: "vinyl", kind: "card", label: "비닐포장지 - 카드용", unit: "장", in_stock: 8000, safety_stock: 10000 },
   { id: "v-tshirt", vendor: "vinyl", kind: "tshirt", label: "비닐포장지 - 티셔츠용", unit: "장", in_stock: 12000, safety_stock: 10000 },
   { id: "m-std", vendor: "mailer", label: "택배봉투 (표준)", unit: "장", in_stock: 4500, safety_stock: 5000 },
 ];
+
+type StockAdjustment = {
+  id: string;
+  inventory_id: string;
+  at: string; // ISO
+  delta: number;
+  after: number;
+  reason: string;
+};
 
 const VENDOR_NAME: Record<Vendor, string> = {
   vinyl: "비닐포장 공장 (업체 A)",
@@ -83,6 +92,8 @@ const VENDOR_INFO_KEY = "packaging.vendor.info.v1";
 const WECHAT_KEYS_KEY = "wechat.webhook.keys.v1";
 const VINYL_META_KEY = "packaging.vinyl.meta.v1";
 const MAILER_SIZE_KEY = "packaging.mailer.size.v1";
+const INVENTORY_KEY = "packaging.inventory.v2";
+const ADJUSTMENTS_KEY = "packaging.inv.adjustments.v1";
 
 const DEFAULT_VENDOR_INFO: Record<Vendor, VendorInfo> = {
   vinyl: { company: "", recipient: "", phone: "", address: "" },
@@ -126,6 +137,31 @@ function loadVendorInfo(): Record<Vendor, VendorInfo> {
   } catch {
     return DEFAULT_VENDOR_INFO;
   }
+}
+
+function loadInventory(): InventoryRow[] {
+  if (typeof window === "undefined") return INITIAL_INVENTORY;
+  try {
+    const raw = localStorage.getItem(INVENTORY_KEY);
+    if (!raw) return INITIAL_INVENTORY;
+    const parsed = JSON.parse(raw) as InventoryRow[];
+    // Merge with defaults so new items appear and unit fixes apply
+    return INITIAL_INVENTORY.map(def => {
+      const found = parsed.find(p => p.id === def.id);
+      if (!found) return def;
+      return { ...def, in_stock: found.in_stock ?? def.in_stock, safety_stock: found.safety_stock ?? def.safety_stock };
+    });
+  } catch {
+    return INITIAL_INVENTORY;
+  }
+}
+
+function loadAdjustments(): StockAdjustment[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(ADJUSTMENTS_KEY);
+    return raw ? (JSON.parse(raw) as StockAdjustment[]) : [];
+  } catch { return []; }
 }
 
 function loadVinylMeta(): Record<VinylKind, VinylKindMeta> {
@@ -188,13 +224,15 @@ function buildPoText(args: {
 
 export default function PackagingFactory() {
   const [tab, setTab] = useState("inventory");
-  const [inventory, setInventory] = useState<InventoryRow[]>(INITIAL_INVENTORY);
+  const [inventory, setInventory] = useState<InventoryRow[]>(loadInventory);
+  const [adjustments, setAdjustments] = useState<StockAdjustment[]>(loadAdjustments);
+  const [adjustTarget, setAdjustTarget] = useState<InventoryRow | null>(null);
   const [pos, setPos] = useState<PO[]>([]);
 
   // PO form state
   const [vendor, setVendor] = useState<Vendor>("vinyl");
   const [vinylKind, setVinylKind] = useState<VinylKind>("card");
-  const [qty, setQty] = useState<number>(100);
+  const [qty, setQty] = useState<number>(10000);
   const [expectedAt, setExpectedAt] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
 
@@ -220,12 +258,20 @@ export default function PackagingFactory() {
     try { localStorage.setItem(MAILER_SIZE_KEY, mailerSize); } catch {}
   }, [mailerSize]);
 
+  useEffect(() => {
+    try { localStorage.setItem(INVENTORY_KEY, JSON.stringify(inventory)); } catch {}
+  }, [inventory]);
+
+  useEffect(() => {
+    try { localStorage.setItem(ADJUSTMENTS_KEY, JSON.stringify(adjustments)); } catch {}
+  }, [adjustments]);
+
   const unitOf = (v: Vendor, k?: VinylKind) => {
     if (v === "mailer") return "장";
-    return k === "card" ? "kg" : "장";
+    return "장";
   };
   const minQtyOf = (v: Vendor, k?: VinylKind) => {
-    if (v === "vinyl" && k === "card") return 100;
+    if (v === "vinyl" && k === "card") return 10000;
     if (v === "vinyl" && k === "tshirt") return 10000;
     return 1;
   };
@@ -264,6 +310,31 @@ export default function PackagingFactory() {
 
   const updateSafety = (id: string, val: number) => {
     setInventory(prev => prev.map(r => r.id === id ? { ...r, safety_stock: val } : r));
+  };
+
+  const setStockExact = (id: string, val: number, reason: string) => {
+    const row = inventory.find(r => r.id === id);
+    if (!row) return;
+    const next = Math.max(0, Math.floor(val));
+    const delta = next - row.in_stock;
+    setInventory(prev => prev.map(r => r.id === id ? { ...r, in_stock: next } : r));
+    if (delta !== 0) {
+      setAdjustments(prev => [
+        { id: crypto.randomUUID(), inventory_id: id, at: new Date().toISOString(), delta, after: next, reason },
+        ...prev,
+      ].slice(0, 200));
+    }
+  };
+
+  const applyAdjustment = (id: string, delta: number, reason: string) => {
+    const row = inventory.find(r => r.id === id);
+    if (!row) return;
+    const next = Math.max(0, row.in_stock + Math.floor(delta));
+    setInventory(prev => prev.map(r => r.id === id ? { ...r, in_stock: next } : r));
+    setAdjustments(prev => [
+      { id: crypto.randomUUID(), inventory_id: id, at: new Date().toISOString(), delta: next - row.in_stock, after: next, reason },
+      ...prev,
+    ].slice(0, 200));
   };
 
   const updateVendorInfo = (v: Vendor, patch: Partial<VendorInfo>) => {
@@ -465,10 +536,10 @@ export default function PackagingFactory() {
     setPos(prev => prev.map(p => {
       if (p.id !== id) return p;
       if (next === "received" && p.status !== "received") {
-        setInventory(inv => inv.map(r => {
-          const match = r.vendor === p.vendor && (p.vendor !== "vinyl" || r.kind === p.kind);
-          return match ? { ...r, in_stock: r.in_stock + p.quantity } : r;
-        }));
+        const target = inventory.find(r => r.vendor === p.vendor && (p.vendor !== "vinyl" || r.kind === p.kind));
+        if (target) {
+          applyAdjustment(target.id, p.quantity, `발주 입고 (${p.po_number})`);
+        }
       }
       return { ...p, status: next };
     }));
@@ -514,6 +585,8 @@ export default function PackagingFactory() {
                   ? <span className="inline-flex items-center gap-1"><CreditCard className="w-3.5 h-3.5" /> 카드포장지</span>
                   : <span className="inline-flex items-center gap-1"><Shirt className="w-3.5 h-3.5" /> 티셔츠포장지</span>}
                 onSafetyChange={updateSafety}
+                onStockChange={(id, val) => setStockExact(id, val, "수동 수정")}
+                onAdjust={(r) => setAdjustTarget(r)}
                 onPurchase={goPurchase}
               />
             </CardContent>
@@ -531,6 +604,8 @@ export default function PackagingFactory() {
                 rows={mailerRows}
                 renderKind={() => <span className="inline-flex items-center gap-1"><Mail className="w-3.5 h-3.5" /> 택배봉투</span>}
                 onSafetyChange={updateSafety}
+                onStockChange={(id, val) => setStockExact(id, val, "수동 수정")}
+                onAdjust={(r) => setAdjustTarget(r)}
                 onPurchase={goPurchase}
               />
             </CardContent>
@@ -706,7 +781,7 @@ export default function PackagingFactory() {
                     onClick={() => onKindChange("card")}
                     icon={<CreditCard className="w-5 h-5" />}
                     title="카드포장지"
-                    desc="최소 주문 100 kg"
+                    desc="최소 주문 10,000 장"
                   />
                   <KindPickCard
                     active={vinylKind === "tshirt"}
@@ -827,6 +902,17 @@ export default function PackagingFactory() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <StockAdjustDialog
+        target={adjustTarget}
+        history={adjustments.filter(a => adjustTarget && a.inventory_id === adjustTarget.id).slice(0, 10)}
+        onClose={() => setAdjustTarget(null)}
+        onApply={(delta, reason) => {
+          if (!adjustTarget) return;
+          applyAdjustment(adjustTarget.id, delta, reason);
+          setAdjustTarget(null);
+        }}
+      />
     </div>
   );
 }
@@ -1031,11 +1117,13 @@ function KpiTile({ icon, label, value, color, dot }: { icon: React.ReactNode; la
 }
 
 function InventoryTable({
-  rows, renderKind, onSafetyChange, onPurchase,
+  rows, renderKind, onSafetyChange, onStockChange, onAdjust, onPurchase,
 }: {
   rows: InventoryRow[];
   renderKind: (r: InventoryRow) => React.ReactNode;
   onSafetyChange: (id: string, val: number) => void;
+  onStockChange: (id: string, val: number) => void;
+  onAdjust: (r: InventoryRow) => void;
   onPurchase: (r: InventoryRow) => void;
 }) {
   if (rows.length === 0) {
@@ -1046,7 +1134,7 @@ function InventoryTable({
       <TableHeader>
         <TableRow>
           <TableHead>품목</TableHead>
-          <TableHead className="text-right">현재 재고</TableHead>
+          <TableHead className="w-44">현재 재고</TableHead>
           <TableHead className="w-40">안전 재고</TableHead>
           <TableHead>상태</TableHead>
           <TableHead className="text-right">작업</TableHead>
@@ -1061,8 +1149,16 @@ function InventoryTable({
                 <div className="font-medium">{renderKind(r)}</div>
                 <div className="text-xs text-muted-foreground">{r.label}</div>
               </TableCell>
-              <TableCell className="text-right font-mono">
-                {r.in_stock.toLocaleString()} <span className="text-xs text-muted-foreground">{r.unit}</span>
+              <TableCell>
+                <div className="flex items-center gap-1">
+                  <Input
+                    type="number"
+                    value={r.in_stock}
+                    onChange={(e) => onStockChange(r.id, Number(e.target.value) || 0)}
+                    className="h-8 font-mono"
+                  />
+                  <span className="text-xs text-muted-foreground">{r.unit}</span>
+                </div>
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-1">
@@ -1082,9 +1178,14 @@ function InventoryTable({
                 </div>
               </TableCell>
               <TableCell className="text-right">
-                <Button size="sm" onClick={() => onPurchase(r)}>
-                  <ShoppingCart className="w-3.5 h-3.5 mr-1" /> 발주하기
-                </Button>
+                <div className="flex justify-end gap-1">
+                  <Button size="sm" variant="outline" onClick={() => onAdjust(r)} className="gap-1">
+                    <Pencil className="w-3.5 h-3.5" /> 재고 조정
+                  </Button>
+                  <Button size="sm" onClick={() => onPurchase(r)}>
+                    <ShoppingCart className="w-3.5 h-3.5 mr-1" /> 발주하기
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           );
@@ -1192,5 +1293,142 @@ function DesignFabricBlock({
         </div>
       </div>
     </div>
+  );
+}
+
+function StockAdjustDialog({
+  target, history, onClose, onApply,
+}: {
+  target: InventoryRow | null;
+  history: StockAdjustment[];
+  onClose: () => void;
+  onApply: (delta: number, reason: string) => void;
+}) {
+  const [mode, setMode] = useState<"in" | "out">("in");
+  const [amount, setAmount] = useState<number>(0);
+  const [reason, setReason] = useState<string>("");
+
+  useEffect(() => {
+    if (target) {
+      setMode("in");
+      setAmount(0);
+      setReason("");
+    }
+  }, [target?.id]);
+
+  if (!target) return null;
+  const delta = mode === "in" ? amount : -amount;
+  const after = Math.max(0, target.in_stock + delta);
+
+  return (
+    <Dialog open={!!target} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <History className="w-4 h-4" /> 재고 조정 — {target.label}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="rounded-md bg-muted/40 px-3 py-2 text-sm flex justify-between">
+            <span className="text-muted-foreground">현재 재고</span>
+            <span className="font-mono font-semibold">{target.in_stock.toLocaleString()} {target.unit}</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              variant={mode === "in" ? "default" : "outline"}
+              onClick={() => setMode("in")}
+              className="gap-1"
+            >
+              <Plus className="w-4 h-4" /> 입고 / 추가
+            </Button>
+            <Button
+              type="button"
+              variant={mode === "out" ? "default" : "outline"}
+              onClick={() => setMode("out")}
+              className="gap-1"
+            >
+              <Minus className="w-4 h-4" /> 출고 / 차감
+            </Button>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>수량</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={0}
+                value={amount}
+                onChange={(e) => setAmount(Math.max(0, Number(e.target.value) || 0))}
+              />
+              <span className="text-sm text-muted-foreground w-10">{target.unit}</span>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>사유</Label>
+            <Textarea
+              rows={2}
+              placeholder="예: 실사 차이, 파손, 샘플 사용 등"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </div>
+
+          <div className="rounded-md border px-3 py-2 text-sm flex justify-between">
+            <span className="text-muted-foreground">조정 후 재고</span>
+            <span className="font-mono font-semibold">
+              {after.toLocaleString()} {target.unit}
+              <span className={`ml-2 text-xs ${delta >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                ({delta >= 0 ? "+" : ""}{delta.toLocaleString()})
+              </span>
+            </span>
+          </div>
+
+          {history.length > 0 && (
+            <div className="space-y-1">
+              <div className="text-xs text-muted-foreground">최근 조정 이력</div>
+              <div className="max-h-40 overflow-auto rounded-md border divide-y">
+                {history.map(h => (
+                  <div key={h.id} className="px-2 py-1.5 text-xs flex justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-muted-foreground">{new Date(h.at).toLocaleString()}</div>
+                      <div className="truncate">{h.reason || "-"}</div>
+                    </div>
+                    <div className="text-right font-mono">
+                      <div className={h.delta >= 0 ? "text-emerald-500" : "text-red-500"}>
+                        {h.delta >= 0 ? "+" : ""}{h.delta.toLocaleString()}
+                      </div>
+                      <div className="text-muted-foreground">→ {h.after.toLocaleString()}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>취소</Button>
+          <Button
+            onClick={() => {
+              if (amount <= 0) {
+                toast({ title: "수량을 입력해주세요", variant: "destructive" });
+                return;
+              }
+              if (!reason.trim()) {
+                toast({ title: "사유를 입력해주세요", variant: "destructive" });
+                return;
+              }
+              onApply(delta, reason.trim());
+            }}
+          >
+            조정 적용
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
