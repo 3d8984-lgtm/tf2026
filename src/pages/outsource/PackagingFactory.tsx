@@ -69,10 +69,19 @@ type VinylKindMeta = {
 };
 
 const INITIAL_INVENTORY: InventoryRow[] = [
-  { id: "v-card", vendor: "vinyl", kind: "card", label: "비닐포장지 - 카드용", unit: "kg", in_stock: 80, safety_stock: 100 },
+  { id: "v-card", vendor: "vinyl", kind: "card", label: "비닐포장지 - 카드용", unit: "장", in_stock: 8000, safety_stock: 10000 },
   { id: "v-tshirt", vendor: "vinyl", kind: "tshirt", label: "비닐포장지 - 티셔츠용", unit: "장", in_stock: 12000, safety_stock: 10000 },
   { id: "m-std", vendor: "mailer", label: "택배봉투 (표준)", unit: "장", in_stock: 4500, safety_stock: 5000 },
 ];
+
+type StockAdjustment = {
+  id: string;
+  inventory_id: string;
+  at: string; // ISO
+  delta: number;
+  after: number;
+  reason: string;
+};
 
 const VENDOR_NAME: Record<Vendor, string> = {
   vinyl: "비닐포장 공장 (업체 A)",
@@ -83,6 +92,8 @@ const VENDOR_INFO_KEY = "packaging.vendor.info.v1";
 const WECHAT_KEYS_KEY = "wechat.webhook.keys.v1";
 const VINYL_META_KEY = "packaging.vinyl.meta.v1";
 const MAILER_SIZE_KEY = "packaging.mailer.size.v1";
+const INVENTORY_KEY = "packaging.inventory.v2";
+const ADJUSTMENTS_KEY = "packaging.inv.adjustments.v1";
 
 const DEFAULT_VENDOR_INFO: Record<Vendor, VendorInfo> = {
   vinyl: { company: "", recipient: "", phone: "", address: "" },
