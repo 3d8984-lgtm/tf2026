@@ -585,6 +585,8 @@ export default function PackagingFactory() {
                   ? <span className="inline-flex items-center gap-1"><CreditCard className="w-3.5 h-3.5" /> 카드포장지</span>
                   : <span className="inline-flex items-center gap-1"><Shirt className="w-3.5 h-3.5" /> 티셔츠포장지</span>}
                 onSafetyChange={updateSafety}
+                onStockChange={(id, val) => setStockExact(id, val, "수동 수정")}
+                onAdjust={(r) => setAdjustTarget(r)}
                 onPurchase={goPurchase}
               />
             </CardContent>
@@ -602,6 +604,8 @@ export default function PackagingFactory() {
                 rows={mailerRows}
                 renderKind={() => <span className="inline-flex items-center gap-1"><Mail className="w-3.5 h-3.5" /> 택배봉투</span>}
                 onSafetyChange={updateSafety}
+                onStockChange={(id, val) => setStockExact(id, val, "수동 수정")}
+                onAdjust={(r) => setAdjustTarget(r)}
                 onPurchase={goPurchase}
               />
             </CardContent>
