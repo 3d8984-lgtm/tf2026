@@ -1106,11 +1106,13 @@ function KpiTile({ icon, label, value, color, dot }: { icon: React.ReactNode; la
 }
 
 function InventoryTable({
-  rows, renderKind, onSafetyChange, onPurchase,
+  rows, renderKind, onSafetyChange, onStockChange, onAdjust, onPurchase,
 }: {
   rows: InventoryRow[];
   renderKind: (r: InventoryRow) => React.ReactNode;
   onSafetyChange: (id: string, val: number) => void;
+  onStockChange: (id: string, val: number) => void;
+  onAdjust: (r: InventoryRow) => void;
   onPurchase: (r: InventoryRow) => void;
 }) {
   if (rows.length === 0) {
@@ -1121,7 +1123,7 @@ function InventoryTable({
       <TableHeader>
         <TableRow>
           <TableHead>품목</TableHead>
-          <TableHead className="text-right">현재 재고</TableHead>
+          <TableHead className="w-44">현재 재고</TableHead>
           <TableHead className="w-40">안전 재고</TableHead>
           <TableHead>상태</TableHead>
           <TableHead className="text-right">작업</TableHead>
@@ -1136,8 +1138,16 @@ function InventoryTable({
                 <div className="font-medium">{renderKind(r)}</div>
                 <div className="text-xs text-muted-foreground">{r.label}</div>
               </TableCell>
-              <TableCell className="text-right font-mono">
-                {r.in_stock.toLocaleString()} <span className="text-xs text-muted-foreground">{r.unit}</span>
+              <TableCell>
+                <div className="flex items-center gap-1">
+                  <Input
+                    type="number"
+                    value={r.in_stock}
+                    onChange={(e) => onStockChange(r.id, Number(e.target.value) || 0)}
+                    className="h-8 font-mono"
+                  />
+                  <span className="text-xs text-muted-foreground">{r.unit}</span>
+                </div>
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-1">
@@ -1157,9 +1167,14 @@ function InventoryTable({
                 </div>
               </TableCell>
               <TableCell className="text-right">
-                <Button size="sm" onClick={() => onPurchase(r)}>
-                  <ShoppingCart className="w-3.5 h-3.5 mr-1" /> 발주하기
-                </Button>
+                <div className="flex justify-end gap-1">
+                  <Button size="sm" variant="outline" onClick={() => onAdjust(r)} className="gap-1">
+                    <Pencil className="w-3.5 h-3.5" /> 재고 조정
+                  </Button>
+                  <Button size="sm" onClick={() => onPurchase(r)}>
+                    <ShoppingCart className="w-3.5 h-3.5 mr-1" /> 발주하기
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           );
