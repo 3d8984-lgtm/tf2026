@@ -305,11 +305,63 @@ export default function ShippingScan() {
 
       <PageHeader title={`QR ${tr("스캔 작업", "扫码作业")}`} description={`Job No · ${order?.external_order_id}`} />
 
-      <div className="grid lg:grid-cols-3 gap-4">
+      <div className="grid lg:grid-cols-4 gap-4">
+        {/* Address book */}
+        <Card className="lg:col-span-1 lg:row-span-2">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center justify-between">
+              <span>{tr("주소록", "地址簿")}</span>
+              <Badge variant="outline" className="font-mono">{addressBook.length}</Badge>
+            </CardTitle>
+            <p className="text-[11px] text-muted-foreground">{tr("배송 대기 주문 목록", "待发货订单列表")}</p>
+          </CardHeader>
+          <CardContent className="p-0">
+            <ScrollArea className="h-[420px]">
+              <ul className="divide-y">
+                {addressBook.map((row: any) => {
+                  const o = row.orders;
+                  const active = row.order_id === orderId;
+                  return (
+                    <li key={row.id}>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/shipping/scan/${row.order_id}`)}
+                        className={`w-full text-left px-3 py-2 hover:bg-accent/40 transition-colors ${active ? "bg-primary/10 border-l-2 border-primary" : ""}`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono text-xs truncate">{o?.external_order_id}</span>
+                          <Badge variant="outline" className="text-[10px] capitalize">{row.scan_status}</Badge>
+                        </div>
+                        <div className="text-sm font-medium truncate">{o?.recipient_name ?? "-"}</div>
+                        <div className="text-[11px] text-muted-foreground truncate">
+                          {[o?.shipping_city, o?.shipping_state, o?.shipping_country].filter(Boolean).join(", ")}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground truncate">
+                          {o?.shipping_address}
+                        </div>
+                        <div className="flex items-center justify-between mt-1 text-[10px] text-muted-foreground">
+                          <span>Qty {o?.quantity ?? 0}</span>
+                          {row.tracking_number && <span className="font-mono truncate ml-2">{row.tracking_number}</span>}
+                        </div>
+                      </button>
+                    </li>
+                  );
+                })}
+                {addressBook.length === 0 && (
+                  <li className="p-4 text-center text-xs text-muted-foreground">{tr("표시할 주소가 없습니다", "暂无地址")}</li>
+                )}
+              </ul>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+
         {/* Scanner panel */}
         <Card className="lg:col-span-2">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2"><ScanLine className="w-4 h-4"/>{tr("QR 스캐너", "扫码")}</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2"><ScanLine className="w-4 h-4"/>{tr("홀로그램 스티커 QR 스캔", "扫描全息贴纸二维码")}</CardTitle>
+            <p className="text-[11px] text-muted-foreground">
+              {tr("홀로그램 스티커의 QR을 스캔하면 해당 주소지와 매칭되어 송장이 생성됩니다.", "扫描全息贴纸二维码后将匹配收件地址并生成运单。")}
+            </p>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-2">
