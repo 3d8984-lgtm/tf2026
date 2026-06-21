@@ -1295,3 +1295,140 @@ function DesignFabricBlock({
     </div>
   );
 }
+
+function StockAdjustDialog({
+  target, history, onClose, onApply,
+}: {
+  target: InventoryRow | null;
+  history: StockAdjustment[];
+  onClose: () => void;
+  onApply: (delta: number, reason: string) => void;
+}) {
+  const [mode, setMode] = useState<"in" | "out">("in");
+  const [amount, setAmount] = useState<number>(0);
+  const [reason, setReason] = useState<string>("");
+
+  useEffect(() => {
+    if (target) {
+      setMode("in");
+      setAmount(0);
+      setReason("");
+    }
+  }, [target?.id]);
+
+  if (!target) return null;
+  const delta = mode === "in" ? amount : -amount;
+  const after = Math.max(0, target.in_stock + delta);
+
+  return (
+    <Dialog open={!!target} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <History className="w-4 h-4" /> 재고 조정 — {target.label}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="rounded-md bg-muted/40 px-3 py-2 text-sm flex justify-between">
+            <span className="text-muted-foreground">현재 재고</span>
+            <span className="font-mono font-semibold">{target.in_stock.toLocaleString()} {target.unit}</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              variant={mode === "in" ? "default" : "outline"}
+              onClick={() => setMode("in")}
+              className="gap-1"
+            >
+              <Plus className="w-4 h-4" /> 입고 / 추가
+            </Button>
+            <Button
+              type="button"
+              variant={mode === "out" ? "default" : "outline"}
+              onClick={() => setMode("out")}
+              className="gap-1"
+            >
+              <Minus className="w-4 h-4" /> 출고 / 차감
+            </Button>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>수량</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={0}
+                value={amount}
+                onChange={(e) => setAmount(Math.max(0, Number(e.target.value) || 0))}
+              />
+              <span className="text-sm text-muted-foreground w-10">{target.unit}</span>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>사유</Label>
+            <Textarea
+              rows={2}
+              placeholder="예: 실사 차이, 파손, 샘플 사용 등"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </div>
+
+          <div className="rounded-md border px-3 py-2 text-sm flex justify-between">
+            <span className="text-muted-foreground">조정 후 재고</span>
+            <span className="font-mono font-semibold">
+              {after.toLocaleString()} {target.unit}
+              <span className={`ml-2 text-xs ${delta >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                ({delta >= 0 ? "+" : ""}{delta.toLocaleString()})
+              </span>
+            </span>
+          </div>
+
+          {history.length > 0 && (
+            <div className="space-y-1">
+              <div className="text-xs text-muted-foreground">최근 조정 이력</div>
+              <div className="max-h-40 overflow-auto rounded-md border divide-y">
+                {history.map(h => (
+                  <div key={h.id} className="px-2 py-1.5 text-xs flex justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-muted-foreground">{new Date(h.at).toLocaleString()}</div>
+                      <div className="truncate">{h.reason || "-"}</div>
+                    </div>
+                    <div className="text-right font-mono">
+                      <div className={h.delta >= 0 ? "text-emerald-500" : "text-red-500"}>
+                        {h.delta >= 0 ? "+" : ""}{h.delta.toLocaleString()}
+                      </div>
+                      <div className="text-muted-foreground">→ {h.after.toLocaleString()}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>취소</Button>
+          <Button
+            onClick={() => {
+              if (amount <= 0) {
+                toast({ title: "수량을 입력해주세요", variant: "destructive" });
+                return;
+              }
+              if (!reason.trim()) {
+                toast({ title: "사유를 입력해주세요", variant: "destructive" });
+                return;
+              }
+              onApply(delta, reason.trim());
+            }}
+          >
+            조정 적용
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
