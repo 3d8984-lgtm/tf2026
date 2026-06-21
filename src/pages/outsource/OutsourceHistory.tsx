@@ -256,6 +256,36 @@ export default function OutsourceHistory() {
 
   const active = activeId ? rows.find(r => r.id === activeId) ?? null : null;
 
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<Column | null>(null);
+
+  const moveCardToColumn = (id: string, target: Column) => {
+    const r = rows.find(x => x.id === id);
+    if (!r) return;
+    if (deriveColumn(r) === target) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const nowIso = new Date().toISOString();
+    let patch: Partial<HistoryRow> = {};
+    switch (target) {
+      case "ordered":
+        patch = { started_at: null, produced_at: null, shipped_at: null, received_at: null, status: "ordered" };
+        break;
+      case "started":
+        patch = { started_at: r.started_at ?? today, produced_at: null, shipped_at: null, received_at: null, status: "ordered" };
+        break;
+      case "produced":
+        patch = { started_at: r.started_at ?? today, produced_at: r.produced_at ?? today, shipped_at: null, received_at: null, status: "ordered" };
+        break;
+      case "shipped":
+        patch = { started_at: r.started_at ?? today, produced_at: r.produced_at ?? today, shipped_at: r.shipped_at ?? nowIso, received_at: null, status: "shipped" };
+        break;
+      case "received":
+        patch = { started_at: r.started_at ?? today, produced_at: r.produced_at ?? today, shipped_at: r.shipped_at ?? nowIso, received_at: r.received_at ?? today, status: "received" };
+        break;
+    }
+    persist(id, patch);
+  };
+
   return (
     <div className="p-6 space-y-4">
       <PageHeader
