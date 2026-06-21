@@ -139,6 +139,31 @@ function loadVendorInfo(): Record<Vendor, VendorInfo> {
   }
 }
 
+function loadInventory(): InventoryRow[] {
+  if (typeof window === "undefined") return INITIAL_INVENTORY;
+  try {
+    const raw = localStorage.getItem(INVENTORY_KEY);
+    if (!raw) return INITIAL_INVENTORY;
+    const parsed = JSON.parse(raw) as InventoryRow[];
+    // Merge with defaults so new items appear and unit fixes apply
+    return INITIAL_INVENTORY.map(def => {
+      const found = parsed.find(p => p.id === def.id);
+      if (!found) return def;
+      return { ...def, in_stock: found.in_stock ?? def.in_stock, safety_stock: found.safety_stock ?? def.safety_stock };
+    });
+  } catch {
+    return INITIAL_INVENTORY;
+  }
+}
+
+function loadAdjustments(): StockAdjustment[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(ADJUSTMENTS_KEY);
+    return raw ? (JSON.parse(raw) as StockAdjustment[]) : [];
+  } catch { return []; }
+}
+
 function loadVinylMeta(): Record<VinylKind, VinylKindMeta> {
   if (typeof window === "undefined") return DEFAULT_VINYL_META;
   try {
