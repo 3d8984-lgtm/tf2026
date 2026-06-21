@@ -224,7 +224,9 @@ function buildPoText(args: {
 
 export default function PackagingFactory() {
   const [tab, setTab] = useState("inventory");
-  const [inventory, setInventory] = useState<InventoryRow[]>(INITIAL_INVENTORY);
+  const [inventory, setInventory] = useState<InventoryRow[]>(loadInventory);
+  const [adjustments, setAdjustments] = useState<StockAdjustment[]>(loadAdjustments);
+  const [adjustTarget, setAdjustTarget] = useState<InventoryRow | null>(null);
   const [pos, setPos] = useState<PO[]>([]);
 
   // PO form state
