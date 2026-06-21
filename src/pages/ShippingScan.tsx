@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Camera, CameraOff, CheckCircle2, AlertTriangle, ScanLine, Truck, Send, Printer, RefreshCw } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { useShipmentScan } from "@/hooks/useShipmentScan";
@@ -305,56 +306,7 @@ export default function ShippingScan() {
 
       <PageHeader title={`QR ${tr("스캔 작업", "扫码作业")}`} description={`Job No · ${order?.external_order_id}`} />
 
-      <div className="grid lg:grid-cols-4 gap-4">
-        {/* Address book */}
-        <Card className="lg:col-span-1 lg:row-span-2">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center justify-between">
-              <span>{tr("주소록", "地址簿")}</span>
-              <Badge variant="outline" className="font-mono">{addressBook.length}</Badge>
-            </CardTitle>
-            <p className="text-[11px] text-muted-foreground">{tr("배송 대기 주문 목록", "待发货订单列表")}</p>
-          </CardHeader>
-          <CardContent className="p-0">
-            <ScrollArea className="h-[420px]">
-              <ul className="divide-y">
-                {addressBook.map((row: any) => {
-                  const o = row.orders;
-                  const active = row.order_id === orderId;
-                  return (
-                    <li key={row.id}>
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/shipping/scan/${row.order_id}`)}
-                        className={`w-full text-left px-3 py-2 hover:bg-accent/40 transition-colors ${active ? "bg-primary/10 border-l-2 border-primary" : ""}`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-mono text-xs truncate">{o?.external_order_id}</span>
-                          <Badge variant="outline" className="text-[10px] capitalize">{row.scan_status}</Badge>
-                        </div>
-                        <div className="text-sm font-medium truncate">{o?.recipient_name ?? "-"}</div>
-                        <div className="text-[11px] text-muted-foreground truncate">
-                          {[o?.shipping_city, o?.shipping_state, o?.shipping_country].filter(Boolean).join(", ")}
-                        </div>
-                        <div className="text-[11px] text-muted-foreground truncate">
-                          {o?.shipping_address}
-                        </div>
-                        <div className="flex items-center justify-between mt-1 text-[10px] text-muted-foreground">
-                          <span>Qty {o?.quantity ?? 0}</span>
-                          {row.tracking_number && <span className="font-mono truncate ml-2">{row.tracking_number}</span>}
-                        </div>
-                      </button>
-                    </li>
-                  );
-                })}
-                {addressBook.length === 0 && (
-                  <li className="p-4 text-center text-xs text-muted-foreground">{tr("표시할 주소가 없습니다", "暂无地址")}</li>
-                )}
-              </ul>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-
+      <div className="grid lg:grid-cols-3 gap-4">
         {/* Scanner panel */}
         <Card className="lg:col-span-2">
           <CardHeader className="pb-3">
@@ -412,11 +364,11 @@ export default function ShippingScan() {
         </Card>
       </div>
 
-      {/* Design verification grid */}
+      {/* Design verification + Address book */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center justify-between">
-            <span>{tr("디자인 검수", "设计检验")}</span>
+            <span>{tr("디자인 검수 / 주소록", "设计检验 / 地址簿")}</span>
             <label className="flex items-center gap-2 text-sm font-normal">
               <Checkbox checked={designConfirmed} onCheckedChange={(v) => toggleDesignConfirmed(!!v)} />
               {tr("디자인 확인 완료", "设计已确认")}
@@ -424,29 +376,92 @@ export default function ShippingScan() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {items.map((it) => (
-              <div key={it.id} className={`rounded-lg border overflow-hidden ${it.is_scanned ? "border-emerald-500/40" : "border-border"}`}>
-                <div className="aspect-square bg-muted relative flex items-center justify-center">
-                  {it.design_image_url ? (
-                    <img src={it.design_image_url} alt="" className="w-full h-full object-contain" />
-                  ) : (
-                    <span className="text-xs text-muted-foreground">{tr("이미지 없음", "无图")}</span>
-                  )}
-                  <div className="absolute top-1 left-1 text-[10px] bg-background/80 rounded px-1.5 py-0.5 font-mono">#{it.position}</div>
-                  {it.is_scanned && (
-                    <div className="absolute inset-0 bg-emerald-500/10 flex items-center justify-center">
-                      <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+          <Tabs defaultValue="design" className="w-full">
+            <TabsList>
+              <TabsTrigger value="design">{tr("디자인 검수", "设计检验")} ({items.length})</TabsTrigger>
+              <TabsTrigger value="address">{tr("주소록", "地址簿")} ({addressBook.length})</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="design" className="mt-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                {items.map((it) => (
+                  <div key={it.id} className={`rounded-lg border overflow-hidden ${it.is_scanned ? "border-emerald-500/40" : "border-border"}`}>
+                    <div className="aspect-square bg-muted relative flex items-center justify-center">
+                      {it.design_image_url ? (
+                        <img src={it.design_image_url} alt="" className="w-full h-full object-contain" />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">{tr("이미지 없음", "无图")}</span>
+                      )}
+                      <div className="absolute top-1 left-1 text-[10px] bg-background/80 rounded px-1.5 py-0.5 font-mono">#{it.position}</div>
+                      {it.is_scanned && (
+                        <div className="absolute inset-0 bg-emerald-500/10 flex items-center justify-center">
+                          <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                <div className="p-2 text-[11px] space-y-0.5">
-                  <div className="font-mono truncate" title={it.qr_value ?? ""}>{it.qr_value ?? tr("대기", "待扫")}</div>
-                  <div className="text-muted-foreground truncate">{[it.color, it.size].filter(Boolean).join(" · ") || "-"}</div>
-                </div>
+                    <div className="p-2 text-[11px] space-y-0.5">
+                      <div className="font-mono truncate" title={it.qr_value ?? ""}>{it.qr_value ?? tr("대기", "待扫")}</div>
+                      <div className="text-muted-foreground truncate">{[it.color, it.size].filter(Boolean).join(" · ") || "-"}</div>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </TabsContent>
+
+            <TabsContent value="address" className="mt-4">
+              <p className="text-[11px] text-muted-foreground mb-2">
+                {tr("주문 데이터 가져오기에서 연동된 주문 목록입니다. 클릭하면 해당 주문의 스캔 화면으로 이동합니다.",
+                    "已通过\"订单数据导入\"关联的订单列表，点击可切换到对应订单的扫码页面。")}
+              </p>
+              <ScrollArea className="h-[420px] border rounded-md">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-background border-b text-xs text-muted-foreground">
+                    <tr>
+                      <th className="text-left px-3 py-2">Job No</th>
+                      <th className="text-left px-3 py-2">{tr("Twinker (받는사람)", "Twinker (收件人)")}</th>
+                      <th className="text-left px-3 py-2">{tr("전화", "电话")}</th>
+                      <th className="text-left px-3 py-2">{tr("주소", "地址")}</th>
+                      <th className="text-left px-3 py-2">{tr("도시/지역", "城市/州")}</th>
+                      <th className="text-center px-3 py-2">Qty</th>
+                      <th className="text-left px-3 py-2">{tr("상태", "状态")}</th>
+                      <th className="text-left px-3 py-2">{tr("송장번호", "运单号")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {addressBook.map((o: any) => {
+                      const s = o.shipments?.[0];
+                      const active = o.id === orderId;
+                      return (
+                        <tr
+                          key={o.id}
+                          onClick={() => navigate(`/shipping/scan/${o.id}`)}
+                          className={`cursor-pointer hover:bg-accent/40 border-b transition-colors ${active ? "bg-primary/10" : ""}`}
+                        >
+                          <td className="px-3 py-2 font-mono text-xs">{o.external_order_id}</td>
+                          <td className="px-3 py-2 font-medium">{o.recipient_name ?? "-"}</td>
+                          <td className="px-3 py-2 font-mono text-xs">{o.recipient_phone ?? "-"}</td>
+                          <td className="px-3 py-2 text-xs max-w-[260px] truncate" title={o.shipping_address}>{o.shipping_address}</td>
+                          <td className="px-3 py-2 text-xs text-muted-foreground">
+                            {[o.shipping_city, o.shipping_state, o.shipping_zip, o.shipping_country].filter(Boolean).join(", ")}
+                          </td>
+                          <td className="px-3 py-2 text-center font-mono">{o.quantity ?? 0}</td>
+                          <td className="px-3 py-2">
+                            <Badge variant="outline" className="text-[10px] capitalize">{s?.scan_status ?? "pending"}</Badge>
+                          </td>
+                          <td className="px-3 py-2 font-mono text-xs">{s?.tracking_number ?? "-"}</td>
+                        </tr>
+                      );
+                    })}
+                    {addressBook.length === 0 && (
+                      <tr><td colSpan={8} className="text-center text-xs text-muted-foreground py-8">
+                        {tr("주문 데이터 가져오기 메뉴에서 연동된 주문이 없습니다.", "暂无通过\"订单数据导入\"关联的订单。")}
+                      </td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </ScrollArea>
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 
