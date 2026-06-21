@@ -13,7 +13,7 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Package, AlertTriangle, CheckCircle2, CircleSlash, Mail, ShoppingCart, CreditCard, Shirt, Building2,
-  Eye, Save, Send, Upload, FileText, Download, Trash2, Printer,
+  Eye, Save, Send, Upload, FileText, Download, Trash2, Printer, Pencil, History, Plus, Minus,
 } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 // @ts-ignore
