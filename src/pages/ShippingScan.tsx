@@ -13,12 +13,14 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ArrowLeft, Camera, CameraOff, CheckCircle2, AlertTriangle, ScanLine, Truck, Send, Printer, RefreshCw } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { useShipmentScan } from "@/hooks/useShipmentScan";
+import { useAddressBook } from "@/hooks/useAddressBook";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { scanSuccess, scanFail, scanDuplicate } from "@/lib/scan-sound";
 import { Html5Qrcode } from "html5-qrcode";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 type FeedbackKind = "success" | "duplicate" | "mismatch" | "notfound" | "idle";
 
@@ -33,6 +35,7 @@ export default function ShippingScan() {
   const qc = useQueryClient();
 
   const { data, isLoading, refetch } = useShipmentScan(orderId);
+  const { data: addressBook = [] } = useAddressBook(orderId);
   const shipment = data?.shipment;
   const items = data?.items ?? [];
   const order: any = shipment?.orders;
@@ -127,27 +130,17 @@ export default function ShippingScan() {
       return;
     }
 
-    // Look up in master
+    // Look up in hologram master — the QR on the hologram sticker identifies the parcel.
     const { data: master, error } = await supabase
-      .from("qr_tshirt_master")
-      .select("qr_value, product_code, color, size")
+      .from("qr_hologram_master")
+      .select("qr_value, serial_number, hologram_type")
       .eq("qr_value", qrValue)
       .maybeSingle();
 
     if (error || !master) {
       scanFail();
-      setFeedback({ kind: "notfound", msg: tr("등록되지 않은 QR입니다", "未注册的二维码") });
+      setFeedback({ kind: "notfound", msg: tr("등록되지 않은 홀로그램 QR입니다", "未注册的全息二维码") });
       await logAction("notfound", { qrValue });
-      return;
-    }
-
-    if (order.product_code && master.product_code && master.product_code !== order.product_code) {
-      scanFail();
-      setFeedback({
-        kind: "mismatch",
-        msg: tr(`다른 주문의 QR (${master.product_code} ≠ ${order.product_code})`, `订单不匹配 (${master.product_code} ≠ ${order.product_code})`),
-      });
-      await logAction("mismatch", { qrValue, expected: order.product_code, got: master.product_code });
       return;
     }
 
@@ -163,9 +156,6 @@ export default function ShippingScan() {
       .from("shipment_scan_items")
       .update({
         qr_value: qrValue,
-        product_code: master.product_code,
-        color: master.color,
-        size: master.size,
         is_scanned: true,
         scanned_at: new Date().toISOString(),
         scanned_by: user?.id,
