@@ -4,7 +4,8 @@ import PageHeader from "@/components/PageHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLang } from "@/contexts/LangContext";
 import OrderPipeline from "@/components/OrderPipeline";
-import { Gauge, ScanLine, Package, Printer, Activity, Shirt, CreditCard, Mail, Truck, CheckCircle2 } from "lucide-react";
+import CctvMonitor from "@/components/CctvMonitor";
+import { Gauge, ScanLine, Package, Printer, Activity, Shirt, CreditCard, Mail, Truck, CheckCircle2, Video } from "lucide-react";
 import { useOrders, useProductionTracking, useShipments } from "@/hooks/useDbData";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -57,6 +58,7 @@ export default function ProductionMonitor() {
           <TabsList className="mb-6">
             <TabsTrigger value="pipeline" className="gap-1.5"><Activity className="w-3.5 h-3.5" />{t("monitor.tab.pipeline")}</TabsTrigger>
             <TabsTrigger value="machines" className="gap-1.5"><Gauge className="w-3.5 h-3.5" />{t("monitor.tab.machines")}</TabsTrigger>
+            <TabsTrigger value="cctv" className="gap-1.5"><Video className="w-3.5 h-3.5" />{isKo ? "CCTV 모니터링" : "CCTV监控"}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="pipeline" className="space-y-6">
@@ -69,6 +71,10 @@ export default function ProductionMonitor() {
               <p className="text-sm">{isKo ? "PLC/게이트웨이 연동 후 기계 상태가 실시간으로 표시됩니다" : "PLC/网关连接后将实时显示设备状态"}</p>
               <p className="text-xs mt-2 text-muted-foreground/60">{isKo ? "시스템 설정 → 장비 관리에서 장비를 등록해주세요" : "请在系统设置 → 设备管理中注册设备"}</p>
             </div>
+          </TabsContent>
+
+          <TabsContent value="cctv" className="space-y-6">
+            <CctvMonitor />
           </TabsContent>
         </Tabs>
       </div>

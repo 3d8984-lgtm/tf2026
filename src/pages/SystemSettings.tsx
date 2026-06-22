@@ -1,13 +1,14 @@
 import PageHeader from "@/components/PageHeader";
 import { useLang } from "@/contexts/LangContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Bell, Shield, Cog, Server, Cpu, Radio, Play, AlertTriangle, Plus, Pencil, Trash2, Wifi, WifiOff, ShieldCheck, Webhook, Truck, ArrowUpRight } from "lucide-react";
+import { Users, Bell, Shield, Cog, Server, Cpu, Radio, Play, AlertTriangle, Plus, Pencil, Trash2, Wifi, WifiOff, ShieldCheck, Webhook, Truck, ArrowUpRight, Video } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import InspectionStandards from "@/components/InspectionStandards";
 import UserManagement from "@/components/UserManagement";
 import WebhookSettings from "@/components/WebhookSettings";
 import CourierSettings from "@/components/CourierSettings";
 import SiteCallbackSettings from "@/components/SiteCallbackSettings";
+import CameraSettings from "@/components/CameraSettings";
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
@@ -123,6 +124,7 @@ export default function SystemSettings() {
   const generalGroups = [
     { icon: Users, label: t("settings.userMgmt"), desc: isKo ? "사용자 승인, 역할 및 권한 관리" : "用户审批、角色及权限管理", tab: "users" },
     { icon: Server, label: t("settings.equipment"), desc: isKo ? "장비 정보, PLC IP, 프로토콜 설정" : "设备信息、PLC IP、协议设置", tab: "equipment" },
+    { icon: Video, label: isKo ? "카메라 연동" : "摄像头对接", desc: isKo ? "실시간 감시용 IP 카메라(CCTV) 설정" : "实时监控IP摄像头(CCTV)配置", tab: "camera" },
     { icon: Cpu, label: t("settings.plcTags"), desc: isKo ? "PLC 태그 주소, 데이터 타입 맵핑" : "PLC标签地址、数据类型映射", tab: "plcTags" },
     { icon: Radio, label: t("settings.sensors"), desc: isKo ? "센서 신호 정의, 정상/알람 조건 설정" : "传感器信号定义、正常/报警条件设置", tab: "sensors" },
     { icon: Play, label: t("settings.commands"), desc: isKo ? "장비 제어 명령 및 권한 설정" : "设备控制命令及权限设置", tab: "commands" },
@@ -137,6 +139,7 @@ export default function SystemSettings() {
     { value: "general", icon: Cog, label: t("settings.general") },
     { value: "users", icon: Users, label: t("settings.userMgmt") },
     { value: "equipment", icon: Server, label: t("settings.equipment") },
+    { value: "camera", icon: Video, label: isKo ? "카메라 연동" : "摄像头对接" },
     { value: "plcTags", icon: Cpu, label: t("settings.plcTags") },
     { value: "sensors", icon: Radio, label: t("settings.sensors") },
     { value: "commands", icon: Play, label: t("settings.commands") },
@@ -513,6 +516,7 @@ export default function SystemSettings() {
             </Dialog>
           </TabsContent>
 
+          <TabsContent value="camera"><CameraSettings /></TabsContent>
           <TabsContent value="inspection"><InspectionStandards /></TabsContent>
           <TabsContent value="webhook"><WebhookSettings /></TabsContent>
           <TabsContent value="courier"><CourierSettings /></TabsContent>

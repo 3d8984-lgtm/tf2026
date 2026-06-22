@@ -56,6 +56,42 @@ export type Database = {
         }
         Relationships: []
       }
+      cameras: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          location: string | null
+          name: string
+          recording_base_url: string | null
+          stream_url: string
+          updated_at: string
+          webrtc_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          location?: string | null
+          name: string
+          recording_base_url?: string | null
+          stream_url: string
+          updated_at?: string
+          webrtc_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          location?: string | null
+          name?: string
+          recording_base_url?: string | null
+          stream_url?: string
+          updated_at?: string
+          webrtc_url?: string | null
+        }
+        Relationships: []
+      }
       card_element: {
         Row: {
           created_at: string
