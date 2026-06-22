@@ -516,6 +516,7 @@ export default function SystemSettings() {
             </Dialog>
           </TabsContent>
 
+          <TabsContent value="camera"><CameraSettings /></TabsContent>
           <TabsContent value="inspection"><InspectionStandards /></TabsContent>
           <TabsContent value="webhook"><WebhookSettings /></TabsContent>
           <TabsContent value="courier"><CourierSettings /></TabsContent>
