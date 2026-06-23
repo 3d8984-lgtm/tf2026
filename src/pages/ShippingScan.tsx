@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Camera, CameraOff, CheckCircle2, AlertTriangle, ScanLine, Truck, Send, Printer, RefreshCw, Usb, TestTube2 } from "lucide-react";
+import { ArrowLeft, Camera, CameraOff, CheckCircle2, AlertTriangle, ScanLine, Truck, Send, Printer, RefreshCw, Usb, TestTube2, Download, QrCode } from "lucide-react";
+import QRCode from "qrcode";
 import { useLang } from "@/contexts/LangContext";
 import { useShipmentScan } from "@/hooks/useShipmentScan";
 import { useAddressBook } from "@/hooks/useAddressBook";
@@ -24,6 +25,23 @@ import { Html5Qrcode } from "html5-qrcode";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 type FeedbackKind = "success" | "duplicate" | "mismatch" | "notfound" | "idle";
+
+// 🧪 Test QR code → bound to a fixed test recipient. Scanning this value
+// (from the on-screen / printed QR) instantly opens a 70×130mm label
+// prefilled with TEST_RECIPIENT and triggers the printer dialog.
+const TEST_QR_VALUE = "TWINMETA-TEST-LABEL-001";
+const TEST_RECIPIENT = {
+  carrier: "4PX",
+  trackingNumber: "TEST-4PX-2026-0001",
+  jobNo: "JOB-TEST-0001",
+  name: "Hong Gildong (테스트)",
+  phone: "+82 10-1234-5678",
+  address1: "123 Test Street, Apt 4B",
+  address2: "Seoul, 06000, Korea",
+  qty: 1,
+};
+
+
 
 export default function ShippingScan() {
   const { orderId } = useParams<{ orderId: string }>();
@@ -54,6 +72,7 @@ export default function ShippingScan() {
   const [manualTracking, setManualTracking] = useState("");
 
   const [hidActive, setHidActive] = useState(false);
+  const [testQrDataUrl, setTestQrDataUrl] = useState<string>("");
   const inputRef = useRef<HTMLInputElement>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const scannerDivId = "shipping-qr-reader";
@@ -63,6 +82,13 @@ export default function ShippingScan() {
   useEffect(() => {
     if (shipment) setDesignConfirmed(!!shipment.design_confirmed);
   }, [shipment?.id]);
+
+  // Generate the test QR image once on mount.
+  useEffect(() => {
+    QRCode.toDataURL(TEST_QR_VALUE, { width: 320, margin: 2, errorCorrectionLevel: "H" })
+      .then(setTestQrDataUrl)
+      .catch(() => setTestQrDataUrl(""));
+  }, []);
 
   // Keep keyboard focus on USB-scanner input
   useEffect(() => {
@@ -146,12 +172,23 @@ export default function ShippingScan() {
 
   async function handleScan(rawValue: string) {
     const qrValue = rawValue.trim();
-    if (!qrValue || !shipment || !order) return;
+    if (!qrValue) return;
 
-    // debounce camera duplicates within 1.5s
+    // debounce duplicates within 1.5s
     const now = Date.now();
     if (lastScanRef.current.value === qrValue && now - lastScanRef.current.at < 1500) return;
     lastScanRef.current = { value: qrValue, at: now };
+
+    // 🧪 Intercept TEST QR — bypass DB lookup, render label and open printer.
+    if (qrValue === TEST_QR_VALUE) {
+      scanSuccess();
+      setFeedback({ kind: "success", msg: tr("테스트 QR 인식 → 송장 출력", "测试二维码识别 → 打印运单") });
+      setScanInput("");
+      printTestLabel();
+      return;
+    }
+
+    if (!shipment || !order) return;
 
     // Already scanned in this shipment?
     if (items.some((i) => i.qr_value === qrValue && i.is_scanned)) {
@@ -283,15 +320,15 @@ export default function ShippingScan() {
 
   function buildLabelHtml(opts: { test?: boolean } = {}) {
     const test = !!opts.test;
-    const carrierName = (shipment?.carrier || carrier || "TEST").toUpperCase();
-    const tn = test ? `TEST-${Date.now().toString(36).toUpperCase()}` : (shipment?.tracking_number || "—");
-    const name = test ? "TEST RECIPIENT" : (order?.recipient_name ?? "");
-    const phone = test ? "+1 (000) 000-0000" : (order?.recipient_phone ?? "");
-    const addr1 = test ? "123 Test Street" : (order?.shipping_address ?? "");
-    const addr2 = test ? "Testville, CA 90000, USA"
+    const carrierName = (test ? TEST_RECIPIENT.carrier : (shipment?.carrier || carrier || "TEST")).toUpperCase();
+    const tn = test ? TEST_RECIPIENT.trackingNumber : (shipment?.tracking_number || "—");
+    const name = test ? TEST_RECIPIENT.name : (order?.recipient_name ?? "");
+    const phone = test ? TEST_RECIPIENT.phone : (order?.recipient_phone ?? "");
+    const addr1 = test ? TEST_RECIPIENT.address1 : (order?.shipping_address ?? "");
+    const addr2 = test ? TEST_RECIPIENT.address2
       : [order?.shipping_city, order?.shipping_state, order?.shipping_zip, order?.shipping_country].filter(Boolean).join(", ");
-    const jobNo = test ? "JOB-TEST-0001" : (order?.external_order_id ?? "");
-    const qty = test ? 1 : total;
+    const jobNo = test ? TEST_RECIPIENT.jobNo : (order?.external_order_id ?? "");
+    const qty = test ? TEST_RECIPIENT.qty : total;
     // Code128-ish visual bars from tracking number (purely decorative for preview/printer test)
     const bars = Array.from(tn).map((c, i) => {
       const w = (c.charCodeAt(0) % 4) + 1;
@@ -555,6 +592,68 @@ export default function ShippingScan() {
               </ScrollArea>
             </TabsContent>
           </Tabs>
+        </CardContent>
+      </Card>
+
+      {/* 🧪 Test QR generator */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center justify-between">
+            <span className="flex items-center gap-2"><QrCode className="w-4 h-4"/>{tr("테스트 QR 코드", "测试二维码")}</span>
+            <Badge variant="outline" className="font-mono text-[10px]">{TEST_QR_VALUE}</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col md:flex-row items-start gap-6">
+          <div className="bg-white rounded-lg p-3 border border-border shadow-md flex flex-col items-center gap-2" style={{ width: "200px" }}>
+            {testQrDataUrl ? (
+              <img src={testQrDataUrl} alt="Test QR" className="w-[176px] h-[176px]" />
+            ) : (
+              <div className="w-[176px] h-[176px] bg-muted animate-pulse" />
+            )}
+            <div className="text-[9px] font-mono text-black text-center break-all leading-tight">{TEST_QR_VALUE}</div>
+            <a
+              href={testQrDataUrl || "#"}
+              download={`${TEST_QR_VALUE}.png`}
+              className="w-full"
+              onClick={(e) => { if (!testQrDataUrl) e.preventDefault(); }}
+            >
+              <Button variant="outline" size="sm" className="w-full" disabled={!testQrDataUrl}>
+                <Download className="w-3.5 h-3.5 mr-1" />{tr("QR 다운로드", "下载二维码")}
+              </Button>
+            </a>
+          </div>
+
+          <div className="flex-1 space-y-3 text-sm">
+            <Alert>
+              <TestTube2 className="w-4 h-4" />
+              <AlertDescription className="text-xs">
+                {tr(
+                  "이 QR을 다운로드해서 인쇄/모니터에 띄운 뒤 스캐너로 쏘면, 아래 테스트 주소로 송장이 자동 생성되어 프린터 대화창이 열립니다.",
+                  "下载该二维码并打印/显示后用扫描器扫一下，将自动以下方测试地址生成运单并打开打印对话框。"
+                )}
+              </AlertDescription>
+            </Alert>
+            <div className="rounded-md border border-border p-3 bg-muted/30 space-y-1 text-xs">
+              <div className="font-semibold text-sm mb-1">{tr("연동된 테스트 송장 정보", "绑定的测试运单信息")}</div>
+              <div className="grid grid-cols-[100px_1fr] gap-x-2 gap-y-1">
+                <span className="text-muted-foreground">{tr("택배사", "承运商")}</span><span className="font-mono">{TEST_RECIPIENT.carrier}</span>
+                <span className="text-muted-foreground">{tr("송장번호", "运单号")}</span><span className="font-mono">{TEST_RECIPIENT.trackingNumber}</span>
+                <span className="text-muted-foreground">Job No</span><span className="font-mono">{TEST_RECIPIENT.jobNo}</span>
+                <span className="text-muted-foreground">{tr("수취인", "收件人")}</span><span>{TEST_RECIPIENT.name}</span>
+                <span className="text-muted-foreground">{tr("전화", "电话")}</span><span className="font-mono">{TEST_RECIPIENT.phone}</span>
+                <span className="text-muted-foreground">{tr("주소", "地址")}</span><span>{TEST_RECIPIENT.address1}<br/>{TEST_RECIPIENT.address2}</span>
+                <span className="text-muted-foreground">{tr("수량", "数量")}</span><span className="font-mono">{TEST_RECIPIENT.qty}</span>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => handleScan(TEST_QR_VALUE)}>
+                <ScanLine className="w-4 h-4 mr-1" />{tr("스캔 시뮬레이션", "模拟扫描")}
+              </Button>
+              <Button variant="outline" onClick={printTestLabel}>
+                <Printer className="w-4 h-4 mr-1" />{tr("바로 출력", "直接打印")}
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
