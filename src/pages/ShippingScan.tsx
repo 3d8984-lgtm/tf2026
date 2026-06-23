@@ -646,7 +646,10 @@ export default function ShippingScan() {
               <Input value={manualTracking} onChange={(e) => setManualTracking(e.target.value)} placeholder={tr("비워두면 자동발급(MOCK)", "留空则自动生成 (MOCK)")} className="font-mono"/>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Button variant="ghost" onClick={printTestLabel}>
+              <TestTube2 className="w-4 h-4 mr-1"/>{tr("프린터 테스트", "打印测试")}
+            </Button>
             <Button disabled={!readyToIssue || issuing} onClick={() => issueTracking(!manualTracking.trim())}>
               <Truck className="w-4 h-4 mr-1"/>{tr("송장 발급", "出运单")}
             </Button>
