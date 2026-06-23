@@ -595,6 +595,68 @@ export default function ShippingScan() {
         </CardContent>
       </Card>
 
+      {/* 🧪 Test QR generator */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center justify-between">
+            <span className="flex items-center gap-2"><QrCode className="w-4 h-4"/>{tr("테스트 QR 코드", "测试二维码")}</span>
+            <Badge variant="outline" className="font-mono text-[10px]">{TEST_QR_VALUE}</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col md:flex-row items-start gap-6">
+          <div className="bg-white rounded-lg p-3 border border-border shadow-md flex flex-col items-center gap-2" style={{ width: "200px" }}>
+            {testQrDataUrl ? (
+              <img src={testQrDataUrl} alt="Test QR" className="w-[176px] h-[176px]" />
+            ) : (
+              <div className="w-[176px] h-[176px] bg-muted animate-pulse" />
+            )}
+            <div className="text-[9px] font-mono text-black text-center break-all leading-tight">{TEST_QR_VALUE}</div>
+            <a
+              href={testQrDataUrl || "#"}
+              download={`${TEST_QR_VALUE}.png`}
+              className="w-full"
+              onClick={(e) => { if (!testQrDataUrl) e.preventDefault(); }}
+            >
+              <Button variant="outline" size="sm" className="w-full" disabled={!testQrDataUrl}>
+                <Download className="w-3.5 h-3.5 mr-1" />{tr("QR 다운로드", "下载二维码")}
+              </Button>
+            </a>
+          </div>
+
+          <div className="flex-1 space-y-3 text-sm">
+            <Alert>
+              <TestTube2 className="w-4 h-4" />
+              <AlertDescription className="text-xs">
+                {tr(
+                  "이 QR을 다운로드해서 인쇄/모니터에 띄운 뒤 스캐너로 쏘면, 아래 테스트 주소로 송장이 자동 생성되어 프린터 대화창이 열립니다.",
+                  "下载该二维码并打印/显示后用扫描器扫一下，将自动以下方测试地址生成运单并打开打印对话框。"
+                )}
+              </AlertDescription>
+            </Alert>
+            <div className="rounded-md border border-border p-3 bg-muted/30 space-y-1 text-xs">
+              <div className="font-semibold text-sm mb-1">{tr("연동된 테스트 송장 정보", "绑定的测试运单信息")}</div>
+              <div className="grid grid-cols-[100px_1fr] gap-x-2 gap-y-1">
+                <span className="text-muted-foreground">{tr("택배사", "承运商")}</span><span className="font-mono">{TEST_RECIPIENT.carrier}</span>
+                <span className="text-muted-foreground">{tr("송장번호", "运单号")}</span><span className="font-mono">{TEST_RECIPIENT.trackingNumber}</span>
+                <span className="text-muted-foreground">Job No</span><span className="font-mono">{TEST_RECIPIENT.jobNo}</span>
+                <span className="text-muted-foreground">{tr("수취인", "收件人")}</span><span>{TEST_RECIPIENT.name}</span>
+                <span className="text-muted-foreground">{tr("전화", "电话")}</span><span className="font-mono">{TEST_RECIPIENT.phone}</span>
+                <span className="text-muted-foreground">{tr("주소", "地址")}</span><span>{TEST_RECIPIENT.address1}<br/>{TEST_RECIPIENT.address2}</span>
+                <span className="text-muted-foreground">{tr("수량", "数量")}</span><span className="font-mono">{TEST_RECIPIENT.qty}</span>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => handleScan(TEST_QR_VALUE)}>
+                <ScanLine className="w-4 h-4 mr-1" />{tr("스캔 시뮬레이션", "模拟扫描")}
+              </Button>
+              <Button variant="outline" onClick={printTestLabel}>
+                <Printer className="w-4 h-4 mr-1" />{tr("바로 출력", "直接打印")}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Label preview (70 x 130 mm) */}
       <Card>
         <CardHeader className="pb-3">
