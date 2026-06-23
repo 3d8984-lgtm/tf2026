@@ -394,7 +394,13 @@ export default function ShippingScan() {
         {/* Scanner panel */}
         <Card className="lg:col-span-2">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2"><ScanLine className="w-4 h-4"/>{tr("홀로그램 스티커 QR 스캔", "扫描全息贴纸二维码")}</CardTitle>
+            <CardTitle className="text-base flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2"><ScanLine className="w-4 h-4"/>{tr("홀로그램 스티커 QR 스캔", "扫描全息贴纸二维码")}</span>
+              <Badge variant="outline" className={`gap-1 ${hidActive ? "border-emerald-500/60 text-emerald-300 bg-emerald-500/10" : "text-muted-foreground"}`}>
+                <Usb className="w-3 h-3" />
+                {hidActive ? tr("스캐너 신호 감지", "扫描信号") : tr("스캐너 대기", "扫描就绪")}
+              </Badge>
+            </CardTitle>
             <p className="text-[11px] text-muted-foreground">
               {tr("홀로그램 스티커의 QR을 스캔하면 해당 주소지와 매칭되어 송장이 생성됩니다.", "扫描全息贴纸二维码后将匹配收件地址并生成运单。")}
             </p>
@@ -406,7 +412,7 @@ export default function ShippingScan() {
                 value={scanInput}
                 onChange={(e) => setScanInput(e.target.value)}
                 onKeyDown={onInputKeyDown}
-                placeholder={tr("USB 스캐너 또는 직접 입력 후 Enter", "USB 扫描或输入后回车")}
+                placeholder={tr("기계 부착 스캐너 / USB / 직접 입력 후 Enter", "机器扫描器 / USB / 输入后回车")}
                 className="font-mono"
                 autoFocus
               />
@@ -415,6 +421,9 @@ export default function ShippingScan() {
                 {cameraOn ? tr("카메라 끄기", "关闭相机") : tr("카메라", "相机")}
               </Button>
             </div>
+            <p className="text-[10px] text-muted-foreground">
+              {tr("※ 기계에 연결된 HID 스캐너는 페이지 어디에 포커스가 있어도 자동 인식됩니다.", "※ 机器连接的 HID 扫描器无论焦点在何处都会自动识别。")}
+            </p>
             {cameraOn && <div id={scannerDivId} className="rounded-lg overflow-hidden bg-black aspect-video max-w-md mx-auto" />}
             {feedbackBox}
           </CardContent>
