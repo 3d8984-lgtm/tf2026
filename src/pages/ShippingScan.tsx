@@ -320,15 +320,15 @@ export default function ShippingScan() {
 
   function buildLabelHtml(opts: { test?: boolean } = {}) {
     const test = !!opts.test;
-    const carrierName = (shipment?.carrier || carrier || "TEST").toUpperCase();
-    const tn = test ? `TEST-${Date.now().toString(36).toUpperCase()}` : (shipment?.tracking_number || "—");
-    const name = test ? "TEST RECIPIENT" : (order?.recipient_name ?? "");
-    const phone = test ? "+1 (000) 000-0000" : (order?.recipient_phone ?? "");
-    const addr1 = test ? "123 Test Street" : (order?.shipping_address ?? "");
-    const addr2 = test ? "Testville, CA 90000, USA"
+    const carrierName = (test ? TEST_RECIPIENT.carrier : (shipment?.carrier || carrier || "TEST")).toUpperCase();
+    const tn = test ? TEST_RECIPIENT.trackingNumber : (shipment?.tracking_number || "—");
+    const name = test ? TEST_RECIPIENT.name : (order?.recipient_name ?? "");
+    const phone = test ? TEST_RECIPIENT.phone : (order?.recipient_phone ?? "");
+    const addr1 = test ? TEST_RECIPIENT.address1 : (order?.shipping_address ?? "");
+    const addr2 = test ? TEST_RECIPIENT.address2
       : [order?.shipping_city, order?.shipping_state, order?.shipping_zip, order?.shipping_country].filter(Boolean).join(", ");
-    const jobNo = test ? "JOB-TEST-0001" : (order?.external_order_id ?? "");
-    const qty = test ? 1 : total;
+    const jobNo = test ? TEST_RECIPIENT.jobNo : (order?.external_order_id ?? "");
+    const qty = test ? TEST_RECIPIENT.qty : total;
     // Code128-ish visual bars from tracking number (purely decorative for preview/printer test)
     const bars = Array.from(tn).map((c, i) => {
       const w = (c.charCodeAt(0) % 4) + 1;
