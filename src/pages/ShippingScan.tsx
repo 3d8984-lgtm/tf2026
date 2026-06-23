@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Camera, CameraOff, CheckCircle2, AlertTriangle, ScanLine, Truck, Send, Printer, RefreshCw } from "lucide-react";
+import { ArrowLeft, Camera, CameraOff, CheckCircle2, AlertTriangle, ScanLine, Truck, Send, Printer, RefreshCw, Usb, TestTube2 } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { useShipmentScan } from "@/hooks/useShipmentScan";
 import { useAddressBook } from "@/hooks/useAddressBook";
@@ -53,10 +53,12 @@ export default function ShippingScan() {
   const [carrier, setCarrier] = useState("4px");
   const [manualTracking, setManualTracking] = useState("");
 
+  const [hidActive, setHidActive] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const scannerDivId = "shipping-qr-reader";
   const lastScanRef = useRef<{ value: string; at: number }>({ value: "", at: 0 });
+  const hidBufRef = useRef<{ buf: string; lastAt: number }>({ buf: "", lastAt: 0 });
 
   useEffect(() => {
     if (shipment) setDesignConfirmed(!!shipment.design_confirmed);
@@ -73,6 +75,34 @@ export default function ShippingScan() {
     }, 800);
     return () => clearInterval(interval);
   }, [cameraOn]);
+
+  // Global HID barcode-scanner listener (fast keystroke burst ending with Enter).
+  // Works even when focus is on a button / select. Most machine-attached scanners
+  // act as a USB HID keyboard, so this captures them reliably.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      // Let the visible input handle it normally (avoid double-firing)
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+      const now = Date.now();
+      if (now - hidBufRef.current.lastAt > 80) hidBufRef.current.buf = "";
+      hidBufRef.current.lastAt = now;
+      if (e.key === "Enter") {
+        const v = hidBufRef.current.buf.trim();
+        hidBufRef.current.buf = "";
+        if (v.length >= 3) {
+          setHidActive(true);
+          setTimeout(() => setHidActive(false), 600);
+          handleScan(v);
+        }
+        return;
+      }
+      if (e.key.length === 1) hidBufRef.current.buf += e.key;
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, shipment?.id]);
 
   // Camera scanner lifecycle
   useEffect(() => {
@@ -251,20 +281,74 @@ export default function ShippingScan() {
     qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
   }
 
+  function buildLabelHtml(opts: { test?: boolean } = {}) {
+    const test = !!opts.test;
+    const carrierName = (shipment?.carrier || carrier || "TEST").toUpperCase();
+    const tn = test ? `TEST-${Date.now().toString(36).toUpperCase()}` : (shipment?.tracking_number || "—");
+    const name = test ? "TEST RECIPIENT" : (order?.recipient_name ?? "");
+    const phone = test ? "+1 (000) 000-0000" : (order?.recipient_phone ?? "");
+    const addr1 = test ? "123 Test Street" : (order?.shipping_address ?? "");
+    const addr2 = test ? "Testville, CA 90000, USA"
+      : [order?.shipping_city, order?.shipping_state, order?.shipping_zip, order?.shipping_country].filter(Boolean).join(", ");
+    const jobNo = test ? "JOB-TEST-0001" : (order?.external_order_id ?? "");
+    const qty = test ? 1 : total;
+    // Code128-ish visual bars from tracking number (purely decorative for preview/printer test)
+    const bars = Array.from(tn).map((c, i) => {
+      const w = (c.charCodeAt(0) % 4) + 1;
+      return `<span style="display:inline-block;width:${w}px;height:14mm;background:#000;margin-right:1px;${i % 3 === 0 ? "margin-right:2px;" : ""}"></span>`;
+    }).join("");
+    return `<!doctype html><html><head><meta charset="utf-8"/>
+      <title>Label ${tn}</title>
+      <style>
+        @page { size: 70mm 130mm; margin: 0; }
+        html, body { margin: 0; padding: 0; }
+        body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; color: #000; background: #fff; }
+        .label { width: 70mm; height: 130mm; padding: 4mm; box-sizing: border-box; display: flex; flex-direction: column; gap: 2mm; }
+        .row { display: flex; justify-content: space-between; align-items: center; }
+        .carrier { font-size: 14pt; font-weight: 800; letter-spacing: 1px; }
+        .test-tag { font-size: 8pt; padding: 1mm 2mm; border: 1px solid #000; border-radius: 2mm; }
+        .hr { border-top: 1px dashed #000; margin: 1mm 0; }
+        .to-label { font-size: 7pt; text-transform: uppercase; letter-spacing: 1px; color: #444; }
+        .name { font-size: 11pt; font-weight: 700; }
+        .addr { font-size: 9pt; line-height: 1.25; }
+        .meta { font-size: 7.5pt; color: #222; }
+        .bars { text-align: center; line-height: 0; }
+        .tn { text-align: center; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 10pt; letter-spacing: 1px; margin-top: 1mm; }
+        .footer { margin-top: auto; font-size: 7pt; color: #555; text-align: center; }
+      </style></head>
+      <body><div class="label">
+        <div class="row">
+          <div class="carrier">${carrierName}</div>
+          ${test ? '<div class="test-tag">TEST PRINT</div>' : ""}
+        </div>
+        <div class="hr"></div>
+        <div class="to-label">To / 收件人</div>
+        <div class="name">${name}</div>
+        <div class="addr">${addr1}<br/>${addr2}<br/>${phone}</div>
+        <div class="hr"></div>
+        <div class="bars">${bars}</div>
+        <div class="tn">${tn}</div>
+        <div class="meta">Job No: ${jobNo} · Qty: ${qty}</div>
+        <div class="footer">TWINMETA FACTORY · 70 × 130 mm</div>
+      </div>
+      <script>window.onload=()=>{setTimeout(()=>window.print(),150)};</script>
+      </body></html>`;
+  }
+
   function downloadLabelPdf() {
     if (!shipment) return;
-    const w = window.open("", "_blank", "width=400,height=600");
+    const w = window.open("", "_blank", "width=320,height=560");
     if (!w) return;
-    w.document.write(`<!doctype html><html><head><title>Label ${shipment.tracking_number}</title>
-      <style>body{font-family:sans-serif;padding:16px;}.box{border:2px solid #000;padding:12px;}.tn{font-size:18px;font-weight:bold;letter-spacing:1px;}h2{margin:4px 0;}</style>
-      </head><body><div class="box">
-      <h2>${shipment.carrier?.toUpperCase()}</h2>
-      <p class="tn">${shipment.tracking_number}</p>
-      <hr/>
-      <p><b>${order?.recipient_name ?? ""}</b><br/>${order?.shipping_address ?? ""}<br/>${[order?.shipping_city, order?.shipping_state, order?.shipping_zip].filter(Boolean).join(", ")}<br/>${order?.shipping_country ?? ""}</p>
-      <p>Job No: ${order?.external_order_id ?? ""} · Qty: ${total}</p>
-      </div><script>window.print();</script></body></html>`);
+    w.document.write(buildLabelHtml());
     w.document.close();
+  }
+
+  function printTestLabel() {
+    const w = window.open("", "_blank", "width=320,height=560");
+    if (!w) return;
+    w.document.write(buildLabelHtml({ test: true }));
+    w.document.close();
+    toast({ title: tr("테스트 송장 출력", "测试运单打印"), description: tr("프린터 대화창이 열렸습니다 (70×130mm)", "已打开打印对话框 (70×130mm)") });
   }
 
   const feedbackBox = useMemo(() => {
@@ -310,7 +394,13 @@ export default function ShippingScan() {
         {/* Scanner panel */}
         <Card className="lg:col-span-2">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2"><ScanLine className="w-4 h-4"/>{tr("홀로그램 스티커 QR 스캔", "扫描全息贴纸二维码")}</CardTitle>
+            <CardTitle className="text-base flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2"><ScanLine className="w-4 h-4"/>{tr("홀로그램 스티커 QR 스캔", "扫描全息贴纸二维码")}</span>
+              <Badge variant="outline" className={`gap-1 ${hidActive ? "border-emerald-500/60 text-emerald-300 bg-emerald-500/10" : "text-muted-foreground"}`}>
+                <Usb className="w-3 h-3" />
+                {hidActive ? tr("스캐너 신호 감지", "扫描信号") : tr("스캐너 대기", "扫描就绪")}
+              </Badge>
+            </CardTitle>
             <p className="text-[11px] text-muted-foreground">
               {tr("홀로그램 스티커의 QR을 스캔하면 해당 주소지와 매칭되어 송장이 생성됩니다.", "扫描全息贴纸二维码后将匹配收件地址并生成运单。")}
             </p>
@@ -322,7 +412,7 @@ export default function ShippingScan() {
                 value={scanInput}
                 onChange={(e) => setScanInput(e.target.value)}
                 onKeyDown={onInputKeyDown}
-                placeholder={tr("USB 스캐너 또는 직접 입력 후 Enter", "USB 扫描或输入后回车")}
+                placeholder={tr("기계 부착 스캐너 / USB / 직접 입력 후 Enter", "机器扫描器 / USB / 输入后回车")}
                 className="font-mono"
                 autoFocus
               />
@@ -331,6 +421,9 @@ export default function ShippingScan() {
                 {cameraOn ? tr("카메라 끄기", "关闭相机") : tr("카메라", "相机")}
               </Button>
             </div>
+            <p className="text-[10px] text-muted-foreground">
+              {tr("※ 기계에 연결된 HID 스캐너는 페이지 어디에 포커스가 있어도 자동 인식됩니다.", "※ 机器连接的 HID 扫描器无论焦点在何处都会自动识别。")}
+            </p>
             {cameraOn && <div id={scannerDivId} className="rounded-lg overflow-hidden bg-black aspect-video max-w-md mx-auto" />}
             {feedbackBox}
           </CardContent>
@@ -465,6 +558,73 @@ export default function ShippingScan() {
         </CardContent>
       </Card>
 
+      {/* Label preview (70 x 130 mm) */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center justify-between">
+            <span className="flex items-center gap-2"><Printer className="w-4 h-4"/>{tr("송장 미리보기", "运单预览")}</span>
+            <span className="text-[11px] font-normal text-muted-foreground">70 × 130 mm</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col md:flex-row items-start gap-6">
+          <div
+            className="bg-white text-black rounded shadow-lg border border-border overflow-hidden"
+            style={{ width: "210px", height: "390px", padding: "12px", boxSizing: "border-box" }}
+          >
+            <div className="flex justify-between items-center">
+              <div className="font-extrabold tracking-wider text-[18px]">{(shipment.carrier || carrier || "TEST").toUpperCase()}</div>
+              {!shipment.tracking_number && <div className="text-[9px] border border-black rounded px-1.5 py-0.5">PREVIEW</div>}
+            </div>
+            <div className="border-t border-dashed border-black my-1.5" />
+            <div className="text-[8px] uppercase tracking-wider text-neutral-600">To / 收件人</div>
+            <div className="font-bold text-[12px] leading-tight">{order?.recipient_name || "—"}</div>
+            <div className="text-[10px] leading-snug mt-0.5">
+              {order?.shipping_address || "—"}<br/>
+              {[order?.shipping_city, order?.shipping_state, order?.shipping_zip, order?.shipping_country].filter(Boolean).join(", ") || "—"}<br/>
+              {order?.recipient_phone || ""}
+            </div>
+            <div className="border-t border-dashed border-black my-1.5" />
+            <div className="text-center leading-none">
+              {Array.from((shipment.tracking_number || "PREVIEW-0000")).map((c, i) => {
+                const w = (c.charCodeAt(0) % 4) + 1;
+                return <span key={i} style={{ display: "inline-block", width: `${w}px`, height: "36px", background: "#000", marginRight: i % 3 === 0 ? "2px" : "1px" }} />;
+              })}
+            </div>
+            <div className="text-center font-mono text-[10px] tracking-wider mt-1 break-all">
+              {shipment.tracking_number || "PREVIEW-0000"}
+            </div>
+            <div className="text-[8px] mt-1 text-neutral-700">Job No: {order?.external_order_id} · Qty: {total}</div>
+            <div className="text-[7px] mt-3 text-neutral-500 text-center">TWINMETA FACTORY · 70 × 130 mm</div>
+          </div>
+
+          <div className="flex-1 space-y-3 text-sm">
+            <Alert>
+              <TestTube2 className="w-4 h-4" />
+              <AlertDescription className="text-xs">
+                {tr(
+                  "프린터/스캐너 연동을 확인하려면 '테스트 출력'을 사용하세요. 브라우저 프린트 대화창에서 용지 크기 70×130mm, 여백 '없음'으로 설정해야 라벨지에 정확히 출력됩니다.",
+                  "请使用『测试打印』确认打印机/扫描器连接。在打印对话框中将纸张设为 70×130mm、边距设为「无」即可精准打印。"
+                )}
+              </AlertDescription>
+            </Alert>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={printTestLabel}>
+                <TestTube2 className="w-4 h-4 mr-1" />{tr("테스트 출력", "测试打印")}
+              </Button>
+              <Button variant="outline" disabled={!shipment.tracking_number} onClick={downloadLabelPdf}>
+                <Printer className="w-4 h-4 mr-1" />{tr("실제 송장 출력", "打印当前运单")}
+              </Button>
+            </div>
+            <div className="text-[11px] text-muted-foreground space-y-1 pt-2 border-t">
+              <div>• {tr("스캐너 상태:", "扫描状态：")} <span className={hidActive ? "text-emerald-400" : ""}>{hidActive ? tr("신호 수신됨", "已接收信号") : tr("대기 중", "等待中")}</span></div>
+              <div>• {tr("기계 부착 HID 스캐너는 입력 필드 포커스 없이도 자동 인식됩니다.", "机器附带的 HID 扫描器无需聚焦输入框也能识别。")}</div>
+              <div>• {tr("스캔이 되지 않으면 스캐너를 다른 USB 포트에 다시 꽂아보세요.", "如未识别，请将扫描器重新插入其他 USB 端口。")}</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+
       {/* Action bar */}
       <Card>
         <CardContent className="p-4 flex flex-col md:flex-row md:items-end gap-3">
@@ -486,7 +646,10 @@ export default function ShippingScan() {
               <Input value={manualTracking} onChange={(e) => setManualTracking(e.target.value)} placeholder={tr("비워두면 자동발급(MOCK)", "留空则自动生成 (MOCK)")} className="font-mono"/>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Button variant="ghost" onClick={printTestLabel}>
+              <TestTube2 className="w-4 h-4 mr-1"/>{tr("프린터 테스트", "打印测试")}
+            </Button>
             <Button disabled={!readyToIssue || issuing} onClick={() => issueTracking(!manualTracking.trim())}>
               <Truck className="w-4 h-4 mr-1"/>{tr("송장 발급", "出运单")}
             </Button>
