@@ -281,20 +281,74 @@ export default function ShippingScan() {
     qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
   }
 
+  function buildLabelHtml(opts: { test?: boolean } = {}) {
+    const test = !!opts.test;
+    const carrierName = (shipment?.carrier || carrier || "TEST").toUpperCase();
+    const tn = test ? `TEST-${Date.now().toString(36).toUpperCase()}` : (shipment?.tracking_number || "—");
+    const name = test ? "TEST RECIPIENT" : (order?.recipient_name ?? "");
+    const phone = test ? "+1 (000) 000-0000" : (order?.recipient_phone ?? "");
+    const addr1 = test ? "123 Test Street" : (order?.shipping_address ?? "");
+    const addr2 = test ? "Testville, CA 90000, USA"
+      : [order?.shipping_city, order?.shipping_state, order?.shipping_zip, order?.shipping_country].filter(Boolean).join(", ");
+    const jobNo = test ? "JOB-TEST-0001" : (order?.external_order_id ?? "");
+    const qty = test ? 1 : total;
+    // Code128-ish visual bars from tracking number (purely decorative for preview/printer test)
+    const bars = Array.from(tn).map((c, i) => {
+      const w = (c.charCodeAt(0) % 4) + 1;
+      return `<span style="display:inline-block;width:${w}px;height:14mm;background:#000;margin-right:1px;${i % 3 === 0 ? "margin-right:2px;" : ""}"></span>`;
+    }).join("");
+    return `<!doctype html><html><head><meta charset="utf-8"/>
+      <title>Label ${tn}</title>
+      <style>
+        @page { size: 70mm 130mm; margin: 0; }
+        html, body { margin: 0; padding: 0; }
+        body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; color: #000; background: #fff; }
+        .label { width: 70mm; height: 130mm; padding: 4mm; box-sizing: border-box; display: flex; flex-direction: column; gap: 2mm; }
+        .row { display: flex; justify-content: space-between; align-items: center; }
+        .carrier { font-size: 14pt; font-weight: 800; letter-spacing: 1px; }
+        .test-tag { font-size: 8pt; padding: 1mm 2mm; border: 1px solid #000; border-radius: 2mm; }
+        .hr { border-top: 1px dashed #000; margin: 1mm 0; }
+        .to-label { font-size: 7pt; text-transform: uppercase; letter-spacing: 1px; color: #444; }
+        .name { font-size: 11pt; font-weight: 700; }
+        .addr { font-size: 9pt; line-height: 1.25; }
+        .meta { font-size: 7.5pt; color: #222; }
+        .bars { text-align: center; line-height: 0; }
+        .tn { text-align: center; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 10pt; letter-spacing: 1px; margin-top: 1mm; }
+        .footer { margin-top: auto; font-size: 7pt; color: #555; text-align: center; }
+      </style></head>
+      <body><div class="label">
+        <div class="row">
+          <div class="carrier">${carrierName}</div>
+          ${test ? '<div class="test-tag">TEST PRINT</div>' : ""}
+        </div>
+        <div class="hr"></div>
+        <div class="to-label">To / 收件人</div>
+        <div class="name">${name}</div>
+        <div class="addr">${addr1}<br/>${addr2}<br/>${phone}</div>
+        <div class="hr"></div>
+        <div class="bars">${bars}</div>
+        <div class="tn">${tn}</div>
+        <div class="meta">Job No: ${jobNo} · Qty: ${qty}</div>
+        <div class="footer">TWINMETA FACTORY · 70 × 130 mm</div>
+      </div>
+      <script>window.onload=()=>{setTimeout(()=>window.print(),150)};</script>
+      </body></html>`;
+  }
+
   function downloadLabelPdf() {
     if (!shipment) return;
-    const w = window.open("", "_blank", "width=400,height=600");
+    const w = window.open("", "_blank", "width=320,height=560");
     if (!w) return;
-    w.document.write(`<!doctype html><html><head><title>Label ${shipment.tracking_number}</title>
-      <style>body{font-family:sans-serif;padding:16px;}.box{border:2px solid #000;padding:12px;}.tn{font-size:18px;font-weight:bold;letter-spacing:1px;}h2{margin:4px 0;}</style>
-      </head><body><div class="box">
-      <h2>${shipment.carrier?.toUpperCase()}</h2>
-      <p class="tn">${shipment.tracking_number}</p>
-      <hr/>
-      <p><b>${order?.recipient_name ?? ""}</b><br/>${order?.shipping_address ?? ""}<br/>${[order?.shipping_city, order?.shipping_state, order?.shipping_zip].filter(Boolean).join(", ")}<br/>${order?.shipping_country ?? ""}</p>
-      <p>Job No: ${order?.external_order_id ?? ""} · Qty: ${total}</p>
-      </div><script>window.print();</script></body></html>`);
+    w.document.write(buildLabelHtml());
     w.document.close();
+  }
+
+  function printTestLabel() {
+    const w = window.open("", "_blank", "width=320,height=560");
+    if (!w) return;
+    w.document.write(buildLabelHtml({ test: true }));
+    w.document.close();
+    toast({ title: tr("테스트 송장 출력", "测试运单打印"), description: tr("프린터 대화창이 열렸습니다 (70×130mm)", "已打开打印对话框 (70×130mm)") });
   }
 
   const feedbackBox = useMemo(() => {
