@@ -72,6 +72,7 @@ export default function ShippingScan() {
   const [manualTracking, setManualTracking] = useState("");
 
   const [hidActive, setHidActive] = useState(false);
+  const [testQrDataUrl, setTestQrDataUrl] = useState<string>("");
   const inputRef = useRef<HTMLInputElement>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const scannerDivId = "shipping-qr-reader";
@@ -81,6 +82,13 @@ export default function ShippingScan() {
   useEffect(() => {
     if (shipment) setDesignConfirmed(!!shipment.design_confirmed);
   }, [shipment?.id]);
+
+  // Generate the test QR image once on mount.
+  useEffect(() => {
+    QRCode.toDataURL(TEST_QR_VALUE, { width: 320, margin: 2, errorCorrectionLevel: "H" })
+      .then(setTestQrDataUrl)
+      .catch(() => setTestQrDataUrl(""));
+  }, []);
 
   // Keep keyboard focus on USB-scanner input
   useEffect(() => {
