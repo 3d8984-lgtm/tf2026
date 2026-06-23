@@ -558,6 +558,73 @@ export default function ShippingScan() {
         </CardContent>
       </Card>
 
+      {/* Label preview (70 x 130 mm) */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center justify-between">
+            <span className="flex items-center gap-2"><Printer className="w-4 h-4"/>{tr("송장 미리보기", "运单预览")}</span>
+            <span className="text-[11px] font-normal text-muted-foreground">70 × 130 mm</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col md:flex-row items-start gap-6">
+          <div
+            className="bg-white text-black rounded shadow-lg border border-border overflow-hidden"
+            style={{ width: "210px", height: "390px", padding: "12px", boxSizing: "border-box" }}
+          >
+            <div className="flex justify-between items-center">
+              <div className="font-extrabold tracking-wider text-[18px]">{(shipment.carrier || carrier || "TEST").toUpperCase()}</div>
+              {!shipment.tracking_number && <div className="text-[9px] border border-black rounded px-1.5 py-0.5">PREVIEW</div>}
+            </div>
+            <div className="border-t border-dashed border-black my-1.5" />
+            <div className="text-[8px] uppercase tracking-wider text-neutral-600">To / 收件人</div>
+            <div className="font-bold text-[12px] leading-tight">{order?.recipient_name || "—"}</div>
+            <div className="text-[10px] leading-snug mt-0.5">
+              {order?.shipping_address || "—"}<br/>
+              {[order?.shipping_city, order?.shipping_state, order?.shipping_zip, order?.shipping_country].filter(Boolean).join(", ") || "—"}<br/>
+              {order?.recipient_phone || ""}
+            </div>
+            <div className="border-t border-dashed border-black my-1.5" />
+            <div className="text-center leading-none">
+              {Array.from((shipment.tracking_number || "PREVIEW-0000")).map((c, i) => {
+                const w = (c.charCodeAt(0) % 4) + 1;
+                return <span key={i} style={{ display: "inline-block", width: `${w}px`, height: "36px", background: "#000", marginRight: i % 3 === 0 ? "2px" : "1px" }} />;
+              })}
+            </div>
+            <div className="text-center font-mono text-[10px] tracking-wider mt-1 break-all">
+              {shipment.tracking_number || "PREVIEW-0000"}
+            </div>
+            <div className="text-[8px] mt-1 text-neutral-700">Job No: {order?.external_order_id} · Qty: {total}</div>
+            <div className="text-[7px] mt-3 text-neutral-500 text-center">TWINMETA FACTORY · 70 × 130 mm</div>
+          </div>
+
+          <div className="flex-1 space-y-3 text-sm">
+            <Alert>
+              <TestTube2 className="w-4 h-4" />
+              <AlertDescription className="text-xs">
+                {tr(
+                  "프린터/스캐너 연동을 확인하려면 '테스트 출력'을 사용하세요. 브라우저 프린트 대화창에서 용지 크기 70×130mm, 여백 '없음'으로 설정해야 라벨지에 정확히 출력됩니다.",
+                  "请使用『测试打印』确认打印机/扫描器连接。在打印对话框中将纸张设为 70×130mm、边距设为「无」即可精准打印。"
+                )}
+              </AlertDescription>
+            </Alert>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={printTestLabel}>
+                <TestTube2 className="w-4 h-4 mr-1" />{tr("테스트 출력", "测试打印")}
+              </Button>
+              <Button variant="outline" disabled={!shipment.tracking_number} onClick={downloadLabelPdf}>
+                <Printer className="w-4 h-4 mr-1" />{tr("실제 송장 출력", "打印当前运单")}
+              </Button>
+            </div>
+            <div className="text-[11px] text-muted-foreground space-y-1 pt-2 border-t">
+              <div>• {tr("스캐너 상태:", "扫描状态：")} <span className={hidActive ? "text-emerald-400" : ""}>{hidActive ? tr("신호 수신됨", "已接收信号") : tr("대기 중", "等待中")}</span></div>
+              <div>• {tr("기계 부착 HID 스캐너는 입력 필드 포커스 없이도 자동 인식됩니다.", "机器附带的 HID 扫描器无需聚焦输入框也能识别。")}</div>
+              <div>• {tr("스캔이 되지 않으면 스캐너를 다른 USB 포트에 다시 꽂아보세요.", "如未识别，请将扫描器重新插入其他 USB 端口。")}</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+
       {/* Action bar */}
       <Card>
         <CardContent className="p-4 flex flex-col md:flex-row md:items-end gap-3">
