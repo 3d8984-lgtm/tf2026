@@ -53,10 +53,12 @@ export default function ShippingScan() {
   const [carrier, setCarrier] = useState("4px");
   const [manualTracking, setManualTracking] = useState("");
 
+  const [hidActive, setHidActive] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const scannerDivId = "shipping-qr-reader";
   const lastScanRef = useRef<{ value: string; at: number }>({ value: "", at: 0 });
+  const hidBufRef = useRef<{ buf: string; lastAt: number }>({ buf: "", lastAt: 0 });
 
   useEffect(() => {
     if (shipment) setDesignConfirmed(!!shipment.design_confirmed);
