@@ -172,12 +172,23 @@ export default function ShippingScan() {
 
   async function handleScan(rawValue: string) {
     const qrValue = rawValue.trim();
-    if (!qrValue || !shipment || !order) return;
+    if (!qrValue) return;
 
-    // debounce camera duplicates within 1.5s
+    // debounce duplicates within 1.5s
     const now = Date.now();
     if (lastScanRef.current.value === qrValue && now - lastScanRef.current.at < 1500) return;
     lastScanRef.current = { value: qrValue, at: now };
+
+    // 🧪 Intercept TEST QR — bypass DB lookup, render label and open printer.
+    if (qrValue === TEST_QR_VALUE) {
+      scanSuccess();
+      setFeedback({ kind: "success", msg: tr("테스트 QR 인식 → 송장 출력", "测试二维码识别 → 打印运单") });
+      setScanInput("");
+      printTestLabel();
+      return;
+    }
+
+    if (!shipment || !order) return;
 
     // Already scanned in this shipment?
     if (items.some((i) => i.qr_value === qrValue && i.is_scanned)) {
