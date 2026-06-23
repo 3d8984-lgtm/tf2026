@@ -76,6 +76,34 @@ export default function ShippingScan() {
     return () => clearInterval(interval);
   }, [cameraOn]);
 
+  // Global HID barcode-scanner listener (fast keystroke burst ending with Enter).
+  // Works even when focus is on a button / select. Most machine-attached scanners
+  // act as a USB HID keyboard, so this captures them reliably.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      // Let the visible input handle it normally (avoid double-firing)
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+      const now = Date.now();
+      if (now - hidBufRef.current.lastAt > 80) hidBufRef.current.buf = "";
+      hidBufRef.current.lastAt = now;
+      if (e.key === "Enter") {
+        const v = hidBufRef.current.buf.trim();
+        hidBufRef.current.buf = "";
+        if (v.length >= 3) {
+          setHidActive(true);
+          setTimeout(() => setHidActive(false), 600);
+          handleScan(v);
+        }
+        return;
+      }
+      if (e.key.length === 1) hidBufRef.current.buf += e.key;
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, shipment?.id]);
+
   // Camera scanner lifecycle
   useEffect(() => {
     if (!cameraOn) return;
