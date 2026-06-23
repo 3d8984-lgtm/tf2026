@@ -26,6 +26,23 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 type FeedbackKind = "success" | "duplicate" | "mismatch" | "notfound" | "idle";
 
+// 🧪 Test QR code → bound to a fixed test recipient. Scanning this value
+// (from the on-screen / printed QR) instantly opens a 70×130mm label
+// prefilled with TEST_RECIPIENT and triggers the printer dialog.
+const TEST_QR_VALUE = "TWINMETA-TEST-LABEL-001";
+const TEST_RECIPIENT = {
+  carrier: "4PX",
+  trackingNumber: "TEST-4PX-2026-0001",
+  jobNo: "JOB-TEST-0001",
+  name: "Hong Gildong (테스트)",
+  phone: "+82 10-1234-5678",
+  address1: "123 Test Street, Apt 4B",
+  address2: "Seoul, 06000, Korea",
+  qty: 1,
+};
+
+
+
 export default function ShippingScan() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
