@@ -43,6 +43,43 @@ interface OrderData {
 
 // QR lookup tables loaded from DB via hook (see below in component)
 
+// Convert Korean Hangul jamo (typed with IME on) back to QWERTY equivalents.
+const HANGUL_JAMO_MAP: Record<string, string> = {
+  "ㅂ":"q","ㅈ":"w","ㄷ":"e","ㄱ":"r","ㅅ":"t","ㅛ":"y","ㅕ":"u","ㅑ":"i","ㅐ":"o","ㅔ":"p",
+  "ㅁ":"a","ㄴ":"s","ㅇ":"d","ㄹ":"f","ㅎ":"g","ㅗ":"h","ㅓ":"j","ㅏ":"k","ㅣ":"l",
+  "ㅋ":"z","ㅌ":"x","ㅊ":"c","ㅍ":"v","ㅠ":"b","ㅜ":"n","ㅡ":"m",
+  "ㅃ":"Q","ㅉ":"W","ㄸ":"E","ㄲ":"R","ㅆ":"T","ㅒ":"O","ㅖ":"P",
+};
+// Decompose precomposed Hangul syllables (가-힣) into initial+medial+final jamo, then map.
+const CHO = ["ㄱ","ㄲ","ㄴ","ㄷ","ㄸ","ㄹ","ㅁ","ㅂ","ㅃ","ㅅ","ㅆ","ㅇ","ㅈ","ㅉ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
+const JUNG = ["ㅏ","ㅐ","ㅑ","ㅒ","ㅓ","ㅔ","ㅕ","ㅖ","ㅗ","ㅘ","ㅙ","ㅚ","ㅛ","ㅜ","ㅝ","ㅞ","ㅟ","ㅠ","ㅡ","ㅢ","ㅣ"];
+const JONG = ["","ㄱ","ㄲ","ㄳ","ㄴ","ㄵ","ㄶ","ㄷ","ㄹ","ㄺ","ㄻ","ㄼ","ㄽ","ㄾ","ㄿ","ㅀ","ㅁ","ㅂ","ㅄ","ㅅ","ㅆ","ㅇ","ㅈ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
+function hangulToQwerty(input: string): string {
+  if (!input) return input;
+  let hasHangul = false;
+  let out = "";
+  for (const ch of input) {
+    const code = ch.charCodeAt(0);
+    if (code >= 0xAC00 && code <= 0xD7A3) {
+      hasHangul = true;
+      const s = code - 0xAC00;
+      const cho = CHO[Math.floor(s / 588)];
+      const jung = JUNG[Math.floor((s % 588) / 28)];
+      const jong = JONG[s % 28];
+      for (const j of [cho, jung, jong]) {
+        if (!j) continue;
+        for (const k of j) out += HANGUL_JAMO_MAP[k] ?? k;
+      }
+    } else if (HANGUL_JAMO_MAP[ch] !== undefined) {
+      hasHangul = true;
+      out += HANGUL_JAMO_MAP[ch];
+    } else {
+      out += ch;
+    }
+  }
+  return hasHangul ? out : input;
+}
+
 function ProgressBar({ done, total, fail, defectLabel }: { done: number; total: number; fail: number; defectLabel: string }) {
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   const isComplete = done >= total;
@@ -281,7 +318,7 @@ export default function TshirtWork() {
   }, [isKo, mockTshirtQR, mockSiliconQR, mockDesignQR, mockHoloQR]);
 
   const handleScan = useCallback(() => {
-    const value = scanValue.trim();
+    const value = hangulToQwerty(scanValue).trim();
     if (!value || processing || !selectedOrder || !activeWorkItem) return;
     setScanValue("");
     if (hasFail || allDone) { resetScan(); return; }
