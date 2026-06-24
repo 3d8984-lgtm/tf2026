@@ -166,7 +166,7 @@ export default function TshirtWork() {
       dateCounters[dateKey] = (dateCounters[dateKey] || 0) + 1;
       const orderNo = `${dateKey}-${dateCounters[dateKey]}`;
       const items: WorkItem[] = ((o.source_data as any)?.items ?? []).map((item: any, idx: number) => {
-        const qr = `${o.external_order_id}-${idx + 1}`;
+        const qr = `${orderNo}-${idx + 1}`;
         return {
           seq: idx + 1,
           color: item.tshirt_color ?? "",
@@ -249,23 +249,23 @@ export default function TshirtWork() {
     setTimeout(() => {
       let pass = false; let reason = "";
       if (step === 0) {
-        const found = mockSiliconQR[value];
+        const found = mockSiliconQR[value] ?? (value === workItem.siliconQR ? { product: order.product, design: order.design } : undefined);
         if (found && found.product === order.product && found.design === order.design) { pass = true; setMatchedProduct(found); }
         else if (!found) reason = isKo ? `실리콘 QR [${value}] 기준 데이터에 없음` : `硅胶QR [${value}] 基准数据中不存在`;
         else reason = isKo ? "실리콘 QR 상품/디자인코드 불일치" : "硅胶QR 商品/设计代码不匹配";
       } else if (step === 1) {
-        const found = mockTshirtQR[value];
+        const found = mockTshirtQR[value] ?? (value === workItem.tshirtSerial ? { product: order.product, color: workItem.color, size: workItem.size } : undefined);
         if (found && found.product === order.product && found.color === workItem.color && found.size === workItem.size) { pass = true; }
         else if (!found) reason = isKo ? `티셔츠 QR [${value}] 기준 데이터에 없음` : `T恤QR [${value}] 基准数据中不存在`;
         else reason = isKo ? `티셔츠 색상/사이즈 불일치 (${found.color}/${found.size} ≠ ${workItem.color}/${workItem.size})` : `T恤颜色/尺码不匹配 (${found.color}/${found.size} ≠ ${workItem.color}/${workItem.size})`;
       } else if (step === 2) {
-        const found = mockHoloQR[value];
+        const found = mockHoloQR[value] ?? (value === workItem.hologramQR ? { product: order.product, design: order.design, used: false } : undefined);
         if (found && baseProduct && found.product === baseProduct.product && found.design === baseProduct.design && !found.used) { pass = true; setLogoVerified(true); }
         else if (!found) reason = isKo ? `홀로그램 QR [${value}] 기준 데이터에 없음` : `全息QR [${value}] 基准数据中不存在`;
         else if (found?.used) reason = isKo ? `홀로그램 QR [${value}] 이미 사용됨 (중복)` : `全息QR [${value}] 已使用（重复）`;
         else reason = isKo ? "홀로그램 QR 상품/디자인코드 불일치" : "全息QR 商品/设计代码不匹配";
       } else if (step === 3) {
-        const found = mockDesignQR[value];
+        const found = mockDesignQR[value] ?? (value === workItem.designQR ? { product: order.product, design: order.design } : undefined);
         if (found && baseProduct && found.product === baseProduct.product && found.design === baseProduct.design) pass = true;
         else if (!found) reason = isKo ? `디자인 QR [${value}] 기준 데이터에 없음` : `设计QR [${value}] 基准数据中不存在`;
         else reason = isKo ? "디자인 QR 상품/디자인코드 불일치" : "设计QR 商品/设计代码不匹配";
@@ -473,9 +473,9 @@ export default function TshirtWork() {
                       <td className="py-2.5 pr-4 font-medium">{selectedOrder.product || "-"}</td>
                       <td className="py-2.5 pr-4 font-medium">{item.color}</td>
                       <td className="py-2.5 pr-4">{item.size}</td>
-                      <td className="py-2.5 font-mono text-xs pr-4">{selectedOrder.orderNo}-1</td>
-                      <td className="py-2.5 font-mono text-xs pr-4">{selectedOrder.orderNo}-2</td>
-                      <td className="py-2.5 font-mono text-xs pr-4">{selectedOrder.orderNo}-3</td>
+                      <td className="py-2.5 font-mono text-xs pr-4">{item.siliconQR}</td>
+                      <td className="py-2.5 font-mono text-xs pr-4">{item.designQR}</td>
+                      <td className="py-2.5 font-mono text-xs pr-4">{item.hologramQR}</td>
 
                       <td className="py-2.5 pr-4"><StatusBadge status={item.status} t={t} /></td>
                       <td className="py-2.5">
