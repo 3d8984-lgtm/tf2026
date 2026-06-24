@@ -165,16 +165,19 @@ export default function TshirtWork() {
       const dateKey = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
       dateCounters[dateKey] = (dateCounters[dateKey] || 0) + 1;
       const orderNo = `${dateKey}-${dateCounters[dateKey]}`;
-      const items: WorkItem[] = ((o.source_data as any)?.items ?? []).map((item: any, idx: number) => ({
-        seq: idx + 1,
-        color: item.tshirt_color ?? "",
-        size: item.tshirt_size ?? "",
-        siliconQR: item.silicon_qr ?? "",
-        designQR: item.design_qr ?? "",
-        hologramQR: item.hologram_qr ?? "",
-        tshirtSerial: item.tshirt_serial ?? "",
-        status: "pending" as const,
-      }));
+      const items: WorkItem[] = ((o.source_data as any)?.items ?? []).map((item: any, idx: number) => {
+        const qr = `${o.external_order_id}-${idx + 1}`;
+        return {
+          seq: idx + 1,
+          color: item.tshirt_color ?? "",
+          size: item.tshirt_size ?? "",
+          siliconQR: qr,
+          designQR: qr,
+          hologramQR: qr,
+          tshirtSerial: qr,
+          status: "pending" as const,
+        };
+      });
       const historyId = (o as any).upload_history_id;
       const logoUrl = historyId ? (logoUrlMap[historyId] ?? null) : null;
       const designCode = o.design_code ?? "";
