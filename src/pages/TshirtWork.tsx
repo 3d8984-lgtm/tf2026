@@ -451,6 +451,7 @@ export default function TshirtWork() {
                 <thead><tr className="border-b text-left">
                   {[
                     isKo ? "주문번호" : "订单号",
+                    isKo ? "티셔츠 종류" : "T恤种类",
                     t("tshirtWork.color"),
                     t("tshirtWork.size"),
                     isKo ? "마크고유번호" : "标识唯一编号",
@@ -466,11 +467,13 @@ export default function TshirtWork() {
                   {selectedOrder.items.map(item => (
                     <tr key={item.seq} className={`border-b last:border-0 transition-colors ${item.status === "pending" ? "hover:bg-muted/30" : ""}`}>
                       <td className="py-2.5 font-mono text-xs pr-4">{selectedOrder.orderNo}</td>
+                      <td className="py-2.5 pr-4 font-medium">{selectedOrder.product || "-"}</td>
                       <td className="py-2.5 pr-4 font-medium">{item.color}</td>
                       <td className="py-2.5 pr-4">{item.size}</td>
                       <td className="py-2.5 font-mono text-xs pr-4">{selectedOrder.orderNo}-1</td>
                       <td className="py-2.5 font-mono text-xs pr-4">{selectedOrder.orderNo}-2</td>
                       <td className="py-2.5 font-mono text-xs pr-4">{selectedOrder.orderNo}-3</td>
+
                       <td className="py-2.5 pr-4"><StatusBadge status={item.status} t={t} /></td>
                       <td className="py-2.5">
                         {item.status === "pending" && (
