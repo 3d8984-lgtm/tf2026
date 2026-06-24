@@ -281,7 +281,7 @@ export default function TshirtWork() {
   }, [isKo, mockTshirtQR, mockSiliconQR, mockDesignQR, mockHoloQR]);
 
   const handleScan = useCallback(() => {
-    const value = scanValue.trim();
+    const value = hangulToQwerty(scanValue).trim();
     if (!value || processing || !selectedOrder || !activeWorkItem) return;
     setScanValue("");
     if (hasFail || allDone) { resetScan(); return; }
