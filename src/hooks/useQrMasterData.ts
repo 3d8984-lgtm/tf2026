@@ -35,7 +35,7 @@ export function useQrMasterData() {
       if (error) throw error;
       const map: Record<string, { product: string; design: string }> = {};
       for (const r of data ?? []) {
-        map[r.qr_value] = { product: r.design_code, design: r.design_code };
+        map[r.qr_value] = { product: r.design_name ?? r.design_code ?? "", design: r.design_code ?? "" };
       }
       return map;
     },
@@ -48,7 +48,7 @@ export function useQrMasterData() {
       if (error) throw error;
       const map: Record<string, { product: string; design: string; used: boolean }> = {};
       for (const r of data ?? []) {
-        map[r.qr_value] = { product: r.serial_number, design: r.serial_number, used: false };
+        map[r.qr_value] = { product: r.serial_number ?? "", design: r.hologram_type ?? r.serial_number ?? "", used: false };
       }
       return map;
     },
