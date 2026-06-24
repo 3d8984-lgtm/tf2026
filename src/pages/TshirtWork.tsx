@@ -167,14 +167,17 @@ export default function TshirtWork() {
       const orderNo = `${dateKey}-${dateCounters[dateKey]}`;
       const items: WorkItem[] = ((o.source_data as any)?.items ?? []).map((item: any, idx: number) => {
         const qr = `${orderNo}-${idx + 1}`;
+        const color = item.tshirt_color ?? "";
+        const size = item.tshirt_size ?? "";
+        const tshirtKey = `${o.product_code ?? ""}-${color}-${size}`;
         return {
           seq: idx + 1,
-          color: item.tshirt_color ?? "",
-          size: item.tshirt_size ?? "",
+          color,
+          size,
           siliconQR: qr,
           designQR: qr,
           hologramQR: qr,
-          tshirtSerial: qr,
+          tshirtSerial: tshirtKey,
           status: "pending" as const,
         };
       });
