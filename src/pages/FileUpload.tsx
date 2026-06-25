@@ -896,7 +896,7 @@ export default function FileUpload() {
           nfc_front_url: str(22),
           twincode_svg_url: str(23),
           sign_url: str(24),
-          dtf_design_filename: str(25),
+          dtf_design_url: str(25),
         };
 
         if (orderMap.has(extId)) {
