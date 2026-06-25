@@ -791,7 +791,7 @@ export default function FileUpload() {
     { col: "W", category: CAT_DESIGN, key: "nfc_front_url", label: isKo ? "NFC 앞면 (링크)" : "NFC正面 (链接)", desc: isKo ? "NFC 앞면 원본 URL" : "NFC正面原图URL" },
     { col: "X", category: CAT_DESIGN, key: "twincode_svg_url", label: isKo ? "트윈코드 SVG (링크)" : "TwinCode SVG (链接)", desc: isKo ? "트윈코드 SVG 다운로드 URL" : "TwinCode SVG URL" },
     { col: "Y", category: CAT_DESIGN, key: "sign_url", label: isKo ? "싸인 (링크)" : "签名 (链接)", desc: isKo ? "사인 이미지 URL" : "签名图片URL" },
-    { col: "Z", category: CAT_DESIGN, key: "dtf_design_filename", label: isKo ? "DTF 디자인 (파일명)" : "DTF设计 (文件名)", desc: isKo ? "DTF 디자인 파일명" : "DTF设计文件名" },
+    { col: "Z", category: CAT_DESIGN, key: "dtf_design_url", label: isKo ? "DTF 디자인 (링크)" : "DTF设计 (链接)", desc: isKo ? "DTF 디자인 파일 URL" : "DTF设计文件URL" },
   ];
 
   const processFile = useCallback((file: File) => {
@@ -852,7 +852,7 @@ export default function FileUpload() {
       // N(13): nfc_ndef_data, O(14): cp_value
       // P(15): country_code, Q(16): recipient_name, R(17): phone, S(18): address,
       // T(19): zipcode, U(20): ship_date
-      // V~Z (21~25): design file URLs (logo, nfc front, twincode svg, sign, dtf filename)
+      // V~Z (21~25): design file URLs (logo, nfc front, twincode svg, sign, dtf design)
 
       const orderMap = new Map<string, {
         external_order_id: string;
@@ -896,7 +896,7 @@ export default function FileUpload() {
           nfc_front_url: str(22),
           twincode_svg_url: str(23),
           sign_url: str(24),
-          dtf_design_filename: str(25),
+          dtf_design_url: str(25),
         };
 
         if (orderMap.has(extId)) {
