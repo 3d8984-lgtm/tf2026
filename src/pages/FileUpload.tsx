@@ -791,7 +791,7 @@ export default function FileUpload() {
     { col: "W", category: CAT_DESIGN, key: "nfc_front_url", label: isKo ? "NFC 앞면 (링크)" : "NFC正面 (链接)", desc: isKo ? "NFC 앞면 원본 URL" : "NFC正面原图URL" },
     { col: "X", category: CAT_DESIGN, key: "twincode_svg_url", label: isKo ? "트윈코드 SVG (링크)" : "TwinCode SVG (链接)", desc: isKo ? "트윈코드 SVG 다운로드 URL" : "TwinCode SVG URL" },
     { col: "Y", category: CAT_DESIGN, key: "sign_url", label: isKo ? "싸인 (링크)" : "签名 (链接)", desc: isKo ? "사인 이미지 URL" : "签名图片URL" },
-    { col: "Z", category: CAT_DESIGN, key: "dtf_design_filename", label: isKo ? "DTF 디자인 (파일명)" : "DTF设计 (文件名)", desc: isKo ? "DTF 디자인 파일명" : "DTF设计文件名" },
+    { col: "Z", category: CAT_DESIGN, key: "dtf_design_url", label: isKo ? "DTF 디자인 (링크)" : "DTF设计 (链接)", desc: isKo ? "DTF 디자인 파일 URL" : "DTF设计文件URL" },
   ];
 
   const processFile = useCallback((file: File) => {
