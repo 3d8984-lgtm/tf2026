@@ -1047,9 +1047,10 @@ export default function FileUpload() {
 
   const categoryBadges = [
     { label: CAT_ORDER, cols: "A~C" },
-    { label: CAT_CARD, cols: "D~P" },
-    { label: CAT_TSHIRT, cols: "Q~S" },
-    { label: CAT_SHIP, cols: "T~X" },
+    { label: CAT_CARD, cols: "D~J, N~O" },
+    { label: CAT_TSHIRT, cols: "K~M" },
+    { label: CAT_SHIP, cols: "P~U" },
+    { label: CAT_DESIGN, cols: "V~Z" },
   ];
 
   const handleDownloadTemplate = () => {
