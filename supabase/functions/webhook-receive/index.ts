@@ -50,17 +50,22 @@ Deno.serve(async (req) => {
       const order = body.order || body;
 
       const orderData = {
-        external_order_id: order.external_order_id || order.order_id || order.id,
-        product_code: order.product_code || order.sku || "",
-        design_code: order.design_code || order.design || null,
+        external_order_id:
+          order.order_id || order.orderId || order.external_order_id || order.id || order.work_order_no,
+        product_code: order.product_code || order.tshirt_type || order.sku || order.종류 || "",
+        design_code: order.design_code || order.issued_no || order["ISSUED No."] || null,
         quantity: order.quantity || order.qty || 1,
-        recipient_name: order.recipient_name || order.name || "",
-        recipient_phone: order.recipient_phone || order.phone || null,
-        shipping_address: order.shipping_address || order.address || "",
+        recipient_name:
+          order.recipient_name || order.twinker_name || order.트윙커명 || order.수취인명 || order.name || "",
+        recipient_phone: order.recipient_phone || order.phone || order.연락처 || null,
+        shipping_address: order.shipping_address || order.address || order.주소 || "",
         shipping_city: order.shipping_city || order.city || null,
         shipping_state: order.shipping_state || order.state || null,
-        shipping_zip: order.shipping_zip || order.zip || null,
-        shipping_country: order.shipping_country || order.country || "US",
+        shipping_zip: order.shipping_zip || order.zip || order.zipcode || order.우편번호 || null,
+        shipping_country:
+          order.shipping_country || order.country || order.country_code || order.국가코드 || "US",
+        project_completed_at:
+          order.project_completed_at || order.ship_date || order.발송_예정일 || order["발송 예정일"] || null,
         source_data: body,
         status: "received" as const,
       };
