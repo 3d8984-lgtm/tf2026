@@ -852,7 +852,7 @@ export default function FileUpload() {
       // N(13): nfc_ndef_data, O(14): cp_value
       // P(15): country_code, Q(16): recipient_name, R(17): phone, S(18): address,
       // T(19): zipcode, U(20): ship_date
-      // V~Z (21~25): design file URLs (logo, nfc front, twincode svg, sign, dtf filename)
+      // V~Z (21~25): design file URLs (logo, nfc front, twincode svg, sign, dtf design)
 
       const orderMap = new Map<string, {
         external_order_id: string;
