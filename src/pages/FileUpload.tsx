@@ -1150,12 +1150,12 @@ export default function FileUpload() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-sm font-semibold mb-1">
-                    {isKo ? "API 수신 항목 (총 24개)" : "API接收字段 (共24个)"}
+                    {isKo ? "API 수신 항목 (총 26개)" : "API接收字段 (共26个)"}
                   </h3>
                   <p className="text-xs text-muted-foreground mb-3">
                     {isKo
-                      ? "TWINMETA 사이트에서 아래 24개 항목을 수신합니다. PNG/SVG 항목은 모두 다운로드 URL(링크) 형태로 전달됩니다."
-                      : "从TWINMETA站点接收以下24个字段。所有PNG/SVG字段以下载URL(链接)形式传输。"}
+                      ? "TWINMETA 사이트에서 아래 26개 항목을 수신합니다. 디자인 파일(로고/NFC/SVG/사인)은 다운로드 URL(링크) 형태로 전달됩니다."
+                      : "从TWINMETA站点接收以下26个字段。设计文件(LOGO/NFC/SVG/签名)以下载URL(链接)形式传输。"}
                   </p>
                   <div className="flex flex-wrap gap-2 mb-3">
                     {categoryBadges.map((g) => (
