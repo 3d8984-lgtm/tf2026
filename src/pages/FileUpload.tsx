@@ -845,13 +845,14 @@ export default function FileUpload() {
     if (!parsedRows.length) return;
     setSaving(true);
     try {
-      // Map Excel rows to orders table (new 24-column spec)
-      // A(0): work_order_no → external_order_id
-      // B(1): order_serial_no → product_code (fallback)
-      // C(2): twinker_name → recipient_name (preferred)
-      // D~P (3~15): card/twincode design data and asset URLs (stored in source_data)
-      // Q(16): tshirt_type, R(17): tshirt_color, S(18): tshirt_size
-      // T(19): country_code, U(20): recipient, V(21): phone, W(22): address, X(23): zipcode
+      // Map Excel rows to orders table (26-column spec)
+      // A(0): work_order_no, B(1): order_id → external_order_id, C(2): twinker_name
+      // D~J (3~9): card info (issued_no, minted_on, grade, edition, icon colors)
+      // K(10): tshirt_type, L(11): tshirt_color, M(12): tshirt_size
+      // N(13): nfc_ndef_data, O(14): cp_value
+      // P(15): country_code, Q(16): recipient_name, R(17): phone, S(18): address,
+      // T(19): zipcode, U(20): ship_date
+      // V~Z (21~25): design file URLs (logo, nfc front, twincode svg, sign, dtf filename)
 
       const orderMap = new Map<string, {
         external_order_id: string;
@@ -872,27 +873,30 @@ export default function FileUpload() {
 
       for (const row of parsedRows) {
         const str = (idx: number) => String(row[idx] ?? "").trim();
-        const extId = str(0);
+        const extId = str(1) || str(0);
         if (!extId) continue;
 
         const itemData = {
+          work_order_no: str(0),
+          order_id: str(1),
           twinker_name: str(2),
-          twincode_svg_url: str(3),
-          design_png_url: str(4),
-          cp_value: str(5),
-          sequence_no: str(6),
-          twincode_png_url: str(7),
-          dm_barcode_png_url: str(8),
-          edition: str(9),
-          minted_on: str(10),
-          grade: str(11),
-          sign_png_url: str(12),
-          card_front_png_url: str(13),
-          card_back_png_url: str(14),
-          logo_png_url: str(15),
-          tshirt_type: str(16),
-          tshirt_color: str(17),
-          tshirt_size: str(18),
+          issued_no: str(3),
+          minted_on: str(4),
+          grade: str(5),
+          edition: str(6),
+          card_front_icon_inner_color: str(7),
+          card_front_icon_outer_color: str(8),
+          card_back_icon_color: str(9),
+          tshirt_type: str(10),
+          tshirt_color: str(11),
+          tshirt_size: str(12),
+          nfc_ndef_data: str(13),
+          cp_value: str(14),
+          twinker_logo_url: str(21),
+          nfc_front_url: str(22),
+          twincode_svg_url: str(23),
+          sign_url: str(24),
+          dtf_design_filename: str(25),
         };
 
         if (orderMap.has(extId)) {
@@ -901,21 +905,23 @@ export default function FileUpload() {
           ((existing.source_data as { items: Record<string, string>[] }).items).push(itemData);
         } else {
           const twinkerName = str(2);
-          const recipientName = str(20);
+          const recipientName = str(16);
+          const shipDate = str(20);
           orderMap.set(extId, {
             external_order_id: extId,
-            product_code: str(1) || extId,
-            design_code: str(4) || null,
+            product_code: str(10) || extId,
+            design_code: str(3) || null,
             quantity: 1,
             recipient_name: twinkerName || recipientName || "N/A",
-            recipient_phone: str(21) || null,
-            shipping_address: str(22) || "N/A",
+            recipient_phone: str(17) || null,
+            shipping_address: str(18) || "N/A",
             shipping_city: null,
             shipping_state: null,
-            shipping_zip: str(23) || null,
-            shipping_country: str(19) || "US",
-            project_completed_at: null,
-            source_data: { items: [itemData] },
+            shipping_zip: str(19) || null,
+            shipping_country: str(15) || "US",
+            project_completed_at: shipDate || null,
+            source_data: { items: [itemData], work_order_no: str(0) },
+            logo_url: str(21) || null,
           });
         }
       }
