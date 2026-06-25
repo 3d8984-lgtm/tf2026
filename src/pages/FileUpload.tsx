@@ -809,7 +809,7 @@ export default function FileUpload() {
         const workbook = XLSX.read(data, { type: "array" });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
-        const dataRows = rows.slice(2);
+        const dataRows = rows.slice(1);
         const totalRows = dataRows.length;
 
         const colResults = columnSpec.map((spec, idx) => {
