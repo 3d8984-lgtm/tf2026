@@ -754,39 +754,44 @@ export default function FileUpload() {
   const uploadHistory = allUploadHistory.filter((h: any) => (h.source || 'file') === 'file');
   const apiHistory = allUploadHistory.filter((h: any) => (h.source) === 'api');
 
-  // Column spec for file upload (24 fields, matches API ingest)
+  // Column spec for file upload (26 fields, matches API ingest)
   const CAT_ORDER = isKo ? "주문 정보" : "订单信息";
-  const CAT_CARD = isKo ? "트윈코드/카드 디자인" : "TwinCode/卡片设计";
+  const CAT_CARD = isKo ? "카드 정보" : "卡片信息";
   const CAT_TSHIRT = isKo ? "티셔츠 정보" : "T恤信息";
   const CAT_SHIP = isKo ? "배송 정보" : "配送信息";
+  const CAT_DESIGN = isKo ? "디자인 파일" : "设计文件";
   const columnSpec = [
-    { col: "A", category: CAT_ORDER, key: "work_order_no", label: isKo ? "작업번호" : "作业编号", desc: isKo ? "고유 작업번호" : "唯一作业编号" },
-    { col: "B", category: CAT_ORDER, key: "order_serial_no", label: isKo ? "주문일련번호" : "订单流水号", desc: isKo ? "주문 식별 일련번호" : "订单识别流水号" },
-    { col: "C", category: CAT_ORDER, key: "twinker_name", label: isKo ? "트윈커명" : "Twinker名", desc: isKo ? "트윈커(주문자) 이름" : "Twinker(下单人)名称" },
+    { col: "A", category: CAT_ORDER, key: "work_order_no", label: isKo ? "작업지시번호" : "作业指令编号", desc: isKo ? "작업지시번호" : "作业指令编号" },
+    { col: "B", category: CAT_ORDER, key: "order_id", label: "orderId", desc: isKo ? "주문 식별 ID" : "订单ID" },
+    { col: "C", category: CAT_ORDER, key: "twinker_name", label: isKo ? "트윙커명" : "Twinker名", desc: isKo ? "트윈커(주문자) 이름" : "Twinker(下单人)名称" },
 
-    { col: "D", category: CAT_CARD, key: "twincode_svg_url", label: isKo ? "트윈코드 SVG (링크)" : "TwinCode SVG (链接)", desc: isKo ? "트윈코드 SVG 다운로드 URL" : "TwinCode SVG下载URL" },
-    { col: "E", category: CAT_CARD, key: "design_png_url", label: isKo ? "디자인 PNG (링크)" : "设计 PNG (链接)", desc: isKo ? "디자인 PNG 이미지 URL" : "设计PNG图片URL" },
-    { col: "F", category: CAT_CARD, key: "cp_value", label: isKo ? "CP값" : "CP值", desc: isKo ? "CP 식별 값" : "CP识别值" },
-    { col: "G", category: CAT_CARD, key: "sequence_no", label: isKo ? "순번번호" : "序号", desc: isKo ? "발행 순번" : "发行序号" },
-    { col: "H", category: CAT_CARD, key: "twincode_png_url", label: isKo ? "트윈코드 PNG (링크)" : "TwinCode PNG (链接)", desc: isKo ? "트윈코드 PNG 이미지 URL" : "TwinCode PNG URL" },
-    { col: "I", category: CAT_CARD, key: "dm_barcode_png_url", label: isKo ? "DM 바코드 PNG (링크)" : "DM条码 PNG (链接)", desc: isKo ? "DM 바코드 이미지 URL" : "DM条码图片URL" },
-    { col: "J", category: CAT_CARD, key: "edition", label: isKo ? "EDITION 값" : "EDITION值", desc: isKo ? "에디션 번호" : "版本号" },
-    { col: "K", category: CAT_CARD, key: "minted_on", label: isKo ? "Minted on 값" : "Minted on值", desc: isKo ? "발행일(Minted on)" : "发行日期" },
-    { col: "L", category: CAT_CARD, key: "grade", label: isKo ? "등급 값" : "等级值", desc: isKo ? "카드 등급" : "卡片等级" },
-    { col: "M", category: CAT_CARD, key: "sign_png_url", label: isKo ? "싸인 PNG (링크)" : "签名 PNG (链接)", desc: isKo ? "사인 이미지 URL" : "签名图片URL" },
-    { col: "N", category: CAT_CARD, key: "card_front_png_url", label: isKo ? "카드 앞면 디자인 PNG (링크)" : "卡片正面设计 PNG (链接)", desc: isKo ? "카드 앞면 이미지 URL" : "卡片正面图片URL" },
-    { col: "O", category: CAT_CARD, key: "card_back_png_url", label: isKo ? "카드 뒷면 디자인 PNG (링크)" : "卡片背面设计 PNG (链接)", desc: isKo ? "카드 뒷면 이미지 URL" : "卡片背面图片URL" },
-    { col: "P", category: CAT_CARD, key: "logo_png_url", label: isKo ? "LOGO PNG (링크)" : "LOGO PNG (链接)", desc: isKo ? "로고 이미지 URL" : "LOGO图片URL" },
+    { col: "D", category: CAT_CARD, key: "issued_no", label: "ISSUED No.", desc: isKo ? "발행 번호" : "发行编号" },
+    { col: "E", category: CAT_CARD, key: "minted_on", label: "Minted on", desc: isKo ? "발행일" : "发行日期" },
+    { col: "F", category: CAT_CARD, key: "grade", label: isKo ? "등급" : "等级", desc: isKo ? "카드 등급" : "卡片等级" },
+    { col: "G", category: CAT_CARD, key: "edition", label: isKo ? "에디션" : "版本", desc: isKo ? "에디션 번호" : "版本号" },
+    { col: "H", category: CAT_CARD, key: "card_front_icon_inner_color", label: isKo ? "카드앞면 아이콘 내부색상" : "卡片正面图标内部颜色", desc: isKo ? "앞면 아이콘 내부 색상" : "正面图标内部颜色" },
+    { col: "I", category: CAT_CARD, key: "card_front_icon_outer_color", label: isKo ? "카드앞면 아이콘 외부색상" : "卡片正面图标外部颜色", desc: isKo ? "앞면 아이콘 외부 색상" : "正面图标外部颜色" },
+    { col: "J", category: CAT_CARD, key: "card_back_icon_color", label: isKo ? "카드 뒷면 아이콘 색상" : "卡片背面图标颜色", desc: isKo ? "뒷면 아이콘 색상" : "背面图标颜色" },
 
-    { col: "Q", category: CAT_TSHIRT, key: "tshirt_type", label: isKo ? "티셔츠 종류" : "T恤种类", desc: isKo ? "티셔츠 제품 유형" : "T恤产品类型" },
-    { col: "R", category: CAT_TSHIRT, key: "tshirt_color", label: isKo ? "티셔츠 컬러" : "T恤颜色", desc: isKo ? "티셔츠 색상" : "T恤颜色" },
-    { col: "S", category: CAT_TSHIRT, key: "tshirt_size", label: isKo ? "티셔츠 사이즈" : "T恤尺码", desc: isKo ? "티셔츠 사이즈" : "T恤尺码" },
+    { col: "K", category: CAT_TSHIRT, key: "tshirt_type", label: isKo ? "종류" : "种类", desc: isKo ? "티셔츠 종류" : "T恤种类" },
+    { col: "L", category: CAT_TSHIRT, key: "tshirt_color", label: isKo ? "컬러" : "颜色", desc: isKo ? "티셔츠 컬러" : "T恤颜色" },
+    { col: "M", category: CAT_TSHIRT, key: "tshirt_size", label: isKo ? "사이즈" : "尺码", desc: isKo ? "티셔츠 사이즈" : "T恤尺码" },
 
-    { col: "T", category: CAT_SHIP, key: "country_code", label: isKo ? "국가기호" : "国家代码", desc: isKo ? "배송 국가 코드" : "配送国家代码" },
-    { col: "U", category: CAT_SHIP, key: "recipient", label: isKo ? "수취인명" : "收件人", desc: isKo ? "택배 수취인 이름" : "快递收件人姓名" },
-    { col: "V", category: CAT_SHIP, key: "phone", label: isKo ? "연락처" : "联系方式", desc: isKo ? "수취인 연락처" : "收件人联系方式" },
-    { col: "W", category: CAT_SHIP, key: "address", label: isKo ? "주소" : "地址", desc: isKo ? "배송지 주소" : "配送地址" },
-    { col: "X", category: CAT_SHIP, key: "zipcode", label: isKo ? "우편번호" : "邮编", desc: isKo ? "배송지 우편번호" : "配送地邮编" },
+    { col: "N", category: CAT_CARD, key: "nfc_ndef_data", label: isKo ? "NFC 칩 굽기 데이터 (NDEF: slug|nfcId|cp)" : "NFC芯片烧录数据(NDEF: slug|nfcId|cp)", desc: isKo ? "NFC 칩에 기록할 NDEF 데이터" : "NFC芯片NDEF数据" },
+    { col: "O", category: CAT_CARD, key: "cp_value", label: isKo ? "CP값" : "CP值", desc: isKo ? "CP 식별 값" : "CP识别值" },
+
+    { col: "P", category: CAT_SHIP, key: "country_code", label: isKo ? "국가코드" : "国家代码", desc: isKo ? "배송 국가 코드" : "配送国家代码" },
+    { col: "Q", category: CAT_SHIP, key: "recipient_name", label: isKo ? "수취인명" : "收件人", desc: isKo ? "택배 수취인 이름" : "快递收件人姓名" },
+    { col: "R", category: CAT_SHIP, key: "phone", label: isKo ? "연락처" : "联系方式", desc: isKo ? "수취인 연락처" : "收件人联系方式" },
+    { col: "S", category: CAT_SHIP, key: "address", label: isKo ? "주소" : "地址", desc: isKo ? "배송지 주소" : "配送地址" },
+    { col: "T", category: CAT_SHIP, key: "zipcode", label: isKo ? "우편번호" : "邮编", desc: isKo ? "배송지 우편번호" : "配送地邮编" },
+    { col: "U", category: CAT_SHIP, key: "ship_date", label: isKo ? "발송 예정일" : "预计发货日", desc: isKo ? "발송 예정 일자" : "预计发货日期" },
+
+    { col: "V", category: CAT_DESIGN, key: "twinker_logo_url", label: isKo ? "트윈커 로고 (링크)" : "Twinker LOGO (链接)", desc: isKo ? "트윈커 로고 이미지 URL" : "Twinker LOGO URL" },
+    { col: "W", category: CAT_DESIGN, key: "nfc_front_url", label: isKo ? "NFC 앞면 (링크)" : "NFC正面 (链接)", desc: isKo ? "NFC 앞면 원본 URL" : "NFC正面原图URL" },
+    { col: "X", category: CAT_DESIGN, key: "twincode_svg_url", label: isKo ? "트윈코드 SVG (링크)" : "TwinCode SVG (链接)", desc: isKo ? "트윈코드 SVG 다운로드 URL" : "TwinCode SVG URL" },
+    { col: "Y", category: CAT_DESIGN, key: "sign_url", label: isKo ? "싸인 (링크)" : "签名 (链接)", desc: isKo ? "사인 이미지 URL" : "签名图片URL" },
+    { col: "Z", category: CAT_DESIGN, key: "dtf_design_filename", label: isKo ? "DTF 디자인 (파일명)" : "DTF设计 (文件名)", desc: isKo ? "DTF 디자인 파일명" : "DTF设计文件名" },
   ];
 
   const processFile = useCallback((file: File) => {
