@@ -32,12 +32,24 @@ export default function ProductionMonitor() {
   const { data: shipments } = useShipments();
 
   const [stageDetail, setStageDetail] = useState<{ orderId: string; stage: StageKey } | null>(null);
+  const [orderDetailId, setOrderDetailId] = useState<string | null>(null);
 
   const detailOrder = stageDetail ? orders?.find(o => o.id === stageDetail.orderId) : null;
+  const orderDetail = orderDetailId ? orders?.find(o => o.id === orderDetailId) : null;
+  const orderDetailTracking = useMemo(() => {
+    if (!orderDetailId) return [];
+    return (tracking ?? []).filter(t => t.order_id === orderDetailId);
+  }, [tracking, orderDetailId]);
+  const orderDetailShipments = useMemo(() => {
+    if (!orderDetailId) return [];
+    return (shipments ?? []).filter(s => s.order_id === orderDetailId);
+  }, [shipments, orderDetailId]);
+
   const detailTracking = useMemo(() => {
     if (!stageDetail) return [];
     return (tracking ?? []).filter(t => t.order_id === stageDetail.orderId && t.stage === stageDetail.stage);
   }, [tracking, stageDetail]);
+
   const detailShipments = useMemo(() => {
     if (!stageDetail) return [];
     return (shipments ?? []).filter(s => s.order_id === stageDetail.orderId);
@@ -62,7 +74,11 @@ export default function ProductionMonitor() {
           </TabsList>
 
           <TabsContent value="pipeline" className="space-y-6">
-            <OrderPipeline onStageClick={(orderId, stage) => setStageDetail({ orderId, stage: stage as StageKey })} />
+            <OrderPipeline
+              onStageClick={(orderId, stage) => setStageDetail({ orderId, stage: stage as StageKey })}
+              onOrderClick={(orderId) => setOrderDetailId(orderId)}
+            />
+
           </TabsContent>
 
           <TabsContent value="machines" className="space-y-6">
