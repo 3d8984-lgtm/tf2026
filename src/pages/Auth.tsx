@@ -137,6 +137,16 @@ export default function Auth() {
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "..." : isLogin ? t("auth.login") : t("auth.signup")}
           </Button>
+          {isLogin && (
+            <button
+              type="button"
+              onClick={handleForgotPassword}
+              className="w-full text-center text-xs text-muted-foreground hover:text-foreground hover:underline"
+              disabled={loading}
+            >
+              비밀번호를 잊으셨나요?
+            </button>
+          )}
         </form>
 
         {/* Toggle */}
