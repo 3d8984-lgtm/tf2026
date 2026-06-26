@@ -872,12 +872,14 @@ export default function FileUpload() {
 
       for (const row of parsedRows) {
         const str = (idx: number) => String(row[idx] ?? "").trim();
-        const extId = str(1) || str(0);
+        // 작업지시번호(컬럼 A) 기준으로 그룹핑. A가 비어 있으면 B(개별 주문 ID)로 폴백.
+        const extId = str(0) || str(1);
         if (!extId) continue;
 
         const itemData = {
           work_order_no: str(0),
           order_id: str(1),
+          sequence_no: str(1),
           twinker_name: str(2),
           issued_no: str(3),
           minted_on: str(4),
@@ -891,6 +893,12 @@ export default function FileUpload() {
           tshirt_size: str(12),
           nfc_ndef_data: str(13),
           cp_value: str(14),
+          country_code: str(15),
+          recipient_name: str(16),
+          recipient_phone: str(17),
+          shipping_address: str(18),
+          shipping_zip: str(19),
+          ship_date: str(20),
           twinker_logo_url: str(21),
           twincode_svg_url: str(22),
           sign_url: str(23),
@@ -923,6 +931,7 @@ export default function FileUpload() {
           });
         }
       }
+
 
 
       const orders = Array.from(orderMap.values());
