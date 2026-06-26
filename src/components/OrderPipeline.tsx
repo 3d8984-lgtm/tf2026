@@ -28,9 +28,11 @@ function pct(count: number, total: number) {
 
 interface OrderPipelineProps {
   onStageClick?: (orderId: string, stage: StageKey) => void;
+  onOrderClick?: (orderId: string) => void;
 }
 
-export default function OrderPipeline({ onStageClick }: OrderPipelineProps = {}) {
+
+export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipelineProps = {}) {
   const { lang } = useLang();
   const isKo = lang === "ko";
   const { data: orders, isLoading: ordersLoading } = useOrders();
@@ -130,10 +132,18 @@ export default function OrderPipeline({ onStageClick }: OrderPipelineProps = {})
           <div key={order.id} className="kpi-card section-enter" style={{ animationDelay: `${(oi + 1) * 80}ms` }}>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <span className="text-sm font-semibold">{order.woNumber}</span>
+                <button
+                  type="button"
+                  onClick={() => onOrderClick?.(order.id)}
+                  className="text-sm font-semibold text-primary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded px-1 -mx-1"
+                  title={isKo ? "주문 상세 보기" : "查看订单详情"}
+                >
+                  {order.woNumber}
+                </button>
                 <span className="text-xs text-muted-foreground">{isKo ? "접수" : "接单"}: {order.createdDate}</span>
                 <span className="text-xs text-muted-foreground">{isKo ? "납기" : "交期"}: {order.dueDate}</span>
               </div>
+
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground tabular-nums">{overallDone} / {order.qty}</span>
                 <span className={`status-badge ${isDone ? "status-running" : overallPct > 60 ? "status-warning" : "status-idle"}`}>
