@@ -41,12 +41,15 @@ interface ScanResult {
 
 interface HistoryEntry {
   id: string;
+  orderId: string;
   at: number;
   barcodes: string[];
   serials: string[];
   ok: boolean;
   reason: string;
 }
+
+const QR_HISTORY_KEY = "card-qr-inspect-history";
 
 export default function CardQrInspection() {
   const { lang } = useLang();
@@ -113,7 +116,15 @@ export default function CardQrInspection() {
     if (order) inputRef.current?.focus();
   }, [order, scans.length]);
 
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [history, setHistory] = useState<HistoryEntry[]>(() => {
+    try {
+      const raw = localStorage.getItem(QR_HISTORY_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(QR_HISTORY_KEY, JSON.stringify(history)); } catch {}
+  }, [history]);
 
   const reset = useCallback(() => {
     setScans([]);
@@ -121,8 +132,8 @@ export default function CardQrInspection() {
     setTimeout(() => inputRef.current?.focus(), 50);
   }, []);
 
-  // When switching orders, reset
-  useEffect(() => { reset(); setHistory([]); }, [selectedOrderId, reset]);
+  // When switching orders, reset scans only (keep persistent history)
+  useEffect(() => { reset(); }, [selectedOrderId, reset]);
 
   const handleScan = (raw: string) => {
     const code = raw.trim();
@@ -164,20 +175,21 @@ export default function CardQrInspection() {
   // Append to history when 3 scans + verification ready
   const lastLoggedRef = useRef<string>("");
   useEffect(() => {
-    if (scans.length === 3 && verification) {
+    if (scans.length === 3 && verification && order) {
       const key = scans.map(s => s.scannedAt).join("-");
       if (lastLoggedRef.current === key) return;
       lastLoggedRef.current = key;
       setHistory(prev => [{
         id: key,
+        orderId: order.id,
         at: Date.now(),
         barcodes: scans.map(s => s.barcode),
         serials: scans.map(s => s.card?.card_serial ?? "-"),
         ok: verification.ok,
         reason: verification.reason,
-      }, ...prev].slice(0, 50));
+      }, ...prev].slice(0, 200));
     }
-  }, [scans, verification]);
+  }, [scans, verification, order]);
 
 
   // ─── Order list view ──────────────────────────────────────────────────
@@ -197,25 +209,55 @@ export default function CardQrInspection() {
                   <th className="text-left px-4 py-2 font-medium">{t("트윈커", "Twinker")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("상품", "商品")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("카드 수량", "卡片数量")}</th>
+                  <th className="text-left px-4 py-2 font-medium">{t("검사 진행", "检验进度")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("납기", "交期")}</th>
                   <th className="px-4 py-2"></th>
                 </tr>
               </thead>
               <tbody>
-                {orders.map(o => (
-                  <tr key={o.id} className="border-t hover:bg-muted/20 cursor-pointer" onClick={() => setSelectedOrderId(o.id)}>
-                    <td className="px-4 py-3 font-medium">{o.externalOrderId}</td>
-                    <td className="px-4 py-3">{o.twinker}</td>
-                    <td className="px-4 py-3">{o.product}</td>
-                    <td className="px-4 py-3 tabular-nums">{o.items.length}</td>
-                    <td className="px-4 py-3">{o.dueDate}</td>
-                    <td className="px-4 py-3 text-right">
-                      <Button size="sm" variant="outline">{t("선택", "选择")}</Button>
-                    </td>
-                  </tr>
-                ))}
+                {orders.map(o => {
+                  // Status per barcode for this order based on persisted history
+                  const oh = history.filter(h => h.orderId === o.id);
+                  const statusByBarcode = new Map<string, boolean>();
+                  // Walk oldest → newest so latest wins
+                  for (let i = oh.length - 1; i >= 0; i--) {
+                    const h = oh[i];
+                    h.barcodes.forEach(b => statusByBarcode.set(b, h.ok));
+                  }
+                  let pass = 0, fail = 0;
+                  o.items.forEach(it => {
+                    const v = statusByBarcode.get(it.card_barcode);
+                    if (v === true) pass++;
+                    else if (v === false) fail++;
+                  });
+                  const done = pass + fail;
+                  const total = o.items.length;
+                  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                  return (
+                    <tr key={o.id} className="border-t hover:bg-muted/20 cursor-pointer" onClick={() => setSelectedOrderId(o.id)}>
+                      <td className="px-4 py-3 font-medium">{o.externalOrderId}</td>
+                      <td className="px-4 py-3">{o.twinker}</td>
+                      <td className="px-4 py-3">{o.product}</td>
+                      <td className="px-4 py-3 tabular-nums">{total}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-24 h-1.5 rounded-full bg-muted overflow-hidden">
+                            <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-xs tabular-nums text-muted-foreground">{done}/{total}</span>
+                          {pass > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]">✓{pass}</span>}
+                          {fail > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/15 text-destructive">!{fail}</span>}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">{o.dueDate}</td>
+                      <td className="px-4 py-3 text-right">
+                        <Button size="sm" variant="outline">{t("선택", "选择")}</Button>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {orders.length === 0 && (
-                  <tr><td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">{t("주문이 없습니다", "暂无订单")}</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">{t("주문이 없습니다", "暂无订单")}</td></tr>
                 )}
               </tbody>
             </table>
@@ -262,6 +304,48 @@ export default function CardQrInspection() {
       </PageHeader>
 
       <div className="flex-1 overflow-auto p-6 space-y-4">
+        {/* Card grid — per-card status from history */}
+        {(() => {
+          const oh = history.filter(h => h.orderId === order.id);
+          const statusByBarcode = new Map<string, boolean>();
+          for (let i = oh.length - 1; i >= 0; i--) {
+            oh[i].barcodes.forEach(b => statusByBarcode.set(b, oh[i].ok));
+          }
+          const passCount = order.items.filter(it => statusByBarcode.get(it.card_barcode) === true).length;
+          const failCount = order.items.filter(it => statusByBarcode.get(it.card_barcode) === false).length;
+          return (
+            <div className="rounded-lg border bg-card overflow-hidden">
+              <div className="px-4 py-2 border-b bg-muted/30 text-sm font-semibold flex items-center justify-between">
+                <span>{t("카드 목록", "卡片列表")}</span>
+                <span className="text-xs text-muted-foreground">
+                  {t(`합격 ${passCount} · 불일치 ${failCount} · 대기 ${order.items.length - passCount - failCount} / 총 ${order.items.length}`,
+                     `合格 ${passCount} · 不一致 ${failCount} · 等待 ${order.items.length - passCount - failCount} / 共 ${order.items.length}`)}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 p-3">
+                {order.items.map((it, idx) => {
+                  const v = statusByBarcode.get(it.card_barcode);
+                  const status: "pending" | "pass" | "fail" = v === undefined ? "pending" : v ? "pass" : "fail";
+                  const styles = {
+                    pending: "border-border bg-muted/20 text-muted-foreground",
+                    pass: "border-[hsl(var(--success)/0.5)] bg-[hsl(var(--success)/0.1)] text-[hsl(var(--success))]",
+                    fail: "border-destructive/50 bg-destructive/10 text-destructive",
+                  }[status];
+                  return (
+                    <div key={idx} className={`rounded-lg border p-2 ${styles}`} title={it.card_barcode}>
+                      <div className="text-[10px] font-semibold opacity-70">#{idx + 1}</div>
+                      <div className="text-xs font-mono truncate">{it.card_serial || "-"}</div>
+                      <div className="text-[10px] opacity-70">
+                        {status === "pending" ? t("대기", "等待") : status === "pass" ? t("합격", "合格") : t("불일치", "不一致")}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Scan input */}
         <div className="rounded-lg border bg-card p-4">
           <div className="flex items-center gap-3">

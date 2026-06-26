@@ -403,26 +403,45 @@ export default function CardPhotoInspection() {
                   <th className="text-left px-4 py-2 font-medium">{t("트윈커", "Twinker")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("상품", "商品")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("카드 수량", "卡片数量")}</th>
+                  <th className="text-left px-4 py-2 font-medium">{t("검사 진행", "检验进度")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("납기", "交期")}</th>
                   <th className="px-4 py-2"></th>
                 </tr>
               </thead>
               <tbody>
-                {orders.map(o => (
-                  <tr key={o.id} className="border-t hover:bg-muted/20 cursor-pointer"
-                    onClick={() => { setSelectedOrderId(o.id); setSelectedItemIdx(0); }}>
-                    <td className="px-4 py-3 font-medium">{o.externalOrderId}</td>
-                    <td className="px-4 py-3">{o.twinker}</td>
-                    <td className="px-4 py-3">{o.product}</td>
-                    <td className="px-4 py-3 tabular-nums">{o.items.length}</td>
-                    <td className="px-4 py-3">{o.dueDate}</td>
-                    <td className="px-4 py-3 text-right">
-                      <Button size="sm" variant="outline">{t("선택", "选择")}</Button>
-                    </td>
-                  </tr>
-                ))}
+                {orders.map(o => {
+                  const oh = history.filter(h => h.orderId === o.id);
+                  const pass = oh.filter(h => h.pass).length;
+                  const fail = oh.filter(h => !h.pass).length;
+                  const total = o.items.length;
+                  const done = oh.length;
+                  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                  return (
+                    <tr key={o.id} className="border-t hover:bg-muted/20 cursor-pointer"
+                      onClick={() => { setSelectedOrderId(o.id); setSelectedItemIdx(0); }}>
+                      <td className="px-4 py-3 font-medium">{o.externalOrderId}</td>
+                      <td className="px-4 py-3">{o.twinker}</td>
+                      <td className="px-4 py-3">{o.product}</td>
+                      <td className="px-4 py-3 tabular-nums">{total}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-24 h-1.5 rounded-full bg-muted overflow-hidden">
+                            <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-xs tabular-nums text-muted-foreground">{done}/{total}</span>
+                          {pass > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]">✓{pass}</span>}
+                          {fail > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[hsl(var(--warning)/0.15)] text-[hsl(var(--warning))]">!{fail}</span>}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">{o.dueDate}</td>
+                      <td className="px-4 py-3 text-right">
+                        <Button size="sm" variant="outline">{t("선택", "选择")}</Button>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {orders.length === 0 && (
-                  <tr><td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">{t("주문이 없습니다", "暂无订单")}</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">{t("주문이 없습니다", "暂无订单")}</td></tr>
                 )}
               </tbody>
             </table>
@@ -448,6 +467,42 @@ export default function CardPhotoInspection() {
       </PageHeader>
 
       <div className="flex-1 overflow-auto p-6 space-y-4">
+        {/* Card grid — per-card status, click to select */}
+        <div className="rounded-lg border bg-card overflow-hidden">
+          <div className="px-4 py-2 border-b bg-muted/30 text-sm font-semibold flex items-center justify-between">
+            <span>{t("카드 목록", "卡片列表")}</span>
+            <span className="text-xs text-muted-foreground">
+              {t(`완료 ${orderHistory.length}/${order.items.length}`, `已完成 ${orderHistory.length}/${order.items.length}`)}
+            </span>
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 p-3">
+            {order.items.map((it, idx) => {
+              const h = orderHistory.find(x => x.itemIdx === idx);
+              const status: "pending" | "pass" | "fail" = !h ? "pending" : h.pass ? "pass" : "fail";
+              const isActive = idx === selectedItemIdx;
+              const styles = {
+                pending: "border-border bg-muted/20 text-muted-foreground",
+                pass: "border-[hsl(var(--success)/0.5)] bg-[hsl(var(--success)/0.1)] text-[hsl(var(--success))]",
+                fail: "border-[hsl(var(--warning)/0.5)] bg-[hsl(var(--warning)/0.1)] text-[hsl(var(--warning))]",
+              }[status];
+              return (
+                <button
+                  key={idx}
+                  onClick={() => { setSelectedItemIdx(idx); reset(); }}
+                  className={`relative rounded-lg border p-2 text-left transition-all ${styles} ${isActive ? "ring-2 ring-primary" : ""}`}
+                  title={it.card_serial || it.card_barcode}
+                >
+                  <div className="text-[10px] font-semibold opacity-70">#{idx + 1}</div>
+                  <div className="text-xs font-mono truncate">{it.card_serial || "-"}</div>
+                  <div className="text-[10px] opacity-60">
+                    {status === "pending" ? t("대기", "等待") : status === "pass" ? t("합격", "合格") : t(`불일치 ${h?.failCount}`, `不一致 ${h?.failCount}`)}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Camera */}
         <div className="rounded-lg border bg-card p-4">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
