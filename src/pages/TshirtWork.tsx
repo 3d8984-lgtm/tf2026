@@ -513,7 +513,7 @@ export default function TshirtWork() {
                 <tbody>
                   {selectedOrder.items.map(item => (
                     <tr key={item.seq} className={`border-b last:border-0 transition-colors ${item.status === "pending" ? "hover:bg-muted/30" : ""}`}>
-                      <td className="py-2.5 font-mono text-xs pr-4">{selectedOrder.orderNo}</td>
+                      <td className="py-2.5 font-mono text-xs pr-4">{selectedOrder.externalOrderId}-{item.seq}</td>
                       <td className="py-2.5 pr-4 font-medium">{selectedOrder.product || "-"}</td>
                       <td className="py-2.5 pr-4 font-medium">{item.color}</td>
                       <td className="py-2.5 pr-4">{item.size}</td>
