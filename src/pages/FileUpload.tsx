@@ -688,15 +688,23 @@ export default function FileUpload() {
       const historyIds = rows.map((r: any) => r.id);
       const { data: orderRows } = await (supabase
         .from("orders")
-        .select("external_order_id,upload_history_id,recipient_name,source_data") as any)
+        .select("external_order_id,upload_history_id,recipient_name,source_data,logo_url") as any)
         .in("upload_history_id", historyIds);
 
       const foldersByHistory = new Map<string, string[]>();
       const twinkersByHistory = new Map<string, string[]>();
+      const excelLogoByHistory = new Map<string, string>();
       (orderRows || []).forEach((o: any) => {
         const arr = foldersByHistory.get(o.upload_history_id) || [];
         arr.push(o.external_order_id);
         foldersByHistory.set(o.upload_history_id, arr);
+
+        // Capture Excel V column logo URL (same across rows; first non-empty wins)
+        if (!excelLogoByHistory.has(o.upload_history_id)) {
+          const fromItem = (o.source_data as any)?.items?.find((it: any) => it?.twinker_logo_url)?.twinker_logo_url;
+          const url = (o.logo_url || fromItem || "").toString().trim();
+          if (url) excelLogoByHistory.set(o.upload_history_id, url);
+        }
 
         // Collect unique twinker names per history.
         // File upload: source_data.items[*].twinker. Webhook: order.twinker / recipient_name.
@@ -721,7 +729,9 @@ export default function FileUpload() {
       const reconciled = await Promise.all(rows.map(async (r: any) => {
         const folders = foldersByHistory.get(r.id) || [];
         const twinkers = twinkersByHistory.get(r.id) || [];
-        if (folders.length === 0) return { ...r, twinkers };
+        const excelLogoUrl = excelLogoByHistory.get(r.id) || null;
+        if (folders.length === 0) return { ...r, twinkers, excelLogoUrl };
+
 
         const [designCounts, twincodeCounts] = await Promise.all([
           Promise.all(folders.map(async (f) => {
