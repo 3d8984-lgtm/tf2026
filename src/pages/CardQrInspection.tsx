@@ -304,6 +304,48 @@ export default function CardQrInspection() {
       </PageHeader>
 
       <div className="flex-1 overflow-auto p-6 space-y-4">
+        {/* Card grid — per-card status from history */}
+        {(() => {
+          const oh = history.filter(h => h.orderId === order.id);
+          const statusByBarcode = new Map<string, boolean>();
+          for (let i = oh.length - 1; i >= 0; i--) {
+            oh[i].barcodes.forEach(b => statusByBarcode.set(b, oh[i].ok));
+          }
+          const passCount = order.items.filter(it => statusByBarcode.get(it.card_barcode) === true).length;
+          const failCount = order.items.filter(it => statusByBarcode.get(it.card_barcode) === false).length;
+          return (
+            <div className="rounded-lg border bg-card overflow-hidden">
+              <div className="px-4 py-2 border-b bg-muted/30 text-sm font-semibold flex items-center justify-between">
+                <span>{t("카드 목록", "卡片列表")}</span>
+                <span className="text-xs text-muted-foreground">
+                  {t(`합격 ${passCount} · 불일치 ${failCount} · 대기 ${order.items.length - passCount - failCount} / 총 ${order.items.length}`,
+                     `合格 ${passCount} · 不一致 ${failCount} · 等待 ${order.items.length - passCount - failCount} / 共 ${order.items.length}`)}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 p-3">
+                {order.items.map((it, idx) => {
+                  const v = statusByBarcode.get(it.card_barcode);
+                  const status: "pending" | "pass" | "fail" = v === undefined ? "pending" : v ? "pass" : "fail";
+                  const styles = {
+                    pending: "border-border bg-muted/20 text-muted-foreground",
+                    pass: "border-[hsl(var(--success)/0.5)] bg-[hsl(var(--success)/0.1)] text-[hsl(var(--success))]",
+                    fail: "border-destructive/50 bg-destructive/10 text-destructive",
+                  }[status];
+                  return (
+                    <div key={idx} className={`rounded-lg border p-2 ${styles}`} title={it.card_barcode}>
+                      <div className="text-[10px] font-semibold opacity-70">#{idx + 1}</div>
+                      <div className="text-xs font-mono truncate">{it.card_serial || "-"}</div>
+                      <div className="text-[10px] opacity-70">
+                        {status === "pending" ? t("대기", "等待") : status === "pass" ? t("합격", "合格") : t("불일치", "不一致")}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Scan input */}
         <div className="rounded-lg border bg-card p-4">
           <div className="flex items-center gap-3">
