@@ -754,7 +754,7 @@ export default function FileUpload() {
   const uploadHistory = allUploadHistory.filter((h: any) => (h.source || 'file') === 'file');
   const apiHistory = allUploadHistory.filter((h: any) => (h.source) === 'api');
 
-  // Column spec for file upload (26 fields, matches API ingest)
+  // Column spec for file upload (25 fields, matches API ingest)
   const CAT_ORDER = isKo ? "주문 정보" : "订单信息";
   const CAT_CARD = isKo ? "카드 정보" : "卡片信息";
   const CAT_TSHIRT = isKo ? "티셔츠 정보" : "T恤信息";
@@ -788,10 +788,9 @@ export default function FileUpload() {
     { col: "U", category: CAT_SHIP, key: "ship_date", label: isKo ? "발송 예정일" : "预计发货日", desc: isKo ? "발송 예정 일자" : "预计发货日期" },
 
     { col: "V", category: CAT_DESIGN, key: "twinker_logo_url", label: isKo ? "트윈커 로고 (링크)" : "Twinker LOGO (链接)", desc: isKo ? "트윈커 로고 이미지 URL" : "Twinker LOGO URL" },
-    { col: "W", category: CAT_DESIGN, key: "nfc_front_url", label: isKo ? "NFC 앞면 (링크)" : "NFC正面 (链接)", desc: isKo ? "NFC 앞면 원본 URL" : "NFC正面原图URL" },
-    { col: "X", category: CAT_DESIGN, key: "twincode_svg_url", label: isKo ? "트윈코드 SVG (링크)" : "TwinCode SVG (链接)", desc: isKo ? "트윈코드 SVG 다운로드 URL" : "TwinCode SVG URL" },
-    { col: "Y", category: CAT_DESIGN, key: "sign_url", label: isKo ? "싸인 (링크)" : "签名 (链接)", desc: isKo ? "사인 이미지 URL" : "签名图片URL" },
-    { col: "Z", category: CAT_DESIGN, key: "dtf_design_url", label: isKo ? "DTF 디자인 (링크)" : "DTF设计 (链接)", desc: isKo ? "DTF 디자인 파일 URL" : "DTF设计文件URL" },
+    { col: "W", category: CAT_DESIGN, key: "twincode_svg_url", label: isKo ? "트윈코드 SVG (링크)" : "TwinCode SVG (链接)", desc: isKo ? "트윈코드 SVG 다운로드 URL" : "TwinCode SVG URL" },
+    { col: "X", category: CAT_DESIGN, key: "sign_url", label: isKo ? "싸인 (링크)" : "签名 (链接)", desc: isKo ? "사인 이미지 URL" : "签名图片URL" },
+    { col: "Y", category: CAT_DESIGN, key: "dtf_design_url", label: isKo ? "DTF 디자인 (링크)" : "DTF设计 (链接)", desc: isKo ? "DTF 디자인 파일 URL" : "DTF设计文件URL" },
   ];
 
   const processFile = useCallback((file: File) => {
@@ -845,14 +844,14 @@ export default function FileUpload() {
     if (!parsedRows.length) return;
     setSaving(true);
     try {
-      // Map Excel rows to orders table (26-column spec)
+      // Map Excel rows to orders table (25-column spec)
       // A(0): work_order_no, B(1): order_id → external_order_id, C(2): twinker_name
       // D~J (3~9): card info (issued_no, minted_on, grade, edition, icon colors)
       // K(10): tshirt_type, L(11): tshirt_color, M(12): tshirt_size
       // N(13): nfc_ndef_data, O(14): cp_value
       // P(15): country_code, Q(16): recipient_name, R(17): phone, S(18): address,
       // T(19): zipcode, U(20): ship_date
-      // V~Z (21~25): design file URLs (logo, nfc front, twincode svg, sign, dtf design)
+      // V~Y (21~24): design file URLs (logo, twincode svg, sign, dtf design)
 
       const orderMap = new Map<string, {
         external_order_id: string;
@@ -893,10 +892,9 @@ export default function FileUpload() {
           nfc_ndef_data: str(13),
           cp_value: str(14),
           twinker_logo_url: str(21),
-          nfc_front_url: str(22),
-          twincode_svg_url: str(23),
-          sign_url: str(24),
-          dtf_design_url: str(25),
+          twincode_svg_url: str(22),
+          sign_url: str(23),
+          dtf_design_url: str(24),
         };
 
         if (orderMap.has(extId)) {
@@ -1150,12 +1148,12 @@ export default function FileUpload() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-sm font-semibold mb-1">
-                    {isKo ? "API 수신 항목 (총 26개)" : "API接收字段 (共26个)"}
+                    {isKo ? "API 수신 항목 (총 25개)" : "API接收字段 (共25个)"}
                   </h3>
                   <p className="text-xs text-muted-foreground mb-3">
                     {isKo
-                      ? "TWINMETA 사이트에서 아래 26개 항목을 수신합니다. 디자인 파일(로고/NFC/SVG/사인)은 다운로드 URL(링크) 형태로 전달됩니다."
-                      : "从TWINMETA站点接收以下26个字段。设计文件(LOGO/NFC/SVG/签名)以下载URL(链接)形式传输。"}
+                      ? "TWINMETA 사이트에서 아래 25개 항목을 수신합니다. 디자인 파일(로고/SVG/사인/DTF)은 다운로드 URL(링크) 형태로 전달됩니다."
+                      : "从TWINMETA站点接收以下25个字段。设计文件(LOGO/SVG/签名/DTF)以下载URL(链接)形式传输。"}
                   </p>
                   <div className="flex flex-wrap gap-2 mb-3">
                     {categoryBadges.map((g) => (
