@@ -41,12 +41,15 @@ interface ScanResult {
 
 interface HistoryEntry {
   id: string;
+  orderId: string;
   at: number;
   barcodes: string[];
   serials: string[];
   ok: boolean;
   reason: string;
 }
+
+const QR_HISTORY_KEY = "card-qr-inspect-history";
 
 export default function CardQrInspection() {
   const { lang } = useLang();
