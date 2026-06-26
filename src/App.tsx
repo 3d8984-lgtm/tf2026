@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { LangProvider } from "@/contexts/LangContext";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
+import InstallAppButton from "@/components/InstallAppButton";
+
 import Auth from "@/pages/Auth";
 import Dashboard from "@/pages/Dashboard";
 import FileUpload from "@/pages/FileUpload";
@@ -125,6 +127,8 @@ const App = () => (
         <AuthProvider>
           <Toaster />
           <Sonner />
+          <InstallAppButton />
+
           <BrowserRouter>
             <Routes>
               <Route path="/auth" element={<AuthRoute />} />
