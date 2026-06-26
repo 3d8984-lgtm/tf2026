@@ -175,20 +175,21 @@ export default function CardQrInspection() {
   // Append to history when 3 scans + verification ready
   const lastLoggedRef = useRef<string>("");
   useEffect(() => {
-    if (scans.length === 3 && verification) {
+    if (scans.length === 3 && verification && order) {
       const key = scans.map(s => s.scannedAt).join("-");
       if (lastLoggedRef.current === key) return;
       lastLoggedRef.current = key;
       setHistory(prev => [{
         id: key,
+        orderId: order.id,
         at: Date.now(),
         barcodes: scans.map(s => s.barcode),
         serials: scans.map(s => s.card?.card_serial ?? "-"),
         ok: verification.ok,
         reason: verification.reason,
-      }, ...prev].slice(0, 50));
+      }, ...prev].slice(0, 200));
     }
-  }, [scans, verification]);
+  }, [scans, verification, order]);
 
 
   // ─── Order list view ──────────────────────────────────────────────────
