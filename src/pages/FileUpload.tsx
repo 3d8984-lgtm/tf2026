@@ -753,7 +753,7 @@ export default function FileUpload() {
             twincode_image_count: twincodeTotal,
           } as any) as any).eq("id", r.id);
         }
-        return { ...r, design_image_count: designTotal, twincode_image_count: twincodeTotal, twinkers };
+        return { ...r, design_image_count: designTotal, twincode_image_count: twincodeTotal, twinkers, excelLogoUrl };
       }));
 
       return reconciled;
