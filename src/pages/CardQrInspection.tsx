@@ -116,7 +116,15 @@ export default function CardQrInspection() {
     if (order) inputRef.current?.focus();
   }, [order, scans.length]);
 
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [history, setHistory] = useState<HistoryEntry[]>(() => {
+    try {
+      const raw = localStorage.getItem(QR_HISTORY_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(QR_HISTORY_KEY, JSON.stringify(history)); } catch {}
+  }, [history]);
 
   const reset = useCallback(() => {
     setScans([]);
@@ -124,8 +132,8 @@ export default function CardQrInspection() {
     setTimeout(() => inputRef.current?.focus(), 50);
   }, []);
 
-  // When switching orders, reset
-  useEffect(() => { reset(); setHistory([]); }, [selectedOrderId, reset]);
+  // When switching orders, reset scans only (keep persistent history)
+  useEffect(() => { reset(); }, [selectedOrderId, reset]);
 
   const handleScan = (raw: string) => {
     const code = raw.trim();
