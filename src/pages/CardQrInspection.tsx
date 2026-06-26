@@ -235,7 +235,7 @@ export default function CardQrInspection() {
                   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
                   return (
                     <tr key={o.id} className="border-t hover:bg-muted/20 cursor-pointer" onClick={() => setSelectedOrderId(o.id)}>
-                      <td className="px-4 py-3 font-medium">{o.externalOrderId}</td>
+                      <td className="px-4 py-3 font-medium text-primary hover:underline">{o.externalOrderId}</td>
                       <td className="px-4 py-3">{o.twinker}</td>
                       <td className="px-4 py-3">{o.product}</td>
                       <td className="px-4 py-3 tabular-nums">{total}</td>
