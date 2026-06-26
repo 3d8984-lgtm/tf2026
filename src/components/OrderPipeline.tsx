@@ -46,21 +46,7 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
     );
   }
 
-  // Generate date-based sequential work order numbers
-  const sortedOrders = [...(orders ?? [])].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-  const workOrderNumbers = (() => {
-    const dateCounters: Record<string, number> = {};
-    const map = new Map<string, string>();
-    for (const o of sortedOrders) {
-      const d = new Date(o.created_at);
-      const dateKey = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
-      dateCounters[dateKey] = (dateCounters[dateKey] || 0) + 1;
-      map.set(o.id, `${dateKey}-${dateCounters[dateKey]}`);
-    }
-    return map;
-  })();
-
-  // Build pipeline data from DB
+  // Build pipeline data from DB - use external_order_id as 작업지시번호
   const pipelineOrders = (orders ?? []).map(order => {
     const orderTracking = (tracking ?? []).filter(t => t.order_id === order.id);
     const stageCounts: Record<StageKey, number> = { tshirt: 0, card: 0, set: 0, courier: 0, invoice: 0, done: 0 };
@@ -87,7 +73,7 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
 
     return {
       id: order.id,
-      woNumber: workOrderNumbers.get(order.id) ?? "-",
+      woNumber: order.external_order_id ?? "-",
       qty: order.quantity,
       currentStage,
       stageCounts,
