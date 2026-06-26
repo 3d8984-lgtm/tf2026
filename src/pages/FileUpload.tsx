@@ -894,7 +894,7 @@ export default function FileUpload() {
           twinker_logo_url: str(21),
           twincode_svg_url: str(22),
           sign_url: str(23),
-          dtf_design_url: str(24),
+          gft_original_image_url: str(24),
         };
 
         if (orderMap.has(extId)) {
