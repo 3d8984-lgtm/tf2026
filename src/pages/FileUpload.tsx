@@ -844,14 +844,14 @@ export default function FileUpload() {
     if (!parsedRows.length) return;
     setSaving(true);
     try {
-      // Map Excel rows to orders table (26-column spec)
+      // Map Excel rows to orders table (25-column spec)
       // A(0): work_order_no, B(1): order_id → external_order_id, C(2): twinker_name
       // D~J (3~9): card info (issued_no, minted_on, grade, edition, icon colors)
       // K(10): tshirt_type, L(11): tshirt_color, M(12): tshirt_size
       // N(13): nfc_ndef_data, O(14): cp_value
       // P(15): country_code, Q(16): recipient_name, R(17): phone, S(18): address,
       // T(19): zipcode, U(20): ship_date
-      // V~Z (21~25): design file URLs (logo, nfc front, twincode svg, sign, dtf design)
+      // V~Y (21~24): design file URLs (logo, twincode svg, sign, dtf design)
 
       const orderMap = new Map<string, {
         external_order_id: string;
@@ -892,10 +892,9 @@ export default function FileUpload() {
           nfc_ndef_data: str(13),
           cp_value: str(14),
           twinker_logo_url: str(21),
-          nfc_front_url: str(22),
-          twincode_svg_url: str(23),
-          sign_url: str(24),
-          dtf_design_url: str(25),
+          twincode_svg_url: str(22),
+          sign_url: str(23),
+          dtf_design_url: str(24),
         };
 
         if (orderMap.has(extId)) {
