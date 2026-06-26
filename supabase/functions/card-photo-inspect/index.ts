@@ -28,15 +28,15 @@ Deno.serve(async (req) => {
       type: "function",
       function: {
         name: "extract_card_front",
-        description: "Extract text fields visible on the front of a collectible card.",
+        description: "Extract text fields visible on the FRONT of a collectible card.",
         parameters: {
           type: "object",
           properties: {
             cp_score: { type: "string", description: "CP badge number, digits only e.g. '8420'. Empty if not visible." },
-            card_sequence: { type: "string", description: "Card sequence at bottom-right (e.g. 'TM-CARD-A0731' or '#014/1000/R1'). Empty if not visible." },
+            edition: { type: "string", description: "EDITION value printed on the front e.g. '12 / 50' or '014/1000'. Empty if not visible." },
             notes: { type: "string", description: "One short sentence about extraction confidence/issues." },
           },
-          required: ["cp_score", "card_sequence", "notes"],
+          required: ["cp_score", "edition", "notes"],
           additionalProperties: false,
         },
       },
@@ -44,18 +44,18 @@ Deno.serve(async (req) => {
       type: "function",
       function: {
         name: "extract_card_back",
-        description: "Extract text fields visible on the back of a collectible card.",
+        description: "Extract text fields visible on the BACK of a collectible card.",
         parameters: {
           type: "object",
           properties: {
-            edition: { type: "string", description: "EDITION printed value e.g. '12 / 50'. Empty if not visible." },
+            issued_no: { type: "string", description: "ISSUED No. value e.g. 'TM-CARD-A0731' or '#014'. Empty if not visible." },
             minted_on: { type: "string", description: "Minted on date e.g. '2026-04-22'. Empty if not visible." },
+            card_grade: { type: "string", description: "Card grade letter e.g. 'S','A','B'. Empty if not visible." },
             twincode: { type: "string", description: "TwinCode value e.g. 'TWN-007-A'. Empty if not visible." },
             dm_barcode: { type: "string", description: "DM barcode text e.g. 'DM-2026-0501-00731'. Empty if not visible." },
-            card_grade: { type: "string", description: "Card grade letter e.g. 'S','A','B'. Empty if not visible." },
             notes: { type: "string", description: "One short sentence about extraction confidence/issues." },
           },
-          required: ["edition", "minted_on", "twincode", "dm_barcode", "card_grade", "notes"],
+          required: ["issued_no", "minted_on", "card_grade", "twincode", "dm_barcode", "notes"],
           additionalProperties: false,
         },
       },
@@ -75,8 +75,8 @@ Deno.serve(async (req) => {
             role: "user",
             content: [
               { type: "text", text: isFront
-                ? "Extract the printed text fields from the FRONT of this card. Look for the CP score badge and the card sequence number at the bottom-right area."
-                : "Extract the printed text fields from the BACK of this card. Look for EDITION, 'Minted on' date, TwinCode, DM barcode text, and card grade letter." },
+                ? "Extract the printed text fields from the FRONT of this card. Look for the CP score badge and the EDITION value (e.g. '12 / 50' or '014/1000')."
+                : "Extract the printed text fields from the BACK of this card. Look for 'ISSUED No.', 'Minted on' date, card grade letter, TwinCode, and DM barcode text." },
               { type: "image_url", image_url: { url: image } },
             ],
           },

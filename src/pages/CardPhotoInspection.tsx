@@ -35,8 +35,8 @@ interface OrderRow {
   items: CardItem[];
 }
 
-type FrontExtract = { cp_score: string; card_sequence: string; notes?: string };
-type BackExtract = { edition: string; minted_on: string; twincode: string; dm_barcode: string; card_grade: string; notes?: string };
+type FrontExtract = { cp_score: string; edition: string; notes?: string };
+type BackExtract = { issued_no: string; minted_on: string; card_grade: string; twincode: string; dm_barcode: string; notes?: string };
 
 interface FieldCheck {
   label: string;
@@ -55,18 +55,18 @@ const VISUAL_FIELDS: {
 }[] = [
   { key: "cp", side: "front", label: t => t("CP 점수", "CP分数"),
     getExpected: e => String(e.cp_score ?? ""), getDetected: r => r.cp_score ?? "" },
-  { key: "seq", side: "front", label: t => t("카드 순번", "卡片序号"),
-    getExpected: e => e.card_serial ?? "", getDetected: r => r.card_sequence ?? "" },
-  { key: "edition", side: "back", label: () => "EDITION",
+  { key: "edition", side: "front", label: () => "EDITION",
     getExpected: e => String(e.edition ?? ""), getDetected: r => r.edition ?? "" },
+  { key: "issued", side: "back", label: () => "ISSUED No.",
+    getExpected: e => e.card_serial ?? "", getDetected: r => r.issued_no ?? "" },
   { key: "minted", side: "back", label: () => "Minted on",
     getExpected: e => String(e.minted_on ?? ""), getDetected: r => r.minted_on ?? "" },
+  { key: "grade", side: "back", label: t => t("카드 등급", "卡片等级"),
+    getExpected: e => e.card_grade ?? "", getDetected: r => r.card_grade ?? "" },
   { key: "twin", side: "back", label: t => t("트윈코드", "TwinCode"),
     getExpected: e => e.twincode || e.design_qr || "", getDetected: r => r.twincode ?? "" },
   { key: "dm", side: "back", label: t => t("DM 바코드", "DM条码"),
     getExpected: e => e.card_barcode ?? "", getDetected: r => r.dm_barcode ?? "" },
-  { key: "grade", side: "back", label: t => t("카드 등급", "卡片等级"),
-    getExpected: e => e.card_grade ?? "", getDetected: r => r.card_grade ?? "" },
 ];
 
 export default function CardPhotoInspection() {
@@ -259,25 +259,30 @@ export default function CardPhotoInspection() {
           && !!norm(expected.cp_score),
       });
       list.push({
-        label: t("카드 순번", "卡片序号"),
-        expected: expected.card_serial ?? "",
-        detected: frontResult.card_sequence ?? "",
-        // Loose: detected contains the expected serial (case-insensitive, whitespace stripped)
-        match: !!expected.card_serial && norm(frontResult.card_sequence).includes(norm(expected.card_serial)),
+        label: "EDITION",
+        expected: String(expected.edition ?? ""),
+        detected: frontResult.edition ?? "",
+        match: norm(expected.edition) === norm(frontResult.edition) && !!norm(expected.edition),
       });
     }
     if (backResult) {
       list.push({
-        label: "EDITION",
-        expected: String(expected.edition ?? ""),
-        detected: backResult.edition ?? "",
-        match: norm(expected.edition) === norm(backResult.edition) && !!norm(expected.edition),
+        label: "ISSUED No.",
+        expected: expected.card_serial ?? "",
+        detected: backResult.issued_no ?? "",
+        match: !!expected.card_serial && norm(backResult.issued_no).includes(norm(expected.card_serial)),
       });
       list.push({
         label: "Minted on",
         expected: String(expected.minted_on ?? ""),
         detected: backResult.minted_on ?? "",
         match: norm(expected.minted_on) === norm(backResult.minted_on) && !!norm(expected.minted_on),
+      });
+      list.push({
+        label: t("카드 등급", "卡片等级"),
+        expected: expected.card_grade ?? "",
+        detected: backResult.card_grade ?? "",
+        match: norm(expected.card_grade) === norm(backResult.card_grade) && !!norm(expected.card_grade),
       });
       list.push({
         label: t("트윈코드", "TwinCode"),
@@ -291,12 +296,6 @@ export default function CardPhotoInspection() {
         expected: expected.card_barcode ?? "",
         detected: backResult.dm_barcode ?? "",
         match: norm(expected.card_barcode) === norm(backResult.dm_barcode) && !!norm(expected.card_barcode),
-      });
-      list.push({
-        label: t("카드 등급", "卡片等级"),
-        expected: expected.card_grade ?? "",
-        detected: backResult.card_grade ?? "",
-        match: norm(expected.card_grade) === norm(backResult.card_grade) && !!norm(expected.card_grade),
       });
     }
     return list;
