@@ -32,12 +32,24 @@ export default function ProductionMonitor() {
   const { data: shipments } = useShipments();
 
   const [stageDetail, setStageDetail] = useState<{ orderId: string; stage: StageKey } | null>(null);
+  const [orderDetailId, setOrderDetailId] = useState<string | null>(null);
 
   const detailOrder = stageDetail ? orders?.find(o => o.id === stageDetail.orderId) : null;
+  const orderDetail = orderDetailId ? orders?.find(o => o.id === orderDetailId) : null;
+  const orderDetailTracking = useMemo(() => {
+    if (!orderDetailId) return [];
+    return (tracking ?? []).filter(t => t.order_id === orderDetailId);
+  }, [tracking, orderDetailId]);
+  const orderDetailShipments = useMemo(() => {
+    if (!orderDetailId) return [];
+    return (shipments ?? []).filter(s => s.order_id === orderDetailId);
+  }, [shipments, orderDetailId]);
+
   const detailTracking = useMemo(() => {
     if (!stageDetail) return [];
     return (tracking ?? []).filter(t => t.order_id === stageDetail.orderId && t.stage === stageDetail.stage);
   }, [tracking, stageDetail]);
+
   const detailShipments = useMemo(() => {
     if (!stageDetail) return [];
     return (shipments ?? []).filter(s => s.order_id === stageDetail.orderId);
@@ -62,7 +74,11 @@ export default function ProductionMonitor() {
           </TabsList>
 
           <TabsContent value="pipeline" className="space-y-6">
-            <OrderPipeline onStageClick={(orderId, stage) => setStageDetail({ orderId, stage: stage as StageKey })} />
+            <OrderPipeline
+              onStageClick={(orderId, stage) => setStageDetail({ orderId, stage: stage as StageKey })}
+              onOrderClick={(orderId) => setOrderDetailId(orderId)}
+            />
+
           </TabsContent>
 
           <TabsContent value="machines" className="space-y-6">
@@ -183,6 +199,95 @@ export default function ProductionMonitor() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Order-level detail dialog (작업지시번호 클릭) */}
+      <Dialog open={!!orderDetailId} onOpenChange={(v) => { if (!v) setOrderDetailId(null); }}>
+        <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Activity className="w-4 h-4" />
+              {isKo ? "주문 상세" : "订单详情"}
+              {orderDetail && <span className="text-xs text-muted-foreground font-normal">· {orderDetail.external_order_id}</span>}
+            </DialogTitle>
+          </DialogHeader>
+
+          {orderDetail && (
+            <div className="space-y-4 text-sm">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                <div className="flex justify-between"><span className="text-muted-foreground">{isKo ? "작업지시번호" : "工单号"}</span><span className="font-medium font-mono">{orderDetail.external_order_id}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{isKo ? "수량" : "数量"}</span><span className="font-medium tabular-nums">{orderDetail.quantity}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{isKo ? "상태" : "状态"}</span><span className="font-medium">{orderDetail.status}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{isKo ? "트윈커" : "Twinker"}</span><span className="font-medium">{orderDetail.recipient_name}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{isKo ? "상품코드" : "商品代码"}</span><span className="font-medium">{orderDetail.product_code}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{isKo ? "디자인코드" : "设计代码"}</span><span className="font-medium">{orderDetail.design_code ?? "-"}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{isKo ? "국가" : "国家"}</span><span className="font-medium">{orderDetail.shipping_country}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{isKo ? "도시" : "城市"}</span><span className="font-medium">{orderDetail.shipping_city}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">{isKo ? "납기" : "交期"}</span><span className="font-medium">{orderDetail.project_completed_at ? new Date(orderDetail.project_completed_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN") : "-"}</span></div>
+              </div>
+
+              <div>
+                <p className="text-xs font-medium mb-2 text-muted-foreground">{isKo ? "단계별 진행" : "各阶段进度"}</p>
+                <div className="border rounded overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-muted/40">
+                      <tr className="text-left">
+                        <th className="px-2 py-1.5">{isKo ? "단계" : "阶段"}</th>
+                        <th className="px-2 py-1.5">{isKo ? "완료" : "完成"}</th>
+                        <th className="px-2 py-1.5">{isKo ? "불량" : "不良"}</th>
+                        <th className="px-2 py-1.5">{isKo ? "업데이트" : "更新"}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orderDetailTracking.length === 0 ? (
+                        <tr><td colSpan={4} className="px-2 py-3 text-center text-muted-foreground">{isKo ? "데이터 없음" : "暂无数据"}</td></tr>
+                      ) : orderDetailTracking.map(tr => {
+                        const m = stageMeta[tr.stage as StageKey];
+                        return (
+                          <tr key={tr.id} className="border-t">
+                            <td className="px-2 py-1.5 flex items-center gap-1.5">{m && <m.Icon className="w-3 h-3" />}{m ? (isKo ? m.ko : m.zh) : tr.stage}</td>
+                            <td className="px-2 py-1.5 tabular-nums">{tr.completed_count}</td>
+                            <td className="px-2 py-1.5 tabular-nums">{(tr as any).failed_count ?? 0}</td>
+                            <td className="px-2 py-1.5 text-muted-foreground">{new Date(tr.created_at).toLocaleString(isKo ? "ko-KR" : "zh-CN")}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {orderDetailShipments.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium mb-2 text-muted-foreground">{isKo ? "출고 / 송장" : "出库 / 运单"}</p>
+                  <div className="border rounded overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-muted/40">
+                        <tr className="text-left">
+                          <th className="px-2 py-1.5">{isKo ? "세트ID" : "套装ID"}</th>
+                          <th className="px-2 py-1.5">{isKo ? "운송장" : "运单号"}</th>
+                          <th className="px-2 py-1.5">{isKo ? "택배사" : "快递"}</th>
+                          <th className="px-2 py-1.5">{isKo ? "상태" : "状态"}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {orderDetailShipments.map(s => (
+                          <tr key={s.id} className="border-t">
+                            <td className="px-2 py-1.5 font-mono">{s.set_id ?? "-"}</td>
+                            <td className="px-2 py-1.5 font-mono">{s.tracking_number ?? "-"}</td>
+                            <td className="px-2 py-1.5">{s.carrier ?? "-"}</td>
+                            <td className="px-2 py-1.5">{s.status}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+

@@ -395,8 +395,10 @@ export default function TshirtWork() {
                       className="w-full kpi-card flex items-center gap-4 text-left hover:ring-2 hover:ring-primary/30 transition-all duration-150 active:scale-[0.99] cursor-pointer">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-semibold">{order.orderNo}</span>
+                          <span className="text-sm font-semibold text-primary">{order.externalOrderId}</span>
+                          <span className="text-xs text-muted-foreground">· {order.orderNo}</span>
                         </div>
+
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <span>{isKo ? "트윈커" : "Twinker"}: <strong className="text-foreground">{order.twinker}</strong></span>
                           <span>{t("tshirtWork.orderDate")}: {order.orderDate}</span>
@@ -425,8 +427,10 @@ export default function TshirtWork() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success))]" />
-                          <span className="text-sm font-semibold">{order.orderNo}</span>
+                          <span className="text-sm font-semibold text-primary">{order.externalOrderId}</span>
+                          <span className="text-xs text-muted-foreground">· {order.orderNo}</span>
                         </div>
+
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <span>{isKo ? "트윈커" : "Twinker"}: {order.twinker}</span>
                         </div>
