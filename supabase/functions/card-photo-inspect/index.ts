@@ -75,8 +75,8 @@ Deno.serve(async (req) => {
             role: "user",
             content: [
               { type: "text", text: isFront
-                ? "Extract the printed text fields from the FRONT of this card. Look for the CP score badge and the card sequence number at the bottom-right area."
-                : "Extract the printed text fields from the BACK of this card. Look for EDITION, 'Minted on' date, TwinCode, DM barcode text, and card grade letter." },
+                ? "Extract the printed text fields from the FRONT of this card. Look for the CP score badge and the EDITION value (e.g. '12 / 50' or '014/1000')."
+                : "Extract the printed text fields from the BACK of this card. Look for 'ISSUED No.', 'Minted on' date, card grade letter, TwinCode, and DM barcode text." },
               { type: "image_url", image_url: { url: image } },
             ],
           },
