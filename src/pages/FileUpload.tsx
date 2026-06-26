@@ -2095,56 +2095,24 @@ export default function FileUpload() {
                           </td>
                           <td className="py-2.5 text-muted-foreground" title={twinkers.join(", ")}>{twinkerLabel}</td>
                           <td className="py-2.5 text-center">
-                            {(h as any).logo_path ? (
-                              <div className="flex items-center justify-center gap-1.5">
-                                <img
-                                  src={supabase.storage.from("order-logos").getPublicUrl((h as any).logo_path).data.publicUrl}
-                                  alt="logo"
-                                  className="w-8 h-8 rounded object-contain border border-border"
-                                />
-                                <label className="cursor-pointer">
-                                  <input
-                                    type="file"
-                                    accept="image/*"
-                                    className="hidden"
-                                    onChange={(e) => {
-                                      const file = e.target.files?.[0];
-                                      if (file) handleHistoryLogoUpload(h.id, file, (h as any).logo_path);
-                                      e.target.value = "";
-                                    }}
+                            {(() => {
+                              const logoSrc = (h as any).logo_path
+                                ? supabase.storage.from("order-logos").getPublicUrl((h as any).logo_path).data.publicUrl
+                                : (h as any).excelLogoUrl || null;
+                              return logoSrc ? (
+                                <div className="flex items-center justify-center">
+                                  <img
+                                    src={logoSrc}
+                                    alt="logo"
+                                    className="w-8 h-8 rounded object-contain border border-border"
                                   />
-                                  <span className="text-xs text-primary hover:underline">
-                                    {logoUploadingId === h.id ? (
-                                      <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
-                                    ) : (
-                                      isKo ? "변경" : "更换"
-                                    )}
-                                  </span>
-                                </label>
-                              </div>
-                            ) : (
-                              <label className="cursor-pointer inline-flex items-center gap-1 text-xs text-primary hover:underline">
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  className="hidden"
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) handleHistoryLogoUpload(h.id, file, null);
-                                    e.target.value = "";
-                                  }}
-                                />
-                                {logoUploadingId === h.id ? (
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                ) : (
-                                  <>
-                                    <Image className="w-3.5 h-3.5" />
-                                    {isKo ? "로고 업로드" : "上传Logo"}
-                                  </>
-                                )}
-                              </label>
-                            )}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              );
+                            })()}
                           </td>
+
                           <td className="py-2.5 text-right tabular-nums">{h.row_count.toLocaleString()}</td>
                           <td className="py-2.5 text-center tabular-nums">{(h as any).design_image_count || 0}</td>
                           <td className="py-2.5 text-center tabular-nums">{(h as any).twincode_image_count || 0}</td>
