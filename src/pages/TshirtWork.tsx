@@ -458,7 +458,7 @@ export default function TshirtWork() {
 
     return (
       <div>
-        <PageHeader title={t("tshirtWork.title")} description={`${selectedOrder.twinker} · ${selectedOrder.orderNo}`}>
+        <PageHeader title={t("tshirtWork.title")} description={`${selectedOrder.twinker} · ${selectedOrder.externalOrderId}`}>
           <Button variant="outline" size="sm" onClick={() => { setSelectedOrderId(null); }}><ChevronLeft className="w-4 h-4 mr-1" /> {t("tshirtWork.orderList")}</Button>
         </PageHeader>
         <div className="p-6 space-y-6">
@@ -466,7 +466,7 @@ export default function TshirtWork() {
           <div className="kpi-card section-enter flex items-center gap-6 flex-wrap">
             <div className="flex items-center gap-2">
               <Package className="w-5 h-5 text-primary" />
-              <div><p className="text-xs text-muted-foreground">{t("tshirtWork.order")}</p><p className="text-sm font-semibold">{selectedOrder.orderNo}</p></div>
+              <div><p className="text-xs text-muted-foreground">{isKo ? "작업지시번호" : "工单号"}</p><p className="text-sm font-semibold text-primary">{selectedOrder.externalOrderId}</p></div>
             </div>
             <div><p className="text-xs text-muted-foreground">{isKo ? "트윈커" : "Twinker"}</p><p className="text-sm font-semibold">{selectedOrder.twinker}</p></div>
             <div><p className="text-xs text-muted-foreground">{t("tshirtWork.dueDate")}</p><p className="text-sm font-semibold">{selectedOrder.dueDate}</p></div>
