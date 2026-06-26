@@ -467,6 +467,42 @@ export default function CardPhotoInspection() {
       </PageHeader>
 
       <div className="flex-1 overflow-auto p-6 space-y-4">
+        {/* Card grid — per-card status, click to select */}
+        <div className="rounded-lg border bg-card overflow-hidden">
+          <div className="px-4 py-2 border-b bg-muted/30 text-sm font-semibold flex items-center justify-between">
+            <span>{t("카드 목록", "卡片列表")}</span>
+            <span className="text-xs text-muted-foreground">
+              {t(`완료 ${orderHistory.length}/${order.items.length}`, `已完成 ${orderHistory.length}/${order.items.length}`)}
+            </span>
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 p-3">
+            {order.items.map((it, idx) => {
+              const h = orderHistory.find(x => x.itemIdx === idx);
+              const status: "pending" | "pass" | "fail" = !h ? "pending" : h.pass ? "pass" : "fail";
+              const isActive = idx === selectedItemIdx;
+              const styles = {
+                pending: "border-border bg-muted/20 text-muted-foreground",
+                pass: "border-[hsl(var(--success)/0.5)] bg-[hsl(var(--success)/0.1)] text-[hsl(var(--success))]",
+                fail: "border-[hsl(var(--warning)/0.5)] bg-[hsl(var(--warning)/0.1)] text-[hsl(var(--warning))]",
+              }[status];
+              return (
+                <button
+                  key={idx}
+                  onClick={() => { setSelectedItemIdx(idx); reset(); }}
+                  className={`relative rounded-lg border p-2 text-left transition-all ${styles} ${isActive ? "ring-2 ring-primary" : ""}`}
+                  title={it.card_serial || it.card_barcode}
+                >
+                  <div className="text-[10px] font-semibold opacity-70">#{idx + 1}</div>
+                  <div className="text-xs font-mono truncate">{it.card_serial || "-"}</div>
+                  <div className="text-[10px] opacity-60">
+                    {status === "pending" ? t("대기", "等待") : status === "pass" ? t("합격", "合格") : t(`불일치 ${h?.failCount}`, `不一致 ${h?.failCount}`)}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Camera */}
         <div className="rounded-lg border bg-card p-4">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
