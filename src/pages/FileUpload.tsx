@@ -754,7 +754,7 @@ export default function FileUpload() {
   const uploadHistory = allUploadHistory.filter((h: any) => (h.source || 'file') === 'file');
   const apiHistory = allUploadHistory.filter((h: any) => (h.source) === 'api');
 
-  // Column spec for file upload (26 fields, matches API ingest)
+  // Column spec for file upload (25 fields, matches API ingest)
   const CAT_ORDER = isKo ? "주문 정보" : "订单信息";
   const CAT_CARD = isKo ? "카드 정보" : "卡片信息";
   const CAT_TSHIRT = isKo ? "티셔츠 정보" : "T恤信息";
