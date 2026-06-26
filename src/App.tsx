@@ -9,6 +9,7 @@ import AppLayout from "@/components/AppLayout";
 import InstallAppButton from "@/components/InstallAppButton";
 
 import Auth from "@/pages/Auth";
+import ResetPassword from "@/pages/ResetPassword";
 import Dashboard from "@/pages/Dashboard";
 import FileUpload from "@/pages/FileUpload";
 import MasterData from "@/pages/MasterData";
@@ -132,6 +133,7 @@ const App = () => (
           <BrowserRouter>
             <Routes>
               <Route path="/auth" element={<AuthRoute />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/*" element={<ProtectedRoutes />} />
             </Routes>
           </BrowserRouter>

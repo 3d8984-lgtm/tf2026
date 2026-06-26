@@ -44,6 +44,32 @@ export default function Auth() {
     }
   };
 
+  const handleForgotPassword = async () => {
+    if (!email) {
+      toast({
+        title: t("auth.error"),
+        description: "이메일을 먼저 입력해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      toast({
+        title: "비밀번호 재설정 메일 발송",
+        description: "이메일을 확인해주세요.",
+      });
+    } catch (error: any) {
+      toast({ title: t("auth.error"), description: error.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm space-y-6">
@@ -111,6 +137,16 @@ export default function Auth() {
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "..." : isLogin ? t("auth.login") : t("auth.signup")}
           </Button>
+          {isLogin && (
+            <button
+              type="button"
+              onClick={handleForgotPassword}
+              className="w-full text-center text-xs text-muted-foreground hover:text-foreground hover:underline"
+              disabled={loading}
+            >
+              비밀번호를 잊으셨나요?
+            </button>
+          )}
         </form>
 
         {/* Toggle */}
