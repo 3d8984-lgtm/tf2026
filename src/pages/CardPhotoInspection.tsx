@@ -403,26 +403,45 @@ export default function CardPhotoInspection() {
                   <th className="text-left px-4 py-2 font-medium">{t("트윈커", "Twinker")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("상품", "商品")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("카드 수량", "卡片数量")}</th>
+                  <th className="text-left px-4 py-2 font-medium">{t("검사 진행", "检验进度")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("납기", "交期")}</th>
                   <th className="px-4 py-2"></th>
                 </tr>
               </thead>
               <tbody>
-                {orders.map(o => (
-                  <tr key={o.id} className="border-t hover:bg-muted/20 cursor-pointer"
-                    onClick={() => { setSelectedOrderId(o.id); setSelectedItemIdx(0); }}>
-                    <td className="px-4 py-3 font-medium">{o.externalOrderId}</td>
-                    <td className="px-4 py-3">{o.twinker}</td>
-                    <td className="px-4 py-3">{o.product}</td>
-                    <td className="px-4 py-3 tabular-nums">{o.items.length}</td>
-                    <td className="px-4 py-3">{o.dueDate}</td>
-                    <td className="px-4 py-3 text-right">
-                      <Button size="sm" variant="outline">{t("선택", "选择")}</Button>
-                    </td>
-                  </tr>
-                ))}
+                {orders.map(o => {
+                  const oh = history.filter(h => h.orderId === o.id);
+                  const pass = oh.filter(h => h.pass).length;
+                  const fail = oh.filter(h => !h.pass).length;
+                  const total = o.items.length;
+                  const done = oh.length;
+                  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                  return (
+                    <tr key={o.id} className="border-t hover:bg-muted/20 cursor-pointer"
+                      onClick={() => { setSelectedOrderId(o.id); setSelectedItemIdx(0); }}>
+                      <td className="px-4 py-3 font-medium">{o.externalOrderId}</td>
+                      <td className="px-4 py-3">{o.twinker}</td>
+                      <td className="px-4 py-3">{o.product}</td>
+                      <td className="px-4 py-3 tabular-nums">{total}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-24 h-1.5 rounded-full bg-muted overflow-hidden">
+                            <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-xs tabular-nums text-muted-foreground">{done}/{total}</span>
+                          {pass > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]">✓{pass}</span>}
+                          {fail > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[hsl(var(--warning)/0.15)] text-[hsl(var(--warning))]">!{fail}</span>}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">{o.dueDate}</td>
+                      <td className="px-4 py-3 text-right">
+                        <Button size="sm" variant="outline">{t("선택", "选择")}</Button>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {orders.length === 0 && (
-                  <tr><td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">{t("주문이 없습니다", "暂无订单")}</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">{t("주문이 없습니다", "暂无订单")}</td></tr>
                 )}
               </tbody>
             </table>
