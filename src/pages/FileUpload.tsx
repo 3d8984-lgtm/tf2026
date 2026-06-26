@@ -951,14 +951,19 @@ export default function FileUpload() {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["order_stats"] });
 
-      // Save file to storage
+      // Get user info first (needed for storage path under RLS)
+      const { data: sessionData } = await supabase.auth.getUser();
+      const userEmail = sessionData?.user?.email || null;
+      const userId = sessionData?.user?.id || null;
+
+      // Save file to storage (path must start with {userId}/ per RLS policy)
       const file = currentFileRef.current;
       let filePath: string | null = null;
       let fileUploadFailed = false;
-      if (file) {
+      if (file && userId) {
         const ts = Date.now();
         const ext = file.name.split(".").pop() || "xlsx";
-        const storagePath = `${ts}.${ext}`;
+        const storagePath = `${userId}/${ts}.${ext}`;
         const { error: storageError } = await supabase.storage.from("upload-files").upload(storagePath, file);
         if (storageError) {
           console.error("Storage upload error:", storageError);
@@ -966,11 +971,9 @@ export default function FileUpload() {
         } else {
           filePath = storagePath;
         }
+      } else if (file && !userId) {
+        fileUploadFailed = true;
       }
-
-      const { data: sessionData } = await supabase.auth.getUser();
-      const userEmail = sessionData?.user?.email || null;
-      const userId = sessionData?.user?.id || null;
 
       // Create upload_history record first to get its ID
       const { data: historyRow, error: historyErr } = await supabase.from("upload_history").insert({
