@@ -35,6 +35,48 @@ interface ItemRow {
   item: Record<string, string>;
 }
 
+const IMPORT_COLUMNS: { key: string; label: string; type?: "url" }[] = [
+  { key: "order_id", label: "개별 주문번호" },
+  { key: "twinker_name", label: "트윈커" },
+  { key: "issued_no", label: "ISSUED No." },
+  { key: "minted_on", label: "Minted on" },
+  { key: "grade", label: "카드등급" },
+  { key: "edition", label: "에디션" },
+  { key: "tshirt_type", label: "티셔츠 종류" },
+  { key: "tshirt_color", label: "색상" },
+  { key: "tshirt_size", label: "사이즈" },
+  { key: "nfc_ndef_data", label: "NFC NDEF" },
+  { key: "cp_value", label: "CP 점수" },
+  { key: "country_code", label: "국가" },
+  { key: "recipient_name", label: "수령인" },
+  { key: "recipient_phone", label: "전화번호" },
+  { key: "shipping_address", label: "주소" },
+  { key: "shipping_zip", label: "우편번호" },
+  { key: "ship_date", label: "배송일" },
+  { key: "twinker_logo_url", label: "로고", type: "url" },
+  { key: "twincode_svg_url", label: "트윈코드 SVG", type: "url" },
+  { key: "sign_url", label: "사인", type: "url" },
+  { key: "gft_original_image_url", label: "디자인", type: "url" },
+];
+
+function displayValue(value?: string | null) {
+  const v = String(value ?? "").trim();
+  return v || "—";
+}
+
+function ImportCell({ row, column }: { row: ItemRow; column: (typeof IMPORT_COLUMNS)[number] }) {
+  const raw = row.item?.[column.key] || (column.key === "order_id" ? row.serial : "");
+  const value = displayValue(raw);
+  if (column.type === "url" && raw && /^https?:\/\//i.test(raw)) {
+    return (
+      <a href={raw} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+        보기
+      </a>
+    );
+  }
+  return <span>{value}</span>;
+}
+
 interface OrderGroup {
   orderId: string;        // db uuid
   orderNo: string;        // external_order_id (작업번호)
@@ -57,9 +99,9 @@ function fmtDate(iso?: string | null): string {
 function buildDetailData(row: ItemRow): OrderDetailData {
   const i = row.item || {};
   return {
-    orderSerialNo: row.serial || row.orderNo,
+    orderSerialNo: i.order_id || row.serial || row.orderNo,
     twinCodeSvg: i.twincode_svg_url || null,
-    designPng: i.design_png_url || null,
+    designPng: i.design_png_url || i.gft_original_image_url || null,
     cpValue: i.cp_value || null,
     sequenceNo: i.sequence_no || row.serial || null,
     twinCodePng: i.twincode_png_url || null,
@@ -67,10 +109,10 @@ function buildDetailData(row: ItemRow): OrderDetailData {
     edition: i.edition || null,
     mintedOn: i.minted_on || null,
     grade: i.grade || null,
-    signPng: i.sign_png_url || null,
-    cardFrontDesignPng: i.card_front_png_url || null,
+    signPng: i.sign_png_url || i.sign_url || null,
+    cardFrontDesignPng: i.card_front_png_url || i.gft_original_image_url || null,
     cardBackDesignPng: i.card_back_png_url || null,
-    logoPng: i.logo_png_url || null,
+    logoPng: i.logo_png_url || i.twinker_logo_url || null,
   };
 }
 
@@ -214,32 +256,36 @@ export default function OutsourceOrders() {
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-0">
+            <CardContent className="p-0 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>{t("out.serial")}</TableHead>
-                    <TableHead>주문일자</TableHead>
-                    <TableHead>{t("out.qty")}</TableHead>
+                    {IMPORT_COLUMNS.map((column) => (
+                      <TableHead key={column.key} className="whitespace-nowrap">
+                        {column.label}
+                      </TableHead>
+                    ))}
                     <TableHead>{t("out.status")}</TableHead>
-                    <TableHead className="w-32 text-right">{t("out.action")}</TableHead>
+                    <TableHead className="w-32 text-right sticky right-0 bg-card">{t("out.action")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredItems.map(r => (
                     <TableRow key={r.rowKey}>
-                      <TableCell className="font-mono">{r.serial}</TableCell>
-                      <TableCell>{r.date}</TableCell>
-                      <TableCell>{r.qty}</TableCell>
+                      {IMPORT_COLUMNS.map((column) => (
+                        <TableCell key={column.key} className="whitespace-nowrap max-w-72 truncate">
+                          <ImportCell row={r} column={column} />
+                        </TableCell>
+                      ))}
                       <TableCell><Badge variant="outline">{r.status}</Badge></TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right sticky right-0 bg-card">
                         <Button size="sm" variant="ghost" onClick={() => setDetail(r)}>{t("out.detail")}</Button>
                       </TableCell>
                     </TableRow>
                   ))}
                   {filteredItems.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">—</TableCell>
+                      <TableCell colSpan={IMPORT_COLUMNS.length + 2} className="text-center text-sm text-muted-foreground py-8">—</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
