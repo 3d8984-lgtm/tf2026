@@ -551,7 +551,7 @@ export default function SiliconFactory() {
       return {
         seq: idx + 1,
         orderNo: detailOrderNo,
-        uniqueNo: `${detailOrderNo}-${idx + 1}`,
+        uniqueNo: `${detailOrderNo}-1`,
         svgUrl,
         grade,
       };
