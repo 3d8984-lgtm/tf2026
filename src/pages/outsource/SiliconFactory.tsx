@@ -548,10 +548,11 @@ export default function SiliconFactory() {
         (typeof it.twin_code_svg_url === "string" && it.twin_code_svg_url) ||
         orderSvg || null;
       const grade: Grade = resolveGrade(it, order);
+      const individualOrderNo = it.order_id || it.sequence_no || `${detailOrderNo}-${idx + 1}`;
       return {
         seq: idx + 1,
-        orderNo: detailOrderNo,
-        uniqueNo: `${detailOrderNo}-1`,
+        orderNo: individualOrderNo,
+        uniqueNo: `${individualOrderNo}-1`,
         svgUrl,
         grade,
       };
