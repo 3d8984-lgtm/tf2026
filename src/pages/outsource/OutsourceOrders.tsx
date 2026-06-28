@@ -87,9 +87,11 @@ export default function OutsourceOrders() {
   const [deleting, setDeleting] = useState(false);
 
   // Group orders by work number (one DB order = one 작업번호)
+  // Only show orders linked via "주문 데이터 가져오기" (have upload_history_id)
   const groups: OrderGroup[] = useMemo(() => {
     const out: OrderGroup[] = [];
     for (const o of (ordersData || []) as any[]) {
+      if (!o.upload_history_id) continue;
       const items: Record<string, string>[] = (o.source_data?.items as any) || [];
       const date = fmtDate(o.created_at);
       const rows: ItemRow[] = items.length === 0
