@@ -1507,28 +1507,6 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
                       </div>
 
 
-                      {sourceLogo && (
-                        <div className="flex items-start gap-4 p-3 rounded-md border bg-muted/10">
-                          <div className="w-24 h-24 border rounded bg-muted/20 flex items-center justify-center overflow-hidden shrink-0">
-                            <img src={sourceLogo} alt="로고" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
-                          </div>
-                          <div className="text-xs space-y-1 flex-1 min-w-0">
-                            <div className="font-semibold text-sm flex items-center gap-2">
-                              자동 분석 결과
-                              <Badge variant="secondary" className="text-[10px]">{testLogoDataUrl ? "업로드본" : "API 원본"}</Badge>
-                            </div>
-                            {lastAnalysis ? (
-                              <>
-                                <div>해상도: <span className="font-mono">{lastAnalysis.width}×{lastAnalysis.height}px</span></div>
-                                <div>유형: <span className="font-mono">{lastAnalysis.kind}</span></div>
-                                <div>고유 색상 수: <span className="font-mono">{lastAnalysis.uniqueColors}</span></div>
-                                <div>배경 투명: {lastAnalysis.transparent ? <span className="text-emerald-600 font-medium">✓ 투명</span> : <span className="text-amber-600 font-medium">⚠️ 불투명 (LOGO가 아닌 경우 투명배경 필요)</span>}</div>
-                                <div className="pt-1">추천 타입: <Badge variant={recommendedType === "color" ? "default" : "secondary"}>{recommendedType === "color" ? "🎨 컬러 / 복잡" : "⚫ 단색 / 단순"}</Badge></div>
-                              </>
-                            ) : <div className="text-muted-foreground">분석 중...</div>}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   )}
 
