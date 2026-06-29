@@ -241,7 +241,7 @@ function OrderProgressBox({
   order, items, pdfPreview,
 }: {
   order: any;
-  items: Array<{ seq: number; uniqueNo: string; editionNo: number; grade: Grade }>;
+  items: Array<{ seq: number; uniqueNo: string; editionNo: number; editionLabel?: string; grade: Grade }>;
   pdfPreview: string | null;
 }) {
   const orderNo: string = order?.external_order_id || "";
