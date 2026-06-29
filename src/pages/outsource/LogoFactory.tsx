@@ -642,11 +642,11 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
   /** Download any URL (data: or remote) as a file via a temporary <a>. */
   const downloadUrl = async (url: string, filename: string) => {
-    const triggerBlob = (blob: Blob) => {
+    const triggerBlob = (blob: Blob, downloadName = filename) => {
       const obj = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = obj;
-      a.download = filename;
+      a.download = downloadName;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -674,14 +674,18 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
         if (ct.includes("svg") && !/\.svg$/i.test(finalName)) finalName = finalName.replace(/\.[^.]+$/, "") + ".svg";
         else if (ct.includes("jpeg") && !/\.jpe?g$/i.test(finalName)) finalName = finalName.replace(/\.[^.]+$/, "") + ".jpg";
         else if (ct.includes("webp") && !/\.webp$/i.test(finalName)) finalName = finalName.replace(/\.[^.]+$/, "") + ".webp";
-        triggerBlob(new Blob([blob], { type: ct || "application/octet-stream" }));
+        triggerBlob(new Blob([blob], { type: ct || "application/octet-stream" }), finalName);
         return;
       } catch (corsErr) {
-        // CORS-blocked: fall back to opening the URL in a new tab so the user can save it manually.
-        console.warn("[downloadUrl] CORS fallback", corsErr);
-        const w = window.open(url, "_blank", "noopener,noreferrer");
-        if (!w) throw new Error("팝업이 차단되었습니다. 브라우저에서 새 탭 열기를 허용해주세요.");
-        toast({ title: "새 탭에서 열림", description: "CORS 제한으로 자동 저장이 불가하여 새 탭에서 열었습니다. 이미지를 우클릭하여 저장해주세요." });
+        console.warn("[downloadUrl] CORS fallback via backend", corsErr);
+        const { data, error } = await supabase.functions.invoke("download-file", {
+          body: { url, filename },
+        });
+        if (error) throw new Error(error.message || "다운로드 프록시 호출 실패");
+        const blob = data instanceof Blob
+          ? data
+          : new Blob([typeof data === "string" ? data : JSON.stringify(data)], { type: "application/octet-stream" });
+        triggerBlob(blob);
       }
     } catch (e: any) {
       toast({ title: "다운로드 실패", description: e?.message || String(e), variant: "destructive" });
