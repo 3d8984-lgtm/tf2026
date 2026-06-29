@@ -2564,6 +2564,40 @@ function DesignTab({
   const first = details[0];
   const effectiveDesign = testDesign || first?.designSrc || null;
 
+  // Resolve the design source ONCE per URL into a same-origin (CORS-safe) blob URL,
+  // so transform sliders (offset/scale) don't refetch through the proxy on every tweak.
+  const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    let createdObjUrl: string | null = null;
+    setResolvedSrc(null);
+    if (!effectiveDesign) return;
+    (async () => {
+      // Try direct load first.
+      try {
+        await loadImage(effectiveDesign);
+        if (!cancelled) setResolvedSrc(effectiveDesign);
+        return;
+      } catch {/* CORS or 404 — fall back */}
+      try {
+        const { data, error } = await supabase.functions.invoke("download-file", {
+          body: { url: effectiveDesign, filename: "design.bin" },
+        });
+        if (error) throw error;
+        const blob = data instanceof Blob ? data : new Blob([data as any]);
+        createdObjUrl = URL.createObjectURL(blob);
+        if (!cancelled) setResolvedSrc(createdObjUrl);
+        else URL.revokeObjectURL(createdObjUrl);
+      } catch (e) {
+        console.warn("[preview] proxy load failed:", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (createdObjUrl) URL.revokeObjectURL(createdObjUrl);
+    };
+  }, [effectiveDesign]);
+
   // dpi/sharpen driven by explicit user setting (not quality preset).
   // Sharpen only when we'd upscale (>= 450 dpi) — useOriginal never sharpens.
   const dpi = dpiState;
@@ -2576,43 +2610,23 @@ function DesignTab({
   useEffect(() => {
     let cancelled = false;
     async function run() {
-      if (!outline || !effectiveDesign) { setPreviewUrl(null); return; }
-      const compose = async (src: string) => {
-        const canvas = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, 96, transform, { sharpen });
-        return composeWithFooter(canvas, outline.widthPt, 96, previewUid, footer, {
+      if (!outline || !resolvedSrc) { setPreviewUrl(null); return; }
+      try {
+        const canvas = await composeClippedDesign(resolvedSrc, outline.maskCanvas, outline.widthPt, outline.heightPt, 96, transform, { sharpen });
+        const withFooter = await composeWithFooter(canvas, outline.widthPt, 96, previewUid, footer, {
           tshirtType: first?.tshirtType,
           tshirtColor: first?.tshirtColor,
           tshirtSize: first?.tshirtSize,
         });
-      };
-      try {
-        const withFooter = await compose(effectiveDesign);
         if (!cancelled) setPreviewUrl(withFooter.toDataURL("image/png"));
-        return;
       } catch (e) {
-        console.warn("[preview] direct compose failed, retrying via proxy:", e);
-      }
-      try {
-        const { data, error } = await supabase.functions.invoke("download-file", {
-          body: { url: effectiveDesign, filename: `${previewUid || "preview"}.bin` },
-        });
-        if (error) throw error;
-        const blob = data instanceof Blob ? data : new Blob([data as any]);
-        const objUrl = URL.createObjectURL(blob);
-        try {
-          const withFooter = await compose(objUrl);
-          if (!cancelled) setPreviewUrl(withFooter.toDataURL("image/png"));
-        } finally {
-          URL.revokeObjectURL(objUrl);
-        }
-      } catch (e2) {
-        console.warn("[preview] proxy compose failed:", e2);
+        console.warn("[preview] compose failed:", e);
         if (!cancelled) setPreviewUrl(null);
       }
     }
     run();
     return () => { cancelled = true; };
-  }, [outline, effectiveDesign, offsetX, offsetY, designScale, sharpen, previewUid, footer.enabled, footer.qrSizeMm, footer.textSizeMm, footer.offsetXPct, footer.bottomPaddingMm, footer.gapMm]);
+  }, [outline, resolvedSrc, offsetX, offsetY, designScale, sharpen, previewUid, footer.enabled, footer.qrSizeMm, footer.textSizeMm, footer.offsetXPct, footer.bottomPaddingMm, footer.gapMm]);
 
 
   const handleTestUpload = async (f: File) => {
