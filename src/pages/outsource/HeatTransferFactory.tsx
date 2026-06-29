@@ -1844,9 +1844,16 @@ function OrderProgressBox({
         setSendStage("PNG 생성 및 개별 업로드 중");
         const DPI = 300;
         const maskBlobCache = new Map<string, { blob: Blob; targetW: number; targetH: number; widthPt: number }>();
+        const maskIds = new WeakMap<HTMLCanvasElement, number>();
+        let nextMaskId = 0;
+        const getMaskId = (canvas: HTMLCanvasElement) => {
+          let id = maskIds.get(canvas);
+          if (!id) { id = ++nextMaskId; maskIds.set(canvas, id); }
+          return id;
+        };
         const getMaskBundle = async (fmt: typeof formats[number] | typeof outline) => {
           if (!fmt) return null;
-          const key = `${fmt.widthPt}x${fmt.heightPt}@${DPI}`;
+          const key = `${getMaskId(fmt.maskCanvas)}:${fmt.widthPt}x${fmt.heightPt}@${DPI}`;
           let b = maskBlobCache.get(key);
           if (!b) {
             const tW = Math.max(64, Math.round((fmt.widthPt / 72) * DPI));
