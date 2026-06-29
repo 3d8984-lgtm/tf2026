@@ -1113,10 +1113,11 @@ function OrderDetail({
     const n = Math.max(order.items.length, 1);
     for (let i = 0; i < n; i++) {
       const it: any = order.items[i] || {};
+      const orderId = String(it.order_id ?? "").trim() || order.orderNo;
       arr.push({
         serial: i + 1,
-        orderNo: order.orderNo,
-        designUid: `${order.orderNo}-${i + 1}`,
+        orderNo: orderId,
+        designUid: `${orderId}-2`,
         designSrc: order.logoUrl || testDesign,
         tshirtType: String(it.tshirt_type ?? "").trim(),
         tshirtColor: String(it.tshirt_color ?? "").trim(),
