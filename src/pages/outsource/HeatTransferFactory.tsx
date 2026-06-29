@@ -156,8 +156,8 @@ function buildAlphaMaskCanvas(maskCanvas: HTMLCanvasElement, targetW: number, ta
   const MAX_ANALYSIS_PIXELS = 4_000_000;
   if (totalPixels > MAX_ANALYSIS_PIXELS) {
     const scale = Math.sqrt(MAX_ANALYSIS_PIXELS / totalPixels);
-    const analysisW = Math.max(64, Math.round(targetW * scale));
-    const analysisH = Math.max(64, Math.round(targetH * scale));
+    const analysisW = Math.max(64, Math.floor(targetW * scale));
+    const analysisH = Math.max(64, Math.floor(targetH * scale));
     const smallMask = buildAlphaMaskCanvas(maskCanvas, analysisW, analysisH);
     const largeMask = document.createElement("canvas");
     largeMask.width = targetW;
