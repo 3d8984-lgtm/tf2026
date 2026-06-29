@@ -3188,7 +3188,8 @@ function OrderDetailList({
           </TableHeader>
           <TableBody>
             {details.map((d) => {
-              const fmt = pickFormatForSize(formats, d.tshirtSize || "", outline);
+              const target = normalizeSize(d.tshirtSize || "");
+              const fmt = target ? (formats.find((f) => normalizeSize(f.sizeLabel) === target) || null) : null;
               return (
                 <TableRow key={d.designUid}>
                   <TableCell>{d.serial}</TableCell>
@@ -3198,7 +3199,7 @@ function OrderDetailList({
                   <TableCell>{d.tshirtType || "—"}</TableCell>
                   <TableCell>{d.tshirtColor || "—"}</TableCell>
                   <TableCell>{d.tshirtSize || "—"}</TableCell>
-                  <TableCell><DesignThumb detail={d} outline={fmt} /></TableCell>
+                  <TableCell><DesignThumb detail={d} outline={fmt} sizeLabel={d.tshirtSize || ""} /></TableCell>
                   <TableCell><QrThumb value={d.designUid} /></TableCell>
                 </TableRow>
               );
