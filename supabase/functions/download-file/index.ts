@@ -90,7 +90,8 @@ Deno.serve(async (req) => {
     return new Response(bytes, {
       headers: {
         ...corsHeaders,
-        "Content-Type": contentType,
+        "Content-Type": "application/octet-stream",
+        "X-Original-Content-Type": contentType,
         "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
         "Cache-Control": "no-store",
       },
