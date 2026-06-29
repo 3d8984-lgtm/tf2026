@@ -702,15 +702,17 @@ export default function HologramFactory() {
     const count = Math.max(items.length, qty);
     return Array.from({ length: count }, (_, idx) => {
       const it = items[idx] || {};
-      const editionNo = idx + 1;
-      const uniqueNo = `${detailOrder.external_order_id}-3`;
+      const individualOrderNo = (it.order_id as string) || (it.sequence_no as string) || `${idx + 1}`;
+      const editionRaw = String(it.edition || "").trim();
+      const editionNo = editionRaw ? parseInt(editionRaw.replace(/^#+/, ""), 10) || (idx + 1) : (idx + 1);
+      const uniqueNo = `${individualOrderNo}-3`;
       const qrValue = (it.hologram_qr as string) || `${uniqueNo}-${editionNo}`;
       return {
-        seq: editionNo,
+        seq: idx + 1,
         orderNo: detailOrder.external_order_id as string,
         uniqueNo,
         editionNo,
-        grade: gradeFromCode(it.card_grade),
+        grade: gradeFromCode(it.grade || it.card_grade),
         qrValue,
       };
     });
