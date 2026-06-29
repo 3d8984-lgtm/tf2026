@@ -774,7 +774,7 @@ export default function HologramFactory() {
                     <TableRow key={`${it.uniqueNo}-${it.editionNo}`}>
                       <TableCell>{it.seq}</TableCell>
                       <TableCell className="font-mono">{it.uniqueNo}</TableCell>
-                      <TableCell>#{String(it.editionNo).padStart(4, "0")}</TableCell>
+                      <TableCell>{it.editionLabel}</TableCell>
                       <TableCell><Badge variant="outline">{it.grade}</Badge></TableCell>
                       <TableCell>TWINMETA</TableCell>
                     </TableRow>
