@@ -1539,8 +1539,7 @@ async function buildFinalPngs(
       if (!src) {
         item = { designUid: d.designUid, blob: null, reason: "디자인 소스 없음" };
       } else {
-        const target = normalizeSize(d.tshirtSize);
-        const fmt = (target ? formats.find((f) => normalizeSize(f.sizeLabel) === target) : null) || fallbackOutline;
+          const fmt = pickFormatForSize(formats, d.tshirtSize || "", fallbackOutline);
         if (!fmt) {
           item = { designUid: d.designUid, blob: null, reason: `사이즈 ${d.tshirtSize || "?"} 포맷 없음` };
         } else {
@@ -1948,8 +1947,7 @@ function OrderProgressBox({
               const d = details[i];
               const src = testDesign || d.designSrc;
               if (!src) { skipCount++; addUploadIssue(i + 1, `${d.designUid}.png`, "디자인 소스 없음"); continue; }
-              const target = normalizeSize(d.tshirtSize);
-              const fmt = (target ? formats.find((f) => normalizeSize(f.sizeLabel) === target) : null) || outline;
+              const fmt = pickFormatForSize(formats, d.tshirtSize || "", outline);
               if (!fmt) { skipCount++; addUploadIssue(i + 1, `${d.designUid}.png`, `사이즈 ${d.tshirtSize || "?"} 포맷 없음`); continue; }
               const mb = await getMaskBundle(fmt);
               if (!mb) { skipCount++; addUploadIssue(i + 1, `${d.designUid}.png`, "마스크 생성 실패"); continue; }
@@ -2585,11 +2583,8 @@ function DesignTab({
   const pushLog = (level: "info" | "warn" | "error", msg: string) =>
     setLogs((prev) => [{ ts: new Date().toLocaleTimeString(), level, msg }, ...prev].slice(0, 200));
 
-  const resolveStrictFormat = (d: DesignDetail): OutlineFormat | null => {
-    const target = normalizeSize(d.tshirtSize);
-    if (!target) return null;
-    return formats.find((f) => normalizeSize(f.sizeLabel) === target) || null;
-  };
+  const resolveStrictFormat = (d: DesignDetail): OutlineFormat | null =>
+    pickFormatForSize(formats, d.tshirtSize || "", null);
 
   const downloadOne = async (d: DesignDetail) => {
     const fmt = resolveStrictFormat(d) || outline;
