@@ -159,12 +159,93 @@ function buildAlphaMaskCanvas(maskCanvas: HTMLCanvasElement, targetW: number, ta
   mctx.drawImage(maskCanvas, 0, 0, targetW, targetH);
   const md = mctx.getImageData(0, 0, targetW, targetH);
   const d = md.data;
+
+  const applyLuminosityMask = () => {
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], g = d[i + 1], b = d[i + 2], a = d[i + 3];
+      const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      const inside = (1 - lum) * (a / 255);
+      d[i] = 0; d[i + 1] = 0; d[i + 2] = 0;
+      d[i + 3] = Math.round(Math.min(1, inside) * 255);
+    }
+    mctx.putImageData(md, 0, 0);
+    return mask;
+  };
+
+  // Most uploaded frame PDFs are outline-only: black stroke on a white page.
+  // The old luminance mask kept only the black stroke, so the design was clipped to the line
+  // and looked like the frame was not applied. For outline PDFs, flood-fill the outside area
+  // from the canvas edges and use the enclosed interior as the clipping mask.
+  const total = targetW * targetH;
+  const ink = new Uint8Array(total);
+  let inkCount = 0;
+  for (let p = 0, i = 0; p < total; p++, i += 4) {
+    const a = d[i + 3] / 255;
+    const lum = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) / 255;
+    // Treat non-white opaque pixels as frame strokes. A loose threshold handles anti-aliased PDFs.
+    if (a > 0.08 && lum < 0.92) {
+      ink[p] = 1;
+      inkCount++;
+    }
+  }
+
+  const inkRatio = inkCount / Math.max(1, total);
+  if (inkCount === 0 || inkRatio > 0.18) {
+    return applyLuminosityMask();
+  }
+
+  const barrier = new Uint8Array(ink);
+  const dilatePasses = Math.max(1, Math.min(3, Math.round(Math.min(targetW, targetH) / 700)));
+  for (let pass = 0; pass < dilatePasses; pass++) {
+    const prev = new Uint8Array(barrier);
+    for (let y = 0; y < targetH; y++) {
+      const row = y * targetW;
+      for (let x = 0; x < targetW; x++) {
+        const idx = row + x;
+        if (!prev[idx]) continue;
+        if (x > 0) barrier[idx - 1] = 1;
+        if (x < targetW - 1) barrier[idx + 1] = 1;
+        if (y > 0) barrier[idx - targetW] = 1;
+        if (y < targetH - 1) barrier[idx + targetW] = 1;
+      }
+    }
+  }
+
+  const outside = new Uint8Array(total);
+  const queue = new Int32Array(total);
+  let head = 0, tail = 0;
+  const enqueue = (idx: number) => {
+    if (idx < 0 || idx >= total || outside[idx] || barrier[idx]) return;
+    outside[idx] = 1;
+    queue[tail++] = idx;
+  };
+  for (let x = 0; x < targetW; x++) {
+    enqueue(x);
+    enqueue((targetH - 1) * targetW + x);
+  }
+  for (let y = 0; y < targetH; y++) {
+    enqueue(y * targetW);
+    enqueue(y * targetW + targetW - 1);
+  }
+  while (head < tail) {
+    const idx = queue[head++];
+    const x = idx % targetW;
+    if (x > 0) enqueue(idx - 1);
+    if (x < targetW - 1) enqueue(idx + 1);
+    if (idx >= targetW) enqueue(idx - targetW);
+    if (idx < total - targetW) enqueue(idx + targetW);
+  }
+
+  let insideCount = 0;
+  for (let p = 0; p < total; p++) if (!outside[p]) insideCount++;
+  const insideRatio = insideCount / Math.max(1, total);
+  if (insideRatio <= 0.01 || insideRatio >= 0.995) {
+    return applyLuminosityMask();
+  }
+
   for (let i = 0; i < d.length; i += 4) {
-    const r = d[i], g = d[i + 1], b = d[i + 2], a = d[i + 3];
-    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    const inside = (1 - lum) * (a / 255);
     d[i] = 0; d[i + 1] = 0; d[i + 2] = 0;
-    d[i + 3] = Math.round(Math.min(1, inside) * 255);
+    d[i + 3] = outside[i / 4] ? 0 : 255;
   }
   mctx.putImageData(md, 0, 0);
   return mask;
