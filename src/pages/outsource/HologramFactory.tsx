@@ -727,7 +727,7 @@ export default function HologramFactory() {
       const rows = detailItems.map(it => ({
         "序号": it.seq,
         "贴纸唯一编号": it.uniqueNo,
-        "版本编号": `#${String(it.editionNo).padStart(4, "0")}`,
+        "版本编号": it.editionLabel,
         "等级": it.grade,
         "公司名称": "TWINMETA",
       }));
