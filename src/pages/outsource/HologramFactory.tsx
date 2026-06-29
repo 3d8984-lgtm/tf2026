@@ -196,11 +196,11 @@ function computeHoloWorkOrder(order: any, items: Array<{ grade: Grade }>): HoloW
   return defaults;
 }
 
-function buildHologramExcelBlob(items: Array<{ seq: number; uniqueNo: string; editionNo: number; grade: Grade }>): Blob {
+function buildHologramExcelBlob(items: Array<{ seq: number; uniqueNo: string; editionNo: number; editionLabel?: string; grade: Grade }>): Blob {
   const rows = items.map(it => ({
     "序号": it.seq,
     "贴纸唯一编号": it.uniqueNo,
-    "版本编号": `#${String(it.editionNo).padStart(4, "0")}`,
+    "版本编号": it.editionLabel || `#${String(it.editionNo).padStart(4, "0")}`,
     "等级": it.grade,
     "公司名称": "TWINMETA",
   }));
@@ -241,7 +241,7 @@ function OrderProgressBox({
   order, items, pdfPreview,
 }: {
   order: any;
-  items: Array<{ seq: number; uniqueNo: string; editionNo: number; grade: Grade }>;
+  items: Array<{ seq: number; uniqueNo: string; editionNo: number; editionLabel?: string; grade: Grade }>;
   pdfPreview: string | null;
 }) {
   const orderNo: string = order?.external_order_id || "";
@@ -454,7 +454,7 @@ function OrderProgressBox({
                       <td className="sticky left-0 bg-[#f3f3f3] border border-[#d4d4d4] h-6 text-center text-[#666]">{i + 2}</td>
                       <td className="border border-[#d4d4d4] px-2 h-6 text-right tabular-nums">{it.seq}</td>
                       <td className="border border-[#d4d4d4] px-2 h-6">{it.uniqueNo}</td>
-                      <td className="border border-[#d4d4d4] px-2 h-6">#{String(it.editionNo).padStart(4, "0")}</td>
+                      <td className="border border-[#d4d4d4] px-2 h-6">{it.editionLabel || `#${String(it.editionNo).padStart(4, "0")}`}</td>
                       <td className="border border-[#d4d4d4] px-2 h-6">{it.grade}</td>
                       <td className="border border-[#d4d4d4] px-2 h-6">TWINMETA</td>
                     </tr>
@@ -705,6 +705,9 @@ export default function HologramFactory() {
       const individualOrderNo = (it.order_id as string) || (it.sequence_no as string) || `${idx + 1}`;
       const editionRaw = String(it.edition || "").trim();
       const editionNo = editionRaw ? parseInt(editionRaw.replace(/^#+/, ""), 10) || (idx + 1) : (idx + 1);
+      const editionLabel = editionRaw
+        ? (editionRaw.startsWith("#") ? editionRaw : `#${editionRaw}`)
+        : `#${String(editionNo).padStart(4, "0")}`;
       const uniqueNo = `${individualOrderNo}-3`;
       const qrValue = (it.hologram_qr as string) || `${uniqueNo}-${editionNo}`;
       return {
@@ -712,6 +715,7 @@ export default function HologramFactory() {
         orderNo: detailOrder.external_order_id as string,
         uniqueNo,
         editionNo,
+        editionLabel,
         grade: gradeFromCode(it.grade || it.card_grade),
         qrValue,
       };
@@ -723,7 +727,7 @@ export default function HologramFactory() {
       const rows = detailItems.map(it => ({
         "序号": it.seq,
         "贴纸唯一编号": it.uniqueNo,
-        "版本编号": `#${String(it.editionNo).padStart(4, "0")}`,
+        "版本编号": it.editionLabel,
         "等级": it.grade,
         "公司名称": "TWINMETA",
       }));
@@ -770,7 +774,7 @@ export default function HologramFactory() {
                     <TableRow key={`${it.uniqueNo}-${it.editionNo}`}>
                       <TableCell>{it.seq}</TableCell>
                       <TableCell className="font-mono">{it.uniqueNo}</TableCell>
-                      <TableCell>#{String(it.editionNo).padStart(4, "0")}</TableCell>
+                      <TableCell>{it.editionLabel}</TableCell>
                       <TableCell><Badge variant="outline">{it.grade}</Badge></TableCell>
                       <TableCell>TWINMETA</TableCell>
                     </TableRow>
