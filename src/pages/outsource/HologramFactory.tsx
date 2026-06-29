@@ -454,7 +454,7 @@ function OrderProgressBox({
                       <td className="sticky left-0 bg-[#f3f3f3] border border-[#d4d4d4] h-6 text-center text-[#666]">{i + 2}</td>
                       <td className="border border-[#d4d4d4] px-2 h-6 text-right tabular-nums">{it.seq}</td>
                       <td className="border border-[#d4d4d4] px-2 h-6">{it.uniqueNo}</td>
-                      <td className="border border-[#d4d4d4] px-2 h-6">#{String(it.editionNo).padStart(4, "0")}</td>
+                      <td className="border border-[#d4d4d4] px-2 h-6">{it.editionLabel || `#${String(it.editionNo).padStart(4, "0")}`}</td>
                       <td className="border border-[#d4d4d4] px-2 h-6">{it.grade}</td>
                       <td className="border border-[#d4d4d4] px-2 h-6">TWINMETA</td>
                     </tr>
