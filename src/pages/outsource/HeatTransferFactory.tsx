@@ -2564,6 +2564,40 @@ function DesignTab({
   const first = details[0];
   const effectiveDesign = testDesign || first?.designSrc || null;
 
+  // Resolve the design source ONCE per URL into a same-origin (CORS-safe) blob URL,
+  // so transform sliders (offset/scale) don't refetch through the proxy on every tweak.
+  const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    let createdObjUrl: string | null = null;
+    setResolvedSrc(null);
+    if (!effectiveDesign) return;
+    (async () => {
+      // Try direct load first.
+      try {
+        await loadImage(effectiveDesign);
+        if (!cancelled) setResolvedSrc(effectiveDesign);
+        return;
+      } catch {/* CORS or 404 — fall back */}
+      try {
+        const { data, error } = await supabase.functions.invoke("download-file", {
+          body: { url: effectiveDesign, filename: "design.bin" },
+        });
+        if (error) throw error;
+        const blob = data instanceof Blob ? data : new Blob([data as any]);
+        createdObjUrl = URL.createObjectURL(blob);
+        if (!cancelled) setResolvedSrc(createdObjUrl);
+        else URL.revokeObjectURL(createdObjUrl);
+      } catch (e) {
+        console.warn("[preview] proxy load failed:", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (createdObjUrl) URL.revokeObjectURL(createdObjUrl);
+    };
+  }, [effectiveDesign]);
+
   // dpi/sharpen driven by explicit user setting (not quality preset).
   // Sharpen only when we'd upscale (>= 450 dpi) — useOriginal never sharpens.
   const dpi = dpiState;
