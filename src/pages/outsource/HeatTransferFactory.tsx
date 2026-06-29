@@ -3215,16 +3215,18 @@ function OrderDetailList({
 }
 
 function DesignThumb({
-  detail, outline,
+  detail, outline, sizeLabel,
 }: {
   detail: DesignDetail;
   outline: { maskCanvas: HTMLCanvasElement; widthPt: number; heightPt: number } | null;
+  sizeLabel?: string;
 }) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
+    setUrl(null);
     async function run() {
-      if (!outline || !detail.designSrc) { setUrl(detail.designSrc); return; }
+      if (!outline || !detail.designSrc) return;
       try {
         const c = await composeClippedDesign(detail.designSrc, outline.maskCanvas, outline.widthPt, outline.heightPt, 72);
         if (!cancelled) setUrl(c.toDataURL("image/png"));
@@ -3234,8 +3236,14 @@ function DesignThumb({
     return () => { cancelled = true; };
   }, [detail.designSrc, outline]);
   return (
-    <div className="w-16 h-16 rounded border bg-muted/30 flex items-center justify-center overflow-hidden">
-      {url ? <img src={url} alt="d" className="max-w-full max-h-full object-contain" /> : <span className="text-[10px] text-muted-foreground">—</span>}
+    <div className="w-16 h-16 rounded border bg-muted/30 flex items-center justify-center overflow-hidden text-center">
+      {url
+        ? <img src={url} alt="d" className="max-w-full max-h-full object-contain" />
+        : !outline
+          ? <span className="text-[9px] text-muted-foreground leading-tight px-1">{sizeLabel ? `${sizeLabel} 포맷 없음` : "포맷 없음"}</span>
+          : !detail.designSrc
+            ? <span className="text-[10px] text-muted-foreground">—</span>
+            : <span className="text-[10px] text-muted-foreground">…</span>}
     </div>
   );
 }
