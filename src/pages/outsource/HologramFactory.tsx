@@ -705,6 +705,9 @@ export default function HologramFactory() {
       const individualOrderNo = (it.order_id as string) || (it.sequence_no as string) || `${idx + 1}`;
       const editionRaw = String(it.edition || "").trim();
       const editionNo = editionRaw ? parseInt(editionRaw.replace(/^#+/, ""), 10) || (idx + 1) : (idx + 1);
+      const editionLabel = editionRaw
+        ? (editionRaw.startsWith("#") ? editionRaw : `#${editionRaw}`)
+        : `#${String(editionNo).padStart(4, "0")}`;
       const uniqueNo = `${individualOrderNo}-3`;
       const qrValue = (it.hologram_qr as string) || `${uniqueNo}-${editionNo}`;
       return {
@@ -712,6 +715,7 @@ export default function HologramFactory() {
         orderNo: detailOrder.external_order_id as string,
         uniqueNo,
         editionNo,
+        editionLabel,
         grade: gradeFromCode(it.grade || it.card_grade),
         qrValue,
       };
