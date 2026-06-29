@@ -1118,7 +1118,7 @@ function OrderDetail({
         serial: i + 1,
         orderNo: orderId,
         designUid: `${orderId}-2`,
-        designSrc: order.logoUrl || testDesign,
+        designSrc: it.gft_original_image_url || order.logoUrl || testDesign,
         tshirtType: String(it.tshirt_type ?? "").trim(),
         tshirtColor: String(it.tshirt_color ?? "").trim(),
         tshirtSize: String(it.tshirt_size ?? "").trim(),
