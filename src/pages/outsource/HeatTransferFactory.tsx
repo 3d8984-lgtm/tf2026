@@ -3188,8 +3188,7 @@ function OrderDetailList({
           </TableHeader>
           <TableBody>
             {details.map((d) => {
-              const target = normalizeSize(d.tshirtSize || "");
-              const fmt = target ? (formats.find((f) => normalizeSize(f.sizeLabel) === target) || null) : null;
+              const fmt = pickFormatForSize(formats, d.tshirtSize || "", outline);
               return (
                 <TableRow key={d.designUid}>
                   <TableCell>{d.serial}</TableCell>
