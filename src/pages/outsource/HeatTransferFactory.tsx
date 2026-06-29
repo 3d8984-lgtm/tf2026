@@ -150,6 +150,25 @@ async function loadPdfOutline(bytes: ArrayBuffer): Promise<{
  * cache the result and reuse it across details that share the same format.
  */
 function buildAlphaMaskCanvas(maskCanvas: HTMLCanvasElement, targetW: number, targetH: number): HTMLCanvasElement {
+  // Analyze very large print masks at a bounded size, then scale the resulting alpha mask.
+  // This keeps 600/1200 DPI exports from allocating several hundred MB during flood-fill.
+  const totalPixels = targetW * targetH;
+  const MAX_ANALYSIS_PIXELS = 4_000_000;
+  if (totalPixels > MAX_ANALYSIS_PIXELS) {
+    const scale = Math.sqrt(MAX_ANALYSIS_PIXELS / totalPixels);
+    const analysisW = Math.max(64, Math.round(targetW * scale));
+    const analysisH = Math.max(64, Math.round(targetH * scale));
+    const smallMask = buildAlphaMaskCanvas(maskCanvas, analysisW, analysisH);
+    const largeMask = document.createElement("canvas");
+    largeMask.width = targetW;
+    largeMask.height = targetH;
+    const lctx = largeMask.getContext("2d")!;
+    lctx.imageSmoothingEnabled = true;
+    lctx.imageSmoothingQuality = "high";
+    lctx.drawImage(smallMask, 0, 0, targetW, targetH);
+    return largeMask;
+  }
+
   const mask = document.createElement("canvas");
   mask.width = targetW;
   mask.height = targetH;
