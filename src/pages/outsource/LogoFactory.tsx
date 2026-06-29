@@ -642,14 +642,47 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
   /** Download any URL (data: or remote) as a file via a temporary <a>. */
   const downloadUrl = async (url: string, filename: string) => {
-    try {
-      const dataUrl = url.startsWith("data:") ? url : await fetchAsDataUrl(url);
+    const triggerBlob = (blob: Blob) => {
+      const obj = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = dataUrl;
+      a.href = obj;
       a.download = filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
+      setTimeout(() => URL.revokeObjectURL(obj), 1000);
+    };
+    try {
+      if (url.startsWith("data:")) {
+        const dataUrl = url;
+        const a = document.createElement("a");
+        a.href = dataUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+      // Try CORS fetch first so the browser actually saves with our filename.
+      try {
+        const res = await fetch(url, { mode: "cors" });
+        if (!res.ok) throw new Error(`fetch ${res.status}`);
+        const blob = await res.blob();
+        // Adjust extension based on actual content-type when possible.
+        const ct = blob.type || "";
+        let finalName = filename;
+        if (ct.includes("svg") && !/\.svg$/i.test(finalName)) finalName = finalName.replace(/\.[^.]+$/, "") + ".svg";
+        else if (ct.includes("jpeg") && !/\.jpe?g$/i.test(finalName)) finalName = finalName.replace(/\.[^.]+$/, "") + ".jpg";
+        else if (ct.includes("webp") && !/\.webp$/i.test(finalName)) finalName = finalName.replace(/\.[^.]+$/, "") + ".webp";
+        triggerBlob(new Blob([blob], { type: ct || "application/octet-stream" }));
+        return;
+      } catch (corsErr) {
+        // CORS-blocked: fall back to opening the URL in a new tab so the user can save it manually.
+        console.warn("[downloadUrl] CORS fallback", corsErr);
+        const w = window.open(url, "_blank", "noopener,noreferrer");
+        if (!w) throw new Error("팝업이 차단되었습니다. 브라우저에서 새 탭 열기를 허용해주세요.");
+        toast({ title: "새 탭에서 열림", description: "CORS 제한으로 자동 저장이 불가하여 새 탭에서 열었습니다. 이미지를 우클릭하여 저장해주세요." });
+      }
     } catch (e: any) {
       toast({ title: "다운로드 실패", description: e?.message || String(e), variant: "destructive" });
     }
