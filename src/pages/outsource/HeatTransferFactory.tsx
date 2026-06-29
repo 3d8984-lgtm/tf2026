@@ -3337,11 +3337,30 @@ function DesignThumb({
     setFailed(false);
     async function run() {
       if (!outline || !detail.designSrc) return;
+      // 1) Try direct compose (CORS-allowed sources).
       try {
         const c = await composeClippedDesign(detail.designSrc, outline.maskCanvas, outline.widthPt, outline.heightPt, 72);
         if (!cancelled) setUrl(c.toDataURL("image/png"));
+        return;
       } catch (e) {
-        console.warn("[DesignThumb] compose failed, falling back to raw image:", e);
+        console.warn("[DesignThumb] direct compose failed, retrying via proxy:", e);
+      }
+      // 2) Fallback: fetch through edge proxy to bypass CORS, then compose.
+      try {
+        const { data, error } = await supabase.functions.invoke("download-file", {
+          body: { url: detail.designSrc, filename: `${detail.designUid}.bin` },
+        });
+        if (error) throw error;
+        const blob = data instanceof Blob ? data : new Blob([data as any]);
+        const objUrl = URL.createObjectURL(blob);
+        try {
+          const c = await composeClippedDesign(objUrl, outline.maskCanvas, outline.widthPt, outline.heightPt, 72);
+          if (!cancelled) setUrl(c.toDataURL("image/png"));
+        } finally {
+          URL.revokeObjectURL(objUrl);
+        }
+      } catch (e2) {
+        console.warn("[DesignThumb] proxy compose failed:", e2);
         if (!cancelled) setFailed(true);
       }
     }
@@ -3357,7 +3376,7 @@ function DesignThumb({
           : !detail.designSrc
             ? <span className="text-[10px] text-muted-foreground">—</span>
             : failed
-              ? <img src={detail.designSrc} alt="d" referrerPolicy="no-referrer" className="max-w-full max-h-full object-contain" />
+              ? <span className="text-[9px] text-destructive leading-tight px-1">프레임 적용 실패</span>
               : <span className="text-[10px] text-muted-foreground">…</span>}
     </div>
   );
