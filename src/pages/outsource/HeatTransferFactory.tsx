@@ -2610,43 +2610,23 @@ function DesignTab({
   useEffect(() => {
     let cancelled = false;
     async function run() {
-      if (!outline || !effectiveDesign) { setPreviewUrl(null); return; }
-      const compose = async (src: string) => {
-        const canvas = await composeClippedDesign(src, outline.maskCanvas, outline.widthPt, outline.heightPt, 96, transform, { sharpen });
-        return composeWithFooter(canvas, outline.widthPt, 96, previewUid, footer, {
+      if (!outline || !resolvedSrc) { setPreviewUrl(null); return; }
+      try {
+        const canvas = await composeClippedDesign(resolvedSrc, outline.maskCanvas, outline.widthPt, outline.heightPt, 96, transform, { sharpen });
+        const withFooter = await composeWithFooter(canvas, outline.widthPt, 96, previewUid, footer, {
           tshirtType: first?.tshirtType,
           tshirtColor: first?.tshirtColor,
           tshirtSize: first?.tshirtSize,
         });
-      };
-      try {
-        const withFooter = await compose(effectiveDesign);
         if (!cancelled) setPreviewUrl(withFooter.toDataURL("image/png"));
-        return;
       } catch (e) {
-        console.warn("[preview] direct compose failed, retrying via proxy:", e);
-      }
-      try {
-        const { data, error } = await supabase.functions.invoke("download-file", {
-          body: { url: effectiveDesign, filename: `${previewUid || "preview"}.bin` },
-        });
-        if (error) throw error;
-        const blob = data instanceof Blob ? data : new Blob([data as any]);
-        const objUrl = URL.createObjectURL(blob);
-        try {
-          const withFooter = await compose(objUrl);
-          if (!cancelled) setPreviewUrl(withFooter.toDataURL("image/png"));
-        } finally {
-          URL.revokeObjectURL(objUrl);
-        }
-      } catch (e2) {
-        console.warn("[preview] proxy compose failed:", e2);
+        console.warn("[preview] compose failed:", e);
         if (!cancelled) setPreviewUrl(null);
       }
     }
     run();
     return () => { cancelled = true; };
-  }, [outline, effectiveDesign, offsetX, offsetY, designScale, sharpen, previewUid, footer.enabled, footer.qrSizeMm, footer.textSizeMm, footer.offsetXPct, footer.bottomPaddingMm, footer.gapMm]);
+  }, [outline, resolvedSrc, offsetX, offsetY, designScale, sharpen, previewUid, footer.enabled, footer.qrSizeMm, footer.textSizeMm, footer.offsetXPct, footer.bottomPaddingMm, footer.gapMm]);
 
 
   const handleTestUpload = async (f: File) => {
