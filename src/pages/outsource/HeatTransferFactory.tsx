@@ -3221,15 +3221,20 @@ function DesignThumb({
   sizeLabel?: string;
 }) {
   const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
     let cancelled = false;
     setUrl(null);
+    setFailed(false);
     async function run() {
       if (!outline || !detail.designSrc) return;
       try {
         const c = await composeClippedDesign(detail.designSrc, outline.maskCanvas, outline.widthPt, outline.heightPt, 72);
         if (!cancelled) setUrl(c.toDataURL("image/png"));
-      } catch { /* ignore */ }
+      } catch (e) {
+        console.warn("[DesignThumb] compose failed, falling back to raw image:", e);
+        if (!cancelled) setFailed(true);
+      }
     }
     run();
     return () => { cancelled = true; };
@@ -3242,7 +3247,9 @@ function DesignThumb({
           ? <span className="text-[9px] text-muted-foreground leading-tight px-1">{sizeLabel ? `${sizeLabel} 포맷 없음` : "포맷 없음"}</span>
           : !detail.designSrc
             ? <span className="text-[10px] text-muted-foreground">—</span>
-            : <span className="text-[10px] text-muted-foreground">…</span>}
+            : failed
+              ? <img src={detail.designSrc} alt="d" referrerPolicy="no-referrer" className="max-w-full max-h-full object-contain" />
+              : <span className="text-[10px] text-muted-foreground">…</span>}
     </div>
   );
 }
