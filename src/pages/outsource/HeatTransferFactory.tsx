@@ -2647,10 +2647,17 @@ function DesignTab({
 
     // Build mask blob cache (once per size) and spin up a worker pool.
     const maskCache = new Map<string, { blob: Blob; targetW: number; targetH: number; widthPt: number }>();
+    const maskIds = new WeakMap<HTMLCanvasElement, number>();
+    let nextMaskId = 0;
+    const getMaskId = (canvas: HTMLCanvasElement) => {
+      let id = maskIds.get(canvas);
+      if (!id) { id = ++nextMaskId; maskIds.set(canvas, id); }
+      return id;
+    };
     const getMask = async (fmt: Plan["fmt"]) => {
       const key = useOriginalRes
-        ? `${fmt.widthPt}x${fmt.heightPt}@orig`
-        : `${fmt.widthPt}x${fmt.heightPt}@${dpi}`;
+        ? `${getMaskId(fmt.maskCanvas)}:${fmt.widthPt}x${fmt.heightPt}@orig`
+        : `${getMaskId(fmt.maskCanvas)}:${fmt.widthPt}x${fmt.heightPt}@${dpi}`;
       let b = maskCache.get(key);
       if (!b) {
         // useOriginal: build alpha mask at PDF-native size; worker scales per-image.
