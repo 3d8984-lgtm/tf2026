@@ -196,11 +196,11 @@ function computeHoloWorkOrder(order: any, items: Array<{ grade: Grade }>): HoloW
   return defaults;
 }
 
-function buildHologramExcelBlob(items: Array<{ seq: number; uniqueNo: string; editionNo: number; grade: Grade }>): Blob {
+function buildHologramExcelBlob(items: Array<{ seq: number; uniqueNo: string; editionNo: number; editionLabel?: string; grade: Grade }>): Blob {
   const rows = items.map(it => ({
     "序号": it.seq,
     "贴纸唯一编号": it.uniqueNo,
-    "版本编号": `#${String(it.editionNo).padStart(4, "0")}`,
+    "版本编号": it.editionLabel || `#${String(it.editionNo).padStart(4, "0")}`,
     "等级": it.grade,
     "公司名称": "TWINMETA",
   }));
