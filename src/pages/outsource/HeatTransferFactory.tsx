@@ -3382,29 +3382,29 @@ function OrderDetailList({
 }
 
 function DesignThumb({
-  detail, outline, sizeLabel,
+  detail, outline, sizeLabel, transform,
 }: {
   detail: DesignDetail;
   outline: { maskCanvas: HTMLCanvasElement; widthPt: number; heightPt: number } | null;
   sizeLabel?: string;
+  transform?: { offsetXPct?: number; offsetYPct?: number; scale?: number };
 }) {
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const tKey = `${transform?.offsetXPct ?? 0}|${transform?.offsetYPct ?? 0}|${transform?.scale ?? 1}`;
   useEffect(() => {
     let cancelled = false;
     setUrl(null);
     setFailed(false);
     async function run() {
       if (!outline || !detail.designSrc) return;
-      // 1) Try direct compose (CORS-allowed sources).
       try {
-        const c = await composeClippedDesign(detail.designSrc, outline.maskCanvas, outline.widthPt, outline.heightPt, 72);
+        const c = await composeClippedDesign(detail.designSrc, outline.maskCanvas, outline.widthPt, outline.heightPt, 72, transform);
         if (!cancelled) setUrl(c.toDataURL("image/png"));
         return;
       } catch (e) {
         console.warn("[DesignThumb] direct compose failed, retrying via proxy:", e);
       }
-      // 2) Fallback: fetch through edge proxy to bypass CORS, then compose.
       try {
         const { data, error } = await supabase.functions.invoke("download-file", {
           body: { url: detail.designSrc, filename: `${detail.designUid}.bin` },
@@ -3413,7 +3413,7 @@ function DesignThumb({
         const blob = data instanceof Blob ? data : new Blob([data as any]);
         const objUrl = URL.createObjectURL(blob);
         try {
-          const c = await composeClippedDesign(objUrl, outline.maskCanvas, outline.widthPt, outline.heightPt, 72);
+          const c = await composeClippedDesign(objUrl, outline.maskCanvas, outline.widthPt, outline.heightPt, 72, transform);
           if (!cancelled) setUrl(c.toDataURL("image/png"));
         } finally {
           URL.revokeObjectURL(objUrl);
@@ -3425,7 +3425,7 @@ function DesignThumb({
     }
     run();
     return () => { cancelled = true; };
-  }, [detail.designSrc, outline]);
+  }, [detail.designSrc, outline, tKey]);
   return (
     <div className="w-16 h-16 rounded border bg-muted/30 flex items-center justify-center overflow-hidden text-center">
       {url
