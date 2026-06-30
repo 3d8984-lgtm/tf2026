@@ -1275,7 +1275,7 @@ function OrderDetail({
         </TabsContent>
       </Tabs>
 
-      <OrderDetailList details={details} outline={outline} formats={formats} />
+      <OrderDetailList details={details} outline={outline} formats={formats} orderNo={order.orderNo} />
 
       <Dialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
         <DialogContent className="max-w-sm">
@@ -3308,12 +3308,34 @@ function NumField({ label, v, set, min, max, step }: { label: string; v: number;
 // ============ order detail list ============
 
 function OrderDetailList({
-  details, outline, formats,
+  details, outline, formats, orderNo,
 }: {
   details: DesignDetail[];
   outline: { previewUrl: string; maskCanvas: HTMLCanvasElement; widthPt: number; heightPt: number; name: string } | null;
   formats: SizedFormat[];
+  orderNo: string;
 }) {
+  const readTransform = () => {
+    const d = readHtDesignUiDraft(orderNo);
+    return { offsetXPct: d.offsetX ?? 0, offsetYPct: d.offsetY ?? 0, scale: d.designScale ?? 1 };
+  };
+  const [transform, setTransform] = useState(readTransform);
+  useEffect(() => {
+    setTransform(readTransform());
+    const refresh = () => setTransform(readTransform());
+    const onSaved = (e: Event) => {
+      const ce = e as CustomEvent<{ orderNo?: string }>;
+      if (!ce.detail?.orderNo || ce.detail.orderNo === orderNo) setTransform(readTransform());
+    };
+    window.addEventListener("focus", refresh);
+    window.addEventListener("storage", refresh);
+    window.addEventListener("htf:transformSaved", onSaved as EventListener);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("storage", refresh);
+      window.removeEventListener("htf:transformSaved", onSaved as EventListener);
+    };
+  }, [orderNo]);
   return (
     <Card>
       <CardHeader><CardTitle className="text-base">주문 상세 목록</CardTitle></CardHeader>
@@ -3344,7 +3366,7 @@ function OrderDetailList({
                   <TableCell>{d.tshirtType || "—"}</TableCell>
                   <TableCell>{d.tshirtColor || "—"}</TableCell>
                   <TableCell>{d.tshirtSize || "—"}</TableCell>
-                  <TableCell><DesignThumb detail={d} outline={fmt} sizeLabel={d.tshirtSize || ""} /></TableCell>
+                  <TableCell><DesignThumb detail={d} outline={fmt} sizeLabel={d.tshirtSize || ""} transform={transform} /></TableCell>
                   <TableCell><QrThumb value={d.designUid} /></TableCell>
                 </TableRow>
               );
@@ -3360,29 +3382,29 @@ function OrderDetailList({
 }
 
 function DesignThumb({
-  detail, outline, sizeLabel,
+  detail, outline, sizeLabel, transform,
 }: {
   detail: DesignDetail;
   outline: { maskCanvas: HTMLCanvasElement; widthPt: number; heightPt: number } | null;
   sizeLabel?: string;
+  transform?: { offsetXPct?: number; offsetYPct?: number; scale?: number };
 }) {
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const tKey = `${transform?.offsetXPct ?? 0}|${transform?.offsetYPct ?? 0}|${transform?.scale ?? 1}`;
   useEffect(() => {
     let cancelled = false;
     setUrl(null);
     setFailed(false);
     async function run() {
       if (!outline || !detail.designSrc) return;
-      // 1) Try direct compose (CORS-allowed sources).
       try {
-        const c = await composeClippedDesign(detail.designSrc, outline.maskCanvas, outline.widthPt, outline.heightPt, 72);
+        const c = await composeClippedDesign(detail.designSrc, outline.maskCanvas, outline.widthPt, outline.heightPt, 72, transform);
         if (!cancelled) setUrl(c.toDataURL("image/png"));
         return;
       } catch (e) {
         console.warn("[DesignThumb] direct compose failed, retrying via proxy:", e);
       }
-      // 2) Fallback: fetch through edge proxy to bypass CORS, then compose.
       try {
         const { data, error } = await supabase.functions.invoke("download-file", {
           body: { url: detail.designSrc, filename: `${detail.designUid}.bin` },
@@ -3391,7 +3413,7 @@ function DesignThumb({
         const blob = data instanceof Blob ? data : new Blob([data as any]);
         const objUrl = URL.createObjectURL(blob);
         try {
-          const c = await composeClippedDesign(objUrl, outline.maskCanvas, outline.widthPt, outline.heightPt, 72);
+          const c = await composeClippedDesign(objUrl, outline.maskCanvas, outline.widthPt, outline.heightPt, 72, transform);
           if (!cancelled) setUrl(c.toDataURL("image/png"));
         } finally {
           URL.revokeObjectURL(objUrl);
@@ -3403,7 +3425,7 @@ function DesignThumb({
     }
     run();
     return () => { cancelled = true; };
-  }, [detail.designSrc, outline]);
+  }, [detail.designSrc, outline, tKey]);
   return (
     <div className="w-16 h-16 rounded border bg-muted/30 flex items-center justify-center overflow-hidden text-center">
       {url
