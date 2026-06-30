@@ -568,6 +568,8 @@ type HtDesignUiDraft = {
   useOriginalRes?: boolean;
 };
 
+type DesignTransform = { offsetXPct: number; offsetYPct: number; scale: number };
+
 type HtPersistedDesign = {
   orderNo: string;
   dataUrl: string;
@@ -584,11 +586,20 @@ function readHtDesignUiDraft(orderNo: string): HtDesignUiDraft {
   }
 }
 
+function readHtDesignTransform(orderNo: string): DesignTransform {
+  const d = readHtDesignUiDraft(orderNo);
+  return { offsetXPct: d.offsetX ?? 0, offsetYPct: d.offsetY ?? 0, scale: d.designScale ?? 1 };
+}
+
 function writeHtDesignUiDraft(orderNo: string, patch: HtDesignUiDraft) {
   try {
     const prev = readHtDesignUiDraft(orderNo);
     localStorage.setItem(`${HT_UI_DRAFT_PREFIX}${orderNo}`, JSON.stringify({ ...prev, ...patch }));
   } catch {}
+}
+
+function emitHtTransformChange(orderNo: string) {
+  try { window.dispatchEvent(new CustomEvent("htf:transformChanged", { detail: { orderNo } })); } catch {}
 }
 
 function openHtDesignDb(): Promise<IDBDatabase> {
@@ -1189,11 +1200,13 @@ function OrderDetail({
 }) {
   const [testDesign, setTestDesign] = useState<string | null>(null);
   const [testName, setTestName] = useState<string>("");
+  const [detailTransform, setDetailTransform] = useState<DesignTransform>(() => readHtDesignTransform(order.orderNo));
 
   useEffect(() => {
     let cancelled = false;
     setTestDesign(null);
     setTestName("");
+    setDetailTransform(readHtDesignTransform(order.orderNo));
     (async () => {
       try {
         const saved = await readHtPersistedDesign(order.orderNo);
@@ -1237,6 +1250,7 @@ function OrderDetail({
     try { await deleteHtPersistedDesign(order.orderNo); } catch {}
     setTestDesign(null);
     setTestName("");
+    setDetailTransform({ offsetXPct: 0, offsetYPct: 0, scale: 1 });
     setResetKey((k) => k + 1);
     setResetConfirmOpen(false);
     toast({ title: "초기화 완료", description: "현재 작업번호의 모든 작업 내용이 삭제되었습니다." });
@@ -1268,6 +1282,7 @@ function OrderDetail({
             order={order} details={details} outline={outline} formats={formats}
             testDesign={testDesign} setTestDesign={setTestDesign}
             testName={testName} setTestName={setTestName}
+            onTransformChange={setDetailTransform}
           />
         </TabsContent>
         <TabsContent value="qr">
@@ -1275,7 +1290,7 @@ function OrderDetail({
         </TabsContent>
       </Tabs>
 
-      <OrderDetailList details={details} outline={outline} formats={formats} orderNo={order.orderNo} />
+      <OrderDetailList details={details} outline={outline} formats={formats} orderNo={order.orderNo} transform={detailTransform} />
 
       <Dialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
         <DialogContent className="max-w-sm">
@@ -1667,10 +1682,12 @@ function OrderProgressBox({
     };
     window.addEventListener("focus", refresh);
     window.addEventListener("storage", refresh);
+    window.addEventListener("htf:transformChanged", onSaved as EventListener);
     window.addEventListener("htf:transformSaved", onSaved as EventListener);
     return () => {
       window.removeEventListener("focus", refresh);
       window.removeEventListener("storage", refresh);
+      window.removeEventListener("htf:transformChanged", onSaved as EventListener);
       window.removeEventListener("htf:transformSaved", onSaved as EventListener);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2495,7 +2512,7 @@ function WorkOrderInfoBox({ order, outlinePreview }: { order: OrderRow; outlineP
 
 function DesignTab({
   order, details, outline, formats,
-  testDesign, setTestDesign, testName, setTestName,
+  testDesign, setTestDesign, testName, setTestName, onTransformChange,
 }: {
   order: OrderRow;
   details: DesignDetail[];
@@ -2505,6 +2522,7 @@ function DesignTab({
   setTestDesign: (v: string | null) => void;
   testName: string;
   setTestName: (v: string) => void;
+  onTransformChange?: (v: DesignTransform) => void;
 }) {
 
 
@@ -2530,9 +2548,17 @@ function DesignTab({
   const [offsetY, setOffsetYState] = useState(uiDraft.offsetY ?? 0);
   const [designScale, setDesignScaleState] = useState(uiDraft.designScale ?? 1);
   const setQuality = (v: QualityPresetKey) => { setQualityState(v); writeHtDesignUiDraft(order.orderNo, { quality: v }); };
-  const setOffsetX = (v: number) => setOffsetXState(v);
-  const setOffsetY = (v: number) => setOffsetYState(v);
-  const setDesignScale = (v: number) => setDesignScaleState(v);
+  const applyTransform = (next: { offsetX: number; offsetY: number; designScale: number }) => {
+    setOffsetXState(next.offsetX);
+    setOffsetYState(next.offsetY);
+    setDesignScaleState(next.designScale);
+    writeHtDesignUiDraft(order.orderNo, next);
+    onTransformChange?.({ offsetXPct: next.offsetX, offsetYPct: next.offsetY, scale: next.designScale });
+    emitHtTransformChange(order.orderNo);
+  };
+  const setOffsetX = (v: number) => applyTransform({ offsetX: v, offsetY, designScale });
+  const setOffsetY = (v: number) => applyTransform({ offsetX, offsetY: v, designScale });
+  const setDesignScale = (v: number) => applyTransform({ offsetX, offsetY, designScale: v });
   const transform = { offsetXPct: offsetX, offsetYPct: offsetY, scale: designScale };
 
   // Footer (UID + QR) config — persisted to localStorage
@@ -2563,6 +2589,7 @@ function DesignTab({
 
   const first = details[0];
   const effectiveDesign = testDesign || first?.designSrc || null;
+  const previewFormat = first ? pickFormatForSize(formats, first.tshirtSize || "", outline) : outline;
 
   // Resolve the design source ONCE per URL into a same-origin (CORS-safe) blob URL,
   // so transform sliders (offset/scale) don't refetch through the proxy on every tweak.
@@ -2610,10 +2637,10 @@ function DesignTab({
   useEffect(() => {
     let cancelled = false;
     async function run() {
-      if (!outline || !resolvedSrc) { setPreviewUrl(null); return; }
+      if (!previewFormat || !resolvedSrc) { setPreviewUrl(null); return; }
       try {
-        const canvas = await composeClippedDesign(resolvedSrc, outline.maskCanvas, outline.widthPt, outline.heightPt, 96, transform, { sharpen });
-        const withFooter = await composeWithFooter(canvas, outline.widthPt, 96, previewUid, footer, {
+        const canvas = await composeClippedDesign(resolvedSrc, previewFormat.maskCanvas, previewFormat.widthPt, previewFormat.heightPt, 96, transform, { sharpen });
+        const withFooter = await composeWithFooter(canvas, previewFormat.widthPt, 96, previewUid, footer, {
           tshirtType: first?.tshirtType,
           tshirtColor: first?.tshirtColor,
           tshirtSize: first?.tshirtSize,
@@ -2626,7 +2653,7 @@ function DesignTab({
     }
     run();
     return () => { cancelled = true; };
-  }, [outline, resolvedSrc, offsetX, offsetY, designScale, sharpen, previewUid, footer.enabled, footer.qrSizeMm, footer.textSizeMm, footer.offsetXPct, footer.bottomPaddingMm, footer.gapMm]);
+  }, [previewFormat, resolvedSrc, offsetX, offsetY, designScale, sharpen, previewUid, footer.enabled, footer.qrSizeMm, footer.textSizeMm, footer.offsetXPct, footer.bottomPaddingMm, footer.gapMm]);
 
 
   const handleTestUpload = async (f: File) => {
@@ -3044,14 +3071,15 @@ function DesignTab({
             <Label className="text-xs font-semibold">디자인 위치/크기 조정 (포맷 고정)</Label>
             <div className="flex items-center gap-2">
               <Button size="sm" variant="ghost" className="h-7 text-xs"
-                onClick={() => { setOffsetX(0); setOffsetY(0); setDesignScale(1); }}>
+                onClick={() => applyTransform({ offsetX: 0, offsetY: 0, designScale: 1 })}>
                 초기화
               </Button>
               <Button size="sm" className="h-7 text-xs"
                 onClick={() => {
                   writeHtDesignUiDraft(order.orderNo, { offsetX, offsetY, designScale });
+                  emitHtTransformChange(order.orderNo);
                   try { window.dispatchEvent(new CustomEvent("htf:transformSaved", { detail: { orderNo: order.orderNo } })); } catch {}
-                  toast({ title: "저장됨", description: "디자인 위치/크기 값이 일괄 적용됩니다." });
+                  toast({ title: "저장됨", description: "주문 상세 목록의 모든 디자인에 같은 위치/크기 값이 적용됩니다." });
                 }}>
                 <Save className="w-3.5 h-3.5 mr-1" /> 저장
               </Button>
@@ -3143,10 +3171,10 @@ function DesignTab({
 
 
         {(() => {
-          const wMm = outline ? outline.widthPt / 72 * 25.4 : 0;
-          const hMm = outline ? outline.heightPt / 72 * 25.4 : 0;
-          const sizeLabel = outline ? `${wMm.toFixed(1)} × ${hMm.toFixed(1)} mm` : "—";
-          const ratio = outline ? `${outline.widthPt} / ${outline.heightPt}` : "1 / 1";
+          const wMm = previewFormat ? previewFormat.widthPt / 72 * 25.4 : 0;
+          const hMm = previewFormat ? previewFormat.heightPt / 72 * 25.4 : 0;
+          const sizeLabel = previewFormat ? `${wMm.toFixed(1)} × ${hMm.toFixed(1)} mm` : "—";
+          const ratio = previewFormat ? `${previewFormat.widthPt} / ${previewFormat.heightPt}` : "1 / 1";
           return (
             <div className="grid md:grid-cols-2 gap-4">
               <div>
@@ -3158,7 +3186,7 @@ function DesignTab({
                   className="w-full rounded border bg-muted/30 flex items-center justify-center overflow-hidden"
                   style={{ aspectRatio: ratio }}
                 >
-                  {outline ? <img src={outline.previewUrl} alt="외곽선" className="max-w-full max-h-full object-contain" /> :
+                  {previewFormat ? <img src={previewFormat.previewUrl} alt="외곽선" className="max-w-full max-h-full object-contain" /> :
                     <span className="text-xs text-muted-foreground">—</span>}
                 </div>
               </div>
@@ -3308,34 +3336,35 @@ function NumField({ label, v, set, min, max, step }: { label: string; v: number;
 // ============ order detail list ============
 
 function OrderDetailList({
-  details, outline, formats, orderNo,
+  details, outline, formats, orderNo, transform: parentTransform,
 }: {
   details: DesignDetail[];
   outline: { previewUrl: string; maskCanvas: HTMLCanvasElement; widthPt: number; heightPt: number; name: string } | null;
   formats: SizedFormat[];
   orderNo: string;
+  transform?: DesignTransform;
 }) {
-  const readTransform = () => {
-    const d = readHtDesignUiDraft(orderNo);
-    return { offsetXPct: d.offsetX ?? 0, offsetYPct: d.offsetY ?? 0, scale: d.designScale ?? 1 };
-  };
-  const [transform, setTransform] = useState(readTransform);
+  const [transform, setTransform] = useState<DesignTransform>(() => parentTransform ?? readHtDesignTransform(orderNo));
   useEffect(() => {
-    setTransform(readTransform());
-    const refresh = () => setTransform(readTransform());
+    setTransform(parentTransform ?? readHtDesignTransform(orderNo));
+  }, [orderNo, parentTransform]);
+  useEffect(() => {
+    const refresh = () => setTransform(parentTransform ?? readHtDesignTransform(orderNo));
     const onSaved = (e: Event) => {
       const ce = e as CustomEvent<{ orderNo?: string }>;
-      if (!ce.detail?.orderNo || ce.detail.orderNo === orderNo) setTransform(readTransform());
+      if (!ce.detail?.orderNo || ce.detail.orderNo === orderNo) setTransform(parentTransform ?? readHtDesignTransform(orderNo));
     };
     window.addEventListener("focus", refresh);
     window.addEventListener("storage", refresh);
+    window.addEventListener("htf:transformChanged", onSaved as EventListener);
     window.addEventListener("htf:transformSaved", onSaved as EventListener);
     return () => {
       window.removeEventListener("focus", refresh);
       window.removeEventListener("storage", refresh);
+      window.removeEventListener("htf:transformChanged", onSaved as EventListener);
       window.removeEventListener("htf:transformSaved", onSaved as EventListener);
     };
-  }, [orderNo]);
+  }, [orderNo, parentTransform]);
   return (
     <Card>
       <CardHeader><CardTitle className="text-base">주문 상세 목록</CardTitle></CardHeader>
