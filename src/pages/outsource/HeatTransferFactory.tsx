@@ -2728,6 +2728,42 @@ function DesignTab({
       return;
     }
 
+    // Resolve each unique design URL to a same-origin blob URL up front.
+    // External URLs (e.g. gft_original_image_url) fail CORS in workers and
+    // in main-thread <img> loads — proxy them via the download-file edge fn.
+    const srcResolveCache = new Map<string, Promise<string>>();
+    const createdObjUrls: string[] = [];
+    const resolveSameOrigin = (raw: string): Promise<string> => {
+      if (!raw) return Promise.resolve(raw);
+      if (raw.startsWith("data:") || raw.startsWith("blob:")) return Promise.resolve(raw);
+      let p = srcResolveCache.get(raw);
+      if (p) return p;
+      p = (async () => {
+        try {
+          await loadImage(raw);
+          return raw; // direct load works (same-origin or CORS-permitted)
+        } catch { /* fall through to proxy */ }
+        const { data, error } = await supabase.functions.invoke("download-file", {
+          body: { url: raw, filename: "design.bin" },
+        });
+        if (error) throw error;
+        const blob = data instanceof Blob ? data : new Blob([data as any]);
+        const objUrl = URL.createObjectURL(blob);
+        createdObjUrls.push(objUrl);
+        return objUrl;
+      })();
+      srcResolveCache.set(raw, p);
+      return p;
+    };
+    try {
+      await Promise.all(
+        plans.map(async (pl) => {
+          try { pl.src = await resolveSameOrigin(pl.src); }
+          catch (e) { pushLog("warn", `소스 로드 실패: ${pl.d.designUid} — ${e instanceof Error ? e.message : String(e)}`); }
+        }),
+      );
+    } catch { /* per-item errors already logged */ }
+
     // Build mask blob cache (once per size) and spin up a worker pool.
     const maskCache = new Map<string, { blob: Blob; targetW: number; targetH: number; widthPt: number }>();
     const maskIds = new WeakMap<HTMLCanvasElement, number>();
