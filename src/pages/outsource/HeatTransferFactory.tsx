@@ -2991,6 +2991,7 @@ function DesignTab({
       toast({ title: "일괄 다운로드 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
       pool.terminate();
+      for (const u of createdObjUrls) { try { URL.revokeObjectURL(u); } catch { /* ignore */ } }
       setBusy(false);
     }
   };
