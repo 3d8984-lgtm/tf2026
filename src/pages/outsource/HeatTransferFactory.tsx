@@ -2864,19 +2864,40 @@ function DesignTab({
     // 작업지시서.pdf — 미리보기와 동일하게 '첫 작업결과물(합성된 디자인)' 이미지 포함.
     try {
       let firstUrl: string | undefined;
+      let proxiedUrl: string | null = null;
       try {
-        const res = await buildFinalPngs(details.slice(0, 1), formats, outline, testDesign, footer, 96, false, undefined, transform);
-        const first = res.find((r) => r.blob);
-        if (first?.blob) {
+        const tryBuild = async (override?: typeof details[number]) => {
+          const list = override ? [override] : details.slice(0, 1);
+          const res = await buildFinalPngs(list, formats, outline, testDesign, footer, 96, false, undefined, transform);
+          return res.find((r) => r.blob) || null;
+        };
+        let r = await tryBuild();
+        const first0 = details[0];
+        if ((!r || !r.blob) && !testDesign && first0?.designSrc) {
+          try {
+            const { data, error } = await supabase.functions.invoke("download-file", {
+              body: { url: first0.designSrc, filename: `${first0.designUid}.bin` },
+            });
+            if (error) throw error;
+            const blob = data instanceof Blob ? data : new Blob([data as any]);
+            proxiedUrl = URL.createObjectURL(blob);
+            r = await tryBuild({ ...first0, designSrc: proxiedUrl });
+          } catch (e) {
+            pushLog("warn", `첫 작업결과물 프록시 합성 실패: ${e instanceof Error ? e.message : String(e)}`);
+          }
+        }
+        if (r?.blob) {
           firstUrl = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(String(reader.result || ""));
             reader.onerror = () => reject(reader.error);
-            reader.readAsDataURL(first.blob!);
+            reader.readAsDataURL(r!.blob!);
           });
         }
       } catch (e) {
         pushLog("warn", `첫 작업결과물 합성 실패, 외곽선으로 대체: ${e instanceof Error ? e.message : String(e)}`);
+      } finally {
+        if (proxiedUrl) URL.revokeObjectURL(proxiedUrl);
       }
       const wo = computeHtWorkOrderData(order);
       const woHtml = buildHtWorkOrderHtml(wo, firstUrl || outline?.previewUrl, { autoPrint: false });
