@@ -568,6 +568,8 @@ type HtDesignUiDraft = {
   useOriginalRes?: boolean;
 };
 
+type DesignTransform = { offsetXPct: number; offsetYPct: number; scale: number };
+
 type HtPersistedDesign = {
   orderNo: string;
   dataUrl: string;
@@ -582,6 +584,11 @@ function readHtDesignUiDraft(orderNo: string): HtDesignUiDraft {
   } catch {
     return {};
   }
+}
+
+function readHtDesignTransform(orderNo: string): DesignTransform {
+  const d = readHtDesignUiDraft(orderNo);
+  return { offsetXPct: d.offsetX ?? 0, offsetYPct: d.offsetY ?? 0, scale: d.designScale ?? 1 };
 }
 
 function writeHtDesignUiDraft(orderNo: string, patch: HtDesignUiDraft) {
@@ -1193,11 +1200,13 @@ function OrderDetail({
 }) {
   const [testDesign, setTestDesign] = useState<string | null>(null);
   const [testName, setTestName] = useState<string>("");
+  const [detailTransform, setDetailTransform] = useState<DesignTransform>(() => readHtDesignTransform(order.orderNo));
 
   useEffect(() => {
     let cancelled = false;
     setTestDesign(null);
     setTestName("");
+    setDetailTransform(readHtDesignTransform(order.orderNo));
     (async () => {
       try {
         const saved = await readHtPersistedDesign(order.orderNo);
@@ -1241,6 +1250,7 @@ function OrderDetail({
     try { await deleteHtPersistedDesign(order.orderNo); } catch {}
     setTestDesign(null);
     setTestName("");
+    setDetailTransform({ offsetXPct: 0, offsetYPct: 0, scale: 1 });
     setResetKey((k) => k + 1);
     setResetConfirmOpen(false);
     toast({ title: "초기화 완료", description: "현재 작업번호의 모든 작업 내용이 삭제되었습니다." });
@@ -1272,6 +1282,7 @@ function OrderDetail({
             order={order} details={details} outline={outline} formats={formats}
             testDesign={testDesign} setTestDesign={setTestDesign}
             testName={testName} setTestName={setTestName}
+            onTransformChange={setDetailTransform}
           />
         </TabsContent>
         <TabsContent value="qr">
@@ -1279,7 +1290,7 @@ function OrderDetail({
         </TabsContent>
       </Tabs>
 
-      <OrderDetailList details={details} outline={outline} formats={formats} orderNo={order.orderNo} />
+      <OrderDetailList details={details} outline={outline} formats={formats} orderNo={order.orderNo} transform={detailTransform} />
 
       <Dialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
         <DialogContent className="max-w-sm">
@@ -2501,7 +2512,7 @@ function WorkOrderInfoBox({ order, outlinePreview }: { order: OrderRow; outlineP
 
 function DesignTab({
   order, details, outline, formats,
-  testDesign, setTestDesign, testName, setTestName,
+  testDesign, setTestDesign, testName, setTestName, onTransformChange,
 }: {
   order: OrderRow;
   details: DesignDetail[];
@@ -2511,6 +2522,7 @@ function DesignTab({
   setTestDesign: (v: string | null) => void;
   testName: string;
   setTestName: (v: string) => void;
+  onTransformChange?: (v: DesignTransform) => void;
 }) {
 
 
@@ -2541,6 +2553,7 @@ function DesignTab({
     setOffsetYState(next.offsetY);
     setDesignScaleState(next.designScale);
     writeHtDesignUiDraft(order.orderNo, next);
+    onTransformChange?.({ offsetXPct: next.offsetX, offsetYPct: next.offsetY, scale: next.designScale });
     emitHtTransformChange(order.orderNo);
   };
   const setOffsetX = (v: number) => applyTransform({ offsetX: v, offsetY, designScale });
@@ -3323,24 +3336,23 @@ function NumField({ label, v, set, min, max, step }: { label: string; v: number;
 // ============ order detail list ============
 
 function OrderDetailList({
-  details, outline, formats, orderNo,
+  details, outline, formats, orderNo, transform: parentTransform,
 }: {
   details: DesignDetail[];
   outline: { previewUrl: string; maskCanvas: HTMLCanvasElement; widthPt: number; heightPt: number; name: string } | null;
   formats: SizedFormat[];
   orderNo: string;
+  transform?: DesignTransform;
 }) {
-  const readTransform = () => {
-    const d = readHtDesignUiDraft(orderNo);
-    return { offsetXPct: d.offsetX ?? 0, offsetYPct: d.offsetY ?? 0, scale: d.designScale ?? 1 };
-  };
-  const [transform, setTransform] = useState(readTransform);
+  const [transform, setTransform] = useState<DesignTransform>(() => parentTransform ?? readHtDesignTransform(orderNo));
   useEffect(() => {
-    setTransform(readTransform());
-    const refresh = () => setTransform(readTransform());
+    setTransform(parentTransform ?? readHtDesignTransform(orderNo));
+  }, [orderNo, parentTransform]);
+  useEffect(() => {
+    const refresh = () => setTransform(parentTransform ?? readHtDesignTransform(orderNo));
     const onSaved = (e: Event) => {
       const ce = e as CustomEvent<{ orderNo?: string }>;
-      if (!ce.detail?.orderNo || ce.detail.orderNo === orderNo) setTransform(readTransform());
+      if (!ce.detail?.orderNo || ce.detail.orderNo === orderNo) setTransform(parentTransform ?? readHtDesignTransform(orderNo));
     };
     window.addEventListener("focus", refresh);
     window.addEventListener("storage", refresh);
@@ -3352,7 +3364,7 @@ function OrderDetailList({
       window.removeEventListener("htf:transformChanged", onSaved as EventListener);
       window.removeEventListener("htf:transformSaved", onSaved as EventListener);
     };
-  }, [orderNo]);
+  }, [orderNo, parentTransform]);
   return (
     <Card>
       <CardHeader><CardTitle className="text-base">주문 상세 목록</CardTitle></CardHeader>
