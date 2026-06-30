@@ -1726,23 +1726,43 @@ function OrderProgressBox({
   const [firstResultUrl, setFirstResultUrl] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
-    let createdUrl: string | null = null;
+    const createdUrls: string[] = [];
     (async () => {
       try {
         if (!details || details.length === 0) { setFirstResultUrl(null); return; }
-        const res = await buildFinalPngs(details.slice(0, 1), formats, outline, testDesign, readFooter(), 96, false, undefined, savedTransform);
-        const first = res.find((r) => r.blob);
+        const first = details[0];
+        const tryBuild = async (detailOverride?: DesignDetail) => {
+          const list = detailOverride ? [detailOverride] : details.slice(0, 1);
+          const res = await buildFinalPngs(list, formats, outline, testDesign, readFooter(), 96, false, undefined, savedTransform);
+          return res.find((r) => r.blob) || null;
+        };
+        let r = await tryBuild();
+        // 외부(GFT) CORS로 실패한 경우 download-file 프록시로 같은-출처 blob URL로 변환 후 재시도
+        if ((!r || !r.blob) && !testDesign && first?.designSrc) {
+          try {
+            const { data, error } = await supabase.functions.invoke("download-file", {
+              body: { url: first.designSrc, filename: `${first.designUid}.bin` },
+            });
+            if (error) throw error;
+            const blob = data instanceof Blob ? data : new Blob([data as any]);
+            const objUrl = URL.createObjectURL(blob);
+            createdUrls.push(objUrl);
+            r = await tryBuild({ ...first, designSrc: objUrl });
+          } catch (e) {
+            console.warn("[HTF firstResult] proxy fallback failed:", e);
+          }
+        }
         if (cancelled) return;
-        if (first && first.blob) {
+        if (r && r.blob) {
           const reader = new FileReader();
           reader.onload = () => { if (!cancelled) setFirstResultUrl(String(reader.result || "")); };
-          reader.readAsDataURL(first.blob);
+          reader.readAsDataURL(r.blob);
         } else {
           setFirstResultUrl(null);
         }
       } catch { if (!cancelled) setFirstResultUrl(null); }
     })();
-    return () => { cancelled = true; if (createdUrl) URL.revokeObjectURL(createdUrl); };
+    return () => { cancelled = true; createdUrls.forEach((u) => URL.revokeObjectURL(u)); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order.orderNo, details.length, outline?.previewUrl, testDesign, savedTransform]);
 
