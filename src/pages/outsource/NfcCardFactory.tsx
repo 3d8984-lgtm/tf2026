@@ -1661,9 +1661,11 @@ function DetailView({
       const page = out.addPage([pageWpt, pageHpt]);
 
       // === Background design ===
-      const testAsset = testImages[side];
+      // 실제 주문 이미지(카드 앞/뒷면, GFT 원본 포함)를 우선 사용하고, 없을 때만 테스트 이미지로 대체.
+      const realDesignUrl = side === "front" ? card.frontImageUrl : card.backImageUrl;
+      const testAsset = realDesignUrl ? null : testImages[side];
       const testIsSvg = !!testAsset && /\.svg$/i.test(testAsset.name || "");
-      const designUrl = testAsset?.url || (side === "front" ? card.frontImageUrl : card.backImageUrl);
+      const designUrl = realDesignUrl || testAsset?.url || null;
       if (testIsSvg && testAsset) {
         // SVG 테스트 이미지: 파일에 지정된 원본 크기(mm)와 색상을 그대로 사용해 벡터 임베드(중앙 정렬).
         try {
