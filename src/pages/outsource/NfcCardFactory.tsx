@@ -2356,7 +2356,7 @@ function applyTestValues(c: CardData | undefined, tv: { cpValue: string; edition
 
 // ============== Card side editor (preview + per-option controls) ==============
 function CardSideEditor({
-  side, cardSize, testImageUrl, testTwincodeUrl, testSignatureUrl, cardPreview, layout, setLayout, keys, backDefaults, onTestPdf,
+  side, cardSize, testImageUrl, testTwincodeUrl, testSignatureUrl, cardPreview, layout, setLayout, keys, backDefaults, onTestPdf, onSaveLayout, saveDisabled,
   bleedMm, shapeOptions,
 }: {
   side: "front" | "back";
@@ -2370,10 +2370,13 @@ function CardSideEditor({
   keys: OptionKey[];
   backDefaults?: { companyName: string; centerSlogan: string; nfcEnabled: string; issuedBy: string };
   onTestPdf?: () => void | Promise<void>;
+  onSaveLayout?: () => void | Promise<void>;
+  saveDisabled?: boolean;
   shapeOptions?: ShapeOptions;
   bleedMm: number;
 }) {
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [saveBusy, setSaveBusy] = useState(false);
   const [showGuide, setShowGuide] = useState(true);
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   // 카드 크기는 저장된 사이즈 설정을 따른다 (기본 57×87mm).
