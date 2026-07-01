@@ -484,15 +484,23 @@ async function composeMaskedCardCanvas(
   octx.imageSmoothingQuality = "high";
 
   const img = await loadImage(designSrc);
-  const crop = detectInsetContentRect(img, out.width / out.height);
-  const sx = crop?.sx ?? 0;
-  const sy = crop?.sy ?? 0;
-  const sw = crop?.sw ?? (img.naturalWidth || img.width);
-  const sh = crop?.sh ?? (img.naturalHeight || img.height);
-  const scale = Math.max(out.width / sw, out.height / sh);
-  const dw = sw * scale;
-  const dh = sh * scale;
-  octx.drawImage(img, sx, sy, sw, sh, (out.width - dw) / 2, (out.height - dh) / 2, dw, dh);
+  // 원본 비율을 유지한 채 카드 크기를 완전히 덮도록 확대(cover) 후, 초과되는 영역을 잘라낸다.
+  // 원본을 카드 안에 축소해서 넣지 않고, 카드 크기에 맞게 확대한 뒤 넘치는 부분만 크롭한다.
+  const iw = img.naturalWidth || img.width;
+  const ih = img.naturalHeight || img.height;
+  const targetAspect = out.width / out.height;
+  const srcAspect = iw / ih;
+  let sx = 0, sy = 0, sw = iw, sh = ih;
+  if (srcAspect > targetAspect) {
+    // 원본이 더 넓다 → 좌우를 잘라낸다
+    sw = ih * targetAspect;
+    sx = (iw - sw) / 2;
+  } else if (srcAspect < targetAspect) {
+    // 원본이 더 좁다(더 길다) → 위아래를 잘라낸다
+    sh = iw / targetAspect;
+    sy = (ih - sh) / 2;
+  }
+  octx.drawImage(img, sx, sy, sw, sh, 0, 0, out.width, out.height);
 
   if (maskCanvas) {
     const mask = document.createElement("canvas");
