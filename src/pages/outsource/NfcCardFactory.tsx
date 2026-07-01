@@ -470,6 +470,29 @@ function detectInsetContentRect(
   return { sx: sx / scale, sy: sy / scale, sw: cw / scale, sh: ch / scale };
 }
 
+async function loadImageAnyOrigin(src: string): Promise<HTMLImageElement> {
+  // 1) direct with CORS
+  try { return await loadImage(src, "anonymous"); } catch { /* fall through */ }
+  // 2) direct without CORS (may taint canvas but works for readback-free draws — we do read, so this is last resort)
+  // 3) proxy via download-file edge function to convert to same-origin blob
+  try {
+    const { data, error } = await supabase.functions.invoke("download-file", {
+      body: { url: src, filename: "design.bin" },
+    });
+    if (error) throw error;
+    const blob = data instanceof Blob ? data : new Blob([data as any]);
+    const objUrl = URL.createObjectURL(blob);
+    try {
+      return await loadImage(objUrl, null);
+    } finally {
+      // Revoke after a tick so the image has decoded
+      setTimeout(() => URL.revokeObjectURL(objUrl), 60_000);
+    }
+  } catch (e) {
+    throw e;
+  }
+}
+
 async function composeMaskedCardCanvas(
   designSrc: string,
   maskCanvas: HTMLCanvasElement | null,
@@ -483,7 +506,7 @@ async function composeMaskedCardCanvas(
   octx.imageSmoothingEnabled = true;
   octx.imageSmoothingQuality = "high";
 
-  const img = await loadImage(designSrc);
+  const img = await loadImageAnyOrigin(designSrc);
   // 원본 비율을 유지한 채 카드 크기를 완전히 덮도록 확대(cover) 후, 초과되는 영역을 잘라낸다.
   // 원본을 카드 안에 축소해서 넣지 않고, 카드 크기에 맞게 확대한 뒤 넘치는 부분만 크롭한다.
   const iw = img.naturalWidth || img.width;
