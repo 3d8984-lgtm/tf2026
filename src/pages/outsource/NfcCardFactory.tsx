@@ -2353,6 +2353,7 @@ function DetailView({
                   <TableHead>주문번호</TableHead>
                   <TableHead>UID</TableHead>
                   <TableHead>카드 고유번호</TableHead>
+                  <TableHead>GFT 원본 이미지</TableHead>
                   <TableHead>앞면</TableHead>
                   <TableHead>뒷면</TableHead>
                   <TableHead>앞면 아이콘 내부색상</TableHead>
