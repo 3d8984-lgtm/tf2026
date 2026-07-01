@@ -2291,6 +2291,9 @@ function DetailView({
                         ? <a href={c.backImageUrl} target="_blank" rel="noopener noreferrer"><CardFrame widthClassName="w-8" className="border rounded"><img src={c.backImageUrl} alt="" className="w-full h-full object-cover" /></CardFrame></a>
                         : <span className="text-xs text-muted-foreground">-</span>}
                     </TableCell>
+                    <TableCell><ColorSwatch value={c.frontIconInnerColor} /></TableCell>
+                    <TableCell><ColorSwatch value={c.frontIconOuterColor} /></TableCell>
+                    <TableCell><ColorSwatch value={c.backIconColor} /></TableCell>
                     <TableCell className="text-xs">{c.cpValue || "-"}</TableCell>
                     <TableCell className="text-xs">{c.editionNo}</TableCell>
                     <TableCell className="text-xs">{c.issuedNo}</TableCell>
@@ -2306,7 +2309,7 @@ function DetailView({
                         ? <a href={c.twincodeSvgUrl} target="_blank" rel="noopener noreferrer"><img src={c.twincodeSvgUrl} alt="" className="w-8 h-8 object-contain border rounded bg-white" /></a>
                         : <span className="text-xs text-muted-foreground">-</span>}
                     </TableCell>
-                    <TableCell><DmThumb text={`${c.uniqueNo}|${c.uid}|${c.editionNo}`} /></TableCell>
+                    <TableCell><DmThumb text={c.uniqueNo} /></TableCell>
                     <TableCell className="text-right">
                       <Button size="sm" variant="ghost" onClick={() => downloadOne(c)} disabled={busy}>
                         <Download className="w-4 h-4" />
