@@ -2667,6 +2667,21 @@ function CardSideEditor({
                 테스트 PDF
               </Button>
             )}
+            {onSaveLayout && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={saveBusy || saveDisabled}
+                onClick={async () => {
+                  setSaveBusy(true);
+                  try { await onSaveLayout(); } finally { setSaveBusy(false); }
+                }}
+              >
+                {saveBusy ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+                저장
+              </Button>
+            )}
 
           </div>
         </CardTitle>
