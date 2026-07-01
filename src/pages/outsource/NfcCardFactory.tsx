@@ -77,6 +77,13 @@ function formatFileSize(bytes?: number) {
   return `${((bytes ?? 0) / 1024 / 1024).toFixed(2)} MB`;
 }
 
+function normalizeCpValue(v: unknown): string {
+  const s = String(v ?? "").trim();
+  if (!s) return "";
+  if (/^CP\s*/i.test(s)) return s;
+  return `CP ${s}`;
+}
+
 function buildUploadDebugInfo(params: {
   title: string;
   objectPath: string;
@@ -1064,7 +1071,7 @@ function DetailView({
         orderNo: individualOrderNo,
         uniqueNo,
         uid: String(it.nfc_ndef_data ?? it.uid ?? it.UID ?? sd.nfc_ndef_data ?? sd.uid ?? ""),
-        cpValue: String(it.cp_value ?? it.cp ?? sd.cp_value ?? sd.cp ?? ""),
+        cpValue: normalizeCpValue(it.cp_value ?? it.cp ?? sd.cp_value ?? sd.cp ?? ""),
         editionNo: String(it.edition ?? it.edition_no ?? sd.edition_no ?? `${idx + 1}`),
         issuedNo: String(it.issued_no ?? sd.issued_no ?? `${idx + 1}`),
         mintedOn: String(it.minted_on ?? sd.minted_on ?? fmtDate(order.created_at)),
@@ -2339,7 +2346,7 @@ function applyTestValues(c: CardData | undefined, tv: { cpValue: string; edition
   // Prefer real linked order data; only fall back to test values when the field is empty.
   return {
     ...c,
-    cpValue:   c.cpValue   || tv.cpValue,
+    cpValue:   normalizeCpValue(c.cpValue) || normalizeCpValue(tv.cpValue),
     editionNo: c.editionNo || tv.editionNo,
     issuedNo:  c.issuedNo  || tv.issuedNo,
     mintedOn:  c.mintedOn  || tv.mintedOn,
