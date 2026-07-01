@@ -1598,15 +1598,22 @@ function DetailView({
       }
 
       // === 기본 도형 옵션 (디자인 위 / 옵션 요소 아래) ===
-      // SVG 원본 크기(mm) 및 원본 색상을 그대로 사용해 벡터 임베드 — 색상 변형 금지.
-      const shapesForSide: ShapeOption[] = side === "front"
-        ? [shapeOptions.frontOutline, shapeOptions.frontCenter]
-        : [shapeOptions.back, shapeOptions.backLine];
-      for (const s of shapesForSide) {
+      // 색상은 주문 데이터의 카드 아이콘 색상으로 재적용 (backLine 제외).
+      const shapesForSide: { s: ShapeOption; color: string | null }[] = side === "front"
+        ? [
+            { s: shapeOptions.frontOutline, color: (card.frontIconOuterColor || "").trim() || null },
+            { s: shapeOptions.frontCenter,  color: (card.frontIconInnerColor || "").trim() || null },
+          ]
+        : [
+            { s: shapeOptions.back,     color: (card.backIconColor || "").trim() || null },
+            { s: shapeOptions.backLine, color: null },
+          ];
+      for (const { s, color } of shapesForSide) {
         if (!s?.svgDataUrl) continue;
         try {
-          const raw = decodeSvgDataUrl(s.svgDataUrl);
-          if (!raw) continue;
+          const rawSvg = decodeSvgDataUrl(s.svgDataUrl);
+          if (!rawSvg) continue;
+          const raw = color ? recolorSvgString(rawSvg, color) : rawSvg;
           const nat = svgNaturalSizeMm(raw);
           const tl = anchorTopLeft(s.x_mm, s.y_mm, nat.w, nat.h, s.anchor);
           const subBytes = await svgStringToPdfBytes(raw, nat.w * MM, nat.h * MM);
