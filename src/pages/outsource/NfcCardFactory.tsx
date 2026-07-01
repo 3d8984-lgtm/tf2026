@@ -2372,7 +2372,7 @@ function DetailView({
               </TableHeader>
               <TableBody>
                 {cards.length === 0 && (
-                  <TableRow><TableCell colSpan={18} className="text-center py-8 text-muted-foreground">—</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={19} className="text-center py-8 text-muted-foreground">—</TableCell></TableRow>
                 )}
                 {cards.map(c => (
                   <TableRow key={`${c.uniqueNo}-${c.seq}`}>
