@@ -2336,13 +2336,14 @@ function DetailView({
 // Apply test value overrides to the preview card (for designer preview only)
 function applyTestValues(c: CardData | undefined, tv: { cpValue: string; editionNo: string; issuedNo: string; mintedOn: string; grade: string }): CardData | undefined {
   if (!c) return c;
+  // Prefer real linked order data; only fall back to test values when the field is empty.
   return {
     ...c,
-    cpValue:   tv.cpValue   ? tv.cpValue   : c.cpValue,
-    editionNo: tv.editionNo ? tv.editionNo : c.editionNo,
-    issuedNo:  tv.issuedNo  ? tv.issuedNo  : c.issuedNo,
-    mintedOn:  tv.mintedOn  ? tv.mintedOn  : c.mintedOn,
-    grade:     tv.grade     ? tv.grade     : c.grade,
+    cpValue:   c.cpValue   || tv.cpValue,
+    editionNo: c.editionNo || tv.editionNo,
+    issuedNo:  c.issuedNo  || tv.issuedNo,
+    mintedOn:  c.mintedOn  || tv.mintedOn,
+    grade:     c.grade     || tv.grade,
   };
 }
 
