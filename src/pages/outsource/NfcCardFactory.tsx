@@ -3145,23 +3145,41 @@ function CardSideEditor({
 
 function CroppedFrontThumb({ url, cardW, cardH }: { url: string; cardW: number; cardH: number }) {
   const [src, setSrc] = useState<string | null>(null);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
+    let createdUrl: string | null = null;
     (async () => {
       try {
         const canvas = await composeMaskedCardCanvas(url, null, 320, 320 * (cardH / cardW));
-        if (!cancelled) setSrc(canvas.toDataURL("image/png"));
+        if (cancelled) return;
+        setSrc(canvas.toDataURL("image/png"));
+        const blob: Blob | null = await new Promise(res => canvas.toBlob(b => res(b), "image/png"));
+        if (cancelled) return;
+        if (blob) {
+          createdUrl = URL.createObjectURL(blob);
+          setBlobUrl(createdUrl);
+        }
       } catch {
         if (!cancelled) setSrc(url);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
+    };
   }, [url, cardW, cardH]);
-  const href = src ?? url;
+  const href = blobUrl ?? url;
+  const preview = src ?? url;
+  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!blobUrl) return;
+    e.preventDefault();
+    window.open(blobUrl, "_blank", "noopener,noreferrer");
+  };
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer">
+    <a href={href} target="_blank" rel="noopener noreferrer" onClick={handleClick}>
       <CardFrame widthClassName="w-8" className="border rounded">
-        <img src={href} alt="" className="w-full h-full object-cover" />
+        <img src={preview} alt="" className="w-full h-full object-cover" />
       </CardFrame>
     </a>
   );
