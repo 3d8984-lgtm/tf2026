@@ -2901,7 +2901,7 @@ function CardSideEditor({
                 테스트 이미지 또는 API 디자인이 없습니다
               </div>
             )}
-            {showGuide && (
+            {showGuide && !resultOnly && (
               <div
                 aria-hidden
                 className="absolute pointer-events-none"
