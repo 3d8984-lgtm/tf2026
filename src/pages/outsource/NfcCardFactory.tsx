@@ -2474,7 +2474,7 @@ function CardSideEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardPreview?.uniqueNo, keys.join(",")]);
 
-  const designUrl = testImageUrl || (side === "front" ? cardPreview?.frontImageUrl : cardPreview?.backImageUrl) || null;
+  const designUrl = (side === "front" ? cardPreview?.frontImageUrl : cardPreview?.backImageUrl) || testImageUrl || null;
   const [clippedPreview, setClippedPreview] = useState<string | null>(null);
   const [svgPreview, setSvgPreview] = useState<{ url: string; wMm: number; hMm: number } | null>(null);
   useEffect(() => {
