@@ -2753,20 +2753,34 @@ function CardSideEditor({
                 }}
               />
             )}
-            {/* 기본 도형 옵션 미리보기 — 이미지 위, 텍스트 옵션 아래. 원본 색상 보존 */}
+            {/* 기본 도형 옵션 미리보기 — 이미지 위, 텍스트 옵션 아래. 주문 데이터의 아이콘 색상이 있으면 우선 적용. */}
             {(() => {
-              const list: ShapeOption[] = side === "front"
-                ? [shapeOptions?.frontOutline, shapeOptions?.frontCenter].filter(Boolean) as ShapeOption[]
-                : [shapeOptions?.back, shapeOptions?.backLine].filter(Boolean) as ShapeOption[];
-              return list.map((s, i) => {
+              type ShapeKind = "frontCenter" | "frontOutline" | "back" | "backLine";
+              const overrideColorFor = (kind: ShapeKind): string | null => {
+                if (kind === "frontCenter")  return (cardPreview?.frontIconInnerColor || "").trim() || null;
+                if (kind === "frontOutline") return (cardPreview?.frontIconOuterColor || "").trim() || null;
+                if (kind === "backLine")     return (cardPreview?.backIconColor || "").trim() || null;
+                return null;
+              };
+              const list: Array<{ opt: ShapeOption; kind: ShapeKind }> = side === "front"
+                ? [{ opt: shapeOptions?.frontOutline as ShapeOption, kind: "frontOutline" },
+                   { opt: shapeOptions?.frontCenter  as ShapeOption, kind: "frontCenter" }]
+                : [{ opt: shapeOptions?.back         as ShapeOption, kind: "back" },
+                   { opt: shapeOptions?.backLine     as ShapeOption, kind: "backLine" }];
+              return list.filter(x => x.opt).map(({ opt: s, kind }, i) => {
                 if (!s?.svgDataUrl) return null;
-                const svgStr = decodeSvgDataUrl(s.svgDataUrl);
+                let svgStr = decodeSvgDataUrl(s.svgDataUrl);
+                const override = overrideColorFor(kind);
+                if (svgStr && override) svgStr = recolorSvgString(svgStr, override);
                 const nat = svgStr ? svgNaturalSizeMm(svgStr) : { w: 10, h: 10 };
+                const src = svgStr && override
+                  ? `data:image/svg+xml;utf8,${encodeURIComponent(svgStr)}`
+                  : s.svgDataUrl;
                 const tl = anchorTopLeft(s.x_mm, s.y_mm, nat.w, nat.h, s.anchor);
                 return (
                   <img
                     key={`shape-${side}-${i}`}
-                    src={s.svgDataUrl}
+                    src={src}
                     alt=""
                     aria-hidden
                     className="absolute pointer-events-none"
