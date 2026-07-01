@@ -2381,6 +2381,11 @@ function DetailView({
                     <TableCell className="font-mono text-xs">{c.uid}</TableCell>
                     <TableCell className="font-mono text-xs">{c.uniqueNo}</TableCell>
                     <TableCell>
+                      {c.gftOriginalUrl
+                        ? <a href={c.gftOriginalUrl} target="_blank" rel="noopener noreferrer"><CardFrame widthClassName="w-8" className="border rounded"><img src={c.gftOriginalUrl} alt="" className="w-full h-full object-cover" /></CardFrame></a>
+                        : <span className="text-xs text-muted-foreground">-</span>}
+                    </TableCell>
+                    <TableCell>
                       {c.frontImageUrl
                         ? <a href={c.frontImageUrl} target="_blank" rel="noopener noreferrer"><CardFrame widthClassName="w-8" className="border rounded"><img src={c.frontImageUrl} alt="" className="w-full h-full object-cover" /></CardFrame></a>
                         : <span className="text-xs text-muted-foreground">-</span>}
