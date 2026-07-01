@@ -44,7 +44,11 @@ export function drawTextAsOutline(
   // opentype's path uses y-down; pdf-lib uses y-up. Flip via page.drawSvgPath transform.
   // getPath returns a path positioned at (x, y) where y is the baseline in y-down space.
   // We render at (0, 0) in y-down, then translate using pdf-lib coordinates.
-  const path = font.getPath(text, 0, 0, sizePt);
+  // Disable GSUB features (ligatures/contextual substitutions) — some Fontsource fonts
+  // include lookup subformats (e.g. substFormat 2) that opentype.js can't process,
+  // which would otherwise throw and leave the glyph run empty.
+  const opts: any = { kerning: false, features: { liga: false, rlig: false, calt: false, clig: false } };
+  const path = font.getPath(text, 0, 0, sizePt, opts);
   const d = path.toPathData(3);
   page.drawSvgPath(d, {
     x: xPt,
