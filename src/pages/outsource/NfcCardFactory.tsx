@@ -1598,15 +1598,25 @@ function DetailView({
       }
 
       // === 기본 도형 옵션 (디자인 위 / 옵션 요소 아래) ===
-      // SVG 원본 크기(mm) 및 원본 색상을 그대로 사용해 벡터 임베드 — 색상 변형 금지.
-      const shapesForSide: ShapeOption[] = side === "front"
-        ? [shapeOptions.frontOutline, shapeOptions.frontCenter]
-        : [shapeOptions.back, shapeOptions.backLine];
-      for (const s of shapesForSide) {
+      // 색상은 주문 데이터의 아이콘 색상(앞면 내부/외부, 뒷면)이 있으면 우선 적용,
+      // 없으면 SVG 원본 색상을 유지한다.
+      type ShapeKind = "frontCenter" | "frontOutline" | "back" | "backLine";
+      const overrideColorFor = (kind: ShapeKind): string | null => {
+        if (kind === "frontCenter")  return (card.frontIconInnerColor || "").trim() || null;
+        if (kind === "frontOutline") return (card.frontIconOuterColor || "").trim() || null;
+        if (kind === "backLine")     return (card.backIconColor || "").trim() || null;
+        return null;
+      };
+      const shapesForSide: Array<{ opt: ShapeOption; kind: ShapeKind }> = side === "front"
+        ? [{ opt: shapeOptions.frontOutline, kind: "frontOutline" }, { opt: shapeOptions.frontCenter, kind: "frontCenter" }]
+        : [{ opt: shapeOptions.back, kind: "back" }, { opt: shapeOptions.backLine, kind: "backLine" }];
+      for (const { opt: s, kind } of shapesForSide) {
         if (!s?.svgDataUrl) continue;
         try {
-          const raw = decodeSvgDataUrl(s.svgDataUrl);
+          let raw = decodeSvgDataUrl(s.svgDataUrl);
           if (!raw) continue;
+          const override = overrideColorFor(kind);
+          if (override) raw = recolorSvgString(raw, override);
           const nat = svgNaturalSizeMm(raw);
           const tl = anchorTopLeft(s.x_mm, s.y_mm, nat.w, nat.h, s.anchor);
           const subBytes = await svgStringToPdfBytes(raw, nat.w * MM, nat.h * MM);
