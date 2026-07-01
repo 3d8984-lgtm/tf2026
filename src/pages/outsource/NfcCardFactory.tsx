@@ -77,6 +77,13 @@ function formatFileSize(bytes?: number) {
   return `${((bytes ?? 0) / 1024 / 1024).toFixed(2)} MB`;
 }
 
+function normalizeCpValue(v: unknown): string {
+  const s = String(v ?? "").trim();
+  if (!s) return "";
+  if (/^CP\s*/i.test(s)) return s;
+  return `CP ${s}`;
+}
+
 function buildUploadDebugInfo(params: {
   title: string;
   objectPath: string;
