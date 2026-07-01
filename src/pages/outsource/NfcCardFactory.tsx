@@ -2336,13 +2336,14 @@ function DetailView({
 // Apply test value overrides to the preview card (for designer preview only)
 function applyTestValues(c: CardData | undefined, tv: { cpValue: string; editionNo: string; issuedNo: string; mintedOn: string; grade: string }): CardData | undefined {
   if (!c) return c;
+  // Prefer real linked order data; only fall back to test values when the field is empty.
   return {
     ...c,
-    cpValue:   tv.cpValue   ? tv.cpValue   : c.cpValue,
-    editionNo: tv.editionNo ? tv.editionNo : c.editionNo,
-    issuedNo:  tv.issuedNo  ? tv.issuedNo  : c.issuedNo,
-    mintedOn:  tv.mintedOn  ? tv.mintedOn  : c.mintedOn,
-    grade:     tv.grade     ? tv.grade     : c.grade,
+    cpValue:   c.cpValue   || tv.cpValue,
+    editionNo: c.editionNo || tv.editionNo,
+    issuedNo:  c.issuedNo  || tv.issuedNo,
+    mintedOn:  c.mintedOn  || tv.mintedOn,
+    grade:     c.grade     || tv.grade,
   };
 }
 
@@ -2473,7 +2474,7 @@ function CardSideEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardPreview?.uniqueNo, keys.join(",")]);
 
-  const designUrl = testImageUrl || (side === "front" ? cardPreview?.frontImageUrl : cardPreview?.backImageUrl) || null;
+  const designUrl = (side === "front" ? cardPreview?.frontImageUrl : cardPreview?.backImageUrl) || testImageUrl || null;
   const [clippedPreview, setClippedPreview] = useState<string | null>(null);
   const [svgPreview, setSvgPreview] = useState<{ url: string; wMm: number; hMm: number } | null>(null);
   useEffect(() => {
@@ -2591,7 +2592,7 @@ function CardSideEditor({
       case "nfcEnabled":
       case "issuedBy":  return null;
       case "twincode":  {
-        const tcUrl = testTwincodeUrl || cardPreview.twincodeSvgUrl;
+        const tcUrl = cardPreview.twincodeSvgUrl || testTwincodeUrl;
         const pos = anchorToObjectPosition(layout.twincode?.sizeAnchor ?? "mc");
         return tcUrl
           ? <img src={tcUrl} alt="" className="w-full h-full object-contain bg-white pointer-events-none" style={{ objectPosition: pos }} />
@@ -2604,7 +2605,7 @@ function CardSideEditor({
           : <span className="text-[8px] text-muted-foreground">DM</span>;
       }
       case "signature": {
-        const sUrl = testSignatureUrl || cardPreview.signatureUrl;
+        const sUrl = cardPreview.signatureUrl || testSignatureUrl;
         const pos = anchorToObjectPosition(layout.signature?.sizeAnchor ?? "mc");
         return sUrl
           ? <img src={sUrl} alt="" className="w-full h-full object-contain pointer-events-none" style={{ objectPosition: pos }} />
