@@ -1598,15 +1598,22 @@ function DetailView({
       }
 
       // === 기본 도형 옵션 (디자인 위 / 옵션 요소 아래) ===
-      // SVG 원본 크기(mm) 및 원본 색상을 그대로 사용해 벡터 임베드 — 색상 변형 금지.
-      const shapesForSide: ShapeOption[] = side === "front"
-        ? [shapeOptions.frontOutline, shapeOptions.frontCenter]
-        : [shapeOptions.back, shapeOptions.backLine];
-      for (const s of shapesForSide) {
+      // 색상은 주문 데이터의 카드 아이콘 색상으로 재적용 (backLine 제외).
+      const shapesForSide: { s: ShapeOption; color: string | null }[] = side === "front"
+        ? [
+            { s: shapeOptions.frontOutline, color: (card.frontIconOuterColor || "").trim() || null },
+            { s: shapeOptions.frontCenter,  color: (card.frontIconInnerColor || "").trim() || null },
+          ]
+        : [
+            { s: shapeOptions.back,     color: (card.backIconColor || "").trim() || null },
+            { s: shapeOptions.backLine, color: null },
+          ];
+      for (const { s, color } of shapesForSide) {
         if (!s?.svgDataUrl) continue;
         try {
-          const raw = decodeSvgDataUrl(s.svgDataUrl);
-          if (!raw) continue;
+          const rawSvg = decodeSvgDataUrl(s.svgDataUrl);
+          if (!rawSvg) continue;
+          const raw = color ? recolorSvgString(rawSvg, color) : rawSvg;
           const nat = svgNaturalSizeMm(raw);
           const tl = anchorTopLeft(s.x_mm, s.y_mm, nat.w, nat.h, s.anchor);
           const subBytes = await svgStringToPdfBytes(raw, nat.w * MM, nat.h * MM);
@@ -2743,20 +2750,31 @@ function CardSideEditor({
                 }}
               />
             )}
-            {/* 기본 도형 옵션 미리보기 — 이미지 위, 텍스트 옵션 아래. 원본 색상 보존 */}
+            {/* 기본 도형 옵션 미리보기 — 이미지 위, 텍스트 옵션 아래. 색상은 주문 데이터 아이콘 색상으로 재적용(backLine 제외). */}
             {(() => {
-              const list: ShapeOption[] = side === "front"
-                ? [shapeOptions?.frontOutline, shapeOptions?.frontCenter].filter(Boolean) as ShapeOption[]
-                : [shapeOptions?.back, shapeOptions?.backLine].filter(Boolean) as ShapeOption[];
-              return list.map((s, i) => {
+              const list: { s: ShapeOption; color: string | null }[] = side === "front"
+                ? [
+                    { s: shapeOptions?.frontOutline as ShapeOption, color: (cardPreview?.frontIconOuterColor || "").trim() || null },
+                    { s: shapeOptions?.frontCenter  as ShapeOption, color: (cardPreview?.frontIconInnerColor || "").trim() || null },
+                  ].filter(x => !!x.s)
+                : [
+                    { s: shapeOptions?.back     as ShapeOption, color: (cardPreview?.backIconColor || "").trim() || null },
+                    { s: shapeOptions?.backLine as ShapeOption, color: null },
+                  ].filter(x => !!x.s);
+              return list.map(({ s, color }, i) => {
                 if (!s?.svgDataUrl) return null;
-                const svgStr = decodeSvgDataUrl(s.svgDataUrl);
-                const nat = svgStr ? svgNaturalSizeMm(svgStr) : { w: 10, h: 10 };
+                const rawSvg = decodeSvgDataUrl(s.svgDataUrl);
+                if (!rawSvg) return null;
+                const finalSvg = color ? recolorSvgString(rawSvg, color) : rawSvg;
+                const nat = svgNaturalSizeMm(finalSvg);
                 const tl = anchorTopLeft(s.x_mm, s.y_mm, nat.w, nat.h, s.anchor);
+                const src = color
+                  ? `data:image/svg+xml;utf8,${encodeURIComponent(finalSvg)}`
+                  : s.svgDataUrl;
                 return (
                   <img
                     key={`shape-${side}-${i}`}
-                    src={s.svgDataUrl}
+                    src={src}
                     alt=""
                     aria-hidden
                     className="absolute pointer-events-none"
