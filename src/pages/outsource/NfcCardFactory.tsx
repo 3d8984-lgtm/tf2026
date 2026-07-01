@@ -3075,6 +3075,18 @@ function TxtField({ label, v, set, type = "text" }: { label: string; v: string; 
   );
 }
 
+function ColorSwatch({ value }: { value: string }) {
+  const v = (value || "").trim();
+  if (!v) return <span className="text-xs text-muted-foreground">-</span>;
+  const cssColor = /^#|^rgb|^hsl/i.test(v) ? v : v;
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="inline-block w-4 h-4 rounded border" style={{ background: cssColor }} />
+      <span className="text-xs font-mono">{v}</span>
+    </div>
+  );
+}
+
 function DmThumb({ text }: { text: string }) {
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => {
