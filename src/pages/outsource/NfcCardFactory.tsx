@@ -2511,6 +2511,8 @@ function CardSideEditor({
   const [pdfBusy, setPdfBusy] = useState(false);
   const [saveBusy, setSaveBusy] = useState(false);
   const [showGuide, setShowGuide] = useState(true);
+  // 결과물 미리보기 모드: 편집 UI(드래그 박스/라벨/가이드)를 숨기고 실제 인쇄 결과물만 표시
+  const [resultOnly, setResultOnly] = useState(false);
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   // 카드 크기는 저장된 사이즈 설정을 따른다 (기본 57×87mm).
   const cardWmm = cardSize.width;
