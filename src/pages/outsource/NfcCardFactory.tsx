@@ -1071,7 +1071,7 @@ function DetailView({
         orderNo: individualOrderNo,
         uniqueNo,
         uid: String(it.nfc_ndef_data ?? it.uid ?? it.UID ?? sd.nfc_ndef_data ?? sd.uid ?? ""),
-        cpValue: String(it.cp_value ?? it.cp ?? sd.cp_value ?? sd.cp ?? ""),
+        cpValue: normalizeCpValue(it.cp_value ?? it.cp ?? sd.cp_value ?? sd.cp ?? ""),
         editionNo: String(it.edition ?? it.edition_no ?? sd.edition_no ?? `${idx + 1}`),
         issuedNo: String(it.issued_no ?? sd.issued_no ?? `${idx + 1}`),
         mintedOn: String(it.minted_on ?? sd.minted_on ?? fmtDate(order.created_at)),
