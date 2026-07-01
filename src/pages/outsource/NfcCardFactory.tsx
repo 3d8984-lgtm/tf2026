@@ -1598,25 +1598,15 @@ function DetailView({
       }
 
       // === 기본 도형 옵션 (디자인 위 / 옵션 요소 아래) ===
-      // 색상은 주문 데이터의 아이콘 색상(앞면 내부/외부, 뒷면)이 있으면 우선 적용,
-      // 없으면 SVG 원본 색상을 유지한다.
-      type ShapeKind = "frontCenter" | "frontOutline" | "back" | "backLine";
-      const overrideColorFor = (kind: ShapeKind): string | null => {
-        if (kind === "frontCenter")  return (card.frontIconInnerColor || "").trim() || null;
-        if (kind === "frontOutline") return (card.frontIconOuterColor || "").trim() || null;
-        if (kind === "backLine")     return (card.backIconColor || "").trim() || null;
-        return null;
-      };
-      const shapesForSide: Array<{ opt: ShapeOption; kind: ShapeKind }> = side === "front"
-        ? [{ opt: shapeOptions.frontOutline, kind: "frontOutline" }, { opt: shapeOptions.frontCenter, kind: "frontCenter" }]
-        : [{ opt: shapeOptions.back, kind: "back" }, { opt: shapeOptions.backLine, kind: "backLine" }];
-      for (const { opt: s, kind } of shapesForSide) {
+      // SVG 원본 크기(mm) 및 원본 색상을 그대로 사용해 벡터 임베드 — 색상 변형 금지.
+      const shapesForSide: ShapeOption[] = side === "front"
+        ? [shapeOptions.frontOutline, shapeOptions.frontCenter]
+        : [shapeOptions.back, shapeOptions.backLine];
+      for (const s of shapesForSide) {
         if (!s?.svgDataUrl) continue;
         try {
-          let raw = decodeSvgDataUrl(s.svgDataUrl);
+          const raw = decodeSvgDataUrl(s.svgDataUrl);
           if (!raw) continue;
-          const override = overrideColorFor(kind);
-          if (override) raw = recolorSvgString(raw, override);
           const nat = svgNaturalSizeMm(raw);
           const tl = anchorTopLeft(s.x_mm, s.y_mm, nat.w, nat.h, s.anchor);
           const subBytes = await svgStringToPdfBytes(raw, nat.w * MM, nat.h * MM);
@@ -2753,34 +2743,20 @@ function CardSideEditor({
                 }}
               />
             )}
-            {/* 기본 도형 옵션 미리보기 — 이미지 위, 텍스트 옵션 아래. 주문 데이터의 아이콘 색상이 있으면 우선 적용. */}
+            {/* 기본 도형 옵션 미리보기 — 이미지 위, 텍스트 옵션 아래. 원본 색상 보존 */}
             {(() => {
-              type ShapeKind = "frontCenter" | "frontOutline" | "back" | "backLine";
-              const overrideColorFor = (kind: ShapeKind): string | null => {
-                if (kind === "frontCenter")  return (cardPreview?.frontIconInnerColor || "").trim() || null;
-                if (kind === "frontOutline") return (cardPreview?.frontIconOuterColor || "").trim() || null;
-                if (kind === "backLine")     return (cardPreview?.backIconColor || "").trim() || null;
-                return null;
-              };
-              const list: Array<{ opt: ShapeOption; kind: ShapeKind }> = side === "front"
-                ? [{ opt: shapeOptions?.frontOutline as ShapeOption, kind: "frontOutline" },
-                   { opt: shapeOptions?.frontCenter  as ShapeOption, kind: "frontCenter" }]
-                : [{ opt: shapeOptions?.back         as ShapeOption, kind: "back" },
-                   { opt: shapeOptions?.backLine     as ShapeOption, kind: "backLine" }];
-              return list.filter(x => x.opt).map(({ opt: s, kind }, i) => {
+              const list: ShapeOption[] = side === "front"
+                ? [shapeOptions?.frontOutline, shapeOptions?.frontCenter].filter(Boolean) as ShapeOption[]
+                : [shapeOptions?.back, shapeOptions?.backLine].filter(Boolean) as ShapeOption[];
+              return list.map((s, i) => {
                 if (!s?.svgDataUrl) return null;
-                let svgStr = decodeSvgDataUrl(s.svgDataUrl);
-                const override = overrideColorFor(kind);
-                if (svgStr && override) svgStr = recolorSvgString(svgStr, override);
+                const svgStr = decodeSvgDataUrl(s.svgDataUrl);
                 const nat = svgStr ? svgNaturalSizeMm(svgStr) : { w: 10, h: 10 };
-                const src = svgStr && override
-                  ? `data:image/svg+xml;utf8,${encodeURIComponent(svgStr)}`
-                  : s.svgDataUrl;
                 const tl = anchorTopLeft(s.x_mm, s.y_mm, nat.w, nat.h, s.anchor);
                 return (
                   <img
                     key={`shape-${side}-${i}`}
-                    src={src}
+                    src={s.svgDataUrl}
                     alt=""
                     aria-hidden
                     className="absolute pointer-events-none"
