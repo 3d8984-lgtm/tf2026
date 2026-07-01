@@ -2605,7 +2605,7 @@ function CardSideEditor({
           : <span className="text-[8px] text-muted-foreground">DM</span>;
       }
       case "signature": {
-        const sUrl = testSignatureUrl || cardPreview.signatureUrl;
+        const sUrl = cardPreview.signatureUrl || testSignatureUrl;
         const pos = anchorToObjectPosition(layout.signature?.sizeAnchor ?? "mc");
         return sUrl
           ? <img src={sUrl} alt="" className="w-full h-full object-contain pointer-events-none" style={{ objectPosition: pos }} />
