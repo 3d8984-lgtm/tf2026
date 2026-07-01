@@ -838,6 +838,7 @@ interface CardData {
   signatureUrl: string | null;
   frontImageUrl: string | null;
   backImageUrl: string | null;
+  gftOriginalUrl: string | null; // GFT 원본 이미지 (엑셀 Y열)
 }
 
 
@@ -1160,8 +1161,9 @@ function DetailView({
         issuedByUrl: it.sign_url ?? it.issued_by_url ?? sd.sign_url ?? sd.issued_by_url ?? null,
         twincodeSvgUrl: it.twincode_svg_url ?? it.svg_url ?? sd.twincode_svg_url ?? null,
         signatureUrl: it.signature_url ?? it.signature_svg_url ?? sd.signature_url ?? sd.signature_svg_url ?? null,
-        frontImageUrl: it.card_front_url ?? sd.card_front_url ?? null,
+        frontImageUrl: it.card_front_url ?? sd.card_front_url ?? it.gft_original_image_url ?? sd.gft_original_image_url ?? null,
         backImageUrl: it.card_back_url ?? sd.card_back_url ?? null,
+        gftOriginalUrl: it.gft_original_image_url ?? sd.gft_original_image_url ?? null,
       };
     });
   }, [order, orderNo]);
@@ -2351,6 +2353,7 @@ function DetailView({
                   <TableHead>주문번호</TableHead>
                   <TableHead>UID</TableHead>
                   <TableHead>카드 고유번호</TableHead>
+                  <TableHead>GFT 원본 이미지</TableHead>
                   <TableHead>앞면</TableHead>
                   <TableHead>뒷면</TableHead>
                   <TableHead>앞면 아이콘 내부색상</TableHead>
@@ -2369,7 +2372,7 @@ function DetailView({
               </TableHeader>
               <TableBody>
                 {cards.length === 0 && (
-                  <TableRow><TableCell colSpan={18} className="text-center py-8 text-muted-foreground">—</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={19} className="text-center py-8 text-muted-foreground">—</TableCell></TableRow>
                 )}
                 {cards.map(c => (
                   <TableRow key={`${c.uniqueNo}-${c.seq}`}>
@@ -2377,6 +2380,11 @@ function DetailView({
                     <TableCell className="font-mono text-xs">{c.orderNo}</TableCell>
                     <TableCell className="font-mono text-xs">{c.uid}</TableCell>
                     <TableCell className="font-mono text-xs">{c.uniqueNo}</TableCell>
+                    <TableCell>
+                      {c.gftOriginalUrl
+                        ? <a href={c.gftOriginalUrl} target="_blank" rel="noopener noreferrer"><CardFrame widthClassName="w-8" className="border rounded"><img src={c.gftOriginalUrl} alt="" className="w-full h-full object-cover" /></CardFrame></a>
+                        : <span className="text-xs text-muted-foreground">-</span>}
+                    </TableCell>
                     <TableCell>
                       {c.frontImageUrl
                         ? <a href={c.frontImageUrl} target="_blank" rel="noopener noreferrer"><CardFrame widthClassName="w-8" className="border rounded"><img src={c.frontImageUrl} alt="" className="w-full h-full object-cover" /></CardFrame></a>
