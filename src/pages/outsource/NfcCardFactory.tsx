@@ -2980,13 +2980,19 @@ function CardSideEditor({
               const yMm = tl.top;
               const boxWpx = Math.max(effWmm * pxPerMm, isImage ? 0 : 4);
               const boxHpx = isImage ? cfg.h * pxPerMm : Math.max(fontPx, 4);
+              // 결과물 미리보기 모드: 텍스트는 하단 캔버스가 이미 그리므로 오버레이 자체를 생략,
+              // 이미지 옵션(TWIN/DM/서명)만 편집 chrome 없이 순수 콘텐츠로 렌더링한다.
+              if (resultOnly && !isImage) return null;
+              const chromeClass = resultOnly
+                ? "absolute flex items-start justify-center overflow-visible pointer-events-none"
+                : `absolute flex items-start justify-center text-foreground overflow-visible select-none ${
+                    isSel ? "border-2 border-primary bg-primary/10 ring-2 ring-primary/30" : "border border-primary/60 bg-primary/5 hover:bg-primary/10"
+                  }`;
               return (
                 <div
                   key={key}
-                  onPointerDown={e => startDrag(e, key, "move")}
-                  className={`absolute flex items-start justify-center text-foreground overflow-visible select-none ${
-                    isSel ? "border-2 border-primary bg-primary/10 ring-2 ring-primary/30" : "border border-primary/60 bg-primary/5 hover:bg-primary/10"
-                  }`}
+                  onPointerDown={resultOnly ? undefined : (e => startDrag(e, key, "move"))}
+                  className={chromeClass}
                   style={{
                     left: xMm * pxPerMm,
                     top: yMm * pxPerMm,
@@ -2995,19 +3001,19 @@ function CardSideEditor({
                     fontSize: isImage ? undefined : fontPx,
                     lineHeight: 1,
                     whiteSpace: "nowrap",
-                    cursor: "move",
+                    cursor: resultOnly ? "default" : "move",
                     background: key === "dmBarcode" ? "#fff" : undefined,
                     boxShadow: key === "dmBarcode" ? `0 0 0 ${(cfg.padding ?? 0) * pxPerMm}px #fff` : undefined,
                   }}
-                  title={`${OPTION_LABELS[key]} — 드래그로 이동`}
+                  title={resultOnly ? undefined : `${OPTION_LABELS[key]} — 드래그로 이동`}
                 >
                   {renderOptionPreview(key)}
-                  {/* label tag */}
-                  <span className="absolute -top-4 left-0 text-[10px] bg-primary text-primary-foreground px-1 rounded-sm whitespace-nowrap pointer-events-none">
-                    {OPTION_LABELS[key]}
-                  </span>
-                  {/* resize handle (이미지 옵션만 — 텍스트는 글자 크기로 자동) */}
-                  {isImage && (
+                  {!resultOnly && (
+                    <span className="absolute -top-4 left-0 text-[10px] bg-primary text-primary-foreground px-1 rounded-sm whitespace-nowrap pointer-events-none">
+                      {OPTION_LABELS[key]}
+                    </span>
+                  )}
+                  {!resultOnly && isImage && (
                     <span
                       onPointerDown={e => startDrag(e, key, "resize")}
                       className="absolute right-0 bottom-0 w-3 h-3 bg-primary cursor-se-resize"
