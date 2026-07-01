@@ -838,6 +838,7 @@ interface CardData {
   signatureUrl: string | null;
   frontImageUrl: string | null;
   backImageUrl: string | null;
+  gftOriginalUrl: string | null; // GFT 원본 이미지 (엑셀 Y열)
 }
 
 
