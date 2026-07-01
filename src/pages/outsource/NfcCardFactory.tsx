@@ -1845,17 +1845,27 @@ function DetailView({
             const tl2 = anchorTopLeft(cfg.x, cfg.y, autoWmm, autoHmm, anc2);
             // 정렬: 박스 너비(autoWmm) 안에서 left/center/right 보정
             const otf = await pickFont(cfg);
-            const glyphWidthPt = measureOutlineWidthPt(otf, txt, fontSizePt);
-            const boxWpt = autoWmm * MM;
-            const align = getAlign(key, cfg);
-            let drawXpt = tl2.left * MM;
-            if (align === "center") drawXpt += (boxWpt - glyphWidthPt) / 2;
-            else if (align === "right") drawXpt += boxWpt - glyphWidthPt;
-            // 베이스라인 = top + ascender
-            const ascentPt = outlineAscentPt(otf, fontSizePt);
-            const topYpt = pageHpt - tl2.top * MM;
-            const baselineYpt = topYpt - ascentPt;
-            drawTextAsOutline(page, otf, txt, drawXpt, baselineYpt, fontSizePt, rgb(0, 0, 0));
+            const drawWith = (f: any) => {
+              const glyphWidthPt = measureOutlineWidthPt(f, txt, fontSizePt);
+              const boxWpt = autoWmm * MM;
+              const align = getAlign(key, cfg);
+              let drawXpt = tl2.left * MM;
+              if (align === "center") drawXpt += (boxWpt - glyphWidthPt) / 2;
+              else if (align === "right") drawXpt += boxWpt - glyphWidthPt;
+              const ascentPt = outlineAscentPt(f, fontSizePt);
+              const topYpt = pageHpt - tl2.top * MM;
+              const baselineYpt = topYpt - ascentPt;
+              drawTextAsOutline(page, f, txt, drawXpt, baselineYpt, fontSizePt, rgb(0, 0, 0));
+            };
+            try {
+              drawWith(otf);
+            } catch (e) {
+              // Chosen font's GSUB/lookup subformat unsupported by opentype.js → render with Spoqa fallback so text is never empty.
+              console.warn(`outline render failed for ${key}, falling back to Spoqa`, e);
+              const fbBytes = await loadSpoqaFontBytes(weight);
+              const fb = await loadOpentypeFont(fbBytes, `spoqa-${weight}`);
+              drawWith(fb);
+            }
           } catch (e) {
             console.warn(`text outline draw failed for ${key}`, e);
           }
