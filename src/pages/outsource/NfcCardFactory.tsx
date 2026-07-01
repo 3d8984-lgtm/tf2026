@@ -2592,7 +2592,7 @@ function CardSideEditor({
       case "nfcEnabled":
       case "issuedBy":  return null;
       case "twincode":  {
-        const tcUrl = testTwincodeUrl || cardPreview.twincodeSvgUrl;
+        const tcUrl = cardPreview.twincodeSvgUrl || testTwincodeUrl;
         const pos = anchorToObjectPosition(layout.twincode?.sizeAnchor ?? "mc");
         return tcUrl
           ? <img src={tcUrl} alt="" className="w-full h-full object-contain bg-white pointer-events-none" style={{ objectPosition: pos }} />
