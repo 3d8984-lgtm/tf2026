@@ -2213,6 +2213,8 @@ function DetailView({
                   toast({ title: "테스트 PDF 생성 실패", description: e.message, variant: "destructive" });
                 }
               }}
+              onSaveLayout={saveLayout}
+              saveDisabled={!loaded}
             />
           </TabsContent>
           <TabsContent value="back" className="pt-3">
