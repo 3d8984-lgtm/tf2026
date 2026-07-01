@@ -2346,7 +2346,7 @@ function applyTestValues(c: CardData | undefined, tv: { cpValue: string; edition
   // Prefer real linked order data; only fall back to test values when the field is empty.
   return {
     ...c,
-    cpValue:   c.cpValue   || tv.cpValue,
+    cpValue:   normalizeCpValue(c.cpValue) || normalizeCpValue(tv.cpValue),
     editionNo: c.editionNo || tv.editionNo,
     issuedNo:  c.issuedNo  || tv.issuedNo,
     mintedOn:  c.mintedOn  || tv.mintedOn,
