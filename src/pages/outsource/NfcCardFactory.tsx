@@ -737,15 +737,18 @@ function measureTextWidthMm(text: string, fontSizeMm: number, fontCss: string, w
 
 interface CardData {
   seq: number;
-  orderNo: string;
+  orderNo: string;            // 개별 주문번호 (item.order_id)
   uniqueNo: string;           // orderNo-4
-  uid: string;                // arbitrary UID info
+  uid: string;                // NFC 칩 굽기 데이터 (nfc_ndef_data)
   cpValue: string;
   editionNo: string;
   issuedNo: string;
   mintedOn: string;
   grade: string;
-  issuedByUrl: string | null;
+  frontIconInnerColor: string;
+  frontIconOuterColor: string;
+  backIconColor: string;
+  issuedByUrl: string | null; // 싸인 링크 (sign_url)
   twincodeSvgUrl: string | null;
   signatureUrl: string | null;
   frontImageUrl: string | null;
@@ -1051,21 +1054,25 @@ function DetailView({
     if (!order) return [];
     const items: any[] = Array.isArray(order.source_data?.items) ? order.source_data.items : [];
     const count = Math.max(items.length, order.quantity || 1);
-    const uniqueNo = `${orderNo}-4`;
     return Array.from({ length: count }, (_, idx) => {
       const it = items[idx] || {};
       const sd = order.source_data || {};
+      const individualOrderNo = String(it.order_id ?? it.orderId ?? `${orderNo}-${idx + 1}`);
+      const uniqueNo = `${individualOrderNo}-4`;
       return {
         seq: idx + 1,
-        orderNo,
+        orderNo: individualOrderNo,
         uniqueNo,
-        uid: String(it.uid ?? it.UID ?? sd.uid ?? `${orderNo}-${idx + 1}`),
-        cpValue: String(it.cp ?? it.cp_value ?? sd.cp_value ?? sd.cp ?? ""),
-        editionNo: String(it.edition_no ?? it.edition ?? sd.edition_no ?? `${idx + 1}`),
+        uid: String(it.nfc_ndef_data ?? it.uid ?? it.UID ?? sd.nfc_ndef_data ?? sd.uid ?? ""),
+        cpValue: String(it.cp_value ?? it.cp ?? sd.cp_value ?? sd.cp ?? ""),
+        editionNo: String(it.edition ?? it.edition_no ?? sd.edition_no ?? `${idx + 1}`),
         issuedNo: String(it.issued_no ?? sd.issued_no ?? `${idx + 1}`),
         mintedOn: String(it.minted_on ?? sd.minted_on ?? fmtDate(order.created_at)),
         grade: String(it.grade ?? sd.grade ?? order.grade ?? "COMMON").toUpperCase(),
-        issuedByUrl: it.issued_by_url ?? sd.issued_by_url ?? null,
+        frontIconInnerColor: String(it.card_front_icon_inner_color ?? sd.card_front_icon_inner_color ?? ""),
+        frontIconOuterColor: String(it.card_front_icon_outer_color ?? sd.card_front_icon_outer_color ?? ""),
+        backIconColor: String(it.card_back_icon_color ?? sd.card_back_icon_color ?? ""),
+        issuedByUrl: it.sign_url ?? it.issued_by_url ?? sd.sign_url ?? sd.issued_by_url ?? null,
         twincodeSvgUrl: it.twincode_svg_url ?? it.svg_url ?? sd.twincode_svg_url ?? null,
         signatureUrl: it.signature_url ?? it.signature_svg_url ?? sd.signature_url ?? sd.signature_svg_url ?? null,
         frontImageUrl: it.card_front_url ?? sd.card_front_url ?? null,
@@ -1653,7 +1660,7 @@ function DetailView({
               height: (cfg.h + pad * 2) * MM,
               color: rgb(1, 1, 1),
             });
-            const svgStr = dataMatrixSvgString(`${card.uniqueNo}|${card.uid}|${card.editionNo}`);
+            const svgStr = dataMatrixSvgString(card.uniqueNo);
             await embedSvgVector(page, svgStr, xMm, yMm, cfg.w, cfg.h, cfg.sizeAnchor ?? "mc");
           } catch (e) { console.warn("DM vector embed fail", e); }
           continue;
@@ -2247,9 +2254,12 @@ function DetailView({
                   <TableHead className="w-12">순번</TableHead>
                   <TableHead>주문번호</TableHead>
                   <TableHead>UID</TableHead>
-                  <TableHead>카드고유번호</TableHead>
+                  <TableHead>카드 고유번호</TableHead>
                   <TableHead>앞면</TableHead>
                   <TableHead>뒷면</TableHead>
+                  <TableHead>앞면 아이콘 내부색상</TableHead>
+                  <TableHead>앞면 아이콘 외부색상</TableHead>
+                  <TableHead>뒷면 아이콘 색상</TableHead>
                   <TableHead>CP값</TableHead>
                   <TableHead>EDITION</TableHead>
                   <TableHead>ISSUED No.</TableHead>
@@ -2263,7 +2273,7 @@ function DetailView({
               </TableHeader>
               <TableBody>
                 {cards.length === 0 && (
-                  <TableRow><TableCell colSpan={15} className="text-center py-8 text-muted-foreground">—</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={18} className="text-center py-8 text-muted-foreground">—</TableCell></TableRow>
                 )}
                 {cards.map(c => (
                   <TableRow key={`${c.uniqueNo}-${c.seq}`}>
@@ -2443,7 +2453,7 @@ function CardSideEditor({
     let cancelled = false;
     (async () => {
       try {
-        const bytes = await dataMatrixPngBytes(`${cardPreview.uniqueNo}|${cardPreview.uid}|${cardPreview.editionNo}`, 200);
+        const bytes = await dataMatrixPngBytes(cardPreview.uniqueNo, 200);
         if (cancelled) return;
         const blob = new Blob([bytes as BlobPart], { type: "image/png" });
         setDmPreview(URL.createObjectURL(blob));
