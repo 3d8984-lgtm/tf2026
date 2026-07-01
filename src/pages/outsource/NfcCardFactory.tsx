@@ -2213,6 +2213,8 @@ function DetailView({
                   toast({ title: "테스트 PDF 생성 실패", description: e.message, variant: "destructive" });
                 }
               }}
+              onSaveLayout={saveLayout}
+              saveDisabled={!loaded}
             />
           </TabsContent>
           <TabsContent value="back" className="pt-3">
@@ -2239,6 +2241,8 @@ function DetailView({
                   toast({ title: "테스트 PDF 생성 실패", description: e.message, variant: "destructive" });
                 }
               }}
+              onSaveLayout={saveLayout}
+              saveDisabled={!loaded}
             />
 
           </TabsContent>
@@ -2356,7 +2360,7 @@ function applyTestValues(c: CardData | undefined, tv: { cpValue: string; edition
 
 // ============== Card side editor (preview + per-option controls) ==============
 function CardSideEditor({
-  side, cardSize, testImageUrl, testTwincodeUrl, testSignatureUrl, cardPreview, layout, setLayout, keys, backDefaults, onTestPdf,
+  side, cardSize, testImageUrl, testTwincodeUrl, testSignatureUrl, cardPreview, layout, setLayout, keys, backDefaults, onTestPdf, onSaveLayout, saveDisabled,
   bleedMm, shapeOptions,
 }: {
   side: "front" | "back";
@@ -2370,10 +2374,13 @@ function CardSideEditor({
   keys: OptionKey[];
   backDefaults?: { companyName: string; centerSlogan: string; nfcEnabled: string; issuedBy: string };
   onTestPdf?: () => void | Promise<void>;
+  onSaveLayout?: () => void | Promise<void>;
+  saveDisabled?: boolean;
   shapeOptions?: ShapeOptions;
   bleedMm: number;
 }) {
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [saveBusy, setSaveBusy] = useState(false);
   const [showGuide, setShowGuide] = useState(true);
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   // 카드 크기는 저장된 사이즈 설정을 따른다 (기본 57×87mm).
@@ -2662,6 +2669,21 @@ function CardSideEditor({
               >
                 {pdfBusy ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
                 테스트 PDF
+              </Button>
+            )}
+            {onSaveLayout && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={saveBusy || saveDisabled}
+                onClick={async () => {
+                  setSaveBusy(true);
+                  try { await onSaveLayout(); } finally { setSaveBusy(false); }
+                }}
+              >
+                {saveBusy ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+                저장
               </Button>
             )}
 
