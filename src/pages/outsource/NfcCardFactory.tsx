@@ -2430,7 +2430,7 @@ function DetailView({
                     </TableCell>
                     <TableCell>
                       {c.frontImageUrl
-                        ? <a href={c.frontImageUrl} target="_blank" rel="noopener noreferrer"><CardFrame widthClassName="w-8" className="border rounded"><img src={c.frontImageUrl} alt="" className="w-full h-full object-cover" /></CardFrame></a>
+                        ? <CroppedFrontThumb url={c.frontImageUrl} cardW={cardSize.width} cardH={cardSize.height} />
                         : <span className="text-xs text-muted-foreground">-</span>}
                     </TableCell>
                     <TableCell>
@@ -3140,6 +3140,30 @@ function CardSideEditor({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function CroppedFrontThumb({ url, cardW, cardH }: { url: string; cardW: number; cardH: number }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const canvas = await composeMaskedCardCanvas(url, null, 320, 320 * (cardH / cardW));
+        if (!cancelled) setSrc(canvas.toDataURL("image/png"));
+      } catch {
+        if (!cancelled) setSrc(url);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [url, cardW, cardH]);
+  const href = src ?? url;
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      <CardFrame widthClassName="w-8" className="border rounded">
+        <img src={href} alt="" className="w-full h-full object-cover" />
+      </CardFrame>
+    </a>
   );
 }
 
