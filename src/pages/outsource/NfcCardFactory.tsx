@@ -2879,7 +2879,7 @@ function CardSideEditor({
               <img
                 src={clippedPreview}
                 alt=""
-                className="absolute inset-0 w-full h-full object-fill pointer-events-none"
+                className="absolute inset-0 w-full h-full object-cover pointer-events-none"
               />
             )}
             {svgPreview && (
