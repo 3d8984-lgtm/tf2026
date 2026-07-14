@@ -2500,6 +2500,7 @@ function DetailView({
           onChange={setShapeOptionsByGrade}
           onSave={saveLayout}
           canSave={loaded}
+          commonShapeOptions={shapeOptions}
         />
 
         {/* Layout designer */}
@@ -3769,6 +3770,7 @@ const ShapeOptionRow = ({
   s,
   update,
   onPickFile,
+  positionReadOnly = false,
 }: {
   title: string;
   desc: string;
@@ -3776,6 +3778,7 @@ const ShapeOptionRow = ({
   s: ShapeOption;
   update: (key: keyof ShapeOptions, patch: Partial<ShapeOption>) => void;
   onPickFile: (key: keyof ShapeOptions, file: File | null) => void;
+  positionReadOnly?: boolean;
 }) => {
   return (
     <div className="rounded-md border p-3 space-y-3">
@@ -3814,29 +3817,44 @@ const ShapeOptionRow = ({
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2 items-start">
         <div>
-          <label className="text-[11px] text-muted-foreground">X (mm)</label>
+          <label className="text-[11px] text-muted-foreground">
+            X (mm){positionReadOnly && <span className="ml-1 text-[10px]">· COMMON 동기화</span>}
+          </label>
           <input
             type="number"
             step="0.001"
             value={s.x_mm}
             onChange={(e) => update(k, { x_mm: Number(e.target.value) })}
-            className="w-full h-8 rounded border bg-background px-2 text-xs"
+            readOnly={positionReadOnly}
+            disabled={positionReadOnly}
+            className={cn(
+              "w-full h-8 rounded border bg-background px-2 text-xs",
+              positionReadOnly && "bg-muted/50 cursor-not-allowed"
+            )}
           />
         </div>
         <div>
-          <label className="text-[11px] text-muted-foreground">Y (mm)</label>
+          <label className="text-[11px] text-muted-foreground">
+            Y (mm){positionReadOnly && <span className="ml-1 text-[10px]">· COMMON 동기화</span>}
+          </label>
           <input
             type="number"
             step="0.001"
             value={s.y_mm}
             onChange={(e) => update(k, { y_mm: Number(e.target.value) })}
-            className="w-full h-8 rounded border bg-background px-2 text-xs"
+            readOnly={positionReadOnly}
+            disabled={positionReadOnly}
+            className={cn(
+              "w-full h-8 rounded border bg-background px-2 text-xs",
+              positionReadOnly && "bg-muted/50 cursor-not-allowed"
+            )}
           />
         </div>
         <SvgAnchorPicker val={s.anchor} onPick={(a) => update(k, { anchor: a })} />
       </div>
       <div className="text-[11px] text-muted-foreground">
         색상은 업로드한 SVG 파일의 원본 색상이 그대로 사용됩니다.
+        {positionReadOnly && " · X/Y 위치는 COMMON 등급의 기본 도형 옵션 값을 사용합니다."}
       </div>
     </div>
   );
@@ -3943,6 +3961,7 @@ function AdvancedShapeSettingsDialog({
   onChange,
   onSave,
   canSave,
+  commonShapeOptions,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -3950,6 +3969,7 @@ function AdvancedShapeSettingsDialog({
   onChange: (next: ShapeOptionsByGrade) => void;
   onSave?: () => Promise<void> | void;
   canSave?: boolean;
+  commonShapeOptions: ShapeOptions;
 }) {
   const [saving, setSaving] = useState(false);
   const [activeGrade, setActiveGrade] = useState<CardGrade>("RARE");
@@ -3961,14 +3981,58 @@ function AdvancedShapeSettingsDialog({
     return `data:image/svg+xml;base64,${b64}`;
   };
 
+  // COMMON 등급의 X/Y 좌표를 각 등급 도형에 강제 동기화
+  const syncCommonPosition = (opts: ShapeOptions): ShapeOptions => {
+    const keys: (keyof ShapeOptions)[] = ["frontCenter", "frontOutline", "back", "backLine"];
+    const next: ShapeOptions = { ...opts };
+    keys.forEach((k) => {
+      next[k] = { ...opts[k], x_mm: commonShapeOptions[k].x_mm, y_mm: commonShapeOptions[k].y_mm };
+    });
+    return next;
+  };
+
   const forGrade = (g: CardGrade): ShapeOptions =>
-    value[g] || cloneDefaultShapeOptions();
+    syncCommonPosition(value[g] || cloneDefaultShapeOptions());
 
   const updateGrade = (g: CardGrade, key: keyof ShapeOptions, patch: Partial<ShapeOption>) => {
-    const cur = forGrade(g);
-    const next: ShapeOptions = { ...cur, [key]: { ...cur[key], ...patch } };
+    const cur = value[g] || cloneDefaultShapeOptions();
+    // X/Y 좌표는 COMMON 값을 우선으로 사용 — 등급별 수정 불가
+    const { x_mm: _x, y_mm: _y, ...safePatch } = patch;
+    const merged: ShapeOption = {
+      ...cur[key],
+      ...safePatch,
+      x_mm: commonShapeOptions[key].x_mm,
+      y_mm: commonShapeOptions[key].y_mm,
+    };
+    const next: ShapeOptions = { ...cur, [key]: merged };
     onChange({ ...value, [g]: next });
   };
+
+  // COMMON X/Y가 바뀌면 저장된 등급별 데이터도 즉시 동기화
+  useEffect(() => {
+    if (!open) return;
+    let changed = false;
+    const nextAll: ShapeOptionsByGrade = { ...value };
+    (CARD_GRADES_ADVANCED as CardGrade[]).forEach((g) => {
+      const cur = value[g];
+      if (!cur) return;
+      const synced = syncCommonPosition(cur);
+      const keys: (keyof ShapeOptions)[] = ["frontCenter", "frontOutline", "back", "backLine"];
+      const diff = keys.some(
+        (k) => cur[k].x_mm !== synced[k].x_mm || cur[k].y_mm !== synced[k].y_mm
+      );
+      if (diff) {
+        nextAll[g] = synced;
+        changed = true;
+      }
+    });
+    if (changed) onChange(nextAll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, commonShapeOptions.frontCenter.x_mm, commonShapeOptions.frontCenter.y_mm,
+      commonShapeOptions.frontOutline.x_mm, commonShapeOptions.frontOutline.y_mm,
+      commonShapeOptions.back.x_mm, commonShapeOptions.back.y_mm,
+      commonShapeOptions.backLine.x_mm, commonShapeOptions.backLine.y_mm]);
+
 
   const handleSave = async () => {
     if (!onSave) return;
@@ -4041,10 +4105,10 @@ function AdvancedShapeSettingsDialog({
                   </div>
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  <ShapeOptionRow title="카드 앞면 · 중심 도형" desc="앞면 2개 도형 중 중심부 SVG" k="frontCenter" s={s.frontCenter} update={update} onPickFile={pick} />
-                  <ShapeOptionRow title="카드 앞면 · 외곽 도형" desc="앞면 2개 도형 중 외곽부 SVG" k="frontOutline" s={s.frontOutline} update={update} onPickFile={pick} />
-                  <ShapeOptionRow title="카드 뒷면 · 도형" desc="뒷면 단일 SVG" k="back" s={s.back} update={update} onPickFile={pick} />
-                  <ShapeOptionRow title="카드 뒷면 · 라인" desc="뒷면 라인 SVG (원본 색상 유지)" k="backLine" s={s.backLine} update={update} onPickFile={pick} />
+                  <ShapeOptionRow title="카드 앞면 · 중심 도형" desc="앞면 2개 도형 중 중심부 SVG" k="frontCenter" s={s.frontCenter} update={update} onPickFile={pick} positionReadOnly />
+                  <ShapeOptionRow title="카드 앞면 · 외곽 도형" desc="앞면 2개 도형 중 외곽부 SVG" k="frontOutline" s={s.frontOutline} update={update} onPickFile={pick} positionReadOnly />
+                  <ShapeOptionRow title="카드 뒷면 · 도형" desc="뒷면 단일 SVG" k="back" s={s.back} update={update} onPickFile={pick} positionReadOnly />
+                  <ShapeOptionRow title="카드 뒷면 · 라인" desc="뒷면 라인 SVG (원본 색상 유지)" k="backLine" s={s.backLine} update={update} onPickFile={pick} positionReadOnly />
                 </div>
               </TabsContent>
             );
