@@ -1885,21 +1885,27 @@ function DetailView({
           const nat = svgNaturalSizeMm(svgText);
           const xMm = (cardSize.width - nat.w) / 2;
           const yMm = (cardSize.height - nat.h) / 2;
-          // clipPath/mask/이미지가 포함된 SVG는 svg2pdf.js 호환성 문제로 검은 배경만 남는 경우가 있어 래스터화 후 임베드.
+          // 우선 벡터로 임베드해서 원본 화질을 그대로 보존한다.
+          // svg2pdf.js 가 <clipPath>/<mask>/<image> 조합에서 실패하는 경우에만 고해상도(1200dpi) 래스터로 폴백한다.
           const hasClipOrMask = /<(clipPath|mask)\b|clip-path\s*=|mask\s*=/i.test(svgText);
-          if (hasClipOrMask) {
-            const pngBytes = await rasterizeSvgToPng(svgText, nat.w, nat.h, 600);
+          let embeddedVector = false;
+          if (!hasClipOrMask) {
+            try {
+              const subBytes = await svgStringToPdfBytes(svgText, nat.w * MM, nat.h * MM);
+              const [embedded] = await out.embedPdf(subBytes, [0]);
+              page.drawPage(embedded, {
+                x: xMm * MM,
+                y: pageHpt - (yMm + nat.h) * MM,
+                width: nat.w * MM,
+                height: nat.h * MM,
+              });
+              embeddedVector = true;
+            } catch (e) { console.warn("svg test image vector embed failed → raster fallback", e); }
+          }
+          if (!embeddedVector) {
+            const pngBytes = await rasterizeSvgToPng(svgText, nat.w, nat.h, 1200);
             const img = await out.embedPng(pngBytes);
             page.drawImage(img, {
-              x: xMm * MM,
-              y: pageHpt - (yMm + nat.h) * MM,
-              width: nat.w * MM,
-              height: nat.h * MM,
-            });
-          } else {
-            const subBytes = await svgStringToPdfBytes(svgText, nat.w * MM, nat.h * MM);
-            const [embedded] = await out.embedPdf(subBytes, [0]);
-            page.drawPage(embedded, {
               x: xMm * MM,
               y: pageHpt - (yMm + nat.h) * MM,
               width: nat.w * MM,
@@ -1909,13 +1915,51 @@ function DetailView({
         } catch (e) { console.warn("svg test image embed failed", e); }
       } else if (designUrl) {
         try {
-          const pxPerMm = 300 / 25.4;
-          const bgW = Math.max(64, Math.round(cardSize.width * pxPerMm));
-          const bgH = Math.max(64, Math.round(cardSize.height * pxPerMm));
-          const clipped = await composeMaskedCardCanvas(designUrl, null, bgW, bgH);
-          const pngBytes = await canvasToPngBytes(clipped);
-          const bgImg = await out.embedPng(pngBytes);
-          page.drawImage(bgImg, { x: 0, y: 0, width: pageWpt, height: pageHpt });
+          // GFT/디자인 원본 이미지는 카드에 100% 덮이도록 원본 바이트를 그대로 임베드해
+          // 리샘플링/재압축으로 인한 화질 저하를 방지한다.
+          const res = await fetch(designUrl);
+          const bytes = new Uint8Array(await res.arrayBuffer());
+          const ct = (res.headers.get("content-type") || "").toLowerCase();
+          const lower = designUrl.toLowerCase().split("?")[0];
+          const isJpg = ct.includes("jpeg") || ct.includes("jpg") || /\.(jpe?g)$/i.test(lower)
+            || (bytes[0] === 0xff && bytes[1] === 0xd8);
+          const isPng = ct.includes("png") || /\.png$/i.test(lower)
+            || (bytes[0] === 0x89 && bytes[1] === 0x50);
+          let bgImg: any = null;
+          if (isJpg) {
+            try { bgImg = await out.embedJpg(bytes); } catch { /* fallthrough */ }
+          }
+          if (!bgImg && isPng) {
+            try { bgImg = await out.embedPng(bytes); } catch { /* fallthrough */ }
+          }
+          if (!bgImg) {
+            // 지원되지 않는 포맷(WebP 등)은 고해상도(600dpi)로 한 번만 캔버스 변환해 임베드.
+            const pxPerMm = 600 / 25.4;
+            const bgW = Math.max(64, Math.round(cardSize.width * pxPerMm));
+            const bgH = Math.max(64, Math.round(cardSize.height * pxPerMm));
+            const clipped = await composeMaskedCardCanvas(designUrl, null, bgW, bgH);
+            const pngBytes = await canvasToPngBytes(clipped);
+            bgImg = await out.embedPng(pngBytes);
+            page.drawImage(bgImg, { x: 0, y: 0, width: pageWpt, height: pageHpt });
+          } else {
+            // cover 배치 — 원본을 카드 크기에 맞게 확대 후 넘치는 영역을 잘라낸다(미리보기와 동일).
+            const iw = (bgImg as any).width as number;
+            const ih = (bgImg as any).height as number;
+            const targetAspect = pageWpt / pageHpt;
+            const srcAspect = iw / ih;
+            let drawW = pageWpt, drawH = pageHpt, ox = 0, oy = 0;
+            if (srcAspect > targetAspect) {
+              drawH = pageHpt;
+              drawW = pageHpt * srcAspect;
+              ox = -(drawW - pageWpt) / 2;
+            } else if (srcAspect < targetAspect) {
+              drawW = pageWpt;
+              drawH = pageWpt / srcAspect;
+              oy = -(drawH - pageHpt) / 2;
+            }
+            // 넘치는 영역은 페이지 크롭 박스 밖으로 자연스럽게 잘림.
+            page.drawImage(bgImg, { x: ox, y: oy, width: drawW, height: drawH });
+          }
         } catch (e) { console.warn("card design render failed", e); }
       }
 
@@ -1939,21 +1983,27 @@ function DetailView({
           const raw = color ? recolorSvgString(rawSvg, color) : rawSvg;
           const nat = svgNaturalSizeMm(raw);
           const tl = anchorTopLeft(s.x_mm, s.y_mm, nat.w, nat.h, s.anchor);
-          // clipPath/mask 및 embedded <image> 를 보존하려면 svg2pdf 대신 브라우저 래스터화가 필요.
+          // 기본 도형 옵션은 최대한 벡터 그대로 임베드해 원본 SVG 화질을 보존한다.
+          // svg2pdf.js 가 <clipPath>/<mask>/<image> 등에서 실패할 때만 1200dpi 래스터로 폴백.
           const hasClipOrMask = /<(clipPath|mask)\b|clip-path\s*=|mask\s*=/i.test(raw);
-          if (hasClipOrMask) {
-            const pngBytes = await rasterizeSvgToPng(raw, nat.w, nat.h, 600);
+          let embeddedVector = false;
+          if (!hasClipOrMask) {
+            try {
+              const subBytes = await svgStringToPdfBytes(raw, nat.w * MM, nat.h * MM);
+              const [embedded] = await out.embedPdf(subBytes, [0]);
+              page.drawPage(embedded, {
+                x: tl.left * MM,
+                y: pageHpt - (tl.top + nat.h) * MM,
+                width: nat.w * MM,
+                height: nat.h * MM,
+              });
+              embeddedVector = true;
+            } catch (e) { console.warn("shape svg vector embed failed → raster fallback", e); }
+          }
+          if (!embeddedVector) {
+            const pngBytes = await rasterizeSvgToPng(raw, nat.w, nat.h, 1200);
             const img = await out.embedPng(pngBytes);
             page.drawImage(img, {
-              x: tl.left * MM,
-              y: pageHpt - (tl.top + nat.h) * MM,
-              width: nat.w * MM,
-              height: nat.h * MM,
-            });
-          } else {
-            const subBytes = await svgStringToPdfBytes(raw, nat.w * MM, nat.h * MM);
-            const [embedded] = await out.embedPdf(subBytes, [0]);
-            page.drawPage(embedded, {
               x: tl.left * MM,
               y: pageHpt - (tl.top + nat.h) * MM,
               width: nat.w * MM,
