@@ -3779,7 +3779,41 @@ const ShapeOptionRow = ({
   onPickFile: (key: keyof ShapeOptions, file: File | null) => void;
   positionReadOnly?: boolean;
 }) => {
-...
+  return (
+    <div className="rounded-md border p-3 space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-sm font-medium">{title}</div>
+          <div className="text-[11px] text-muted-foreground">{desc}</div>
+        </div>
+        {s.svgDataUrl && (
+          <div className="h-10 w-10 rounded border bg-muted/30 flex items-center justify-center overflow-hidden">
+            <img src={s.svgDataUrl} alt={title} className="max-h-full max-w-full" />
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <input
+          type="file"
+          accept=".svg,image/svg+xml"
+          onChange={(e) => onPickFile(k, e.target.files?.[0] || null)}
+          className="text-xs file:mr-2 file:py-1 file:px-2 file:rounded file:border file:border-input file:bg-background file:text-xs"
+        />
+        {s.fileName && (
+          <button
+            type="button"
+            className="text-[11px] text-destructive underline"
+            onClick={() => onPickFile(k, null)}
+          >
+            제거
+          </button>
+        )}
+        {s.fileName && (
+          <span className="text-[11px] text-muted-foreground truncate">{s.fileName}</span>
+        )}
+      </div>
+
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2 items-start">
         <div>
           <label className="text-[11px] text-muted-foreground">
