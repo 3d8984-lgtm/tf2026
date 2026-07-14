@@ -2618,6 +2618,8 @@ function DetailView({
                     <TableCell className="font-mono text-xs">{c.orderNo}</TableCell>
                     <TableCell className="font-mono text-xs">{c.uid}</TableCell>
                     <TableCell className="font-mono text-xs">{c.uniqueNo}</TableCell>
+                    <TableCell><Badge variant="outline">{c.grade || "-"}</Badge></TableCell>
+                    <TableCell className="font-mono text-xs">{c.twincode || "-"}</TableCell>
                     <TableCell>
                       {c.gftOriginalUrl
                         ? <a href={c.gftOriginalUrl} target="_blank" rel="noopener noreferrer"><CardFrame widthClassName="w-8" className="border rounded"><img src={c.gftOriginalUrl} alt="" className="w-full h-full object-cover" /></CardFrame></a>
@@ -2640,7 +2642,6 @@ function DetailView({
                     <TableCell className="text-xs">{c.editionNo}</TableCell>
                     <TableCell className="text-xs">{c.issuedNo}</TableCell>
                     <TableCell className="text-xs">{c.mintedOn}</TableCell>
-                    <TableCell><Badge variant="outline">{c.grade}</Badge></TableCell>
                     <TableCell>
                       {c.issuedByUrl
                         ? <a href={c.issuedByUrl} target="_blank" rel="noopener noreferrer"><img src={c.issuedByUrl} alt="" className="w-10 h-6 object-contain border rounded bg-white" /></a>
