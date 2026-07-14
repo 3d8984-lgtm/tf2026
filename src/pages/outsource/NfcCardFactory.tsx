@@ -2594,7 +2594,6 @@ function DetailView({
                   <TableHead>UID</TableHead>
                   <TableHead>카드 고유번호</TableHead>
                   <TableHead>등급</TableHead>
-                  <TableHead>트윈코드</TableHead>
                   <TableHead>GFT 원본 이미지</TableHead>
                   <TableHead>앞면</TableHead>
                   <TableHead>뒷면</TableHead>
@@ -2613,7 +2612,7 @@ function DetailView({
               </TableHeader>
               <TableBody>
                 {cards.length === 0 && (
-                  <TableRow><TableCell colSpan={19} className="text-center py-8 text-muted-foreground">—</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={18} className="text-center py-8 text-muted-foreground">—</TableCell></TableRow>
                 )}
                 {cards.map(c => (
                   <TableRow key={`${c.uniqueNo}-${c.seq}`}>
@@ -2622,21 +2621,35 @@ function DetailView({
                     <TableCell className="font-mono text-xs">{c.uid}</TableCell>
                     <TableCell className="font-mono text-xs">{c.uniqueNo}</TableCell>
                     <TableCell><Badge variant="outline">{c.grade || "-"}</Badge></TableCell>
-                    <TableCell className="font-mono text-xs">{c.twincode || "-"}</TableCell>
                     <TableCell>
                       {c.gftOriginalUrl
                         ? <a href={c.gftOriginalUrl} target="_blank" rel="noopener noreferrer"><CardFrame widthClassName="w-8" className="border rounded"><img src={c.gftOriginalUrl} alt="" className="w-full h-full object-cover" /></CardFrame></a>
                         : <span className="text-xs text-muted-foreground">-</span>}
                     </TableCell>
                     <TableCell>
-                      {c.frontImageUrl
-                        ? <CroppedFrontThumb url={c.frontImageUrl} cardW={cardSize.width} cardH={cardSize.height} />
-                        : <span className="text-xs text-muted-foreground">-</span>}
+                      <CardPreviewCell
+                        side="front"
+                        card={c}
+                        cardSize={cardSize}
+                        testImageUrl={testImages.front?.url || null}
+                        layout={layoutFront}
+                        keys={FRONT_KEYS}
+                        shapeOptions={resolveShapeOptions(c.grade)}
+                      />
                     </TableCell>
                     <TableCell>
-                      {c.backImageUrl
-                        ? <a href={c.backImageUrl} target="_blank" rel="noopener noreferrer"><CardFrame widthClassName="w-8" className="border rounded"><img src={c.backImageUrl} alt="" className="w-full h-full object-cover" /></CardFrame></a>
-                        : <span className="text-xs text-muted-foreground">-</span>}
+                      <CardPreviewCell
+                        side="back"
+                        card={c}
+                        cardSize={cardSize}
+                        testImageUrl={resolveTestBackAsset(c.grade)?.url || null}
+                        testTwincodeUrl={testTwincodeSvg?.url || null}
+                        testSignatureUrl={testSignature?.url || null}
+                        layout={layoutBack}
+                        keys={BACK_KEYS}
+                        backDefaults={backDefaults}
+                        shapeOptions={resolveShapeOptions(c.grade)}
+                      />
                     </TableCell>
                     <TableCell><ColorSwatch value={c.frontIconInnerColor} /></TableCell>
                     <TableCell><ColorSwatch value={c.frontIconOuterColor} /></TableCell>
