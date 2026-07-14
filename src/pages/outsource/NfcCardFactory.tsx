@@ -3750,6 +3750,11 @@ function ShapeOptionsCard({
             <span className="text-[11px] font-normal text-muted-foreground hidden md:inline">
               업로드한 파일은 저장 후 유지됩니다 · 변경/삭제 전까지 보존
             </span>
+            {onOpenAdvanced && (
+              <Button size="sm" variant="outline" onClick={onOpenAdvanced}>
+                추가설정
+              </Button>
+            )}
             {onSave && (
               <Button size="sm" onClick={handleSave} disabled={saving || canSave === false}>
                 {saving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1" />}
