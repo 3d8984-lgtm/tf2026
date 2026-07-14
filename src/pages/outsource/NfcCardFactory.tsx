@@ -2416,7 +2416,7 @@ function DetailView({
               setLayout={setLayoutBack}
               keys={BACK_KEYS}
               backDefaults={backDefaults}
-              shapeOptions={shapeOptions}
+              shapeOptions={resolveShapeOptions(applyTestValues(cards[0], testValues)?.grade)}
               onTestPdf={async () => {
                 const sample = applyTestValues(cards[0], testValues);
                 if (!sample) { toast({ title: "샘플 카드가 없습니다", variant: "destructive" }); return; }
