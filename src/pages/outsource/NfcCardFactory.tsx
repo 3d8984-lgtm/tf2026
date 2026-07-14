@@ -665,6 +665,37 @@ const SHAPE_ANCHORS: { value: ShapeAnchor; label: string }[] = [
   { value: "bl", label: "좌하" }, { value: "bc", label: "하중" }, { value: "br", label: "우하" },
 ];
 
+// 카드 등급별 기본 도형 옵션 — 추가설정 페이지에서 등급별로 SVG를 지정할 수 있다.
+export type CardGrade = "COMMON" | "RARE" | "EPIC" | "LEGEND";
+export const CARD_GRADES_ADVANCED: CardGrade[] = ["RARE", "EPIC", "LEGEND"];
+const GRADE_LABEL: Record<CardGrade, string> = { COMMON: "COMMON", RARE: "RARE", EPIC: "EPIC", LEGEND: "LEGEND" };
+export type ShapeOptionsByGrade = Partial<Record<CardGrade, ShapeOptions>>;
+const cloneDefaultShapeOptions = (): ShapeOptions => ({
+  frontCenter:  makeShapeOption("#E63946"),
+  frontOutline: makeShapeOption("#1D3557"),
+  back:         makeShapeOption("#457B9D"),
+  backLine:     makeShapeOption("#000000"),
+});
+const DEFAULT_SHAPE_OPTIONS_BY_GRADE: ShapeOptionsByGrade = {
+  RARE:   cloneDefaultShapeOptions(),
+  EPIC:   cloneDefaultShapeOptions(),
+  LEGEND: cloneDefaultShapeOptions(),
+};
+function normalizeGrade(g: unknown): CardGrade {
+  const s = String(g ?? "").trim().toUpperCase();
+  if (s === "RARE" || s === "EPIC" || s === "LEGEND") return s;
+  return "COMMON";
+}
+function mergeShapeOptions(base: ShapeOptions, patch: any): ShapeOptions {
+  const p = patch || {};
+  return {
+    frontCenter:  { ...base.frontCenter,  ...(p.frontCenter  || {}) },
+    frontOutline: { ...base.frontOutline, ...(p.frontOutline || {}) },
+    back:         { ...base.back,         ...(p.back         || {}) },
+    backLine:     { ...base.backLine,     ...(p.backLine     || {}) },
+  };
+}
+
 // ---- SVG 도형 유틸 (도형 옵션 → 미리보기/PDF 공통) ----
 // data:image/svg+xml;base64,... 또는 utf-8 데이터 URL을 SVG 원문 문자열로 디코드
 function decodeSvgDataUrl(dataUrl: string): string | null {
@@ -1267,8 +1298,22 @@ function DetailView({
 
   // 카드 뒷면 기본 텍스트 (API 외 전체 카드에 공통 적용)
   const [backDefaults, setBackDefaults] = useState({ ...DEFAULT_BACK_DEFAULTS });
-  // 도형(SVG) 옵션 상태 — 앞면(중심/외곽) + 뒷면(단일)
+  // 도형(SVG) 옵션 상태 — 앞면(중심/외곽) + 뒷면(단일). 기본(COMMON) + 등급별 오버라이드
   const [shapeOptions, setShapeOptions] = useState<ShapeOptions>({ ...DEFAULT_SHAPE_OPTIONS });
+  const [shapeOptionsByGrade, setShapeOptionsByGrade] = useState<ShapeOptionsByGrade>(() => ({
+    RARE:   cloneDefaultShapeOptions(),
+    EPIC:   cloneDefaultShapeOptions(),
+    LEGEND: cloneDefaultShapeOptions(),
+  }));
+  const [advancedShapeOpen, setAdvancedShapeOpen] = useState(false);
+  const resolveShapeOptions = (grade: unknown): ShapeOptions => {
+    const g = normalizeGrade(grade);
+    if (g !== "COMMON") {
+      const per = shapeOptionsByGrade[g];
+      if (per) return per;
+    }
+    return shapeOptions;
+  };
 
   // 마스터 글자꼴 (선택 시 카드 텍스트/숫자 미리보기 + PDF에 자동 적용)
   const [masterFont, setMasterFont] = useState<string>(DEFAULT_MASTER_FONT);
@@ -1545,12 +1590,15 @@ function DetailView({
           if (v.workOrder)   setWorkOrder(prev => ({ ...prev, ...v.workOrder, orderNo }));
           if (v.testValues)  setTestValues(prev => ({ ...prev, ...v.testValues }));
           if (v.backDefaults) setBackDefaults(prev => ({ ...prev, ...v.backDefaults }));
-          if (v.shapeOptions) setShapeOptions(prev => ({
-            frontCenter:  { ...prev.frontCenter,  ...(v.shapeOptions.frontCenter  || {}) },
-            frontOutline: { ...prev.frontOutline, ...(v.shapeOptions.frontOutline || {}) },
-            back:         { ...prev.back,         ...(v.shapeOptions.back         || {}) },
-            backLine:     { ...prev.backLine,     ...(v.shapeOptions.backLine     || {}) },
-          }));
+          if (v.shapeOptions) setShapeOptions(prev => mergeShapeOptions(prev, v.shapeOptions));
+          if (v.shapeOptionsByGrade) setShapeOptionsByGrade(prev => {
+            const src = v.shapeOptionsByGrade || {};
+            const next: ShapeOptionsByGrade = { ...prev };
+            (CARD_GRADES_ADVANCED as CardGrade[]).forEach((g) => {
+              next[g] = mergeShapeOptions(prev[g] || cloneDefaultShapeOptions(), src[g]);
+            });
+            return next;
+          });
           if (v.masterFont && FONT_OPTIONS.some(f => f.id === v.masterFont)) setMasterFont(v.masterFont);
           if (typeof v.masterFontWeight === "number") setMasterFontWeight(v.masterFontWeight);
           break;
@@ -1563,7 +1611,7 @@ function DetailView({
 
   const saveLayout = async () => {
     if (!userId) { toast({ title: "로그인 필요", variant: "destructive" }); return; }
-    const payload = { layoutFront, layoutBack, workOrder, testValues, backDefaults, shapeOptions, masterFont, masterFontWeight } as any;
+    const payload = { layoutFront, layoutBack, workOrder, testValues, backDefaults, shapeOptions, shapeOptionsByGrade, masterFont, masterFontWeight } as any;
     const rows = [
       { user_id: userId, setting_key: `${SETTINGS_KEY_PREFIX}-${orderNo}`, setting_value: payload },
       { user_id: userId, setting_key: GLOBAL_LAYOUT_KEY, setting_value: payload },
@@ -1719,14 +1767,15 @@ function DetailView({
 
       // === 기본 도형 옵션 (디자인 위 / 옵션 요소 아래) ===
       // 색상은 주문 데이터의 카드 아이콘 색상으로 재적용 (backLine 제외).
+      const activeShapes = resolveShapeOptions(card.grade);
       const shapesForSide: { s: ShapeOption; color: string | null }[] = side === "front"
         ? [
-            { s: shapeOptions.frontOutline, color: (card.frontIconOuterColor || "").trim() || null },
-            { s: shapeOptions.frontCenter,  color: (card.frontIconInnerColor || "").trim() || null },
+            { s: activeShapes.frontOutline, color: (card.frontIconOuterColor || "").trim() || null },
+            { s: activeShapes.frontCenter,  color: (card.frontIconInnerColor || "").trim() || null },
           ]
         : [
-            { s: shapeOptions.back,     color: (card.backIconColor || "").trim() || null },
-            { s: shapeOptions.backLine, color: null },
+            { s: activeShapes.back,     color: (card.backIconColor || "").trim() || null },
+            { s: activeShapes.backLine, color: null },
           ];
       for (const { s, color } of shapesForSide) {
         if (!s?.svgDataUrl) continue;
@@ -2306,7 +2355,21 @@ function DetailView({
         </Card>
 
         {/* 기본 도형 옵션 (앞면 중심/외곽 · 뒷면 단일) — 이미지 위 레이어로 합성됨 */}
-        <ShapeOptionsCard value={shapeOptions} onChange={setShapeOptions} onSave={saveLayout} canSave={loaded} />
+        <ShapeOptionsCard
+          value={shapeOptions}
+          onChange={setShapeOptions}
+          onSave={saveLayout}
+          canSave={loaded}
+          onOpenAdvanced={() => setAdvancedShapeOpen(true)}
+        />
+        <AdvancedShapeSettingsDialog
+          open={advancedShapeOpen}
+          onOpenChange={setAdvancedShapeOpen}
+          value={shapeOptionsByGrade}
+          onChange={setShapeOptionsByGrade}
+          onSave={saveLayout}
+          canSave={loaded}
+        />
 
         {/* Layout designer */}
         <Tabs defaultValue="front">
@@ -2325,7 +2388,7 @@ function DetailView({
               layout={layoutFront}
               setLayout={setLayoutFront}
               keys={FRONT_KEYS}
-              shapeOptions={shapeOptions}
+              shapeOptions={resolveShapeOptions(applyTestValues(cards[0], testValues)?.grade)}
               onTestPdf={async () => {
                 const sample = applyTestValues(cards[0], testValues);
                 if (!sample) { toast({ title: "샘플 카드가 없습니다", variant: "destructive" }); return; }
@@ -2353,7 +2416,7 @@ function DetailView({
               setLayout={setLayoutBack}
               keys={BACK_KEYS}
               backDefaults={backDefaults}
-              shapeOptions={shapeOptions}
+              shapeOptions={resolveShapeOptions(applyTestValues(cards[0], testValues)?.grade)}
               onTestPdf={async () => {
                 const sample = applyTestValues(cards[0], testValues);
                 if (!sample) { toast({ title: "샘플 카드가 없습니다", variant: "destructive" }); return; }
@@ -3632,11 +3695,13 @@ function ShapeOptionsCard({
   onChange,
   onSave,
   canSave,
+  onOpenAdvanced,
 }: {
   value: ShapeOptions;
   onChange: (next: ShapeOptions) => void;
   onSave?: () => Promise<void> | void;
   canSave?: boolean;
+  onOpenAdvanced?: () => void;
 }) {
   const [saving, setSaving] = useState(false);
   const update = (key: keyof ShapeOptions, patch: Partial<ShapeOption>) => {
@@ -3685,6 +3750,11 @@ function ShapeOptionsCard({
             <span className="text-[11px] font-normal text-muted-foreground hidden md:inline">
               업로드한 파일은 저장 후 유지됩니다 · 변경/삭제 전까지 보존
             </span>
+            {onOpenAdvanced && (
+              <Button size="sm" variant="outline" onClick={onOpenAdvanced}>
+                추가설정
+              </Button>
+            )}
             {onSave && (
               <Button size="sm" onClick={handleSave} disabled={saving || canSave === false}>
                 {saving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1" />}
@@ -3703,5 +3773,133 @@ function ShapeOptionsCard({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+// ===========================================================================
+// 추가설정 페이지 — 등급(RARE/EPIC/LEGEND)별 기본 도형 SVG 업로드/위치 설정
+// 기본(COMMON)은 상단의 "기본 도형 옵션" 카드가 담당하고,
+// 여기서 등급별 오버라이드를 지정한다. 저장하지 않은 등급은 기본값으로 대체된다.
+// ===========================================================================
+function AdvancedShapeSettingsDialog({
+  open,
+  onOpenChange,
+  value,
+  onChange,
+  onSave,
+  canSave,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  value: ShapeOptionsByGrade;
+  onChange: (next: ShapeOptionsByGrade) => void;
+  onSave?: () => Promise<void> | void;
+  canSave?: boolean;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [activeGrade, setActiveGrade] = useState<CardGrade>("RARE");
+
+  const readSvgFile = async (file: File): Promise<string> => {
+    const text = await file.text();
+    if (!/<svg[\s>]/i.test(text)) throw new Error("올바른 SVG 파일이 아닙니다");
+    const b64 = btoa(unescape(encodeURIComponent(text)));
+    return `data:image/svg+xml;base64,${b64}`;
+  };
+
+  const forGrade = (g: CardGrade): ShapeOptions =>
+    value[g] || cloneDefaultShapeOptions();
+
+  const updateGrade = (g: CardGrade, key: keyof ShapeOptions, patch: Partial<ShapeOption>) => {
+    const cur = forGrade(g);
+    const next: ShapeOptions = { ...cur, [key]: { ...cur[key], ...patch } };
+    onChange({ ...value, [g]: next });
+  };
+
+  const handleSave = async () => {
+    if (!onSave) return;
+    try {
+      setSaving(true);
+      await onSave();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onPickFile = async (g: CardGrade, key: keyof ShapeOptions, file: File | null) => {
+    if (!file) { updateGrade(g, key, { svgDataUrl: null, fileName: null }); return; }
+    try {
+      const dataUrl = await readSvgFile(file);
+      updateGrade(g, key, { svgDataUrl: dataUrl, fileName: file.name });
+      if (onSave && canSave !== false) {
+        setTimeout(() => { void handleSave(); }, 0);
+      }
+    } catch (e: any) {
+      alert(e?.message || "SVG 파일을 읽지 못했습니다");
+    }
+  };
+
+  const resetGrade = (g: CardGrade) => {
+    if (!confirm(`${GRADE_LABEL[g]} 등급 도형 설정을 초기화하시겠습니까?`)) return;
+    onChange({ ...value, [g]: cloneDefaultShapeOptions() });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-5xl w-[95vw] max-h-[92vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span>등급별 기본 도형 추가설정</span>
+            <span className="text-xs font-normal text-muted-foreground">
+              등급별로 앞면 중심/외곽 · 뒷면 도형/라인 SVG를 지정합니다. 등급별 값이 있으면 우선 적용됩니다.
+            </span>
+          </DialogTitle>
+        </DialogHeader>
+
+        <Tabs value={activeGrade} onValueChange={(v) => setActiveGrade(v as CardGrade)}>
+          <TabsList>
+            {CARD_GRADES_ADVANCED.map((g) => (
+              <TabsTrigger key={g} value={g}>{GRADE_LABEL[g]}</TabsTrigger>
+            ))}
+          </TabsList>
+
+          {CARD_GRADES_ADVANCED.map((g) => {
+            const s = forGrade(g);
+            const update = (key: keyof ShapeOptions, patch: Partial<ShapeOption>) =>
+              updateGrade(g, key, patch);
+            const pick = (key: keyof ShapeOptions, file: File | null) =>
+              onPickFile(g, key, file);
+            return (
+              <TabsContent key={g} value={g} className="pt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-sm text-muted-foreground">
+                    <Badge variant="outline" className="mr-2">{GRADE_LABEL[g]}</Badge>
+                    등급 도형 설정
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="ghost" onClick={() => resetGrade(g)}>초기화</Button>
+                    {onSave && (
+                      <Button size="sm" onClick={handleSave} disabled={saving || canSave === false}>
+                        {saving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1" />}
+                        설정 저장
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  <ShapeOptionRow title="카드 앞면 · 중심 도형" desc="앞면 2개 도형 중 중심부 SVG" k="frontCenter" s={s.frontCenter} update={update} onPickFile={pick} />
+                  <ShapeOptionRow title="카드 앞면 · 외곽 도형" desc="앞면 2개 도형 중 외곽부 SVG" k="frontOutline" s={s.frontOutline} update={update} onPickFile={pick} />
+                  <ShapeOptionRow title="카드 뒷면 · 도형" desc="뒷면 단일 SVG" k="back" s={s.back} update={update} onPickFile={pick} />
+                  <ShapeOptionRow title="카드 뒷면 · 라인" desc="뒷면 라인 SVG (원본 색상 유지)" k="backLine" s={s.backLine} update={update} onPickFile={pick} />
+                </div>
+              </TabsContent>
+            );
+          })}
+        </Tabs>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>닫기</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
