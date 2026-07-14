@@ -2310,9 +2310,9 @@ function DetailView({
               <div className="grid grid-cols-4 gap-2">
                 {(["COMMON","RARE","EPIC","LEGEND"] as CardGrade[]).map(g => (
                   <div key={g} className="flex flex-col items-center gap-1">
-                    <div className="w-full aspect-[86/54] rounded border bg-muted/30 overflow-hidden flex items-center justify-center">
+                    <div className="w-full aspect-[54/86] rounded border bg-muted/30 overflow-hidden flex items-center justify-center">
                       {testBackImagesByGrade[g]?.url
-                        ? <img src={testBackImagesByGrade[g]!.url} alt={g} className="w-full h-full object-cover" />
+                        ? <img src={testBackImagesByGrade[g]!.url} alt={g} className="w-full h-full object-contain" />
                         : <span className="text-[10px] text-muted-foreground">미설정</span>}
                     </div>
                     <span className="text-[10px] font-mono">{g}</span>
