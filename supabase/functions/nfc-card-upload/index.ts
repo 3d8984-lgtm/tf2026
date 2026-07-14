@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const BUCKET = "design-formats";
-const ALLOWED_PREFIX = "nfc-card-test/";
+const ALLOWED_PREFIXES = ["nfc-card-test/", "nfc-card-test-back-grade/", "nfc-card-test-shape-grade/"];
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!path.startsWith(ALLOWED_PREFIX) || path.includes("..")) {
+    if (!ALLOWED_PREFIXES.some((p) => path.startsWith(p)) || path.includes("..")) {
       return new Response(JSON.stringify({ error: "허용되지 않은 업로드 경로입니다", bucket: BUCKET, path }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
