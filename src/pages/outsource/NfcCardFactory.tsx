@@ -3865,7 +3865,10 @@ function ShapeOptionsCard({
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-sm flex items-center justify-between gap-2">
-          <span>기본 도형 옵션</span>
+          <span className="flex items-center gap-2">
+            기본 도형 옵션
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5">COMMON 등급</Badge>
+          </span>
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-normal text-muted-foreground hidden md:inline">
               업로드한 파일은 저장 후 유지됩니다 · 변경/삭제 전까지 보존
