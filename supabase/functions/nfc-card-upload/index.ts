@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const BUCKET = "design-formats";
-const ALLOWED_PREFIX = "nfc-card-test/";
+const ALLOWED_PREFIXES = ["nfc-card-test/", "nfc-card-test-back-grade/", "nfc-card-test-shape-grade/"];
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
