@@ -1865,11 +1865,18 @@ function DetailView({
       const page = out.addPage([pageWpt, pageHpt]);
 
       // === Background design ===
-      // 실제 주문 이미지(카드 앞/뒷면, GFT 원본 포함)를 우선 사용하고, 없을 때만 테스트 이미지로 대체.
+      // 앞면: 주문 이미지가 있으면 그것을, 없으면 테스트 이미지를 사용.
+      // 뒷면: "등급별 뒷면 이미지"가 배경 템플릿이므로 항상 우선 적용하고,
+      //       없을 때만 주문의 backImageUrl → 기본 테스트 이미지를 대체값으로 사용.
+      const gradeBackAsset = side === "back" ? resolveTestBackAsset(card.grade) : null;
       const realDesignUrl = side === "front" ? card.frontImageUrl : card.backImageUrl;
-      const testAsset = realDesignUrl ? null : (side === "back" ? resolveTestBackAsset(card.grade) : testImages[side]);
+      const testAsset = side === "back"
+        ? (gradeBackAsset || (realDesignUrl ? null : resolveTestBackAsset(card.grade)))
+        : (realDesignUrl ? null : testImages[side]);
       const testIsSvg = !!testAsset && /\.svg$/i.test(testAsset.name || "");
-      const designUrl = realDesignUrl || testAsset?.url || null;
+      const designUrl = side === "back"
+        ? (gradeBackAsset?.url || realDesignUrl || testAsset?.url || null)
+        : (realDesignUrl || testAsset?.url || null);
       if (testIsSvg && testAsset) {
         // SVG 테스트 이미지: 파일에 지정된 원본 크기(mm)와 색상을 그대로 사용해 벡터 임베드(중앙 정렬).
         try {
