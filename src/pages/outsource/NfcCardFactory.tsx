@@ -2588,6 +2588,8 @@ function DetailView({
                   <TableHead>주문번호</TableHead>
                   <TableHead>UID</TableHead>
                   <TableHead>카드 고유번호</TableHead>
+                  <TableHead>등급</TableHead>
+                  <TableHead>트윈코드</TableHead>
                   <TableHead>GFT 원본 이미지</TableHead>
                   <TableHead>앞면</TableHead>
                   <TableHead>뒷면</TableHead>
@@ -2598,9 +2600,8 @@ function DetailView({
                   <TableHead>EDITION</TableHead>
                   <TableHead>ISSUED No.</TableHead>
                   <TableHead>Minted on</TableHead>
-                  <TableHead>등급</TableHead>
                   <TableHead>ISSUED BY</TableHead>
-                  <TableHead>트윈코드</TableHead>
+                  <TableHead>트윈코드 이미지</TableHead>
                   <TableHead>DM 바코드</TableHead>
                   <TableHead className="text-right">다운로드</TableHead>
                 </TableRow>
