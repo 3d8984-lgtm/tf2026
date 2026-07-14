@@ -379,6 +379,11 @@ function inferImageMime(url: string, bytes: Uint8Array, contentType?: string | n
   const lower = url.toLowerCase().split("?")[0];
   if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return "image/png";
   if (bytes[0] === 0xff && bytes[1] === 0xd8) return "image/jpeg";
+  if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) return "image/gif";
+  if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46
+    && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) return "image/webp";
+  if (bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70
+    && bytes[8] === 0x61 && bytes[9] === 0x76 && bytes[10] === 0x69 && bytes[11] === 0x66) return "image/avif";
   if (lower.endsWith(".svg") || new TextDecoder().decode(bytes.slice(0, 160)).trimStart().match(/^<\?xml|^<svg/i)) {
     return "image/svg+xml;charset=utf-8";
   }
@@ -398,6 +403,30 @@ async function loadFetchedImage(url: string): Promise<{ img: HTMLImageElement; r
   } catch (e) {
     URL.revokeObjectURL(objUrl);
     throw e;
+  }
+}
+
+async function invokeDownloadFileBytes(url: string, filename = "design.bin"): Promise<Uint8Array> {
+  const { data, error } = await supabase.functions.invoke("download-file", {
+    body: { url, filename },
+    responseType: "arrayBuffer",
+  } as any);
+  if (error) throw error;
+  if (data instanceof ArrayBuffer) return new Uint8Array(data);
+  if (data instanceof Uint8Array) return data;
+  if (data instanceof Blob) return new Uint8Array(await data.arrayBuffer());
+  if (typeof data === "string") return new TextEncoder().encode(data);
+  return new Uint8Array(await new Blob([data as BlobPart]).arrayBuffer());
+}
+
+async function fetchImageBytesAnyOrigin(url: string): Promise<{ bytes: Uint8Array; contentType: string | null }> {
+  try {
+    const res = await fetch(url, { mode: "cors" });
+    if (!res.ok) throw new Error(`fetch ${res.status}`);
+    return { bytes: new Uint8Array(await res.arrayBuffer()), contentType: res.headers.get("content-type") };
+  } catch (e) {
+    console.warn("card design browser fetch failed → backend download fallback", e);
+    return { bytes: await invokeDownloadFileBytes(url), contentType: null };
   }
 }
 
@@ -474,14 +503,10 @@ function detectInsetContentRect(
 async function loadImageAnyOrigin(src: string): Promise<HTMLImageElement> {
   // 1) direct with CORS
   try { return await loadImage(src, "anonymous"); } catch { /* fall through */ }
-  // 2) direct without CORS (may taint canvas but works for readback-free draws — we do read, so this is last resort)
-  // 3) proxy via download-file edge function to convert to same-origin blob
+  // 2) proxy via download-file edge function to convert to same-origin blob
   try {
-    const { data, error } = await supabase.functions.invoke("download-file", {
-      body: { url: src, filename: "design.bin" },
-    });
-    if (error) throw error;
-    const blob = data instanceof Blob ? data : new Blob([data as any]);
+    const bytes = await invokeDownloadFileBytes(src);
+    const blob = new Blob([bytes as BlobPart], { type: inferImageMime(src, bytes) });
     const objUrl = URL.createObjectURL(blob);
     try {
       return await loadImage(objUrl, null);
@@ -1922,40 +1947,40 @@ function DetailView({
           let bgImg: any = null;
           let iw = 0, ih = 0;
           try {
-            const res = await fetch(designUrl);
-            if (!res.ok) throw new Error(`fetch ${res.status}`);
-            const bytes = new Uint8Array(await res.arrayBuffer());
-            const ct = (res.headers.get("content-type") || "").toLowerCase();
-            const lower = designUrl.toLowerCase().split("?")[0];
-            const isJpg = ct.includes("jpeg") || ct.includes("jpg") || /\.(jpe?g)$/i.test(lower)
-              || (bytes[0] === 0xff && bytes[1] === 0xd8);
-            const isPng = ct.includes("png") || /\.png$/i.test(lower)
-              || (bytes[0] === 0x89 && bytes[1] === 0x50);
+            const { bytes, contentType } = await fetchImageBytesAnyOrigin(designUrl);
+            const mime = inferImageMime(designUrl, bytes, contentType);
+            const isJpg = mime.includes("jpeg") || mime.includes("jpg") || (bytes[0] === 0xff && bytes[1] === 0xd8);
+            const isPng = mime.includes("png") || (bytes[0] === 0x89 && bytes[1] === 0x50);
             if (isJpg) {
               try { bgImg = await out.embedJpg(bytes); } catch { /* fallthrough */ }
             }
             if (!bgImg && isPng) {
               try { bgImg = await out.embedPng(bytes); } catch { /* fallthrough */ }
             }
-            if (bgImg) { iw = (bgImg as any).width; ih = (bgImg as any).height; }
-          } catch (fetchErr) {
-            // CORS 등으로 fetch 가 막힌 경우: <img> 로 로드 → 캔버스로 원본 픽셀 사이즈 그대로 PNG 인코딩.
-            console.warn("card design fetch failed → image/canvas fallback", fetchErr);
-          }
-          if (!bgImg) {
-            try {
-              const img = await loadImage(designUrl);
-              const c = document.createElement("canvas");
-              c.width = img.naturalWidth || img.width;
-              c.height = img.naturalHeight || img.height;
-              const cx = c.getContext("2d")!;
-              cx.drawImage(img, 0, 0);
-              const pngBytes = await canvasToPngBytes(c);
-              bgImg = await out.embedPng(pngBytes);
-              iw = c.width; ih = c.height;
-            } catch (e) {
-              console.warn("card design image fallback failed", e);
+            if (bgImg) {
+              iw = (bgImg as any).width;
+              ih = (bgImg as any).height;
+            } else {
+              // WebP/SVG/unknown: use already-downloaded bytes, not the original URL,
+              // so CORS-restricted GFT images still render into the PDF.
+              const objUrl = URL.createObjectURL(new Blob([bytes as BlobPart], { type: mime }));
+              try {
+                const img = await loadImage(objUrl, null);
+                const c = document.createElement("canvas");
+                c.width = img.naturalWidth || img.width;
+                c.height = img.naturalHeight || img.height;
+                const cx = c.getContext("2d")!;
+                cx.drawImage(img, 0, 0);
+                const pngBytes = await canvasToPngBytes(c);
+                bgImg = await out.embedPng(pngBytes);
+                iw = c.width;
+                ih = c.height;
+              } finally {
+                URL.revokeObjectURL(objUrl);
+              }
             }
+          } catch (fetchErr) {
+            console.warn("card design render bytes fallback failed", fetchErr);
           }
           if (bgImg) {
             // cover 배치 — 원본을 카드 크기에 맞게 확대 후 넘치는 영역을 잘라낸다(미리보기와 동일).
