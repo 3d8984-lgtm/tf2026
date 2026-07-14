@@ -1942,40 +1942,40 @@ function DetailView({
           let bgImg: any = null;
           let iw = 0, ih = 0;
           try {
-            const res = await fetch(designUrl);
-            if (!res.ok) throw new Error(`fetch ${res.status}`);
-            const bytes = new Uint8Array(await res.arrayBuffer());
-            const ct = (res.headers.get("content-type") || "").toLowerCase();
-            const lower = designUrl.toLowerCase().split("?")[0];
-            const isJpg = ct.includes("jpeg") || ct.includes("jpg") || /\.(jpe?g)$/i.test(lower)
-              || (bytes[0] === 0xff && bytes[1] === 0xd8);
-            const isPng = ct.includes("png") || /\.png$/i.test(lower)
-              || (bytes[0] === 0x89 && bytes[1] === 0x50);
+            const { bytes, contentType } = await fetchImageBytesAnyOrigin(designUrl);
+            const mime = inferImageMime(designUrl, bytes, contentType);
+            const isJpg = mime.includes("jpeg") || mime.includes("jpg") || (bytes[0] === 0xff && bytes[1] === 0xd8);
+            const isPng = mime.includes("png") || (bytes[0] === 0x89 && bytes[1] === 0x50);
             if (isJpg) {
               try { bgImg = await out.embedJpg(bytes); } catch { /* fallthrough */ }
             }
             if (!bgImg && isPng) {
               try { bgImg = await out.embedPng(bytes); } catch { /* fallthrough */ }
             }
-            if (bgImg) { iw = (bgImg as any).width; ih = (bgImg as any).height; }
-          } catch (fetchErr) {
-            // CORS 등으로 fetch 가 막힌 경우: <img> 로 로드 → 캔버스로 원본 픽셀 사이즈 그대로 PNG 인코딩.
-            console.warn("card design fetch failed → image/canvas fallback", fetchErr);
-          }
-          if (!bgImg) {
-            try {
-              const img = await loadImage(designUrl);
-              const c = document.createElement("canvas");
-              c.width = img.naturalWidth || img.width;
-              c.height = img.naturalHeight || img.height;
-              const cx = c.getContext("2d")!;
-              cx.drawImage(img, 0, 0);
-              const pngBytes = await canvasToPngBytes(c);
-              bgImg = await out.embedPng(pngBytes);
-              iw = c.width; ih = c.height;
-            } catch (e) {
-              console.warn("card design image fallback failed", e);
+            if (bgImg) {
+              iw = (bgImg as any).width;
+              ih = (bgImg as any).height;
+            } else {
+              // WebP/SVG/unknown: use already-downloaded bytes, not the original URL,
+              // so CORS-restricted GFT images still render into the PDF.
+              const objUrl = URL.createObjectURL(new Blob([bytes as BlobPart], { type: mime }));
+              try {
+                const img = await loadImage(objUrl, null);
+                const c = document.createElement("canvas");
+                c.width = img.naturalWidth || img.width;
+                c.height = img.naturalHeight || img.height;
+                const cx = c.getContext("2d")!;
+                cx.drawImage(img, 0, 0);
+                const pngBytes = await canvasToPngBytes(c);
+                bgImg = await out.embedPng(pngBytes);
+                iw = c.width;
+                ih = c.height;
+              } finally {
+                URL.revokeObjectURL(objUrl);
+              }
             }
+          } catch (fetchErr) {
+            console.warn("card design render bytes fallback failed", fetchErr);
           }
           if (bgImg) {
             // cover 배치 — 원본을 카드 크기에 맞게 확대 후 넘치는 영역을 잘라낸다(미리보기와 동일).
