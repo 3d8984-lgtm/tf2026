@@ -2202,7 +2202,7 @@ function DetailView({
                 <CardThumbGrid cards={cards} side="front" testImageUrl={testImages.front?.url || null} />
               </TabsContent>
               <TabsContent value="back" className="flex-1 overflow-auto pt-3">
-                <CardThumbGrid cards={cards} side="back" testImageUrl={testImages.back?.url || null} />
+                <CardThumbGrid cards={cards} side="back" testImageUrl={testBackImagesByGrade.COMMON?.url || testImages.back?.url || null} backImagesByGrade={testBackImagesByGrade} />
               </TabsContent>
             </Tabs>
             <DialogFooter>
