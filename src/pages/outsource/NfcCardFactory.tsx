@@ -401,6 +401,30 @@ async function loadFetchedImage(url: string): Promise<{ img: HTMLImageElement; r
   }
 }
 
+async function invokeDownloadFileBytes(url: string, filename = "design.bin"): Promise<Uint8Array> {
+  const { data, error } = await supabase.functions.invoke("download-file", {
+    body: { url, filename },
+    responseType: "arrayBuffer",
+  } as any);
+  if (error) throw error;
+  if (data instanceof ArrayBuffer) return new Uint8Array(data);
+  if (data instanceof Uint8Array) return data;
+  if (data instanceof Blob) return new Uint8Array(await data.arrayBuffer());
+  if (typeof data === "string") return new TextEncoder().encode(data);
+  return new Uint8Array(await new Blob([data as BlobPart]).arrayBuffer());
+}
+
+async function fetchImageBytesAnyOrigin(url: string): Promise<{ bytes: Uint8Array; contentType: string | null }> {
+  try {
+    const res = await fetch(url, { mode: "cors" });
+    if (!res.ok) throw new Error(`fetch ${res.status}`);
+    return { bytes: new Uint8Array(await res.arrayBuffer()), contentType: res.headers.get("content-type") };
+  } catch (e) {
+    console.warn("card design browser fetch failed → backend download fallback", e);
+    return { bytes: await invokeDownloadFileBytes(url), contentType: null };
+  }
+}
+
 function drawImageContain(ctx: CanvasRenderingContext2D, img: CanvasImageSource & { width?: number; height?: number; naturalWidth?: number; naturalHeight?: number }, x: number, y: number, w: number, h: number, anchor: AnchorPoint = "mc") {
   const iw = Number(img.naturalWidth || img.width || w);
   const ih = Number(img.naturalHeight || img.height || h);
@@ -474,14 +498,10 @@ function detectInsetContentRect(
 async function loadImageAnyOrigin(src: string): Promise<HTMLImageElement> {
   // 1) direct with CORS
   try { return await loadImage(src, "anonymous"); } catch { /* fall through */ }
-  // 2) direct without CORS (may taint canvas but works for readback-free draws — we do read, so this is last resort)
-  // 3) proxy via download-file edge function to convert to same-origin blob
+  // 2) proxy via download-file edge function to convert to same-origin blob
   try {
-    const { data, error } = await supabase.functions.invoke("download-file", {
-      body: { url: src, filename: "design.bin" },
-    });
-    if (error) throw error;
-    const blob = data instanceof Blob ? data : new Blob([data as any]);
+    const bytes = await invokeDownloadFileBytes(src);
+    const blob = new Blob([bytes as BlobPart], { type: inferImageMime(src, bytes) });
     const objUrl = URL.createObjectURL(blob);
     try {
       return await loadImage(objUrl, null);
