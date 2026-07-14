@@ -4380,7 +4380,30 @@ function CardCompositeThumb({
               }}
             />
           );
-        }
+}
+
+// Small overlay that generates and renders a DataMatrix barcode PNG, filling its parent.
+function DmBarcodeOverlay({ text }: { text: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    if (!text) { setSrc(null); return; }
+    let cancelled = false;
+    let url: string | null = null;
+    (async () => {
+      try {
+        const bytes = await dataMatrixPngBytes(text, 200);
+        if (cancelled) return;
+        const blob = new Blob([bytes as BlobPart], { type: "image/png" });
+        url = URL.createObjectURL(blob);
+        setSrc(url);
+      } catch {}
+    })();
+    return () => { cancelled = true; if (url) URL.revokeObjectURL(url); };
+  }, [text]);
+  return src
+    ? <img src={src} alt="" className="w-full h-full object-contain" />
+    : null;
+}
         const text = textFor(key);
         if (!text) return null;
         const fontPx = (cfg.fontSize || 3) * pxPerMm;
