@@ -3960,6 +3960,7 @@ function AdvancedShapeSettingsDialog({
   onChange,
   onSave,
   canSave,
+  commonShapeOptions,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -3967,6 +3968,7 @@ function AdvancedShapeSettingsDialog({
   onChange: (next: ShapeOptionsByGrade) => void;
   onSave?: () => Promise<void> | void;
   canSave?: boolean;
+  commonShapeOptions: ShapeOptions;
 }) {
   const [saving, setSaving] = useState(false);
   const [activeGrade, setActiveGrade] = useState<CardGrade>("RARE");
@@ -3978,14 +3980,58 @@ function AdvancedShapeSettingsDialog({
     return `data:image/svg+xml;base64,${b64}`;
   };
 
+  // COMMON 등급의 X/Y 좌표를 각 등급 도형에 강제 동기화
+  const syncCommonPosition = (opts: ShapeOptions): ShapeOptions => {
+    const keys: (keyof ShapeOptions)[] = ["frontCenter", "frontOutline", "back", "backLine"];
+    const next: ShapeOptions = { ...opts };
+    keys.forEach((k) => {
+      next[k] = { ...opts[k], x_mm: commonShapeOptions[k].x_mm, y_mm: commonShapeOptions[k].y_mm };
+    });
+    return next;
+  };
+
   const forGrade = (g: CardGrade): ShapeOptions =>
-    value[g] || cloneDefaultShapeOptions();
+    syncCommonPosition(value[g] || cloneDefaultShapeOptions());
 
   const updateGrade = (g: CardGrade, key: keyof ShapeOptions, patch: Partial<ShapeOption>) => {
-    const cur = forGrade(g);
-    const next: ShapeOptions = { ...cur, [key]: { ...cur[key], ...patch } };
+    const cur = value[g] || cloneDefaultShapeOptions();
+    // X/Y 좌표는 COMMON 값을 우선으로 사용 — 등급별 수정 불가
+    const { x_mm: _x, y_mm: _y, ...safePatch } = patch;
+    const merged: ShapeOption = {
+      ...cur[key],
+      ...safePatch,
+      x_mm: commonShapeOptions[key].x_mm,
+      y_mm: commonShapeOptions[key].y_mm,
+    };
+    const next: ShapeOptions = { ...cur, [key]: merged };
     onChange({ ...value, [g]: next });
   };
+
+  // COMMON X/Y가 바뀌면 저장된 등급별 데이터도 즉시 동기화
+  useEffect(() => {
+    if (!open) return;
+    let changed = false;
+    const nextAll: ShapeOptionsByGrade = { ...value };
+    (CARD_GRADES_ADVANCED as CardGrade[]).forEach((g) => {
+      const cur = value[g];
+      if (!cur) return;
+      const synced = syncCommonPosition(cur);
+      const keys: (keyof ShapeOptions)[] = ["frontCenter", "frontOutline", "back", "backLine"];
+      const diff = keys.some(
+        (k) => cur[k].x_mm !== synced[k].x_mm || cur[k].y_mm !== synced[k].y_mm
+      );
+      if (diff) {
+        nextAll[g] = synced;
+        changed = true;
+      }
+    });
+    if (changed) onChange(nextAll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, commonShapeOptions.frontCenter.x_mm, commonShapeOptions.frontCenter.y_mm,
+      commonShapeOptions.frontOutline.x_mm, commonShapeOptions.frontOutline.y_mm,
+      commonShapeOptions.back.x_mm, commonShapeOptions.back.y_mm,
+      commonShapeOptions.backLine.x_mm, commonShapeOptions.backLine.y_mm]);
+
 
   const handleSave = async () => {
     if (!onSave) return;
