@@ -1319,12 +1319,24 @@ function DetailView({
   const [advancedShapeOpen, setAdvancedShapeOpen] = useState(false);
   const resolveShapeOptions = (grade: unknown): ShapeOptions => {
     const g = normalizeGrade(grade);
-    if (g !== "COMMON") {
-      const per = shapeOptionsByGrade[g];
-      if (per) return per;
-    }
-    return shapeOptions;
+    if (g === "COMMON") return shapeOptions;
+    const per = shapeOptionsByGrade[g];
+    if (!per) return shapeOptions;
+    // 슬롯별 fallback: 등급별로 SVG가 업로드되지 않은 슬롯은 COMMON 값을 사용
+    const pickSlot = (key: keyof ShapeOptions): ShapeOption => {
+      const slot = (per as any)[key] as ShapeOption | undefined;
+      const base = (shapeOptions as any)[key] as ShapeOption;
+      if (slot && (slot.svgDataUrl || slot.fileName)) return slot;
+      return base;
+    };
+    return {
+      frontCenter:  pickSlot("frontCenter"),
+      frontOutline: pickSlot("frontOutline"),
+      back:         pickSlot("back"),
+      backLine:     pickSlot("backLine"),
+    } as ShapeOptions;
   };
+
 
   // 마스터 글자꼴 (선택 시 카드 텍스트/숫자 미리보기 + PDF에 자동 적용)
   const [masterFont, setMasterFont] = useState<string>(DEFAULT_MASTER_FONT);
