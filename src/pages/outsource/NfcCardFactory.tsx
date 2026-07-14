@@ -897,6 +897,7 @@ interface CardData {
   frontIconOuterColor: string;
   backIconColor: string;
   issuedByUrl: string | null; // 싸인 링크 (sign_url)
+  twincode: string;
   twincodeSvgUrl: string | null;
   signatureUrl: string | null;
   frontImageUrl: string | null;
