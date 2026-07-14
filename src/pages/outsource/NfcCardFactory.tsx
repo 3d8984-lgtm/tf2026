@@ -1814,7 +1814,7 @@ function DetailView({
       // === Background design ===
       // 실제 주문 이미지(카드 앞/뒷면, GFT 원본 포함)를 우선 사용하고, 없을 때만 테스트 이미지로 대체.
       const realDesignUrl = side === "front" ? card.frontImageUrl : card.backImageUrl;
-      const testAsset = realDesignUrl ? null : testImages[side];
+      const testAsset = realDesignUrl ? null : (side === "back" ? resolveTestBackAsset(card.grade) : testImages[side]);
       const testIsSvg = !!testAsset && /\.svg$/i.test(testAsset.name || "");
       const designUrl = realDesignUrl || testAsset?.url || null;
       if (testIsSvg && testAsset) {
