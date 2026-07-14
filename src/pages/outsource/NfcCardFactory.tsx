@@ -3695,11 +3695,13 @@ function ShapeOptionsCard({
   onChange,
   onSave,
   canSave,
+  onOpenAdvanced,
 }: {
   value: ShapeOptions;
   onChange: (next: ShapeOptions) => void;
   onSave?: () => Promise<void> | void;
   canSave?: boolean;
+  onOpenAdvanced?: () => void;
 }) {
   const [saving, setSaving] = useState(false);
   const update = (key: keyof ShapeOptions, patch: Partial<ShapeOption>) => {
