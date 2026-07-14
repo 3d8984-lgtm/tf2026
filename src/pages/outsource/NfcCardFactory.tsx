@@ -2525,7 +2525,7 @@ function DetailView({
               side="back"
               cardSize={cardSize}
               bleedMm={bleedMm}
-              testImageUrl={testImages.back?.url || null}
+              testImageUrl={resolveTestBackAsset(applyTestValues(cards[0], testValues)?.grade)?.url || null}
               testTwincodeUrl={testTwincodeSvg?.url || null}
               testSignatureUrl={testSignature?.url || null}
               cardPreview={applyTestValues(cards[0], testValues)}
