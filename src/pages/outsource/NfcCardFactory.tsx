@@ -4341,6 +4341,26 @@ function CardCompositeThumb({
       {keys.map(key => {
         const cfg = layout[key];
         if (!cfg?.enabled) return null;
+        if (key === "dmBarcode") {
+          const anc = getAnchor(key, cfg);
+          const tl = anchorTopLeft(cfg.x, cfg.y, cfg.w, cfg.h, anc);
+          const pad = (cfg.padding ?? 0) * pxPerMm;
+          return (
+            <div
+              key={key}
+              className="absolute pointer-events-none bg-white"
+              style={{
+                left: tl.left * pxPerMm,
+                top: tl.top * pxPerMm,
+                width: cfg.w * pxPerMm,
+                height: cfg.h * pxPerMm,
+                padding: pad,
+              }}
+            >
+              <DmBarcodeOverlay text={card?.uniqueNo || ""} />
+            </div>
+          );
+        }
         if (isImageKey(key)) {
           const src = imageSrcFor(key);
           if (!src) return null;
