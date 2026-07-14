@@ -2500,6 +2500,7 @@ function DetailView({
           onChange={setShapeOptionsByGrade}
           onSave={saveLayout}
           canSave={loaded}
+          commonShapeOptions={shapeOptions}
         />
 
         {/* Layout designer */}
