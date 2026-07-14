@@ -2255,38 +2255,75 @@ function DetailView({
             <CardTitle className="text-sm">테스트 카드 디자인 이미지 (서버 저장)</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {(["front", "back"] as const).map(side => (
-              <div key={side} className="border rounded-md p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="font-medium text-xs">{side === "front" ? "앞면" : "뒷면"} 테스트 이미지</Label>
-                  {testImages[side] && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600">서버 저장됨</span>
-                  )}
-                </div>
-                <div className="flex justify-center">
-                  <TestDesignThumb cardSize={cardSize} imageUrl={testImages[side]?.url ?? null} />
-                </div>
-                <div className="text-[11px] text-muted-foreground truncate">
-                  {testImages[side]?.name || "삭제 전까지 서버에 유지됩니다"}
-                </div>
-                <div className="flex gap-2">
-                  <label className="flex-1 flex items-center justify-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
-                    <Upload className="w-3 h-3" />
-                    <span>{testImages[side] ? "변경" : "이미지 업로드"}</span>
-                    <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg,application/pdf" className="hidden"
-                      onChange={e => { const f = e.target.files?.[0] || null; e.currentTarget.value = ""; if (f) onUploadTestImage(side, f); }} />
-                  </label>
-                  {testImages[side] && (
-                    <Button size="sm" variant="destructive" className="text-xs"
-                      onClick={() => { if (confirm("테스트 이미지를 삭제하고 원래 API 디자인을 사용할까요?")) onUploadTestImage(side, null); }}>
-                      <X className="w-3 h-3 mr-1" />삭제
-                    </Button>
-                  )}
-                </div>
+            {/* 앞면 테스트 이미지 (단일) */}
+            <div className="border rounded-md p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="font-medium text-xs">앞면 테스트 이미지</Label>
+                {testImages.front && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600">서버 저장됨</span>
+                )}
               </div>
-            ))}
+              <div className="flex justify-center">
+                <TestDesignThumb cardSize={cardSize} imageUrl={testImages.front?.url ?? null} />
+              </div>
+              <div className="text-[11px] text-muted-foreground truncate">
+                {testImages.front?.name || "삭제 전까지 서버에 유지됩니다"}
+              </div>
+              <div className="flex gap-2">
+                <label className="flex-1 flex items-center justify-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
+                  <Upload className="w-3 h-3" />
+                  <span>{testImages.front ? "변경" : "이미지 업로드"}</span>
+                  <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg,application/pdf" className="hidden"
+                    onChange={e => { const f = e.target.files?.[0] || null; e.currentTarget.value = ""; if (f) onUploadTestImage("front", f); }} />
+                </label>
+                {testImages.front && (
+                  <Button size="sm" variant="destructive" className="text-xs"
+                    onClick={() => { if (confirm("테스트 이미지를 삭제하고 원래 API 디자인을 사용할까요?")) onUploadTestImage("front", null); }}>
+                    <X className="w-3 h-3 mr-1" />삭제
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* 등급별 뒷면 이미지 (COMMON/RARE/EPIC/LEGEND) */}
+            <div className="border rounded-md p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="font-medium text-xs">등급별 뒷면 이미지</Label>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                  {(["COMMON","RARE","EPIC","LEGEND"] as CardGrade[]).filter(g => testBackImagesByGrade[g]).length}/4 등급 설정됨
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {(["COMMON","RARE","EPIC","LEGEND"] as CardGrade[]).map(g => (
+                  <div key={g} className="flex flex-col items-center gap-1">
+                    <div className="w-full aspect-[86/54] rounded border bg-muted/30 overflow-hidden flex items-center justify-center">
+                      {testBackImagesByGrade[g]?.url
+                        ? <img src={testBackImagesByGrade[g]!.url} alt={g} className="w-full h-full object-cover" />
+                        : <span className="text-[10px] text-muted-foreground">미설정</span>}
+                    </div>
+                    <span className="text-[10px] font-mono">{g}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                각 등급 카드의 뒷면 배경 이미지로 사용됩니다. (실제 주문 이미지가 있으면 그 이미지가 우선)
+              </div>
+              <Button size="sm" variant="outline" className="w-full text-xs" onClick={() => setBackImagesDialogOpen(true)}>
+                <Upload className="w-3 h-3 mr-1" />추가 설정
+              </Button>
+            </div>
           </CardContent>
         </Card>
+
+        {/* 등급별 뒷면 이미지 업로드 다이얼로그 */}
+        <BackImagesByGradeDialog
+          open={backImagesDialogOpen}
+          onOpenChange={setBackImagesDialogOpen}
+          images={testBackImagesByGrade}
+          onUpload={onUploadTestBackImageByGrade}
+          cardSize={cardSize}
+        />
+
 
         {/* Test twincode SVG upload */}
         <Card>
