@@ -1919,34 +1919,46 @@ function DetailView({
         try {
           // GFT/디자인 원본 이미지는 카드에 100% 덮이도록 원본 바이트를 그대로 임베드해
           // 리샘플링/재압축으로 인한 화질 저하를 방지한다.
-          const res = await fetch(designUrl);
-          const bytes = new Uint8Array(await res.arrayBuffer());
-          const ct = (res.headers.get("content-type") || "").toLowerCase();
-          const lower = designUrl.toLowerCase().split("?")[0];
-          const isJpg = ct.includes("jpeg") || ct.includes("jpg") || /\.(jpe?g)$/i.test(lower)
-            || (bytes[0] === 0xff && bytes[1] === 0xd8);
-          const isPng = ct.includes("png") || /\.png$/i.test(lower)
-            || (bytes[0] === 0x89 && bytes[1] === 0x50);
           let bgImg: any = null;
-          if (isJpg) {
-            try { bgImg = await out.embedJpg(bytes); } catch { /* fallthrough */ }
-          }
-          if (!bgImg && isPng) {
-            try { bgImg = await out.embedPng(bytes); } catch { /* fallthrough */ }
+          let iw = 0, ih = 0;
+          try {
+            const res = await fetch(designUrl);
+            if (!res.ok) throw new Error(`fetch ${res.status}`);
+            const bytes = new Uint8Array(await res.arrayBuffer());
+            const ct = (res.headers.get("content-type") || "").toLowerCase();
+            const lower = designUrl.toLowerCase().split("?")[0];
+            const isJpg = ct.includes("jpeg") || ct.includes("jpg") || /\.(jpe?g)$/i.test(lower)
+              || (bytes[0] === 0xff && bytes[1] === 0xd8);
+            const isPng = ct.includes("png") || /\.png$/i.test(lower)
+              || (bytes[0] === 0x89 && bytes[1] === 0x50);
+            if (isJpg) {
+              try { bgImg = await out.embedJpg(bytes); } catch { /* fallthrough */ }
+            }
+            if (!bgImg && isPng) {
+              try { bgImg = await out.embedPng(bytes); } catch { /* fallthrough */ }
+            }
+            if (bgImg) { iw = (bgImg as any).width; ih = (bgImg as any).height; }
+          } catch (fetchErr) {
+            // CORS 등으로 fetch 가 막힌 경우: <img> 로 로드 → 캔버스로 원본 픽셀 사이즈 그대로 PNG 인코딩.
+            console.warn("card design fetch failed → image/canvas fallback", fetchErr);
           }
           if (!bgImg) {
-            // 지원되지 않는 포맷(WebP 등)은 고해상도(600dpi)로 한 번만 캔버스 변환해 임베드.
-            const pxPerMm = 600 / 25.4;
-            const bgW = Math.max(64, Math.round(cardSize.width * pxPerMm));
-            const bgH = Math.max(64, Math.round(cardSize.height * pxPerMm));
-            const clipped = await composeMaskedCardCanvas(designUrl, null, bgW, bgH);
-            const pngBytes = await canvasToPngBytes(clipped);
-            bgImg = await out.embedPng(pngBytes);
-            page.drawImage(bgImg, { x: 0, y: 0, width: pageWpt, height: pageHpt });
-          } else {
+            try {
+              const img = await loadImage(designUrl);
+              const c = document.createElement("canvas");
+              c.width = img.naturalWidth || img.width;
+              c.height = img.naturalHeight || img.height;
+              const cx = c.getContext("2d")!;
+              cx.drawImage(img, 0, 0);
+              const pngBytes = await canvasToPngBytes(c);
+              bgImg = await out.embedPng(pngBytes);
+              iw = c.width; ih = c.height;
+            } catch (e) {
+              console.warn("card design image fallback failed", e);
+            }
+          }
+          if (bgImg) {
             // cover 배치 — 원본을 카드 크기에 맞게 확대 후 넘치는 영역을 잘라낸다(미리보기와 동일).
-            const iw = (bgImg as any).width as number;
-            const ih = (bgImg as any).height as number;
             const targetAspect = pageWpt / pageHpt;
             const srcAspect = iw / ih;
             let drawW = pageWpt, drawH = pageHpt, ox = 0, oy = 0;
@@ -1959,7 +1971,6 @@ function DetailView({
               drawH = pageWpt / srcAspect;
               oy = -(drawH - pageHpt) / 2;
             }
-            // 넘치는 영역은 페이지 크롭 박스 밖으로 자연스럽게 잘림.
             page.drawImage(bgImg, { x: ox, y: oy, width: drawW, height: drawH });
           }
         } catch (e) { console.warn("card design render failed", e); }
