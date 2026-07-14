@@ -1326,7 +1326,7 @@ function DetailView({
     const pickSlot = (key: keyof ShapeOptions): ShapeOption => {
       const slot = (per as any)[key] as ShapeOption | undefined;
       const base = (shapeOptions as any)[key] as ShapeOption;
-      if (slot && (slot.svg || slot.fileName)) return slot;
+      if (slot && (slot.svgDataUrl || slot.fileName)) return slot;
       return base;
     };
     return {
