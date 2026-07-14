@@ -1000,6 +1000,45 @@ async function canvasToPngBytes(canvas: HTMLCanvasElement): Promise<Uint8Array> 
   return arr;
 }
 
+/**
+ * SVG 문자열을 브라우저에서 래스터화해 PNG 바이트로 돌려준다.
+ * svg2pdf.js는 <clipPath>/<mask>/<image> 조합을 제대로 처리하지 못해
+ * 클리핑 마스크가 사라진 원본 이미지가 그대로 노출되는 문제가 있어,
+ * 해당 케이스에서는 브라우저 렌더링 결과(PNG)를 임베드해 정확도를 유지한다.
+ */
+async function rasterizeSvgToPng(svgString: string, widthMm: number, heightMm: number, dpi = 600): Promise<Uint8Array> {
+  const pxPerMm = dpi / 25.4;
+  const w = Math.max(8, Math.round(widthMm * pxPerMm));
+  const h = Math.max(8, Math.round(heightMm * pxPerMm));
+  // Ensure explicit viewBox so the browser scales the SVG correctly.
+  let svg = svgString;
+  if (!/\sviewBox\s*=/.test(svg)) {
+    const wm = svg.match(/\bwidth\s*=\s*"([\d.]+)/i);
+    const hm = svg.match(/\bheight\s*=\s*"([\d.]+)/i);
+    const vw = wm ? Number(wm[1]) : 100;
+    const vh = hm ? Number(hm[1]) : 100;
+    svg = svg.replace(/<svg\b/i, `<svg viewBox="0 0 ${vw} ${vh}"`);
+  }
+  const blob = new Blob([svg], { type: "image/svg+xml" });
+  const objUrl = URL.createObjectURL(blob);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error("svg rasterize failed"));
+      i.src = objUrl;
+    });
+    const c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const ctx = c.getContext("2d")!;
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+    return await canvasToPngBytes(c);
+  } finally {
+    URL.revokeObjectURL(objUrl);
+  }
+}
+
 function downloadBlob(bytes: Uint8Array, filename: string, mime = "application/pdf") {
   const blob = new Blob([bytes as BlobPart], { type: mime });
   const url = URL.createObjectURL(blob);
