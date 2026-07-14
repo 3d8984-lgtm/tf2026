@@ -2582,6 +2582,9 @@ function DetailView({
 
         {/* Table */}
         <Card>
+          <CardHeader className="py-3">
+            <CardTitle className="text-base">카드 목록 리스트</CardTitle>
+          </CardHeader>
           <CardContent className="p-0 overflow-x-auto">
             <Table>
               <TableHeader>
