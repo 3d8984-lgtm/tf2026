@@ -1882,16 +1882,29 @@ function DetailView({
         try {
           const svgText = await (await fetch(testAsset.url)).text();
           const nat = svgNaturalSizeMm(svgText);
-          const subBytes = await svgStringToPdfBytes(svgText, nat.w * MM, nat.h * MM);
-          const [embedded] = await out.embedPdf(subBytes, [0]);
           const xMm = (cardSize.width - nat.w) / 2;
           const yMm = (cardSize.height - nat.h) / 2;
-          page.drawPage(embedded, {
-            x: xMm * MM,
-            y: pageHpt - (yMm + nat.h) * MM,
-            width: nat.w * MM,
-            height: nat.h * MM,
-          });
+          // clipPath/mask/이미지가 포함된 SVG는 svg2pdf.js 호환성 문제로 검은 배경만 남는 경우가 있어 래스터화 후 임베드.
+          const hasClipOrMask = /<(clipPath|mask)\b|clip-path\s*=|mask\s*=/i.test(svgText);
+          if (hasClipOrMask) {
+            const pngBytes = await rasterizeSvgToPng(svgText, nat.w, nat.h, 600);
+            const img = await out.embedPng(pngBytes);
+            page.drawImage(img, {
+              x: xMm * MM,
+              y: pageHpt - (yMm + nat.h) * MM,
+              width: nat.w * MM,
+              height: nat.h * MM,
+            });
+          } else {
+            const subBytes = await svgStringToPdfBytes(svgText, nat.w * MM, nat.h * MM);
+            const [embedded] = await out.embedPdf(subBytes, [0]);
+            page.drawPage(embedded, {
+              x: xMm * MM,
+              y: pageHpt - (yMm + nat.h) * MM,
+              width: nat.w * MM,
+              height: nat.h * MM,
+            });
+          }
         } catch (e) { console.warn("svg test image embed failed", e); }
       } else if (designUrl) {
         try {
