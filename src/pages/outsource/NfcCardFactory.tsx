@@ -1918,14 +1918,27 @@ function DetailView({
           const raw = color ? recolorSvgString(rawSvg, color) : rawSvg;
           const nat = svgNaturalSizeMm(raw);
           const tl = anchorTopLeft(s.x_mm, s.y_mm, nat.w, nat.h, s.anchor);
-          const subBytes = await svgStringToPdfBytes(raw, nat.w * MM, nat.h * MM);
-          const [embedded] = await out.embedPdf(subBytes, [0]);
-          page.drawPage(embedded, {
-            x: tl.left * MM,
-            y: pageHpt - (tl.top + nat.h) * MM,
-            width: nat.w * MM,
-            height: nat.h * MM,
-          });
+          // clipPath/mask 및 embedded <image> 를 보존하려면 svg2pdf 대신 브라우저 래스터화가 필요.
+          const hasClipOrMask = /<(clipPath|mask)\b|clip-path\s*=|mask\s*=/i.test(raw);
+          if (hasClipOrMask) {
+            const pngBytes = await rasterizeSvgToPng(raw, nat.w, nat.h, 600);
+            const img = await out.embedPng(pngBytes);
+            page.drawImage(img, {
+              x: tl.left * MM,
+              y: pageHpt - (tl.top + nat.h) * MM,
+              width: nat.w * MM,
+              height: nat.h * MM,
+            });
+          } else {
+            const subBytes = await svgStringToPdfBytes(raw, nat.w * MM, nat.h * MM);
+            const [embedded] = await out.embedPdf(subBytes, [0]);
+            page.drawPage(embedded, {
+              x: tl.left * MM,
+              y: pageHpt - (tl.top + nat.h) * MM,
+              width: nat.w * MM,
+              height: nat.h * MM,
+            });
+          }
         } catch (e) { console.warn("shape svg embed failed", e); }
       }
 
