@@ -1285,6 +1285,16 @@ function DetailView({
     back: TestAsset | null;
   }>({ front: null, back: null });
 
+  // 등급별 뒷면 이미지 (서버 저장) — COMMON/RARE/EPIC/LEGEND
+  const [testBackImagesByGrade, setTestBackImagesByGrade] = useState<Record<CardGrade, TestAsset | null>>({
+    COMMON: null, RARE: null, EPIC: null, LEGEND: null,
+  });
+  const [backImagesDialogOpen, setBackImagesDialogOpen] = useState(false);
+  const resolveTestBackAsset = (grade: unknown): TestAsset | null => {
+    const g = normalizeGrade(grade);
+    return testBackImagesByGrade[g] || testBackImagesByGrade.COMMON || testImages.back || null;
+  };
+
   // Test twincode SVG (server-persisted; falls back to API twincodeSvgUrl when removed)
   const [testTwincodeSvg, setTestTwincodeSvg] = useState<{ url: string; name: string } | null>(null);
 
