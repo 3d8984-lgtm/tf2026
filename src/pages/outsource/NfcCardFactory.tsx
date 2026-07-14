@@ -38,6 +38,7 @@ const MM = 2.8346456693; // 1mm in pt
 const DEFAULT_FRAME_BLEED_MM = 0;
 const FRAME_BUCKET = "design-formats";
 const TEST_IMG_PREFIX = "nfc-card-test";
+const TEST_BACK_IMG_PREFIX = "nfc-card-test-back-grade";
 const SETTINGS_KEY_PREFIX = "outsource-nfc-card-v1";
 const GLOBAL_LAYOUT_KEY = "outsource-nfc-card-layout-default";
 const CARD_SIZE_KEY = "outsource-nfc-card-size";
