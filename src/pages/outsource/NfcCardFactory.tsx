@@ -38,6 +38,7 @@ const MM = 2.8346456693; // 1mm in pt
 const DEFAULT_FRAME_BLEED_MM = 0;
 const FRAME_BUCKET = "design-formats";
 const TEST_IMG_PREFIX = "nfc-card-test";
+const TEST_BACK_IMG_PREFIX = "nfc-card-test-back-grade";
 const SETTINGS_KEY_PREFIX = "outsource-nfc-card-v1";
 const GLOBAL_LAYOUT_KEY = "outsource-nfc-card-layout-default";
 const CARD_SIZE_KEY = "outsource-nfc-card-size";
@@ -1284,6 +1285,16 @@ function DetailView({
     back: TestAsset | null;
   }>({ front: null, back: null });
 
+  // 등급별 뒷면 이미지 (서버 저장) — COMMON/RARE/EPIC/LEGEND
+  const [testBackImagesByGrade, setTestBackImagesByGrade] = useState<Record<CardGrade, TestAsset | null>>({
+    COMMON: null, RARE: null, EPIC: null, LEGEND: null,
+  });
+  const [backImagesDialogOpen, setBackImagesDialogOpen] = useState(false);
+  const resolveTestBackAsset = (grade: unknown): TestAsset | null => {
+    const g = normalizeGrade(grade);
+    return testBackImagesByGrade[g] || testBackImagesByGrade.COMMON || testImages.back || null;
+  };
+
   // Test twincode SVG (server-persisted; falls back to API twincodeSvgUrl when removed)
   const [testTwincodeSvg, setTestTwincodeSvg] = useState<{ url: string; name: string } | null>(null);
 
@@ -1376,6 +1387,75 @@ function DetailView({
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // Load 등급별 뒷면 이미지 from storage
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: list } = await supabase.storage.from(FRAME_BUCKET).list(TEST_BACK_IMG_PREFIX);
+      if (cancelled) return;
+      for (const grade of ["COMMON", "RARE", "EPIC", "LEGEND"] as CardGrade[]) {
+        const found = (list || []).find(f => f.name.startsWith(`${grade}__`));
+        if (!found) continue;
+        const path = `${TEST_BACK_IMG_PREFIX}/${found.name}`;
+        const { data: file } = await supabase.storage.from(FRAME_BUCKET).download(path);
+        if (cancelled || !file) continue;
+        const objUrl = URL.createObjectURL(file);
+        const name = found.name.replace(new RegExp(`^${grade}__`), "");
+        setTestBackImagesByGrade(prev => {
+          revokeTestAsset(prev[grade]);
+          return { ...prev, [grade]: { url: objUrl, name, path, objectUrl: true } };
+        });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const onUploadTestBackImageByGrade = async (grade: CardGrade, file: File | null) => {
+    const { data: existing } = await supabase.storage.from(FRAME_BUCKET).list(TEST_BACK_IMG_PREFIX);
+    const toRemove = (existing || [])
+      .filter(f => f.name.startsWith(`${grade}__`))
+      .map(f => `${TEST_BACK_IMG_PREFIX}/${f.name}`);
+    if (toRemove.length) await supabase.storage.from(FRAME_BUCKET).remove(toRemove);
+    if (!file) {
+      setTestBackImagesByGrade(prev => {
+        revokeTestAsset(prev[grade]);
+        return { ...prev, [grade]: null };
+      });
+      toast({ title: `${grade} 뒷면 이미지 삭제됨` });
+      return;
+    }
+    try {
+      let uploadFile: Blob = file;
+      let uploadName = file.name;
+      const isSvg = file.type === "image/svg+xml" || /\.svg$/i.test(file.name);
+      let contentType = isSvg ? "image/svg+xml" : (file.type || "image/png");
+      const isPdf = !isSvg && (file.type === "application/pdf" || /\.pdf$/i.test(file.name));
+      if (isPdf) {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const { dataUrl } = await renderPdfFirstPagePng(bytes);
+        const bin = atob(dataUrl.split(",")[1]);
+        const arr = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+        uploadFile = new Blob([arr], { type: "image/png" });
+        uploadName = file.name.replace(/\.pdf$/i, "") + ".png";
+        contentType = "image/png";
+      }
+      const safe = uploadName.replace(/[^\w.-]+/g, "_");
+      const path = `${TEST_BACK_IMG_PREFIX}/${grade}__${safe}`;
+      await uploadNfcCardAsset(path, uploadFile, contentType);
+      const objUrl = URL.createObjectURL(uploadFile);
+      setTestBackImagesByGrade(prev => {
+        revokeTestAsset(prev[grade]);
+        return { ...prev, [grade]: { url: objUrl, name: file.name, path, objectUrl: true } };
+      });
+      toast({ title: `${grade} 뒷면 이미지 등록됨`, description: isPdf ? "PDF 첫 페이지가 이미지로 변환되었습니다" : undefined });
+    } catch (e) {
+      toast({ title: "업로드 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    }
+  };
+
+
 
   const onUploadTestImage = async (side: "front" | "back", file: File | null) => {
     const { data: existing } = await supabase.storage.from(FRAME_BUCKET).list(TEST_IMG_PREFIX);
@@ -1734,7 +1814,7 @@ function DetailView({
       // === Background design ===
       // 실제 주문 이미지(카드 앞/뒷면, GFT 원본 포함)를 우선 사용하고, 없을 때만 테스트 이미지로 대체.
       const realDesignUrl = side === "front" ? card.frontImageUrl : card.backImageUrl;
-      const testAsset = realDesignUrl ? null : testImages[side];
+      const testAsset = realDesignUrl ? null : (side === "back" ? resolveTestBackAsset(card.grade) : testImages[side]);
       const testIsSvg = !!testAsset && /\.svg$/i.test(testAsset.name || "");
       const designUrl = realDesignUrl || testAsset?.url || null;
       if (testIsSvg && testAsset) {
@@ -2122,7 +2202,7 @@ function DetailView({
                 <CardThumbGrid cards={cards} side="front" testImageUrl={testImages.front?.url || null} />
               </TabsContent>
               <TabsContent value="back" className="flex-1 overflow-auto pt-3">
-                <CardThumbGrid cards={cards} side="back" testImageUrl={testImages.back?.url || null} />
+                <CardThumbGrid cards={cards} side="back" testImageUrl={testBackImagesByGrade.COMMON?.url || testImages.back?.url || null} backImagesByGrade={testBackImagesByGrade} />
               </TabsContent>
             </Tabs>
             <DialogFooter>
@@ -2175,38 +2255,75 @@ function DetailView({
             <CardTitle className="text-sm">테스트 카드 디자인 이미지 (서버 저장)</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {(["front", "back"] as const).map(side => (
-              <div key={side} className="border rounded-md p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="font-medium text-xs">{side === "front" ? "앞면" : "뒷면"} 테스트 이미지</Label>
-                  {testImages[side] && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600">서버 저장됨</span>
-                  )}
-                </div>
-                <div className="flex justify-center">
-                  <TestDesignThumb cardSize={cardSize} imageUrl={testImages[side]?.url ?? null} />
-                </div>
-                <div className="text-[11px] text-muted-foreground truncate">
-                  {testImages[side]?.name || "삭제 전까지 서버에 유지됩니다"}
-                </div>
-                <div className="flex gap-2">
-                  <label className="flex-1 flex items-center justify-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
-                    <Upload className="w-3 h-3" />
-                    <span>{testImages[side] ? "변경" : "이미지 업로드"}</span>
-                    <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg,application/pdf" className="hidden"
-                      onChange={e => { const f = e.target.files?.[0] || null; e.currentTarget.value = ""; if (f) onUploadTestImage(side, f); }} />
-                  </label>
-                  {testImages[side] && (
-                    <Button size="sm" variant="destructive" className="text-xs"
-                      onClick={() => { if (confirm("테스트 이미지를 삭제하고 원래 API 디자인을 사용할까요?")) onUploadTestImage(side, null); }}>
-                      <X className="w-3 h-3 mr-1" />삭제
-                    </Button>
-                  )}
-                </div>
+            {/* 앞면 테스트 이미지 (단일) */}
+            <div className="border rounded-md p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="font-medium text-xs">앞면 테스트 이미지</Label>
+                {testImages.front && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600">서버 저장됨</span>
+                )}
               </div>
-            ))}
+              <div className="flex justify-center">
+                <TestDesignThumb cardSize={cardSize} imageUrl={testImages.front?.url ?? null} />
+              </div>
+              <div className="text-[11px] text-muted-foreground truncate">
+                {testImages.front?.name || "삭제 전까지 서버에 유지됩니다"}
+              </div>
+              <div className="flex gap-2">
+                <label className="flex-1 flex items-center justify-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
+                  <Upload className="w-3 h-3" />
+                  <span>{testImages.front ? "변경" : "이미지 업로드"}</span>
+                  <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg,application/pdf" className="hidden"
+                    onChange={e => { const f = e.target.files?.[0] || null; e.currentTarget.value = ""; if (f) onUploadTestImage("front", f); }} />
+                </label>
+                {testImages.front && (
+                  <Button size="sm" variant="destructive" className="text-xs"
+                    onClick={() => { if (confirm("테스트 이미지를 삭제하고 원래 API 디자인을 사용할까요?")) onUploadTestImage("front", null); }}>
+                    <X className="w-3 h-3 mr-1" />삭제
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* 등급별 뒷면 이미지 (COMMON/RARE/EPIC/LEGEND) */}
+            <div className="border rounded-md p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="font-medium text-xs">등급별 뒷면 이미지</Label>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                  {(["COMMON","RARE","EPIC","LEGEND"] as CardGrade[]).filter(g => testBackImagesByGrade[g]).length}/4 등급 설정됨
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {(["COMMON","RARE","EPIC","LEGEND"] as CardGrade[]).map(g => (
+                  <div key={g} className="flex flex-col items-center gap-1">
+                    <div className="w-full aspect-[86/54] rounded border bg-muted/30 overflow-hidden flex items-center justify-center">
+                      {testBackImagesByGrade[g]?.url
+                        ? <img src={testBackImagesByGrade[g]!.url} alt={g} className="w-full h-full object-cover" />
+                        : <span className="text-[10px] text-muted-foreground">미설정</span>}
+                    </div>
+                    <span className="text-[10px] font-mono">{g}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                각 등급 카드의 뒷면 배경 이미지로 사용됩니다. (실제 주문 이미지가 있으면 그 이미지가 우선)
+              </div>
+              <Button size="sm" variant="outline" className="w-full text-xs" onClick={() => setBackImagesDialogOpen(true)}>
+                <Upload className="w-3 h-3 mr-1" />추가 설정
+              </Button>
+            </div>
           </CardContent>
         </Card>
+
+        {/* 등급별 뒷면 이미지 업로드 다이얼로그 */}
+        <BackImagesByGradeDialog
+          open={backImagesDialogOpen}
+          onOpenChange={setBackImagesDialogOpen}
+          images={testBackImagesByGrade}
+          onUpload={onUploadTestBackImageByGrade}
+          cardSize={cardSize}
+        />
+
 
         {/* Test twincode SVG upload */}
         <Card>
@@ -2408,7 +2525,7 @@ function DetailView({
               side="back"
               cardSize={cardSize}
               bleedMm={bleedMm}
-              testImageUrl={testImages.back?.url || null}
+              testImageUrl={resolveTestBackAsset(applyTestValues(cards[0], testValues)?.grade)?.url || null}
               testTwincodeUrl={testTwincodeSvg?.url || null}
               testSignatureUrl={testSignature?.url || null}
               cardPreview={applyTestValues(cards[0], testValues)}
@@ -3536,7 +3653,7 @@ function ProgressStep({ idx, label, done, disabled, onClick, busy }: { idx: numb
   );
 }
 
-function CardThumbGrid({ cards, side, testImageUrl }: { cards: CardData[]; side: "front" | "back"; testImageUrl: string | null }) {
+function CardThumbGrid({ cards, side, testImageUrl, backImagesByGrade }: { cards: CardData[]; side: "front" | "back"; testImageUrl: string | null; backImagesByGrade?: Record<CardGrade, TestAsset | null> }) {
   if (cards.length === 0) {
     return <div className="text-center text-sm text-muted-foreground py-12">카드가 없습니다</div>;
   }
@@ -3544,7 +3661,10 @@ function CardThumbGrid({ cards, side, testImageUrl }: { cards: CardData[]; side:
     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 p-1">
       {cards.map((c, i) => {
         const apiUrl = side === "front" ? c.frontImageUrl : c.backImageUrl;
-        const src = testImageUrl || apiUrl || null;
+        const gradeUrl = side === "back" && backImagesByGrade
+          ? (backImagesByGrade[normalizeGrade(c.grade)]?.url || backImagesByGrade.COMMON?.url || null)
+          : null;
+        const src = apiUrl || gradeUrl || testImageUrl || null;
         return (
           <div key={`${c.uniqueNo}-${i}`} className="border rounded-md overflow-hidden bg-muted/20">
             <CardFrame widthClassName="w-full" className="bg-white">
@@ -3903,3 +4023,73 @@ function AdvancedShapeSettingsDialog({
     </Dialog>
   );
 }
+
+// ===========================================================================
+// 등급별 뒷면 이미지 업로드 다이얼로그
+// ===========================================================================
+function BackImagesByGradeDialog({
+  open,
+  onOpenChange,
+  images,
+  onUpload,
+  cardSize,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  images: Record<CardGrade, TestAsset | null>;
+  onUpload: (grade: CardGrade, file: File | null) => void | Promise<void>;
+  cardSize: CardSize;
+}) {
+  const grades: CardGrade[] = ["COMMON", "RARE", "EPIC", "LEGEND"];
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>등급별 뒷면 이미지 설정</DialogTitle>
+        </DialogHeader>
+        <div className="text-xs text-muted-foreground mb-2">
+          각 등급별로 카드 뒷면 배경 이미지를 업로드하세요. 실제 주문 이미지가 있는 카드는 그 이미지가 우선 적용됩니다.
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[70vh] overflow-auto">
+          {grades.map(g => {
+            const asset = images[g];
+            return (
+              <div key={g} className="border rounded-md p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="font-mono text-xs font-medium">{g}</Label>
+                  {asset && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600">서버 저장됨</span>
+                  )}
+                </div>
+                <div className="flex justify-center">
+                  <TestDesignThumb cardSize={cardSize} imageUrl={asset?.url ?? null} />
+                </div>
+                <div className="text-[11px] text-muted-foreground truncate">
+                  {asset?.name || "미설정"}
+                </div>
+                <div className="flex gap-2">
+                  <label className="flex-1 flex items-center justify-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
+                    <Upload className="w-3 h-3" />
+                    <span>{asset ? "변경" : "이미지 업로드"}</span>
+                    <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg,application/pdf" className="hidden"
+                      onChange={e => { const f = e.target.files?.[0] || null; e.currentTarget.value = ""; if (f) onUpload(g, f); }} />
+                  </label>
+                  {asset && (
+                    <Button size="sm" variant="destructive" className="text-xs"
+                      onClick={() => { if (confirm(`${g} 등급 뒷면 이미지를 삭제할까요?`)) onUpload(g, null); }}>
+                      <X className="w-3 h-3 mr-1" />삭제
+                    </Button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>닫기</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
