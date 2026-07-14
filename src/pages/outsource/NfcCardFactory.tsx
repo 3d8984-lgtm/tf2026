@@ -3653,7 +3653,7 @@ function ProgressStep({ idx, label, done, disabled, onClick, busy }: { idx: numb
   );
 }
 
-function CardThumbGrid({ cards, side, testImageUrl }: { cards: CardData[]; side: "front" | "back"; testImageUrl: string | null }) {
+function CardThumbGrid({ cards, side, testImageUrl, backImagesByGrade }: { cards: CardData[]; side: "front" | "back"; testImageUrl: string | null; backImagesByGrade?: Record<CardGrade, TestAsset | null> }) {
   if (cards.length === 0) {
     return <div className="text-center text-sm text-muted-foreground py-12">카드가 없습니다</div>;
   }
@@ -3661,7 +3661,10 @@ function CardThumbGrid({ cards, side, testImageUrl }: { cards: CardData[]; side:
     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 p-1">
       {cards.map((c, i) => {
         const apiUrl = side === "front" ? c.frontImageUrl : c.backImageUrl;
-        const src = testImageUrl || apiUrl || null;
+        const gradeUrl = side === "back" && backImagesByGrade
+          ? (backImagesByGrade[normalizeGrade(c.grade)]?.url || backImagesByGrade.COMMON?.url || null)
+          : null;
+        const src = apiUrl || gradeUrl || testImageUrl || null;
         return (
           <div key={`${c.uniqueNo}-${i}`} className="border rounded-md overflow-hidden bg-muted/20">
             <CardFrame widthClassName="w-full" className="bg-white">
