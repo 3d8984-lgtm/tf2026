@@ -665,6 +665,37 @@ const SHAPE_ANCHORS: { value: ShapeAnchor; label: string }[] = [
   { value: "bl", label: "좌하" }, { value: "bc", label: "하중" }, { value: "br", label: "우하" },
 ];
 
+// 카드 등급별 기본 도형 옵션 — 추가설정 페이지에서 등급별로 SVG를 지정할 수 있다.
+export type CardGrade = "COMMON" | "RARE" | "EPIC" | "LEGEND";
+export const CARD_GRADES_ADVANCED: CardGrade[] = ["RARE", "EPIC", "LEGEND"];
+const GRADE_LABEL: Record<CardGrade, string> = { COMMON: "COMMON", RARE: "RARE", EPIC: "EPIC", LEGEND: "LEGEND" };
+export type ShapeOptionsByGrade = Partial<Record<CardGrade, ShapeOptions>>;
+const cloneDefaultShapeOptions = (): ShapeOptions => ({
+  frontCenter:  makeShapeOption("#E63946"),
+  frontOutline: makeShapeOption("#1D3557"),
+  back:         makeShapeOption("#457B9D"),
+  backLine:     makeShapeOption("#000000"),
+});
+const DEFAULT_SHAPE_OPTIONS_BY_GRADE: ShapeOptionsByGrade = {
+  RARE:   cloneDefaultShapeOptions(),
+  EPIC:   cloneDefaultShapeOptions(),
+  LEGEND: cloneDefaultShapeOptions(),
+};
+function normalizeGrade(g: unknown): CardGrade {
+  const s = String(g ?? "").trim().toUpperCase();
+  if (s === "RARE" || s === "EPIC" || s === "LEGEND") return s;
+  return "COMMON";
+}
+function mergeShapeOptions(base: ShapeOptions, patch: any): ShapeOptions {
+  const p = patch || {};
+  return {
+    frontCenter:  { ...base.frontCenter,  ...(p.frontCenter  || {}) },
+    frontOutline: { ...base.frontOutline, ...(p.frontOutline || {}) },
+    back:         { ...base.back,         ...(p.back         || {}) },
+    backLine:     { ...base.backLine,     ...(p.backLine     || {}) },
+  };
+}
+
 // ---- SVG 도형 유틸 (도형 옵션 → 미리보기/PDF 공통) ----
 // data:image/svg+xml;base64,... 또는 utf-8 데이터 URL을 SVG 원문 문자열로 디코드
 function decodeSvgDataUrl(dataUrl: string): string | null {
