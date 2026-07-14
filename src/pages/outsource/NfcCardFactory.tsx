@@ -3688,22 +3688,10 @@ function CardThumbGrid({ cards, side, testImageUrl, backImagesByGrade }: { cards
                 </div>
               )}
             </CardFrame>
-            <div className="px-1.5 py-1 border-t bg-background space-y-1">
+            <div className="px-1.5 py-1 border-t bg-background">
               <div className="text-[10px] font-mono truncate" title={c.uniqueNo}>{c.uniqueNo}</div>
-              <div className="flex items-center justify-between gap-1">
-                <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 leading-none">{normalizeGrade(c.grade)}</Badge>
-                <span className="text-[9px] text-muted-foreground tabular-nums">#{c.seq}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                {c.twincodeSvgUrl ? (
-                  <img src={c.twincodeSvgUrl} alt="twincode" className="w-5 h-5 object-contain border rounded bg-white" />
-                ) : (
-                  <div className="w-5 h-5 border rounded bg-muted/40" title="트윈코드 없음" />
-                )}
-                <span className="text-[9px] text-muted-foreground truncate">트윈코드</span>
-              </div>
+              <div className="text-[9px] text-muted-foreground tabular-nums">#{c.seq}</div>
             </div>
-
           </div>
         );
       })}
