@@ -4128,3 +4128,174 @@ function BackImagesByGradeDialog({
   );
 }
 
+// ============== Composited card thumbnail (design + shapes + text overlays) ==============
+function CardCompositeThumb({
+  side, card, cardSize, testImageUrl, testTwincodeUrl, testSignatureUrl,
+  layout, keys, backDefaults, shapeOptions, width,
+}: {
+  side: "front" | "back";
+  card: CardData;
+  cardSize: CardSize;
+  testImageUrl?: string | null;
+  testTwincodeUrl?: string | null;
+  testSignatureUrl?: string | null;
+  layout: Record<OptionKey, OptionLayout>;
+  keys: OptionKey[];
+  backDefaults?: { companyName: string; centerSlogan: string; nfcEnabled: string; issuedBy: string };
+  shapeOptions?: ShapeOptions;
+  width: number;
+}) {
+  const cardWmm = cardSize.width;
+  const cardHmm = cardSize.height;
+  const pxPerMm = width / cardWmm;
+  const height = cardHmm * pxPerMm;
+  const designUrl = (side === "front" ? card?.frontImageUrl : card?.backImageUrl) || testImageUrl || null;
+
+  const shapes = side === "front"
+    ? [
+        { s: shapeOptions?.frontOutline as ShapeOption | undefined, color: (card?.frontIconOuterColor || "").trim() || null },
+        { s: shapeOptions?.frontCenter  as ShapeOption | undefined, color: (card?.frontIconInnerColor || "").trim() || null },
+      ]
+    : [
+        { s: shapeOptions?.back     as ShapeOption | undefined, color: (card?.backIconColor || "").trim() || null },
+        { s: shapeOptions?.backLine as ShapeOption | undefined, color: null },
+      ];
+
+  const textFor = (key: OptionKey): string => {
+    if (!card) return "";
+    switch (key) {
+      case "cpValue":   return card.cpValue || "-";
+      case "editionNo": return card.editionNo || "";
+      case "issuedNo":  return `ISSUED No. ${card.issuedNo || ""}`;
+      case "mintedOn":  return `Minted on ${card.mintedOn || ""}`;
+      case "grade":     return card.grade || "";
+      case "companyName":  return backDefaults?.companyName || "";
+      case "centerSlogan": return backDefaults?.centerSlogan || "";
+      case "nfcEnabled":   return backDefaults?.nfcEnabled || "";
+      case "issuedBy":     return backDefaults?.issuedBy || "";
+      default: return "";
+    }
+  };
+
+  const imageSrcFor = (key: OptionKey): string | null => {
+    if (key === "twincode") return card?.twincodeSvgUrl || testTwincodeUrl || null;
+    if (key === "signature") return card?.signatureUrl || testSignatureUrl || null;
+    return null;
+  };
+
+  return (
+    <div
+      className="relative border rounded overflow-hidden bg-white shrink-0"
+      style={{ width, height }}
+    >
+      {designUrl && (
+        <img src={designUrl} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
+      )}
+      {shapes.map(({ s, color }, i) => {
+        if (!s?.svgDataUrl) return null;
+        const raw = decodeSvgDataUrl(s.svgDataUrl);
+        if (!raw) return null;
+        const finalSvg = color ? recolorSvgString(raw, color) : raw;
+        const nat = svgNaturalSizeMm(finalSvg);
+        const tl = anchorTopLeft(s.x_mm, s.y_mm, nat.w, nat.h, s.anchor);
+        const src = color ? `data:image/svg+xml;utf8,${encodeURIComponent(finalSvg)}` : s.svgDataUrl;
+        return (
+          <img
+            key={`shape-${i}`}
+            src={src}
+            alt=""
+            aria-hidden
+            className="absolute pointer-events-none"
+            style={{
+              left: tl.left * pxPerMm,
+              top: tl.top * pxPerMm,
+              width: nat.w * pxPerMm,
+              height: nat.h * pxPerMm,
+            }}
+          />
+        );
+      })}
+      {keys.map(key => {
+        const cfg = layout[key];
+        if (!cfg?.enabled) return null;
+        if (isImageKey(key)) {
+          const src = imageSrcFor(key);
+          if (!src) return null;
+          const anc = getAnchor(key, cfg);
+          const tl = anchorTopLeft(cfg.x, cfg.y, cfg.w, cfg.h, anc);
+          return (
+            <img
+              key={key}
+              src={src}
+              alt=""
+              className="absolute pointer-events-none object-contain"
+              style={{
+                left: tl.left * pxPerMm,
+                top: tl.top * pxPerMm,
+                width: cfg.w * pxPerMm,
+                height: cfg.h * pxPerMm,
+              }}
+            />
+          );
+        }
+        const text = textFor(key);
+        if (!text) return null;
+        const fontPx = (cfg.fontSize || 3) * pxPerMm;
+        const family = getOptionFontCss(cfg);
+        const weight = getOptionFontWeight(cfg);
+        const anc = getAnchor(key, cfg);
+        const tx = anc.endsWith("c") ? "translateX(-50%)" : anc.endsWith("r") ? "translateX(-100%)" : "";
+        const ty = anc.startsWith("m") ? "translateY(-50%)" : anc.startsWith("b") ? "translateY(-100%)" : "";
+        return (
+          <div
+            key={key}
+            className="absolute whitespace-nowrap pointer-events-none"
+            style={{
+              left: cfg.x * pxPerMm,
+              top: cfg.y * pxPerMm,
+              fontSize: fontPx,
+              fontFamily: family,
+              fontWeight: weight,
+              color: "#000",
+              lineHeight: 1,
+              transform: `${tx} ${ty}`.trim() || undefined,
+            }}
+          >
+            {text}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Clickable table cell: small composite thumb + dialog with larger preview
+function CardPreviewCell(props: Omit<React.ComponentProps<typeof CardCompositeThumb>, "width">) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="block hover:opacity-80 transition-opacity"
+        title="클릭하여 크게 보기"
+      >
+        <CardCompositeThumb {...props} width={48} />
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {props.side === "front" ? "카드 앞면" : "카드 뒷면"} 미리보기 · <span className="font-mono text-sm">{props.card.uniqueNo}</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex justify-center py-2">
+            <CardCompositeThumb {...props} width={360} />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+
