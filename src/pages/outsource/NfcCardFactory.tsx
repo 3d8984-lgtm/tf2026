@@ -1388,6 +1388,75 @@ function DetailView({
     return () => { cancelled = true; };
   }, []);
 
+  // Load 등급별 뒷면 이미지 from storage
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: list } = await supabase.storage.from(FRAME_BUCKET).list(TEST_BACK_IMG_PREFIX);
+      if (cancelled) return;
+      for (const grade of ["COMMON", "RARE", "EPIC", "LEGEND"] as CardGrade[]) {
+        const found = (list || []).find(f => f.name.startsWith(`${grade}__`));
+        if (!found) continue;
+        const path = `${TEST_BACK_IMG_PREFIX}/${found.name}`;
+        const { data: file } = await supabase.storage.from(FRAME_BUCKET).download(path);
+        if (cancelled || !file) continue;
+        const objUrl = URL.createObjectURL(file);
+        const name = found.name.replace(new RegExp(`^${grade}__`), "");
+        setTestBackImagesByGrade(prev => {
+          revokeTestAsset(prev[grade]);
+          return { ...prev, [grade]: { url: objUrl, name, path, objectUrl: true } };
+        });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const onUploadTestBackImageByGrade = async (grade: CardGrade, file: File | null) => {
+    const { data: existing } = await supabase.storage.from(FRAME_BUCKET).list(TEST_BACK_IMG_PREFIX);
+    const toRemove = (existing || [])
+      .filter(f => f.name.startsWith(`${grade}__`))
+      .map(f => `${TEST_BACK_IMG_PREFIX}/${f.name}`);
+    if (toRemove.length) await supabase.storage.from(FRAME_BUCKET).remove(toRemove);
+    if (!file) {
+      setTestBackImagesByGrade(prev => {
+        revokeTestAsset(prev[grade]);
+        return { ...prev, [grade]: null };
+      });
+      toast({ title: `${grade} 뒷면 이미지 삭제됨` });
+      return;
+    }
+    try {
+      let uploadFile: Blob = file;
+      let uploadName = file.name;
+      const isSvg = file.type === "image/svg+xml" || /\.svg$/i.test(file.name);
+      let contentType = isSvg ? "image/svg+xml" : (file.type || "image/png");
+      const isPdf = !isSvg && (file.type === "application/pdf" || /\.pdf$/i.test(file.name));
+      if (isPdf) {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const { dataUrl } = await renderPdfFirstPagePng(bytes);
+        const bin = atob(dataUrl.split(",")[1]);
+        const arr = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+        uploadFile = new Blob([arr], { type: "image/png" });
+        uploadName = file.name.replace(/\.pdf$/i, "") + ".png";
+        contentType = "image/png";
+      }
+      const safe = uploadName.replace(/[^\w.-]+/g, "_");
+      const path = `${TEST_BACK_IMG_PREFIX}/${grade}__${safe}`;
+      await uploadNfcCardAsset(path, uploadFile, contentType);
+      const objUrl = URL.createObjectURL(uploadFile);
+      setTestBackImagesByGrade(prev => {
+        revokeTestAsset(prev[grade]);
+        return { ...prev, [grade]: { url: objUrl, name: file.name, path, objectUrl: true } };
+      });
+      toast({ title: `${grade} 뒷면 이미지 등록됨`, description: isPdf ? "PDF 첫 페이지가 이미지로 변환되었습니다" : undefined });
+    } catch (e) {
+      toast({ title: "업로드 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    }
+  };
+
+
+
   const onUploadTestImage = async (side: "front" | "back", file: File | null) => {
     const { data: existing } = await supabase.storage.from(FRAME_BUCKET).list(TEST_IMG_PREFIX);
     const toRemove = (existing || [])
