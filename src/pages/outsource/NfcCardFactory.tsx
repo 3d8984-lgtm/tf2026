@@ -897,6 +897,7 @@ interface CardData {
   frontIconOuterColor: string;
   backIconColor: string;
   issuedByUrl: string | null; // 싸인 링크 (sign_url)
+  twincode: string;
   twincodeSvgUrl: string | null;
   signatureUrl: string | null;
   frontImageUrl: string | null;
@@ -1222,6 +1223,7 @@ function DetailView({
         frontIconOuterColor: String(it.card_front_icon_outer_color ?? sd.card_front_icon_outer_color ?? ""),
         backIconColor: String(it.card_back_icon_color ?? sd.card_back_icon_color ?? ""),
         issuedByUrl: it.sign_url ?? it.issued_by_url ?? sd.sign_url ?? sd.issued_by_url ?? null,
+        twincode: String(it.twincode ?? it.twin_code ?? it.twincode_no ?? sd.twincode ?? sd.twin_code ?? ""),
         twincodeSvgUrl: it.twincode_svg_url ?? it.svg_url ?? sd.twincode_svg_url ?? null,
         signatureUrl: it.signature_url ?? it.signature_svg_url ?? sd.signature_url ?? sd.signature_svg_url ?? null,
         frontImageUrl: it.card_front_url ?? sd.card_front_url ?? it.gft_original_image_url ?? sd.gft_original_image_url ?? null,
@@ -2588,6 +2590,8 @@ function DetailView({
                   <TableHead>주문번호</TableHead>
                   <TableHead>UID</TableHead>
                   <TableHead>카드 고유번호</TableHead>
+                  <TableHead>등급</TableHead>
+                  <TableHead>트윈코드</TableHead>
                   <TableHead>GFT 원본 이미지</TableHead>
                   <TableHead>앞면</TableHead>
                   <TableHead>뒷면</TableHead>
@@ -2598,9 +2602,8 @@ function DetailView({
                   <TableHead>EDITION</TableHead>
                   <TableHead>ISSUED No.</TableHead>
                   <TableHead>Minted on</TableHead>
-                  <TableHead>등급</TableHead>
                   <TableHead>ISSUED BY</TableHead>
-                  <TableHead>트윈코드</TableHead>
+                  <TableHead>트윈코드 이미지</TableHead>
                   <TableHead>DM 바코드</TableHead>
                   <TableHead className="text-right">다운로드</TableHead>
                 </TableRow>
@@ -2615,6 +2618,8 @@ function DetailView({
                     <TableCell className="font-mono text-xs">{c.orderNo}</TableCell>
                     <TableCell className="font-mono text-xs">{c.uid}</TableCell>
                     <TableCell className="font-mono text-xs">{c.uniqueNo}</TableCell>
+                    <TableCell><Badge variant="outline">{c.grade || "-"}</Badge></TableCell>
+                    <TableCell className="font-mono text-xs">{c.twincode || "-"}</TableCell>
                     <TableCell>
                       {c.gftOriginalUrl
                         ? <a href={c.gftOriginalUrl} target="_blank" rel="noopener noreferrer"><CardFrame widthClassName="w-8" className="border rounded"><img src={c.gftOriginalUrl} alt="" className="w-full h-full object-cover" /></CardFrame></a>
@@ -2637,7 +2642,6 @@ function DetailView({
                     <TableCell className="text-xs">{c.editionNo}</TableCell>
                     <TableCell className="text-xs">{c.issuedNo}</TableCell>
                     <TableCell className="text-xs">{c.mintedOn}</TableCell>
-                    <TableCell><Badge variant="outline">{c.grade}</Badge></TableCell>
                     <TableCell>
                       {c.issuedByUrl
                         ? <a href={c.issuedByUrl} target="_blank" rel="noopener noreferrer"><img src={c.issuedByUrl} alt="" className="w-10 h-6 object-contain border rounded bg-white" /></a>
