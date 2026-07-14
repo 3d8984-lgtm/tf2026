@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!path.startsWith(ALLOWED_PREFIX) || path.includes("..")) {
+    if (!ALLOWED_PREFIXES.some((p) => path.startsWith(p)) || path.includes("..")) {
       return new Response(JSON.stringify({ error: "허용되지 않은 업로드 경로입니다", bucket: BUCKET, path }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
