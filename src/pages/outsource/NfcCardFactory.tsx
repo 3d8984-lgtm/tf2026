@@ -4341,6 +4341,26 @@ function CardCompositeThumb({
       {keys.map(key => {
         const cfg = layout[key];
         if (!cfg?.enabled) return null;
+        if (key === "dmBarcode") {
+          const anc = getAnchor(key, cfg);
+          const tl = anchorTopLeft(cfg.x, cfg.y, cfg.w, cfg.h, anc);
+          const pad = (cfg.padding ?? 0) * pxPerMm;
+          return (
+            <div
+              key={key}
+              className="absolute pointer-events-none bg-white"
+              style={{
+                left: tl.left * pxPerMm,
+                top: tl.top * pxPerMm,
+                width: cfg.w * pxPerMm,
+                height: cfg.h * pxPerMm,
+                padding: pad,
+              }}
+            >
+              <DmBarcodeOverlay text={card?.uniqueNo || ""} />
+            </div>
+          );
+        }
         if (isImageKey(key)) {
           const src = imageSrcFor(key);
           if (!src) return null;
@@ -4360,7 +4380,30 @@ function CardCompositeThumb({
               }}
             />
           );
-        }
+}
+
+// Small overlay that generates and renders a DataMatrix barcode PNG, filling its parent.
+function DmBarcodeOverlay({ text }: { text: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    if (!text) { setSrc(null); return; }
+    let cancelled = false;
+    let url: string | null = null;
+    (async () => {
+      try {
+        const bytes = await dataMatrixPngBytes(text, 200);
+        if (cancelled) return;
+        const blob = new Blob([bytes as BlobPart], { type: "image/png" });
+        url = URL.createObjectURL(blob);
+        setSrc(url);
+      } catch {}
+    })();
+    return () => { cancelled = true; if (url) URL.revokeObjectURL(url); };
+  }, [text]);
+  return src
+    ? <img src={src} alt="" className="w-full h-full object-contain" />
+    : null;
+}
         const text = textFor(key);
         if (!text) return null;
         const fontPx = (cfg.fontSize || 3) * pxPerMm;
