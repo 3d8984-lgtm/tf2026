@@ -3775,3 +3775,131 @@ function ShapeOptionsCard({
     </Card>
   );
 }
+
+// ===========================================================================
+// 추가설정 페이지 — 등급(RARE/EPIC/LEGEND)별 기본 도형 SVG 업로드/위치 설정
+// 기본(COMMON)은 상단의 "기본 도형 옵션" 카드가 담당하고,
+// 여기서 등급별 오버라이드를 지정한다. 저장하지 않은 등급은 기본값으로 대체된다.
+// ===========================================================================
+function AdvancedShapeSettingsDialog({
+  open,
+  onOpenChange,
+  value,
+  onChange,
+  onSave,
+  canSave,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  value: ShapeOptionsByGrade;
+  onChange: (next: ShapeOptionsByGrade) => void;
+  onSave?: () => Promise<void> | void;
+  canSave?: boolean;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [activeGrade, setActiveGrade] = useState<CardGrade>("RARE");
+
+  const readSvgFile = async (file: File): Promise<string> => {
+    const text = await file.text();
+    if (!/<svg[\s>]/i.test(text)) throw new Error("올바른 SVG 파일이 아닙니다");
+    const b64 = btoa(unescape(encodeURIComponent(text)));
+    return `data:image/svg+xml;base64,${b64}`;
+  };
+
+  const forGrade = (g: CardGrade): ShapeOptions =>
+    value[g] || cloneDefaultShapeOptions();
+
+  const updateGrade = (g: CardGrade, key: keyof ShapeOptions, patch: Partial<ShapeOption>) => {
+    const cur = forGrade(g);
+    const next: ShapeOptions = { ...cur, [key]: { ...cur[key], ...patch } };
+    onChange({ ...value, [g]: next });
+  };
+
+  const handleSave = async () => {
+    if (!onSave) return;
+    try {
+      setSaving(true);
+      await onSave();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onPickFile = async (g: CardGrade, key: keyof ShapeOptions, file: File | null) => {
+    if (!file) { updateGrade(g, key, { svgDataUrl: null, fileName: null }); return; }
+    try {
+      const dataUrl = await readSvgFile(file);
+      updateGrade(g, key, { svgDataUrl: dataUrl, fileName: file.name });
+      if (onSave && canSave !== false) {
+        setTimeout(() => { void handleSave(); }, 0);
+      }
+    } catch (e: any) {
+      alert(e?.message || "SVG 파일을 읽지 못했습니다");
+    }
+  };
+
+  const resetGrade = (g: CardGrade) => {
+    if (!confirm(`${GRADE_LABEL[g]} 등급 도형 설정을 초기화하시겠습니까?`)) return;
+    onChange({ ...value, [g]: cloneDefaultShapeOptions() });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-5xl w-[95vw] max-h-[92vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span>등급별 기본 도형 추가설정</span>
+            <span className="text-xs font-normal text-muted-foreground">
+              등급별로 앞면 중심/외곽 · 뒷면 도형/라인 SVG를 지정합니다. 등급별 값이 있으면 우선 적용됩니다.
+            </span>
+          </DialogTitle>
+        </DialogHeader>
+
+        <Tabs value={activeGrade} onValueChange={(v) => setActiveGrade(v as CardGrade)}>
+          <TabsList>
+            {CARD_GRADES_ADVANCED.map((g) => (
+              <TabsTrigger key={g} value={g}>{GRADE_LABEL[g]}</TabsTrigger>
+            ))}
+          </TabsList>
+
+          {CARD_GRADES_ADVANCED.map((g) => {
+            const s = forGrade(g);
+            const update = (key: keyof ShapeOptions, patch: Partial<ShapeOption>) =>
+              updateGrade(g, key, patch);
+            const pick = (key: keyof ShapeOptions, file: File | null) =>
+              onPickFile(g, key, file);
+            return (
+              <TabsContent key={g} value={g} className="pt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-sm text-muted-foreground">
+                    <Badge variant="outline" className="mr-2">{GRADE_LABEL[g]}</Badge>
+                    등급 도형 설정
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="ghost" onClick={() => resetGrade(g)}>초기화</Button>
+                    {onSave && (
+                      <Button size="sm" onClick={handleSave} disabled={saving || canSave === false}>
+                        {saving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1" />}
+                        설정 저장
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  <ShapeOptionRow title="카드 앞면 · 중심 도형" desc="앞면 2개 도형 중 중심부 SVG" k="frontCenter" s={s.frontCenter} update={update} onPickFile={pick} />
+                  <ShapeOptionRow title="카드 앞면 · 외곽 도형" desc="앞면 2개 도형 중 외곽부 SVG" k="frontOutline" s={s.frontOutline} update={update} onPickFile={pick} />
+                  <ShapeOptionRow title="카드 뒷면 · 도형" desc="뒷면 단일 SVG" k="back" s={s.back} update={update} onPickFile={pick} />
+                  <ShapeOptionRow title="카드 뒷면 · 라인" desc="뒷면 라인 SVG (원본 색상 유지)" k="backLine" s={s.backLine} update={update} onPickFile={pick} />
+                </div>
+              </TabsContent>
+            );
+          })}
+        </Tabs>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>닫기</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
