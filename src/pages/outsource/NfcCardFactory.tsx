@@ -4104,10 +4104,10 @@ function AdvancedShapeSettingsDialog({
                   </div>
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  <ShapeOptionRow title="카드 앞면 · 중심 도형" desc="앞면 2개 도형 중 중심부 SVG" k="frontCenter" s={s.frontCenter} update={update} onPickFile={pick} />
-                  <ShapeOptionRow title="카드 앞면 · 외곽 도형" desc="앞면 2개 도형 중 외곽부 SVG" k="frontOutline" s={s.frontOutline} update={update} onPickFile={pick} />
-                  <ShapeOptionRow title="카드 뒷면 · 도형" desc="뒷면 단일 SVG" k="back" s={s.back} update={update} onPickFile={pick} />
-                  <ShapeOptionRow title="카드 뒷면 · 라인" desc="뒷면 라인 SVG (원본 색상 유지)" k="backLine" s={s.backLine} update={update} onPickFile={pick} />
+                  <ShapeOptionRow title="카드 앞면 · 중심 도형" desc="앞면 2개 도형 중 중심부 SVG" k="frontCenter" s={s.frontCenter} update={update} onPickFile={pick} positionReadOnly />
+                  <ShapeOptionRow title="카드 앞면 · 외곽 도형" desc="앞면 2개 도형 중 외곽부 SVG" k="frontOutline" s={s.frontOutline} update={update} onPickFile={pick} positionReadOnly />
+                  <ShapeOptionRow title="카드 뒷면 · 도형" desc="뒷면 단일 SVG" k="back" s={s.back} update={update} onPickFile={pick} positionReadOnly />
+                  <ShapeOptionRow title="카드 뒷면 · 라인" desc="뒷면 라인 SVG (원본 색상 유지)" k="backLine" s={s.backLine} update={update} onPickFile={pick} positionReadOnly />
                 </div>
               </TabsContent>
             );
