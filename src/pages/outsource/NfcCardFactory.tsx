@@ -1363,12 +1363,13 @@ function DetailView({
     if (g === "COMMON") return shapeOptions;
     const per = shapeOptionsByGrade[g];
     if (!per) return shapeOptions;
-    // 슬롯별 fallback: 등급별로 SVG가 업로드되지 않은 슬롯은 COMMON 값을 사용
+    // 슬롯별 fallback: 등급별로 SVG가 업로드되지 않은 슬롯은 COMMON 값을 사용.
+    // X/Y 좌표는 항상 COMMON(기본 도형 옵션) 값을 강제 적용해 위치를 동기화한다.
     const pickSlot = (key: keyof ShapeOptions): ShapeOption => {
       const slot = (per as any)[key] as ShapeOption | undefined;
       const base = (shapeOptions as any)[key] as ShapeOption;
-      if (slot && (slot.svgDataUrl || slot.fileName)) return slot;
-      return base;
+      const src = slot && (slot.svgDataUrl || slot.fileName) ? slot : base;
+      return { ...src, x_mm: base.x_mm, y_mm: base.y_mm };
     };
     return {
       frontCenter:  pickSlot("frontCenter"),
