@@ -1767,14 +1767,15 @@ function DetailView({
 
       // === 기본 도형 옵션 (디자인 위 / 옵션 요소 아래) ===
       // 색상은 주문 데이터의 카드 아이콘 색상으로 재적용 (backLine 제외).
+      const activeShapes = resolveShapeOptions(card.grade);
       const shapesForSide: { s: ShapeOption; color: string | null }[] = side === "front"
         ? [
-            { s: shapeOptions.frontOutline, color: (card.frontIconOuterColor || "").trim() || null },
-            { s: shapeOptions.frontCenter,  color: (card.frontIconInnerColor || "").trim() || null },
+            { s: activeShapes.frontOutline, color: (card.frontIconOuterColor || "").trim() || null },
+            { s: activeShapes.frontCenter,  color: (card.frontIconInnerColor || "").trim() || null },
           ]
         : [
-            { s: shapeOptions.back,     color: (card.backIconColor || "").trim() || null },
-            { s: shapeOptions.backLine, color: null },
+            { s: activeShapes.back,     color: (card.backIconColor || "").trim() || null },
+            { s: activeShapes.backLine, color: null },
           ];
       for (const { s, color } of shapesForSide) {
         if (!s?.svgDataUrl) continue;
