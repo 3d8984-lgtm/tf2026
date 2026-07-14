@@ -4023,3 +4023,73 @@ function AdvancedShapeSettingsDialog({
     </Dialog>
   );
 }
+
+// ===========================================================================
+// 등급별 뒷면 이미지 업로드 다이얼로그
+// ===========================================================================
+function BackImagesByGradeDialog({
+  open,
+  onOpenChange,
+  images,
+  onUpload,
+  cardSize,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  images: Record<CardGrade, TestAsset | null>;
+  onUpload: (grade: CardGrade, file: File | null) => void | Promise<void>;
+  cardSize: CardSize;
+}) {
+  const grades: CardGrade[] = ["COMMON", "RARE", "EPIC", "LEGEND"];
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>등급별 뒷면 이미지 설정</DialogTitle>
+        </DialogHeader>
+        <div className="text-xs text-muted-foreground mb-2">
+          각 등급별로 카드 뒷면 배경 이미지를 업로드하세요. 실제 주문 이미지가 있는 카드는 그 이미지가 우선 적용됩니다.
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[70vh] overflow-auto">
+          {grades.map(g => {
+            const asset = images[g];
+            return (
+              <div key={g} className="border rounded-md p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="font-mono text-xs font-medium">{g}</Label>
+                  {asset && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600">서버 저장됨</span>
+                  )}
+                </div>
+                <div className="flex justify-center">
+                  <TestDesignThumb cardSize={cardSize} imageUrl={asset?.url ?? null} />
+                </div>
+                <div className="text-[11px] text-muted-foreground truncate">
+                  {asset?.name || "미설정"}
+                </div>
+                <div className="flex gap-2">
+                  <label className="flex-1 flex items-center justify-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
+                    <Upload className="w-3 h-3" />
+                    <span>{asset ? "변경" : "이미지 업로드"}</span>
+                    <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg,application/pdf" className="hidden"
+                      onChange={e => { const f = e.target.files?.[0] || null; e.currentTarget.value = ""; if (f) onUpload(g, f); }} />
+                  </label>
+                  {asset && (
+                    <Button size="sm" variant="destructive" className="text-xs"
+                      onClick={() => { if (confirm(`${g} 등급 뒷면 이미지를 삭제할까요?`)) onUpload(g, null); }}>
+                      <X className="w-3 h-3 mr-1" />삭제
+                    </Button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>닫기</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
