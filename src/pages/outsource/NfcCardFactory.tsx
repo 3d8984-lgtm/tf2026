@@ -2431,6 +2431,28 @@ function DetailView({
           </CardContent>
         </Card>
 
+        {/* 테스트 데이터 사용 토글 — ON이면 아래 4개 테스트 소스를 사용, OFF면 실제 주문 데이터만 사용 */}
+        <Card>
+          <CardContent className="py-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm font-medium">테스트 데이터 사용</Label>
+                  <Badge variant={useTestData ? "default" : "outline"} className="text-[10px]">
+                    {useTestData ? "ON · 테스트 적용" : "OFF · 주문 데이터만"}
+                  </Badge>
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  ON일 때 다음 4가지 테스트 소스가 미리보기·PDF·ZIP에 반영됩니다:
+                  <br />앞면 테스트 이미지 · 트윈코드 SVG · 서명 파일(PNG/SVG) · 미리보기 테스트 값
+                  <br />OFF로 두면 위 항목은 무시되고 실제 주문 데이터만 사용됩니다.
+                </p>
+              </div>
+              <Switch checked={useTestData} onCheckedChange={setUseTestData} aria-label="테스트 데이터 사용" />
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Test image upload (per side) */}
         <Card>
           <CardHeader className="pb-3">
