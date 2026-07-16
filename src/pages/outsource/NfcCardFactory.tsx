@@ -2280,16 +2280,18 @@ function DetailView({
 
       for (let i = 0; i < cards.length; i++) {
         const card = cards[i];
+        // 실주문 값 우선, 비어있으면 테스트값을 폴백으로 사용해 CP/에디션/발행번호 누락으로 인한 공란을 방지.
+        const effective = applyTestValues(card, testValues) || card;
         const base = card.uniqueNo || `card-${i + 1}`;
 
         setFinalizeProgress({ stage: `카드 앞면 PDF (${i + 1}/${total})`, current: i + 1, total });
-        const frontBytes = await buildCardPdfBytes(card, { sides: ["front"] });
+        const frontBytes = await buildCardPdfBytes(effective, { sides: ["front"] });
         const nf = usedFront.get(base) || 0;
         frontDir.file(nf === 0 ? `${base}.pdf` : `${base}(${nf}).pdf`, frontBytes);
         usedFront.set(base, nf + 1);
 
         setFinalizeProgress({ stage: `카드 뒷면 PDF (${i + 1}/${total})`, current: i + 1, total });
-        const backBytes = await buildCardPdfBytes(card, { sides: ["back"] });
+        const backBytes = await buildCardPdfBytes(effective, { sides: ["back"] });
         const nb = usedBack.get(base) || 0;
         backDir.file(nb === 0 ? `${base}.pdf` : `${base}(${nb}).pdf`, backBytes);
         usedBack.set(base, nb + 1);
