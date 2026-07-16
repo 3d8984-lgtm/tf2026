@@ -2085,23 +2085,51 @@ function DetailView({
         const xMm = tl.left;
         const yMm = tl.top;
 
-        // ===== Twincode (SVG vector) =====
+        // ===== Twincode (SVG vector, with raster fallback for PNG/JPG URLs) =====
         if (key === "twincode") {
-          // 주문 데이터가 최우선. 주문에 twincode SVG가 있으면 테스트 파일은 무시한다.
+          // 주문 데이터가 최우선. 주문에 twincode 파일이 있으면 테스트 파일은 무시한다.
           const twincodeUrl = card.twincodeSvgUrl || effTestTwincode?.url || null;
           if (!twincodeUrl) continue;
-          try {
-            // 흰색 박스 배경 (기존 미리보기/PDF와 동일)
-            page.drawRectangle({
-              x: xMm * MM,
-              y: pageHpt - (yMm + cfg.h) * MM,
-              width: cfg.w * MM,
-              height: cfg.h * MM,
-              color: rgb(1, 1, 1),
-            });
-            const svgStr = await fetchSvgString(twincodeUrl);
-            await embedSvgVector(page, svgStr, xMm, yMm, cfg.w, cfg.h, cfg.sizeAnchor ?? "mc");
-          } catch (e) { console.warn("twincode vector embed fail", e); }
+          // 흰색 박스 배경 (기존 미리보기/PDF와 동일)
+          page.drawRectangle({
+            x: xMm * MM,
+            y: pageHpt - (yMm + cfg.h) * MM,
+            width: cfg.w * MM,
+            height: cfg.h * MM,
+            color: rgb(1, 1, 1),
+          });
+          const lower = twincodeUrl.toLowerCase().split("?")[0];
+          const looksSvg = lower.endsWith(".svg");
+          let embedded = false;
+          if (looksSvg) {
+            try {
+              const svgStr = await fetchSvgString(twincodeUrl);
+              await embedSvgVector(page, svgStr, xMm, yMm, cfg.w, cfg.h, cfg.sizeAnchor ?? "mc");
+              embedded = true;
+            } catch (e) { console.warn("twincode svg vector embed fail, will try raster", e); }
+          }
+          if (!embedded) {
+            // PNG/JPG (또는 SVG 벡터 임베드 실패) → 래스터로 임베드
+            try {
+              const pngBytes = await urlToPngBytes(twincodeUrl);
+              const img = await out.embedPng(pngBytes);
+              const iw = img.width, ih = img.height;
+              const aspect = iw / ih;
+              const boxAspect = cfg.w / cfg.h;
+              let drawWmm: number, drawHmm: number;
+              if (aspect > boxAspect) { drawWmm = cfg.w; drawHmm = cfg.w / aspect; }
+              else                    { drawHmm = cfg.h; drawWmm = cfg.h * aspect; }
+              const { fx, fy } = ANCHOR_FRACTIONS[cfg.sizeAnchor ?? "mc"];
+              const drawXmm = xMm + (cfg.w - drawWmm) * fx;
+              const drawYmm = yMm + (cfg.h - drawHmm) * fy;
+              page.drawImage(img, {
+                x: drawXmm * MM,
+                y: pageHpt - (drawYmm + drawHmm) * MM,
+                width: drawWmm * MM,
+                height: drawHmm * MM,
+              });
+            } catch (e) { console.warn("twincode raster embed fail", e); }
+          }
           continue;
         }
 
@@ -2125,17 +2153,23 @@ function DetailView({
 
         // ===== Signature (SVG vector if available, otherwise PNG/JPEG raster) =====
         if (key === "signature") {
-          // 주문 데이터가 최우선. 주문에 서명 파일이 있으면 테스트 파일은 무시한다.
-          const usingOrderSig = !!card.signatureUrl;
-          const sigUrl = card.signatureUrl || effTestSignature?.url || null;
+          // 주문 데이터가 최우선. signatureUrl / issuedByUrl(ISSUED BY 컬럼과 동일 소스) → 테스트 파일 순으로 시도.
+          const orderSigUrl = card.signatureUrl || card.issuedByUrl || null;
+          const usingOrderSig = !!orderSigUrl;
+          const sigUrl = orderSigUrl || effTestSignature?.url || null;
           if (!sigUrl) continue;
-          const isSvg = /\.svg(\?|$)/i.test(sigUrl) || (!usingOrderSig && (effTestSignature?.name || "").toLowerCase().endsWith(".svg"));
-          try {
-            if (isSvg) {
-              // 벡터 임베드 — Vectorizer.AI로 변환된 SVG를 그대로 PDF에 벡터로 박는다
+          const lower = sigUrl.toLowerCase().split("?")[0];
+          const isSvg = lower.endsWith(".svg") || (!usingOrderSig && (effTestSignature?.name || "").toLowerCase().endsWith(".svg"));
+          let embedded = false;
+          if (isSvg) {
+            try {
               const svgStr = await fetchSvgString(sigUrl);
               await embedSvgVector(page, svgStr, xMm, yMm, cfg.w, cfg.h, cfg.sizeAnchor ?? "mc");
-            } else {
+              embedded = true;
+            } catch (e) { console.warn("signature svg embed fail, will try raster", e); }
+          }
+          if (!embedded) {
+            try {
               const pngBytes = await urlToPngBytes(sigUrl);
               const sigImg = await out.embedPng(pngBytes);
               const iw = sigImg.width;
@@ -2154,8 +2188,8 @@ function DetailView({
                 width: drawWmm * MM,
                 height: drawHmm * MM,
               });
-            }
-          } catch (e) { console.warn("signature embed fail", e); }
+            } catch (e) { console.warn("signature raster embed fail", e); }
+          }
           continue;
         }
 
