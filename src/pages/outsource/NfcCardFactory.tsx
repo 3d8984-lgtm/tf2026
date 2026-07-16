@@ -1395,8 +1395,9 @@ function DetailView({
   const effTestFront = useTestData ? testImages.front : null;
   const effTestTwincode = useTestData ? testTwincodeSvg : null;
   const effTestSignature = useTestData ? testSignature : null;
+  // 등급별 뒷면 이미지는 테스트 파일이 아니라 실제 인쇄용 자산이므로 토글과 무관하게 항상 사용한다.
   const effResolveTestBackAsset = (grade: unknown): TestAsset | null =>
-    useTestData ? resolveTestBackAsset(grade) : null;
+    resolveTestBackAsset(grade);
 
   // 카드 뒷면 기본 텍스트 (API 외 전체 카드에 공통 적용)
   const [backDefaults, setBackDefaults] = useState({ ...DEFAULT_BACK_DEFAULTS });
