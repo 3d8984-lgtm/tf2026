@@ -2683,14 +2683,14 @@ function DetailView({
               side="front"
               cardSize={cardSize}
               bleedMm={bleedMm}
-              testImageUrl={testImages.front?.url || null}
-              cardPreview={applyTestValues(cards[0], testValues)}
+              testImageUrl={effTestFront?.url || null}
+              cardPreview={applyTestValues(cards[0], effTestValues)}
               layout={layoutFront}
               setLayout={setLayoutFront}
               keys={FRONT_KEYS}
-              shapeOptions={resolveShapeOptions(applyTestValues(cards[0], testValues)?.grade)}
+              shapeOptions={resolveShapeOptions(applyTestValues(cards[0], effTestValues)?.grade)}
               onTestPdf={async () => {
-                const sample = applyTestValues(cards[0], testValues);
+                const sample = applyTestValues(cards[0], effTestValues);
                 if (!sample) { toast({ title: "샘플 카드가 없습니다", variant: "destructive" }); return; }
                 try {
                   const bytes = await buildCardPdfBytes(sample, { sides: ["front"] });
@@ -2708,17 +2708,17 @@ function DetailView({
               side="back"
               cardSize={cardSize}
               bleedMm={bleedMm}
-              testImageUrl={resolveTestBackAsset(applyTestValues(cards[0], testValues)?.grade)?.url || null}
-              testTwincodeUrl={testTwincodeSvg?.url || null}
-              testSignatureUrl={testSignature?.url || null}
-              cardPreview={applyTestValues(cards[0], testValues)}
+              testImageUrl={effResolveTestBackAsset(applyTestValues(cards[0], effTestValues)?.grade)?.url || null}
+              testTwincodeUrl={effTestTwincode?.url || null}
+              testSignatureUrl={effTestSignature?.url || null}
+              cardPreview={applyTestValues(cards[0], effTestValues)}
               layout={layoutBack}
               setLayout={setLayoutBack}
               keys={BACK_KEYS}
               backDefaults={backDefaults}
-              shapeOptions={resolveShapeOptions(applyTestValues(cards[0], testValues)?.grade)}
+              shapeOptions={resolveShapeOptions(applyTestValues(cards[0], effTestValues)?.grade)}
               onTestPdf={async () => {
-                const sample = applyTestValues(cards[0], testValues);
+                const sample = applyTestValues(cards[0], effTestValues);
                 if (!sample) { toast({ title: "샘플 카드가 없습니다", variant: "destructive" }); return; }
                 try {
                   const bytes = await buildCardPdfBytes(sample, { sides: ["back"] });
