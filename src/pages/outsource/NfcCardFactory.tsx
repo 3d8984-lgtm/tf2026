@@ -1983,20 +1983,58 @@ function DetailView({
             console.warn("card design render bytes fallback failed", fetchErr);
           }
           if (bgImg) {
-            // cover 배치 — 원본을 카드 크기에 맞게 확대 후 넘치는 영역을 잘라낸다(미리보기와 동일).
+            // cover 배치 — 원본을 카드 크기(60x90mm)로 사전 크롭하여 임베드한다.
+            // (PDF viewer 는 MediaBox 로 클리핑하지만, Illustrator/Photoshop 등 편집 도구에서는
+            //  캔버스 밖 픽셀이 그대로 노출되어 카드 밖으로 이미지가 삐져나온다. 이를 방지하기 위해
+            //  임베드 전에 원본 해상도 그대로 캔버스에서 크롭한 뒤 PNG 로 재임베드한다.)
             const targetAspect = pageWpt / pageHpt;
             const srcAspect = iw / ih;
-            let drawW = pageWpt, drawH = pageHpt, ox = 0, oy = 0;
+            let sx = 0, sy = 0, sw = iw, sh = ih;
             if (srcAspect > targetAspect) {
-              drawH = pageHpt;
-              drawW = pageHpt * srcAspect;
-              ox = -(drawW - pageWpt) / 2;
+              sw = Math.round(ih * targetAspect);
+              sx = Math.round((iw - sw) / 2);
             } else if (srcAspect < targetAspect) {
-              drawW = pageWpt;
-              drawH = pageWpt / srcAspect;
-              oy = -(drawH - pageHpt) / 2;
+              sh = Math.round(iw / targetAspect);
+              sy = Math.round((ih - sh) / 2);
             }
-            page.drawImage(bgImg, { x: ox, y: oy, width: drawW, height: drawH });
+            if (sx === 0 && sy === 0 && sw === iw && sh === ih) {
+              // 이미 카드 비율과 일치 → 원본 그대로 임베드 (재인코딩 손실 없음)
+              page.drawImage(bgImg, { x: 0, y: 0, width: pageWpt, height: pageHpt });
+            } else {
+              try {
+                const objUrl2 = URL.createObjectURL(
+                  new Blob([(await fetchImageBytesAnyOrigin(designUrl)).bytes as BlobPart]),
+                );
+                let croppedBytes: Uint8Array | null = null;
+                try {
+                  const img2 = await loadImage(objUrl2, null);
+                  const cc = document.createElement("canvas");
+                  cc.width = sw;
+                  cc.height = sh;
+                  const ctx = cc.getContext("2d")!;
+                  ctx.drawImage(img2, sx, sy, sw, sh, 0, 0, sw, sh);
+                  croppedBytes = await canvasToPngBytes(cc);
+                } finally {
+                  URL.revokeObjectURL(objUrl2);
+                }
+                if (croppedBytes) {
+                  const cropped = await out.embedPng(croppedBytes);
+                  page.drawImage(cropped, { x: 0, y: 0, width: pageWpt, height: pageHpt });
+                }
+              } catch (cropErr) {
+                console.warn("card design crop failed → fallback to raw cover draw", cropErr);
+                // 최후 폴백: 원본 그대로 cover (PDF viewer 는 MediaBox 로 자동 클리핑)
+                let drawW = pageWpt, drawH = pageHpt, ox = 0, oy = 0;
+                if (srcAspect > targetAspect) {
+                  drawW = pageHpt * srcAspect;
+                  ox = -(drawW - pageWpt) / 2;
+                } else if (srcAspect < targetAspect) {
+                  drawH = pageWpt / srcAspect;
+                  oy = -(drawH - pageHpt) / 2;
+                }
+                page.drawImage(bgImg, { x: ox, y: oy, width: drawW, height: drawH });
+              }
+            }
           }
         } catch (e) { console.warn("card design render failed", e); }
       }
