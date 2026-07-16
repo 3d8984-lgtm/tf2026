@@ -4502,11 +4502,10 @@ function CardCompositeThumb({
   const cardHmm = cardSize.height;
   const pxPerMm = width / cardWmm;
   const height = cardHmm * pxPerMm;
-  // 뒷면: "등급별 뒷면 이미지"(testImageUrl)가 배경 템플릿이므로 항상 우선 적용.
-  //       주문 데이터의 backImageUrl(GFT 원본)은 등급별 이미지가 없을 때만 사용.
-  //       (drawSide의 최종 PDF 렌더링 우선순위와 동일하게 맞춘다.)
+  // 뒷면 배경은 항상 "등급별 뒷면 이미지"(testImageUrl)만 사용한다.
+  // 주문에는 뒷면 이미지가 존재하지 않으며, card.backImageUrl은 미리보기용 데이터일 뿐이므로 배경으로 사용하지 않는다.
   const designUrl = side === "back"
-    ? (testImageUrl || card?.backImageUrl || null)
+    ? (testImageUrl || null)
     : (card?.frontImageUrl || testImageUrl || null);
 
   const shapes = side === "front"
