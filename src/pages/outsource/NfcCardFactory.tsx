@@ -1934,24 +1934,39 @@ function DetailView({
         ? (gradeBackAsset?.url || null)
         : (realDesignUrl || testAsset?.url || null);
       if (testIsSvg && testAsset) {
-        // SVG 테스트 이미지: 파일에 지정된 원본 크기(mm)와 색상을 그대로 사용해 벡터 임베드(중앙 정렬).
+        // SVG 등급별 뒷면 이미지: 파일에 지정된 원본 크기(mm)를 그대로 사용해 중앙 정렬 임베드.
+        // 단, SVG에 <clipPath>/<mask>/<filter>/<pattern>이 포함된 경우 svg2pdf.js가 클립/마스크를 제대로
+        // 처리하지 못해 하단 영역 등 일부 도형이 사라진다(예: Illustrator export의 회색 하단 rect).
+        // → 이런 경우에만 브라우저 렌더러로 고해상도 래스터화(1200dpi) 후 PNG로 임베드한다.
         try {
           const svgText = await (await fetch(testAsset.url)).text();
           const nat = svgNaturalSizeMm(svgText);
           const xMm = (cardSize.width - nat.w) / 2;
           const yMm = (cardSize.height - nat.h) / 2;
-          // SVG 테스트 이미지는 항상 벡터로만 임베드한다 (래스터화 금지).
+          const hasClipOrMask = /<(clipPath|mask|filter|pattern)\b/i.test(svgText);
           try {
-            const subBytes = await svgStringToPdfBytes(svgText, nat.w * MM, nat.h * MM);
-            const [embedded] = await out.embedPdf(subBytes, [0]);
-            page.drawPage(embedded, {
-              x: xMm * MM,
-              y: pageHpt - (yMm + nat.h) * MM,
-              width: nat.w * MM,
-              height: nat.h * MM,
-            });
-          } catch (e) { console.warn("svg test image vector embed failed (skipped, no raster fallback)", e); }
-        } catch (e) { console.warn("svg test image embed failed", e); }
+            if (hasClipOrMask) {
+              const pngBytes = await rasterizeSvgToPng(svgText, nat.w, nat.h, 1200);
+              const img = await out.embedPng(pngBytes);
+              page.drawImage(img, {
+                x: xMm * MM,
+                y: pageHpt - (yMm + nat.h) * MM,
+                width: nat.w * MM,
+                height: nat.h * MM,
+              });
+            } else {
+              const subBytes = await svgStringToPdfBytes(svgText, nat.w * MM, nat.h * MM);
+              const [embedded] = await out.embedPdf(subBytes, [0]);
+              page.drawPage(embedded, {
+                x: xMm * MM,
+                y: pageHpt - (yMm + nat.h) * MM,
+                width: nat.w * MM,
+                height: nat.h * MM,
+              });
+            }
+          } catch (e) { console.warn("svg test image embed failed (skipped)", e); }
+        } catch (e) { console.warn("svg test image fetch failed", e); }
+
       } else if (designUrl) {
         try {
           // GFT/디자인 원본 이미지는 카드에 100% 덮이도록 원본 바이트를 그대로 임베드해
