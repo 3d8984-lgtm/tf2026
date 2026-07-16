@@ -24,7 +24,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AlertTriangle, Download, Eye, FileText, Loader2, Upload, X, ChevronLeft, Save, Image as ImageIcon, ZoomIn, ZoomOut, Maximize2, Cloud, CheckCircle2, Package } from "lucide-react";
 import { VECTORIZER_MODE_KEY } from "./OutsourceSettings";
-import { PDFDocument, rgb } from "pdf-lib";
+import {
+  PDFDocument,
+  rgb,
+  pushGraphicsState,
+  popGraphicsState,
+  moveTo,
+  lineTo,
+  closePath,
+  clip,
+  endPath,
+} from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import bwipjs from "bwip-js/browser";
 import { CardFrame, CARD_W_MM, CARD_H_MM } from "@/components/outsource/CardFrame";
@@ -1278,7 +1288,10 @@ function DetailView({
         orderNo: individualOrderNo,
         uniqueNo,
         uid: String(it.nfc_ndef_data ?? it.uid ?? it.UID ?? sd.nfc_ndef_data ?? sd.uid ?? ""),
-        cpValue: normalizeCpValue(it.cp_value ?? it.cp ?? sd.cp_value ?? sd.cp ?? ""),
+        cpValue: normalizeCpValue(
+          it.cp_value ?? it.cp ?? it.cpValue ?? it.CP ?? it.cp_no ?? it.cpNo ??
+          sd.cp_value ?? sd.cp ?? sd.cpValue ?? sd.CP ?? sd.cp_no ?? sd.cpNo ?? ""
+        ),
         editionNo: String(it.edition ?? it.edition_no ?? sd.edition_no ?? `${idx + 1}`),
         issuedNo: String(it.issued_no ?? sd.issued_no ?? `${idx + 1}`),
         mintedOn: String(it.minted_on ?? sd.minted_on ?? fmtDate(order.created_at)),
@@ -1912,33 +1925,17 @@ function DetailView({
           const nat = svgNaturalSizeMm(svgText);
           const xMm = (cardSize.width - nat.w) / 2;
           const yMm = (cardSize.height - nat.h) / 2;
-          // 우선 벡터로 임베드해서 원본 화질을 그대로 보존한다.
-          // svg2pdf.js 가 <clipPath>/<mask>/<image> 조합에서 실패하는 경우에만 고해상도(1200dpi) 래스터로 폴백한다.
-          const hasClipOrMask = /<(clipPath|mask)\b|clip-path\s*=|mask\s*=/i.test(svgText);
-          let embeddedVector = false;
-          if (!hasClipOrMask) {
-            try {
-              const subBytes = await svgStringToPdfBytes(svgText, nat.w * MM, nat.h * MM);
-              const [embedded] = await out.embedPdf(subBytes, [0]);
-              page.drawPage(embedded, {
-                x: xMm * MM,
-                y: pageHpt - (yMm + nat.h) * MM,
-                width: nat.w * MM,
-                height: nat.h * MM,
-              });
-              embeddedVector = true;
-            } catch (e) { console.warn("svg test image vector embed failed → raster fallback", e); }
-          }
-          if (!embeddedVector) {
-            const pngBytes = await rasterizeSvgToPng(svgText, nat.w, nat.h, 1200);
-            const img = await out.embedPng(pngBytes);
-            page.drawImage(img, {
+          // SVG 테스트 이미지는 항상 벡터로만 임베드한다 (래스터화 금지).
+          try {
+            const subBytes = await svgStringToPdfBytes(svgText, nat.w * MM, nat.h * MM);
+            const [embedded] = await out.embedPdf(subBytes, [0]);
+            page.drawPage(embedded, {
               x: xMm * MM,
               y: pageHpt - (yMm + nat.h) * MM,
               width: nat.w * MM,
               height: nat.h * MM,
             });
-          }
+          } catch (e) { console.warn("svg test image vector embed failed (skipped, no raster fallback)", e); }
         } catch (e) { console.warn("svg test image embed failed", e); }
       } else if (designUrl) {
         try {
@@ -1983,7 +1980,8 @@ function DetailView({
             console.warn("card design render bytes fallback failed", fetchErr);
           }
           if (bgImg) {
-            // cover 배치 — 원본을 카드 크기에 맞게 확대 후 넘치는 영역을 잘라낸다(미리보기와 동일).
+            // cover 배치 — 원본을 카드 크기에 맞게 확대 후 카드(60×90mm) 영역 밖으로 넘치는 부분을
+            // PDF 클리핑 패스로 잘라낸다. (media box 밖으로 이미지가 보이는 문제 방지)
             const targetAspect = pageWpt / pageHpt;
             const srcAspect = iw / ih;
             let drawW = pageWpt, drawH = pageHpt, ox = 0, oy = 0;
@@ -1996,7 +1994,18 @@ function DetailView({
               drawH = pageWpt / srcAspect;
               oy = -(drawH - pageHpt) / 2;
             }
+            page.pushOperators(
+              pushGraphicsState(),
+              moveTo(0, 0),
+              lineTo(pageWpt, 0),
+              lineTo(pageWpt, pageHpt),
+              lineTo(0, pageHpt),
+              closePath(),
+              clip(),
+              endPath(),
+            );
             page.drawImage(bgImg, { x: ox, y: oy, width: drawW, height: drawH });
+            page.pushOperators(popGraphicsState());
           }
         } catch (e) { console.warn("card design render failed", e); }
       }
@@ -2021,33 +2030,17 @@ function DetailView({
           const raw = color ? recolorSvgString(rawSvg, color) : rawSvg;
           const nat = svgNaturalSizeMm(raw);
           const tl = anchorTopLeft(s.x_mm, s.y_mm, nat.w, nat.h, s.anchor);
-          // 기본 도형 옵션은 최대한 벡터 그대로 임베드해 원본 SVG 화질을 보존한다.
-          // svg2pdf.js 가 <clipPath>/<mask>/<image> 등에서 실패할 때만 1200dpi 래스터로 폴백.
-          const hasClipOrMask = /<(clipPath|mask)\b|clip-path\s*=|mask\s*=/i.test(raw);
-          let embeddedVector = false;
-          if (!hasClipOrMask) {
-            try {
-              const subBytes = await svgStringToPdfBytes(raw, nat.w * MM, nat.h * MM);
-              const [embedded] = await out.embedPdf(subBytes, [0]);
-              page.drawPage(embedded, {
-                x: tl.left * MM,
-                y: pageHpt - (tl.top + nat.h) * MM,
-                width: nat.w * MM,
-                height: nat.h * MM,
-              });
-              embeddedVector = true;
-            } catch (e) { console.warn("shape svg vector embed failed → raster fallback", e); }
-          }
-          if (!embeddedVector) {
-            const pngBytes = await rasterizeSvgToPng(raw, nat.w, nat.h, 1200);
-            const img = await out.embedPng(pngBytes);
-            page.drawImage(img, {
+          // 기본 도형 옵션은 항상 벡터(SVG) 그대로 임베드한다. 절대 래스터화하지 않는다.
+          try {
+            const subBytes = await svgStringToPdfBytes(raw, nat.w * MM, nat.h * MM);
+            const [embedded] = await out.embedPdf(subBytes, [0]);
+            page.drawPage(embedded, {
               x: tl.left * MM,
               y: pageHpt - (tl.top + nat.h) * MM,
               width: nat.w * MM,
               height: nat.h * MM,
             });
-          }
+          } catch (e) { console.warn("shape svg vector embed failed (skipped, no raster fallback)", e); }
         } catch (e) { console.warn("shape svg embed failed", e); }
       }
 
@@ -2062,7 +2055,8 @@ function DetailView({
 
         // ===== Twincode (SVG vector) =====
         if (key === "twincode") {
-          const twincodeUrl = testTwincodeSvg?.url || card.twincodeSvgUrl;
+          // 주문 데이터가 최우선. 주문에 twincode SVG가 있으면 테스트 파일은 무시한다.
+          const twincodeUrl = card.twincodeSvgUrl || testTwincodeSvg?.url || null;
           if (!twincodeUrl) continue;
           try {
             // 흰색 박스 배경 (기존 미리보기/PDF와 동일)
@@ -2099,9 +2093,11 @@ function DetailView({
 
         // ===== Signature (SVG vector if available, otherwise PNG/JPEG raster) =====
         if (key === "signature") {
-          const sigUrl = testSignature?.url || card.signatureUrl;
+          // 주문 데이터가 최우선. 주문에 서명 파일이 있으면 테스트 파일은 무시한다.
+          const usingOrderSig = !!card.signatureUrl;
+          const sigUrl = card.signatureUrl || testSignature?.url || null;
           if (!sigUrl) continue;
-          const isSvg = /\.svg(\?|$)/i.test(sigUrl) || (testSignature?.name || "").toLowerCase().endsWith(".svg");
+          const isSvg = /\.svg(\?|$)/i.test(sigUrl) || (!usingOrderSig && (testSignature?.name || "").toLowerCase().endsWith(".svg"));
           try {
             if (isSvg) {
               // 벡터 임베드 — Vectorizer.AI로 변환된 SVG를 그대로 PDF에 벡터로 박는다
