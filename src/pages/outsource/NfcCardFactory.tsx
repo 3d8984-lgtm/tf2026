@@ -1785,6 +1785,7 @@ function DetailView({
           });
           if (v.masterFont && FONT_OPTIONS.some(f => f.id === v.masterFont)) setMasterFont(v.masterFont);
           if (typeof v.masterFontWeight === "number") setMasterFontWeight(v.masterFontWeight);
+          if (typeof v.useTestData === "boolean") setUseTestData(v.useTestData);
           break;
         }
       }
