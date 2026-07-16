@@ -1302,7 +1302,9 @@ function DetailView({
         issuedByUrl: it.sign_url ?? it.issued_by_url ?? sd.sign_url ?? sd.issued_by_url ?? null,
         twincode: String(it.twincode ?? it.twin_code ?? it.twincode_no ?? sd.twincode ?? sd.twin_code ?? ""),
         twincodeSvgUrl: it.twincode_svg_url ?? it.svg_url ?? sd.twincode_svg_url ?? null,
-        signatureUrl: it.signature_url ?? it.signature_svg_url ?? sd.signature_url ?? sd.signature_svg_url ?? null,
+        signatureUrl:
+          it.signature_url ?? it.signature_svg_url ?? it.sign_url ?? it.sign_svg_url ?? it.signature ?? it.sign ??
+          sd.signature_url ?? sd.signature_svg_url ?? sd.sign_url ?? sd.sign_svg_url ?? sd.signature ?? sd.sign ?? null,
         // 앞면 배경은 GFT 원본 이미지(엑셀 Y열)를 최우선으로 사용한다.
         // card_front_url 은 디자인 템플릿(참고용)이므로 GFT 가 없을 때만 폴백으로 사용.
         frontImageUrl: it.gft_original_image_url ?? sd.gft_original_image_url ?? it.card_front_url ?? sd.card_front_url ?? null,
