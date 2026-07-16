@@ -2381,10 +2381,10 @@ function DetailView({
                 <TabsTrigger value="back">카드 뒷면 ({cards.length})</TabsTrigger>
               </TabsList>
               <TabsContent value="front" className="flex-1 overflow-auto pt-3">
-                <CardThumbGrid cards={cards} side="front" testImageUrl={testImages.front?.url || null} />
+                <CardThumbGrid cards={cards} side="front" testImageUrl={effTestFront?.url || null} />
               </TabsContent>
               <TabsContent value="back" className="flex-1 overflow-auto pt-3">
-                <CardThumbGrid cards={cards} side="back" testImageUrl={testBackImagesByGrade.COMMON?.url || testImages.back?.url || null} backImagesByGrade={testBackImagesByGrade} />
+                <CardThumbGrid cards={cards} side="back" testImageUrl={useTestData ? (testBackImagesByGrade.COMMON?.url || testImages.back?.url || null) : null} backImagesByGrade={useTestData ? testBackImagesByGrade : { COMMON: null, RARE: null, EPIC: null, LEGEND: null }} />
               </TabsContent>
             </Tabs>
             <DialogFooter>
