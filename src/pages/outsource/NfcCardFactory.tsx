@@ -1339,6 +1339,12 @@ function DetailView({
     address: "山东省 青岛市 城阳区 青岛市城阳区流亭街道杨埠寨社区工业园6号厂房东侧1楼 TWINMETA",
     notes: "",
   });
+  const [excelList, setExcelList] = useState({
+    colAHeader: "고유번호",
+    colAField: "uniqueNo",
+    colBHeader: "EDITION",
+    colBField: "editionNo",
+  });
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
