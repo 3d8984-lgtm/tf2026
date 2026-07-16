@@ -2364,7 +2364,10 @@ function DetailView({
     setBusy(true);
     try {
       const bytes = await buildCardPdfBytes(card);
-      downloadBlob(bytes, `${card.uniqueNo}.pdf`);
+      const editionRaw = (card.editionNo ?? "").toString();
+      const editionClean = editionRaw.replace(/[^A-Za-z0-9가-힣]+/g, "_").replace(/^_+|_+$/g, "");
+      const base = editionClean || card.uniqueNo;
+      downloadBlob(bytes, `${base}.pdf`);
     } catch (e: any) {
       toast({ title: "PDF 생성 실패", description: e.message, variant: "destructive" });
     } finally { setBusy(false); }
