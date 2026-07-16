@@ -2822,7 +2822,7 @@ function DetailView({
                         side="front"
                         card={c}
                         cardSize={cardSize}
-                        testImageUrl={testImages.front?.url || null}
+                        testImageUrl={effTestFront?.url || null}
                         layout={layoutFront}
                         keys={FRONT_KEYS}
                         shapeOptions={resolveShapeOptions(c.grade)}
@@ -2833,9 +2833,9 @@ function DetailView({
                         side="back"
                         card={c}
                         cardSize={cardSize}
-                        testImageUrl={resolveTestBackAsset(c.grade)?.url || null}
-                        testTwincodeUrl={testTwincodeSvg?.url || null}
-                        testSignatureUrl={testSignature?.url || null}
+                        testImageUrl={effResolveTestBackAsset(c.grade)?.url || null}
+                        testTwincodeUrl={effTestTwincode?.url || null}
+                        testSignatureUrl={effTestSignature?.url || null}
                         layout={layoutBack}
                         keys={BACK_KEYS}
                         backDefaults={backDefaults}
