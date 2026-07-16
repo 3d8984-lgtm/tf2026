@@ -1983,20 +1983,58 @@ function DetailView({
             console.warn("card design render bytes fallback failed", fetchErr);
           }
           if (bgImg) {
-            // cover 배치 — 원본을 카드 크기에 맞게 확대 후 넘치는 영역을 잘라낸다(미리보기와 동일).
+            // cover 배치 — 원본을 카드 크기(60x90mm)로 사전 크롭하여 임베드한다.
+            // (PDF viewer 는 MediaBox 로 클리핑하지만, Illustrator/Photoshop 등 편집 도구에서는
+            //  캔버스 밖 픽셀이 그대로 노출되어 카드 밖으로 이미지가 삐져나온다. 이를 방지하기 위해
+            //  임베드 전에 원본 해상도 그대로 캔버스에서 크롭한 뒤 PNG 로 재임베드한다.)
             const targetAspect = pageWpt / pageHpt;
             const srcAspect = iw / ih;
-            let drawW = pageWpt, drawH = pageHpt, ox = 0, oy = 0;
+            let sx = 0, sy = 0, sw = iw, sh = ih;
             if (srcAspect > targetAspect) {
-              drawH = pageHpt;
-              drawW = pageHpt * srcAspect;
-              ox = -(drawW - pageWpt) / 2;
+              sw = Math.round(ih * targetAspect);
+              sx = Math.round((iw - sw) / 2);
             } else if (srcAspect < targetAspect) {
-              drawW = pageWpt;
-              drawH = pageWpt / srcAspect;
-              oy = -(drawH - pageHpt) / 2;
+              sh = Math.round(iw / targetAspect);
+              sy = Math.round((ih - sh) / 2);
             }
-            page.drawImage(bgImg, { x: ox, y: oy, width: drawW, height: drawH });
+            if (sx === 0 && sy === 0 && sw === iw && sh === ih) {
+              // 이미 카드 비율과 일치 → 원본 그대로 임베드 (재인코딩 손실 없음)
+              page.drawImage(bgImg, { x: 0, y: 0, width: pageWpt, height: pageHpt });
+            } else {
+              try {
+                const objUrl2 = URL.createObjectURL(
+                  new Blob([(await fetchImageBytesAnyOrigin(designUrl)).bytes as BlobPart]),
+                );
+                let croppedBytes: Uint8Array | null = null;
+                try {
+                  const img2 = await loadImage(objUrl2, null);
+                  const cc = document.createElement("canvas");
+                  cc.width = sw;
+                  cc.height = sh;
+                  const ctx = cc.getContext("2d")!;
+                  ctx.drawImage(img2, sx, sy, sw, sh, 0, 0, sw, sh);
+                  croppedBytes = await canvasToPngBytes(cc);
+                } finally {
+                  URL.revokeObjectURL(objUrl2);
+                }
+                if (croppedBytes) {
+                  const cropped = await out.embedPng(croppedBytes);
+                  page.drawImage(cropped, { x: 0, y: 0, width: pageWpt, height: pageHpt });
+                }
+              } catch (cropErr) {
+                console.warn("card design crop failed → fallback to raw cover draw", cropErr);
+                // 최후 폴백: 원본 그대로 cover (PDF viewer 는 MediaBox 로 자동 클리핑)
+                let drawW = pageWpt, drawH = pageHpt, ox = 0, oy = 0;
+                if (srcAspect > targetAspect) {
+                  drawW = pageHpt * srcAspect;
+                  ox = -(drawW - pageWpt) / 2;
+                } else if (srcAspect < targetAspect) {
+                  drawH = pageWpt / srcAspect;
+                  oy = -(drawH - pageHpt) / 2;
+                }
+                page.drawImage(bgImg, { x: ox, y: oy, width: drawW, height: drawH });
+              }
+            }
           }
         } catch (e) { console.warn("card design render failed", e); }
       }
@@ -2021,25 +2059,23 @@ function DetailView({
           const raw = color ? recolorSvgString(rawSvg, color) : rawSvg;
           const nat = svgNaturalSizeMm(raw);
           const tl = anchorTopLeft(s.x_mm, s.y_mm, nat.w, nat.h, s.anchor);
-          // 기본 도형 옵션은 최대한 벡터 그대로 임베드해 원본 SVG 화질을 보존한다.
-          // svg2pdf.js 가 <clipPath>/<mask>/<image> 등에서 실패할 때만 1200dpi 래스터로 폴백.
-          const hasClipOrMask = /<(clipPath|mask)\b|clip-path\s*=|mask\s*=/i.test(raw);
+          // 기본 도형 옵션은 업로드된 SVG 를 벡터 그대로 임베드해야 한다 (확대 시 픽셀화 방지).
+          // clipPath/mask 를 포함해도 우선 벡터 임베드를 시도하고, 실제 실패 시에만 초고해상도 래스터로 폴백한다.
           let embeddedVector = false;
-          if (!hasClipOrMask) {
-            try {
-              const subBytes = await svgStringToPdfBytes(raw, nat.w * MM, nat.h * MM);
-              const [embedded] = await out.embedPdf(subBytes, [0]);
-              page.drawPage(embedded, {
-                x: tl.left * MM,
-                y: pageHpt - (tl.top + nat.h) * MM,
-                width: nat.w * MM,
-                height: nat.h * MM,
-              });
-              embeddedVector = true;
-            } catch (e) { console.warn("shape svg vector embed failed → raster fallback", e); }
-          }
+          try {
+            const subBytes = await svgStringToPdfBytes(raw, nat.w * MM, nat.h * MM);
+            const [embedded] = await out.embedPdf(subBytes, [0]);
+            page.drawPage(embedded, {
+              x: tl.left * MM,
+              y: pageHpt - (tl.top + nat.h) * MM,
+              width: nat.w * MM,
+              height: nat.h * MM,
+            });
+            embeddedVector = true;
+          } catch (e) { console.warn("shape svg vector embed failed → raster fallback", e); }
           if (!embeddedVector) {
-            const pngBytes = await rasterizeSvgToPng(raw, nat.w, nat.h, 1200);
+            // 벡터 임베드 실패 시 2400dpi 래스터로 폴백 (일반적인 확대 배율에서도 픽셀 인지 최소화).
+            const pngBytes = await rasterizeSvgToPng(raw, nat.w, nat.h, 2400);
             const img = await out.embedPng(pngBytes);
             page.drawImage(img, {
               x: tl.left * MM,
@@ -2200,7 +2236,7 @@ function DetailView({
       const zip = new JSZip();
       const used = new Map<string, number>();
       for (const card of cards) {
-        const bytes = await buildCardPdfBytes(card);
+        const bytes = await buildCardPdfBytes(applyTestValues(card, testValues) || card);
         const base = card.uniqueNo;
         const n = used.get(base) || 0;
         const fname = n === 0 ? `${base}.pdf` : `${base}(${n}).pdf`;
@@ -2244,16 +2280,18 @@ function DetailView({
 
       for (let i = 0; i < cards.length; i++) {
         const card = cards[i];
+        // 실주문 값 우선, 비어있으면 테스트값을 폴백으로 사용해 CP/에디션/발행번호 누락으로 인한 공란을 방지.
+        const effective = applyTestValues(card, testValues) || card;
         const base = card.uniqueNo || `card-${i + 1}`;
 
         setFinalizeProgress({ stage: `카드 앞면 PDF (${i + 1}/${total})`, current: i + 1, total });
-        const frontBytes = await buildCardPdfBytes(card, { sides: ["front"] });
+        const frontBytes = await buildCardPdfBytes(effective, { sides: ["front"] });
         const nf = usedFront.get(base) || 0;
         frontDir.file(nf === 0 ? `${base}.pdf` : `${base}(${nf}).pdf`, frontBytes);
         usedFront.set(base, nf + 1);
 
         setFinalizeProgress({ stage: `카드 뒷면 PDF (${i + 1}/${total})`, current: i + 1, total });
-        const backBytes = await buildCardPdfBytes(card, { sides: ["back"] });
+        const backBytes = await buildCardPdfBytes(effective, { sides: ["back"] });
         const nb = usedBack.get(base) || 0;
         backDir.file(nb === 0 ? `${base}.pdf` : `${base}(${nb}).pdf`, backBytes);
         usedBack.set(base, nb + 1);
