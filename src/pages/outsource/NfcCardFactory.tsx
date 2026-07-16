@@ -3059,6 +3059,19 @@ function DetailView({
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={!!twincodePreviewUrl} onOpenChange={(o) => !o && setTwincodePreviewUrl(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>트윈코드</DialogTitle>
+          </DialogHeader>
+          {twincodePreviewUrl && (
+            <div className="flex items-center justify-center p-4 bg-white rounded">
+              <img src={twincodePreviewUrl} alt="트윈코드" className="max-w-full max-h-[70vh] object-contain" />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
