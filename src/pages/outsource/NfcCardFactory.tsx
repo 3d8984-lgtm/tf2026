@@ -2281,14 +2281,44 @@ function DetailView({
               const baselineYpt = topYpt - ascentPt;
               drawTextAsOutline(page, f, txt, drawXpt, baselineYpt, fontSizePt, rgb(0, 0, 0));
             };
+            let rendered = false;
             try {
               drawWith(otf);
+              rendered = true;
             } catch (e) {
-              // Chosen font's GSUB/lookup subformat unsupported by opentype.js → render with Spoqa fallback so text is never empty.
+              // Chosen font's GSUB/lookup subformat unsupported by opentype.js → render with Spoqa outline fallback.
               console.warn(`outline render failed for ${key}, falling back to Spoqa`, e);
-              const fbBytes = await loadSpoqaFontBytes(weight);
-              const fb = await loadOpentypeFont(fbBytes, `spoqa-${weight}`);
-              drawWith(fb);
+              try {
+                const fbBytes = await loadSpoqaFontBytes(weight);
+                const fb = await loadOpentypeFont(fbBytes, `spoqa-${weight}`);
+                drawWith(fb);
+                rendered = true;
+              } catch (e2) {
+                console.warn(`Spoqa outline fallback failed for ${key}`, e2);
+              }
+            }
+            if (!rendered) {
+              // Ultimate fallback: embed Spoqa via pdf-lib fontkit and use page.drawText.
+              // opentype.js can crash on certain glyphs (e.g. space in some builds) with
+              // "Cannot read properties of undefined (reading 'toString')" — pdf-lib's own
+              // shaper handles those correctly so text is never dropped from the PDF.
+              try {
+                const fbBytes = await loadSpoqaFontBytes(weight);
+                const embedded = await out.embedFont(fbBytes, { subset: true });
+                const glyphWidthPt = embedded.widthOfTextAtSize(txt, fontSizePt);
+                const boxWpt = autoWmm * MM;
+                const align = getAlign(key, cfg);
+                let drawXpt = tl2.left * MM;
+                if (align === "center") drawXpt += (boxWpt - glyphWidthPt) / 2;
+                else if (align === "right") drawXpt += boxWpt - glyphWidthPt;
+                const ascentPt = embedded.heightAtSize(fontSizePt, { descender: false });
+                const topYpt = pageHpt - tl2.top * MM;
+                const baselineYpt = topYpt - ascentPt;
+                page.drawText(txt, { x: drawXpt, y: baselineYpt, size: fontSizePt, font: embedded, color: rgb(0, 0, 0) });
+                rendered = true;
+              } catch (e3) {
+                console.warn(`pdf-lib embedFont fallback failed for ${key}`, e3);
+              }
             }
           } catch (e) {
             console.warn(`text outline draw failed for ${key}`, e);
