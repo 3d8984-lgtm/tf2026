@@ -1088,7 +1088,6 @@ export default function NfcCardFactory() {
   const { user } = useAuth();
   const { data: ordersData, isLoading, isFetching, error: ordersError, refetch: refetchOrders } = useOrders();
   const [detailOrderNo, setDetailOrderNo] = useState<string | null>(null);
-  const [twincodePreviewUrl, setTwincodePreviewUrl] = useState<string | null>(null);
   const [cardSize, setCardSize] = useState<CardSize>(DEFAULT_CARD_SIZE);
   const [sizeDraft, setSizeDraft] = useState<{ width: string; height: string }>({
     width: String(DEFAULT_CARD_SIZE.width),
