@@ -2180,18 +2180,40 @@ function DetailView({
           const sigUrl = orderSigUrl || effTestSignature?.url || null;
           if (!sigUrl) continue;
           const lower = sigUrl.toLowerCase().split("?")[0];
-          const isSvg = lower.endsWith(".svg") || (!usingOrderSig && (effTestSignature?.name || "").toLowerCase().endsWith(".svg"));
+          const nameLooksSvg = !usingOrderSig && (effTestSignature?.name || "").toLowerCase().endsWith(".svg");
           let embedded = false;
-          if (isSvg) {
-            try {
-              const svgStr = await fetchSvgString(sigUrl);
-              await embedSvgVector(page, svgStr, xMm, yMm, cfg.w, cfg.h, cfg.sizeAnchor ?? "mc");
-              embedded = true;
-            } catch (e) { console.warn("signature svg embed fail, will try raster", e); }
-          }
-          if (!embedded) {
-            try {
-              const pngBytes = await urlToPngBytes(sigUrl);
+          try {
+            const { bytes, contentType } = await fetchImageBytesAnyOrigin(sigUrl);
+            const mime = inferImageMime(sigUrl, bytes, contentType);
+            const isSvg = mime.includes("svg") || lower.endsWith(".svg") || nameLooksSvg;
+            if (isSvg) {
+              try {
+                const svgStr = new TextDecoder().decode(bytes).replace(/^\uFEFF/, "");
+                await embedSvgVector(page, svgStr, xMm, yMm, cfg.w, cfg.h, cfg.sizeAnchor ?? "mc");
+                embedded = true;
+              } catch (e) { console.warn("signature svg embed fail, will try raster", e); }
+            }
+            if (!embedded) {
+              let pngBytes: Uint8Array;
+              if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+                pngBytes = bytes;
+              } else {
+                const blob = new Blob([bytes as BlobPart], { type: mime });
+                const objUrl = URL.createObjectURL(blob);
+                try {
+                  const img0 = await new Promise<HTMLImageElement>((resolve, reject) => {
+                    const i = new Image();
+                    i.onload = () => resolve(i);
+                    i.onerror = () => reject(new Error("img decode failed"));
+                    i.src = objUrl;
+                  });
+                  const c = document.createElement("canvas");
+                  c.width = img0.naturalWidth || 400;
+                  c.height = img0.naturalHeight || 400;
+                  c.getContext("2d")!.drawImage(img0, 0, 0);
+                  pngBytes = await canvasToPngBytes(c);
+                } finally { URL.revokeObjectURL(objUrl); }
+              }
               const sigImg = await out.embedPng(pngBytes);
               const iw = sigImg.width;
               const ih = sigImg.height;
@@ -2209,8 +2231,9 @@ function DetailView({
                 width: drawWmm * MM,
                 height: drawHmm * MM,
               });
-            } catch (e) { console.warn("signature raster embed fail", e); }
-          }
+              embedded = true;
+            }
+          } catch (e) { console.warn("signature embed failed entirely", e); }
           continue;
         }
 
