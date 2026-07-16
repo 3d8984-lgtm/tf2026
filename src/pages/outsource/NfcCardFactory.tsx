@@ -1301,7 +1301,9 @@ function DetailView({
         backIconColor: String(it.card_back_icon_color ?? sd.card_back_icon_color ?? ""),
         issuedByUrl: it.sign_url ?? it.issued_by_url ?? sd.sign_url ?? sd.issued_by_url ?? null,
         twincode: String(it.twincode ?? it.twin_code ?? it.twincode_no ?? sd.twincode ?? sd.twin_code ?? ""),
-        twincodeSvgUrl: it.twincode_svg_url ?? it.svg_url ?? sd.twincode_svg_url ?? null,
+        twincodeSvgUrl:
+          it.twincode_svg_url ?? it.twincode_url ?? it.svg_url ?? it.twin_svg_url ?? it.twincode_svg ??
+          sd.twincode_svg_url ?? sd.twincode_url ?? sd.svg_url ?? sd.twin_svg_url ?? sd.twincode_svg ?? null,
         signatureUrl:
           it.signature_url ?? it.signature_svg_url ?? it.sign_url ?? it.sign_svg_url ?? it.signature ?? it.sign ??
           sd.signature_url ?? sd.signature_svg_url ?? sd.sign_url ?? sd.sign_svg_url ?? sd.signature ?? sd.sign ?? null,
