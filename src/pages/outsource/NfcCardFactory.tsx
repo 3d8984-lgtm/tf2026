@@ -2430,6 +2430,25 @@ function DetailView({
       const woBytes = await renderHtmlToPdfBytesA4(workOrderHtml);
       zip.file("작업지시서.pdf", woBytes);
 
+      // 카드 목록 엑셀 (A/B 열 사용자 설정)
+      try {
+        const XLSX = await import("xlsx");
+        const rows = [
+          [excelList.colAHeader || "", excelList.colBHeader || ""],
+          ...cards.map((c) => [
+            String((c as any)[excelList.colAField] ?? ""),
+            String((c as any)[excelList.colBField] ?? ""),
+          ]),
+        ];
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "카드목록");
+        const xlsxBuf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+        zip.file("카드목록.xlsx", xlsxBuf);
+      } catch (e) {
+        console.error("[NfcCard] excel gen failed", e);
+      }
+
       const frontDir = zip.folder("카드 앞면")!;
       const backDir = zip.folder("카드 뒷면")!;
       const usedFront = new Map<string, number>();
