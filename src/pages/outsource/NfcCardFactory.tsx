@@ -941,6 +941,19 @@ interface CardData {
   gftOriginalUrl: string | null; // GFT 원본 이미지 (엑셀 Y열)
 }
 
+const EXCEL_FIELD_OPTIONS: { value: string; label: string }[] = [
+  { value: "uniqueNo", label: "카드 고유번호 (uniqueNo)" },
+  { value: "editionNo", label: "EDITION No." },
+  { value: "cpValue", label: "CP값" },
+  { value: "issuedNo", label: "발행번호 (issuedNo)" },
+  { value: "mintedOn", label: "발행일 (mintedOn)" },
+  { value: "grade", label: "등급 (grade)" },
+  { value: "uid", label: "NFC UID" },
+  { value: "twincode", label: "트윈코드 (twincode)" },
+  { value: "orderNo", label: "주문번호 (orderNo)" },
+  { value: "seq", label: "순번 (seq)" },
+];
+
 
 
 
