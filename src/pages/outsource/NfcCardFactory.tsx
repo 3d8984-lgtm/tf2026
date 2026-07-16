@@ -1785,6 +1785,7 @@ function DetailView({
           if (v.layoutFront) setLayoutFront(prev => ({ ...prev, ...v.layoutFront }));
           if (v.layoutBack)  setLayoutBack(prev => ({ ...prev, ...v.layoutBack }));
           if (v.workOrder)   setWorkOrder(prev => ({ ...prev, ...v.workOrder, orderNo }));
+          if (v.excelList)   setExcelList(prev => ({ ...prev, ...v.excelList }));
           if (v.testValues)  setTestValues(prev => ({ ...prev, ...v.testValues }));
           if (v.backDefaults) setBackDefaults(prev => ({ ...prev, ...v.backDefaults }));
           if (v.shapeOptions) setShapeOptions(prev => mergeShapeOptions(prev, v.shapeOptions));
