@@ -1273,6 +1273,7 @@ function DetailView({
   onBack: () => void;
   userId?: string;
 }) {
+  const [twincodePreviewUrl, setTwincodePreviewUrl] = useState<string | null>(null);
   // Build cards array from order
   const cards: CardData[] = useMemo(() => {
     if (!order) return [];
