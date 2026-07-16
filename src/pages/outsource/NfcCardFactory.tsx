@@ -2030,33 +2030,17 @@ function DetailView({
           const raw = color ? recolorSvgString(rawSvg, color) : rawSvg;
           const nat = svgNaturalSizeMm(raw);
           const tl = anchorTopLeft(s.x_mm, s.y_mm, nat.w, nat.h, s.anchor);
-          // 기본 도형 옵션은 최대한 벡터 그대로 임베드해 원본 SVG 화질을 보존한다.
-          // svg2pdf.js 가 <clipPath>/<mask>/<image> 등에서 실패할 때만 1200dpi 래스터로 폴백.
-          const hasClipOrMask = /<(clipPath|mask)\b|clip-path\s*=|mask\s*=/i.test(raw);
-          let embeddedVector = false;
-          if (!hasClipOrMask) {
-            try {
-              const subBytes = await svgStringToPdfBytes(raw, nat.w * MM, nat.h * MM);
-              const [embedded] = await out.embedPdf(subBytes, [0]);
-              page.drawPage(embedded, {
-                x: tl.left * MM,
-                y: pageHpt - (tl.top + nat.h) * MM,
-                width: nat.w * MM,
-                height: nat.h * MM,
-              });
-              embeddedVector = true;
-            } catch (e) { console.warn("shape svg vector embed failed → raster fallback", e); }
-          }
-          if (!embeddedVector) {
-            const pngBytes = await rasterizeSvgToPng(raw, nat.w, nat.h, 1200);
-            const img = await out.embedPng(pngBytes);
-            page.drawImage(img, {
+          // 기본 도형 옵션은 항상 벡터(SVG) 그대로 임베드한다. 절대 래스터화하지 않는다.
+          try {
+            const subBytes = await svgStringToPdfBytes(raw, nat.w * MM, nat.h * MM);
+            const [embedded] = await out.embedPdf(subBytes, [0]);
+            page.drawPage(embedded, {
               x: tl.left * MM,
               y: pageHpt - (tl.top + nat.h) * MM,
               width: nat.w * MM,
               height: nat.h * MM,
             });
-          }
+          } catch (e) { console.warn("shape svg vector embed failed (skipped, no raster fallback)", e); }
         } catch (e) { console.warn("shape svg embed failed", e); }
       }
 
