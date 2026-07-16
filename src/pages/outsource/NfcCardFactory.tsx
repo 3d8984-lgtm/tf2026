@@ -2059,25 +2059,23 @@ function DetailView({
           const raw = color ? recolorSvgString(rawSvg, color) : rawSvg;
           const nat = svgNaturalSizeMm(raw);
           const tl = anchorTopLeft(s.x_mm, s.y_mm, nat.w, nat.h, s.anchor);
-          // 기본 도형 옵션은 최대한 벡터 그대로 임베드해 원본 SVG 화질을 보존한다.
-          // svg2pdf.js 가 <clipPath>/<mask>/<image> 등에서 실패할 때만 1200dpi 래스터로 폴백.
-          const hasClipOrMask = /<(clipPath|mask)\b|clip-path\s*=|mask\s*=/i.test(raw);
+          // 기본 도형 옵션은 업로드된 SVG 를 벡터 그대로 임베드해야 한다 (확대 시 픽셀화 방지).
+          // clipPath/mask 를 포함해도 우선 벡터 임베드를 시도하고, 실제 실패 시에만 초고해상도 래스터로 폴백한다.
           let embeddedVector = false;
-          if (!hasClipOrMask) {
-            try {
-              const subBytes = await svgStringToPdfBytes(raw, nat.w * MM, nat.h * MM);
-              const [embedded] = await out.embedPdf(subBytes, [0]);
-              page.drawPage(embedded, {
-                x: tl.left * MM,
-                y: pageHpt - (tl.top + nat.h) * MM,
-                width: nat.w * MM,
-                height: nat.h * MM,
-              });
-              embeddedVector = true;
-            } catch (e) { console.warn("shape svg vector embed failed → raster fallback", e); }
-          }
+          try {
+            const subBytes = await svgStringToPdfBytes(raw, nat.w * MM, nat.h * MM);
+            const [embedded] = await out.embedPdf(subBytes, [0]);
+            page.drawPage(embedded, {
+              x: tl.left * MM,
+              y: pageHpt - (tl.top + nat.h) * MM,
+              width: nat.w * MM,
+              height: nat.h * MM,
+            });
+            embeddedVector = true;
+          } catch (e) { console.warn("shape svg vector embed failed → raster fallback", e); }
           if (!embeddedVector) {
-            const pngBytes = await rasterizeSvgToPng(raw, nat.w, nat.h, 1200);
+            // 벡터 임베드 실패 시 2400dpi 래스터로 폴백 (일반적인 확대 배율에서도 픽셀 인지 최소화).
+            const pngBytes = await rasterizeSvgToPng(raw, nat.w, nat.h, 2400);
             const img = await out.embedPng(pngBytes);
             page.drawImage(img, {
               x: tl.left * MM,
