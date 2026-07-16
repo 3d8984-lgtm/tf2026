@@ -2236,7 +2236,7 @@ function DetailView({
       const zip = new JSZip();
       const used = new Map<string, number>();
       for (const card of cards) {
-        const bytes = await buildCardPdfBytes(card);
+        const bytes = await buildCardPdfBytes(applyTestValues(card, testValues) || card);
         const base = card.uniqueNo;
         const n = used.get(base) || 0;
         const fname = n === 0 ? `${base}.pdf` : `${base}(${n}).pdf`;
