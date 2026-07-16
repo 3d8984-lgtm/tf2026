@@ -2382,7 +2382,7 @@ function DetailView({
         const card = cards[i];
         const bytes = await buildCardPdfBytes(card);
         const editionRaw = (card.editionNo ?? "").toString();
-        const editionClean = editionRaw.replace(/[^A-Za-z0-9가-힣]+/g, "");
+        const editionClean = editionRaw.replace(/[^A-Za-z0-9가-힣]+/g, "_").replace(/^_+|_+$/g, "");
         const base = editionClean || `card-${i + 1}`;
         const n = used.get(base) || 0;
         const fname = n === 0 ? `${base}.pdf` : `${base}(${n}).pdf`;
