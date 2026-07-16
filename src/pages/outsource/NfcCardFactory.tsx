@@ -2055,7 +2055,8 @@ function DetailView({
 
         // ===== Twincode (SVG vector) =====
         if (key === "twincode") {
-          const twincodeUrl = testTwincodeSvg?.url || card.twincodeSvgUrl;
+          // 주문 데이터가 최우선. 주문에 twincode SVG가 있으면 테스트 파일은 무시한다.
+          const twincodeUrl = card.twincodeSvgUrl || testTwincodeSvg?.url || null;
           if (!twincodeUrl) continue;
           try {
             // 흰색 박스 배경 (기존 미리보기/PDF와 동일)
