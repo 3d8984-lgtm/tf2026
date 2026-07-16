@@ -3043,7 +3043,7 @@ function DetailView({
                     </TableCell>
                     <TableCell>
                       {c.twincodeSvgUrl
-                        ? <a href={c.twincodeSvgUrl} target="_blank" rel="noopener noreferrer"><img src={c.twincodeSvgUrl} alt="" className="w-8 h-8 object-contain border rounded bg-white" /></a>
+                        ? <button type="button" onClick={() => setTwincodePreviewUrl(c.twincodeSvgUrl!)} className="cursor-zoom-in"><img src={c.twincodeSvgUrl} alt="" className="w-8 h-8 object-contain border rounded bg-white" /></button>
                         : <span className="text-xs text-muted-foreground">-</span>}
                     </TableCell>
                     <TableCell><DmThumb text={c.uniqueNo} /></TableCell>
