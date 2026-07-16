@@ -2621,21 +2621,87 @@ function DetailView({
               </div>
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <TxtField label="발주업체명" v={workOrder.company} set={v => setWorkOrder(p => ({ ...p, company: v }))} />
-            <TxtField label="작업번호" v={workOrder.orderNo} set={v => setWorkOrder(p => ({ ...p, orderNo: v }))} />
-            <TxtField label="총수량" type="number" v={String(workOrder.quantity)} set={v => setWorkOrder(p => ({ ...p, quantity: Number(v) || 0 }))} />
-            <TxtField label="발주일" type="date" v={workOrder.orderDate} set={v => setWorkOrder(p => ({ ...p, orderDate: v }))} />
-            <TxtField label="납품일" type="date" v={workOrder.deliveryDate} set={v => setWorkOrder(p => ({ ...p, deliveryDate: v }))} />
-            <TxtField label="받을사람" v={workOrder.recipient} set={v => setWorkOrder(p => ({ ...p, recipient: v }))} />
-            <TxtField label="전화번호" v={workOrder.phone} set={v => setWorkOrder(p => ({ ...p, phone: v }))} />
-            <div className="md:col-span-2">
-              <TxtField label="주소" v={workOrder.address} set={v => setWorkOrder(p => ({ ...p, address: v }))} />
-            </div>
-            <div className="md:col-span-3 space-y-1">
-              <Label className="text-xs">발주특이사항</Label>
-              <Textarea value={workOrder.notes} onChange={e => setWorkOrder(p => ({ ...p, notes: e.target.value }))} rows={2} />
-            </div>
+          <CardContent>
+            <Tabs defaultValue="wo">
+              <TabsList>
+                <TabsTrigger value="wo">작업지시서</TabsTrigger>
+                <TabsTrigger value="excel">엑셀리스트</TabsTrigger>
+              </TabsList>
+              <TabsContent value="wo" className="pt-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <TxtField label="발주업체명" v={workOrder.company} set={v => setWorkOrder(p => ({ ...p, company: v }))} />
+                  <TxtField label="작업번호" v={workOrder.orderNo} set={v => setWorkOrder(p => ({ ...p, orderNo: v }))} />
+                  <TxtField label="총수량" type="number" v={String(workOrder.quantity)} set={v => setWorkOrder(p => ({ ...p, quantity: Number(v) || 0 }))} />
+                  <TxtField label="발주일" type="date" v={workOrder.orderDate} set={v => setWorkOrder(p => ({ ...p, orderDate: v }))} />
+                  <TxtField label="납품일" type="date" v={workOrder.deliveryDate} set={v => setWorkOrder(p => ({ ...p, deliveryDate: v }))} />
+                  <TxtField label="받을사람" v={workOrder.recipient} set={v => setWorkOrder(p => ({ ...p, recipient: v }))} />
+                  <TxtField label="전화번호" v={workOrder.phone} set={v => setWorkOrder(p => ({ ...p, phone: v }))} />
+                  <div className="md:col-span-2">
+                    <TxtField label="주소" v={workOrder.address} set={v => setWorkOrder(p => ({ ...p, address: v }))} />
+                  </div>
+                  <div className="md:col-span-3 space-y-1">
+                    <Label className="text-xs">발주특이사항</Label>
+                    <Textarea value={workOrder.notes} onChange={e => setWorkOrder(p => ({ ...p, notes: e.target.value }))} rows={2} />
+                  </div>
+                </div>
+              </TabsContent>
+              <TabsContent value="excel" className="pt-3 space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  발주(ZIP 다운로드) 시 작업지시서.pdf와 함께 <span className="font-mono">카드목록.xlsx</span> 파일이 포함됩니다. A/B 열의 헤더명과 각 열에 채워질 카드 데이터 필드를 지정하세요.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {(["A", "B"] as const).map((col) => {
+                    const headerKey = col === "A" ? "colAHeader" : "colBHeader";
+                    const fieldKey = col === "A" ? "colAField" : "colBField";
+                    return (
+                      <div key={col} className="border rounded-md p-3 space-y-2">
+                        <div className="text-xs font-semibold">{col}열</div>
+                        <TxtField
+                          label="헤더 이름"
+                          v={(excelList as any)[headerKey]}
+                          set={v => setExcelList(p => ({ ...p, [headerKey]: v }))}
+                        />
+                        <div className="space-y-1">
+                          <Label className="text-xs">데이터 필드</Label>
+                          <Select
+                            value={(excelList as any)[fieldKey]}
+                            onValueChange={v => setExcelList(p => ({ ...p, [fieldKey]: v }))}
+                          >
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {EXCEL_FIELD_OPTIONS.map(o => (
+                                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {cards.length > 0 && (
+                  <div className="border rounded-md overflow-hidden">
+                    <div className="text-xs font-semibold px-3 py-2 bg-muted">미리보기 (최대 5행)</div>
+                    <table className="w-full text-xs">
+                      <thead className="bg-muted/50">
+                        <tr>
+                          <th className="text-left px-3 py-1.5">{excelList.colAHeader}</th>
+                          <th className="text-left px-3 py-1.5">{excelList.colBHeader}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cards.slice(0, 5).map((c, i) => (
+                          <tr key={i} className="border-t">
+                            <td className="px-3 py-1.5 font-mono">{String((c as any)[excelList.colAField] ?? "")}</td>
+                            <td className="px-3 py-1.5 font-mono">{String((c as any)[excelList.colBField] ?? "")}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
 
