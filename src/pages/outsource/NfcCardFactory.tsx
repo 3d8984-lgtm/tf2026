@@ -2378,9 +2378,12 @@ function DetailView({
       const JSZip = (await import("jszip")).default;
       const zip = new JSZip();
       const used = new Map<string, number>();
-      for (const card of cards) {
+      for (let i = 0; i < cards.length; i++) {
+        const card = cards[i];
         const bytes = await buildCardPdfBytes(card);
-        const base = card.uniqueNo;
+        const editionRaw = (card.editionNo ?? "").toString();
+        const editionClean = editionRaw.replace(/[^A-Za-z0-9가-힣]+/g, "");
+        const base = editionClean || `card-${i + 1}`;
         const n = used.get(base) || 0;
         const fname = n === 0 ? `${base}.pdf` : `${base}(${n}).pdf`;
         used.set(base, n + 1);
