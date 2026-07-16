@@ -2360,6 +2360,7 @@ function DetailView({
       toast({ title: "카드 데이터가 없습니다", variant: "destructive" as any });
       return;
     }
+    if (!ensureBackImagesReady()) return;
     setFinalizing(true);
     try {
       const JSZip = (await import("jszip")).default;
