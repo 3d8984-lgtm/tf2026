@@ -1273,6 +1273,7 @@ function DetailView({
   onBack: () => void;
   userId?: string;
 }) {
+  const [twincodePreviewUrl, setTwincodePreviewUrl] = useState<string | null>(null);
   // Build cards array from order
   const cards: CardData[] = useMemo(() => {
     if (!order) return [];
@@ -3042,7 +3043,7 @@ function DetailView({
                     </TableCell>
                     <TableCell>
                       {c.twincodeSvgUrl
-                        ? <a href={c.twincodeSvgUrl} target="_blank" rel="noopener noreferrer"><img src={c.twincodeSvgUrl} alt="" className="w-8 h-8 object-contain border rounded bg-white" /></a>
+                        ? <button type="button" onClick={() => setTwincodePreviewUrl(c.twincodeSvgUrl!)} className="cursor-zoom-in"><img src={c.twincodeSvgUrl} alt="" className="w-8 h-8 object-contain border rounded bg-white" /></button>
                         : <span className="text-xs text-muted-foreground">-</span>}
                     </TableCell>
                     <TableCell><DmThumb text={c.uniqueNo} /></TableCell>
@@ -3058,6 +3059,19 @@ function DetailView({
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={!!twincodePreviewUrl} onOpenChange={(o) => !o && setTwincodePreviewUrl(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>트윈코드</DialogTitle>
+          </DialogHeader>
+          {twincodePreviewUrl && (
+            <div className="flex items-center justify-center p-4 bg-white rounded">
+              <img src={twincodePreviewUrl} alt="트윈코드" className="max-w-full max-h-[70vh] object-contain" />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
