@@ -1920,11 +1920,11 @@ function DetailView({
       // 앞면: 주문 이미지가 있으면 그것을, 없으면 테스트 이미지를 사용.
       // 뒷면: "등급별 뒷면 이미지"가 배경 템플릿이므로 항상 우선 적용하고,
       //       없을 때만 주문의 backImageUrl → 기본 테스트 이미지를 대체값으로 사용.
-      const gradeBackAsset = side === "back" ? resolveTestBackAsset(card.grade) : null;
+      const gradeBackAsset = side === "back" ? effResolveTestBackAsset(card.grade) : null;
       const realDesignUrl = side === "front" ? card.frontImageUrl : card.backImageUrl;
       const testAsset = side === "back"
-        ? (gradeBackAsset || (realDesignUrl ? null : resolveTestBackAsset(card.grade)))
-        : (realDesignUrl ? null : testImages[side]);
+        ? (gradeBackAsset || (realDesignUrl ? null : effResolveTestBackAsset(card.grade)))
+        : (realDesignUrl ? null : effTestFront);
       const testIsSvg = !!testAsset && /\.svg$/i.test(testAsset.name || "");
       const designUrl = side === "back"
         ? (gradeBackAsset?.url || realDesignUrl || testAsset?.url || null)
