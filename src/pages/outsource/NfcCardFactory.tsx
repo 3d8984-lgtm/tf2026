@@ -1387,6 +1387,16 @@ function DetailView({
   const [testValues, setTestValues] = useState({
     cpValue: "", editionNo: "", issuedNo: "", mintedOn: "", grade: "",
   });
+  // 테스트 데이터 사용 여부 토글. ON이면 앞면 테스트 이미지 / 트윈코드 SVG / 서명 파일 / 미리보기 테스트 값을 적용하고,
+  // OFF면 이 4가지 항목은 실제 주문 데이터만 사용한다.
+  const [useTestData, setUseTestData] = useState(true);
+  const EMPTY_TEST_VALUES = { cpValue: "", editionNo: "", issuedNo: "", mintedOn: "", grade: "" };
+  const effTestValues = useTestData ? testValues : EMPTY_TEST_VALUES;
+  const effTestFront = useTestData ? testImages.front : null;
+  const effTestTwincode = useTestData ? testTwincodeSvg : null;
+  const effTestSignature = useTestData ? testSignature : null;
+  const effResolveTestBackAsset = (grade: unknown): TestAsset | null =>
+    useTestData ? resolveTestBackAsset(grade) : null;
 
   // 카드 뒷면 기본 텍스트 (API 외 전체 카드에 공통 적용)
   const [backDefaults, setBackDefaults] = useState({ ...DEFAULT_BACK_DEFAULTS });
