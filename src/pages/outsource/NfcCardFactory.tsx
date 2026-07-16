@@ -1980,7 +1980,8 @@ function DetailView({
             console.warn("card design render bytes fallback failed", fetchErr);
           }
           if (bgImg) {
-            // cover 배치 — 원본을 카드 크기에 맞게 확대 후 넘치는 영역을 잘라낸다(미리보기와 동일).
+            // cover 배치 — 원본을 카드 크기에 맞게 확대 후 카드(60×90mm) 영역 밖으로 넘치는 부분을
+            // PDF 클리핑 패스로 잘라낸다. (media box 밖으로 이미지가 보이는 문제 방지)
             const targetAspect = pageWpt / pageHpt;
             const srcAspect = iw / ih;
             let drawW = pageWpt, drawH = pageHpt, ox = 0, oy = 0;
@@ -1993,7 +1994,18 @@ function DetailView({
               drawH = pageWpt / srcAspect;
               oy = -(drawH - pageHpt) / 2;
             }
+            page.pushOperators(
+              pushGraphicsState(),
+              moveTo(0, 0),
+              lineTo(pageWpt, 0),
+              lineTo(pageWpt, pageHpt),
+              lineTo(0, pageHpt),
+              closePath(),
+              clip(),
+              endPath(),
+            );
             page.drawImage(bgImg, { x: ox, y: oy, width: drawW, height: drawH });
+            page.pushOperators(popGraphicsState());
           }
         } catch (e) { console.warn("card design render failed", e); }
       }
