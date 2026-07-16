@@ -1387,6 +1387,16 @@ function DetailView({
   const [testValues, setTestValues] = useState({
     cpValue: "", editionNo: "", issuedNo: "", mintedOn: "", grade: "",
   });
+  // 테스트 데이터 사용 여부 토글. ON이면 앞면 테스트 이미지 / 트윈코드 SVG / 서명 파일 / 미리보기 테스트 값을 적용하고,
+  // OFF면 이 4가지 항목은 실제 주문 데이터만 사용한다.
+  const [useTestData, setUseTestData] = useState(true);
+  const EMPTY_TEST_VALUES = { cpValue: "", editionNo: "", issuedNo: "", mintedOn: "", grade: "" };
+  const effTestValues = useTestData ? testValues : EMPTY_TEST_VALUES;
+  const effTestFront = useTestData ? testImages.front : null;
+  const effTestTwincode = useTestData ? testTwincodeSvg : null;
+  const effTestSignature = useTestData ? testSignature : null;
+  const effResolveTestBackAsset = (grade: unknown): TestAsset | null =>
+    useTestData ? resolveTestBackAsset(grade) : null;
 
   // 카드 뒷면 기본 텍스트 (API 외 전체 카드에 공통 적용)
   const [backDefaults, setBackDefaults] = useState({ ...DEFAULT_BACK_DEFAULTS });
@@ -1775,6 +1785,7 @@ function DetailView({
           });
           if (v.masterFont && FONT_OPTIONS.some(f => f.id === v.masterFont)) setMasterFont(v.masterFont);
           if (typeof v.masterFontWeight === "number") setMasterFontWeight(v.masterFontWeight);
+          if (typeof v.useTestData === "boolean") setUseTestData(v.useTestData);
           break;
         }
       }
@@ -1785,7 +1796,7 @@ function DetailView({
 
   const saveLayout = async () => {
     if (!userId) { toast({ title: "로그인 필요", variant: "destructive" }); return; }
-    const payload = { layoutFront, layoutBack, workOrder, testValues, backDefaults, shapeOptions, shapeOptionsByGrade, masterFont, masterFontWeight } as any;
+    const payload = { layoutFront, layoutBack, workOrder, testValues, backDefaults, shapeOptions, shapeOptionsByGrade, masterFont, masterFontWeight, useTestData } as any;
     const rows = [
       { user_id: userId, setting_key: `${SETTINGS_KEY_PREFIX}-${orderNo}`, setting_value: payload },
       { user_id: userId, setting_key: GLOBAL_LAYOUT_KEY, setting_value: payload },
@@ -1909,11 +1920,11 @@ function DetailView({
       // 앞면: 주문 이미지가 있으면 그것을, 없으면 테스트 이미지를 사용.
       // 뒷면: "등급별 뒷면 이미지"가 배경 템플릿이므로 항상 우선 적용하고,
       //       없을 때만 주문의 backImageUrl → 기본 테스트 이미지를 대체값으로 사용.
-      const gradeBackAsset = side === "back" ? resolveTestBackAsset(card.grade) : null;
+      const gradeBackAsset = side === "back" ? effResolveTestBackAsset(card.grade) : null;
       const realDesignUrl = side === "front" ? card.frontImageUrl : card.backImageUrl;
       const testAsset = side === "back"
-        ? (gradeBackAsset || (realDesignUrl ? null : resolveTestBackAsset(card.grade)))
-        : (realDesignUrl ? null : testImages[side]);
+        ? (gradeBackAsset || (realDesignUrl ? null : effResolveTestBackAsset(card.grade)))
+        : (realDesignUrl ? null : effTestFront);
       const testIsSvg = !!testAsset && /\.svg$/i.test(testAsset.name || "");
       const designUrl = side === "back"
         ? (gradeBackAsset?.url || realDesignUrl || testAsset?.url || null)
@@ -2056,7 +2067,7 @@ function DetailView({
         // ===== Twincode (SVG vector) =====
         if (key === "twincode") {
           // 주문 데이터가 최우선. 주문에 twincode SVG가 있으면 테스트 파일은 무시한다.
-          const twincodeUrl = card.twincodeSvgUrl || testTwincodeSvg?.url || null;
+          const twincodeUrl = card.twincodeSvgUrl || effTestTwincode?.url || null;
           if (!twincodeUrl) continue;
           try {
             // 흰색 박스 배경 (기존 미리보기/PDF와 동일)
@@ -2095,9 +2106,9 @@ function DetailView({
         if (key === "signature") {
           // 주문 데이터가 최우선. 주문에 서명 파일이 있으면 테스트 파일은 무시한다.
           const usingOrderSig = !!card.signatureUrl;
-          const sigUrl = card.signatureUrl || testSignature?.url || null;
+          const sigUrl = card.signatureUrl || effTestSignature?.url || null;
           if (!sigUrl) continue;
-          const isSvg = /\.svg(\?|$)/i.test(sigUrl) || (!usingOrderSig && (testSignature?.name || "").toLowerCase().endsWith(".svg"));
+          const isSvg = /\.svg(\?|$)/i.test(sigUrl) || (!usingOrderSig && (effTestSignature?.name || "").toLowerCase().endsWith(".svg"));
           try {
             if (isSvg) {
               // 벡터 임베드 — Vectorizer.AI로 변환된 SVG를 그대로 PDF에 벡터로 박는다
@@ -2370,10 +2381,10 @@ function DetailView({
                 <TabsTrigger value="back">카드 뒷면 ({cards.length})</TabsTrigger>
               </TabsList>
               <TabsContent value="front" className="flex-1 overflow-auto pt-3">
-                <CardThumbGrid cards={cards} side="front" testImageUrl={testImages.front?.url || null} />
+                <CardThumbGrid cards={cards} side="front" testImageUrl={effTestFront?.url || null} />
               </TabsContent>
               <TabsContent value="back" className="flex-1 overflow-auto pt-3">
-                <CardThumbGrid cards={cards} side="back" testImageUrl={testBackImagesByGrade.COMMON?.url || testImages.back?.url || null} backImagesByGrade={testBackImagesByGrade} />
+                <CardThumbGrid cards={cards} side="back" testImageUrl={useTestData ? (testBackImagesByGrade.COMMON?.url || testImages.back?.url || null) : null} backImagesByGrade={useTestData ? testBackImagesByGrade : { COMMON: null, RARE: null, EPIC: null, LEGEND: null }} />
               </TabsContent>
             </Tabs>
             <DialogFooter>
@@ -2416,6 +2427,28 @@ function DetailView({
             <div className="md:col-span-3 space-y-1">
               <Label className="text-xs">발주특이사항</Label>
               <Textarea value={workOrder.notes} onChange={e => setWorkOrder(p => ({ ...p, notes: e.target.value }))} rows={2} />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 테스트 데이터 사용 토글 — ON이면 아래 4개 테스트 소스를 사용, OFF면 실제 주문 데이터만 사용 */}
+        <Card>
+          <CardContent className="py-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm font-medium">테스트 데이터 사용</Label>
+                  <Badge variant={useTestData ? "default" : "outline"} className="text-[10px]">
+                    {useTestData ? "ON · 테스트 적용" : "OFF · 주문 데이터만"}
+                  </Badge>
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  ON일 때 다음 4가지 테스트 소스가 미리보기·PDF·ZIP에 반영됩니다:
+                  <br />앞면 테스트 이미지 · 트윈코드 SVG · 서명 파일(PNG/SVG) · 미리보기 테스트 값
+                  <br />OFF로 두면 위 항목은 무시되고 실제 주문 데이터만 사용됩니다.
+                </p>
+              </div>
+              <Switch checked={useTestData} onCheckedChange={setUseTestData} aria-label="테스트 데이터 사용" />
             </div>
           </CardContent>
         </Card>
@@ -2672,14 +2705,14 @@ function DetailView({
               side="front"
               cardSize={cardSize}
               bleedMm={bleedMm}
-              testImageUrl={testImages.front?.url || null}
-              cardPreview={applyTestValues(cards[0], testValues)}
+              testImageUrl={effTestFront?.url || null}
+              cardPreview={applyTestValues(cards[0], effTestValues)}
               layout={layoutFront}
               setLayout={setLayoutFront}
               keys={FRONT_KEYS}
-              shapeOptions={resolveShapeOptions(applyTestValues(cards[0], testValues)?.grade)}
+              shapeOptions={resolveShapeOptions(applyTestValues(cards[0], effTestValues)?.grade)}
               onTestPdf={async () => {
-                const sample = applyTestValues(cards[0], testValues);
+                const sample = applyTestValues(cards[0], effTestValues);
                 if (!sample) { toast({ title: "샘플 카드가 없습니다", variant: "destructive" }); return; }
                 try {
                   const bytes = await buildCardPdfBytes(sample, { sides: ["front"] });
@@ -2697,17 +2730,17 @@ function DetailView({
               side="back"
               cardSize={cardSize}
               bleedMm={bleedMm}
-              testImageUrl={resolveTestBackAsset(applyTestValues(cards[0], testValues)?.grade)?.url || null}
-              testTwincodeUrl={testTwincodeSvg?.url || null}
-              testSignatureUrl={testSignature?.url || null}
-              cardPreview={applyTestValues(cards[0], testValues)}
+              testImageUrl={effResolveTestBackAsset(applyTestValues(cards[0], effTestValues)?.grade)?.url || null}
+              testTwincodeUrl={effTestTwincode?.url || null}
+              testSignatureUrl={effTestSignature?.url || null}
+              cardPreview={applyTestValues(cards[0], effTestValues)}
               layout={layoutBack}
               setLayout={setLayoutBack}
               keys={BACK_KEYS}
               backDefaults={backDefaults}
-              shapeOptions={resolveShapeOptions(applyTestValues(cards[0], testValues)?.grade)}
+              shapeOptions={resolveShapeOptions(applyTestValues(cards[0], effTestValues)?.grade)}
               onTestPdf={async () => {
-                const sample = applyTestValues(cards[0], testValues);
+                const sample = applyTestValues(cards[0], effTestValues);
                 if (!sample) { toast({ title: "샘플 카드가 없습니다", variant: "destructive" }); return; }
                 try {
                   const bytes = await buildCardPdfBytes(sample, { sides: ["back"] });
