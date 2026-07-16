@@ -2424,7 +2424,9 @@ function DetailView({
 
       for (let i = 0; i < cards.length; i++) {
         const card = cards[i];
-        const base = card.uniqueNo || `card-${i + 1}`;
+        const editionRaw = (card.editionNo ?? "").toString();
+        const editionClean = editionRaw.replace(/[^A-Za-z0-9가-힣]+/g, "");
+        const base = editionClean || `card-${i + 1}`;
 
         setFinalizeProgress({ stage: `카드 앞면 PDF (${i + 1}/${total})`, current: i + 1, total });
         const frontBytes = await buildCardPdfBytes(card, { sides: ["front"] });
