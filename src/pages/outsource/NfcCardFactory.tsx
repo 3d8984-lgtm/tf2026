@@ -1923,16 +1923,15 @@ function DetailView({
 
       // === Background design ===
       // 앞면: 주문 이미지가 있으면 그것을, 없으면 테스트 이미지를 사용.
-      // 뒷면: "등급별 뒷면 이미지"가 배경 템플릿이므로 항상 우선 적용하고,
-      //       없을 때만 주문의 backImageUrl → 기본 테스트 이미지를 대체값으로 사용.
+      // 뒷면: 주문에는 뒷면 이미지가 없다. 배경은 항상 "등급별 뒷면 이미지"만 사용한다.
       const gradeBackAsset = side === "back" ? effResolveTestBackAsset(card.grade) : null;
-      const realDesignUrl = side === "front" ? card.frontImageUrl : card.backImageUrl;
+      const realDesignUrl = side === "front" ? card.frontImageUrl : null;
       const testAsset = side === "back"
-        ? (gradeBackAsset || (realDesignUrl ? null : effResolveTestBackAsset(card.grade)))
+        ? gradeBackAsset
         : (realDesignUrl ? null : effTestFront);
       const testIsSvg = !!testAsset && /\.svg$/i.test(testAsset.name || "");
       const designUrl = side === "back"
-        ? (gradeBackAsset?.url || realDesignUrl || testAsset?.url || null)
+        ? (gradeBackAsset?.url || null)
         : (realDesignUrl || testAsset?.url || null);
       if (testIsSvg && testAsset) {
         // SVG 테스트 이미지: 파일에 지정된 원본 크기(mm)와 색상을 그대로 사용해 벡터 임베드(중앙 정렬).
@@ -4502,11 +4501,10 @@ function CardCompositeThumb({
   const cardHmm = cardSize.height;
   const pxPerMm = width / cardWmm;
   const height = cardHmm * pxPerMm;
-  // 뒷면: "등급별 뒷면 이미지"(testImageUrl)가 배경 템플릿이므로 항상 우선 적용.
-  //       주문 데이터의 backImageUrl(GFT 원본)은 등급별 이미지가 없을 때만 사용.
-  //       (drawSide의 최종 PDF 렌더링 우선순위와 동일하게 맞춘다.)
+  // 뒷면 배경은 항상 "등급별 뒷면 이미지"(testImageUrl)만 사용한다.
+  // 주문에는 뒷면 이미지가 존재하지 않으며, card.backImageUrl은 미리보기용 데이터일 뿐이므로 배경으로 사용하지 않는다.
   const designUrl = side === "back"
-    ? (testImageUrl || card?.backImageUrl || null)
+    ? (testImageUrl || null)
     : (card?.frontImageUrl || testImageUrl || null);
 
   const shapes = side === "front"
