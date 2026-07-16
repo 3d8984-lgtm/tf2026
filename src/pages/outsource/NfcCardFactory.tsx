@@ -2326,6 +2326,7 @@ function DetailView({
 
 
   const downloadAll = async () => {
+    if (!ensureBackImagesReady()) return;
     setBusy(true);
     try {
       const JSZip = (await import("jszip")).default;
