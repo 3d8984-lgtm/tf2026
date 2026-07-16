@@ -2106,9 +2106,9 @@ function DetailView({
         if (key === "signature") {
           // 주문 데이터가 최우선. 주문에 서명 파일이 있으면 테스트 파일은 무시한다.
           const usingOrderSig = !!card.signatureUrl;
-          const sigUrl = card.signatureUrl || testSignature?.url || null;
+          const sigUrl = card.signatureUrl || effTestSignature?.url || null;
           if (!sigUrl) continue;
-          const isSvg = /\.svg(\?|$)/i.test(sigUrl) || (!usingOrderSig && (testSignature?.name || "").toLowerCase().endsWith(".svg"));
+          const isSvg = /\.svg(\?|$)/i.test(sigUrl) || (!usingOrderSig && (effTestSignature?.name || "").toLowerCase().endsWith(".svg"));
           try {
             if (isSvg) {
               // 벡터 임베드 — Vectorizer.AI로 변환된 SVG를 그대로 PDF에 벡터로 박는다
