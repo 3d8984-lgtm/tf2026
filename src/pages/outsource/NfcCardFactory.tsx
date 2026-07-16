@@ -2288,7 +2288,33 @@ function DetailView({
     return await out.save();
   };
 
+  // === 등급별 뒷면 이미지 누락 검증 ===
+  // 카드 목록에 존재하는 등급 중 업로드된 뒷면 이미지가 없는(그리고 COMMON 대체가 없는) 등급을 찾는다.
+  // 미리보기 배너와 다운로드 가드에서 공통으로 사용한다.
+  const missingBackGrades = useMemo(() => {
+    const present = new Set<CardGrade>();
+    for (const c of cards) present.add(normalizeGrade(c.grade));
+    const commonFallback = !!testBackImagesByGrade.COMMON;
+    const missing: CardGrade[] = [];
+    for (const g of Array.from(present)) {
+      const has = !!testBackImagesByGrade[g] || (g !== "COMMON" && commonFallback);
+      if (!has) missing.push(g);
+    }
+    return missing;
+  }, [cards, testBackImagesByGrade]);
+
+  const ensureBackImagesReady = (): boolean => {
+    if (missingBackGrades.length === 0) return true;
+    toast({
+      title: "등급별 뒷면 이미지 누락",
+      description: `${missingBackGrades.join(", ")} 등급의 뒷면 이미지를 먼저 업로드해 주세요.`,
+      variant: "destructive" as any,
+    });
+    return false;
+  };
+
   const downloadOne = async (card: CardData) => {
+    if (!ensureBackImagesReady()) return;
     setBusy(true);
     try {
       const bytes = await buildCardPdfBytes(card);
@@ -2298,7 +2324,9 @@ function DetailView({
     } finally { setBusy(false); }
   };
 
+
   const downloadAll = async () => {
+    if (!ensureBackImagesReady()) return;
     setBusy(true);
     try {
       const JSZip = (await import("jszip")).default;
@@ -2332,6 +2360,7 @@ function DetailView({
       toast({ title: "카드 데이터가 없습니다", variant: "destructive" as any });
       return;
     }
+    if (!ensureBackImagesReady()) return;
     setFinalizing(true);
     try {
       const JSZip = (await import("jszip")).default;
@@ -2854,6 +2883,19 @@ function DetailView({
           </TabsContent>
         </Tabs>
 
+        {/* 등급별 뒷면 이미지 누락 경고 (미리보기·PDF 공통 검증) */}
+        {missingBackGrades.length > 0 && (
+          <div className="rounded-md border border-destructive/40 bg-destructive/5 text-destructive px-3 py-2 text-xs flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <div className="font-medium">등급별 뒷면 이미지가 누락되었습니다</div>
+              <div className="mt-0.5">
+                누락 등급: <span className="font-mono">{missingBackGrades.join(", ")}</span> · 해당 등급의 카드 뒷면 배경이 비어 있게 됩니다. "등급별 뒷면 이미지" 카드에서 업로드 후 다시 시도해 주세요.
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Download bar */}
         <Card>
           <CardContent className="p-3 flex items-center justify-between flex-wrap gap-2">
@@ -2861,13 +2903,14 @@ function DetailView({
               파일명: <span className="font-mono">{orderNo}-4.pdf</span> · 중복시 (1),(2) 자동 부여
             </div>
             <div className="flex items-center gap-2">
-              <Button size="sm" onClick={downloadAll} disabled={busy || cards.length === 0}>
+              <Button size="sm" onClick={downloadAll} disabled={busy || cards.length === 0 || missingBackGrades.length > 0}>
                 {busy ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
                 전체 PDF (ZIP)
               </Button>
             </div>
           </CardContent>
         </Card>
+
 
         {/* Table */}
         <Card>
