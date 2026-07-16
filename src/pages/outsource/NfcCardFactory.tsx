@@ -2288,7 +2288,33 @@ function DetailView({
     return await out.save();
   };
 
+  // === 등급별 뒷면 이미지 누락 검증 ===
+  // 카드 목록에 존재하는 등급 중 업로드된 뒷면 이미지가 없는(그리고 COMMON 대체가 없는) 등급을 찾는다.
+  // 미리보기 배너와 다운로드 가드에서 공통으로 사용한다.
+  const missingBackGrades = useMemo(() => {
+    const present = new Set<CardGrade>();
+    for (const c of cards) present.add(normalizeGrade(c.grade));
+    const commonFallback = !!testBackImagesByGrade.COMMON;
+    const missing: CardGrade[] = [];
+    for (const g of Array.from(present)) {
+      const has = !!testBackImagesByGrade[g] || (g !== "COMMON" && commonFallback);
+      if (!has) missing.push(g);
+    }
+    return missing;
+  }, [cards, testBackImagesByGrade]);
+
+  const ensureBackImagesReady = (): boolean => {
+    if (missingBackGrades.length === 0) return true;
+    toast({
+      title: "등급별 뒷면 이미지 누락",
+      description: `${missingBackGrades.join(", ")} 등급의 뒷면 이미지를 먼저 업로드해 주세요.`,
+      variant: "destructive" as any,
+    });
+    return false;
+  };
+
   const downloadOne = async (card: CardData) => {
+    if (!ensureBackImagesReady()) return;
     setBusy(true);
     try {
       const bytes = await buildCardPdfBytes(card);
@@ -2297,6 +2323,7 @@ function DetailView({
       toast({ title: "PDF 생성 실패", description: e.message, variant: "destructive" });
     } finally { setBusy(false); }
   };
+
 
   const downloadAll = async () => {
     setBusy(true);
