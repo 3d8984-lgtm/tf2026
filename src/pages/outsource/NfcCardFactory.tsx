@@ -2044,17 +2044,33 @@ function DetailView({
           const raw = color ? recolorSvgString(rawSvg, color) : rawSvg;
           const nat = svgNaturalSizeMm(raw);
           const tl = anchorTopLeft(s.x_mm, s.y_mm, nat.w, nat.h, s.anchor);
-          // 기본 도형 옵션은 항상 벡터(SVG) 그대로 임베드한다. 절대 래스터화하지 않는다.
+          // 업로드된 SVG 안에 <image>(embedded raster / clipPath / mask)가 포함된 경우
+          // svg2pdf.js가 마스크·클립을 제대로 처리하지 못해 도형 형태가 깨지고 내부 재질 이미지가 노출된다.
+          // → 이런 경우에만 브라우저 네이티브 렌더러로 고해상도 래스터화(1200dpi) 후 PNG로 임베드한다.
+          // 순수 벡터 SVG는 계속 벡터로 임베드하여 확대해도 깨지지 않게 유지한다.
+          const hasEmbeddedRaster = /<image\b[^>]*(xlink:href|href)\s*=\s*["'](data:image\/|https?:|blob:|\/)/i.test(raw)
+            || /<(clipPath|mask|filter|pattern)\b/i.test(raw);
           try {
-            const subBytes = await svgStringToPdfBytes(raw, nat.w * MM, nat.h * MM);
-            const [embedded] = await out.embedPdf(subBytes, [0]);
-            page.drawPage(embedded, {
-              x: tl.left * MM,
-              y: pageHpt - (tl.top + nat.h) * MM,
-              width: nat.w * MM,
-              height: nat.h * MM,
-            });
-          } catch (e) { console.warn("shape svg vector embed failed (skipped, no raster fallback)", e); }
+            if (hasEmbeddedRaster) {
+              const pngBytes = await rasterizeSvgToPng(raw, nat.w, nat.h, 1200);
+              const img = await out.embedPng(pngBytes);
+              page.drawImage(img, {
+                x: tl.left * MM,
+                y: pageHpt - (tl.top + nat.h) * MM,
+                width: nat.w * MM,
+                height: nat.h * MM,
+              });
+            } else {
+              const subBytes = await svgStringToPdfBytes(raw, nat.w * MM, nat.h * MM);
+              const [embedded] = await out.embedPdf(subBytes, [0]);
+              page.drawPage(embedded, {
+                x: tl.left * MM,
+                y: pageHpt - (tl.top + nat.h) * MM,
+                width: nat.w * MM,
+                height: nat.h * MM,
+              });
+            }
+          } catch (e) { console.warn("shape svg embed failed (skipped)", e); }
         } catch (e) { console.warn("shape svg embed failed", e); }
       }
 
