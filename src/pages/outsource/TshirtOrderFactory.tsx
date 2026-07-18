@@ -313,7 +313,7 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
               <Button size="sm" variant={step >= 1 ? "outline" : "default"} onClick={confirmWorkOrder}>
                 <FileText className="w-4 h-4 mr-1" /> 작업지시서 확인
               </Button>
-              <Button size="sm" variant={step >= 2 ? "outline" : "default"} onClick={confirmFiles} disabled={step < 1}>
+              <Button size="sm" variant={step >= 2 ? "outline" : "default"} onClick={openFilesPreview} disabled={step < 1}>
                 <FileCheck2 className="w-4 h-4 mr-1" /> 작업파일 확인
               </Button>
               <Button size="sm" onClick={downloadZip} disabled={step < 2}>
