@@ -55,6 +55,9 @@ const GLOBAL_LAYOUT_KEY = "outsource-nfc-card-layout-default";
 const CARD_SIZE_KEY = "outsource-nfc-card-size";
 const TEST_TWINCODE_PREFIX = "nfc-card-test";
 const TEST_SIGNATURE_PREFIX = "nfc-card-test";
+// 서명 편집(주문 원본 대체용) 저장 경로 — 작업번호(orderNo)별 폴더 격리
+const SIG_EDIT_PREFIX = "nfc-card-signature-edits";
+const safeOrderKey = (s: string) => (s || "default").replace(/[^\w.-]+/g, "_").slice(0, 80) || "default";
 
 interface CardSize { width: number; height: number }
 const DEFAULT_CARD_SIZE: CardSize = { width: CARD_W_MM, height: CARD_H_MM };
@@ -1404,22 +1407,24 @@ function DetailView({
   // Test twincode SVG (server-persisted; falls back to API twincodeSvgUrl when removed)
   const [testTwincodeSvg, setTestTwincodeSvg] = useState<{ url: string; name: string } | null>(null);
 
-  // Test signature file (server-persisted; falls back to API signatureUrl when removed)
-  const [testSignature, setTestSignature] = useState<{ url: string; name: string } | null>(null);
+  // 서명 편집(주문 원본 대체) — 작업번호별 서버 저장. 토글이 켜지면 이 파일이 모든 카드의 ISSUED BY 서명을 대체한다.
+  const [editedSignature, setEditedSignature] = useState<{ url: string; name: string } | null>(null);
+  const [useEditedSignature, setUseEditedSignature] = useState(false);
   const [uploadDebug, setUploadDebug] = useState<UploadDebugInfo | null>(null);
 
   // Test values for preview only (override card[0] for front/back fields)
   const [testValues, setTestValues] = useState({
     cpValue: "", editionNo: "", issuedNo: "", mintedOn: "", grade: "",
   });
-  // 테스트 데이터 사용 여부 토글. ON이면 앞면 테스트 이미지 / 트윈코드 SVG / 서명 파일 / 미리보기 테스트 값을 적용하고,
-  // OFF면 이 4가지 항목은 실제 주문 데이터만 사용한다.
+  // 테스트 데이터 사용 여부 토글. ON이면 앞면 테스트 이미지 / 트윈코드 SVG / 미리보기 테스트 값을 적용하고,
+  // OFF면 이 3가지 항목은 실제 주문 데이터만 사용한다. (서명은 별도의 "서명 편집" 토글로 관리)
   const [useTestData, setUseTestData] = useState(true);
   const EMPTY_TEST_VALUES = { cpValue: "", editionNo: "", issuedNo: "", mintedOn: "", grade: "" };
   const effTestValues = useTestData ? testValues : EMPTY_TEST_VALUES;
   const effTestFront = useTestData ? testImages.front : null;
   const effTestTwincode = useTestData ? testTwincodeSvg : null;
-  const effTestSignature = useTestData ? testSignature : null;
+  // 서명 편집 토글이 켜져 있고 편집된 서명이 있으면, 이 URL이 카드별 signatureUrl/issuedByUrl을 강제 대체한다.
+  const effOverrideSignature = useEditedSignature ? editedSignature : null;
   // 등급별 뒷면 이미지는 테스트 파일이 아니라 실제 인쇄용 자산이므로 토글과 무관하게 항상 사용한다.
   const effResolveTestBackAsset = (grade: unknown): TestAsset | null =>
     resolveTestBackAsset(grade);
@@ -1689,36 +1694,38 @@ function DetailView({
     }
   };
 
-  // Load test signature from storage
+  // Load edited signature (scoped to this orderNo) from storage
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data: list } = await supabase.storage.from(FRAME_BUCKET).list(TEST_SIGNATURE_PREFIX);
+      const dir = `${SIG_EDIT_PREFIX}/${safeOrderKey(orderNo)}`;
+      const { data: list } = await supabase.storage.from(FRAME_BUCKET).list(dir);
       if (cancelled) return;
       const found = (list || []).find(f => f.name.startsWith("signature__"));
-      if (!found) return;
-      const path = `${TEST_SIGNATURE_PREFIX}/${found.name}`;
+      if (!found) { setEditedSignature(null); return; }
+      const path = `${dir}/${found.name}`;
       const { data: pub } = supabase.storage.from(FRAME_BUCKET).getPublicUrl(path);
       const name = found.name.replace(/^signature__/, "");
-      setTestSignature({ url: `${pub.publicUrl}?v=${Date.now()}`, name });
+      setEditedSignature({ url: `${pub.publicUrl}?v=${Date.now()}`, name });
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [orderNo]);
 
-  const onUploadTestSignature = async (file: File | null) => {
-    const { data: existing } = await supabase.storage.from(FRAME_BUCKET).list(TEST_SIGNATURE_PREFIX);
+  const onUploadEditedSignature = async (file: File | null) => {
+    const dir = `${SIG_EDIT_PREFIX}/${safeOrderKey(orderNo)}`;
+    const { data: existing } = await supabase.storage.from(FRAME_BUCKET).list(dir);
     const toRemove = (existing || [])
       .filter(f => f.name.startsWith("signature__"))
-      .map(f => `${TEST_SIGNATURE_PREFIX}/${f.name}`);
+      .map(f => `${dir}/${f.name}`);
     if (toRemove.length) await supabase.storage.from(FRAME_BUCKET).remove(toRemove);
     if (!file) {
-      setTestSignature(null);
-      toast({ title: "서명 테스트 파일 삭제됨", description: "원래 API 서명파일이 적용됩니다" });
+      setEditedSignature(null);
+      toast({ title: "편집된 서명 삭제됨", description: "이제 주문 원본(ISSUED BY) 서명이 사용됩니다" });
       return;
     }
     try {
       const safe = file.name.replace(/[^\w.-]+/g, "_");
-      const path = `${TEST_SIGNATURE_PREFIX}/signature__${safe}`;
+      const path = `${dir}/signature__${safe}`;
       const ct = file.type || (/\.svg$/i.test(file.name) ? "image/svg+xml" : "image/png");
       let uploaded: { publicUrl: string };
       try {
@@ -1729,21 +1736,22 @@ function DetailView({
         return;
       }
       setUploadDebug(null);
-      setTestSignature({ url: `${uploaded.publicUrl}?v=${Date.now()}`, name: file.name });
-      toast({ title: "서명 테스트 파일 등록됨" });
+      setEditedSignature({ url: `${uploaded.publicUrl}?v=${Date.now()}`, name: file.name });
+      toast({ title: "편집된 서명 저장됨" });
     } catch (e) {
-      setUploadDebug(buildUploadDebugInfo({ title: "서명 파일 처리 실패", objectPath: `${TEST_SIGNATURE_PREFIX}/signature__파일명_생성_전`, operation: "file processing before upload", error: e, file, fileName: file.name, contentType: file.type || "image/png", userId }));
+      setUploadDebug(buildUploadDebugInfo({ title: "서명 파일 처리 실패", objectPath: `${dir}/signature__파일명_생성_전`, operation: "file processing before upload", error: e, file, fileName: file.name, contentType: file.type || "image/png", userId }));
       toast({ title: "업로드 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
   };
 
   const [vectorizingSig, setVectorizingSig] = useState(false);
 
-  // Vectorizer.AI를 사용해서 현재 서명파일(API 또는 테스트)을 SVG로 변환하여 저장
+  // Vectorizer.AI로 주문 원본(ISSUED BY) 또는 이미 편집된 서명을 SVG 벡터로 변환하여 편집본에 저장
   const onVectorizeSignature = async () => {
-    const srcUrl = testSignature?.url || (cards[0]?.signatureUrl ?? null);
+    const originalUrl = cards[0]?.signatureUrl || cards[0]?.issuedByUrl || null;
+    const srcUrl = editedSignature?.url || originalUrl;
     if (!srcUrl) {
-      toast({ title: "서명 파일이 없습니다", description: "먼저 서명 파일을 업로드하거나 API 서명이 있는 카드를 선택하세요.", variant: "destructive" });
+      toast({ title: "서명 파일이 없습니다", description: "주문에 ISSUED BY 서명이 없고 편집본도 없습니다.", variant: "destructive" });
       return;
     }
     if (/\.svg(\?|$)/i.test(srcUrl)) {
@@ -1759,14 +1767,13 @@ function DetailView({
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
       const svgDataUrl: string = (data as any).svgDataUrl;
-      // svgDataUrl -> Blob -> File -> upload via onUploadTestSignature
       const res = await fetch(svgDataUrl);
       const blob = await res.blob();
       const file = new File([blob], `signature_vectorized_${Date.now()}.svg`, { type: "image/svg+xml" });
-      await onUploadTestSignature(file);
+      await onUploadEditedSignature(file);
       toast({
         title: "AI 벡터 변환 완료",
-        description: `모드: ${mode} · 크레딧: ${(data as any).credits ?? "-"} · 테스트 서명에 저장됨`,
+        description: `모드: ${mode} · 크레딧: ${(data as any).credits ?? "-"} · 편집본에 저장됨`,
       });
     } catch (e) {
       toast({ title: "Vectorizer.AI 변환 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
@@ -1813,6 +1820,7 @@ function DetailView({
           if (v.masterFont && FONT_OPTIONS.some(f => f.id === v.masterFont)) setMasterFont(v.masterFont);
           if (typeof v.masterFontWeight === "number") setMasterFontWeight(v.masterFontWeight);
           if (typeof v.useTestData === "boolean") setUseTestData(v.useTestData);
+          if (typeof v.useEditedSignature === "boolean") setUseEditedSignature(v.useEditedSignature);
           break;
         }
       }
@@ -1823,7 +1831,7 @@ function DetailView({
 
   const saveLayout = async () => {
     if (!userId) { toast({ title: "로그인 필요", variant: "destructive" }); return; }
-    const payload = { layoutFront, layoutBack, workOrder, excelList, testValues, backDefaults, shapeOptions, shapeOptionsByGrade, masterFont, masterFontWeight, useTestData } as any;
+    const payload = { layoutFront, layoutBack, workOrder, excelList, testValues, backDefaults, shapeOptions, shapeOptionsByGrade, masterFont, masterFontWeight, useTestData, useEditedSignature } as any;
     const rows = [
       { user_id: userId, setting_key: `${SETTINGS_KEY_PREFIX}-${orderNo}`, setting_value: payload },
       { user_id: userId, setting_key: GLOBAL_LAYOUT_KEY, setting_value: payload },
@@ -2210,13 +2218,16 @@ function DetailView({
 
         // ===== Signature (SVG vector if available, otherwise PNG/JPEG raster) =====
         if (key === "signature") {
-          // 주문 데이터가 최우선. signatureUrl / issuedByUrl(ISSUED BY 컬럼과 동일 소스) → 테스트 파일 순으로 시도.
+          // 서명 편집 토글이 켜져 있으면 편집된 서명이 카드별 원본을 강제 대체.
+          // 그 외에는 주문 데이터(signatureUrl / issuedByUrl)를 사용.
+          const overrideUrl = effOverrideSignature?.url || null;
+          const overrideName = effOverrideSignature?.name || "";
           const orderSigUrl = card.signatureUrl || card.issuedByUrl || null;
-          const usingOrderSig = !!orderSigUrl;
-          const sigUrl = orderSigUrl || effTestSignature?.url || null;
+          const usingOverride = !!overrideUrl;
+          const sigUrl = overrideUrl || orderSigUrl;
           if (!sigUrl) continue;
           const lower = sigUrl.toLowerCase().split("?")[0];
-          const nameLooksSvg = !usingOrderSig && (effTestSignature?.name || "").toLowerCase().endsWith(".svg");
+          const nameLooksSvg = usingOverride && overrideName.toLowerCase().endsWith(".svg");
           let embedded = false;
           try {
             const { bytes, contentType } = await fetchImageBytesAnyOrigin(sigUrl);
@@ -2853,31 +2864,63 @@ function DetailView({
               </div>
             </div>
 
-            <div className="border rounded-md p-3 space-y-2">
+            {/* 서명 편집 — 주문 원본(ISSUED BY)의 벡터 품질이 좋지 않을 때 편집본을 만들어 대체한다. */}
+            <div className="border rounded-md p-3 space-y-3">
               <div className="flex items-center justify-between">
-                <Label className="font-medium text-xs">서명 파일 (PNG / SVG)</Label>
-                {testSignature && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600">서버 저장됨</span>
-                )}
+                <Label className="font-medium text-xs">서명 편집 (주문 원본 대체)</Label>
+                <div className="flex items-center gap-2">
+                  <Badge variant={useEditedSignature ? "default" : "outline"} className="text-[10px]">
+                    {useEditedSignature ? "ON · 편집본 사용" : "OFF · 원본 사용"}
+                  </Badge>
+                  <Switch
+                    checked={useEditedSignature}
+                    onCheckedChange={setUseEditedSignature}
+                    aria-label="편집된 서명 사용"
+                  />
+                </div>
               </div>
-              <div className="w-full h-32 border rounded bg-muted/30 overflow-hidden flex items-center justify-center">
-                {testSignature?.url
-                  ? <img src={testSignature.url} alt="" className="w-full h-full object-contain bg-white" />
-                  : <span className="text-xs text-muted-foreground flex items-center gap-1"><ImageIcon className="w-3 h-3" />테스트 서명 없음 (API 서명파일 사용)</span>}
+
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                ON: 이 작업번호({orderNo}) 전체 카드의 서명을 아래 편집본으로 대체합니다.<br />
+                OFF: 각 카드의 주문 원본 ISSUED BY 서명이 사용됩니다.
+              </p>
+
+              {/* 원본 / 편집본 미리보기 */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <div className="text-[10px] text-muted-foreground">원본 (ISSUED BY)</div>
+                  <div className="w-full h-24 border rounded bg-muted/30 overflow-hidden flex items-center justify-center">
+                    {cards[0]?.issuedByUrl || cards[0]?.signatureUrl
+                      ? <img src={cards[0].issuedByUrl || cards[0].signatureUrl!} alt="" className="w-full h-full object-contain bg-white" />
+                      : <span className="text-[10px] text-muted-foreground">원본 없음</span>}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <div className="text-[10px] text-muted-foreground">편집본</div>
+                    {editedSignature && <span className="text-[9px] px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-600">저장됨</span>}
+                  </div>
+                  <div className="w-full h-24 border rounded bg-muted/30 overflow-hidden flex items-center justify-center">
+                    {editedSignature?.url
+                      ? <img src={editedSignature.url} alt="" className="w-full h-full object-contain bg-white" />
+                      : <span className="text-[10px] text-muted-foreground">편집본 없음</span>}
+                  </div>
+                </div>
               </div>
               <div className="text-[11px] text-muted-foreground truncate">
-                {testSignature?.name || "테스트 종료 후 삭제하면 API 서명파일이 사용됩니다"}
+                {editedSignature?.name || "파일 업로드 또는 AI 벡터 변환으로 편집본을 만드세요"}
               </div>
+
               <div className="flex gap-2">
                 <label className="flex-1 flex items-center justify-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
                   <Upload className="w-3 h-3" />
-                  <span>{testSignature ? "변경" : "서명 업로드"}</span>
+                  <span>{editedSignature ? "편집본 변경" : "편집본 업로드"}</span>
                   <input type="file" accept="image/svg+xml,image/png,image/jpeg,image/webp" className="hidden"
-                    onChange={e => { const f = e.target.files?.[0] || null; e.currentTarget.value = ""; if (f) onUploadTestSignature(f); }} />
+                    onChange={e => { const f = e.target.files?.[0] || null; e.currentTarget.value = ""; if (f) onUploadEditedSignature(f); }} />
                 </label>
-                {testSignature && (
+                {editedSignature && (
                   <Button size="sm" variant="destructive" className="text-xs"
-                    onClick={() => { if (confirm("테스트 서명파일을 삭제하고 원래 API 서명을 사용할까요?")) onUploadTestSignature(null); }}>
+                    onClick={() => { if (confirm("편집된 서명을 삭제하고 원본 ISSUED BY를 사용할까요?")) onUploadEditedSignature(null); }}>
                     <X className="w-3 h-3 mr-1" />삭제
                   </Button>
                 )}
@@ -2889,12 +2932,12 @@ function DetailView({
                   className="flex-1 text-xs gap-1"
                   onClick={onVectorizeSignature}
                   disabled={vectorizingSig}
-                  title="Vectorizer.AI로 SVG 벡터로 변환 · 시스템 설정에서 모드 선택"
+                  title="Vectorizer.AI로 SVG 벡터로 변환 (편집본이 있으면 편집본, 없으면 원본을 변환)"
                 >
                   {vectorizingSig ? <Loader2 className="w-3 h-3 animate-spin" /> : <Cloud className="w-3 h-3" />}
                   AI 벡터 변환 (Vectorizer.AI)
                 </Button>
-                {testSignature?.url && (/\.svg(\?|$)/i.test(testSignature.url) || (testSignature.name || "").toLowerCase().endsWith(".svg")) && (
+                {editedSignature?.url && (/\.svg(\?|$)/i.test(editedSignature.url) || (editedSignature.name || "").toLowerCase().endsWith(".svg")) && (
                   <Button
                     size="sm"
                     variant="secondary"
@@ -2902,13 +2945,13 @@ function DetailView({
                     title="벡터 변환된 SVG 다운로드"
                     onClick={async () => {
                       try {
-                        const r = await fetch(testSignature.url!);
+                        const r = await fetch(editedSignature.url!);
                         if (!r.ok) throw new Error(`다운로드 실패: ${r.status}`);
                         const blob = await r.blob();
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement("a");
                         a.href = url;
-                        a.download = testSignature.name || `signature_vector_${Date.now()}.svg`;
+                        a.download = editedSignature.name || `signature_vector_${Date.now()}.svg`;
                         document.body.appendChild(a); a.click(); a.remove();
                         URL.revokeObjectURL(url);
                       } catch (e) {
@@ -3019,7 +3062,7 @@ function DetailView({
               bleedMm={bleedMm}
               testImageUrl={effResolveTestBackAsset(applyTestValues(cards[0], effTestValues)?.grade)?.url || null}
               testTwincodeUrl={effTestTwincode?.url || null}
-              testSignatureUrl={effTestSignature?.url || null}
+              testSignatureUrl={effOverrideSignature?.url || null}
               cardPreview={applyTestValues(cards[0], effTestValues)}
               layout={layoutBack}
               setLayout={setLayoutBack}
@@ -3136,7 +3179,7 @@ function DetailView({
                         cardSize={cardSize}
                         testImageUrl={effResolveTestBackAsset(c.grade)?.url || null}
                         testTwincodeUrl={effTestTwincode?.url || null}
-                        testSignatureUrl={effTestSignature?.url || null}
+                        testSignatureUrl={effOverrideSignature?.url || null}
                         layout={layoutBack}
                         keys={BACK_KEYS}
                         backDefaults={backDefaults}
@@ -3467,7 +3510,7 @@ function CardSideEditor({
           : <span className="text-[8px] text-muted-foreground">DM</span>;
       }
       case "signature": {
-        const sUrl = cardPreview.signatureUrl || testSignatureUrl;
+        const sUrl = testSignatureUrl || cardPreview.signatureUrl;
         const pos = anchorToObjectPosition(layout.signature?.sizeAnchor ?? "mc");
         return sUrl
           ? <img src={sUrl} alt="" className="w-full h-full object-contain pointer-events-none" style={{ objectPosition: pos }} />
@@ -4751,7 +4794,7 @@ function CardCompositeThumb({
 
   const imageSrcFor = (key: OptionKey): string | null => {
     if (key === "twincode") return card?.twincodeSvgUrl || testTwincodeUrl || null;
-    if (key === "signature") return card?.signatureUrl || testSignatureUrl || null;
+    if (key === "signature") return testSignatureUrl || card?.signatureUrl || null;
     return null;
   };
 
