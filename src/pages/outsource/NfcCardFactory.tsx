@@ -3146,7 +3146,7 @@ function DetailView({
                         cardSize={cardSize}
                         testImageUrl={effResolveTestBackAsset(c.grade)?.url || null}
                         testTwincodeUrl={effTestTwincode?.url || null}
-                        testSignatureUrl={effTestSignature?.url || null}
+                        testSignatureUrl={effOverrideSignature?.url || null}
                         layout={layoutBack}
                         keys={BACK_KEYS}
                         backDefaults={backDefaults}
