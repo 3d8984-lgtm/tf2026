@@ -2217,13 +2217,16 @@ function DetailView({
 
         // ===== Signature (SVG vector if available, otherwise PNG/JPEG raster) =====
         if (key === "signature") {
-          // 주문 데이터가 최우선. signatureUrl / issuedByUrl(ISSUED BY 컬럼과 동일 소스) → 테스트 파일 순으로 시도.
+          // 서명 편집 토글이 켜져 있으면 편집된 서명이 카드별 원본을 강제 대체.
+          // 그 외에는 주문 데이터(signatureUrl / issuedByUrl)를 사용.
+          const overrideUrl = effOverrideSignature?.url || null;
+          const overrideName = effOverrideSignature?.name || "";
           const orderSigUrl = card.signatureUrl || card.issuedByUrl || null;
-          const usingOrderSig = !!orderSigUrl;
-          const sigUrl = orderSigUrl || effTestSignature?.url || null;
+          const usingOverride = !!overrideUrl;
+          const sigUrl = overrideUrl || orderSigUrl;
           if (!sigUrl) continue;
           const lower = sigUrl.toLowerCase().split("?")[0];
-          const nameLooksSvg = !usingOrderSig && (effTestSignature?.name || "").toLowerCase().endsWith(".svg");
+          const nameLooksSvg = usingOverride && overrideName.toLowerCase().endsWith(".svg");
           let embedded = false;
           try {
             const { bytes, contentType } = await fetchImageBytesAnyOrigin(sigUrl);
