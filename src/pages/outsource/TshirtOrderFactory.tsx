@@ -218,10 +218,28 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
     }
   };
 
-  const confirmFiles = () => {
+  const [filesPreviewOpen, setFilesPreviewOpen] = useState(false);
+  const openFilesPreview = () => {
     if (step < 1) { toast({ title: "먼저 작업지시서를 확인해주세요", variant: "destructive" }); return; }
+    setFilesPreviewOpen(true);
+  };
+  const confirmFiles = () => {
     setStep(s => (s < 2 ? 2 : s));
+    setFilesPreviewOpen(false);
     toast({ title: "작업파일 확인 완료" });
+  };
+
+  const downloadTshirtXlsx = () => {
+    const wsData = [
+      ["Type", "Color", "Size", "Quantity"],
+      ...agg.map(a => [a.type, a.color, a.size, a.qty]),
+      ["", "", "Total", totalQty],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws["!cols"] = [{ wch: 20 }, { wch: 14 }, { wch: 10 }, { wch: 10 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "T-Shirt Order");
+    XLSX.writeFile(wb, `tshirt_order_${orderNo}.xlsx`);
   };
 
   const downloadZip = async () => {
@@ -295,7 +313,7 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
               <Button size="sm" variant={step >= 1 ? "outline" : "default"} onClick={confirmWorkOrder}>
                 <FileText className="w-4 h-4 mr-1" /> 작업지시서 확인
               </Button>
-              <Button size="sm" variant={step >= 2 ? "outline" : "default"} onClick={confirmFiles} disabled={step < 1}>
+              <Button size="sm" variant={step >= 2 ? "outline" : "default"} onClick={openFilesPreview} disabled={step < 1}>
                 <FileCheck2 className="w-4 h-4 mr-1" /> 작업파일 확인
               </Button>
               <Button size="sm" onClick={downloadZip} disabled={step < 2}>
@@ -454,6 +472,52 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 </div>
               </div>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 작업파일(Excel) 미리보기 다이얼로그 */}
+      <Dialog open={filesPreviewOpen} onOpenChange={setFilesPreviewOpen}>
+        <DialogContent aria-describedby={undefined} className="max-w-3xl w-[95vw] max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between pr-8">
+              <span>작업파일 미리보기 · tshirt_order.xlsx</span>
+              <Button size="sm" variant="outline" onClick={downloadTshirtXlsx}>
+                <Download className="w-4 h-4 mr-1" /> Excel 다운로드
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-auto border rounded-md">
+            <table className="w-full text-sm">
+              <thead className="bg-muted sticky top-0">
+                <tr>
+                  <th className="border px-3 py-2 text-left">Type</th>
+                  <th className="border px-3 py-2 text-left">Color</th>
+                  <th className="border px-3 py-2 text-left">Size</th>
+                  <th className="border px-3 py-2 text-right">Quantity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {agg.map((a, i) => (
+                  <tr key={i}>
+                    <td className="border px-3 py-2">{a.type}</td>
+                    <td className="border px-3 py-2">{a.color}</td>
+                    <td className="border px-3 py-2">{a.size}</td>
+                    <td className="border px-3 py-2 text-right tabular-nums">{a.qty}</td>
+                  </tr>
+                ))}
+                <tr className="font-semibold bg-muted/40">
+                  <td className="border px-3 py-2" colSpan={3}>Total</td>
+                  <td className="border px-3 py-2 text-right tabular-nums">{totalQty}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={() => setFilesPreviewOpen(false)}>취소</Button>
+            <Button size="sm" onClick={confirmFiles}>
+              <CheckCircle2 className="w-4 h-4 mr-1" /> 확인
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
