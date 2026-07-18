@@ -55,6 +55,9 @@ const GLOBAL_LAYOUT_KEY = "outsource-nfc-card-layout-default";
 const CARD_SIZE_KEY = "outsource-nfc-card-size";
 const TEST_TWINCODE_PREFIX = "nfc-card-test";
 const TEST_SIGNATURE_PREFIX = "nfc-card-test";
+// 서명 편집(주문 원본 대체용) 저장 경로 — 작업번호(orderNo)별 폴더 격리
+const SIG_EDIT_PREFIX = "nfc-card-signature-edits";
+const safeOrderKey = (s: string) => (s || "default").replace(/[^\w.-]+/g, "_").slice(0, 80) || "default";
 
 interface CardSize { width: number; height: number }
 const DEFAULT_CARD_SIZE: CardSize = { width: CARD_W_MM, height: CARD_H_MM };
