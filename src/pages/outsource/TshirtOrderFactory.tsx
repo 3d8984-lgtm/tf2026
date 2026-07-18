@@ -218,10 +218,28 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
     }
   };
 
-  const confirmFiles = () => {
+  const [filesPreviewOpen, setFilesPreviewOpen] = useState(false);
+  const openFilesPreview = () => {
     if (step < 1) { toast({ title: "먼저 작업지시서를 확인해주세요", variant: "destructive" }); return; }
+    setFilesPreviewOpen(true);
+  };
+  const confirmFiles = () => {
     setStep(s => (s < 2 ? 2 : s));
+    setFilesPreviewOpen(false);
     toast({ title: "작업파일 확인 완료" });
+  };
+
+  const downloadTshirtXlsx = () => {
+    const wsData = [
+      ["Type", "Color", "Size", "Quantity"],
+      ...agg.map(a => [a.type, a.color, a.size, a.qty]),
+      ["", "", "Total", totalQty],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws["!cols"] = [{ wch: 20 }, { wch: 14 }, { wch: 10 }, { wch: 10 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "T-Shirt Order");
+    XLSX.writeFile(wb, `tshirt_order_${orderNo}.xlsx`);
   };
 
   const downloadZip = async () => {
