@@ -404,31 +404,31 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
               }}
             >
               <div style={{ textAlign: "center", fontSize: "20px", fontWeight: 700, marginBottom: "12px" }}>
-                티셔츠 작업지시서
+                T恤生产作业指示书
               </div>
               <div style={{ borderTop: "2px solid #111", borderBottom: "1px solid #111", padding: "8px 0", marginBottom: "12px" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <tbody>
-                    <RowKV k="작업번호" v={workOrder.orderNo} k2="발주일" v2={workOrder.orderDate} />
-                    <RowKV k="트윈커" v={workOrder.twinker} k2="납기일" v2={workOrder.dueDate} />
-                    <RowKV k="발주업체명" v={workOrder.supplier} k2="총수량" v2={String(totalQty)} />
-                    <RowKV k="받을사람" v={workOrder.receiverName} k2="전화번호" v2={workOrder.receiverPhone} />
+                    <RowKV k="作业编号" v={workOrder.orderNo} k2="下单日期" v2={workOrder.orderDate} />
+                    <RowKV k="下单人" v={workOrder.twinker} k2="交货日期" v2={workOrder.dueDate} />
+                    <RowKV k="供应商名称" v={workOrder.supplier} k2="总数量" v2={String(totalQty)} />
+                    <RowKV k="收件人" v={workOrder.receiverName} k2="联系电话" v2={workOrder.receiverPhone} />
                   </tbody>
                 </table>
                 <div style={{ marginTop: "6px", display: "flex", gap: "8px" }}>
-                  <div style={{ width: "80px", fontWeight: 600 }}>주소</div>
+                  <div style={{ width: "80px", fontWeight: 600 }}>收件地址</div>
                   <div style={{ flex: 1 }}>{workOrder.receiverAddress}</div>
                 </div>
               </div>
 
-              <div style={{ fontWeight: 700, margin: "8px 0" }}>티셔츠 발주 내역</div>
+              <div style={{ fontWeight: 700, margin: "8px 0" }}>T恤订购明细</div>
               <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #111" }}>
                 <thead>
                   <tr style={{ background: "#f3f4f6" }}>
-                    <th style={cellTh}>종류</th>
-                    <th style={cellTh}>색상</th>
-                    <th style={cellTh}>사이즈</th>
-                    <th style={{ ...cellTh, textAlign: "right" }}>수량</th>
+                    <th style={cellTh}>款式</th>
+                    <th style={cellTh}>颜色</th>
+                    <th style={cellTh}>尺码</th>
+                    <th style={{ ...cellTh, textAlign: "right" }}>数量</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -441,14 +441,14 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
                     </tr>
                   ))}
                   <tr>
-                    <td style={{ ...cellTd, fontWeight: 700 }} colSpan={3}>합계</td>
+                    <td style={{ ...cellTd, fontWeight: 700 }} colSpan={3}>合计</td>
                     <td style={{ ...cellTd, textAlign: "right", fontWeight: 700 }}>{totalQty}</td>
                   </tr>
                 </tbody>
               </table>
 
               <div style={{ marginTop: "12px" }}>
-                <div style={{ fontWeight: 700, marginBottom: "4px" }}>비고</div>
+                <div style={{ fontWeight: 700, marginBottom: "4px" }}>备注</div>
                 <div style={{ minHeight: "40px", border: "1px solid #ccc", padding: "6px", whiteSpace: "pre-wrap" }}>
                   {workOrder.notes}
                 </div>
