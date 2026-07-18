@@ -67,6 +67,7 @@ const menuKeys: MenuItem[] = [
   { path: "/outsource/hologram", icon: Sparkles, key: "menu.outHologram", section: "outsource" },
   { path: "/outsource/nfc-card", icon: CreditCard, key: "menu.outNfcCard", section: "outsource" },
   { path: "/outsource/logo", icon: ImageIcon, key: "menu.outLogo", section: "outsource" },
+  { path: "/outsource/tshirt-order", icon: Shirt, key: "menu.outTshirtOrder", section: "outsource" },
   { path: "/outsource/tshirt-factory", icon: Shirt, key: "menu.outTshirtFactory", section: "outsource" },
   { path: "/outsource/packaging", icon: PackageOpen, key: "menu.outPackaging", section: "outsource" },
   { path: "/outsource/history", icon: History, key: "menu.outHistory", section: "outsource" },
