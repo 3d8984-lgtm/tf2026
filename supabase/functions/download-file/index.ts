@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 const MAX_BYTES = 20 * 1024 * 1024;
+// v2: expired AWS presigned URL retry + storage fallback for 403 responses.
 
 function sanitizeFilename(name: unknown) {
   const fallback = "download.png";
