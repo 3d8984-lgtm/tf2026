@@ -4793,7 +4793,7 @@ function CardCompositeThumb({
 
   const imageSrcFor = (key: OptionKey): string | null => {
     if (key === "twincode") return card?.twincodeSvgUrl || testTwincodeUrl || null;
-    if (key === "signature") return card?.signatureUrl || testSignatureUrl || null;
+    if (key === "signature") return testSignatureUrl || card?.signatureUrl || null;
     return null;
   };
 
