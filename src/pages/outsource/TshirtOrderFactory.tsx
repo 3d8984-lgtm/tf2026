@@ -200,17 +200,22 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const [step, setStep] = useState<0 | 1 | 2 | 3>(0);
   const stepLabels = ["작업지시서 확인", "작업파일 확인", "발주(ZIP 다운로드)"];
 
-  const confirmWorkOrder = async () => {
+  const confirmWorkOrder = () => {
+    setPdfOpen(true);
+    setStep(s => (s < 1 ? 1 : s));
+  };
+
+  const downloadWorkOrderPdf = async () => {
     try {
       setPdfLoading(true);
-      // wait a tick so the hidden preview node is in the DOM with latest values
       await new Promise(r => setTimeout(r, 50));
       const blob = await buildPdfBlob();
-      if (pdfUrl) URL.revokeObjectURL(pdfUrl);
       const url = URL.createObjectURL(blob);
-      setPdfUrl(url);
-      setPdfOpen(true);
-      setStep(s => (s < 1 ? 1 : s));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `work_order_${orderNo}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
     } catch (e: any) {
       toast({ title: "PDF 생성 실패", description: e?.message, variant: "destructive" });
     } finally {
