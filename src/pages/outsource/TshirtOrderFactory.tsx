@@ -399,6 +399,11 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
         </Card>
       </div>
 
+      {/* 오프스크린 렌더링: PDF 생성용 (항상 마운트) */}
+      <div style={{ position: "fixed", left: "-10000px", top: 0, pointerEvents: "none", opacity: 0 }} aria-hidden>
+        <WorkOrderSheet ref={previewRef} workOrder={workOrder} agg={agg} totalQty={totalQty} />
+      </div>
+
       {/* 작업지시서 A4 미리보기 다이얼로그 */}
       <Dialog open={pdfOpen} onOpenChange={setPdfOpen}>
         <DialogContent aria-describedby={undefined} className="max-w-5xl w-[95vw] h-[90vh] flex flex-col bg-muted/30">
