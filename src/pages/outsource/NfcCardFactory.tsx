@@ -2957,37 +2957,155 @@ function DetailView({
                 </div>
               </div>
 
-              {/* 편집본 확대 팝업 — 마우스 휠로 줌 */}
+              {/* 편집본 확대 팝업 — 원본과 나란히 비교 + 마우스 휠로 줌 */}
               <Dialog open={sigPreviewOpen} onOpenChange={setSigPreviewOpen}>
-                <DialogContent className="max-w-4xl">
+                <DialogContent className="max-w-6xl">
                   <DialogHeader>
                     <DialogTitle className="text-sm flex items-center justify-between gap-2">
-                      <span className="truncate">편집본 미리보기 · {(draftSignature?.name || editedSignature?.name) || ""}</span>
-                      <span className="text-[11px] font-normal text-muted-foreground tabular-nums">
-                        {Math.round(sigPreviewZoom * 100)}%
-                      </span>
+                      <span className="truncate">서명 미리보기 · 원본 vs 편집본</span>
+                      <div className="flex items-center gap-2">
+                        <div className="flex rounded border overflow-hidden">
+                          <button
+                            type="button"
+                            className={`px-2 py-1 text-[10px] ${sigCompareMode === "side" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-accent"}`}
+                            onClick={() => setSigCompareMode("side")}
+                          >
+                            나란히
+                          </button>
+                          <button
+                            type="button"
+                            className={`px-2 py-1 text-[10px] border-l ${sigCompareMode === "overlay" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-accent"}`}
+                            onClick={() => setSigCompareMode("overlay")}
+                          >
+                            겹침(슬라이더)
+                          </button>
+                        </div>
+                        <span className="text-[11px] font-normal text-muted-foreground tabular-nums">
+                          {Math.round(sigPreviewZoom * 100)}%
+                        </span>
+                      </div>
                     </DialogTitle>
                   </DialogHeader>
-                  <div
-                    className="relative w-full h-[70vh] overflow-auto bg-[conic-gradient(at_center,#eee_25%,#fff_0_50%,#eee_0_75%,#fff_0)] bg-[length:20px_20px] rounded border"
-                    onWheel={(e) => {
-                      e.preventDefault();
-                      const delta = e.deltaY > 0 ? -0.1 : 0.1;
-                      setSigPreviewZoom(z => Math.min(10, Math.max(0.2, +(z + delta).toFixed(2))));
-                    }}
-                  >
-                    <div className="min-w-full min-h-full flex items-center justify-center p-4">
-                      {(draftSignature?.url || editedSignature?.url) && (
-                        <img
-                          src={draftSignature?.url || editedSignature?.url}
-                          alt=""
-                          draggable={false}
-                          style={{ transform: `scale(${sigPreviewZoom})`, transformOrigin: "center center", transition: "transform 60ms linear" }}
-                          className="max-w-[80%] max-h-[60vh] object-contain select-none"
+
+                  {(() => {
+                    const originalUrl = cards[0]?.issuedByUrl || cards[0]?.signatureUrl || null;
+                    const editedUrl = draftSignature?.url || editedSignature?.url || null;
+                    const editedName = draftSignature?.name || editedSignature?.name || "";
+                    const checker = "bg-[conic-gradient(at_center,#eee_25%,#fff_0_50%,#eee_0_75%,#fff_0)] bg-[length:20px_20px]";
+
+                    if (sigCompareMode === "side") {
+                      return (
+                        <div
+                          className="grid grid-cols-2 gap-3"
+                          onWheel={(e) => {
+                            e.preventDefault();
+                            const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                            setSigPreviewZoom(z => Math.min(10, Math.max(0.2, +(z + delta).toFixed(2))));
+                          }}
+                        >
+                          {[
+                            { label: "원본 (ISSUED BY)", url: originalUrl, badge: null as string | null },
+                            { label: "편집본", url: editedUrl, badge: draftSignature ? "미저장" : (editedSignature ? "저장됨" : null) },
+                          ].map((col, i) => (
+                            <div key={i} className="space-y-1">
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="font-medium">{col.label}</span>
+                                {col.badge && (
+                                  <span className={`text-[9px] px-1 py-0.5 rounded ${col.badge === "미저장" ? "bg-amber-500/15 text-amber-600" : "bg-emerald-500/15 text-emerald-600"}`}>
+                                    {col.badge}
+                                  </span>
+                                )}
+                              </div>
+                              <div className={`relative w-full h-[65vh] overflow-auto rounded border ${checker}`}>
+                                <div className="min-w-full min-h-full flex items-center justify-center p-4">
+                                  {col.url ? (
+                                    <img
+                                      src={col.url}
+                                      alt=""
+                                      draggable={false}
+                                      style={{ transform: `scale(${sigPreviewZoom})`, transformOrigin: "center center", transition: "transform 60ms linear" }}
+                                      className="max-w-[85%] max-h-[55vh] object-contain select-none"
+                                    />
+                                  ) : (
+                                    <span className="text-[11px] text-muted-foreground">없음</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    }
+
+                    // Overlay slider mode: swipe/slide to reveal edited over original
+                    return (
+                      <div className="space-y-2">
+                        <div
+                          className={`relative w-full h-[65vh] overflow-hidden rounded border ${checker}`}
+                          onWheel={(e) => {
+                            e.preventDefault();
+                            const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                            setSigPreviewZoom(z => Math.min(10, Math.max(0.2, +(z + delta).toFixed(2))));
+                          }}
+                        >
+                          {originalUrl && (
+                            <div className="absolute inset-0 flex items-center justify-center p-4">
+                              <img
+                                src={originalUrl}
+                                alt="original"
+                                draggable={false}
+                                style={{ transform: `scale(${sigPreviewZoom})`, transformOrigin: "center center" }}
+                                className="max-w-[80%] max-h-[55vh] object-contain select-none"
+                              />
+                            </div>
+                          )}
+                          {editedUrl && (
+                            <div
+                              className="absolute inset-0 overflow-hidden"
+                              style={{ clipPath: `inset(0 ${100 - sigOverlaySplit}% 0 0)` }}
+                            >
+                              <div className={`absolute inset-0 flex items-center justify-center p-4 ${checker}`}>
+                                <img
+                                  src={editedUrl}
+                                  alt="edited"
+                                  draggable={false}
+                                  style={{ transform: `scale(${sigPreviewZoom})`, transformOrigin: "center center" }}
+                                  className="max-w-[80%] max-h-[55vh] object-contain select-none"
+                                />
+                              </div>
+                            </div>
+                          )}
+                          {/* Divider line */}
+                          {originalUrl && editedUrl && (
+                            <div
+                              className="absolute top-0 bottom-0 w-px bg-primary pointer-events-none"
+                              style={{ left: `${sigOverlaySplit}%` }}
+                            >
+                              <div className="absolute top-2 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded bg-primary text-primary-foreground text-[9px] whitespace-nowrap">
+                                편집본 ◄ | ► 원본
+                              </div>
+                            </div>
+                          )}
+                          {/* Corner labels */}
+                          <div className="absolute top-2 left-2 text-[10px] px-1.5 py-0.5 rounded bg-black/60 text-white">편집본</div>
+                          <div className="absolute top-2 right-2 text-[10px] px-1.5 py-0.5 rounded bg-black/60 text-white">원본</div>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={sigOverlaySplit}
+                          onChange={(e) => setSigOverlaySplit(parseInt(e.target.value))}
+                          className="w-full"
+                          aria-label="비교 슬라이더"
                         />
-                      )}
-                    </div>
-                  </div>
+                        <div className="text-[10px] text-muted-foreground text-center">슬라이더를 움직여 원본과 편집본을 비교하세요 · {sigOverlaySplit}%</div>
+                      </div>
+                    );
+                  })()}
+
+                  <div className="text-[10px] text-muted-foreground truncate">파일: {(draftSignature?.name || editedSignature?.name) || "-"}</div>
+
                   <DialogFooter className="flex-row justify-between sm:justify-between gap-2">
                     <div className="text-[11px] text-muted-foreground self-center">마우스 휠로 확대/축소</div>
                     <div className="flex gap-2">
