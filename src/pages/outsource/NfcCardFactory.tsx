@@ -3019,19 +3019,25 @@ function DetailView({
                 )}
               </div>
 
-              {/* 저장 / 취소 — 초안을 서버에 반영하거나 되돌린다 */}
-              {draftSignature && (
-                <div className="flex gap-2">
-                  <Button size="sm" className="flex-1 text-xs gap-1" onClick={onSaveEditedSignature} disabled={savingSig}>
-                    {savingSig ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-                    저장 (서버에 반영)
-                  </Button>
+              {/* 저장 / 취소 — 초안을 서버에 반영하거나 되돌린다. 저장 후에는 새로고침해도 유지된다. */}
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  className="flex-1 text-xs gap-1"
+                  onClick={onSaveEditedSignature}
+                  disabled={savingSig || !draftSignature}
+                  title={draftSignature ? "초안을 서버에 저장 (새로고침 후에도 유지)" : "저장할 변경사항이 없습니다"}
+                >
+                  {savingSig ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                  {draftSignature ? "저장 (서버에 반영)" : "저장됨"}
+                </Button>
+                {draftSignature && (
                   <Button size="sm" variant="outline" className="text-xs gap-1" onClick={clearDraftSignature} disabled={savingSig}>
                     <X className="w-3 h-3" />
                     취소
                   </Button>
-                </div>
-              )}
+                )}
+              </div>
               <div className="flex gap-2">
                 <Button
                   size="sm"
