@@ -795,12 +795,13 @@ export default function FileUpload() {
     { col: "R", category: CAT_SHIP, key: "phone", label: isKo ? "연락처" : "联系方式", desc: isKo ? "수취인 연락처" : "收件人联系方式" },
     { col: "S", category: CAT_SHIP, key: "address", label: isKo ? "주소" : "地址", desc: isKo ? "배송지 주소" : "配送地址" },
     { col: "T", category: CAT_SHIP, key: "zipcode", label: isKo ? "우편번호" : "邮编", desc: isKo ? "배송지 우편번호" : "配送地邮编" },
-    { col: "U", category: CAT_SHIP, key: "ship_date", label: isKo ? "발송 예정일" : "预计发货日", desc: isKo ? "발송 예정 일자" : "预计发货日期" },
+    { col: "U", category: CAT_SHIP, key: "shipping_note", label: isKo ? "배송 요청사항" : "配送备注", desc: isKo ? "배송 요청사항" : "配送备注" },
+    { col: "V", category: CAT_SHIP, key: "ship_date", label: isKo ? "발송 예정일" : "预计发货日", desc: isKo ? "발송 예정 일자" : "预计发货日期" },
 
-    { col: "V", category: CAT_DESIGN, key: "twinker_logo_url", label: isKo ? "트윈커 로고 (링크)" : "Twinker LOGO (链接)", desc: isKo ? "트윈커 로고 이미지 URL" : "Twinker LOGO URL" },
-    { col: "W", category: CAT_DESIGN, key: "twincode_svg_url", label: isKo ? "트윈코드 SVG (링크)" : "TwinCode SVG (链接)", desc: isKo ? "트윈코드 SVG 다운로드 URL" : "TwinCode SVG URL" },
-    { col: "X", category: CAT_DESIGN, key: "sign_url", label: isKo ? "싸인 (링크)" : "签名 (链接)", desc: isKo ? "사인 이미지 URL" : "签名图片URL" },
-    { col: "Y", category: CAT_DESIGN, key: "gft_original_image_url", label: isKo ? "GFT 원본 이미지 (링크)" : "GFT原始图像 (链接)", desc: isKo ? "GFT 원본 이미지 URL" : "GFT原始图像URL" },
+    { col: "W", category: CAT_DESIGN, key: "twinker_logo_url", label: isKo ? "트윈커 로고 (링크)" : "Twinker LOGO (链接)", desc: isKo ? "트윈커 로고 이미지 URL" : "Twinker LOGO URL" },
+    { col: "X", category: CAT_DESIGN, key: "twincode_svg_url", label: isKo ? "트윈코드 SVG (링크)" : "TwinCode SVG (链接)", desc: isKo ? "트윈코드 SVG 다운로드 URL" : "TwinCode SVG URL" },
+    { col: "Y", category: CAT_DESIGN, key: "sign_url", label: isKo ? "싸인 (링크)" : "签名 (链接)", desc: isKo ? "사인 이미지 URL" : "签名图片URL" },
+    { col: "Z", category: CAT_DESIGN, key: "gft_original_image_url", label: isKo ? "GFT 원본 이미지 (링크)" : "GFT原始图像 (链接)", desc: isKo ? "GFT 원본 이미지 URL" : "GFT原始图像URL" },
   ];
 
   const processFile = useCallback((file: File) => {
