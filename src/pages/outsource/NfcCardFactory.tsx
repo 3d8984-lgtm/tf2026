@@ -1831,7 +1831,7 @@ function DetailView({
 
   const saveLayout = async () => {
     if (!userId) { toast({ title: "로그인 필요", variant: "destructive" }); return; }
-    const payload = { layoutFront, layoutBack, workOrder, excelList, testValues, backDefaults, shapeOptions, shapeOptionsByGrade, masterFont, masterFontWeight, useTestData } as any;
+    const payload = { layoutFront, layoutBack, workOrder, excelList, testValues, backDefaults, shapeOptions, shapeOptionsByGrade, masterFont, masterFontWeight, useTestData, useEditedSignature } as any;
     const rows = [
       { user_id: userId, setting_key: `${SETTINGS_KEY_PREFIX}-${orderNo}`, setting_value: payload },
       { user_id: userId, setting_key: GLOBAL_LAYOUT_KEY, setting_value: payload },
