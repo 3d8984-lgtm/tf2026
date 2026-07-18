@@ -3029,7 +3029,7 @@ function DetailView({
               bleedMm={bleedMm}
               testImageUrl={effResolveTestBackAsset(applyTestValues(cards[0], effTestValues)?.grade)?.url || null}
               testTwincodeUrl={effTestTwincode?.url || null}
-              testSignatureUrl={effTestSignature?.url || null}
+              testSignatureUrl={effOverrideSignature?.url || null}
               cardPreview={applyTestValues(cards[0], effTestValues)}
               layout={layoutBack}
               setLayout={setLayoutBack}
