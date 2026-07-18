@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { forwardRef, useMemo, useRef, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -399,6 +399,11 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
         </Card>
       </div>
 
+      {/* 오프스크린 렌더링: PDF 생성용 (항상 마운트) */}
+      <div style={{ position: "fixed", left: "-10000px", top: 0, pointerEvents: "none", opacity: 0 }} aria-hidden>
+        <WorkOrderSheet ref={previewRef} workOrder={workOrder} agg={agg} totalQty={totalQty} />
+      </div>
+
       {/* 작업지시서 A4 미리보기 다이얼로그 */}
       <Dialog open={pdfOpen} onOpenChange={setPdfOpen}>
         <DialogContent aria-describedby={undefined} className="max-w-5xl w-[95vw] h-[90vh] flex flex-col bg-muted/30">
@@ -411,71 +416,7 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
             </DialogTitle>
           </DialogHeader>
           <div className="flex-1 min-h-0 overflow-auto flex justify-center py-4">
-            <div
-              ref={previewRef}
-              style={{
-                width: "210mm",
-                minHeight: "297mm",
-                padding: "16mm",
-                background: "#ffffff",
-                color: "#111827",
-                fontFamily: "'Noto Sans KR', 'Malgun Gothic', sans-serif",
-                fontSize: "12px",
-                boxSizing: "border-box",
-                boxShadow: "0 4px 24px rgba(0,0,0,0.15)",
-              }}
-            >
-              <div style={{ textAlign: "center", fontSize: "20px", fontWeight: 700, marginBottom: "12px" }}>
-                T恤生产作业指示书
-              </div>
-              <div style={{ borderTop: "2px solid #111", borderBottom: "1px solid #111", padding: "8px 0", marginBottom: "12px" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <tbody>
-                    <RowKV k="作业编号" v={workOrder.orderNo} k2="下单日期" v2={workOrder.orderDate} />
-                    <RowKV k="下单人" v={workOrder.twinker} k2="交货日期" v2={workOrder.dueDate} />
-                    <RowKV k="供应商名称" v={workOrder.supplier} k2="总数量" v2={String(totalQty)} />
-                    <RowKV k="收件人" v={workOrder.receiverName} k2="联系电话" v2={workOrder.receiverPhone} />
-                  </tbody>
-                </table>
-                <div style={{ marginTop: "6px", display: "flex", gap: "8px" }}>
-                  <div style={{ width: "80px", fontWeight: 600 }}>收件地址</div>
-                  <div style={{ flex: 1 }}>{workOrder.receiverAddress}</div>
-                </div>
-              </div>
-
-              <div style={{ fontWeight: 700, margin: "8px 0" }}>T恤订购明细</div>
-              <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #111" }}>
-                <thead>
-                  <tr style={{ background: "#f3f4f6" }}>
-                    <th style={cellTh}>款式</th>
-                    <th style={cellTh}>颜色</th>
-                    <th style={cellTh}>尺码</th>
-                    <th style={{ ...cellTh, textAlign: "right" }}>数量</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {agg.map((a, i) => (
-                    <tr key={i}>
-                      <td style={cellTd}>{a.type}</td>
-                      <td style={cellTd}>{a.color}</td>
-                      <td style={cellTd}>{a.size}</td>
-                      <td style={{ ...cellTd, textAlign: "right" }}>{a.qty}</td>
-                    </tr>
-                  ))}
-                  <tr>
-                    <td style={{ ...cellTd, fontWeight: 700 }} colSpan={3}>合计</td>
-                    <td style={{ ...cellTd, textAlign: "right", fontWeight: 700 }}>{totalQty}</td>
-                  </tr>
-                </tbody>
-              </table>
-
-              <div style={{ marginTop: "12px" }}>
-                <div style={{ fontWeight: 700, marginBottom: "4px" }}>备注</div>
-                <div style={{ minHeight: "40px", border: "1px solid #ccc", padding: "6px", whiteSpace: "pre-wrap" }}>
-                  {workOrder.notes}
-                </div>
-              </div>
-            </div>
+            <WorkOrderSheet workOrder={workOrder} agg={agg} totalQty={totalQty} />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" size="sm" onClick={() => setPdfOpen(false)}>취소</Button>
@@ -557,3 +498,74 @@ function Field({ label, value, onChange }: { label: string; value: string; onCha
     </div>
   );
 }
+
+const WorkOrderSheet = forwardRef<HTMLDivElement, { workOrder: any; agg: AggRow[]; totalQty: number }>(
+  ({ workOrder, agg, totalQty }, ref) => (
+    <div
+      ref={ref}
+      style={{
+        width: "210mm",
+        minHeight: "297mm",
+        padding: "16mm",
+        background: "#ffffff",
+        color: "#111827",
+        fontFamily: "'Noto Sans KR', 'Malgun Gothic', sans-serif",
+        fontSize: "12px",
+        boxSizing: "border-box",
+        boxShadow: "0 4px 24px rgba(0,0,0,0.15)",
+      }}
+    >
+      <div style={{ textAlign: "center", fontSize: "20px", fontWeight: 700, marginBottom: "12px" }}>
+        T恤生产作业指示书
+      </div>
+      <div style={{ borderTop: "2px solid #111", borderBottom: "1px solid #111", padding: "8px 0", marginBottom: "12px" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <tbody>
+            <RowKV k="作业编号" v={workOrder.orderNo} k2="下单日期" v2={workOrder.orderDate} />
+            <RowKV k="下单人" v={workOrder.twinker} k2="交货日期" v2={workOrder.dueDate} />
+            <RowKV k="供应商名称" v={workOrder.supplier} k2="总数量" v2={String(totalQty)} />
+            <RowKV k="收件人" v={workOrder.receiverName} k2="联系电话" v2={workOrder.receiverPhone} />
+          </tbody>
+        </table>
+        <div style={{ marginTop: "6px", display: "flex", gap: "8px" }}>
+          <div style={{ width: "80px", fontWeight: 600 }}>收件地址</div>
+          <div style={{ flex: 1 }}>{workOrder.receiverAddress}</div>
+        </div>
+      </div>
+
+      <div style={{ fontWeight: 700, margin: "8px 0" }}>T恤订购明细</div>
+      <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #111" }}>
+        <thead>
+          <tr style={{ background: "#f3f4f6" }}>
+            <th style={cellTh}>款式</th>
+            <th style={cellTh}>颜色</th>
+            <th style={cellTh}>尺码</th>
+            <th style={{ ...cellTh, textAlign: "right" }}>数量</th>
+          </tr>
+        </thead>
+        <tbody>
+          {agg.map((a, i) => (
+            <tr key={i}>
+              <td style={cellTd}>{a.type}</td>
+              <td style={cellTd}>{a.color}</td>
+              <td style={cellTd}>{a.size}</td>
+              <td style={{ ...cellTd, textAlign: "right" }}>{a.qty}</td>
+            </tr>
+          ))}
+          <tr>
+            <td style={{ ...cellTd, fontWeight: 700 }} colSpan={3}>合计</td>
+            <td style={{ ...cellTd, textAlign: "right", fontWeight: 700 }}>{totalQty}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div style={{ marginTop: "12px" }}>
+        <div style={{ fontWeight: 700, marginBottom: "4px" }}>备注</div>
+        <div style={{ minHeight: "40px", border: "1px solid #ccc", padding: "6px", whiteSpace: "pre-wrap" }}>
+          {workOrder.notes}
+        </div>
+      </div>
+    </div>
+  )
+);
+WorkOrderSheet.displayName = "WorkOrderSheet";
