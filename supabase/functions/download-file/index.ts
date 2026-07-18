@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 const MAX_BYTES = 20 * 1024 * 1024;
+// v2: expired AWS presigned URL retry + storage fallback for 403 responses.
 
 function sanitizeFilename(name: unknown) {
   const fallback = "download.png";
@@ -126,9 +127,9 @@ Deno.serve(async (req) => {
       let upstream = await externalFetch(target);
       const expiredAwsUrl = isAwsPresignedUrl(target) && awsPresignedUrlExpired(target);
 
-      // Some GFT/S3 objects are public, but an expired X-Amz signature makes S3
-      // reject an otherwise readable object. Retry the same object without only
-      // the AWS signing parameters before treating the source as unavailable.
+      // Some S3 objects are public, but an expired/invalid X-Amz signature makes
+      // S3 reject an otherwise readable object. On any 403 with AWS signing
+      // params, retry once with the signing parameters stripped.
       if (upstream.status === 403 && isAwsPresignedUrl(target)) {
         upstream.body?.cancel().catch(() => undefined);
         upstream = await externalFetch(withoutAwsSignature(target));
@@ -137,10 +138,12 @@ Deno.serve(async (req) => {
       if (!upstream.ok) {
         // Fallback: attempt service-role storage download regardless of host
         const ok = await tryStorageDownload();
-        if (!ok && expiredAwsUrl) {
-          throw new Error("GFT 원본 이미지 링크가 만료되었습니다. 비공개 원본은 새 링크로 주문 데이터를 다시 가져와야 합니다.");
+        if (!ok) {
+          if (expiredAwsUrl) {
+            throw new Error("원본 이미지 링크가 만료되었습니다(비공개 S3). 주문 데이터를 다시 가져와 새 링크를 받아주세요.");
+          }
+          throw new Error(`외부 원본 서버가 다운로드를 거부했습니다: ${upstream.status}`);
         }
-        if (!ok) throw new Error(`외부 원본 서버가 다운로드를 거부했습니다: ${upstream.status}`);
       } else {
         const contentLength = Number(upstream.headers.get("content-length") || 0);
         if (contentLength > MAX_BYTES) throw new Error("파일이 너무 큽니다. 20MB 이하 파일만 다운로드할 수 있습니다.");
