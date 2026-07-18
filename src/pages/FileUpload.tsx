@@ -858,14 +858,14 @@ export default function FileUpload() {
     if (!parsedRows.length) return;
     setSaving(true);
     try {
-      // Map Excel rows to orders table (25-column spec)
+      // Map Excel rows to orders table (26-column spec)
       // A(0): work_order_no, B(1): order_id → external_order_id, C(2): twinker_name
       // D~J (3~9): card info (issued_no, minted_on, grade, edition, icon colors)
       // K(10): tshirt_type, L(11): tshirt_color, M(12): tshirt_size
       // N(13): nfc_ndef_data, O(14): cp_value
       // P(15): country_code, Q(16): recipient_name, R(17): phone, S(18): address,
-      // T(19): zipcode, U(20): ship_date
-      // V~Y (21~24): design file URLs (logo, twincode svg, sign, dtf design)
+      // T(19): zipcode, U(20): shipping_note, V(21): ship_date
+      // W~Z (22~25): design file URLs (logo, twincode svg, sign, gft image)
 
       const orderMap = new Map<string, {
         external_order_id: string;
@@ -912,11 +912,12 @@ export default function FileUpload() {
           recipient_phone: str(17),
           shipping_address: str(18),
           shipping_zip: str(19),
-          ship_date: str(20),
-          twinker_logo_url: str(21),
-          twincode_svg_url: str(22),
-          sign_url: str(23),
-          gft_original_image_url: str(24),
+          shipping_note: str(20),
+          ship_date: str(21),
+          twinker_logo_url: str(22),
+          twincode_svg_url: str(23),
+          sign_url: str(24),
+          gft_original_image_url: str(25),
         };
 
         if (orderMap.has(extId)) {
@@ -926,7 +927,8 @@ export default function FileUpload() {
         } else {
           const twinkerName = str(2);
           const recipientName = str(16);
-          const shipDate = str(20);
+          const shippingNote = str(20);
+          const shipDate = str(21);
           orderMap.set(extId, {
             external_order_id: extId,
             product_code: str(10) || extId,
@@ -940,8 +942,8 @@ export default function FileUpload() {
             shipping_zip: str(19) || null,
             shipping_country: str(15) || "US",
             project_completed_at: shipDate || null,
-            source_data: { items: [itemData], work_order_no: str(0) },
-            logo_url: str(21) || null,
+            source_data: { items: [itemData], work_order_no: str(0), shipping_note: shippingNote },
+            logo_url: str(22) || null,
           });
         }
       }
