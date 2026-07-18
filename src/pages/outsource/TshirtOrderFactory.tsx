@@ -134,6 +134,10 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
     twinker: order?.recipient_name ?? "",
     dueDate: fmtDate(order?.project_completed_at),
     supplier: "",
+    orderDate: new Date().toISOString().slice(0, 10),
+    receiverName: order?.recipient_name ?? "",
+    receiverPhone: order?.recipient_phone ?? order?.source_data?.recipient_phone ?? "",
+    receiverAddress: order?.recipient_address ?? order?.source_data?.recipient_address ?? "",
     notes: "",
   });
 
@@ -158,8 +162,12 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
       `작업번호: ${workOrder.orderNo}`,
       `트윈커: ${workOrder.twinker}`,
       `납기일: ${workOrder.dueDate}`,
-      `공급업체: ${workOrder.supplier}`,
+      `발주업체명: ${workOrder.supplier}`,
       `총 수량: ${totalQty}`,
+      `발주일: ${workOrder.orderDate}`,
+      `받을사람: ${workOrder.receiverName}`,
+      `전화번호: ${workOrder.receiverPhone}`,
+      `주소: ${workOrder.receiverAddress}`,
       "",
       "[티셔츠 발주 내역]",
       "종류\t색상\t사이즈\t수량",
@@ -237,7 +245,18 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
               <Field label="작업번호" value={workOrder.orderNo} onChange={v => setWorkOrder(p => ({ ...p, orderNo: v }))} />
               <Field label="트윈커" value={workOrder.twinker} onChange={v => setWorkOrder(p => ({ ...p, twinker: v }))} />
               <Field label="납기일" value={workOrder.dueDate} onChange={v => setWorkOrder(p => ({ ...p, dueDate: v }))} />
-              <Field label="공급업체" value={workOrder.supplier} onChange={v => setWorkOrder(p => ({ ...p, supplier: v }))} />
+              <Field label="발주업체명" value={workOrder.supplier} onChange={v => setWorkOrder(p => ({ ...p, supplier: v }))} />
+              <div className="space-y-1">
+                <Label className="text-xs">총수량</Label>
+                <Input value={String(totalQty)} readOnly className="bg-muted/40" />
+              </div>
+              <Field label="발주일" value={workOrder.orderDate} onChange={v => setWorkOrder(p => ({ ...p, orderDate: v }))} />
+              <Field label="받을사람" value={workOrder.receiverName} onChange={v => setWorkOrder(p => ({ ...p, receiverName: v }))} />
+              <Field label="전화번호" value={workOrder.receiverPhone} onChange={v => setWorkOrder(p => ({ ...p, receiverPhone: v }))} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">주소</Label>
+              <Input value={workOrder.receiverAddress} onChange={e => setWorkOrder(p => ({ ...p, receiverAddress: e.target.value }))} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">비고</Label>
