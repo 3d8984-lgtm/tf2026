@@ -35,6 +35,41 @@ function extensionFor(contentType: string) {
   return "bin";
 }
 
+function isAwsPresignedUrl(url: URL) {
+  return url.searchParams.has("X-Amz-Signature")
+    && url.searchParams.has("X-Amz-Date")
+    && url.searchParams.has("X-Amz-Expires");
+}
+
+function awsPresignedUrlExpired(url: URL) {
+  const rawDate = url.searchParams.get("X-Amz-Date") || "";
+  const expiresSeconds = Number(url.searchParams.get("X-Amz-Expires") || "0");
+  const match = rawDate.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/);
+  if (!match || !Number.isFinite(expiresSeconds) || expiresSeconds <= 0) return false;
+  const [, year, month, day, hour, minute, second] = match;
+  const signedAt = Date.UTC(+year, +month - 1, +day, +hour, +minute, +second);
+  return Date.now() >= signedAt + expiresSeconds * 1000;
+}
+
+function withoutAwsSignature(url: URL) {
+  const unsigned = new URL(url.toString());
+  for (const key of [...unsigned.searchParams.keys()]) {
+    if (key.toLowerCase().startsWith("x-amz-")) unsigned.searchParams.delete(key);
+  }
+  return unsigned;
+}
+
+function externalFetch(url: URL) {
+  return fetch(url.toString(), {
+    redirect: "follow",
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36",
+      Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+      "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
+    },
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -88,16 +123,24 @@ Deno.serve(async (req) => {
     }
 
     if (!bytes) {
-      const upstream = await fetch(target.toString(), {
-        headers: {
-          "User-Agent": "TWINMETA-Factory-Downloader/1.0",
-          Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
-        },
-      });
+      let upstream = await externalFetch(target);
+      const expiredAwsUrl = isAwsPresignedUrl(target) && awsPresignedUrlExpired(target);
+
+      // Some GFT/S3 objects are public, but an expired X-Amz signature makes S3
+      // reject an otherwise readable object. Retry the same object without only
+      // the AWS signing parameters before treating the source as unavailable.
+      if (upstream.status === 403 && isAwsPresignedUrl(target)) {
+        upstream.body?.cancel().catch(() => undefined);
+        upstream = await externalFetch(withoutAwsSignature(target));
+      }
+
       if (!upstream.ok) {
         // Fallback: attempt service-role storage download regardless of host
         const ok = await tryStorageDownload();
-        if (!ok) throw new Error(`원본 파일 다운로드 실패: ${upstream.status}`);
+        if (!ok && expiredAwsUrl) {
+          throw new Error("GFT 원본 이미지 링크가 만료되었습니다. 비공개 원본은 새 링크로 주문 데이터를 다시 가져와야 합니다.");
+        }
+        if (!ok) throw new Error(`외부 원본 서버가 다운로드를 거부했습니다: ${upstream.status}`);
       } else {
         const contentLength = Number(upstream.headers.get("content-length") || 0);
         if (contentLength > MAX_BYTES) throw new Error("파일이 너무 큽니다. 20MB 이하 파일만 다운로드할 수 있습니다.");
