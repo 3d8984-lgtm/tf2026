@@ -477,6 +477,12 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
               </div>
             </div>
           </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={() => setPdfOpen(false)}>취소</Button>
+            <Button size="sm" onClick={acceptWorkOrder}>
+              <CheckCircle2 className="w-4 h-4 mr-1" /> 확인
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
