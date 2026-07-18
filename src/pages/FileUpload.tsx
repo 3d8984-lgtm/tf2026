@@ -795,12 +795,13 @@ export default function FileUpload() {
     { col: "R", category: CAT_SHIP, key: "phone", label: isKo ? "연락처" : "联系方式", desc: isKo ? "수취인 연락처" : "收件人联系方式" },
     { col: "S", category: CAT_SHIP, key: "address", label: isKo ? "주소" : "地址", desc: isKo ? "배송지 주소" : "配送地址" },
     { col: "T", category: CAT_SHIP, key: "zipcode", label: isKo ? "우편번호" : "邮编", desc: isKo ? "배송지 우편번호" : "配送地邮编" },
-    { col: "U", category: CAT_SHIP, key: "ship_date", label: isKo ? "발송 예정일" : "预计发货日", desc: isKo ? "발송 예정 일자" : "预计发货日期" },
+    { col: "U", category: CAT_SHIP, key: "shipping_note", label: isKo ? "배송 요청사항" : "配送备注", desc: isKo ? "배송 요청사항" : "配送备注" },
+    { col: "V", category: CAT_SHIP, key: "ship_date", label: isKo ? "발송 예정일" : "预计发货日", desc: isKo ? "발송 예정 일자" : "预计发货日期" },
 
-    { col: "V", category: CAT_DESIGN, key: "twinker_logo_url", label: isKo ? "트윈커 로고 (링크)" : "Twinker LOGO (链接)", desc: isKo ? "트윈커 로고 이미지 URL" : "Twinker LOGO URL" },
-    { col: "W", category: CAT_DESIGN, key: "twincode_svg_url", label: isKo ? "트윈코드 SVG (링크)" : "TwinCode SVG (链接)", desc: isKo ? "트윈코드 SVG 다운로드 URL" : "TwinCode SVG URL" },
-    { col: "X", category: CAT_DESIGN, key: "sign_url", label: isKo ? "싸인 (링크)" : "签名 (链接)", desc: isKo ? "사인 이미지 URL" : "签名图片URL" },
-    { col: "Y", category: CAT_DESIGN, key: "gft_original_image_url", label: isKo ? "GFT 원본 이미지 (링크)" : "GFT原始图像 (链接)", desc: isKo ? "GFT 원본 이미지 URL" : "GFT原始图像URL" },
+    { col: "W", category: CAT_DESIGN, key: "twinker_logo_url", label: isKo ? "트윈커 로고 (링크)" : "Twinker LOGO (链接)", desc: isKo ? "트윈커 로고 이미지 URL" : "Twinker LOGO URL" },
+    { col: "X", category: CAT_DESIGN, key: "twincode_svg_url", label: isKo ? "트윈코드 SVG (링크)" : "TwinCode SVG (链接)", desc: isKo ? "트윈코드 SVG 다운로드 URL" : "TwinCode SVG URL" },
+    { col: "Y", category: CAT_DESIGN, key: "sign_url", label: isKo ? "싸인 (링크)" : "签名 (链接)", desc: isKo ? "사인 이미지 URL" : "签名图片URL" },
+    { col: "Z", category: CAT_DESIGN, key: "gft_original_image_url", label: isKo ? "GFT 원본 이미지 (링크)" : "GFT原始图像 (链接)", desc: isKo ? "GFT 원본 이미지 URL" : "GFT原始图像URL" },
   ];
 
   const processFile = useCallback((file: File) => {
@@ -857,14 +858,14 @@ export default function FileUpload() {
     if (!parsedRows.length) return;
     setSaving(true);
     try {
-      // Map Excel rows to orders table (25-column spec)
+      // Map Excel rows to orders table (26-column spec)
       // A(0): work_order_no, B(1): order_id → external_order_id, C(2): twinker_name
       // D~J (3~9): card info (issued_no, minted_on, grade, edition, icon colors)
       // K(10): tshirt_type, L(11): tshirt_color, M(12): tshirt_size
       // N(13): nfc_ndef_data, O(14): cp_value
       // P(15): country_code, Q(16): recipient_name, R(17): phone, S(18): address,
-      // T(19): zipcode, U(20): ship_date
-      // V~Y (21~24): design file URLs (logo, twincode svg, sign, dtf design)
+      // T(19): zipcode, U(20): shipping_note, V(21): ship_date
+      // W~Z (22~25): design file URLs (logo, twincode svg, sign, gft image)
 
       const orderMap = new Map<string, {
         external_order_id: string;
@@ -911,11 +912,12 @@ export default function FileUpload() {
           recipient_phone: str(17),
           shipping_address: str(18),
           shipping_zip: str(19),
-          ship_date: str(20),
-          twinker_logo_url: str(21),
-          twincode_svg_url: str(22),
-          sign_url: str(23),
-          gft_original_image_url: str(24),
+          shipping_note: str(20),
+          ship_date: str(21),
+          twinker_logo_url: str(22),
+          twincode_svg_url: str(23),
+          sign_url: str(24),
+          gft_original_image_url: str(25),
         };
 
         if (orderMap.has(extId)) {
@@ -925,7 +927,8 @@ export default function FileUpload() {
         } else {
           const twinkerName = str(2);
           const recipientName = str(16);
-          const shipDate = str(20);
+          const shippingNote = str(20);
+          const shipDate = str(21);
           orderMap.set(extId, {
             external_order_id: extId,
             product_code: str(10) || extId,
@@ -939,8 +942,8 @@ export default function FileUpload() {
             shipping_zip: str(19) || null,
             shipping_country: str(15) || "US",
             project_completed_at: shipDate || null,
-            source_data: { items: [itemData], work_order_no: str(0) },
-            logo_url: str(21) || null,
+            source_data: { items: [itemData], work_order_no: str(0), shipping_note: shippingNote },
+            logo_url: str(22) || null,
           });
         }
       }
