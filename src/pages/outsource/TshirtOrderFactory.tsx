@@ -382,93 +382,83 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
         </Card>
       </div>
 
-      {/* 화면에는 보이지 않지만 렌더링되는 A4 미리보기 (html2canvas 캡처용) */}
-      <div style={{ position: "fixed", left: -99999, top: 0, pointerEvents: "none" }} aria-hidden>
-        <div
-          ref={previewRef}
-          style={{
-            width: "210mm",
-            minHeight: "297mm",
-            padding: "16mm",
-            background: "#ffffff",
-            color: "#111827",
-            fontFamily: "'Noto Sans KR', 'Malgun Gothic', sans-serif",
-            fontSize: "12px",
-            boxSizing: "border-box",
-          }}
-        >
-          <div style={{ textAlign: "center", fontSize: "20px", fontWeight: 700, marginBottom: "12px" }}>
-            티셔츠 작업지시서
-          </div>
-          <div style={{ borderTop: "2px solid #111", borderBottom: "1px solid #111", padding: "8px 0", marginBottom: "12px" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <tbody>
-                <RowKV k="작업번호" v={workOrder.orderNo} k2="발주일" v2={workOrder.orderDate} />
-                <RowKV k="트윈커" v={workOrder.twinker} k2="납기일" v2={workOrder.dueDate} />
-                <RowKV k="발주업체명" v={workOrder.supplier} k2="총수량" v2={String(totalQty)} />
-                <RowKV k="받을사람" v={workOrder.receiverName} k2="전화번호" v2={workOrder.receiverPhone} />
-              </tbody>
-            </table>
-            <div style={{ marginTop: "6px", display: "flex", gap: "8px" }}>
-              <div style={{ width: "80px", fontWeight: 600 }}>주소</div>
-              <div style={{ flex: 1 }}>{workOrder.receiverAddress}</div>
-            </div>
-          </div>
-
-          <div style={{ fontWeight: 700, margin: "8px 0" }}>티셔츠 발주 내역</div>
-          <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #111" }}>
-            <thead>
-              <tr style={{ background: "#f3f4f6" }}>
-                <th style={cellTh}>종류</th>
-                <th style={cellTh}>색상</th>
-                <th style={cellTh}>사이즈</th>
-                <th style={{ ...cellTh, textAlign: "right" }}>수량</th>
-              </tr>
-            </thead>
-            <tbody>
-              {agg.map((a, i) => (
-                <tr key={i}>
-                  <td style={cellTd}>{a.type}</td>
-                  <td style={cellTd}>{a.color}</td>
-                  <td style={cellTd}>{a.size}</td>
-                  <td style={{ ...cellTd, textAlign: "right" }}>{a.qty}</td>
-                </tr>
-              ))}
-              <tr>
-                <td style={{ ...cellTd, fontWeight: 700 }} colSpan={3}>합계</td>
-                <td style={{ ...cellTd, textAlign: "right", fontWeight: 700 }}>{totalQty}</td>
-              </tr>
-            </tbody>
-          </table>
-
-          <div style={{ marginTop: "12px" }}>
-            <div style={{ fontWeight: 700, marginBottom: "4px" }}>비고</div>
-            <div style={{ minHeight: "40px", border: "1px solid #ccc", padding: "6px", whiteSpace: "pre-wrap" }}>
-              {workOrder.notes}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* PDF 미리보기 다이얼로그 */}
+      {/* 작업지시서 A4 미리보기 다이얼로그 */}
       <Dialog open={pdfOpen} onOpenChange={setPdfOpen}>
-        <DialogContent className="max-w-5xl w-[95vw] h-[90vh] flex flex-col">
+        <DialogContent aria-describedby={undefined} className="max-w-5xl w-[95vw] h-[90vh] flex flex-col bg-muted/30">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between pr-8">
               <span>작업지시서 A4 미리보기</span>
-              {pdfUrl && (
-                <a href={pdfUrl} download={`work_order_${orderNo}.pdf`}>
-                  <Button size="sm" variant="outline">
-                    <Download className="w-4 h-4 mr-1" /> PDF 다운로드
-                  </Button>
-                </a>
-              )}
+              <Button size="sm" variant="outline" onClick={downloadWorkOrderPdf} disabled={pdfLoading}>
+                <Download className="w-4 h-4 mr-1" /> {pdfLoading ? "PDF 생성 중..." : "PDF 다운로드"}
+              </Button>
             </DialogTitle>
           </DialogHeader>
-          <div className="flex-1 min-h-0">
-            {pdfUrl && (
-              <iframe src={pdfUrl} className="w-full h-full border rounded" title="work-order-pdf" />
-            )}
+          <div className="flex-1 min-h-0 overflow-auto flex justify-center py-4">
+            <div
+              ref={previewRef}
+              style={{
+                width: "210mm",
+                minHeight: "297mm",
+                padding: "16mm",
+                background: "#ffffff",
+                color: "#111827",
+                fontFamily: "'Noto Sans KR', 'Malgun Gothic', sans-serif",
+                fontSize: "12px",
+                boxSizing: "border-box",
+                boxShadow: "0 4px 24px rgba(0,0,0,0.15)",
+              }}
+            >
+              <div style={{ textAlign: "center", fontSize: "20px", fontWeight: 700, marginBottom: "12px" }}>
+                티셔츠 작업지시서
+              </div>
+              <div style={{ borderTop: "2px solid #111", borderBottom: "1px solid #111", padding: "8px 0", marginBottom: "12px" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <tbody>
+                    <RowKV k="작업번호" v={workOrder.orderNo} k2="발주일" v2={workOrder.orderDate} />
+                    <RowKV k="트윈커" v={workOrder.twinker} k2="납기일" v2={workOrder.dueDate} />
+                    <RowKV k="발주업체명" v={workOrder.supplier} k2="총수량" v2={String(totalQty)} />
+                    <RowKV k="받을사람" v={workOrder.receiverName} k2="전화번호" v2={workOrder.receiverPhone} />
+                  </tbody>
+                </table>
+                <div style={{ marginTop: "6px", display: "flex", gap: "8px" }}>
+                  <div style={{ width: "80px", fontWeight: 600 }}>주소</div>
+                  <div style={{ flex: 1 }}>{workOrder.receiverAddress}</div>
+                </div>
+              </div>
+
+              <div style={{ fontWeight: 700, margin: "8px 0" }}>티셔츠 발주 내역</div>
+              <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #111" }}>
+                <thead>
+                  <tr style={{ background: "#f3f4f6" }}>
+                    <th style={cellTh}>종류</th>
+                    <th style={cellTh}>색상</th>
+                    <th style={cellTh}>사이즈</th>
+                    <th style={{ ...cellTh, textAlign: "right" }}>수량</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {agg.map((a, i) => (
+                    <tr key={i}>
+                      <td style={cellTd}>{a.type}</td>
+                      <td style={cellTd}>{a.color}</td>
+                      <td style={cellTd}>{a.size}</td>
+                      <td style={{ ...cellTd, textAlign: "right" }}>{a.qty}</td>
+                    </tr>
+                  ))}
+                  <tr>
+                    <td style={{ ...cellTd, fontWeight: 700 }} colSpan={3}>합계</td>
+                    <td style={{ ...cellTd, textAlign: "right", fontWeight: 700 }}>{totalQty}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div style={{ marginTop: "12px" }}>
+                <div style={{ fontWeight: 700, marginBottom: "4px" }}>비고</div>
+                <div style={{ minHeight: "40px", border: "1px solid #ccc", padding: "6px", whiteSpace: "pre-wrap" }}>
+                  {workOrder.notes}
+                </div>
+              </div>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
