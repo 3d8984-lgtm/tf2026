@@ -48,6 +48,7 @@ const IMPORT_COLUMNS: { key: string; label: string; type?: "url" }[] = [
   { key: "nfc_ndef_data", label: "NFC NDEF" },
   { key: "cp_value", label: "CP 점수" },
   { key: "ship_date", label: "배송일" },
+  { key: "shipping_note", label: "배송 요청사항" },
   { key: "twinker_logo_url", label: "로고", type: "url" },
   { key: "twincode_svg_url", label: "트윈코드 SVG", type: "url" },
   { key: "sign_url", label: "사인", type: "url" },
