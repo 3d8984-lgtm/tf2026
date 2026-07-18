@@ -1749,15 +1749,50 @@ function DetailView({
 
   const [vectorizingSig, setVectorizingSig] = useState(false);
 
-  // Vectorizer.AI로 주문 원본(ISSUED BY) 또는 이미 편집된 서명을 SVG 벡터로 변환하여 편집본에 저장
+  // 편집본 초안(미저장) — 저장 버튼을 눌러야 서버에 반영된다.
+  const [draftSignature, setDraftSignature] = useState<{ file: File; url: string; name: string } | null>(null);
+  const [savingSig, setSavingSig] = useState(false);
+
+  // 초안 미리보기 URL 해제
+  useEffect(() => {
+    return () => { if (draftSignature?.url) URL.revokeObjectURL(draftSignature.url); };
+  }, [draftSignature?.url]);
+
+  const setDraftFromFile = (file: File) => {
+    setDraftSignature(prev => {
+      if (prev?.url) URL.revokeObjectURL(prev.url);
+      return { file, url: URL.createObjectURL(file), name: file.name };
+    });
+  };
+
+  const clearDraftSignature = () => {
+    setDraftSignature(prev => {
+      if (prev?.url) URL.revokeObjectURL(prev.url);
+      return null;
+    });
+  };
+
+  // 저장 버튼: 초안을 서버에 업로드하여 새로고침 후에도 유지되도록 한다.
+  const onSaveEditedSignature = async () => {
+    if (!draftSignature) return;
+    setSavingSig(true);
+    try {
+      await onUploadEditedSignature(draftSignature.file);
+      clearDraftSignature();
+    } finally {
+      setSavingSig(false);
+    }
+  };
+
+  // Vectorizer.AI로 주문 원본(ISSUED BY) 또는 이미 편집/초안 상태의 서명을 SVG 벡터로 변환하여 초안에 반영한다.
   const onVectorizeSignature = async () => {
     const originalUrl = cards[0]?.signatureUrl || cards[0]?.issuedByUrl || null;
-    const srcUrl = editedSignature?.url || originalUrl;
+    const srcUrl = draftSignature?.url || editedSignature?.url || originalUrl;
     if (!srcUrl) {
       toast({ title: "서명 파일이 없습니다", description: "주문에 ISSUED BY 서명이 없고 편집본도 없습니다.", variant: "destructive" });
       return;
     }
-    if (/\.svg(\?|$)/i.test(srcUrl)) {
+    if (/\.svg(\?|$)/i.test(srcUrl) || (draftSignature?.name || "").toLowerCase().endsWith(".svg")) {
       toast({ title: "이미 SVG 벡터입니다", description: "변환이 필요하지 않습니다." });
       return;
     }
@@ -1773,10 +1808,10 @@ function DetailView({
       const res = await fetch(svgDataUrl);
       const blob = await res.blob();
       const file = new File([blob], `signature_vectorized_${Date.now()}.svg`, { type: "image/svg+xml" });
-      await onUploadEditedSignature(file);
+      setDraftFromFile(file);
       toast({
         title: "AI 벡터 변환 완료",
-        description: `모드: ${mode} · 크레딧: ${(data as any).credits ?? "-"} · 편집본에 저장됨`,
+        description: `모드: ${mode} · 크레딧: ${(data as any).credits ?? "-"} · 저장 버튼을 눌러 서버에 반영하세요`,
       });
     } catch (e) {
       toast({ title: "Vectorizer.AI 변환 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
@@ -2901,17 +2936,24 @@ function DetailView({
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <div className="text-[10px] text-muted-foreground">편집본</div>
-                    {editedSignature && <span className="text-[9px] px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-600">저장됨</span>}
+                    {draftSignature
+                      ? <span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/15 text-amber-600">미저장</span>
+                      : editedSignature && <span className="text-[9px] px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-600">저장됨</span>}
                   </div>
-                  <div
-                    className={`w-full h-24 border rounded bg-muted/30 overflow-hidden flex items-center justify-center ${editedSignature?.url ? "cursor-zoom-in hover:border-primary/60 transition-colors" : ""}`}
-                    onClick={() => { if (editedSignature?.url) { setSigPreviewZoom(1); setSigPreviewOpen(true); } }}
-                    title={editedSignature?.url ? "클릭하여 크게 보기" : undefined}
-                  >
-                    {editedSignature?.url
-                      ? <img src={editedSignature.url} alt="" className="w-full h-full object-contain bg-white" />
-                      : <span className="text-[10px] text-muted-foreground">편집본 없음</span>}
-                  </div>
+                  {(() => {
+                    const displayUrl = draftSignature?.url || editedSignature?.url || null;
+                    return (
+                      <div
+                        className={`w-full h-24 border rounded bg-muted/30 overflow-hidden flex items-center justify-center ${displayUrl ? "cursor-zoom-in hover:border-primary/60 transition-colors" : ""}`}
+                        onClick={() => { if (displayUrl) { setSigPreviewZoom(1); setSigPreviewOpen(true); } }}
+                        title={displayUrl ? "클릭하여 크게 보기" : undefined}
+                      >
+                        {displayUrl
+                          ? <img src={displayUrl} alt="" className="w-full h-full object-contain bg-white" />
+                          : <span className="text-[10px] text-muted-foreground">편집본 없음</span>}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -2920,7 +2962,7 @@ function DetailView({
                 <DialogContent className="max-w-4xl">
                   <DialogHeader>
                     <DialogTitle className="text-sm flex items-center justify-between gap-2">
-                      <span className="truncate">편집본 미리보기 · {editedSignature?.name || ""}</span>
+                      <span className="truncate">편집본 미리보기 · {(draftSignature?.name || editedSignature?.name) || ""}</span>
                       <span className="text-[11px] font-normal text-muted-foreground tabular-nums">
                         {Math.round(sigPreviewZoom * 100)}%
                       </span>
@@ -2935,9 +2977,9 @@ function DetailView({
                     }}
                   >
                     <div className="min-w-full min-h-full flex items-center justify-center p-4">
-                      {editedSignature?.url && (
+                      {(draftSignature?.url || editedSignature?.url) && (
                         <img
-                          src={editedSignature.url}
+                          src={draftSignature?.url || editedSignature?.url}
                           alt=""
                           draggable={false}
                           style={{ transform: `scale(${sigPreviewZoom})`, transformOrigin: "center center", transition: "transform 60ms linear" }}
@@ -2957,23 +2999,39 @@ function DetailView({
                 </DialogContent>
               </Dialog>
               <div className="text-[11px] text-muted-foreground truncate">
-                {editedSignature?.name || "파일 업로드 또는 AI 벡터 변환으로 편집본을 만드세요"}
+                {draftSignature?.name
+                  ? `초안: ${draftSignature.name} — 저장 버튼을 눌러 서버에 반영하세요`
+                  : (editedSignature?.name || "파일 업로드 또는 AI 벡터 변환으로 편집본을 만드세요")}
               </div>
 
               <div className="flex gap-2">
                 <label className="flex-1 flex items-center justify-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
                   <Upload className="w-3 h-3" />
-                  <span>{editedSignature ? "편집본 변경" : "편집본 업로드"}</span>
+                  <span>{(draftSignature || editedSignature) ? "편집본 변경" : "편집본 업로드"}</span>
                   <input type="file" accept="image/svg+xml,image/png,image/jpeg,image/webp" className="hidden"
-                    onChange={e => { const f = e.target.files?.[0] || null; e.currentTarget.value = ""; if (f) onUploadEditedSignature(f); }} />
+                    onChange={e => { const f = e.target.files?.[0] || null; e.currentTarget.value = ""; if (f) setDraftFromFile(f); }} />
                 </label>
-                {editedSignature && (
+                {editedSignature && !draftSignature && (
                   <Button size="sm" variant="destructive" className="text-xs"
-                    onClick={() => { if (confirm("편집된 서명을 삭제하고 원본 ISSUED BY를 사용할까요?")) onUploadEditedSignature(null); }}>
+                    onClick={() => { if (confirm("서버에 저장된 편집 서명을 삭제하고 원본 ISSUED BY를 사용할까요?")) onUploadEditedSignature(null); }}>
                     <X className="w-3 h-3 mr-1" />삭제
                   </Button>
                 )}
               </div>
+
+              {/* 저장 / 취소 — 초안을 서버에 반영하거나 되돌린다 */}
+              {draftSignature && (
+                <div className="flex gap-2">
+                  <Button size="sm" className="flex-1 text-xs gap-1" onClick={onSaveEditedSignature} disabled={savingSig}>
+                    {savingSig ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                    저장 (서버에 반영)
+                  </Button>
+                  <Button size="sm" variant="outline" className="text-xs gap-1" onClick={clearDraftSignature} disabled={savingSig}>
+                    <X className="w-3 h-3" />
+                    취소
+                  </Button>
+                </div>
+              )}
               <div className="flex gap-2">
                 <Button
                   size="sm"
