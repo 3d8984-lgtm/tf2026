@@ -16,7 +16,7 @@ const ROLE_PERMISSIONS: Record<UserRole, {
 }> = {
   worker: {
     menuAccess: ["/", "/tshirt-work", "/card-qr-inspect", "/card-photo-inspect", "/tshirt", "/monitor", "/shipping", "/defects", "/manual",
-      "/outsource", "/outsource/orders", "/outsource/silicon", "/outsource/heat-transfer", "/outsource/hologram", "/outsource/nfc-card", "/outsource/card-order/templates", "/outsource/card-order/orders", "/outsource/logo", "/outsource/tshirt-factory", "/outsource/packaging", "/outsource/history", "/outsource/settings"],
+      "/outsource", "/outsource/orders", "/outsource/silicon", "/outsource/heat-transfer", "/outsource/hologram", "/outsource/nfc-card", "/outsource/card-order/templates", "/outsource/card-order/orders", "/outsource/logo", "/outsource/tshirt-order", "/outsource/tshirt-factory", "/outsource/packaging", "/outsource/history", "/outsource/settings"],
     settingsTabs: [],
     canEdit: {
       orders: false,
@@ -28,7 +28,7 @@ const ROLE_PERMISSIONS: Record<UserRole, {
   },
   manager: {
     menuAccess: ["/", "/upload", "/master", "/tshirt-work", "/card-qr-inspect", "/card-photo-inspect", "/tshirt", "/monitor", "/shipping", "/defects", "/reports", "/manual", "/settings",
-      "/outsource", "/outsource/orders", "/outsource/silicon", "/outsource/heat-transfer", "/outsource/hologram", "/outsource/nfc-card", "/outsource/card-order/templates", "/outsource/card-order/orders", "/outsource/logo", "/outsource/tshirt-factory", "/outsource/packaging", "/outsource/history", "/outsource/settings"],
+      "/outsource", "/outsource/orders", "/outsource/silicon", "/outsource/heat-transfer", "/outsource/hologram", "/outsource/nfc-card", "/outsource/card-order/templates", "/outsource/card-order/orders", "/outsource/logo", "/outsource/tshirt-order", "/outsource/tshirt-factory", "/outsource/packaging", "/outsource/history", "/outsource/settings"],
     settingsTabs: ["general", "equipment", "plcTags", "sensors", "commands", "alarms", "inspection"],
     canEdit: {
       orders: true,
@@ -40,7 +40,7 @@ const ROLE_PERMISSIONS: Record<UserRole, {
   },
   admin: {
     menuAccess: ["/", "/upload", "/master", "/tshirt-work", "/card-qr-inspect", "/card-photo-inspect", "/tshirt", "/monitor", "/shipping", "/defects", "/reports", "/manual", "/settings",
-      "/outsource", "/outsource/orders", "/outsource/silicon", "/outsource/heat-transfer", "/outsource/hologram", "/outsource/nfc-card", "/outsource/card-order/templates", "/outsource/card-order/orders", "/outsource/logo", "/outsource/tshirt-factory", "/outsource/packaging", "/outsource/history", "/outsource/settings"],
+      "/outsource", "/outsource/orders", "/outsource/silicon", "/outsource/heat-transfer", "/outsource/hologram", "/outsource/nfc-card", "/outsource/card-order/templates", "/outsource/card-order/orders", "/outsource/logo", "/outsource/tshirt-order", "/outsource/tshirt-factory", "/outsource/packaging", "/outsource/history", "/outsource/settings"],
     settingsTabs: ["general", "users", "equipment", "plcTags", "sensors", "commands", "alarms", "inspection", "webhook", "courier", "callback"],
     canEdit: {
       orders: true,
