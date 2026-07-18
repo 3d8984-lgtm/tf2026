@@ -1407,22 +1407,24 @@ function DetailView({
   // Test twincode SVG (server-persisted; falls back to API twincodeSvgUrl when removed)
   const [testTwincodeSvg, setTestTwincodeSvg] = useState<{ url: string; name: string } | null>(null);
 
-  // Test signature file (server-persisted; falls back to API signatureUrl when removed)
-  const [testSignature, setTestSignature] = useState<{ url: string; name: string } | null>(null);
+  // 서명 편집(주문 원본 대체) — 작업번호별 서버 저장. 토글이 켜지면 이 파일이 모든 카드의 ISSUED BY 서명을 대체한다.
+  const [editedSignature, setEditedSignature] = useState<{ url: string; name: string } | null>(null);
+  const [useEditedSignature, setUseEditedSignature] = useState(false);
   const [uploadDebug, setUploadDebug] = useState<UploadDebugInfo | null>(null);
 
   // Test values for preview only (override card[0] for front/back fields)
   const [testValues, setTestValues] = useState({
     cpValue: "", editionNo: "", issuedNo: "", mintedOn: "", grade: "",
   });
-  // 테스트 데이터 사용 여부 토글. ON이면 앞면 테스트 이미지 / 트윈코드 SVG / 서명 파일 / 미리보기 테스트 값을 적용하고,
-  // OFF면 이 4가지 항목은 실제 주문 데이터만 사용한다.
+  // 테스트 데이터 사용 여부 토글. ON이면 앞면 테스트 이미지 / 트윈코드 SVG / 미리보기 테스트 값을 적용하고,
+  // OFF면 이 3가지 항목은 실제 주문 데이터만 사용한다. (서명은 별도의 "서명 편집" 토글로 관리)
   const [useTestData, setUseTestData] = useState(true);
   const EMPTY_TEST_VALUES = { cpValue: "", editionNo: "", issuedNo: "", mintedOn: "", grade: "" };
   const effTestValues = useTestData ? testValues : EMPTY_TEST_VALUES;
   const effTestFront = useTestData ? testImages.front : null;
   const effTestTwincode = useTestData ? testTwincodeSvg : null;
-  const effTestSignature = useTestData ? testSignature : null;
+  // 서명 편집 토글이 켜져 있고 편집된 서명이 있으면, 이 URL이 카드별 signatureUrl/issuedByUrl을 강제 대체한다.
+  const effOverrideSignature = useEditedSignature ? editedSignature : null;
   // 등급별 뒷면 이미지는 테스트 파일이 아니라 실제 인쇄용 자산이므로 토글과 무관하게 항상 사용한다.
   const effResolveTestBackAsset = (grade: unknown): TestAsset | null =>
     resolveTestBackAsset(grade);
