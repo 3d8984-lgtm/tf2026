@@ -43,6 +43,7 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization") ?? "";
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !anonKey) throw new Error("Backend environment is not configured.");
 
     const client = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authHeader } } });
@@ -63,23 +64,45 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Unsupported download URL" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const upstream = await fetch(target.toString(), {
-      headers: {
-        "User-Agent": "TWINMETA-Factory-Downloader/1.0",
-        Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
-      },
-    });
-    if (!upstream.ok) throw new Error(`원본 파일 다운로드 실패: ${upstream.status}`);
+    // If URL points to our own Supabase Storage, use service role to bypass private-bucket 403s
+    let bytes: Uint8Array | null = null;
+    let contentType = "application/octet-stream";
+    const ownHost = new URL(supabaseUrl).host;
+    const isOwnStorage = target.host === ownHost && target.pathname.includes("/storage/v1/object/");
+    if (isOwnStorage && serviceKey) {
+      // Path formats:
+      //  /storage/v1/object/public/<bucket>/<path>
+      //  /storage/v1/object/sign/<bucket>/<path>?token=...
+      //  /storage/v1/object/<bucket>/<path>
+      const m = target.pathname.match(/\/storage\/v1\/object\/(?:public\/|sign\/)?([^/]+)\/(.+)$/);
+      if (m) {
+        const bucket = decodeURIComponent(m[1]);
+        const path = decodeURIComponent(m[2]);
+        const admin = createClient(supabaseUrl, serviceKey);
+        const { data, error } = await admin.storage.from(bucket).download(path);
+        if (error || !data) throw new Error(`원본 파일 다운로드 실패: ${error?.message ?? "storage error"}`);
+        bytes = new Uint8Array(await data.arrayBuffer());
+        contentType = data.type || contentType;
+      }
+    }
 
-    const contentLength = Number(upstream.headers.get("content-length") || 0);
-    if (contentLength > MAX_BYTES) throw new Error("파일이 너무 큽니다. 20MB 이하 파일만 다운로드할 수 있습니다.");
+    if (!bytes) {
+      const upstream = await fetch(target.toString(), {
+        headers: {
+          "User-Agent": "TWINMETA-Factory-Downloader/1.0",
+          Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        },
+      });
+      if (!upstream.ok) throw new Error(`원본 파일 다운로드 실패: ${upstream.status}`);
+      const contentLength = Number(upstream.headers.get("content-length") || 0);
+      if (contentLength > MAX_BYTES) throw new Error("파일이 너무 큽니다. 20MB 이하 파일만 다운로드할 수 있습니다.");
+      contentType = upstream.headers.get("content-type") || contentType;
+      bytes = new Uint8Array(await upstream.arrayBuffer());
+    }
 
-    const contentType = upstream.headers.get("content-type") || "application/octet-stream";
     if (!contentType.toLowerCase().startsWith("image/") && !contentType.toLowerCase().includes("octet-stream")) {
       throw new Error("이미지 파일만 다운로드할 수 있습니다.");
     }
-
-    const bytes = new Uint8Array(await upstream.arrayBuffer());
     if (bytes.byteLength > MAX_BYTES) throw new Error("파일이 너무 큽니다. 20MB 이하 파일만 다운로드할 수 있습니다.");
 
     const ext = extensionFor(contentType);
