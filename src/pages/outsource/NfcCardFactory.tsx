@@ -2903,13 +2903,59 @@ function DetailView({
                     <div className="text-[10px] text-muted-foreground">편집본</div>
                     {editedSignature && <span className="text-[9px] px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-600">저장됨</span>}
                   </div>
-                  <div className="w-full h-24 border rounded bg-muted/30 overflow-hidden flex items-center justify-center">
+                  <div
+                    className={`w-full h-24 border rounded bg-muted/30 overflow-hidden flex items-center justify-center ${editedSignature?.url ? "cursor-zoom-in hover:border-primary/60 transition-colors" : ""}`}
+                    onClick={() => { if (editedSignature?.url) { setSigPreviewZoom(1); setSigPreviewOpen(true); } }}
+                    title={editedSignature?.url ? "클릭하여 크게 보기" : undefined}
+                  >
                     {editedSignature?.url
                       ? <img src={editedSignature.url} alt="" className="w-full h-full object-contain bg-white" />
                       : <span className="text-[10px] text-muted-foreground">편집본 없음</span>}
                   </div>
                 </div>
               </div>
+
+              {/* 편집본 확대 팝업 — 마우스 휠로 줌 */}
+              <Dialog open={sigPreviewOpen} onOpenChange={setSigPreviewOpen}>
+                <DialogContent className="max-w-4xl">
+                  <DialogHeader>
+                    <DialogTitle className="text-sm flex items-center justify-between gap-2">
+                      <span className="truncate">편집본 미리보기 · {editedSignature?.name || ""}</span>
+                      <span className="text-[11px] font-normal text-muted-foreground tabular-nums">
+                        {Math.round(sigPreviewZoom * 100)}%
+                      </span>
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div
+                    className="relative w-full h-[70vh] overflow-auto bg-[conic-gradient(at_center,#eee_25%,#fff_0_50%,#eee_0_75%,#fff_0)] bg-[length:20px_20px] rounded border"
+                    onWheel={(e) => {
+                      e.preventDefault();
+                      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                      setSigPreviewZoom(z => Math.min(10, Math.max(0.2, +(z + delta).toFixed(2))));
+                    }}
+                  >
+                    <div className="min-w-full min-h-full flex items-center justify-center p-4">
+                      {editedSignature?.url && (
+                        <img
+                          src={editedSignature.url}
+                          alt=""
+                          draggable={false}
+                          style={{ transform: `scale(${sigPreviewZoom})`, transformOrigin: "center center", transition: "transform 60ms linear" }}
+                          className="max-w-[80%] max-h-[60vh] object-contain select-none"
+                        />
+                      )}
+                    </div>
+                  </div>
+                  <DialogFooter className="flex-row justify-between sm:justify-between gap-2">
+                    <div className="text-[11px] text-muted-foreground self-center">마우스 휠로 확대/축소</div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setSigPreviewZoom(z => Math.max(0.2, +(z - 0.2).toFixed(2)))}>−</Button>
+                      <Button size="sm" variant="outline" onClick={() => setSigPreviewZoom(1)}>100%</Button>
+                      <Button size="sm" variant="outline" onClick={() => setSigPreviewZoom(z => Math.min(10, +(z + 0.2).toFixed(2)))}>+</Button>
+                    </div>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
               <div className="text-[11px] text-muted-foreground truncate">
                 {editedSignature?.name || "파일 업로드 또는 AI 벡터 변환으로 편집본을 만드세요"}
               </div>
