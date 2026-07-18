@@ -164,15 +164,10 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
     }
   };
 
-  // A4 PDF 미리보기
+  // A4 미리보기 / PDF
   const previewRef = useRef<HTMLDivElement>(null);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfOpen, setPdfOpen] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
-
-  useEffect(() => {
-    return () => { if (pdfUrl) URL.revokeObjectURL(pdfUrl); };
-  }, [pdfUrl]);
 
   const buildPdfBlob = async (): Promise<Blob> => {
     const node = previewRef.current!;
