@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,12 +7,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import { useOrders } from "@/hooks/useDbData";
 import {
-  ArrowLeft, Eye, FileText, FileCheck2, Download, CheckCircle2, Circle,
+  ArrowLeft, Eye, FileText, FileCheck2, Download, CheckCircle2, Circle, Save,
 } from "lucide-react";
 import JSZip from "jszip";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 type OrderRow = {
   id: string;
@@ -106,6 +110,8 @@ export default function TshirtOrderFactory() {
 
 type AggRow = { type: string; color: string; size: string; qty: number };
 
+const WO_STORAGE_PREFIX = "tshirt_work_order_v1_";
+
 function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const orderNo = order?.external_order_id ?? "";
   const items: any[] = Array.isArray(order?.source_data?.items) ? order.source_data.items : [];
@@ -128,8 +134,9 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
   const totalQty = agg.reduce((s, a) => s + a.qty, 0);
 
-  // 작업지시서 설정
-  const [workOrder, setWorkOrder] = useState({
+  // 작업지시서 설정 (localStorage 저장/복원)
+  const storageKey = WO_STORAGE_PREFIX + orderNo;
+  const defaultWO = {
     orderNo,
     twinker: order?.recipient_name ?? "",
     dueDate: fmtDate(order?.project_completed_at),
@@ -139,47 +146,108 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
     receiverPhone: order?.recipient_phone ?? order?.source_data?.recipient_phone ?? "",
     receiverAddress: order?.recipient_address ?? order?.source_data?.recipient_address ?? "",
     notes: "",
+  };
+  const [workOrder, setWorkOrder] = useState(() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) return { ...defaultWO, ...JSON.parse(raw) };
+    } catch {}
+    return defaultWO;
   });
+
+  const saveWorkOrder = () => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(workOrder));
+      toast({ title: "작업지시서 저장 완료" });
+    } catch (e: any) {
+      toast({ title: "저장 실패", description: e?.message, variant: "destructive" });
+    }
+  };
+
+  // A4 PDF 미리보기
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfOpen, setPdfOpen] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  useEffect(() => {
+    return () => { if (pdfUrl) URL.revokeObjectURL(pdfUrl); };
+  }, [pdfUrl]);
+
+  const buildPdfBlob = async (): Promise<Blob> => {
+    const node = previewRef.current!;
+    const canvas = await html2canvas(node, { scale: 2, backgroundColor: "#ffffff" });
+    const imgData = canvas.toDataURL("image/jpeg", 0.95);
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const imgW = pageW;
+    const imgH = (canvas.height * imgW) / canvas.width;
+    let heightLeft = imgH;
+    let position = 0;
+    pdf.addImage(imgData, "JPEG", 0, position, imgW, imgH);
+    heightLeft -= pageH;
+    while (heightLeft > 0) {
+      position = heightLeft - imgH;
+      pdf.addPage();
+      pdf.addImage(imgData, "JPEG", 0, position, imgW, imgH);
+      heightLeft -= pageH;
+    }
+    return pdf.output("blob");
+  };
 
   // 발주진행 상태
   const [step, setStep] = useState<0 | 1 | 2 | 3>(0);
   const stepLabels = ["작업지시서 확인", "작업파일 확인", "발주(ZIP 다운로드)"];
 
-  const confirmWorkOrder = () => {
-    setStep(s => (s < 1 ? 1 : s));
-    toast({ title: "작업지시서 확인 완료" });
+  const confirmWorkOrder = async () => {
+    try {
+      setPdfLoading(true);
+      // wait a tick so the hidden preview node is in the DOM with latest values
+      await new Promise(r => setTimeout(r, 50));
+      const blob = await buildPdfBlob();
+      if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+      const url = URL.createObjectURL(blob);
+      setPdfUrl(url);
+      setPdfOpen(true);
+      setStep(s => (s < 1 ? 1 : s));
+    } catch (e: any) {
+      toast({ title: "PDF 생성 실패", description: e?.message, variant: "destructive" });
+    } finally {
+      setPdfLoading(false);
+    }
   };
+
   const confirmFiles = () => {
     if (step < 1) { toast({ title: "먼저 작업지시서를 확인해주세요", variant: "destructive" }); return; }
     setStep(s => (s < 2 ? 2 : s));
     toast({ title: "작업파일 확인 완료" });
   };
+
   const downloadZip = async () => {
     if (step < 2) { toast({ title: "먼저 작업파일을 확인해주세요", variant: "destructive" }); return; }
     const zip = new JSZip();
-    // 작업지시서.txt
-    const wo = [
-      `작업번호: ${workOrder.orderNo}`,
-      `트윈커: ${workOrder.twinker}`,
-      `납기일: ${workOrder.dueDate}`,
-      `발주업체명: ${workOrder.supplier}`,
-      `총 수량: ${totalQty}`,
-      `발주일: ${workOrder.orderDate}`,
-      `받을사람: ${workOrder.receiverName}`,
-      `전화번호: ${workOrder.receiverPhone}`,
-      `주소: ${workOrder.receiverAddress}`,
-      "",
-      "[티셔츠 발주 내역]",
-      "종류\t색상\t사이즈\t수량",
-      ...agg.map(a => `${a.type}\t${a.color}\t${a.size}\t${a.qty}`),
-      "",
-      "비고:",
-      workOrder.notes,
-    ].join("\n");
-    zip.file("작업지시서.txt", wo);
-    // 발주내역.csv
-    const csv = ["종류,색상,사이즈,수량", ...agg.map(a => `${a.type},${a.color},${a.size},${a.qty}`)].join("\n");
-    zip.file("발주내역.csv", csv);
+
+    // 작업지시서 PDF (A4)
+    try {
+      const blob = await buildPdfBlob();
+      zip.file("work_order.pdf", blob);
+    } catch (e) {
+      console.error("PDF build for ZIP failed", e);
+    }
+
+    // 티셔츠 발주 내역 Excel (영어 헤더)
+    const wsData = [
+      ["Type", "Color", "Size", "Quantity"],
+      ...agg.map(a => [a.type, a.color, a.size, a.qty]),
+      ["", "", "Total", totalQty],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws["!cols"] = [{ wch: 20 }, { wch: 14 }, { wch: 10 }, { wch: 10 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "T-Shirt Order");
+    const xlsxBuf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+    zip.file("tshirt_order.xlsx", xlsxBuf);
 
     const blob = await zip.generateAsync({ type: "blob" });
     const url = URL.createObjectURL(blob);
@@ -224,8 +292,8 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
               })}
             </div>
             <div className="flex gap-2 mt-4 flex-wrap">
-              <Button size="sm" variant={step >= 1 ? "outline" : "default"} onClick={confirmWorkOrder}>
-                <FileText className="w-4 h-4 mr-1" /> 작업지시서 확인
+              <Button size="sm" variant={step >= 1 ? "outline" : "default"} onClick={confirmWorkOrder} disabled={pdfLoading}>
+                <FileText className="w-4 h-4 mr-1" /> {pdfLoading ? "PDF 생성 중..." : "작업지시서 확인"}
               </Button>
               <Button size="sm" variant={step >= 2 ? "outline" : "default"} onClick={confirmFiles} disabled={step < 1}>
                 <FileCheck2 className="w-4 h-4 mr-1" /> 작업파일 확인
@@ -239,7 +307,14 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
         {/* 작업지시서 설정 */}
         <Card>
-          <CardHeader><CardTitle className="text-base">작업지시서 설정</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center justify-between">
+              <span>작업지시서 설정</span>
+              <Button size="sm" onClick={saveWorkOrder}>
+                <Save className="w-4 h-4 mr-1" /> 저장
+              </Button>
+            </CardTitle>
+          </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <Field label="작업번호" value={workOrder.orderNo} onChange={v => setWorkOrder(p => ({ ...p, orderNo: v }))} />
@@ -301,7 +376,112 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
           </CardContent>
         </Card>
       </div>
+
+      {/* 화면에는 보이지 않지만 렌더링되는 A4 미리보기 (html2canvas 캡처용) */}
+      <div style={{ position: "fixed", left: -99999, top: 0, pointerEvents: "none" }} aria-hidden>
+        <div
+          ref={previewRef}
+          style={{
+            width: "210mm",
+            minHeight: "297mm",
+            padding: "16mm",
+            background: "#ffffff",
+            color: "#111827",
+            fontFamily: "'Noto Sans KR', 'Malgun Gothic', sans-serif",
+            fontSize: "12px",
+            boxSizing: "border-box",
+          }}
+        >
+          <div style={{ textAlign: "center", fontSize: "20px", fontWeight: 700, marginBottom: "12px" }}>
+            티셔츠 작업지시서
+          </div>
+          <div style={{ borderTop: "2px solid #111", borderBottom: "1px solid #111", padding: "8px 0", marginBottom: "12px" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <tbody>
+                <RowKV k="작업번호" v={workOrder.orderNo} k2="발주일" v2={workOrder.orderDate} />
+                <RowKV k="트윈커" v={workOrder.twinker} k2="납기일" v2={workOrder.dueDate} />
+                <RowKV k="발주업체명" v={workOrder.supplier} k2="총수량" v2={String(totalQty)} />
+                <RowKV k="받을사람" v={workOrder.receiverName} k2="전화번호" v2={workOrder.receiverPhone} />
+              </tbody>
+            </table>
+            <div style={{ marginTop: "6px", display: "flex", gap: "8px" }}>
+              <div style={{ width: "80px", fontWeight: 600 }}>주소</div>
+              <div style={{ flex: 1 }}>{workOrder.receiverAddress}</div>
+            </div>
+          </div>
+
+          <div style={{ fontWeight: 700, margin: "8px 0" }}>티셔츠 발주 내역</div>
+          <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #111" }}>
+            <thead>
+              <tr style={{ background: "#f3f4f6" }}>
+                <th style={cellTh}>종류</th>
+                <th style={cellTh}>색상</th>
+                <th style={cellTh}>사이즈</th>
+                <th style={{ ...cellTh, textAlign: "right" }}>수량</th>
+              </tr>
+            </thead>
+            <tbody>
+              {agg.map((a, i) => (
+                <tr key={i}>
+                  <td style={cellTd}>{a.type}</td>
+                  <td style={cellTd}>{a.color}</td>
+                  <td style={cellTd}>{a.size}</td>
+                  <td style={{ ...cellTd, textAlign: "right" }}>{a.qty}</td>
+                </tr>
+              ))}
+              <tr>
+                <td style={{ ...cellTd, fontWeight: 700 }} colSpan={3}>합계</td>
+                <td style={{ ...cellTd, textAlign: "right", fontWeight: 700 }}>{totalQty}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div style={{ marginTop: "12px" }}>
+            <div style={{ fontWeight: 700, marginBottom: "4px" }}>비고</div>
+            <div style={{ minHeight: "40px", border: "1px solid #ccc", padding: "6px", whiteSpace: "pre-wrap" }}>
+              {workOrder.notes}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* PDF 미리보기 다이얼로그 */}
+      <Dialog open={pdfOpen} onOpenChange={setPdfOpen}>
+        <DialogContent className="max-w-5xl w-[95vw] h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between pr-8">
+              <span>작업지시서 A4 미리보기</span>
+              {pdfUrl && (
+                <a href={pdfUrl} download={`work_order_${orderNo}.pdf`}>
+                  <Button size="sm" variant="outline">
+                    <Download className="w-4 h-4 mr-1" /> PDF 다운로드
+                  </Button>
+                </a>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0">
+            {pdfUrl && (
+              <iframe src={pdfUrl} className="w-full h-full border rounded" title="work-order-pdf" />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+const cellTh: React.CSSProperties = { border: "1px solid #111", padding: "6px 8px", textAlign: "left", fontWeight: 700 };
+const cellTd: React.CSSProperties = { border: "1px solid #111", padding: "6px 8px" };
+
+function RowKV({ k, v, k2, v2 }: { k: string; v: string; k2: string; v2: string }) {
+  const th: React.CSSProperties = { width: "18%", background: "#f3f4f6", padding: "6px 8px", border: "1px solid #d1d5db", textAlign: "left", fontWeight: 600 };
+  const td: React.CSSProperties = { width: "32%", padding: "6px 8px", border: "1px solid #d1d5db" };
+  return (
+    <tr>
+      <th style={th}>{k}</th><td style={td}>{v}</td>
+      <th style={th}>{k2}</th><td style={td}>{v2}</td>
+    </tr>
   );
 }
 
