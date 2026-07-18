@@ -1749,15 +1749,50 @@ function DetailView({
 
   const [vectorizingSig, setVectorizingSig] = useState(false);
 
-  // Vectorizer.AI로 주문 원본(ISSUED BY) 또는 이미 편집된 서명을 SVG 벡터로 변환하여 편집본에 저장
+  // 편집본 초안(미저장) — 저장 버튼을 눌러야 서버에 반영된다.
+  const [draftSignature, setDraftSignature] = useState<{ file: File; url: string; name: string } | null>(null);
+  const [savingSig, setSavingSig] = useState(false);
+
+  // 초안 미리보기 URL 해제
+  useEffect(() => {
+    return () => { if (draftSignature?.url) URL.revokeObjectURL(draftSignature.url); };
+  }, [draftSignature?.url]);
+
+  const setDraftFromFile = (file: File) => {
+    setDraftSignature(prev => {
+      if (prev?.url) URL.revokeObjectURL(prev.url);
+      return { file, url: URL.createObjectURL(file), name: file.name };
+    });
+  };
+
+  const clearDraftSignature = () => {
+    setDraftSignature(prev => {
+      if (prev?.url) URL.revokeObjectURL(prev.url);
+      return null;
+    });
+  };
+
+  // 저장 버튼: 초안을 서버에 업로드하여 새로고침 후에도 유지되도록 한다.
+  const onSaveEditedSignature = async () => {
+    if (!draftSignature) return;
+    setSavingSig(true);
+    try {
+      await onUploadEditedSignature(draftSignature.file);
+      clearDraftSignature();
+    } finally {
+      setSavingSig(false);
+    }
+  };
+
+  // Vectorizer.AI로 주문 원본(ISSUED BY) 또는 이미 편집/초안 상태의 서명을 SVG 벡터로 변환하여 초안에 반영한다.
   const onVectorizeSignature = async () => {
     const originalUrl = cards[0]?.signatureUrl || cards[0]?.issuedByUrl || null;
-    const srcUrl = editedSignature?.url || originalUrl;
+    const srcUrl = draftSignature?.url || editedSignature?.url || originalUrl;
     if (!srcUrl) {
       toast({ title: "서명 파일이 없습니다", description: "주문에 ISSUED BY 서명이 없고 편집본도 없습니다.", variant: "destructive" });
       return;
     }
-    if (/\.svg(\?|$)/i.test(srcUrl)) {
+    if (/\.svg(\?|$)/i.test(srcUrl) || (draftSignature?.name || "").toLowerCase().endsWith(".svg")) {
       toast({ title: "이미 SVG 벡터입니다", description: "변환이 필요하지 않습니다." });
       return;
     }
@@ -1773,10 +1808,10 @@ function DetailView({
       const res = await fetch(svgDataUrl);
       const blob = await res.blob();
       const file = new File([blob], `signature_vectorized_${Date.now()}.svg`, { type: "image/svg+xml" });
-      await onUploadEditedSignature(file);
+      setDraftFromFile(file);
       toast({
         title: "AI 벡터 변환 완료",
-        description: `모드: ${mode} · 크레딧: ${(data as any).credits ?? "-"} · 편집본에 저장됨`,
+        description: `모드: ${mode} · 크레딧: ${(data as any).credits ?? "-"} · 저장 버튼을 눌러 서버에 반영하세요`,
       });
     } catch (e) {
       toast({ title: "Vectorizer.AI 변환 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
