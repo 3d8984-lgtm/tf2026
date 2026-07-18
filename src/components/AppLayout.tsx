@@ -268,7 +268,10 @@ export default function AppLayout() {
                   {collapsed && section === "outsource" && (
                     <div className="my-2 mx-3 border-t" style={{ borderColor: "hsl(var(--sidebar-border))" }} />
                   )}
-                  {items.map(({ path, icon: Icon, key }) => (
+                  {items.map((item) => {
+                    const { path, icon: Icon } = item;
+                    const label = getLabel(item);
+                    return (
                     <NavLink
                       key={path}
                       to={path}
@@ -282,13 +285,14 @@ export default function AppLayout() {
                         background: isActive ? "hsl(var(--sidebar-accent))" : "transparent",
                         color: isActive ? "hsl(var(--sidebar-accent-foreground))" : "hsl(var(--sidebar-foreground))",
                       })}
-                      title={t(key)}
+                      title={label}
                       onClick={() => { setMenuSearch(""); setSearchOpen(false); }}
                     >
                       <Icon className="w-[18px] h-[18px] shrink-0" />
-                      {!collapsed && <span className="truncate">{t(key)}</span>}
+                      {!collapsed && <span className="truncate">{label}</span>}
                     </NavLink>
-                  ))}
+                    );
+                  })}
                 </div>
               );
             })
