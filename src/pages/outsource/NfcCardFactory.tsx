@@ -1411,6 +1411,9 @@ function DetailView({
   const [editedSignature, setEditedSignature] = useState<{ url: string; name: string } | null>(null);
   const [useEditedSignature, setUseEditedSignature] = useState(false);
   const [uploadDebug, setUploadDebug] = useState<UploadDebugInfo | null>(null);
+  // 편집본 미리보기 확대 팝업
+  const [sigPreviewOpen, setSigPreviewOpen] = useState(false);
+  const [sigPreviewZoom, setSigPreviewZoom] = useState(1);
 
   // Test values for preview only (override card[0] for front/back fields)
   const [testValues, setTestValues] = useState({
