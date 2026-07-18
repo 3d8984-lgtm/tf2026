@@ -197,7 +197,11 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
   const confirmWorkOrder = () => {
     setPdfOpen(true);
+  };
+  const acceptWorkOrder = () => {
     setStep(s => (s < 1 ? 1 : s));
+    setPdfOpen(false);
+    toast({ title: "작업지시서 확인 완료" });
   };
 
   const downloadWorkOrderPdf = async () => {
@@ -472,6 +476,12 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
                 </div>
               </div>
             </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={() => setPdfOpen(false)}>취소</Button>
+            <Button size="sm" onClick={acceptWorkOrder}>
+              <CheckCircle2 className="w-4 h-4 mr-1" /> 확인
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
