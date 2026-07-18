@@ -140,7 +140,24 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
     receiverAddress: order?.recipient_address ?? order?.source_data?.recipient_address ?? "",
     notes: "",
   });
-...
+
+  // 발주진행 상태
+  const [step, setStep] = useState<0 | 1 | 2 | 3>(0);
+  const stepLabels = ["작업지시서 확인", "작업파일 확인", "발주(ZIP 다운로드)"];
+
+  const confirmWorkOrder = () => {
+    setStep(s => (s < 1 ? 1 : s));
+    toast({ title: "작업지시서 확인 완료" });
+  };
+  const confirmFiles = () => {
+    if (step < 1) { toast({ title: "먼저 작업지시서를 확인해주세요", variant: "destructive" }); return; }
+    setStep(s => (s < 2 ? 2 : s));
+    toast({ title: "작업파일 확인 완료" });
+  };
+  const downloadZip = async () => {
+    if (step < 2) { toast({ title: "먼저 작업파일을 확인해주세요", variant: "destructive" }); return; }
+    const zip = new JSZip();
+    // 작업지시서.txt
     const wo = [
       `작업번호: ${workOrder.orderNo}`,
       `트윈커: ${workOrder.twinker}`,
