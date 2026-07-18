@@ -1694,36 +1694,38 @@ function DetailView({
     }
   };
 
-  // Load test signature from storage
+  // Load edited signature (scoped to this orderNo) from storage
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data: list } = await supabase.storage.from(FRAME_BUCKET).list(TEST_SIGNATURE_PREFIX);
+      const dir = `${SIG_EDIT_PREFIX}/${safeOrderKey(orderNo)}`;
+      const { data: list } = await supabase.storage.from(FRAME_BUCKET).list(dir);
       if (cancelled) return;
       const found = (list || []).find(f => f.name.startsWith("signature__"));
-      if (!found) return;
-      const path = `${TEST_SIGNATURE_PREFIX}/${found.name}`;
+      if (!found) { setEditedSignature(null); return; }
+      const path = `${dir}/${found.name}`;
       const { data: pub } = supabase.storage.from(FRAME_BUCKET).getPublicUrl(path);
       const name = found.name.replace(/^signature__/, "");
-      setTestSignature({ url: `${pub.publicUrl}?v=${Date.now()}`, name });
+      setEditedSignature({ url: `${pub.publicUrl}?v=${Date.now()}`, name });
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [orderNo]);
 
-  const onUploadTestSignature = async (file: File | null) => {
-    const { data: existing } = await supabase.storage.from(FRAME_BUCKET).list(TEST_SIGNATURE_PREFIX);
+  const onUploadEditedSignature = async (file: File | null) => {
+    const dir = `${SIG_EDIT_PREFIX}/${safeOrderKey(orderNo)}`;
+    const { data: existing } = await supabase.storage.from(FRAME_BUCKET).list(dir);
     const toRemove = (existing || [])
       .filter(f => f.name.startsWith("signature__"))
-      .map(f => `${TEST_SIGNATURE_PREFIX}/${f.name}`);
+      .map(f => `${dir}/${f.name}`);
     if (toRemove.length) await supabase.storage.from(FRAME_BUCKET).remove(toRemove);
     if (!file) {
-      setTestSignature(null);
-      toast({ title: "서명 테스트 파일 삭제됨", description: "원래 API 서명파일이 적용됩니다" });
+      setEditedSignature(null);
+      toast({ title: "편집된 서명 삭제됨", description: "이제 주문 원본(ISSUED BY) 서명이 사용됩니다" });
       return;
     }
     try {
       const safe = file.name.replace(/[^\w.-]+/g, "_");
-      const path = `${TEST_SIGNATURE_PREFIX}/signature__${safe}`;
+      const path = `${dir}/signature__${safe}`;
       const ct = file.type || (/\.svg$/i.test(file.name) ? "image/svg+xml" : "image/png");
       let uploaded: { publicUrl: string };
       try {
@@ -1734,21 +1736,22 @@ function DetailView({
         return;
       }
       setUploadDebug(null);
-      setTestSignature({ url: `${uploaded.publicUrl}?v=${Date.now()}`, name: file.name });
-      toast({ title: "서명 테스트 파일 등록됨" });
+      setEditedSignature({ url: `${uploaded.publicUrl}?v=${Date.now()}`, name: file.name });
+      toast({ title: "편집된 서명 저장됨" });
     } catch (e) {
-      setUploadDebug(buildUploadDebugInfo({ title: "서명 파일 처리 실패", objectPath: `${TEST_SIGNATURE_PREFIX}/signature__파일명_생성_전`, operation: "file processing before upload", error: e, file, fileName: file.name, contentType: file.type || "image/png", userId }));
+      setUploadDebug(buildUploadDebugInfo({ title: "서명 파일 처리 실패", objectPath: `${dir}/signature__파일명_생성_전`, operation: "file processing before upload", error: e, file, fileName: file.name, contentType: file.type || "image/png", userId }));
       toast({ title: "업로드 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
   };
 
   const [vectorizingSig, setVectorizingSig] = useState(false);
 
-  // Vectorizer.AI를 사용해서 현재 서명파일(API 또는 테스트)을 SVG로 변환하여 저장
+  // Vectorizer.AI로 주문 원본(ISSUED BY) 또는 이미 편집된 서명을 SVG 벡터로 변환하여 편집본에 저장
   const onVectorizeSignature = async () => {
-    const srcUrl = testSignature?.url || (cards[0]?.signatureUrl ?? null);
+    const originalUrl = cards[0]?.signatureUrl || cards[0]?.issuedByUrl || null;
+    const srcUrl = editedSignature?.url || originalUrl;
     if (!srcUrl) {
-      toast({ title: "서명 파일이 없습니다", description: "먼저 서명 파일을 업로드하거나 API 서명이 있는 카드를 선택하세요.", variant: "destructive" });
+      toast({ title: "서명 파일이 없습니다", description: "주문에 ISSUED BY 서명이 없고 편집본도 없습니다.", variant: "destructive" });
       return;
     }
     if (/\.svg(\?|$)/i.test(srcUrl)) {
@@ -1764,14 +1767,13 @@ function DetailView({
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
       const svgDataUrl: string = (data as any).svgDataUrl;
-      // svgDataUrl -> Blob -> File -> upload via onUploadTestSignature
       const res = await fetch(svgDataUrl);
       const blob = await res.blob();
       const file = new File([blob], `signature_vectorized_${Date.now()}.svg`, { type: "image/svg+xml" });
-      await onUploadTestSignature(file);
+      await onUploadEditedSignature(file);
       toast({
         title: "AI 벡터 변환 완료",
-        description: `모드: ${mode} · 크레딧: ${(data as any).credits ?? "-"} · 테스트 서명에 저장됨`,
+        description: `모드: ${mode} · 크레딧: ${(data as any).credits ?? "-"} · 편집본에 저장됨`,
       });
     } catch (e) {
       toast({ title: "Vectorizer.AI 변환 실패", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
