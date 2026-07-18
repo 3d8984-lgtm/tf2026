@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import AiChatbot from "@/components/AiChatbot";
 import { NavLink, Link, Outlet, useNavigate } from "react-router-dom";
 import {
@@ -6,11 +6,21 @@ import {
   Shirt, Activity, AlertTriangle, FileBarChart, Settings,
   ChevronLeft, ChevronRight, ScanLine, Globe, LogOut, Truck, Search, BookOpen, QrCode, Camera,
   Factory, ClipboardList, Stamp, Printer, Sparkles, CreditCard, Image as ImageIcon, History, Cog, Loader2, PackageOpen,
+  SlidersHorizontal, ArrowUp, ArrowDown, RotateCcw,
 } from "lucide-react";
 import { useLang, type Lang } from "@/contexts/LangContext";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import twinmetaLogo from "@/assets/twinmeta-logo.png";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+
+type MenuCustom = Record<string, { label?: string; order?: number }>;
+const MENU_CUSTOM_KEY = "twinmeta.menuCustomizations.v1";
+const loadCustom = (): MenuCustom => {
+  try { return JSON.parse(localStorage.getItem(MENU_CUSTOM_KEY) || "{}"); } catch { return {}; }
+};
 
 interface MenuItem {
   path: string;
@@ -152,6 +162,48 @@ export default function AppLayout() {
     setSearchOpen(false);
   };
 
+  // ---- Menu customization (rename + reorder) ----
+  const [custom, setCustom] = useState<MenuCustom>(() => loadCustom());
+  const [customizeOpen, setCustomizeOpen] = useState(false);
+  const [draft, setDraft] = useState<MenuCustom>({});
+  useEffect(() => {
+    localStorage.setItem(MENU_CUSTOM_KEY, JSON.stringify(custom));
+  }, [custom]);
+  const getLabel = (item: MenuItem) => custom[item.path]?.label?.trim() || t(item.key);
+  const sortWith = (items: MenuItem[], src: MenuCustom) => {
+    const indexed = items.map((m, i) => ({ m, i }));
+    indexed.sort((a, b) => {
+      const oa = src[a.m.path]?.order ?? a.i;
+      const ob = src[b.m.path]?.order ?? b.i;
+      return oa - ob || a.i - b.i;
+    });
+    return indexed.map(x => x.m);
+  };
+  const sortItems = (items: MenuItem[]) => sortWith(items, custom);
+  const openCustomize = () => {
+    setDraft(JSON.parse(JSON.stringify(custom)));
+    setCustomizeOpen(true);
+  };
+  const moveDraft = (section: "hq" | "outsource", path: string, dir: -1 | 1) => {
+    const sectionItems = sortWith(visibleMenuKeys.filter(m => (m.section ?? "hq") === section), draft);
+    const idx = sectionItems.findIndex(m => m.path === path);
+    const target = idx + dir;
+    if (target < 0 || target >= sectionItems.length) return;
+    const next: MenuCustom = { ...draft };
+    sectionItems.forEach((m, i) => {
+      let order = i;
+      if (i === idx) order = target;
+      else if (i === target) order = idx;
+      next[m.path] = { ...next[m.path], order };
+    });
+    setDraft(next);
+  };
+  const renameDraft = (path: string, label: string) => {
+    setDraft(prev => ({ ...prev, [path]: { ...prev[path], label } }));
+  };
+  const resetDraft = () => setDraft({});
+  const saveDraft = () => { setCustom(draft); setCustomizeOpen(false); };
+
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Sidebar */}
@@ -201,7 +253,7 @@ export default function AppLayout() {
             </>
           ) : (
             (["hq", "outsource"] as const).map(section => {
-              const items = visibleMenuKeys.filter(m => (m.section ?? "hq") === section);
+              const items = sortItems(visibleMenuKeys.filter(m => (m.section ?? "hq") === section));
               if (items.length === 0) return null;
               return (
                 <div key={section} className="space-y-0.5">
@@ -216,7 +268,10 @@ export default function AppLayout() {
                   {collapsed && section === "outsource" && (
                     <div className="my-2 mx-3 border-t" style={{ borderColor: "hsl(var(--sidebar-border))" }} />
                   )}
-                  {items.map(({ path, icon: Icon, key }) => (
+                  {items.map((item) => {
+                    const { path, icon: Icon } = item;
+                    const label = getLabel(item);
+                    return (
                     <NavLink
                       key={path}
                       to={path}
@@ -230,13 +285,14 @@ export default function AppLayout() {
                         background: isActive ? "hsl(var(--sidebar-accent))" : "transparent",
                         color: isActive ? "hsl(var(--sidebar-accent-foreground))" : "hsl(var(--sidebar-foreground))",
                       })}
-                      title={t(key)}
+                      title={label}
                       onClick={() => { setMenuSearch(""); setSearchOpen(false); }}
                     >
                       <Icon className="w-[18px] h-[18px] shrink-0" />
-                      {!collapsed && <span className="truncate">{t(key)}</span>}
+                      {!collapsed && <span className="truncate">{label}</span>}
                     </NavLink>
-                  ))}
+                    );
+                  })}
                 </div>
               );
             })
@@ -333,6 +389,19 @@ export default function AppLayout() {
           </button>
         </div>
 
+        {/* Menu customize */}
+        <div className="px-2 py-2 border-t" style={{ borderColor: "hsl(var(--sidebar-border))" }}>
+          <button
+            onClick={openCustomize}
+            className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm transition-colors hover:opacity-90"
+            style={{ color: "hsl(var(--sidebar-foreground))" }}
+            title={lang === "ko" ? "메뉴 편집" : "菜单编辑"}
+          >
+            <SlidersHorizontal className="w-4 h-4 shrink-0" />
+            {!collapsed && <span>{lang === "ko" ? "메뉴 편집" : "菜单编辑"}</span>}
+          </button>
+        </div>
+
         {/* Collapse toggle */}
         <button
           onClick={() => setCollapsed(!collapsed)}
@@ -353,6 +422,67 @@ export default function AppLayout() {
 
       {/* AI Chatbot */}
       <AiChatbot />
+
+      {/* Menu customization dialog */}
+      <Dialog open={customizeOpen} onOpenChange={setCustomizeOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>{lang === "ko" ? "메뉴 편집" : "菜单编辑"}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto space-y-6 pr-1">
+            {(["hq", "outsource"] as const).map(section => {
+              const items = sortWith(visibleMenuKeys.filter(m => (m.section ?? "hq") === section), draft);
+              if (items.length === 0) return null;
+              return (
+                <div key={section}>
+                  <div className="text-xs font-semibold uppercase opacity-60 mb-2">
+                    {t(`section.${section}`)}
+                  </div>
+                  <div className="space-y-1.5">
+                    {items.map((item, idx) => {
+                      const Icon = item.icon;
+                      const val = draft[item.path]?.label ?? "";
+                      return (
+                        <div key={item.path} className="flex items-center gap-2">
+                          <Icon className="w-4 h-4 shrink-0 opacity-70" />
+                          <Input
+                            value={val}
+                            onChange={e => renameDraft(item.path, e.target.value)}
+                            placeholder={t(item.key)}
+                            className="h-8 text-sm"
+                          />
+                          <Button size="icon" variant="outline" className="h-8 w-8 shrink-0"
+                            disabled={idx === 0}
+                            onClick={() => moveDraft(section, item.path, -1)}>
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button size="icon" variant="outline" className="h-8 w-8 shrink-0"
+                            disabled={idx === items.length - 1}
+                            onClick={() => moveDraft(section, item.path, 1)}>
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={resetDraft}>
+              <RotateCcw className="w-4 h-4 mr-1" />
+              {lang === "ko" ? "초기화" : "重置"}
+            </Button>
+            <Button variant="ghost" onClick={() => setCustomizeOpen(false)}>
+              {lang === "ko" ? "취소" : "取消"}
+            </Button>
+            <Button onClick={saveDraft}>
+              {lang === "ko" ? "저장" : "保存"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
