@@ -253,7 +253,7 @@ export default function AppLayout() {
             </>
           ) : (
             (["hq", "outsource"] as const).map(section => {
-              const items = visibleMenuKeys.filter(m => (m.section ?? "hq") === section);
+              const items = sortItems(visibleMenuKeys.filter(m => (m.section ?? "hq") === section));
               if (items.length === 0) return null;
               return (
                 <div key={section} className="space-y-0.5">
