@@ -197,7 +197,11 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
   const confirmWorkOrder = () => {
     setPdfOpen(true);
+  };
+  const acceptWorkOrder = () => {
     setStep(s => (s < 1 ? 1 : s));
+    setPdfOpen(false);
+    toast({ title: "작업지시서 확인 완료" });
   };
 
   const downloadWorkOrderPdf = async () => {
