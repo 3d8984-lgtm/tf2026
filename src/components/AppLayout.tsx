@@ -162,6 +162,48 @@ export default function AppLayout() {
     setSearchOpen(false);
   };
 
+  // ---- Menu customization (rename + reorder) ----
+  const [custom, setCustom] = useState<MenuCustom>(() => loadCustom());
+  const [customizeOpen, setCustomizeOpen] = useState(false);
+  const [draft, setDraft] = useState<MenuCustom>({});
+  useEffect(() => {
+    localStorage.setItem(MENU_CUSTOM_KEY, JSON.stringify(custom));
+  }, [custom]);
+  const getLabel = (item: MenuItem) => custom[item.path]?.label?.trim() || t(item.key);
+  const sortWith = (items: MenuItem[], src: MenuCustom) => {
+    const indexed = items.map((m, i) => ({ m, i }));
+    indexed.sort((a, b) => {
+      const oa = src[a.m.path]?.order ?? a.i;
+      const ob = src[b.m.path]?.order ?? b.i;
+      return oa - ob || a.i - b.i;
+    });
+    return indexed.map(x => x.m);
+  };
+  const sortItems = (items: MenuItem[]) => sortWith(items, custom);
+  const openCustomize = () => {
+    setDraft(JSON.parse(JSON.stringify(custom)));
+    setCustomizeOpen(true);
+  };
+  const moveDraft = (section: "hq" | "outsource", path: string, dir: -1 | 1) => {
+    const sectionItems = sortWith(visibleMenuKeys.filter(m => (m.section ?? "hq") === section), draft);
+    const idx = sectionItems.findIndex(m => m.path === path);
+    const target = idx + dir;
+    if (target < 0 || target >= sectionItems.length) return;
+    const next: MenuCustom = { ...draft };
+    sectionItems.forEach((m, i) => {
+      let order = i;
+      if (i === idx) order = target;
+      else if (i === target) order = idx;
+      next[m.path] = { ...next[m.path], order };
+    });
+    setDraft(next);
+  };
+  const renameDraft = (path: string, label: string) => {
+    setDraft(prev => ({ ...prev, [path]: { ...prev[path], label } }));
+  };
+  const resetDraft = () => setDraft({});
+  const saveDraft = () => { setCustom(draft); setCustomizeOpen(false); };
+
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Sidebar */}
