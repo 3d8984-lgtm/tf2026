@@ -34,6 +34,7 @@ import HologramFactory from "@/pages/outsource/HologramFactory";
 import NfcCardFactory from "@/pages/outsource/NfcCardFactory";
 import LogoFactory from "@/pages/outsource/LogoFactory";
 import TshirtFactory from "@/pages/outsource/TshirtFactory";
+import TshirtOrderFactory from "@/pages/outsource/TshirtOrderFactory";
 import PackagingFactory from "@/pages/outsource/PackagingFactory";
 import OutsourceHistory from "@/pages/outsource/OutsourceHistory";
 import OutsourceSettings from "@/pages/outsource/OutsourceSettings";
@@ -103,6 +104,7 @@ function ProtectedRoutes() {
         <Route path="/outsource/hologram" element={<HologramFactory />} />
         <Route path="/outsource/nfc-card" element={<NfcCardFactory />} />
         <Route path="/outsource/logo" element={<LogoFactory />} />
+        <Route path="/outsource/tshirt-order" element={<TshirtOrderFactory />} />
         <Route path="/outsource/tshirt-factory" element={<TshirtFactory />} />
         <Route path="/outsource/packaging" element={<PackagingFactory />} />
         <Route path="/outsource/history" element={<OutsourceHistory />} />
