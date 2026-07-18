@@ -2863,31 +2863,63 @@ function DetailView({
               </div>
             </div>
 
-            <div className="border rounded-md p-3 space-y-2">
+            {/* 서명 편집 — 주문 원본(ISSUED BY)의 벡터 품질이 좋지 않을 때 편집본을 만들어 대체한다. */}
+            <div className="border rounded-md p-3 space-y-3">
               <div className="flex items-center justify-between">
-                <Label className="font-medium text-xs">서명 파일 (PNG / SVG)</Label>
-                {testSignature && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600">서버 저장됨</span>
-                )}
+                <Label className="font-medium text-xs">서명 편집 (주문 원본 대체)</Label>
+                <div className="flex items-center gap-2">
+                  <Badge variant={useEditedSignature ? "default" : "outline"} className="text-[10px]">
+                    {useEditedSignature ? "ON · 편집본 사용" : "OFF · 원본 사용"}
+                  </Badge>
+                  <Switch
+                    checked={useEditedSignature}
+                    onCheckedChange={setUseEditedSignature}
+                    aria-label="편집된 서명 사용"
+                  />
+                </div>
               </div>
-              <div className="w-full h-32 border rounded bg-muted/30 overflow-hidden flex items-center justify-center">
-                {testSignature?.url
-                  ? <img src={testSignature.url} alt="" className="w-full h-full object-contain bg-white" />
-                  : <span className="text-xs text-muted-foreground flex items-center gap-1"><ImageIcon className="w-3 h-3" />테스트 서명 없음 (API 서명파일 사용)</span>}
+
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                ON: 이 작업번호({orderNo}) 전체 카드의 서명을 아래 편집본으로 대체합니다.<br />
+                OFF: 각 카드의 주문 원본 ISSUED BY 서명이 사용됩니다.
+              </p>
+
+              {/* 원본 / 편집본 미리보기 */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <div className="text-[10px] text-muted-foreground">원본 (ISSUED BY)</div>
+                  <div className="w-full h-24 border rounded bg-muted/30 overflow-hidden flex items-center justify-center">
+                    {cards[0]?.issuedByUrl || cards[0]?.signatureUrl
+                      ? <img src={cards[0].issuedByUrl || cards[0].signatureUrl!} alt="" className="w-full h-full object-contain bg-white" />
+                      : <span className="text-[10px] text-muted-foreground">원본 없음</span>}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <div className="text-[10px] text-muted-foreground">편집본</div>
+                    {editedSignature && <span className="text-[9px] px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-600">저장됨</span>}
+                  </div>
+                  <div className="w-full h-24 border rounded bg-muted/30 overflow-hidden flex items-center justify-center">
+                    {editedSignature?.url
+                      ? <img src={editedSignature.url} alt="" className="w-full h-full object-contain bg-white" />
+                      : <span className="text-[10px] text-muted-foreground">편집본 없음</span>}
+                  </div>
+                </div>
               </div>
               <div className="text-[11px] text-muted-foreground truncate">
-                {testSignature?.name || "테스트 종료 후 삭제하면 API 서명파일이 사용됩니다"}
+                {editedSignature?.name || "파일 업로드 또는 AI 벡터 변환으로 편집본을 만드세요"}
               </div>
+
               <div className="flex gap-2">
                 <label className="flex-1 flex items-center justify-center gap-2 cursor-pointer text-xs px-3 py-2 border border-dashed rounded hover:bg-accent">
                   <Upload className="w-3 h-3" />
-                  <span>{testSignature ? "변경" : "서명 업로드"}</span>
+                  <span>{editedSignature ? "편집본 변경" : "편집본 업로드"}</span>
                   <input type="file" accept="image/svg+xml,image/png,image/jpeg,image/webp" className="hidden"
-                    onChange={e => { const f = e.target.files?.[0] || null; e.currentTarget.value = ""; if (f) onUploadTestSignature(f); }} />
+                    onChange={e => { const f = e.target.files?.[0] || null; e.currentTarget.value = ""; if (f) onUploadEditedSignature(f); }} />
                 </label>
-                {testSignature && (
+                {editedSignature && (
                   <Button size="sm" variant="destructive" className="text-xs"
-                    onClick={() => { if (confirm("테스트 서명파일을 삭제하고 원래 API 서명을 사용할까요?")) onUploadTestSignature(null); }}>
+                    onClick={() => { if (confirm("편집된 서명을 삭제하고 원본 ISSUED BY를 사용할까요?")) onUploadEditedSignature(null); }}>
                     <X className="w-3 h-3 mr-1" />삭제
                   </Button>
                 )}
@@ -2899,12 +2931,12 @@ function DetailView({
                   className="flex-1 text-xs gap-1"
                   onClick={onVectorizeSignature}
                   disabled={vectorizingSig}
-                  title="Vectorizer.AI로 SVG 벡터로 변환 · 시스템 설정에서 모드 선택"
+                  title="Vectorizer.AI로 SVG 벡터로 변환 (편집본이 있으면 편집본, 없으면 원본을 변환)"
                 >
                   {vectorizingSig ? <Loader2 className="w-3 h-3 animate-spin" /> : <Cloud className="w-3 h-3" />}
                   AI 벡터 변환 (Vectorizer.AI)
                 </Button>
-                {testSignature?.url && (/\.svg(\?|$)/i.test(testSignature.url) || (testSignature.name || "").toLowerCase().endsWith(".svg")) && (
+                {editedSignature?.url && (/\.svg(\?|$)/i.test(editedSignature.url) || (editedSignature.name || "").toLowerCase().endsWith(".svg")) && (
                   <Button
                     size="sm"
                     variant="secondary"
@@ -2912,13 +2944,13 @@ function DetailView({
                     title="벡터 변환된 SVG 다운로드"
                     onClick={async () => {
                       try {
-                        const r = await fetch(testSignature.url!);
+                        const r = await fetch(editedSignature.url!);
                         if (!r.ok) throw new Error(`다운로드 실패: ${r.status}`);
                         const blob = await r.blob();
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement("a");
                         a.href = url;
-                        a.download = testSignature.name || `signature_vector_${Date.now()}.svg`;
+                        a.download = editedSignature.name || `signature_vector_${Date.now()}.svg`;
                         document.body.appendChild(a); a.click(); a.remove();
                         URL.revokeObjectURL(url);
                       } catch (e) {
