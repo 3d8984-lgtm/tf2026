@@ -1414,6 +1414,8 @@ function DetailView({
   // 편집본 미리보기 확대 팝업
   const [sigPreviewOpen, setSigPreviewOpen] = useState(false);
   const [sigPreviewZoom, setSigPreviewZoom] = useState(1);
+  const [sigCompareMode, setSigCompareMode] = useState<"side" | "overlay">("side");
+  const [sigOverlaySplit, setSigOverlaySplit] = useState(50);
 
   // Test values for preview only (override card[0] for front/back fields)
   const [testValues, setTestValues] = useState({
