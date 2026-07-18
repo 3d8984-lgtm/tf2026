@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import AiChatbot from "@/components/AiChatbot";
 import { NavLink, Link, Outlet, useNavigate } from "react-router-dom";
 import {
@@ -6,11 +6,21 @@ import {
   Shirt, Activity, AlertTriangle, FileBarChart, Settings,
   ChevronLeft, ChevronRight, ScanLine, Globe, LogOut, Truck, Search, BookOpen, QrCode, Camera,
   Factory, ClipboardList, Stamp, Printer, Sparkles, CreditCard, Image as ImageIcon, History, Cog, Loader2, PackageOpen,
+  SlidersHorizontal, ArrowUp, ArrowDown, RotateCcw,
 } from "lucide-react";
 import { useLang, type Lang } from "@/contexts/LangContext";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import twinmetaLogo from "@/assets/twinmeta-logo.png";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+
+type MenuCustom = Record<string, { label?: string; order?: number }>;
+const MENU_CUSTOM_KEY = "twinmeta.menuCustomizations.v1";
+const loadCustom = (): MenuCustom => {
+  try { return JSON.parse(localStorage.getItem(MENU_CUSTOM_KEY) || "{}"); } catch { return {}; }
+};
 
 interface MenuItem {
   path: string;
