@@ -36,6 +36,7 @@ const menuKeys: MenuItem[] = [
     { label: { ko: "API 연동", zh: "API连接" }, tab: "api" },
     { label: { ko: "파일 업로드", zh: "文件上传" }, tab: "file" },
   ]},
+  { path: "/all-orders", icon: ClipboardList, key: "menu.allOrders", section: "hq" },
   { path: "/card-qr-inspect", icon: QrCode, key: "menu.cardQrInspect", section: "hq" },
   { path: "/card-photo-inspect", icon: Camera, key: "menu.cardPhotoInspect", section: "hq" },
   { path: "/tshirt-work", icon: ScanLine, key: "menu.tshirtWork", section: "hq" },
