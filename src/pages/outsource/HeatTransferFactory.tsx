@@ -2534,6 +2534,7 @@ function WorkOrderInfoBox({ order, outlinePreview }: { order: OrderRow; outlineP
           <TxtField label="발주일" type="date" v={wo.orderDate} set={(v) => set({ orderDate: v })} />
           <TxtField label="납품일" type="date" v={wo.deliveryDate} set={(v) => set({ deliveryDate: v })} />
         </div>
+        <ExpectedShipDateField factory="heat-transfer" orderNo={order.orderNo} />
         <TxtField label="총수량" type="number" v={String(wo.total)} set={(v) => set({ total: Number(v) || 0 })} />
         <TxtField label="받을사람" v={wo.recipient} set={(v) => set({ recipient: v })} />
         <TxtField label="전화번호" v={wo.phone} set={(v) => set({ phone: v })} />
