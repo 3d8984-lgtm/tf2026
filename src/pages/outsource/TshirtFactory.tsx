@@ -1853,7 +1853,7 @@ function PurchaseOrderPreview({
         <tbody>
           {colors.filter(c => (colorTotals[c.code] || 0) > 0).map(c => (
             <tr key={c.code}>
-              <td className="border p-2">{c.name_zh || c.name_ko}</td>
+              <td className="border p-2">{toEnColor(c.code)}</td>
               {SIZES.map(s => <td key={s} className="border p-2 text-center">{qtyByColor[c.code]?.[s] || 0}</td>)}
               <td className="border p-2 text-center font-semibold">{colorTotals[c.code] || 0}</td>
             </tr>
