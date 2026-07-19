@@ -712,14 +712,26 @@ function SkuHistory({ sku }: { sku: Inventory }) {
         .lte("worked_at", toIso)
         .order("worked_at", { ascending: false });
 
+      // Manual receipts recorded in work_logs
+      const manualReceipts = (wlogs ?? [])
+        .filter((w: any) => w.kind === "manual_receipt")
+        .map((w: any) => ({
+          date: String(w.worked_at).slice(0, 10),
+          qty: Number(w.quantity) || 0,
+          po_number: w.note ? `수기 입고 (${w.note})` : "수기 입고",
+          status: "received",
+        }));
+
       if (cancelled) return;
-      setReceipts(rcpt);
-      setWorks((wlogs ?? []).map((w: any) => ({
-        date: String(w.worked_at).slice(0, 10),
-        qty: Number(w.quantity) || 0,
-        kind: w.kind,
-        note: w.note,
-      })));
+      setReceipts([...rcpt, ...manualReceipts].sort((a, b) => (a.date < b.date ? 1 : -1)));
+      setWorks((wlogs ?? [])
+        .filter((w: any) => w.kind !== "manual_receipt")
+        .map((w: any) => ({
+          date: String(w.worked_at).slice(0, 10),
+          qty: Number(w.quantity) || 0,
+          kind: w.kind,
+          note: w.note,
+        })));
       setLoading(false);
     })();
     return () => { cancelled = true; };
