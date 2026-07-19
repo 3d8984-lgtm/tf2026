@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback, forwardRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useLang } from "@/contexts/LangContext";
@@ -14,10 +14,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import {
-  AlertTriangle, CheckCircle2, CircleSlash, Package, Upload, X, FileText, Image as ImageIcon,
-  PackageCheck, Filter, Download, Eye, ShoppingCart, Shirt, FileSpreadsheet, Trash2,
+  AlertTriangle, CheckCircle2, Circle, CircleSlash, Package, Upload, X, FileText, Image as ImageIcon,
+  PackageCheck, Filter, Download, Eye, ShoppingCart, Shirt, FileSpreadsheet, Trash2, FileCheck2,
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import JSZip from "jszip";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 const SIZES = ["S", "M", "L", "XL", "2XL", "3XL", "4XL"] as const;
 type Size = typeof SIZES[number];
