@@ -1993,3 +1993,84 @@ function SafetyStockSettings({
   );
 }
 
+
+// ---- Chinese A4 work order sheet used in PDF preview / export ----
+type TsAgg = { type: string; color: string; size: string; qty: number };
+const tsCellTh: React.CSSProperties = { border: "1px solid #111", padding: "6px 8px", textAlign: "left", fontWeight: 700 };
+const tsCellTd: React.CSSProperties = { border: "1px solid #111", padding: "6px 8px" };
+function TsRowKV({ k, v, k2, v2 }: { k: string; v: string; k2: string; v2: string }) {
+  const th: React.CSSProperties = { width: "18%", background: "#f3f4f6", padding: "6px 8px", border: "1px solid #d1d5db", textAlign: "left", fontWeight: 600 };
+  const td: React.CSSProperties = { width: "32%", padding: "6px 8px", border: "1px solid #d1d5db" };
+  return (
+    <tr>
+      <th style={th}>{k}</th><td style={td}>{v}</td>
+      <th style={th}>{k2}</th><td style={td}>{v2}</td>
+    </tr>
+  );
+}
+const WorkOrderSheetTs = forwardRef<HTMLDivElement, { workOrder: any; agg: TsAgg[]; totalQty: number }>(
+  ({ workOrder, agg, totalQty }, ref) => (
+    <div
+      ref={ref}
+      style={{
+        width: "210mm", minHeight: "297mm", padding: "16mm",
+        background: "#ffffff", color: "#111827",
+        fontFamily: "'Noto Sans SC','Noto Sans KR','Malgun Gothic',sans-serif",
+        fontSize: "12px", boxSizing: "border-box",
+        boxShadow: "0 4px 24px rgba(0,0,0,0.15)",
+      }}
+    >
+      <div style={{ textAlign: "center", fontSize: "20px", fontWeight: 700, marginBottom: "12px" }}>
+        T恤生产作业指示书
+      </div>
+      <div style={{ borderTop: "2px solid #111", borderBottom: "1px solid #111", padding: "8px 0", marginBottom: "12px" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <tbody>
+            <TsRowKV k="作业编号" v={workOrder.orderNo} k2="下单日期" v2={workOrder.orderDate} />
+            <TsRowKV k="下单人" v={workOrder.twinker} k2="交货日期" v2={workOrder.dueDate} />
+            <TsRowKV k="供应商名称" v={workOrder.supplier} k2="总数量" v2={String(totalQty)} />
+            <TsRowKV k="收件人" v={workOrder.receiverName} k2="联系电话" v2={workOrder.receiverPhone} />
+          </tbody>
+        </table>
+        <div style={{ marginTop: "6px", display: "flex", gap: "8px" }}>
+          <div style={{ width: "80px", fontWeight: 600 }}>收件地址</div>
+          <div style={{ flex: 1 }}>{workOrder.receiverAddress}</div>
+        </div>
+      </div>
+
+      <div style={{ fontWeight: 700, margin: "8px 0" }}>T恤订购明细</div>
+      <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #111" }}>
+        <thead>
+          <tr style={{ background: "#f3f4f6" }}>
+            <th style={tsCellTh}>款式</th>
+            <th style={tsCellTh}>颜色</th>
+            <th style={tsCellTh}>尺码</th>
+            <th style={{ ...tsCellTh, textAlign: "right" }}>数量</th>
+          </tr>
+        </thead>
+        <tbody>
+          {agg.map((a, i) => (
+            <tr key={i}>
+              <td style={tsCellTd}>{a.type}</td>
+              <td style={tsCellTd}>{a.color}</td>
+              <td style={tsCellTd}>{a.size}</td>
+              <td style={{ ...tsCellTd, textAlign: "right" }}>{a.qty}</td>
+            </tr>
+          ))}
+          <tr>
+            <td style={{ ...tsCellTd, fontWeight: 700 }} colSpan={3}>合计</td>
+            <td style={{ ...tsCellTd, textAlign: "right", fontWeight: 700 }}>{totalQty}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div style={{ marginTop: "12px" }}>
+        <div style={{ fontWeight: 700, marginBottom: "4px" }}>备注</div>
+        <div style={{ minHeight: "40px", border: "1px solid #ccc", padding: "6px", whiteSpace: "pre-wrap" }}>
+          {workOrder.notes}
+        </div>
+      </div>
+    </div>
+  )
+);
+WorkOrderSheetTs.displayName = "WorkOrderSheetTs";
