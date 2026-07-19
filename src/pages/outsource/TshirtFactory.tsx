@@ -324,39 +324,7 @@ export default function TshirtFactory() {
           </Card>
 
 
-          {/* Filters */}
-          <Card>
-            <CardContent className="p-4 flex flex-wrap items-center gap-3">
-              <Filter className="w-4 h-4 text-muted-foreground" />
-              <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger className="w-40"><SelectValue placeholder="상품 유형" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체 유형</SelectItem>
-                  {productTypes.map(t => <SelectItem key={t.code} value={t.code}>{nameOf(t)}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={filterColor} onValueChange={setFilterColor}>
-                <SelectTrigger className="w-36"><SelectValue placeholder="색상" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체 색상</SelectItem>
-                  {colors.map(c => <SelectItem key={c.code} value={c.code}>{nameOf(c)}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={filterSize} onValueChange={setFilterSize}>
-                <SelectTrigger className="w-32"><SelectValue placeholder="사이즈" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체 사이즈</SelectItem>
-                  {SIZES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <div className="flex items-center gap-2 ml-auto">
-                <span className="text-sm text-muted-foreground">경고만 보기</span>
-                <Switch checked={onlyWarning} onCheckedChange={setOnlyWarning} />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Inventory matrix per product type */}
+          {/* Inventory matrix per product type (with inline filters) */}
           {loading ? (
             <Card><CardContent className="p-8 text-center text-muted-foreground">불러오는 중...</CardContent></Card>
           ) : visibleTypes.length === 0 ? (
@@ -384,7 +352,35 @@ export default function TshirtFactory() {
                   </Button>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-3">
+                <div className="flex flex-wrap items-center gap-3 pb-3 border-b">
+                  <Filter className="w-4 h-4 text-muted-foreground" />
+                  <Select value={filterType} onValueChange={setFilterType}>
+                    <SelectTrigger className="w-40"><SelectValue placeholder="상품 유형" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">전체 유형</SelectItem>
+                      {productTypes.map(t => <SelectItem key={t.code} value={t.code}>{nameOf(t)}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Select value={filterColor} onValueChange={setFilterColor}>
+                    <SelectTrigger className="w-36"><SelectValue placeholder="색상" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">전체 색상</SelectItem>
+                      {colors.map(c => <SelectItem key={c.code} value={c.code}>{nameOf(c)}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Select value={filterSize} onValueChange={setFilterSize}>
+                    <SelectTrigger className="w-32"><SelectValue placeholder="사이즈" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">전체 사이즈</SelectItem>
+                      {SIZES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <span className="text-sm text-muted-foreground">경고만 보기</span>
+                    <Switch checked={onlyWarning} onCheckedChange={setOnlyWarning} />
+                  </div>
+                </div>
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
