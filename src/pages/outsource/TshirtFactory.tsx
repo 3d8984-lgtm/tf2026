@@ -54,6 +54,11 @@ type PO = {
 
 const BUCKET = "tshirt-po-attachments";
 
+function toEnColor(code: string) {
+  if (!code) return "";
+  return code.charAt(0).toUpperCase() + code.slice(1).toLowerCase();
+}
+
 function statusInfo(available: number, safety: number) {
   if (available <= 0) return { key: "out", color: "bg-zinc-500", label: "품절", icon: "⚫", text: "text-zinc-400" };
   const ratio = safety > 0 ? available / safety : 1;
@@ -1335,7 +1340,7 @@ function PurchaseOrderForm({
     for (const c of colors) {
       const qty = colorTotals[c.code] || 0;
       if (qty <= 0) continue;
-      rows.push([c.name_zh || c.name_ko, ...SIZES.map(s => qtyByColor[c.code]?.[s] || 0), qty]);
+      rows.push([toEnColor(c.code), ...SIZES.map(s => qtyByColor[c.code]?.[s] || 0), qty]);
     }
     rows.push(["尺码合计", ...SIZES.map(s => sizeTotals[s] || 0), total]);
     rows.push([]);
@@ -1362,7 +1367,7 @@ function PurchaseOrderForm({
     for (const c of colors) {
       for (const s of SIZES) {
         const q = qtyByColor[c.code]?.[s] || 0;
-        if (q > 0) rows.push({ type: typeNameZh, color: c.name_zh || c.name_ko, size: s, qty: q });
+        if (q > 0) rows.push({ type: typeNameZh, color: toEnColor(c.code), size: s, qty: q });
       }
     }
     return rows;
@@ -1853,7 +1858,7 @@ function PurchaseOrderPreview({
         <tbody>
           {colors.filter(c => (colorTotals[c.code] || 0) > 0).map(c => (
             <tr key={c.code}>
-              <td className="border p-2">{c.name_zh || c.name_ko}</td>
+              <td className="border p-2">{toEnColor(c.code)}</td>
               {SIZES.map(s => <td key={s} className="border p-2 text-center">{qtyByColor[c.code]?.[s] || 0}</td>)}
               <td className="border p-2 text-center font-semibold">{colorTotals[c.code] || 0}</td>
             </tr>
