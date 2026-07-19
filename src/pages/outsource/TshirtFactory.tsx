@@ -1335,7 +1335,7 @@ function PurchaseOrderForm({
     for (const c of colors) {
       const qty = colorTotals[c.code] || 0;
       if (qty <= 0) continue;
-      rows.push([c.name_zh || c.name_ko, ...SIZES.map(s => qtyByColor[c.code]?.[s] || 0), qty]);
+      rows.push([toEnColor(c.code), ...SIZES.map(s => qtyByColor[c.code]?.[s] || 0), qty]);
     }
     rows.push(["尺码合计", ...SIZES.map(s => sizeTotals[s] || 0), total]);
     rows.push([]);
