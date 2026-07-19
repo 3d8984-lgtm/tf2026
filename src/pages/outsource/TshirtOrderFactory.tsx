@@ -387,6 +387,7 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
               <Field label="발주일" value={workOrder.orderDate} onChange={v => setWorkOrder(p => ({ ...p, orderDate: v }))} />
               <Field label="받을사람" value={workOrder.receiverName} onChange={v => setWorkOrder(p => ({ ...p, receiverName: v }))} />
               <Field label="전화번호" value={workOrder.receiverPhone} onChange={v => setWorkOrder(p => ({ ...p, receiverPhone: v }))} />
+              <ExpectedShipDateField factory="tshirt-order" orderNo={orderNo} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">주소</Label>
