@@ -1047,10 +1047,27 @@ function PurchaseOrderForm({
       const createdNumbers: string[] = [];
       const fullNotes = buildNotesWithMeta();
 
+      // Build group PO number = "{SKU}_{YYYYMMDD}_{seq}"
+      const ymd = (orderedAt || today).replace(/-/g, "");
+      const prefix = `${typeCode}_${ymd}_`;
+      const { data: existing } = await supabase
+        .from("tshirt_purchase_orders")
+        .select("po_number")
+        .like("po_number", `${prefix}%`);
+      let maxSeq = 0;
+      for (const r of (existing as any[]) ?? []) {
+        const m = String(r.po_number).slice(prefix.length).match(/^(\d+)/);
+        if (m) maxSeq = Math.max(maxSeq, parseInt(m[1], 10));
+      }
+      const seq = String(maxSeq + 1).padStart(3, "0");
+      const groupPoNumber = `${typeCode}_${ymd}_${seq}`;
+
       for (const c of targets) {
+        const rowPoNumber = targets.length > 1 ? `${groupPoNumber}-${c.code}` : groupPoNumber;
         const { data: po, error } = await supabase
           .from("tshirt_purchase_orders")
           .insert({
+            po_number: rowPoNumber,
             ordered_at: orderedAt,
             expected_at: expectedAt || null,
             product_type_code: typeCode,
