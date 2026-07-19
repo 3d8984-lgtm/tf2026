@@ -45,7 +45,6 @@ const FACTORY_DOT: Record<FactoryKey, string> = {
 };
 
 // Trello green board bg
-const BOARD_BG = "#0079BF";
 const BOARD_BG_GREEN = "#519839";
 
 const COLUMNS: { key: PoColumn; ko: string; zh: string; icon: any }[] = [
