@@ -231,7 +231,7 @@ export default function TshirtFactory() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Shirt className="w-6 h-6" /> 티셔츠 공장</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Shirt className="w-6 h-6" /> 티셔츠 재고 현황</h1>
           <p className="text-sm text-muted-foreground">티셔츠 재고 현황 및 발주 관리</p>
         </div>
       </div>
