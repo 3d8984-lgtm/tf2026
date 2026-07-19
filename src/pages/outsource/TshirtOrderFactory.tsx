@@ -145,16 +145,17 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
 
   // 작업지시서 설정 (localStorage 저장/복원)
   const storageKey = WO_STORAGE_PREFIX + orderNo;
+  const globalDefaults = loadWoDefaults();
   const defaultWO = {
     orderNo,
     twinker: order?.recipient_name ?? "",
     dueDate: fmtDate(order?.project_completed_at),
-    supplier: "",
+    supplier: globalDefaults.supplier ?? "",
     orderDate: new Date().toISOString().slice(0, 10),
-    receiverName: order?.recipient_name ?? "",
-    receiverPhone: order?.recipient_phone ?? order?.source_data?.recipient_phone ?? "",
-    receiverAddress: order?.recipient_address ?? order?.source_data?.recipient_address ?? "",
-    notes: "",
+    receiverName: globalDefaults.receiverName ?? order?.recipient_name ?? "",
+    receiverPhone: globalDefaults.receiverPhone ?? order?.recipient_phone ?? order?.source_data?.recipient_phone ?? "",
+    receiverAddress: globalDefaults.receiverAddress ?? order?.recipient_address ?? order?.source_data?.recipient_address ?? "",
+    notes: globalDefaults.notes ?? "",
   };
   const [workOrder, setWorkOrder] = useState(() => {
     try {
@@ -167,7 +168,10 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const saveWorkOrder = () => {
     try {
       localStorage.setItem(storageKey, JSON.stringify(workOrder));
-      toast({ title: "작업지시서 저장 완료" });
+      const defaults: Record<string, string> = {};
+      for (const k of DEFAULT_FIELDS) defaults[k] = (workOrder as any)[k] ?? "";
+      localStorage.setItem(WO_DEFAULTS_KEY, JSON.stringify(defaults));
+      toast({ title: "작업지시서 저장 완료", description: "발주업체명·받을사람·전화번호·주소·비고가 기본값으로 저장되었습니다." });
     } catch (e: any) {
       toast({ title: "저장 실패", description: e?.message, variant: "destructive" });
     }
