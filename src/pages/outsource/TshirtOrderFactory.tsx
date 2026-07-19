@@ -296,6 +296,7 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
     a.click();
     URL.revokeObjectURL(url);
     setStep(3);
+    markOrderCompleted("tshirt-order", orderNo);
     toast({ title: "발주 ZIP 다운로드 완료" });
   };
 
