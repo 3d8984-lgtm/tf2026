@@ -47,8 +47,18 @@ export function setOrderStatus(f: FactoryKey, orderNo: string, status: OrderShip
   writeStore(s);
 }
 
-export function markOrderCompleted(f: FactoryKey, orderNo: string) {
+export function markOrderCompleted(
+  f: FactoryKey,
+  orderNo: string,
+  meta?: { quantity?: number; expectedShipAt?: string },
+) {
   setOrderStatus(f, orderNo, "completed");
+  // Record card to 발주 이력 관리 (Trello board). Lazy require to avoid cycles.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const mod = require("@/lib/po-cards") as typeof import("@/lib/po-cards");
+    mod.recordPoCard(f, orderNo, meta);
+  } catch {}
 }
 
 export function useOrderStatus(f: FactoryKey, orderNo: string) {
