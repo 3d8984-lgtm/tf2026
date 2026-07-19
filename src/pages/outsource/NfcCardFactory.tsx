@@ -1166,8 +1166,12 @@ export default function NfcCardFactory() {
       dueDate: fmtDate(o.project_completed_at),
       recipient: o.recipient_name || "",
       quantity: o.quantity || 0,
-    })).sort((a, b) => a.orderNo.localeCompare(b.orderNo));
+    }));
   }, [ordersData]);
+
+  const { sortBy, setSortBy, statusFilter, setStatusFilter, counts, processed: processedRows } =
+    useOrderListControls("nfc-card", rows);
+
 
   if (detailOrderNo) {
     return (
