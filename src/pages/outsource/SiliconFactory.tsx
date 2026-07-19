@@ -1984,7 +1984,7 @@ function SiliconOrderProgressBox({
         console.warn("outsource_orders insert failed", logErr);
       }
 
-      markOrderCompleted("silicon", orderNo);
+      markOrderCompleted("silicon", orderNo, { quantity: items.length, expectedShipAt: getExpectedShipAt("silicon", orderNo) });
       toast({ title: "발주 완료", description: `${zipName} 위챗 단톡방으로 전송됨` });
     } catch (e: any) {
       toast({ title: "발주 실패", description: e?.message || String(e), variant: "destructive" as any });
