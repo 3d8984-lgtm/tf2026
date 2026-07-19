@@ -2,6 +2,8 @@ import { useMemo, useState, useEffect, useRef } from "react";
 import { OrderStatusCell } from "@/components/outsource/OrderStatusCell";
 import { useOrderListControls, OrderListControlsBar, OrderStatusCountsBadges } from "@/components/outsource/OrderListControls";
 import { markOrderCompleted } from "@/hooks/useOrderStatus";
+import { getExpectedShipAt } from "@/lib/expected-ship";
+import ExpectedShipDateField from "@/components/outsource/ExpectedShipDateField";
 import PageHeader from "@/components/PageHeader";
 import { useOrders } from "@/hooks/useDbData";
 import { useLang } from "@/contexts/LangContext";
