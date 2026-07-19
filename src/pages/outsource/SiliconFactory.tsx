@@ -497,16 +497,20 @@ export default function SiliconFactory() {
         dueDate: fmtDate(o.project_completed_at),
         status,
       };
-    }).sort((a, b) => a.orderNo.localeCompare(b.orderNo));
+    });
   }, [ordersData]);
 
 
-  const filtered = rows.filter(r => {
+  const searchFiltered = rows.filter(r => {
     if (errorsOnly && r.status === "ok") return false;
     if (!search) return true;
     const s = search.toLowerCase();
     return r.orderNo.toLowerCase().includes(s) || r.recipient?.toLowerCase().includes(s) || r.product?.toLowerCase().includes(s);
   });
+
+  const { sortBy, setSortBy, statusFilter, setStatusFilter, counts, processed: filtered } =
+    useOrderListControls("silicon", searchFiltered);
+
 
   const selectedRows = filtered.filter(r => selected.has(r.orderNo));
   const allSelected = filtered.length > 0 && filtered.every(r => selected.has(r.orderNo));
