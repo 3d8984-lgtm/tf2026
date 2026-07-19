@@ -119,11 +119,15 @@ export default function OutsourceHistory() {
                 <th className="text-left px-3 py-2">{isKo ? "트윈커" : "Twinker"}</th>
                 <th className="text-right px-3 py-2">{isKo ? "주문수량" : "订单数量"}</th>
                 <th className="text-center px-3 py-2">{isKo ? "발주 카드" : "发货卡片"}</th>
+                <th className="text-left px-3 py-2">{isKo ? "발주 상태" : "发货状态"}</th>
                 <th className="text-right px-3 py-2">{isKo ? "상세보기" : "详情"}</th>
               </tr>
             </thead>
             <tbody>
-              {orders.map((o: any) => (
+              {orders.map((o: any) => {
+                const stages = stageCountByOrder[o.external_order_id];
+                const total = poCountByOrder[o.external_order_id] ?? 0;
+                return (
                 <tr key={o.id} className="border-t hover:bg-muted/30">
                   <td className="px-3 py-2 font-mono">{o.external_order_id}</td>
                   <td className="px-3 py-2">{fmtDate(o.created_at)}</td>
@@ -131,9 +135,42 @@ export default function OutsourceHistory() {
                   <td className="px-3 py-2">{o.recipient_name}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{o.quantity?.toLocaleString?.() ?? 0}</td>
                   <td className="px-3 py-2 text-center">
-                    <Badge variant={poCountByOrder[o.external_order_id] ? "default" : "outline"}>
-                      {poCountByOrder[o.external_order_id] ?? 0}
-                    </Badge>
+                    <Badge variant={total ? "default" : "outline"}>{total}</Badge>
+                  </td>
+                  <td className="px-3 py-2">
+                    {total === 0 ? (
+                      <span className="text-xs text-muted-foreground">{isKo ? "카드 없음" : "无卡片"}</span>
+                    ) : (
+                      <div className="space-y-1 min-w-[180px]">
+                        <div className="flex h-2 w-full overflow-hidden rounded bg-muted">
+                          {COLUMNS.map(col => {
+                            const n = stages?.[col.key] ?? 0;
+                            if (!n) return null;
+                            const pct = (n / total) * 100;
+                            return (
+                              <div
+                                key={col.key}
+                                className={STAGE_COLORS[col.key]}
+                                style={{ width: `${pct}%` }}
+                                title={`${isKo ? col.ko : col.zh}: ${n}`}
+                              />
+                            );
+                          })}
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {COLUMNS.map(col => {
+                            const n = stages?.[col.key] ?? 0;
+                            if (!n) return null;
+                            return (
+                              <span key={col.key} className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                                <span className={`w-1.5 h-1.5 rounded-full ${STAGE_COLORS[col.key]}`} />
+                                {isKo ? col.ko : col.zh} {n}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-right">
                     <Button size="sm" variant="outline"
@@ -142,12 +179,14 @@ export default function OutsourceHistory() {
                     </Button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {!isLoading && orders.length === 0 && (
-                <tr><td colSpan={7} className="text-center text-muted-foreground py-8">
+                <tr><td colSpan={8} className="text-center text-muted-foreground py-8">
                   {isKo ? "주문이 없습니다" : "暂无订单"}
                 </td></tr>
               )}
+
             </tbody>
           </table>
         </Card>
