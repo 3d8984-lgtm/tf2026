@@ -256,8 +256,13 @@ export default function TshirtFactory() {
           {/* Safety stock setting & warnings */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <AlertTriangle className="w-4 h-4 text-yellow-500" /> 안전 재고 설정 및 경고
+              <CardTitle className="flex items-center justify-between text-base">
+                <span className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-yellow-500" /> 안전 재고 설정 및 경고
+                </span>
+                <Button size="sm" onClick={() => { setPrefillType(null); setPrefillColor(null); setPrefillSize(null); setTab("create"); }}>
+                  <ShoppingCart className="w-3.5 h-3.5 mr-1" /> 발주하기
+                </Button>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -297,9 +302,6 @@ export default function TshirtFactory() {
                                 </div>
                               </div>
                             </div>
-                            <Button size="sm" onClick={() => goPurchase(w.product_type_code, w.color_code, w.size)}>
-                              <ShoppingCart className="w-3.5 h-3.5 mr-1" /> 발주하기
-                            </Button>
                           </div>
                         );
                       })}
