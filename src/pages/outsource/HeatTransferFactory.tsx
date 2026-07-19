@@ -3532,11 +3532,23 @@ function DesignThumb({
         console.warn("[DesignThumb] direct compose failed, retrying via proxy:", e);
       }
       try {
-        const { data, error } = await supabase.functions.invoke("download-file", {
-          body: { url: detail.designSrc, filename: `${detail.designUid}.bin` },
+        // supabase.functions.invoke는 응답을 JSON으로 오해해 바이너리를 문자열로
+        // 디코딩하므로, download-file 프록시는 직접 fetch로 호출해 Blob으로 받는다.
+        const { data: { session } } = await supabase.auth.getSession();
+        const SUPABASE_URL = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
+        const SUPABASE_ANON = (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+        const endpoint = `${SUPABASE_URL}/functions/v1/download-file`;
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(SUPABASE_ANON ? { apikey: SUPABASE_ANON } : {}),
+            Authorization: `Bearer ${session?.access_token ?? SUPABASE_ANON ?? ""}`,
+          },
+          body: JSON.stringify({ url: detail.designSrc, filename: `${detail.designUid}.bin` }),
         });
-        if (error) throw error;
-        const blob = data instanceof Blob ? data : new Blob([data as any]);
+        if (!res.ok) throw new Error(`proxy ${res.status}`);
+        const blob = await res.blob();
         const objUrl = URL.createObjectURL(blob);
         try {
           const c = await composeClippedDesign(objUrl, outline.maskCanvas, outline.widthPt, outline.heightPt, 72, transform);
