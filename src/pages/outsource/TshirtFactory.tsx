@@ -178,6 +178,9 @@ export default function TshirtFactory() {
 
   const filteredPos = useMemo(() => {
     return pos.filter(p => {
+      // 수량이 0인 발주는 목록에서 제외
+      const total = (p.items ?? []).reduce((s, i) => s + (Number(i.quantity) || 0), 0);
+      if (total <= 0) return false;
       if (poStatusFilter !== "all" && p.status !== poStatusFilter) return false;
       if (poFrom && p.ordered_at < poFrom) return false;
       if (poTo && p.ordered_at > poTo) return false;
@@ -481,65 +484,72 @@ export default function TshirtFactory() {
                         // Unified status: if all same use it, else "mixed"
                         const allSame = groupPos.every(p => p.status === first.status);
                         const unifiedStatus = allSame ? first.status : ("mixed" as any);
-                        rows.push(
-                          <TableRow key={key}>
-                            <TableCell className="font-mono text-xs">{groupNumber}</TableCell>
-                            <TableCell className="text-xs">{first.ordered_at}</TableCell>
-                            <TableCell className="text-xs">{first.expected_at ?? "-"}</TableCell>
-                            <TableCell className="text-xs">{pt ? nameOf(pt) : first.product_type_code}</TableCell>
-                            <TableCell className="text-xs">
-                              <div className="flex flex-wrap gap-1">
-                                {groupPos.map(p => {
-                                  const c = colors.find(c => c.code === p.color_code);
-                                  return (
-                                    <span key={p.id} className="inline-flex items-center gap-1 border rounded px-1.5 py-0.5">
-                                      {c && <span className="inline-block w-2.5 h-2.5 rounded-full border" style={{ background: c.hex }} />}
-                                      <span>{c ? nameOf(c) : p.color_code}</span>
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                            </TableCell>
-                            {SIZES.map(s => <TableCell key={s} className="text-center text-xs tabular-nums">{sizeSum[s] || ""}</TableCell>)}
-                            <TableCell className="text-center font-semibold tabular-nums">{groupTotal}</TableCell>
-                            <TableCell>
-                              <Select
-                                value={allSame ? first.status : ""}
-                                onValueChange={(v) => {
-                                  for (const p of groupPos) changePoStatus(p, v as PO["status"]);
-                                }}
-                              >
-                                <SelectTrigger className="h-7 w-28 text-xs">
-                                  <SelectValue placeholder={allSame ? undefined : "혼합"} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {PO_STATUS_OPTIONS.map(o => (
-                                    <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
-                            <TableCell className="text-right space-x-1">
-                              <Button size="sm" variant="ghost" onClick={() => setPoDetail(groupPos)} title={`총수량 ${groupTotal}`}><Eye className="w-3.5 h-3.5" /></Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-destructive hover:text-destructive"
-                                onClick={async () => {
-                                  if (!confirm(`발주 ${groupNumber}를 삭제하시겠습니까? (색상 ${groupPos.length}건)`)) return;
-                                  const ids = groupPos.map(p => p.id);
-                                  const { error } = await supabase.from("tshirt_purchase_orders").delete().in("id", ids);
-                                  if (error) { toast({ title: "삭제 실패", description: error.message, variant: "destructive" }); return; }
-                                  toast({ title: "삭제 완료", description: groupNumber });
-                                  loadAll();
-                                }}
-                                title="발주 삭제"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        );
+                        const N = groupPos.length;
+                        groupPos.forEach((p, idx) => {
+                          const c = colors.find(cc => cc.code === p.color_code);
+                          const sizeMap = new Map((p.items ?? []).map(i => [i.size, i.quantity]));
+                          const rowTotal = (p.items ?? []).reduce((s, i) => s + (Number(i.quantity) || 0), 0);
+                          rows.push(
+                            <TableRow key={`${key}::${p.id}`}>
+                              {idx === 0 && (
+                                <>
+                                  <TableCell rowSpan={N} className="font-mono text-xs align-top">{groupNumber}</TableCell>
+                                  <TableCell rowSpan={N} className="text-xs align-top">{first.ordered_at}</TableCell>
+                                  <TableCell rowSpan={N} className="text-xs align-top">{first.expected_at ?? "-"}</TableCell>
+                                  <TableCell rowSpan={N} className="text-xs align-top">{pt ? nameOf(pt) : first.product_type_code}</TableCell>
+                                </>
+                              )}
+                              <TableCell className="text-xs">
+                                <span className="inline-flex items-center gap-1.5">
+                                  {c && <span className="inline-block w-2.5 h-2.5 rounded-full border" style={{ background: c.hex }} />}
+                                  <span>{c ? nameOf(c) : p.color_code}</span>
+                                </span>
+                              </TableCell>
+                              {SIZES.map(s => <TableCell key={s} className="text-center text-xs tabular-nums">{sizeMap.get(s) || ""}</TableCell>)}
+                              <TableCell className="text-center font-semibold tabular-nums">{rowTotal}</TableCell>
+                              {idx === 0 && (
+                                <>
+                                  <TableCell rowSpan={N} className="align-top">
+                                    <Select
+                                      value={allSame ? first.status : ""}
+                                      onValueChange={(v) => {
+                                        for (const pp of groupPos) changePoStatus(pp, v as PO["status"]);
+                                      }}
+                                    >
+                                      <SelectTrigger className="h-7 w-28 text-xs">
+                                        <SelectValue placeholder={allSame ? undefined : "혼합"} />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {PO_STATUS_OPTIONS.map(o => (
+                                          <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </TableCell>
+                                  <TableCell rowSpan={N} className="text-right space-x-1 align-top">
+                                    <Button size="sm" variant="ghost" onClick={() => setPoDetail(groupPos)} title={`총수량 ${groupTotal}`}><Eye className="w-3.5 h-3.5" /></Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="text-destructive hover:text-destructive"
+                                      onClick={async () => {
+                                        if (!confirm(`발주 ${groupNumber}를 삭제하시겠습니까? (색상 ${groupPos.length}건)`)) return;
+                                        const ids = groupPos.map(pp => pp.id);
+                                        const { error } = await supabase.from("tshirt_purchase_orders").delete().in("id", ids);
+                                        if (error) { toast({ title: "삭제 실패", description: error.message, variant: "destructive" }); return; }
+                                        toast({ title: "삭제 완료", description: groupNumber });
+                                        loadAll();
+                                      }}
+                                      title="발주 삭제"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </TableCell>
+                                </>
+                              )}
+                            </TableRow>
+                          );
+                        });
                       });
                       return rows;
                     })()}
@@ -899,10 +909,12 @@ function SkuHistory({ sku }: { sku: Inventory }) {
   );
 }
 
-function PoDetailView({ group, productTypes, colors, nameOf }: {
+function PoDetailView({ group: groupRaw, productTypes, colors, nameOf }: {
   group: PO[]; productTypes: ProductType[]; colors: Color[]; nameOf: (t: any) => string;
 }) {
-  const first = group[0];
+  // 수량이 0인 색상은 제외
+  const group = groupRaw.filter(p => (p.items ?? []).reduce((s, i) => s + (Number(i.quantity) || 0), 0) > 0);
+  const first = group[0] ?? groupRaw[0];
   const pt = productTypes.find(t => t.code === first.product_type_code);
   const grandTotal = group.reduce((s, p) => s + (p.items ?? []).reduce((x, i) => x + i.quantity, 0), 0);
   const allAttachments = group.flatMap(p => p.attachments ?? []);
