@@ -506,6 +506,7 @@ interface DesignDetail {
   orderNo: string;
   designUid: string;        // "{orderNo}-{idx+1}"
   designSrc: string | null;
+  gftOriginalUrl: string | null;
   tshirtType: string;
   tshirtColor: string;
   tshirtSize: string;
