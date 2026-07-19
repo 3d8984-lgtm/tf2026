@@ -111,6 +111,15 @@ export default function TshirtOrderFactory() {
 type AggRow = { type: string; color: string; size: string; qty: number };
 
 const WO_STORAGE_PREFIX = "tshirt_work_order_v1_";
+const WO_DEFAULTS_KEY = "tshirt_work_order_defaults_v1";
+const DEFAULT_FIELDS = ["supplier", "receiverName", "receiverPhone", "receiverAddress", "notes"] as const;
+function loadWoDefaults(): Partial<Record<(typeof DEFAULT_FIELDS)[number], string>> {
+  try {
+    const raw = localStorage.getItem(WO_DEFAULTS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return {};
+}
 
 function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
   const orderNo = order?.external_order_id ?? "";
