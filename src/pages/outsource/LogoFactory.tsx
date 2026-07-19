@@ -216,9 +216,12 @@ export default function LogoFactory() {
         recipient: o.recipient_name || "",
         logoUrl: o.logo_url || null,
         quantity: o.quantity || 0,
-      }))
-      .sort((a, b) => a.orderNo.localeCompare(b.orderNo));
+      }));
   }, [ordersData]);
+
+  const { sortBy, setSortBy, statusFilter, setStatusFilter, counts, processed: processedRows } =
+    useOrderListControls("logo", rows);
+
 
   const detailOrder = useMemo(() => {
     if (!detailOrderNo || !ordersData) return null;
