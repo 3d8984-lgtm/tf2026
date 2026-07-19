@@ -1280,6 +1280,23 @@ function PurchaseOrderForm({
     }
   };
 
+  const deleteProductType = async () => {
+    if (!typeCode) return;
+    const target = productTypes.find(t => t.code === typeCode);
+    if (!target) return;
+    if (!window.confirm(`"${nameOf(target)}" 종류를 삭제하시겠습니까?\n(목록에서 숨김 처리됩니다)`)) return;
+    try {
+      const { error } = await supabase.from("tshirt_product_types").update({ active: false }).eq("code", typeCode);
+      if (error) throw error;
+      toast({ title: "삭제되었습니다", description: nameOf(target) });
+      const remaining = productTypes.filter(t => t.code !== typeCode);
+      setTypeCode(remaining[0]?.code ?? "");
+      await onReload();
+    } catch (e: any) {
+      toast({ title: "삭제 실패", description: e.message ?? String(e), variant: "destructive" });
+    }
+  };
+
   const typeName = productTypes.find(t => t.code === typeCode) ? nameOf(productTypes.find(t => t.code === typeCode)!) : "";
   const typeNameZh = productTypes.find(t => t.code === typeCode)?.name_zh || typeCode;
 
