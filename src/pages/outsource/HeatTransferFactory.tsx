@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { OrderStatusCell } from "@/components/outsource/OrderStatusCell";
+import { useOrderListControls, OrderListControlsBar, OrderStatusCountsBadges } from "@/components/outsource/OrderListControls";
 import { markOrderCompleted } from "@/hooks/useOrderStatus";
 import * as pdfjsLib from "pdfjs-dist";
 // @ts-ignore - vite worker import
@@ -1127,9 +1128,21 @@ function DesignFormatBox({
 // ============ order list ============
 
 function OrderListCard({ orders, onOpen }: { orders: OrderRow[]; onOpen: (id: string) => void }) {
+  const { sortBy, setSortBy, statusFilter, setStatusFilter, counts, processed } =
+    useOrderListControls("heat-transfer", orders);
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base">주문 목록</CardTitle></CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-3 flex-wrap">
+          <CardTitle className="text-base">주문 목록</CardTitle>
+          <OrderStatusCountsBadges counts={counts} />
+        </div>
+        <OrderListControlsBar
+          sortBy={sortBy} setSortBy={setSortBy}
+          statusFilter={statusFilter} setStatusFilter={setStatusFilter}
+          counts={counts}
+        />
+      </CardHeader>
       <CardContent>
         <Table>
           <TableHeader>
@@ -1146,7 +1159,7 @@ function OrderListCard({ orders, onOpen }: { orders: OrderRow[]; onOpen: (id: st
             </TableRow>
           </TableHeader>
           <TableBody>
-            {orders.map((o, idx) => (
+            {processed.map((o, idx) => (
               <TableRow key={o.id}>
                 <TableCell>{idx + 1}</TableCell>
                 <TableCell className="font-mono">{o.orderNo}</TableCell>
@@ -1161,7 +1174,7 @@ function OrderListCard({ orders, onOpen }: { orders: OrderRow[]; onOpen: (id: st
                 </TableCell>
               </TableRow>
             ))}
-            {orders.length === 0 && (
+            {processed.length === 0 && (
               <TableRow><TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-8">—</TableCell></TableRow>
             )}
           </TableBody>
@@ -1170,6 +1183,7 @@ function OrderListCard({ orders, onOpen }: { orders: OrderRow[]; onOpen: (id: st
     </Card>
   );
 }
+
 
 // ============ order detail ============
 

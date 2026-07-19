@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OrderStatusCell } from "@/components/outsource/OrderStatusCell";
+import { useOrderListControls, OrderListControlsBar, OrderStatusCountsBadges } from "@/components/outsource/OrderListControls";
 import { markOrderCompleted } from "@/hooks/useOrderStatus";
 import * as pdfjsLib from "pdfjs-dist";
 // @ts-ignore - vite worker import
@@ -1165,8 +1166,12 @@ export default function NfcCardFactory() {
       dueDate: fmtDate(o.project_completed_at),
       recipient: o.recipient_name || "",
       quantity: o.quantity || 0,
-    })).sort((a, b) => a.orderNo.localeCompare(b.orderNo));
+    }));
   }, [ordersData]);
+
+  const { sortBy, setSortBy, statusFilter, setStatusFilter, counts, processed: processedRows } =
+    useOrderListControls("nfc-card", rows);
+
 
   if (detailOrderNo) {
     return (
@@ -1226,8 +1231,19 @@ export default function NfcCardFactory() {
 
         {/* Order list */}
         <Card>
-          <CardHeader><CardTitle className="text-base">주문 목록</CardTitle></CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-3 flex-wrap">
+              <CardTitle className="text-base">주문 목록</CardTitle>
+              <OrderStatusCountsBadges counts={counts} />
+            </div>
+            <OrderListControlsBar
+              sortBy={sortBy} setSortBy={setSortBy}
+              statusFilter={statusFilter} setStatusFilter={setStatusFilter}
+              counts={counts}
+            />
+          </CardHeader>
           <CardContent>
+
             <Table>
               <TableHeader>
                 <TableRow>
@@ -1257,10 +1273,11 @@ export default function NfcCardFactory() {
                     </TableCell>
                   </TableRow>
                 )}
-                {!isLoading && !ordersError && rows.length === 0 && (
+                {!isLoading && !ordersError && processedRows.length === 0 && (
                   <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">주문 데이터가 없습니다</TableCell></TableRow>
                 )}
-                {rows.map(r => (
+                {processedRows.map(r => (
+
                   <TableRow key={r.orderNo}>
                     <TableCell className="font-mono">{r.orderNo}</TableCell>
                     <TableCell>{r.receivedAt}</TableCell>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { OrderStatusCell } from "@/components/outsource/OrderStatusCell";
+import { useOrderListControls, OrderListControlsBar, OrderStatusCountsBadges } from "@/components/outsource/OrderListControls";
 import { markOrderCompleted } from "@/hooks/useOrderStatus";
 import * as pdfjsLib from "pdfjs-dist";
 // @ts-ignore - vite worker import
@@ -496,16 +497,20 @@ export default function SiliconFactory() {
         dueDate: fmtDate(o.project_completed_at),
         status,
       };
-    }).sort((a, b) => a.orderNo.localeCompare(b.orderNo));
+    });
   }, [ordersData]);
 
 
-  const filtered = rows.filter(r => {
+  const searchFiltered = rows.filter(r => {
     if (errorsOnly && r.status === "ok") return false;
     if (!search) return true;
     const s = search.toLowerCase();
     return r.orderNo.toLowerCase().includes(s) || r.recipient?.toLowerCase().includes(s) || r.product?.toLowerCase().includes(s);
   });
+
+  const { sortBy, setSortBy, statusFilter, setStatusFilter, counts, processed: filtered } =
+    useOrderListControls("silicon", searchFiltered);
+
 
   const selectedRows = filtered.filter(r => selected.has(r.orderNo));
   const allSelected = filtered.length > 0 && filtered.every(r => selected.has(r.orderNo));
@@ -948,14 +953,20 @@ export default function SiliconFactory() {
           <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-3 flex-wrap">
               <CardTitle className="text-base">주문 목록</CardTitle>
+              <OrderStatusCountsBadges counts={counts} />
               <Input placeholder="주문번호 / 거래처 / 상품 검색" value={search} onChange={e => setSearch(e.target.value)} className="w-72" />
               <div className="flex items-center gap-2">
                 <Switch checked={errorsOnly} onCheckedChange={setErrorsOnly} />
                 <Label className="text-sm">오류만 보기 ({errorCount})</Label>
               </div>
             </div>
-            <div className="flex gap-2" />
+            <OrderListControlsBar
+              sortBy={sortBy} setSortBy={setSortBy}
+              statusFilter={statusFilter} setStatusFilter={setStatusFilter}
+              counts={counts}
+            />
           </CardHeader>
+
 
           <CardContent>
             {busy && (

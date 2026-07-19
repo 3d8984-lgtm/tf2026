@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { OrderStatusCell } from "@/components/outsource/OrderStatusCell";
+import { useOrderListControls, OrderListControlsBar, OrderStatusCountsBadges } from "@/components/outsource/OrderListControls";
 import { markOrderCompleted } from "@/hooks/useOrderStatus";
 import PageHeader from "@/components/PageHeader";
 import { useOrders } from "@/hooks/useDbData";
@@ -215,9 +216,12 @@ export default function LogoFactory() {
         recipient: o.recipient_name || "",
         logoUrl: o.logo_url || null,
         quantity: o.quantity || 0,
-      }))
-      .sort((a, b) => a.orderNo.localeCompare(b.orderNo));
+      }));
   }, [ordersData]);
+
+  const { sortBy, setSortBy, statusFilter, setStatusFilter, counts, processed: processedRows } =
+    useOrderListControls("logo", rows);
+
 
   const detailOrder = useMemo(() => {
     if (!detailOrderNo || !ordersData) return null;
@@ -238,10 +242,19 @@ export default function LogoFactory() {
       <PageHeader title={t("menu.outLogo")} description="작업번호별 로고 외주 발주 관리" />
       <div className="p-6 space-y-4">
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">주문 목록</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-3 flex-wrap">
+              <CardTitle className="text-base">주문 목록</CardTitle>
+              <OrderStatusCountsBadges counts={counts} />
+            </div>
+            <OrderListControlsBar
+              sortBy={sortBy} setSortBy={setSortBy}
+              statusFilter={statusFilter} setStatusFilter={setStatusFilter}
+              counts={counts}
+            />
           </CardHeader>
           <CardContent>
+
             <Table>
               <TableHeader>
                 <TableRow>
@@ -260,10 +273,11 @@ export default function LogoFactory() {
                 {isLoading && (
                   <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">로딩 중...</TableCell></TableRow>
                 )}
-                {!isLoading && rows.length === 0 && (
+                {!isLoading && processedRows.length === 0 && (
                   <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">주문 데이터가 없습니다</TableCell></TableRow>
                 )}
-                {rows.map((r, i) => (
+                {processedRows.map((r, i) => (
+
                   <TableRow key={r.orderNo}>
                     <TableCell>{i + 1}</TableCell>
                     <TableCell className="font-mono">{r.orderNo}</TableCell>

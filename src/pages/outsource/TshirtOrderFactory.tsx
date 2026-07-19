@@ -1,5 +1,6 @@
 import { forwardRef, useMemo, useRef, useState } from "react";
 import { OrderStatusCell } from "@/components/outsource/OrderStatusCell";
+import { useOrderListControls, OrderListControlsBar, OrderStatusCountsBadges } from "@/components/outsource/OrderListControls";
 import { markOrderCompleted } from "@/hooks/useOrderStatus";
 import PageHeader from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,8 +50,12 @@ export default function TshirtOrderFactory() {
       dueDate: fmtDate(o.project_completed_at),
       recipient: o.recipient_name || "",
       quantity: o.quantity || 0,
-    })).sort((a, b) => a.orderNo.localeCompare(b.orderNo));
+    }));
   }, [ordersData]);
+
+  const { sortBy, setSortBy, statusFilter, setStatusFilter, counts, processed: processedRows } =
+    useOrderListControls("tshirt-order", rows);
+
 
   if (detailOrderNo) {
     const order = (ordersData as any[])?.find(o => o.external_order_id === detailOrderNo);
@@ -67,8 +72,19 @@ export default function TshirtOrderFactory() {
       <PageHeader title="주문 티셔츠 공장" description="주문 데이터로 취합된 티셔츠 발주 관리" />
       <div className="p-6 space-y-4">
         <Card>
-          <CardHeader><CardTitle className="text-base">주문 목록</CardTitle></CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-3 flex-wrap">
+              <CardTitle className="text-base">주문 목록</CardTitle>
+              <OrderStatusCountsBadges counts={counts} />
+            </div>
+            <OrderListControlsBar
+              sortBy={sortBy} setSortBy={setSortBy}
+              statusFilter={statusFilter} setStatusFilter={setStatusFilter}
+              counts={counts}
+            />
+          </CardHeader>
           <CardContent>
+
             <Table>
               <TableHeader>
                 <TableRow>
@@ -85,10 +101,11 @@ export default function TshirtOrderFactory() {
                 {isLoading && (
                   <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">로딩 중...</TableCell></TableRow>
                 )}
-                {!isLoading && rows.length === 0 && (
+                {!isLoading && processedRows.length === 0 && (
                   <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">주문 데이터가 없습니다</TableCell></TableRow>
                 )}
-                {rows.map(r => (
+                {processedRows.map(r => (
+
                   <TableRow key={r.orderNo}>
                     <TableCell className="font-mono">{r.orderNo}</TableCell>
                     <TableCell>{r.receivedAt}</TableCell>
