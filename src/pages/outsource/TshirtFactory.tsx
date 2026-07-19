@@ -1704,38 +1704,80 @@ function PurchaseOrderForm({
         </CardContent>
       </Card>
 
-      <div className="flex flex-wrap justify-end gap-2">
-        <Button variant="outline" onClick={() => setPreviewOpen(true)}>
-          <Eye className="w-4 h-4 mr-1" />발주서 미리보기
-        </Button>
-        <Button variant="outline" onClick={() => downloadExcel()}>
-          <FileSpreadsheet className="w-4 h-4 mr-1" />엑셀 다운로드
-        </Button>
-        <Button variant="outline" disabled={saving} onClick={() => submit("draft")}>임시 저장</Button>
-        <Button disabled={saving} onClick={() => submit("ordered")}>발주 등록</Button>
+      {/* 오프스크린 렌더링: PDF 생성용 */}
+      <div style={{ position: "fixed", left: "-10000px", top: 0, pointerEvents: "none", opacity: 0 }} aria-hidden>
+        <WorkOrderSheetTs ref={previewRef} workOrder={workOrderPayload} agg={aggRows} totalQty={total} />
       </div>
 
-      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>발주서 미리보기</DialogTitle></DialogHeader>
-          <PurchaseOrderPreview
-            company={company} jobNo={jobNo} author={author}
-            orderedAt={orderedAt} expectedAt={expectedAt}
-            recipient={recipient} phone={phone} address={address}
-            garmentType={garmentType} fabricName={fabricName} fabricWeight={fabricWeight}
-            typeName={typeName}
-            colors={colors} nameOf={nameOf}
-            qtyByColor={qtyByColor} colorTotals={colorTotals} sizeTotals={sizeTotals}
-            total={total} notes={notes}
-          />
+      {/* 작업지시서 A4 미리보기 */}
+      <Dialog open={pdfOpen} onOpenChange={setPdfOpen}>
+        <DialogContent aria-describedby={undefined} className="max-w-5xl w-[95vw] h-[90vh] flex flex-col bg-muted/30">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between pr-8">
+              <span>작업지시서 A4 미리보기</span>
+              <Button size="sm" variant="outline" onClick={downloadWorkOrderPdf} disabled={pdfLoading}>
+                <Download className="w-4 h-4 mr-1" /> {pdfLoading ? "PDF 생성 중..." : "PDF 다운로드"}
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-auto flex justify-center py-4">
+            <WorkOrderSheetTs workOrder={workOrderPayload} agg={aggRows} totalQty={total} />
+          </div>
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => downloadExcel()}>
-              <FileSpreadsheet className="w-4 h-4 mr-1" />엑셀 다운로드
+            <Button variant="outline" size="sm" onClick={() => setPdfOpen(false)}>취소</Button>
+            <Button size="sm" onClick={acceptWorkOrder}>
+              <CheckCircle2 className="w-4 h-4 mr-1" /> 확인
             </Button>
-            <Button variant="outline" onClick={() => window.print()}>인쇄</Button>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* 작업파일(Excel) 미리보기 */}
+      <Dialog open={filesPreviewOpen} onOpenChange={setFilesPreviewOpen}>
+        <DialogContent aria-describedby={undefined} className="max-w-3xl w-[95vw] max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between pr-8">
+              <span>작업파일 미리보기 · {previewPoNumber || "tshirt_order"}.xlsx</span>
+              <Button size="sm" variant="outline" onClick={downloadWorkFileXlsx}>
+                <Download className="w-4 h-4 mr-1" /> Excel 다운로드
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-auto border rounded-md">
+            <table className="w-full text-sm">
+              <thead className="bg-muted sticky top-0">
+                <tr>
+                  <th className="border px-3 py-2 text-left">Type</th>
+                  <th className="border px-3 py-2 text-left">Color</th>
+                  <th className="border px-3 py-2 text-left">Size</th>
+                  <th className="border px-3 py-2 text-right">Quantity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {aggRows.map((a, i) => (
+                  <tr key={i}>
+                    <td className="border px-3 py-2">{a.type}</td>
+                    <td className="border px-3 py-2">{a.color}</td>
+                    <td className="border px-3 py-2">{a.size}</td>
+                    <td className="border px-3 py-2 text-right tabular-nums">{a.qty}</td>
+                  </tr>
+                ))}
+                <tr className="font-semibold bg-muted/40">
+                  <td className="border px-3 py-2" colSpan={3}>Total</td>
+                  <td className="border px-3 py-2 text-right tabular-nums">{total}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={() => setFilesPreviewOpen(false)}>취소</Button>
+            <Button size="sm" onClick={confirmFiles}>
+              <CheckCircle2 className="w-4 h-4 mr-1" /> 확인
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
 
       <Dialog open={addTypeOpen} onOpenChange={setAddTypeOpen}>
         <DialogContent>
