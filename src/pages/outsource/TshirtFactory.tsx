@@ -426,7 +426,7 @@ export default function TshirtFactory() {
                     <SelectItem value="in_production">생산 중</SelectItem>
                     <SelectItem value="shipped">발송 완료</SelectItem>
                     <SelectItem value="received">입고 완료</SelectItem>
-                    <SelectItem value="draft">임시 저장</SelectItem>
+                    
                   </SelectContent>
                 </Select>
 
