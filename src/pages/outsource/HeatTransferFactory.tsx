@@ -506,6 +506,7 @@ interface DesignDetail {
   orderNo: string;
   designUid: string;        // "{orderNo}-{idx+1}"
   designSrc: string | null;
+  gftOriginalUrl: string | null;
   tshirtType: string;
   tshirtColor: string;
   tshirtSize: string;
@@ -1250,6 +1251,7 @@ function OrderDetail({
         orderNo: orderId,
         designUid: `${orderId}-2`,
         designSrc: it.gft_original_image_url || order.logoUrl || testDesign,
+        gftOriginalUrl: it.gft_original_image_url || null,
         tshirtType: String(it.tshirt_type ?? "").trim(),
         tshirtColor: String(it.tshirt_color ?? "").trim(),
         tshirtSize: String(it.tshirt_size ?? "").trim(),
@@ -3476,7 +3478,7 @@ function OrderDetailList({
               <TableHead>티셔츠 종류</TableHead>
               <TableHead>티셔츠 컬러</TableHead>
               <TableHead>티셔츠 사이즈</TableHead>
-              <TableHead>디자인</TableHead>
+              <TableHead>GFT 원본 이미지 (링크)</TableHead>
               <TableHead>QR코드</TableHead>
             </TableRow>
           </TableHeader>
@@ -3492,7 +3494,21 @@ function OrderDetailList({
                   <TableCell>{d.tshirtType || "—"}</TableCell>
                   <TableCell>{d.tshirtColor || "—"}</TableCell>
                   <TableCell>{d.tshirtSize || "—"}</TableCell>
-                  <TableCell><DesignThumb detail={d} outline={fmt} sizeLabel={d.tshirtSize || ""} transform={transform} /></TableCell>
+                  <TableCell>
+                    {d.gftOriginalUrl ? (
+                      <a
+                        href={d.gftOriginalUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary underline break-all text-xs font-mono max-w-[280px] inline-block"
+                        title={d.gftOriginalUrl}
+                      >
+                        {d.gftOriginalUrl.length > 50 ? d.gftOriginalUrl.slice(0, 50) + "…" : d.gftOriginalUrl}
+                      </a>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell><QrThumb value={d.designUid} /></TableCell>
                 </TableRow>
               );
