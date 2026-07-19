@@ -2572,7 +2572,7 @@ function DetailView({
 
       setOrdered(true);
       persistProgress({ ordered: true });
-      markOrderCompleted("nfc-card", orderNo);
+      markOrderCompleted("nfc-card", orderNo, { quantity: cards.length, expectedShipAt: getExpectedShipAt("nfc-card", orderNo) });
       toast({ title: "발주 ZIP 다운로드 완료", description: `${cards.length}장 · 작업지시서 포함` });
     } catch (e: any) {
       toast({ title: "발주 실패", description: e?.message || String(e), variant: "destructive" as any });
