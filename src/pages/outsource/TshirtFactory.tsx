@@ -449,7 +449,7 @@ export default function TshirtFactory() {
                       <TableRow><TableCell colSpan={14} className="text-center py-8 text-muted-foreground">발주 내역이 없습니다.</TableCell></TableRow>
                     )}
                     {(() => {
-                      // Group POs by ordered_at + product_type + created_by + notes
+                      // Group POs by ordered_at + product_type + created_by + notes (one line per work order)
                       const groups = new Map<string, PO[]>();
                       for (const p of filteredPos) {
                         const k = `${p.ordered_at}|${p.product_type_code}|${p.created_by_label ?? ""}|${p.notes ?? ""}`;
@@ -458,50 +458,88 @@ export default function TshirtFactory() {
                         groups.set(k, arr);
                       }
                       const rows: React.ReactNode[] = [];
-                      let gi = 0;
-                      groups.forEach((groupPos) => {
-                        gi++;
-                        const pt = productTypes.find(t => t.code === groupPos[0].product_type_code);
+                      groups.forEach((groupPos, key) => {
+                        const first = groupPos[0];
+                        const pt = productTypes.find(t => t.code === first.product_type_code);
                         const groupTotal = groupPos.reduce((s, p) => s + (p.items ?? []).reduce((x, i) => x + i.quantity, 0), 0);
-                        groupPos.forEach((p, idx) => {
-                          const sizeMap = new Map(p.items?.map(i => [i.size, i.quantity]));
-                          const total = (p.items ?? []).reduce((s, i) => s + i.quantity, 0);
-                          const c = colors.find(c => c.code === p.color_code);
-                          const st = poStatusBadge(p.status);
-                          const isFirst = idx === 0;
-                          return rows.push(
-                            <TableRow key={p.id} className={isFirst && gi > 1 ? "border-t-2 border-primary/30" : ""}>
-                              <TableCell className="font-mono text-xs">{isFirst ? p.po_number : <span className="text-muted-foreground">↳</span>}</TableCell>
-                              <TableCell className="text-xs">{isFirst ? p.ordered_at : ""}</TableCell>
-                              <TableCell className="text-xs">{isFirst ? (p.expected_at ?? "-") : ""}</TableCell>
-                              <TableCell className="text-xs">{isFirst ? (pt ? nameOf(pt) : p.product_type_code) : ""}</TableCell>
-                              <TableCell className="text-xs">
-                                <span className="inline-flex items-center gap-1.5">
-                                  {c && <span className="inline-block w-3 h-3 rounded-full border" style={{ background: c.hex }} />}
-                                  {c ? nameOf(c) : p.color_code}
-                                </span>
-                              </TableCell>
-                              {SIZES.map(s => <TableCell key={s} className="text-center text-xs tabular-nums">{sizeMap.get(s) || ""}</TableCell>)}
-                              <TableCell className="text-center font-semibold tabular-nums">{total}</TableCell>
-                              <TableCell>
-                                <Select value={p.status} onValueChange={(v) => changePoStatus(p, v as PO["status"])}>
-                                  <SelectTrigger className="h-7 w-28 text-xs"><SelectValue /></SelectTrigger>
-                                  <SelectContent>
-                                    {PO_STATUS_OPTIONS.map(o => (
-                                      <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </TableCell>
-                              <TableCell className="text-right space-x-1">
-                                {isFirst && (
-                                  <Button size="sm" variant="ghost" onClick={() => setPoDetail(groupPos)} title={`그룹 총수량 ${groupTotal}`}><Eye className="w-3.5 h-3.5" /></Button>
-                                )}
-                              </TableCell>
-
-                            </TableRow>
-                          );
-                        });
+                        // Sum per-size across all colors in the group
+                        const sizeSum: Record<string, number> = {};
+                        for (const p of groupPos) for (const it of (p.items ?? [])) sizeSum[it.size] = (sizeSum[it.size] ?? 0) + it.quantity;
+                        // Group PO number = shared prefix (strip last "-{colorCode}" if all match)
+                        const groupNumber = (() => {
+                          const nums = groupPos.map(p => p.po_number);
+                          if (nums.length === 1) return nums[0];
+                          // find longest common prefix
+                          let prefix = nums[0];
+                          for (const n of nums.slice(1)) {
+                            let i = 0;
+                            while (i < prefix.length && i < n.length && prefix[i] === n[i]) i++;
+                            prefix = prefix.slice(0, i);
+                          }
+                          return prefix.replace(/[-_]+$/, "") || nums[0];
+                        })();
+                        // Unified status: if all same use it, else "mixed"
+                        const allSame = groupPos.every(p => p.status === first.status);
+                        const unifiedStatus = allSame ? first.status : ("mixed" as any);
+                        rows.push(
+                          <TableRow key={key}>
+                            <TableCell className="font-mono text-xs">{groupNumber}</TableCell>
+                            <TableCell className="text-xs">{first.ordered_at}</TableCell>
+                            <TableCell className="text-xs">{first.expected_at ?? "-"}</TableCell>
+                            <TableCell className="text-xs">{pt ? nameOf(pt) : first.product_type_code}</TableCell>
+                            <TableCell className="text-xs">
+                              <div className="flex flex-wrap gap-1">
+                                {groupPos.map(p => {
+                                  const c = colors.find(c => c.code === p.color_code);
+                                  return (
+                                    <span key={p.id} className="inline-flex items-center gap-1 border rounded px-1.5 py-0.5">
+                                      {c && <span className="inline-block w-2.5 h-2.5 rounded-full border" style={{ background: c.hex }} />}
+                                      <span>{c ? nameOf(c) : p.color_code}</span>
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            </TableCell>
+                            {SIZES.map(s => <TableCell key={s} className="text-center text-xs tabular-nums">{sizeSum[s] || ""}</TableCell>)}
+                            <TableCell className="text-center font-semibold tabular-nums">{groupTotal}</TableCell>
+                            <TableCell>
+                              <Select
+                                value={allSame ? first.status : ""}
+                                onValueChange={(v) => {
+                                  for (const p of groupPos) changePoStatus(p, v as PO["status"]);
+                                }}
+                              >
+                                <SelectTrigger className="h-7 w-28 text-xs">
+                                  <SelectValue placeholder={allSame ? undefined : "혼합"} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {PO_STATUS_OPTIONS.map(o => (
+                                    <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell className="text-right space-x-1">
+                              <Button size="sm" variant="ghost" onClick={() => setPoDetail(groupPos)} title={`총수량 ${groupTotal}`}><Eye className="w-3.5 h-3.5" /></Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-destructive hover:text-destructive"
+                                onClick={async () => {
+                                  if (!confirm(`발주 ${groupNumber}를 삭제하시겠습니까? (색상 ${groupPos.length}건)`)) return;
+                                  const ids = groupPos.map(p => p.id);
+                                  const { error } = await supabase.from("tshirt_purchase_orders").delete().in("id", ids);
+                                  if (error) { toast({ title: "삭제 실패", description: error.message, variant: "destructive" }); return; }
+                                  toast({ title: "삭제 완료", description: groupNumber });
+                                  loadAll();
+                                }}
+                                title="발주 삭제"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
                       });
                       return rows;
                     })()}
