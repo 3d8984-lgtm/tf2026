@@ -231,7 +231,7 @@ export default function TshirtFactory() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Shirt className="w-6 h-6" /> 티셔츠 공장</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Shirt className="w-6 h-6" /> 티셔츠 재고 현황</h1>
           <p className="text-sm text-muted-foreground">티셔츠 재고 현황 및 발주 관리</p>
         </div>
       </div>
@@ -256,8 +256,13 @@ export default function TshirtFactory() {
           {/* Safety stock setting & warnings */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <AlertTriangle className="w-4 h-4 text-yellow-500" /> 안전 재고 설정 및 경고
+              <CardTitle className="flex items-center justify-between text-base">
+                <span className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-yellow-500" /> 안전 재고 설정 및 경고
+                </span>
+                <Button size="sm" onClick={() => { setPrefillType(null); setPrefillColor(null); setPrefillSize(null); setTab("create"); }}>
+                  <ShoppingCart className="w-3.5 h-3.5 mr-1" /> 발주하기
+                </Button>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -297,9 +302,6 @@ export default function TshirtFactory() {
                                 </div>
                               </div>
                             </div>
-                            <Button size="sm" onClick={() => goPurchase(w.product_type_code, w.color_code, w.size)}>
-                              <ShoppingCart className="w-3.5 h-3.5 mr-1" /> 발주하기
-                            </Button>
                           </div>
                         );
                       })}
@@ -447,7 +449,7 @@ export default function TshirtFactory() {
                       <TableRow><TableCell colSpan={14} className="text-center py-8 text-muted-foreground">발주 내역이 없습니다.</TableCell></TableRow>
                     )}
                     {(() => {
-                      // Group POs by ordered_at + product_type + created_by + notes
+                      // Group POs by ordered_at + product_type + created_by + notes (one line per work order)
                       const groups = new Map<string, PO[]>();
                       for (const p of filteredPos) {
                         const k = `${p.ordered_at}|${p.product_type_code}|${p.created_by_label ?? ""}|${p.notes ?? ""}`;
@@ -456,50 +458,88 @@ export default function TshirtFactory() {
                         groups.set(k, arr);
                       }
                       const rows: React.ReactNode[] = [];
-                      let gi = 0;
-                      groups.forEach((groupPos) => {
-                        gi++;
-                        const pt = productTypes.find(t => t.code === groupPos[0].product_type_code);
+                      groups.forEach((groupPos, key) => {
+                        const first = groupPos[0];
+                        const pt = productTypes.find(t => t.code === first.product_type_code);
                         const groupTotal = groupPos.reduce((s, p) => s + (p.items ?? []).reduce((x, i) => x + i.quantity, 0), 0);
-                        groupPos.forEach((p, idx) => {
-                          const sizeMap = new Map(p.items?.map(i => [i.size, i.quantity]));
-                          const total = (p.items ?? []).reduce((s, i) => s + i.quantity, 0);
-                          const c = colors.find(c => c.code === p.color_code);
-                          const st = poStatusBadge(p.status);
-                          const isFirst = idx === 0;
-                          return rows.push(
-                            <TableRow key={p.id} className={isFirst && gi > 1 ? "border-t-2 border-primary/30" : ""}>
-                              <TableCell className="font-mono text-xs">{isFirst ? p.po_number : <span className="text-muted-foreground">↳</span>}</TableCell>
-                              <TableCell className="text-xs">{isFirst ? p.ordered_at : ""}</TableCell>
-                              <TableCell className="text-xs">{isFirst ? (p.expected_at ?? "-") : ""}</TableCell>
-                              <TableCell className="text-xs">{isFirst ? (pt ? nameOf(pt) : p.product_type_code) : ""}</TableCell>
-                              <TableCell className="text-xs">
-                                <span className="inline-flex items-center gap-1.5">
-                                  {c && <span className="inline-block w-3 h-3 rounded-full border" style={{ background: c.hex }} />}
-                                  {c ? nameOf(c) : p.color_code}
-                                </span>
-                              </TableCell>
-                              {SIZES.map(s => <TableCell key={s} className="text-center text-xs tabular-nums">{sizeMap.get(s) || ""}</TableCell>)}
-                              <TableCell className="text-center font-semibold tabular-nums">{total}</TableCell>
-                              <TableCell>
-                                <Select value={p.status} onValueChange={(v) => changePoStatus(p, v as PO["status"])}>
-                                  <SelectTrigger className="h-7 w-28 text-xs"><SelectValue /></SelectTrigger>
-                                  <SelectContent>
-                                    {PO_STATUS_OPTIONS.map(o => (
-                                      <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </TableCell>
-                              <TableCell className="text-right space-x-1">
-                                {isFirst && (
-                                  <Button size="sm" variant="ghost" onClick={() => setPoDetail(groupPos)} title={`그룹 총수량 ${groupTotal}`}><Eye className="w-3.5 h-3.5" /></Button>
-                                )}
-                              </TableCell>
-
-                            </TableRow>
-                          );
-                        });
+                        // Sum per-size across all colors in the group
+                        const sizeSum: Record<string, number> = {};
+                        for (const p of groupPos) for (const it of (p.items ?? [])) sizeSum[it.size] = (sizeSum[it.size] ?? 0) + it.quantity;
+                        // Group PO number = shared prefix (strip last "-{colorCode}" if all match)
+                        const groupNumber = (() => {
+                          const nums = groupPos.map(p => p.po_number);
+                          if (nums.length === 1) return nums[0];
+                          // find longest common prefix
+                          let prefix = nums[0];
+                          for (const n of nums.slice(1)) {
+                            let i = 0;
+                            while (i < prefix.length && i < n.length && prefix[i] === n[i]) i++;
+                            prefix = prefix.slice(0, i);
+                          }
+                          return prefix.replace(/[-_]+$/, "") || nums[0];
+                        })();
+                        // Unified status: if all same use it, else "mixed"
+                        const allSame = groupPos.every(p => p.status === first.status);
+                        const unifiedStatus = allSame ? first.status : ("mixed" as any);
+                        rows.push(
+                          <TableRow key={key}>
+                            <TableCell className="font-mono text-xs">{groupNumber}</TableCell>
+                            <TableCell className="text-xs">{first.ordered_at}</TableCell>
+                            <TableCell className="text-xs">{first.expected_at ?? "-"}</TableCell>
+                            <TableCell className="text-xs">{pt ? nameOf(pt) : first.product_type_code}</TableCell>
+                            <TableCell className="text-xs">
+                              <div className="flex flex-wrap gap-1">
+                                {groupPos.map(p => {
+                                  const c = colors.find(c => c.code === p.color_code);
+                                  return (
+                                    <span key={p.id} className="inline-flex items-center gap-1 border rounded px-1.5 py-0.5">
+                                      {c && <span className="inline-block w-2.5 h-2.5 rounded-full border" style={{ background: c.hex }} />}
+                                      <span>{c ? nameOf(c) : p.color_code}</span>
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            </TableCell>
+                            {SIZES.map(s => <TableCell key={s} className="text-center text-xs tabular-nums">{sizeSum[s] || ""}</TableCell>)}
+                            <TableCell className="text-center font-semibold tabular-nums">{groupTotal}</TableCell>
+                            <TableCell>
+                              <Select
+                                value={allSame ? first.status : ""}
+                                onValueChange={(v) => {
+                                  for (const p of groupPos) changePoStatus(p, v as PO["status"]);
+                                }}
+                              >
+                                <SelectTrigger className="h-7 w-28 text-xs">
+                                  <SelectValue placeholder={allSame ? undefined : "혼합"} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {PO_STATUS_OPTIONS.map(o => (
+                                    <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell className="text-right space-x-1">
+                              <Button size="sm" variant="ghost" onClick={() => setPoDetail(groupPos)} title={`총수량 ${groupTotal}`}><Eye className="w-3.5 h-3.5" /></Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-destructive hover:text-destructive"
+                                onClick={async () => {
+                                  if (!confirm(`발주 ${groupNumber}를 삭제하시겠습니까? (색상 ${groupPos.length}건)`)) return;
+                                  const ids = groupPos.map(p => p.id);
+                                  const { error } = await supabase.from("tshirt_purchase_orders").delete().in("id", ids);
+                                  if (error) { toast({ title: "삭제 실패", description: error.message, variant: "destructive" }); return; }
+                                  toast({ title: "삭제 완료", description: groupNumber });
+                                  loadAll();
+                                }}
+                                title="발주 삭제"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
                       });
                       return rows;
                     })()}
@@ -546,9 +586,12 @@ export default function TshirtFactory() {
                   <Stat label="안전 재고" value={skuDetail.safety_stock} />
                 </div>
                 <div className={`text-sm flex items-center gap-2 ${st.text}`}>{st.icon} {st.label}</div>
-                <Button onClick={() => { goPurchase(skuDetail.product_type_code, skuDetail.color_code, skuDetail.size); setSkuDetail(null); }}>
-                  <ShoppingCart className="w-4 h-4 mr-1" /> 이 색상 발주하기
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={() => { goPurchase(skuDetail.product_type_code, skuDetail.color_code, skuDetail.size); setSkuDetail(null); }}>
+                    <ShoppingCart className="w-4 h-4 mr-1" /> 이 색상 발주하기
+                  </Button>
+                </div>
+                <ManualReceiptForm sku={skuDetail} onSaved={async () => { await loadAll(); }} />
                 <SkuHistory sku={skuDetail} />
               </div>
             );
@@ -588,6 +631,80 @@ function Stat({ label, value, accent }: { label: string; value: number; accent?:
     <div className="border rounded p-2">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className={`text-lg font-semibold ${accent ?? ""}`}>{value}</div>
+    </div>
+  );
+}
+
+function ManualReceiptForm({ sku, onSaved }: { sku: Inventory; onSaved: () => void | Promise<void> }) {
+  const [qty, setQty] = useState<number>(0);
+  const [note, setNote] = useState<string>("");
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    const n = Number(qty) || 0;
+    if (n <= 0) {
+      toast({ title: "수량을 1 이상 입력하세요", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    try {
+      const { error: wErr } = await supabase.from("tshirt_work_logs").insert({
+        product_type_code: sku.product_type_code,
+        color_code: sku.color_code,
+        size: sku.size,
+        quantity: n,
+        kind: "manual_receipt",
+        note: note || null,
+      });
+      if (wErr) throw wErr;
+      const { error: iErr } = await supabase
+        .from("tshirt_inventory")
+        .update({
+          in_stock: (Number(sku.in_stock) || 0) + n,
+          available: (Number(sku.available) || 0) + n,
+        })
+        .eq("id", sku.id);
+      if (iErr) throw iErr;
+      toast({ title: "수기 입고 완료", description: `+${n}개` });
+      setQty(0);
+      setNote("");
+      await onSaved();
+    } catch (e: any) {
+      toast({ title: "입고 실패", description: e.message ?? String(e), variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="border rounded-lg p-3 space-y-2 bg-muted/20">
+      <div className="text-sm font-medium flex items-center gap-2">
+        <PackageCheck className="w-4 h-4" /> 수기 입고
+      </div>
+      <div className="flex flex-wrap items-end gap-2">
+        <div>
+          <label className="text-xs text-muted-foreground">입고 수량</label>
+          <Input
+            type="number"
+            min={0}
+            value={qty}
+            onChange={e => setQty(Number(e.target.value) || 0)}
+            className="w-32 h-9"
+          />
+        </div>
+        <div className="flex-1 min-w-[180px]">
+          <label className="text-xs text-muted-foreground">메모 (선택)</label>
+          <Input
+            value={note}
+            onChange={e => setNote(e.target.value)}
+            placeholder="예: 반품 재입고, 재고 실사 조정 등"
+            className="h-9"
+          />
+        </div>
+        <Button disabled={saving || qty <= 0} onClick={submit}>
+          {saving ? "저장 중..." : "입고 등록"}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -669,14 +786,26 @@ function SkuHistory({ sku }: { sku: Inventory }) {
         .lte("worked_at", toIso)
         .order("worked_at", { ascending: false });
 
+      // Manual receipts recorded in work_logs
+      const manualReceipts = (wlogs ?? [])
+        .filter((w: any) => w.kind === "manual_receipt")
+        .map((w: any) => ({
+          date: String(w.worked_at).slice(0, 10),
+          qty: Number(w.quantity) || 0,
+          po_number: w.note ? `수기 입고 (${w.note})` : "수기 입고",
+          status: "received",
+        }));
+
       if (cancelled) return;
-      setReceipts(rcpt);
-      setWorks((wlogs ?? []).map((w: any) => ({
-        date: String(w.worked_at).slice(0, 10),
-        qty: Number(w.quantity) || 0,
-        kind: w.kind,
-        note: w.note,
-      })));
+      setReceipts([...rcpt, ...manualReceipts].sort((a, b) => (a.date < b.date ? 1 : -1)));
+      setWorks((wlogs ?? [])
+        .filter((w: any) => w.kind !== "manual_receipt")
+        .map((w: any) => ({
+          date: String(w.worked_at).slice(0, 10),
+          qty: Number(w.quantity) || 0,
+          kind: w.kind,
+          note: w.note,
+        })));
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -1007,10 +1136,27 @@ function PurchaseOrderForm({
       const createdNumbers: string[] = [];
       const fullNotes = buildNotesWithMeta();
 
+      // Build group PO number = "{SKU}_{YYYYMMDD}_{seq}"
+      const ymd = (orderedAt || today).replace(/-/g, "");
+      const prefix = `${typeCode}_${ymd}_`;
+      const { data: existing } = await supabase
+        .from("tshirt_purchase_orders")
+        .select("po_number")
+        .like("po_number", `${prefix}%`);
+      let maxSeq = 0;
+      for (const r of (existing as any[]) ?? []) {
+        const m = String(r.po_number).slice(prefix.length).match(/^(\d+)/);
+        if (m) maxSeq = Math.max(maxSeq, parseInt(m[1], 10));
+      }
+      const seq = String(maxSeq + 1).padStart(3, "0");
+      const groupPoNumber = `${typeCode}_${ymd}_${seq}`;
+
       for (const c of targets) {
+        const rowPoNumber = targets.length > 1 ? `${groupPoNumber}-${c.code}` : groupPoNumber;
         const { data: po, error } = await supabase
           .from("tshirt_purchase_orders")
           .insert({
+            po_number: rowPoNumber,
             ordered_at: orderedAt,
             expected_at: expectedAt || null,
             product_type_code: typeCode,
@@ -1123,29 +1269,50 @@ function PurchaseOrderForm({
   };
 
   const typeName = productTypes.find(t => t.code === typeCode) ? nameOf(productTypes.find(t => t.code === typeCode)!) : "";
+  const typeNameZh = productTypes.find(t => t.code === typeCode)?.name_zh || typeCode;
 
-  const downloadExcel = () => {
-    const head1 = ["발 주 서 (PURCHASE ORDER)"];
+  // Compute expected PO number for preview / filename ({SKU}_{YYYYMMDD}_{seq})
+  const computePoNumber = async (): Promise<string> => {
+    const ymd = (orderedAt || today).replace(/-/g, "");
+    const prefix = `${typeCode}_${ymd}_`;
+    const { data } = await supabase
+      .from("tshirt_purchase_orders")
+      .select("po_number")
+      .like("po_number", `${prefix}%`);
+    let maxSeq = 0;
+    for (const r of (data as any[]) ?? []) {
+      const m = String(r.po_number).slice(prefix.length).match(/^(\d+)/);
+      if (m) maxSeq = Math.max(maxSeq, parseInt(m[1], 10));
+    }
+    return `${typeCode}_${ymd}_${String(maxSeq + 1).padStart(3, "0")}`;
+  };
+
+  const downloadExcel = async () => {
+    const poNumber = await computePoNumber();
+    const head1 = ["采购订单 (PURCHASE ORDER)"];
     const rows: any[][] = [
       head1,
       [],
-      ["발주업체명", company, "", "작업번호", jobNo || ""],
-      ["발주일", orderedAt, "", "납품일", expectedAt || ""],
-      ["받을사람", recipient, "", "전화번호", phone],
-      ["주소", address],
-      ["작성자", author, "", "총수량", total],
-      ["의류 종류", garmentType || "", "", "티셔츠 종류", typeName],
-      ["원단 이름", fabricName || "", "", "원단 중량", fabricWeight || ""],
+      ["订单编号", poNumber, "", "工单号", jobNo || ""],
+      ["采购公司", company, "", "制单人", author],
+      ["下单日期", orderedAt, "", "交货日期", expectedAt || ""],
+      ["收货人", recipient, "", "联系电话", phone],
+      ["收货地址", address],
+      ["服装类型", garmentType || "", "", "T恤款式", typeNameZh],
+      ["面料名称", fabricName || "", "", "面料克重", fabricWeight || ""],
+      ["总数量", total],
       [],
-      ["색상별 수량"],
-      ["색상", ...SIZES, "합계"],
+      ["颜色 × 尺码 数量"],
+      ["颜色", ...SIZES, "合计"],
     ];
     for (const c of colors) {
-      rows.push([nameOf(c), ...SIZES.map(s => qtyByColor[c.code]?.[s] || 0), colorTotals[c.code] || 0]);
+      const qty = colorTotals[c.code] || 0;
+      if (qty <= 0) continue;
+      rows.push([c.name_zh || c.name_ko, ...SIZES.map(s => qtyByColor[c.code]?.[s] || 0), qty]);
     }
-    rows.push(["사이즈 합계", ...SIZES.map(s => sizeTotals[s] || 0), total]);
+    rows.push(["尺码合计", ...SIZES.map(s => sizeTotals[s] || 0), total]);
     rows.push([]);
-    rows.push(["발주 특이사항"]);
+    rows.push(["备注"]);
     rows.push([notes || ""]);
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
@@ -1153,11 +1320,11 @@ function PurchaseOrderForm({
     ws["!cols"] = [{ wch: 16 }, ...SIZES.map(() => ({ wch: 8 })), { wch: 10 }];
     ws["!merges"] = [
       { s: { r: 0, c: 0 }, e: { r: 0, c: colCount - 1 } },
-      { s: { r: 5, c: 1 }, e: { r: 5, c: colCount - 1 } },
+      { s: { r: 6, c: 1 }, e: { r: 6, c: colCount - 1 } },
     ];
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "발주서");
-    const fname = `발주서_${jobNo || orderedAt}_${typeName || "tshirt"}.xlsx`;
+    XLSX.utils.book_append_sheet(wb, ws, "采购订单");
+    const fname = `${poNumber}.xlsx`;
     XLSX.writeFile(wb, fname);
     toast({ title: "엑셀 다운로드 완료", description: fname });
   };
@@ -1410,44 +1577,44 @@ function PurchaseOrderPreview({
 }) {
   return (
     <div className="bg-white text-black p-6 rounded border print:border-0">
-      <h2 className="text-2xl font-bold text-center mb-4">발 주 서 (PURCHASE ORDER)</h2>
+      <h2 className="text-2xl font-bold text-center mb-4">采购订单 (PURCHASE ORDER)</h2>
       <table className="w-full text-sm border-collapse mb-4">
         <tbody>
-          <tr><th className="border p-2 bg-gray-100 w-32 text-left">발주업체명</th><td className="border p-2">{company}</td>
-              <th className="border p-2 bg-gray-100 w-32 text-left">작업번호</th><td className="border p-2">{jobNo || "-"}</td></tr>
-          <tr><th className="border p-2 bg-gray-100 text-left">발주일</th><td className="border p-2">{orderedAt}</td>
-              <th className="border p-2 bg-gray-100 text-left">납품일</th><td className="border p-2">{expectedAt || "-"}</td></tr>
-          <tr><th className="border p-2 bg-gray-100 text-left">받을사람</th><td className="border p-2">{recipient}</td>
-              <th className="border p-2 bg-gray-100 text-left">전화번호</th><td className="border p-2">{phone}</td></tr>
-          <tr><th className="border p-2 bg-gray-100 text-left">주소</th><td className="border p-2" colSpan={3}>{address}</td></tr>
-          <tr><th className="border p-2 bg-gray-100 text-left">의류 종류</th><td className="border p-2">{garmentType || "-"}</td>
-              <th className="border p-2 bg-gray-100 text-left">티셔츠 종류</th><td className="border p-2">{typeName || "-"}</td></tr>
-          <tr><th className="border p-2 bg-gray-100 text-left">원단 이름</th><td className="border p-2">{fabricName || "-"}</td>
-              <th className="border p-2 bg-gray-100 text-left">원단 중량</th><td className="border p-2">{fabricWeight || "-"}</td></tr>
-          <tr><th className="border p-2 bg-gray-100 text-left">작성자</th><td className="border p-2">{author}</td>
-              <th className="border p-2 bg-gray-100 text-left">총수량</th><td className="border p-2 font-bold">{total}</td></tr>
+          <tr><th className="border p-2 bg-gray-100 w-32 text-left">采购公司</th><td className="border p-2">{company}</td>
+              <th className="border p-2 bg-gray-100 w-32 text-left">工单号</th><td className="border p-2">{jobNo || "-"}</td></tr>
+          <tr><th className="border p-2 bg-gray-100 text-left">下单日期</th><td className="border p-2">{orderedAt}</td>
+              <th className="border p-2 bg-gray-100 text-left">交货日期</th><td className="border p-2">{expectedAt || "-"}</td></tr>
+          <tr><th className="border p-2 bg-gray-100 text-left">收货人</th><td className="border p-2">{recipient}</td>
+              <th className="border p-2 bg-gray-100 text-left">联系电话</th><td className="border p-2">{phone}</td></tr>
+          <tr><th className="border p-2 bg-gray-100 text-left">收货地址</th><td className="border p-2" colSpan={3}>{address}</td></tr>
+          <tr><th className="border p-2 bg-gray-100 text-left">服装类型</th><td className="border p-2">{garmentType || "-"}</td>
+              <th className="border p-2 bg-gray-100 text-left">T恤款式</th><td className="border p-2">{typeName || "-"}</td></tr>
+          <tr><th className="border p-2 bg-gray-100 text-left">面料名称</th><td className="border p-2">{fabricName || "-"}</td>
+              <th className="border p-2 bg-gray-100 text-left">面料克重</th><td className="border p-2">{fabricWeight || "-"}</td></tr>
+          <tr><th className="border p-2 bg-gray-100 text-left">制单人</th><td className="border p-2">{author}</td>
+              <th className="border p-2 bg-gray-100 text-left">总数量</th><td className="border p-2 font-bold">{total}</td></tr>
         </tbody>
       </table>
 
-      <h3 className="font-semibold mb-2">색상별 수량</h3>
+      <h3 className="font-semibold mb-2">颜色 × 尺码 数量</h3>
       <table className="w-full text-sm border-collapse mb-4">
         <thead>
           <tr className="bg-gray-100">
-            <th className="border p-2">색상</th>
+            <th className="border p-2">颜色</th>
             {SIZES.map(s => <th key={s} className="border p-2">{s}</th>)}
-            <th className="border p-2">합계</th>
+            <th className="border p-2">合计</th>
           </tr>
         </thead>
         <tbody>
-          {colors.map(c => (
+          {colors.filter(c => (colorTotals[c.code] || 0) > 0).map(c => (
             <tr key={c.code}>
-              <td className="border p-2">{nameOf(c)}</td>
+              <td className="border p-2">{c.name_zh || c.name_ko}</td>
               {SIZES.map(s => <td key={s} className="border p-2 text-center">{qtyByColor[c.code]?.[s] || 0}</td>)}
               <td className="border p-2 text-center font-semibold">{colorTotals[c.code] || 0}</td>
             </tr>
           ))}
           <tr className="bg-gray-50">
-            <td className="border p-2 font-semibold text-right">사이즈 합계</td>
+            <td className="border p-2 font-semibold text-right">尺码合计</td>
             {SIZES.map(s => <td key={s} className="border p-2 text-center font-semibold">{sizeTotals[s] || 0}</td>)}
             <td className="border p-2 text-center font-bold">{total}</td>
           </tr>
@@ -1456,7 +1623,7 @@ function PurchaseOrderPreview({
 
       {notes && (
         <>
-          <h3 className="font-semibold mb-2">발주 특이사항</h3>
+          <h3 className="font-semibold mb-2">备注</h3>
           <div className="border p-3 whitespace-pre-wrap text-sm min-h-[60px]">{notes}</div>
         </>
       )}
