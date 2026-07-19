@@ -586,9 +586,12 @@ export default function TshirtFactory() {
                   <Stat label="안전 재고" value={skuDetail.safety_stock} />
                 </div>
                 <div className={`text-sm flex items-center gap-2 ${st.text}`}>{st.icon} {st.label}</div>
-                <Button onClick={() => { goPurchase(skuDetail.product_type_code, skuDetail.color_code, skuDetail.size); setSkuDetail(null); }}>
-                  <ShoppingCart className="w-4 h-4 mr-1" /> 이 색상 발주하기
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={() => { goPurchase(skuDetail.product_type_code, skuDetail.color_code, skuDetail.size); setSkuDetail(null); }}>
+                    <ShoppingCart className="w-4 h-4 mr-1" /> 이 색상 발주하기
+                  </Button>
+                </div>
+                <ManualReceiptForm sku={skuDetail} onSaved={async () => { await loadAll(); }} />
                 <SkuHistory sku={skuDetail} />
               </div>
             );
