@@ -577,6 +577,7 @@ function HologramWorkOrderBox({
           <TxtField label="발주일" type="date" v={wo.orderDate} set={v => set({ orderDate: v })} />
           <TxtField label="납품일" type="date" v={wo.deliveryDate} set={v => set({ deliveryDate: v })} />
         </div>
+        <ExpectedShipDateField factory="hologram" orderNo={orderNo} className="md:col-span-3" />
         <div className="md:col-span-3 grid grid-cols-2 md:grid-cols-5 gap-2">
           <TxtField label="COMMON" type="number" v={String(wo.common)} set={v => set({ common: Number(v) || 0 })} />
           <TxtField label="RARE" type="number" v={String(wo.rare)} set={v => set({ rare: Number(v) || 0 })} />
