@@ -178,6 +178,9 @@ export default function TshirtFactory() {
 
   const filteredPos = useMemo(() => {
     return pos.filter(p => {
+      // 수량이 0인 발주는 목록에서 제외
+      const total = (p.items ?? []).reduce((s, i) => s + (Number(i.quantity) || 0), 0);
+      if (total <= 0) return false;
       if (poStatusFilter !== "all" && p.status !== poStatusFilter) return false;
       if (poFrom && p.ordered_at < poFrom) return false;
       if (poTo && p.ordered_at > poTo) return false;
