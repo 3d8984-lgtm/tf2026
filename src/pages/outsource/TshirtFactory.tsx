@@ -460,10 +460,11 @@ export default function TshirtFactory() {
                       <TableRow><TableCell colSpan={14} className="text-center py-8 text-muted-foreground">발주 내역이 없습니다.</TableCell></TableRow>
                     )}
                     {(() => {
-                      // Group POs by ordered_at + product_type + created_by + notes (one line per work order)
+                      // Group POs strictly by base PO number (strip trailing "-{COLORCODE}")
+                      const basePoNumber = (n: string) => n.replace(/-[A-Za-z0-9]+$/,"");
                       const groups = new Map<string, PO[]>();
                       for (const p of filteredPos) {
-                        const k = `${p.ordered_at}|${p.product_type_code}|${p.created_by_label ?? ""}|${p.notes ?? ""}`;
+                        const k = basePoNumber(p.po_number);
                         const arr = groups.get(k) ?? [];
                         arr.push(p);
                         groups.set(k, arr);
@@ -476,19 +477,7 @@ export default function TshirtFactory() {
                         // Sum per-size across all colors in the group
                         const sizeSum: Record<string, number> = {};
                         for (const p of groupPos) for (const it of (p.items ?? [])) sizeSum[it.size] = (sizeSum[it.size] ?? 0) + it.quantity;
-                        // Group PO number = shared prefix (strip last "-{colorCode}" if all match)
-                        const groupNumber = (() => {
-                          const nums = groupPos.map(p => p.po_number);
-                          if (nums.length === 1) return nums[0];
-                          // find longest common prefix
-                          let prefix = nums[0];
-                          for (const n of nums.slice(1)) {
-                            let i = 0;
-                            while (i < prefix.length && i < n.length && prefix[i] === n[i]) i++;
-                            prefix = prefix.slice(0, i);
-                          }
-                          return prefix.replace(/[-_]+$/, "") || nums[0];
-                        })();
+                        const groupNumber = key;
                         // Unified status: if all same use it, else "mixed"
                         const allSame = groupPos.every(p => p.status === first.status);
                         const unifiedStatus = allSame ? first.status : ("mixed" as any);
