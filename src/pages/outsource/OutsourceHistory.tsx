@@ -141,34 +141,30 @@ export default function OutsourceHistory() {
                     {total === 0 ? (
                       <span className="text-xs text-muted-foreground">{isKo ? "카드 없음" : "无卡片"}</span>
                     ) : (
-                      <div className="space-y-1 min-w-[180px]">
-                        <div className="flex h-2 w-full overflow-hidden rounded bg-muted">
-                          {COLUMNS.map(col => {
-                            const n = stages?.[col.key] ?? 0;
-                            if (!n) return null;
-                            const pct = (n / total) * 100;
-                            return (
-                              <div
-                                key={col.key}
-                                className={STAGE_COLORS[col.key]}
-                                style={{ width: `${pct}%` }}
-                                title={`${isKo ? col.ko : col.zh}: ${n}`}
-                              />
-                            );
-                          })}
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {COLUMNS.map(col => {
-                            const n = stages?.[col.key] ?? 0;
-                            if (!n) return null;
-                            return (
-                              <span key={col.key} className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-                                <span className={`w-1.5 h-1.5 rounded-full ${STAGE_COLORS[col.key]}`} />
-                                {isKo ? col.ko : col.zh} {n}
+                      <div className="space-y-1.5 min-w-[240px]">
+                        {cards.filter(c => c.orderNo === o.external_order_id).map(c => {
+                          const stageIdx = COLUMNS.findIndex(col => col.key === c.column);
+                          const current = COLUMNS[stageIdx];
+                          return (
+                            <div key={`${c.factory}::${c.orderNo}`} className="flex items-center gap-2">
+                              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: FACTORY_DOT[c.factory] }} />
+                              <span className="text-[11px] truncate flex-1 min-w-0" title={(isKo ? FACTORY_LABEL_KO : FACTORY_LABEL_ZH)[c.factory]}>
+                                {(isKo ? FACTORY_LABEL_KO : FACTORY_LABEL_ZH)[c.factory]}
                               </span>
-                            );
-                          })}
-                        </div>
+                              <div className="flex gap-0.5 shrink-0" title={`${isKo ? current?.ko : current?.zh} (${stageIdx + 1}/5)`}>
+                                {COLUMNS.map((col, i) => (
+                                  <span
+                                    key={col.key}
+                                    className={`h-1.5 w-5 rounded-sm ${i <= stageIdx ? STAGE_COLORS[col.key] : "bg-muted"}`}
+                                  />
+                                ))}
+                              </div>
+                              <span className="text-[10px] text-muted-foreground shrink-0 w-16 text-right">
+                                {isKo ? current?.ko : current?.zh}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </td>
