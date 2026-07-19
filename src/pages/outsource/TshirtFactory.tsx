@@ -1356,8 +1356,181 @@ function PurchaseOrderForm({
     toast({ title: "엑셀 다운로드 완료", description: fname });
   };
 
+  // ==== agg rows for work file (Type/Color/Size/Qty) ====
+  const aggRows = useMemo(() => {
+    const rows: { type: string; color: string; size: string; qty: number }[] = [];
+    for (const c of colors) {
+      for (const s of SIZES) {
+        const q = qtyByColor[c.code]?.[s] || 0;
+        if (q > 0) rows.push({ type: typeNameZh, color: c.name_zh || c.name_ko, size: s, qty: q });
+      }
+    }
+    return rows;
+  }, [colors, qtyByColor, typeNameZh]);
+
+  // Build A4 work order PDF blob from off-screen sheet
+  const buildPdfBlob = async (): Promise<Blob> => {
+    const node = previewRef.current!;
+    const canvas = await html2canvas(node, { scale: 2, backgroundColor: "#ffffff" });
+    const imgData = canvas.toDataURL("image/jpeg", 0.95);
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const imgW = pageW;
+    const imgH = (canvas.height * imgW) / canvas.width;
+    let heightLeft = imgH;
+    let position = 0;
+    pdf.addImage(imgData, "JPEG", 0, position, imgW, imgH);
+    heightLeft -= pageH;
+    while (heightLeft > 0) {
+      position = heightLeft - imgH;
+      pdf.addPage();
+      pdf.addImage(imgData, "JPEG", 0, position, imgW, imgH);
+      heightLeft -= pageH;
+    }
+    return pdf.output("blob");
+  };
+
+  const openWorkOrderPreview = async () => {
+    if (!typeCode) { toast({ title: "티셔츠 종류를 선택하세요", variant: "destructive" }); return; }
+    if (total <= 0) { toast({ title: "수량을 입력하세요", variant: "destructive" }); return; }
+    const po = await computePoNumber();
+    setPreviewPoNumber(po);
+    setPdfOpen(true);
+  };
+  const acceptWorkOrder = () => { setStep(s => (s < 1 ? 1 : s)); setPdfOpen(false); toast({ title: "작업지시서 확인 완료" }); };
+  const downloadWorkOrderPdf = async () => {
+    try {
+      setPdfLoading(true);
+      await new Promise(r => setTimeout(r, 50));
+      const blob = await buildPdfBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${previewPoNumber || "work_order"}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      toast({ title: "PDF 생성 실패", description: e?.message, variant: "destructive" });
+    } finally { setPdfLoading(false); }
+  };
+
+  const openFilesPreview = () => {
+    if (step < 1) { toast({ title: "먼저 작업지시서를 확인해주세요", variant: "destructive" }); return; }
+    setFilesPreviewOpen(true);
+  };
+  const confirmFiles = () => { setStep(s => (s < 2 ? 2 : s)); setFilesPreviewOpen(false); toast({ title: "작업파일 확인 완료" }); };
+
+  const buildWorkFileBlob = (): { buf: ArrayBuffer; filename: string } => {
+    const wsData: any[][] = [
+      ["Type", "Color", "Size", "Quantity"],
+      ...aggRows.map(a => [a.type, a.color, a.size, a.qty]),
+      ["", "", "Total", total],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws["!cols"] = [{ wch: 20 }, { wch: 14 }, { wch: 10 }, { wch: 10 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "T-Shirt Order");
+    const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
+    return { buf, filename: `${previewPoNumber || "tshirt_order"}.xlsx` };
+  };
+
+  const downloadWorkFileXlsx = () => {
+    const { buf, filename } = buildWorkFileBlob();
+    const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const registerAndDownloadZip = async () => {
+    if (step < 2) { toast({ title: "먼저 작업파일을 확인해주세요", variant: "destructive" }); return; }
+    const groupPoNumber = await registerPo();
+    if (!groupPoNumber) return;
+    // regenerate PDF & Excel with actual PO number
+    setPreviewPoNumber(groupPoNumber);
+    await new Promise(r => setTimeout(r, 50));
+
+    const zip = new JSZip();
+    try {
+      const pdfBlob = await buildPdfBlob();
+      zip.file(`${groupPoNumber}.pdf`, pdfBlob);
+    } catch (e) { console.error("pdf build failed", e); }
+
+    const wsData: any[][] = [
+      ["Type", "Color", "Size", "Quantity"],
+      ...aggRows.map(a => [a.type, a.color, a.size, a.qty]),
+      ["", "", "Total", total],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws["!cols"] = [{ wch: 20 }, { wch: 14 }, { wch: 10 }, { wch: 10 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "T-Shirt Order");
+    const xbuf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+    zip.file(`${groupPoNumber}.xlsx`, xbuf);
+
+    const blob = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `${groupPoNumber}.zip`; a.click();
+    URL.revokeObjectURL(url);
+    setStep(3);
+    toast({ title: "발주 등록 완료", description: `${groupPoNumber}.zip` });
+    onDone();
+  };
+
+  const workOrderPayload = {
+    orderNo: previewPoNumber || "(자동 생성)",
+    orderDate: orderedAt,
+    dueDate: expectedAt || "-",
+    supplier: company,
+    twinker: author,
+    receiverName: recipient,
+    receiverPhone: phone,
+    receiverAddress: address,
+    notes: buildNotesWithMeta() || "",
+  };
+
   return (
     <div className="space-y-6">
+      {/* 발주 진행 (3-step) */}
+      <Card>
+        <CardHeader><CardTitle className="text-base">발주 진행</CardTitle></CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-2 flex-wrap">
+            {stepLabels.map((label, i) => {
+              const done = step > i;
+              const active = step === i;
+              return (
+                <div key={label} className="flex items-center gap-2">
+                  <div className={`flex items-center gap-2 px-3 py-2 rounded-md border ${
+                    done ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-600"
+                      : active ? "bg-primary/10 border-primary/40 text-primary"
+                      : "bg-muted/40 border-border text-muted-foreground"
+                  }`}>
+                    {done ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                    <span className="text-sm font-medium">{i + 1}. {label}</span>
+                  </div>
+                  {i < stepLabels.length - 1 && <span className="text-muted-foreground">→</span>}
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex gap-2 mt-4 flex-wrap">
+            <Button size="sm" variant={step >= 1 ? "outline" : "default"} onClick={openWorkOrderPreview}>
+              <FileText className="w-4 h-4 mr-1" /> 작업지시서 확인
+            </Button>
+            <Button size="sm" variant={step >= 2 ? "outline" : "default"} onClick={openFilesPreview} disabled={step < 1}>
+              <FileCheck2 className="w-4 h-4 mr-1" /> 작업파일 확인
+            </Button>
+            <Button size="sm" onClick={registerAndDownloadZip} disabled={step < 2 || saving}>
+              <Download className="w-4 h-4 mr-1" /> 발주등록(ZIP 다운로드)
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader><CardTitle className="text-base">① 기본 정보</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
