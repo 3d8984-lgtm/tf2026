@@ -1057,13 +1057,21 @@ function PurchaseOrderForm({
   const [files, setFiles] = useState<File[]>([]);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
-  const [previewOpen, setPreviewOpen] = useState(false);
   const [addTypeOpen, setAddTypeOpen] = useState(false);
   const [newTypeCode, setNewTypeCode] = useState("");
   const [newTypeKo, setNewTypeKo] = useState("");
   const [newTypeZh, setNewTypeZh] = useState("");
   const [addingType, setAddingType] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // 발주 진행 (3-step)
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [step, setStep] = useState<0 | 1 | 2 | 3>(0);
+  const stepLabels = ["작업지시서 확인", "작업파일 확인", "발주등록(ZIP 다운로드)"];
+  const [pdfOpen, setPdfOpen] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [filesPreviewOpen, setFilesPreviewOpen] = useState(false);
+  const [previewPoNumber, setPreviewPoNumber] = useState<string>("");
 
   // Load saved defaults
   useEffect(() => {
