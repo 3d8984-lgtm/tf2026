@@ -909,10 +909,12 @@ function SkuHistory({ sku }: { sku: Inventory }) {
   );
 }
 
-function PoDetailView({ group, productTypes, colors, nameOf }: {
+function PoDetailView({ group: groupRaw, productTypes, colors, nameOf }: {
   group: PO[]; productTypes: ProductType[]; colors: Color[]; nameOf: (t: any) => string;
 }) {
-  const first = group[0];
+  // 수량이 0인 색상은 제외
+  const group = groupRaw.filter(p => (p.items ?? []).reduce((s, i) => s + (Number(i.quantity) || 0), 0) > 0);
+  const first = group[0] ?? groupRaw[0];
   const pt = productTypes.find(t => t.code === first.product_type_code);
   const grandTotal = group.reduce((s, p) => s + (p.items ?? []).reduce((x, i) => x + i.quantity, 0), 0);
   const allAttachments = group.flatMap(p => p.attachments ?? []);
