@@ -635,6 +635,80 @@ function Stat({ label, value, accent }: { label: string; value: number; accent?:
   );
 }
 
+function ManualReceiptForm({ sku, onSaved }: { sku: Inventory; onSaved: () => void | Promise<void> }) {
+  const [qty, setQty] = useState<number>(0);
+  const [note, setNote] = useState<string>("");
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    const n = Number(qty) || 0;
+    if (n <= 0) {
+      toast({ title: "수량을 1 이상 입력하세요", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    try {
+      const { error: wErr } = await supabase.from("tshirt_work_logs").insert({
+        product_type_code: sku.product_type_code,
+        color_code: sku.color_code,
+        size: sku.size,
+        quantity: n,
+        kind: "manual_receipt",
+        note: note || null,
+      });
+      if (wErr) throw wErr;
+      const { error: iErr } = await supabase
+        .from("tshirt_inventory")
+        .update({
+          in_stock: (Number(sku.in_stock) || 0) + n,
+          available: (Number(sku.available) || 0) + n,
+        })
+        .eq("id", sku.id);
+      if (iErr) throw iErr;
+      toast({ title: "수기 입고 완료", description: `+${n}개` });
+      setQty(0);
+      setNote("");
+      await onSaved();
+    } catch (e: any) {
+      toast({ title: "입고 실패", description: e.message ?? String(e), variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="border rounded-lg p-3 space-y-2 bg-muted/20">
+      <div className="text-sm font-medium flex items-center gap-2">
+        <PackageCheck className="w-4 h-4" /> 수기 입고
+      </div>
+      <div className="flex flex-wrap items-end gap-2">
+        <div>
+          <label className="text-xs text-muted-foreground">입고 수량</label>
+          <Input
+            type="number"
+            min={0}
+            value={qty}
+            onChange={e => setQty(Number(e.target.value) || 0)}
+            className="w-32 h-9"
+          />
+        </div>
+        <div className="flex-1 min-w-[180px]">
+          <label className="text-xs text-muted-foreground">메모 (선택)</label>
+          <Input
+            value={note}
+            onChange={e => setNote(e.target.value)}
+            placeholder="예: 반품 재입고, 재고 실사 조정 등"
+            className="h-9"
+          />
+        </div>
+        <Button disabled={saving || qty <= 0} onClick={submit}>
+          {saving ? "저장 중..." : "입고 등록"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function SkuHistory({ sku }: { sku: Inventory }) {
   type Period = "day" | "week" | "month" | "custom";
   const [period, setPeriod] = useState<Period>("week");
