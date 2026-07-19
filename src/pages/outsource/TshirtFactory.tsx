@@ -1362,7 +1362,7 @@ function PurchaseOrderForm({
     for (const c of colors) {
       for (const s of SIZES) {
         const q = qtyByColor[c.code]?.[s] || 0;
-        if (q > 0) rows.push({ type: typeNameZh, color: c.name_zh || c.name_ko, size: s, qty: q });
+        if (q > 0) rows.push({ type: typeNameZh, color: toEnColor(c.code), size: s, qty: q });
       }
     }
     return rows;
