@@ -1180,29 +1180,50 @@ function PurchaseOrderForm({
   };
 
   const typeName = productTypes.find(t => t.code === typeCode) ? nameOf(productTypes.find(t => t.code === typeCode)!) : "";
+  const typeNameZh = productTypes.find(t => t.code === typeCode)?.name_zh || typeCode;
 
-  const downloadExcel = () => {
-    const head1 = ["발 주 서 (PURCHASE ORDER)"];
+  // Compute expected PO number for preview / filename ({SKU}_{YYYYMMDD}_{seq})
+  const computePoNumber = async (): Promise<string> => {
+    const ymd = (orderedAt || today).replace(/-/g, "");
+    const prefix = `${typeCode}_${ymd}_`;
+    const { data } = await supabase
+      .from("tshirt_purchase_orders")
+      .select("po_number")
+      .like("po_number", `${prefix}%`);
+    let maxSeq = 0;
+    for (const r of (data as any[]) ?? []) {
+      const m = String(r.po_number).slice(prefix.length).match(/^(\d+)/);
+      if (m) maxSeq = Math.max(maxSeq, parseInt(m[1], 10));
+    }
+    return `${typeCode}_${ymd}_${String(maxSeq + 1).padStart(3, "0")}`;
+  };
+
+  const downloadExcel = async () => {
+    const poNumber = await computePoNumber();
+    const head1 = ["采购订单 (PURCHASE ORDER)"];
     const rows: any[][] = [
       head1,
       [],
-      ["발주업체명", company, "", "작업번호", jobNo || ""],
-      ["발주일", orderedAt, "", "납품일", expectedAt || ""],
-      ["받을사람", recipient, "", "전화번호", phone],
-      ["주소", address],
-      ["작성자", author, "", "총수량", total],
-      ["의류 종류", garmentType || "", "", "티셔츠 종류", typeName],
-      ["원단 이름", fabricName || "", "", "원단 중량", fabricWeight || ""],
+      ["订单编号", poNumber, "", "工单号", jobNo || ""],
+      ["采购公司", company, "", "制单人", author],
+      ["下单日期", orderedAt, "", "交货日期", expectedAt || ""],
+      ["收货人", recipient, "", "联系电话", phone],
+      ["收货地址", address],
+      ["服装类型", garmentType || "", "", "T恤款式", typeNameZh],
+      ["面料名称", fabricName || "", "", "面料克重", fabricWeight || ""],
+      ["总数量", total],
       [],
-      ["색상별 수량"],
-      ["색상", ...SIZES, "합계"],
+      ["颜色 × 尺码 数量"],
+      ["颜色", ...SIZES, "合计"],
     ];
     for (const c of colors) {
-      rows.push([nameOf(c), ...SIZES.map(s => qtyByColor[c.code]?.[s] || 0), colorTotals[c.code] || 0]);
+      const qty = colorTotals[c.code] || 0;
+      if (qty <= 0) continue;
+      rows.push([c.name_zh || c.name_ko, ...SIZES.map(s => qtyByColor[c.code]?.[s] || 0), qty]);
     }
-    rows.push(["사이즈 합계", ...SIZES.map(s => sizeTotals[s] || 0), total]);
+    rows.push(["尺码合计", ...SIZES.map(s => sizeTotals[s] || 0), total]);
     rows.push([]);
-    rows.push(["발주 특이사항"]);
+    rows.push(["备注"]);
     rows.push([notes || ""]);
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
@@ -1210,11 +1231,11 @@ function PurchaseOrderForm({
     ws["!cols"] = [{ wch: 16 }, ...SIZES.map(() => ({ wch: 8 })), { wch: 10 }];
     ws["!merges"] = [
       { s: { r: 0, c: 0 }, e: { r: 0, c: colCount - 1 } },
-      { s: { r: 5, c: 1 }, e: { r: 5, c: colCount - 1 } },
+      { s: { r: 6, c: 1 }, e: { r: 6, c: colCount - 1 } },
     ];
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "발주서");
-    const fname = `발주서_${jobNo || orderedAt}_${typeName || "tshirt"}.xlsx`;
+    XLSX.utils.book_append_sheet(wb, ws, "采购订单");
+    const fname = `${poNumber}.xlsx`;
     XLSX.writeFile(wb, fname);
     toast({ title: "엑셀 다운로드 완료", description: fname });
   };
