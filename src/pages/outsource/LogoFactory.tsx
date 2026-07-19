@@ -1344,6 +1344,7 @@ function LogoDetailView({ order, onBack }: { order: any; onBack: () => void }) {
               <TxtField label="발주일" type="date" v={wo.orderDate} set={v => setWoP({ orderDate: v })} />
               <TxtField label="납품일" type="date" v={wo.deliveryDate} set={v => setWoP({ deliveryDate: v })} />
             </div>
+            <ExpectedShipDateField factory="logo" orderNo={orderNo} className="md:col-span-3" />
             <div className="md:col-span-3 grid grid-cols-3 gap-2">
               <div className="space-y-1">
                 <Label className="text-xs">기본수량</Label>
