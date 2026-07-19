@@ -92,13 +92,17 @@ function fmtDate(v?: string | null): string {
 const MM = 2.8346456693; // 1mm in pt
 
 function findSvgUrl(o: any): string | null {
-  const candidates = [
+  const candidates: any[] = [
     o.twincode_svg_url,
     o.source_data?.twincode_svg_url,
     o.source_data?.twin_code_svg_url,
     o.source_data?.svg_url,
     o.source_data?.twincode_url,
   ];
+  const items: any[] = Array.isArray(o.source_data?.items) ? o.source_data.items : [];
+  for (const it of items) {
+    candidates.push(it?.twincode_svg_url, it?.twin_code_svg_url, it?.svg_url, it?.twincode_url);
+  }
   for (const c of candidates) if (typeof c === "string" && c.trim()) return c;
   return null;
 }
