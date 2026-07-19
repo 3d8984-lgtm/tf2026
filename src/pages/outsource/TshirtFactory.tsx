@@ -1488,44 +1488,44 @@ function PurchaseOrderPreview({
 }) {
   return (
     <div className="bg-white text-black p-6 rounded border print:border-0">
-      <h2 className="text-2xl font-bold text-center mb-4">발 주 서 (PURCHASE ORDER)</h2>
+      <h2 className="text-2xl font-bold text-center mb-4">采购订单 (PURCHASE ORDER)</h2>
       <table className="w-full text-sm border-collapse mb-4">
         <tbody>
-          <tr><th className="border p-2 bg-gray-100 w-32 text-left">발주업체명</th><td className="border p-2">{company}</td>
-              <th className="border p-2 bg-gray-100 w-32 text-left">작업번호</th><td className="border p-2">{jobNo || "-"}</td></tr>
-          <tr><th className="border p-2 bg-gray-100 text-left">발주일</th><td className="border p-2">{orderedAt}</td>
-              <th className="border p-2 bg-gray-100 text-left">납품일</th><td className="border p-2">{expectedAt || "-"}</td></tr>
-          <tr><th className="border p-2 bg-gray-100 text-left">받을사람</th><td className="border p-2">{recipient}</td>
-              <th className="border p-2 bg-gray-100 text-left">전화번호</th><td className="border p-2">{phone}</td></tr>
-          <tr><th className="border p-2 bg-gray-100 text-left">주소</th><td className="border p-2" colSpan={3}>{address}</td></tr>
-          <tr><th className="border p-2 bg-gray-100 text-left">의류 종류</th><td className="border p-2">{garmentType || "-"}</td>
-              <th className="border p-2 bg-gray-100 text-left">티셔츠 종류</th><td className="border p-2">{typeName || "-"}</td></tr>
-          <tr><th className="border p-2 bg-gray-100 text-left">원단 이름</th><td className="border p-2">{fabricName || "-"}</td>
-              <th className="border p-2 bg-gray-100 text-left">원단 중량</th><td className="border p-2">{fabricWeight || "-"}</td></tr>
-          <tr><th className="border p-2 bg-gray-100 text-left">작성자</th><td className="border p-2">{author}</td>
-              <th className="border p-2 bg-gray-100 text-left">총수량</th><td className="border p-2 font-bold">{total}</td></tr>
+          <tr><th className="border p-2 bg-gray-100 w-32 text-left">采购公司</th><td className="border p-2">{company}</td>
+              <th className="border p-2 bg-gray-100 w-32 text-left">工单号</th><td className="border p-2">{jobNo || "-"}</td></tr>
+          <tr><th className="border p-2 bg-gray-100 text-left">下单日期</th><td className="border p-2">{orderedAt}</td>
+              <th className="border p-2 bg-gray-100 text-left">交货日期</th><td className="border p-2">{expectedAt || "-"}</td></tr>
+          <tr><th className="border p-2 bg-gray-100 text-left">收货人</th><td className="border p-2">{recipient}</td>
+              <th className="border p-2 bg-gray-100 text-left">联系电话</th><td className="border p-2">{phone}</td></tr>
+          <tr><th className="border p-2 bg-gray-100 text-left">收货地址</th><td className="border p-2" colSpan={3}>{address}</td></tr>
+          <tr><th className="border p-2 bg-gray-100 text-left">服装类型</th><td className="border p-2">{garmentType || "-"}</td>
+              <th className="border p-2 bg-gray-100 text-left">T恤款式</th><td className="border p-2">{typeName || "-"}</td></tr>
+          <tr><th className="border p-2 bg-gray-100 text-left">面料名称</th><td className="border p-2">{fabricName || "-"}</td>
+              <th className="border p-2 bg-gray-100 text-left">面料克重</th><td className="border p-2">{fabricWeight || "-"}</td></tr>
+          <tr><th className="border p-2 bg-gray-100 text-left">制单人</th><td className="border p-2">{author}</td>
+              <th className="border p-2 bg-gray-100 text-left">总数量</th><td className="border p-2 font-bold">{total}</td></tr>
         </tbody>
       </table>
 
-      <h3 className="font-semibold mb-2">색상별 수량</h3>
+      <h3 className="font-semibold mb-2">颜色 × 尺码 数量</h3>
       <table className="w-full text-sm border-collapse mb-4">
         <thead>
           <tr className="bg-gray-100">
-            <th className="border p-2">색상</th>
+            <th className="border p-2">颜色</th>
             {SIZES.map(s => <th key={s} className="border p-2">{s}</th>)}
-            <th className="border p-2">합계</th>
+            <th className="border p-2">合计</th>
           </tr>
         </thead>
         <tbody>
-          {colors.map(c => (
+          {colors.filter(c => (colorTotals[c.code] || 0) > 0).map(c => (
             <tr key={c.code}>
-              <td className="border p-2">{nameOf(c)}</td>
+              <td className="border p-2">{c.name_zh || c.name_ko}</td>
               {SIZES.map(s => <td key={s} className="border p-2 text-center">{qtyByColor[c.code]?.[s] || 0}</td>)}
               <td className="border p-2 text-center font-semibold">{colorTotals[c.code] || 0}</td>
             </tr>
           ))}
           <tr className="bg-gray-50">
-            <td className="border p-2 font-semibold text-right">사이즈 합계</td>
+            <td className="border p-2 font-semibold text-right">尺码合计</td>
             {SIZES.map(s => <td key={s} className="border p-2 text-center font-semibold">{sizeTotals[s] || 0}</td>)}
             <td className="border p-2 text-center font-bold">{total}</td>
           </tr>
@@ -1534,7 +1534,7 @@ function PurchaseOrderPreview({
 
       {notes && (
         <>
-          <h3 className="font-semibold mb-2">발주 특이사항</h3>
+          <h3 className="font-semibold mb-2">备注</h3>
           <div className="border p-3 whitespace-pre-wrap text-sm min-h-[60px]">{notes}</div>
         </>
       )}
