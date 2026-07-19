@@ -15,7 +15,7 @@ const ROLE_PERMISSIONS: Record<UserRole, {
   };
 }> = {
   worker: {
-    menuAccess: ["/", "/tshirt-work", "/card-qr-inspect", "/card-photo-inspect", "/tshirt", "/monitor", "/shipping", "/defects", "/manual",
+    menuAccess: ["/", "/all-orders", "/tshirt-work", "/card-qr-inspect", "/card-photo-inspect", "/tshirt", "/monitor", "/shipping", "/defects", "/manual",
       "/outsource", "/outsource/orders", "/outsource/silicon", "/outsource/heat-transfer", "/outsource/hologram", "/outsource/nfc-card", "/outsource/card-order/templates", "/outsource/card-order/orders", "/outsource/logo", "/outsource/tshirt-order", "/outsource/tshirt-factory", "/outsource/packaging", "/outsource/history", "/outsource/settings"],
     settingsTabs: [],
     canEdit: {

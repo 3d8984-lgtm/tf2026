@@ -12,6 +12,7 @@ import Auth from "@/pages/Auth";
 import ResetPassword from "@/pages/ResetPassword";
 import Dashboard from "@/pages/Dashboard";
 import FileUpload from "@/pages/FileUpload";
+import AllOrders from "@/pages/AllOrders";
 import MasterData from "@/pages/MasterData";
 
 
@@ -83,6 +84,7 @@ function ProtectedRoutes() {
       <Route element={<AppLayout />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/upload" element={<FileUpload />} />
+        <Route path="/all-orders" element={<AllOrders />} />
         <Route path="/master" element={<MasterData />} />
         
         
