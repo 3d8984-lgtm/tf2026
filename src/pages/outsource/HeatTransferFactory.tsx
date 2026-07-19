@@ -2148,7 +2148,7 @@ function OrderProgressBox({
               settled = true;
               supabase.removeChannel(ch); clearInterval(pollT);
               setOrdered(true); persist({ ordered: true });
-              try { markOrderCompleted("heat-transfer", order.orderNo); } catch {}
+              try { markOrderCompleted("heat-transfer", order.orderNo, { quantity: order?.quantity, expectedShipAt: getExpectedShipAt("heat-transfer", order.orderNo) }); } catch {}
               const dl = typeof row.bundle_zip_url === "string" ? row.bundle_zip_url : null;
               if (dl) {
                 setBundleDownloadUrl(dl);
