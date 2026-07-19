@@ -2,6 +2,8 @@ import { forwardRef, useMemo, useRef, useState } from "react";
 import { OrderStatusCell } from "@/components/outsource/OrderStatusCell";
 import { useOrderListControls, OrderListControlsBar, OrderStatusCountsBadges } from "@/components/outsource/OrderListControls";
 import { markOrderCompleted } from "@/hooks/useOrderStatus";
+import { getExpectedShipAt } from "@/lib/expected-ship";
+import ExpectedShipDateField from "@/components/outsource/ExpectedShipDateField";
 import PageHeader from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
