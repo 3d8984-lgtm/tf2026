@@ -273,10 +273,11 @@ export default function LogoFactory() {
                 {isLoading && (
                   <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">로딩 중...</TableCell></TableRow>
                 )}
-                {!isLoading && rows.length === 0 && (
+                {!isLoading && processedRows.length === 0 && (
                   <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">주문 데이터가 없습니다</TableCell></TableRow>
                 )}
-                {rows.map((r, i) => (
+                {processedRows.map((r, i) => (
+
                   <TableRow key={r.orderNo}>
                     <TableCell>{i + 1}</TableCell>
                     <TableCell className="font-mono">{r.orderNo}</TableCell>
