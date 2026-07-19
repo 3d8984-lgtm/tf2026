@@ -75,15 +75,16 @@ export default function TshirtOrderFactory() {
                   <TableHead>납기일</TableHead>
                   <TableHead>트윈커</TableHead>
                   <TableHead className="text-right">주문수량</TableHead>
+                  <TableHead>발주 상태</TableHead>
                   <TableHead className="text-right">상세보기</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading && (
-                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">로딩 중...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">로딩 중...</TableCell></TableRow>
                 )}
                 {!isLoading && rows.length === 0 && (
-                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">주문 데이터가 없습니다</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">주문 데이터가 없습니다</TableCell></TableRow>
                 )}
                 {rows.map(r => (
                   <TableRow key={r.orderNo}>
@@ -92,6 +93,7 @@ export default function TshirtOrderFactory() {
                     <TableCell>{r.dueDate || <span className="text-muted-foreground">-</span>}</TableCell>
                     <TableCell>{r.recipient}</TableCell>
                     <TableCell className="text-right tabular-nums">{r.quantity}</TableCell>
+                    <TableCell><OrderStatusCell factory="tshirt-order" orderNo={r.orderNo} /></TableCell>
                     <TableCell className="text-right">
                       <Button size="sm" variant="ghost" onClick={() => setDetailOrderNo(r.orderNo)}>
                         <Eye className="w-4 h-4 mr-1" />상세보기

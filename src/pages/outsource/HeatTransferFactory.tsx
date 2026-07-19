@@ -1139,6 +1139,7 @@ function OrderListCard({ orders, onOpen }: { orders: OrderRow[]; onOpen: (id: st
               <TableHead>받을사람</TableHead>
               <TableHead className="text-right">작업수량</TableHead>
               <TableHead className="text-right">디자인수량</TableHead>
+              <TableHead>발주 상태</TableHead>
               <TableHead className="text-right w-28">상세보기</TableHead>
             </TableRow>
           </TableHeader>
@@ -1152,13 +1153,14 @@ function OrderListCard({ orders, onOpen }: { orders: OrderRow[]; onOpen: (id: st
                 <TableCell>{o.twinker}</TableCell>
                 <TableCell className="text-right">{o.workQty}</TableCell>
                 <TableCell className="text-right">{o.designQty}</TableCell>
+                <TableCell><OrderStatusCell factory="heat-transfer" orderNo={o.orderNo} /></TableCell>
                 <TableCell className="text-right">
                   <Button size="sm" variant="ghost" onClick={() => onOpen(o.id)}>상세보기</Button>
                 </TableCell>
               </TableRow>
             ))}
             {orders.length === 0 && (
-              <TableRow><TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">—</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-8">—</TableCell></TableRow>
             )}
           </TableBody>
         </Table>

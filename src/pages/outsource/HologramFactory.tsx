@@ -875,6 +875,7 @@ export default function HologramFactory() {
                   <TableHead>납기일</TableHead>
                   <TableHead>트윈커</TableHead>
                   <TableHead>작업수량</TableHead>
+                  <TableHead>발주 상태</TableHead>
                   <TableHead className="w-28 text-right">상세보기</TableHead>
                 </TableRow>
               </TableHeader>
@@ -891,6 +892,7 @@ export default function HologramFactory() {
                     <TableCell>{r.dueDate}</TableCell>
                     <TableCell>{r.twinker}</TableCell>
                     <TableCell>{r.qty}</TableCell>
+                    <TableCell><OrderStatusCell factory="hologram" orderNo={r.orderNo} /></TableCell>
                     <TableCell className="text-right">
                       <Button size="sm" variant="ghost" onClick={() => setActiveOrderNo(r.orderNo)}>
                         <Eye className="w-4 h-4 mr-1" /> 상세보기
@@ -899,7 +901,7 @@ export default function HologramFactory() {
                   </TableRow>
                 ))}
                 {orderRows.length === 0 && (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-sm text-muted-foreground">—</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-sm text-muted-foreground">—</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>

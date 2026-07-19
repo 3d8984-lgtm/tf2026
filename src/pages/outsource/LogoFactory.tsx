@@ -250,15 +250,16 @@ export default function LogoFactory() {
                   <TableHead>트윈커</TableHead>
                   <TableHead>로고</TableHead>
                   <TableHead className="text-right">작업수량</TableHead>
+                  <TableHead>발주 상태</TableHead>
                   <TableHead className="text-right">상세보기</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading && (
-                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">로딩 중...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">로딩 중...</TableCell></TableRow>
                 )}
                 {!isLoading && rows.length === 0 && (
-                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">주문 데이터가 없습니다</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">주문 데이터가 없습니다</TableCell></TableRow>
                 )}
                 {rows.map((r, i) => (
                   <TableRow key={r.orderNo}>
@@ -277,6 +278,7 @@ export default function LogoFactory() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{r.quantity}</TableCell>
+                    <TableCell><OrderStatusCell factory="logo" orderNo={r.orderNo} /></TableCell>
                     <TableCell className="text-right">
                       <Button size="sm" variant="ghost" onClick={() => setDetailOrderNo(r.orderNo)}>
                         <Eye className="w-4 h-4 mr-1" />상세보기
