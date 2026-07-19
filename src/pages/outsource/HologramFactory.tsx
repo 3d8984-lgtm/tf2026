@@ -872,7 +872,17 @@ export default function HologramFactory() {
 
 
         <Card>
-          <CardHeader><CardTitle className="text-base">주문 목록</CardTitle></CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-3 flex-wrap">
+              <CardTitle className="text-base">주문 목록</CardTitle>
+              <OrderStatusCountsBadges counts={counts} />
+            </div>
+            <OrderListControlsBar
+              sortBy={sortBy} setSortBy={setSortBy}
+              statusFilter={statusFilter} setStatusFilter={setStatusFilter}
+              counts={counts}
+            />
+          </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
@@ -888,9 +898,9 @@ export default function HologramFactory() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {orderRows.map(r => (
+                {processedOrderRows.map((r, i) => (
                   <TableRow key={r.orderNo}>
-                    <TableCell>{r.seq}</TableCell>
+                    <TableCell>{i + 1}</TableCell>
                     <TableCell>
                       <button className="font-mono text-primary hover:underline" onClick={() => setActiveOrderNo(r.orderNo)}>
                         {r.orderNo}
@@ -908,13 +918,14 @@ export default function HologramFactory() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {orderRows.length === 0 && (
+                {processedOrderRows.length === 0 && (
                   <TableRow><TableCell colSpan={8} className="text-center py-8 text-sm text-muted-foreground">—</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
           </CardContent>
         </Card>
+
       </div>
     </div>
   );
