@@ -47,8 +47,34 @@ export function setOrderStatus(f: FactoryKey, orderNo: string, status: OrderShip
   writeStore(s);
 }
 
-export function markOrderCompleted(f: FactoryKey, orderNo: string) {
+const PO_CARDS_LS = "outsource-po-cards/v1";
+const PO_CARDS_EVENT = "outsource-po-cards:changed";
+
+export function markOrderCompleted(
+  f: FactoryKey,
+  orderNo: string,
+  meta?: { quantity?: number; expectedShipAt?: string },
+) {
   setOrderStatus(f, orderNo, "completed");
+  if (!orderNo) return;
+  try {
+    const raw = localStorage.getItem(PO_CARDS_LS);
+    const s: Record<string, any> = raw ? JSON.parse(raw) : {};
+    const k = `${f}::${orderNo}`;
+    const today = new Date().toISOString().slice(0, 10);
+    const existing = s[k];
+    s[k] = {
+      factory: f,
+      orderNo,
+      quantity: meta?.quantity ?? existing?.quantity,
+      orderedAt: existing?.orderedAt ?? today,
+      expectedShipAt: meta?.expectedShipAt ?? existing?.expectedShipAt,
+      column: existing?.column ?? "ordered",
+      createdAt: existing?.createdAt ?? new Date().toISOString(),
+    };
+    localStorage.setItem(PO_CARDS_LS, JSON.stringify(s));
+    window.dispatchEvent(new CustomEvent(PO_CARDS_EVENT));
+  } catch {}
 }
 
 export function useOrderStatus(f: FactoryKey, orderNo: string) {
