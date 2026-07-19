@@ -54,6 +54,11 @@ type PO = {
 
 const BUCKET = "tshirt-po-attachments";
 
+function toEnColor(code: string) {
+  if (!code) return "";
+  return code.charAt(0).toUpperCase() + code.slice(1).toLowerCase();
+}
+
 function statusInfo(available: number, safety: number) {
   if (available <= 0) return { key: "out", color: "bg-zinc-500", label: "품절", icon: "⚫", text: "text-zinc-400" };
   const ratio = safety > 0 ? available / safety : 1;
