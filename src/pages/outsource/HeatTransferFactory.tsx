@@ -3478,7 +3478,7 @@ function OrderDetailList({
               <TableHead>티셔츠 종류</TableHead>
               <TableHead>티셔츠 컬러</TableHead>
               <TableHead>티셔츠 사이즈</TableHead>
-              <TableHead>디자인</TableHead>
+              <TableHead>GFT 원본 이미지 (링크)</TableHead>
               <TableHead>QR코드</TableHead>
             </TableRow>
           </TableHeader>
