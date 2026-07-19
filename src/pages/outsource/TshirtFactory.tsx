@@ -364,7 +364,25 @@ export default function TshirtFactory() {
           ) : visibleTypes.map(pt => (
             <Card key={pt.code}>
               <CardHeader>
-                <CardTitle className="text-base">{nameOf(pt)}</CardTitle>
+                <CardTitle className="text-base flex items-center justify-between">
+                  <span>{nameOf(pt)}</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      if (!confirm(`${nameOf(pt)} 재고를 모두 0으로 초기화하시겠습니까?`)) return;
+                      const { error } = await supabase
+                        .from("tshirt_inventory")
+                        .update({ in_stock: 0, in_progress: 0, available: 0 })
+                        .eq("product_type_code", pt.code);
+                      if (error) { toast({ title: "초기화 실패", description: error.message, variant: "destructive" }); return; }
+                      toast({ title: "초기화 완료", description: `${nameOf(pt)} 재고가 0으로 초기화되었습니다.` });
+                      loadAll();
+                    }}
+                  >
+                    초기화
+                  </Button>
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
