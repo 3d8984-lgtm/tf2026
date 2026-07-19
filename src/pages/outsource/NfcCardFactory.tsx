@@ -1273,10 +1273,11 @@ export default function NfcCardFactory() {
                     </TableCell>
                   </TableRow>
                 )}
-                {!isLoading && !ordersError && rows.length === 0 && (
+                {!isLoading && !ordersError && processedRows.length === 0 && (
                   <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">주문 데이터가 없습니다</TableCell></TableRow>
                 )}
-                {rows.map(r => (
+                {processedRows.map(r => (
+
                   <TableRow key={r.orderNo}>
                     <TableCell className="font-mono">{r.orderNo}</TableCell>
                     <TableCell>{r.receivedAt}</TableCell>
