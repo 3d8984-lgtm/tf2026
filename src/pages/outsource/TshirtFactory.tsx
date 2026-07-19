@@ -15,7 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import {
   AlertTriangle, CheckCircle2, CircleSlash, Package, Upload, X, FileText, Image as ImageIcon,
-  PackageCheck, Filter, Download, Eye, ShoppingCart, Shirt, FileSpreadsheet,
+  PackageCheck, Filter, Download, Eye, ShoppingCart, Shirt, FileSpreadsheet, Trash2,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
