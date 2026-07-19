@@ -50,8 +50,12 @@ export default function TshirtOrderFactory() {
       dueDate: fmtDate(o.project_completed_at),
       recipient: o.recipient_name || "",
       quantity: o.quantity || 0,
-    })).sort((a, b) => a.orderNo.localeCompare(b.orderNo));
+    }));
   }, [ordersData]);
+
+  const { sortBy, setSortBy, statusFilter, setStatusFilter, counts, processed: processedRows } =
+    useOrderListControls("tshirt-order", rows);
+
 
   if (detailOrderNo) {
     const order = (ordersData as any[])?.find(o => o.external_order_id === detailOrderNo);
