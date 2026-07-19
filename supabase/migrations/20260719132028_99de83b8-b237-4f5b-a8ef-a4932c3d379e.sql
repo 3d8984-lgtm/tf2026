@@ -1,0 +1,1 @@
+UPDATE public.tshirt_product_types SET name_ko='반팔 티셔츠 재고 현황', name_zh='短袖T恤库存状况' WHERE code='SHORT_SLEEVE';
