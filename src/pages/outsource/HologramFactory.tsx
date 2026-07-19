@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { OrderStatusCell } from "@/components/outsource/OrderStatusCell";
+import { markOrderCompleted } from "@/hooks/useOrderStatus";
 import * as pdfjsLib from "pdfjs-dist";
 // @ts-ignore - vite worker import
 import PdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?worker";
@@ -349,6 +351,7 @@ function OrderProgressBox({
         console.warn("outsource_orders insert failed", logErr);
       }
 
+      markOrderCompleted("hologram", orderNo);
       toast({ title: "발주 완료", description: `${zipName} 위챗 단톡방으로 전송됨` });
     } catch (e: any) {
       toast({ title: "발주 실패", description: e?.message || String(e), variant: "destructive" as any });
@@ -875,6 +878,7 @@ export default function HologramFactory() {
                   <TableHead>납기일</TableHead>
                   <TableHead>트윈커</TableHead>
                   <TableHead>작업수량</TableHead>
+                  <TableHead>발주 상태</TableHead>
                   <TableHead className="w-28 text-right">상세보기</TableHead>
                 </TableRow>
               </TableHeader>
@@ -891,6 +895,7 @@ export default function HologramFactory() {
                     <TableCell>{r.dueDate}</TableCell>
                     <TableCell>{r.twinker}</TableCell>
                     <TableCell>{r.qty}</TableCell>
+                    <TableCell><OrderStatusCell factory="hologram" orderNo={r.orderNo} /></TableCell>
                     <TableCell className="text-right">
                       <Button size="sm" variant="ghost" onClick={() => setActiveOrderNo(r.orderNo)}>
                         <Eye className="w-4 h-4 mr-1" /> 상세보기
@@ -899,7 +904,7 @@ export default function HologramFactory() {
                   </TableRow>
                 ))}
                 {orderRows.length === 0 && (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-sm text-muted-foreground">—</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-sm text-muted-foreground">—</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { OrderStatusCell } from "@/components/outsource/OrderStatusCell";
+import { markOrderCompleted } from "@/hooks/useOrderStatus";
 import * as pdfjsLib from "pdfjs-dist";
 // @ts-ignore - vite worker import
 import PdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?worker";
@@ -1234,16 +1236,17 @@ export default function NfcCardFactory() {
                   <TableHead>납기일</TableHead>
                   <TableHead>트윈커</TableHead>
                   <TableHead className="text-right">작업수량</TableHead>
+                  <TableHead>발주 상태</TableHead>
                   <TableHead className="text-right">상세보기</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading && (
-                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">로딩 중...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">로딩 중...</TableCell></TableRow>
                 )}
                 {!isLoading && ordersError && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-destructive">
+                    <TableCell colSpan={7} className="text-center py-8 text-destructive">
                       <div className="flex flex-col items-center gap-2">
                         <span>주문 조회 권한 오류가 발생했습니다</span>
                         <Button size="sm" variant="outline" onClick={() => refetchOrders()} disabled={isFetching}>
@@ -1255,7 +1258,7 @@ export default function NfcCardFactory() {
                   </TableRow>
                 )}
                 {!isLoading && !ordersError && rows.length === 0 && (
-                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">주문 데이터가 없습니다</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">주문 데이터가 없습니다</TableCell></TableRow>
                 )}
                 {rows.map(r => (
                   <TableRow key={r.orderNo}>
@@ -1264,6 +1267,7 @@ export default function NfcCardFactory() {
                     <TableCell>{r.dueDate || <span className="text-muted-foreground">-</span>}</TableCell>
                     <TableCell>{r.recipient}</TableCell>
                     <TableCell className="text-right tabular-nums">{r.quantity}</TableCell>
+                    <TableCell><OrderStatusCell factory="nfc-card" orderNo={r.orderNo} /></TableCell>
                     <TableCell className="text-right">
                       <Button size="sm" variant="ghost" onClick={() => setDetailOrderNo(r.orderNo)}>
                         <Eye className="w-4 h-4 mr-1" />상세보기
@@ -2549,6 +2553,7 @@ function DetailView({
 
       setOrdered(true);
       persistProgress({ ordered: true });
+      markOrderCompleted("nfc-card", orderNo);
       toast({ title: "발주 ZIP 다운로드 완료", description: `${cards.length}장 · 작업지시서 포함` });
     } catch (e: any) {
       toast({ title: "발주 실패", description: e?.message || String(e), variant: "destructive" as any });

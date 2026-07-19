@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { OrderStatusCell } from "@/components/outsource/OrderStatusCell";
+import { markOrderCompleted } from "@/hooks/useOrderStatus";
 import * as pdfjsLib from "pdfjs-dist";
 // @ts-ignore - vite worker import
 import PdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?worker";
@@ -970,15 +972,16 @@ export default function SiliconFactory() {
                   <TableHead>트윈커</TableHead>
                   <TableHead className="text-right">작업수량</TableHead>
                   <TableHead className="text-right">트윈코드(SVG) 수량</TableHead>
+                  <TableHead>발주 상태</TableHead>
                   <TableHead className="text-right">상세보기</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading && (
-                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">로딩 중...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">로딩 중...</TableCell></TableRow>
                 )}
                 {!isLoading && filtered.length === 0 && (
-                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">주문 데이터가 없습니다</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">주문 데이터가 없습니다</TableCell></TableRow>
                 )}
                 {filtered.map((r, i) => (
                   <TableRow key={r.orderNo} className={r.status !== "ok" ? "bg-destructive/5" : ""}>
@@ -994,6 +997,7 @@ export default function SiliconFactory() {
                         ? <Badge variant="outline">{r.svgCount}</Badge>
                         : <Badge variant="secondary"><AlertTriangle className="w-3 h-3 mr-1" />0</Badge>}
                     </TableCell>
+                    <TableCell><OrderStatusCell factory="silicon" orderNo={r.orderNo} /></TableCell>
                     <TableCell className="text-right">
                       <Button size="sm" variant="ghost" onClick={() => setDetailOrderNo(r.orderNo)}>
                         <Eye className="w-4 h-4 mr-1" />상세보기
@@ -1963,6 +1967,7 @@ function SiliconOrderProgressBox({
         console.warn("outsource_orders insert failed", logErr);
       }
 
+      markOrderCompleted("silicon", orderNo);
       toast({ title: "발주 완료", description: `${zipName} 위챗 단톡방으로 전송됨` });
     } catch (e: any) {
       toast({ title: "발주 실패", description: e?.message || String(e), variant: "destructive" as any });
