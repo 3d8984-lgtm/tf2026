@@ -3494,7 +3494,21 @@ function OrderDetailList({
                   <TableCell>{d.tshirtType || "—"}</TableCell>
                   <TableCell>{d.tshirtColor || "—"}</TableCell>
                   <TableCell>{d.tshirtSize || "—"}</TableCell>
-                  <TableCell><DesignThumb detail={d} outline={fmt} sizeLabel={d.tshirtSize || ""} transform={transform} /></TableCell>
+                  <TableCell>
+                    {d.gftOriginalUrl ? (
+                      <a
+                        href={d.gftOriginalUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary underline break-all text-xs font-mono max-w-[280px] inline-block"
+                        title={d.gftOriginalUrl}
+                      >
+                        {d.gftOriginalUrl.length > 50 ? d.gftOriginalUrl.slice(0, 50) + "…" : d.gftOriginalUrl}
+                      </a>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell><QrThumb value={d.designUid} /></TableCell>
                 </TableRow>
               );
