@@ -78,6 +78,26 @@ export default function OutsourceHistory() {
     return m;
   }, [cards]);
 
+  // Count per stage per order
+  const stageCountByOrder = useMemo(() => {
+    const m: Record<string, Record<PoColumn, number>> = {};
+    for (const c of cards) {
+      if (!m[c.orderNo]) m[c.orderNo] = { ordered: 0, started: 0, produced: 0, shipped: 0, received: 0 };
+      m[c.orderNo][c.column] += 1;
+    }
+    return m;
+  }, [cards]);
+
+  const STAGE_COLORS: Record<PoColumn, string> = {
+    ordered:  "bg-slate-500",
+    started:  "bg-blue-500",
+    produced: "bg-violet-500",
+    shipped:  "bg-amber-500",
+    received: "bg-emerald-500",
+  };
+
+
+
   // -------- List view --------
   if (!orderId) {
     return (
