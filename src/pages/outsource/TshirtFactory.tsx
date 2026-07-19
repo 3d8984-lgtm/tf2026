@@ -1436,6 +1436,9 @@ function PurchaseOrderForm({
               </SelectContent>
             </Select>
             <Button variant="outline" onClick={() => setAddTypeOpen(true)}>+ 종류 추가</Button>
+            <Button variant="outline" onClick={deleteProductType} disabled={!typeCode} title="선택한 종류 삭제">
+              <Trash2 className="w-4 h-4" />
+            </Button>
           </div>
         </CardContent>
       </Card>
