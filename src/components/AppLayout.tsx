@@ -166,22 +166,36 @@ export default function AppLayout() {
   const [custom, setCustom] = useState<MenuCustom>(() => loadCustom());
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [draft, setDraft] = useState<MenuCustom>({});
+  // Cross-tab sync: reflect changes made in another tab, no clobbering on mount.
   useEffect(() => {
-    localStorage.setItem(MENU_CUSTOM_KEY, JSON.stringify(custom));
-  }, [custom]);
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== MENU_CUSTOM_KEY) return;
+      try {
+        setCustom(e.newValue ? JSON.parse(e.newValue) : {});
+      } catch { /* ignore */ }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+  const persistCustom = (next: MenuCustom) => {
+    try { localStorage.setItem(MENU_CUSTOM_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+    setCustom(next);
+  };
   const getLabel = (item: MenuItem) => custom[item.path]?.label?.trim() || t(item.key);
   const sortWith = (items: MenuItem[], src: MenuCustom) => {
+    // Offset fallback so items without a stored order never collide with stored 0..n-1 values.
+    const OFFSET = 10000;
     const indexed = items.map((m, i) => ({ m, i }));
     indexed.sort((a, b) => {
-      const oa = src[a.m.path]?.order ?? a.i;
-      const ob = src[b.m.path]?.order ?? b.i;
+      const oa = src[a.m.path]?.order ?? (OFFSET + a.i);
+      const ob = src[b.m.path]?.order ?? (OFFSET + b.i);
       return oa - ob || a.i - b.i;
     });
     return indexed.map(x => x.m);
   };
   const sortItems = (items: MenuItem[]) => sortWith(items, custom);
   const openCustomize = () => {
-    setDraft(JSON.parse(JSON.stringify(custom)));
+    setDraft(JSON.parse(JSON.stringify(loadCustom())));
     setCustomizeOpen(true);
   };
   const moveDraft = (section: "hq" | "outsource", path: string, dir: -1 | 1) => {
@@ -202,7 +216,7 @@ export default function AppLayout() {
     setDraft(prev => ({ ...prev, [path]: { ...prev[path], label } }));
   };
   const resetDraft = () => setDraft({});
-  const saveDraft = () => { setCustom(draft); setCustomizeOpen(false); };
+  const saveDraft = () => { persistCustom(draft); setCustomizeOpen(false); };
 
   return (
     <div className="flex h-screen overflow-hidden">
