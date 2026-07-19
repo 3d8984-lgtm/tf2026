@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { OrderStatusCell } from "@/components/outsource/OrderStatusCell";
 import { useOrderListControls, OrderListControlsBar, OrderStatusCountsBadges } from "@/components/outsource/OrderListControls";
 import { markOrderCompleted } from "@/hooks/useOrderStatus";
+import { getExpectedShipAt } from "@/lib/expected-ship";
+import ExpectedShipDateField from "@/components/outsource/ExpectedShipDateField";
 import * as pdfjsLib from "pdfjs-dist";
 // @ts-ignore - vite worker import
 import PdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?worker";
@@ -2146,7 +2148,7 @@ function OrderProgressBox({
               settled = true;
               supabase.removeChannel(ch); clearInterval(pollT);
               setOrdered(true); persist({ ordered: true });
-              try { markOrderCompleted("heat-transfer", order.orderNo); } catch {}
+              try { markOrderCompleted("heat-transfer", order.orderNo, { expectedShipAt: getExpectedShipAt("heat-transfer", order.orderNo) }); } catch {}
               const dl = typeof row.bundle_zip_url === "string" ? row.bundle_zip_url : null;
               if (dl) {
                 setBundleDownloadUrl(dl);
@@ -2532,6 +2534,7 @@ function WorkOrderInfoBox({ order, outlinePreview }: { order: OrderRow; outlineP
           <TxtField label="발주일" type="date" v={wo.orderDate} set={(v) => set({ orderDate: v })} />
           <TxtField label="납품일" type="date" v={wo.deliveryDate} set={(v) => set({ deliveryDate: v })} />
         </div>
+        <ExpectedShipDateField factory="heat-transfer" orderNo={order.orderNo} />
         <TxtField label="총수량" type="number" v={String(wo.total)} set={(v) => set({ total: Number(v) || 0 })} />
         <TxtField label="받을사람" v={wo.recipient} set={(v) => set({ recipient: v })} />
         <TxtField label="전화번호" v={wo.phone} set={(v) => set({ phone: v })} />

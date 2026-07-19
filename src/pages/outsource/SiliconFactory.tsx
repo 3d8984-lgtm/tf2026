@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { OrderStatusCell } from "@/components/outsource/OrderStatusCell";
 import { useOrderListControls, OrderListControlsBar, OrderStatusCountsBadges } from "@/components/outsource/OrderListControls";
 import { markOrderCompleted } from "@/hooks/useOrderStatus";
+import { getExpectedShipAt } from "@/lib/expected-ship";
+import ExpectedShipDateField from "@/components/outsource/ExpectedShipDateField";
 import * as pdfjsLib from "pdfjs-dist";
 // @ts-ignore - vite worker import
 import PdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?worker";
@@ -1982,7 +1984,7 @@ function SiliconOrderProgressBox({
         console.warn("outsource_orders insert failed", logErr);
       }
 
-      markOrderCompleted("silicon", orderNo);
+      markOrderCompleted("silicon", orderNo, { quantity: items.length, expectedShipAt: getExpectedShipAt("silicon", orderNo) });
       toast({ title: "발주 완료", description: `${zipName} 위챗 단톡방으로 전송됨` });
     } catch (e: any) {
       toast({ title: "발주 실패", description: e?.message || String(e), variant: "destructive" as any });
@@ -2487,6 +2489,7 @@ function ProofBox({
               <TxtField label="발주일" type="date" v={workOrder.orderDate} set={v => setWO({ orderDate: v })} />
               <TxtField label="납품일" type="date" v={workOrder.deliveryDate} set={v => setWO({ deliveryDate: v })} />
             </div>
+            <ExpectedShipDateField factory="silicon" orderNo={orderNo} className="md:col-span-3" />
             <div className="md:col-span-3 grid grid-cols-2 md:grid-cols-5 gap-2">
               <TxtField label="COMMON" type="number" v={String(workOrder.common)} set={v => setWO({ common: Number(v) || 0 })} />
               <TxtField label="RARE" type="number" v={String(workOrder.rare)} set={v => setWO({ rare: Number(v) || 0 })} />

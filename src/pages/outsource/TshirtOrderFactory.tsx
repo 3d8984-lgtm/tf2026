@@ -2,6 +2,8 @@ import { forwardRef, useMemo, useRef, useState } from "react";
 import { OrderStatusCell } from "@/components/outsource/OrderStatusCell";
 import { useOrderListControls, OrderListControlsBar, OrderStatusCountsBadges } from "@/components/outsource/OrderListControls";
 import { markOrderCompleted } from "@/hooks/useOrderStatus";
+import { getExpectedShipAt } from "@/lib/expected-ship";
+import ExpectedShipDateField from "@/components/outsource/ExpectedShipDateField";
 import PageHeader from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -313,7 +315,7 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
     a.click();
     URL.revokeObjectURL(url);
     setStep(3);
-    markOrderCompleted("tshirt-order", orderNo);
+    markOrderCompleted("tshirt-order", orderNo, { quantity: totalQty, expectedShipAt: getExpectedShipAt("tshirt-order", orderNo) });
     toast({ title: "발주 ZIP 다운로드 완료" });
   };
 
@@ -385,6 +387,7 @@ function DetailView({ order, onBack }: { order: any; onBack: () => void }) {
               <Field label="발주일" value={workOrder.orderDate} onChange={v => setWorkOrder(p => ({ ...p, orderDate: v }))} />
               <Field label="받을사람" value={workOrder.receiverName} onChange={v => setWorkOrder(p => ({ ...p, receiverName: v }))} />
               <Field label="전화번호" value={workOrder.receiverPhone} onChange={v => setWorkOrder(p => ({ ...p, receiverPhone: v }))} />
+              <ExpectedShipDateField factory="tshirt-order" orderNo={orderNo} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">주소</Label>
