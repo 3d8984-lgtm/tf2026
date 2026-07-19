@@ -691,8 +691,12 @@ export default function HologramFactory() {
         twinker: (o.source_data?.twinker as string) || o.recipient_name || "",
         qty,
       };
-    }).sort((a, b) => a.orderNo.localeCompare(b.orderNo)).map((r, i) => ({ ...r, seq: i + 1 }));
+    }).map((r, i) => ({ ...r, seq: i + 1 }));
   }, [ordersData]);
+
+  const { sortBy, setSortBy, statusFilter, setStatusFilter, counts, processed: processedOrderRows } =
+    useOrderListControls("hologram", orderRows);
+
 
   const detailOrder = useMemo(() => {
     if (!activeOrderNo) return null;
