@@ -1438,7 +1438,11 @@ export async function buildSiliconTwinPdfPage(opts: {
   }
 
   const textHmm = Math.max(0, proof.twinTextSize);
-  const textBlockMm = proof.twinTextGap + textHmm;
+  const colorFontPt = gradeColorStyle.fontSize;
+  const colorLineHmm = colorFontPt / MM;
+  const lineGapMm = 0.4;
+  const hasAnyColor = pageItems.some((it) => (gradeColorNames[it.grade] || "").length > 0);
+  const textBlockMm = proof.twinTextGap + textHmm + (hasAnyColor ? lineGapMm + colorLineHmm : 0);
   const marginMm = Math.max(0, proof.twinMargin);
   const cellTotalHmm = effCellHmm + textBlockMm;
 
@@ -1449,18 +1453,83 @@ export async function buildSiliconTwinPdfPage(opts: {
   const page = out.addPage([pageWpt, pageHpt]);
 
   const twinEmbedCache = new Map<string, any>();
+  const fetchAsBlob = async (url: string): Promise<{ blob: Blob; contentType: string } | null> => {
+    try {
+      const res = await fetch(url, { mode: "cors" });
+      if (res.ok) {
+        const blob = await res.blob();
+        return { blob, contentType: blob.type || res.headers.get("content-type") || "" };
+      }
+    } catch {}
+    try {
+      const { data, error } = await supabase.functions.invoke("download-file", {
+        body: { url, filename: "twin.svg" },
+      });
+      if (error) throw error;
+      const blob: Blob = data instanceof Blob ? data : new Blob([data as any]);
+      return { blob, contentType: blob.type || "" };
+    } catch (e) {
+      console.warn("twin proxy fetch failed", url, e);
+      return null;
+    }
+  };
+  const rasterViaImg = async (url: string, sizePx = 512): Promise<Uint8Array | null> => {
+    return await new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        try {
+          const cvs = document.createElement("canvas");
+          cvs.width = sizePx; cvs.height = sizePx;
+          const ctx = cvs.getContext("2d")!;
+          ctx.clearRect(0, 0, sizePx, sizePx);
+          ctx.drawImage(img, 0, 0, sizePx, sizePx);
+          cvs.toBlob(async (b) => {
+            if (!b) { resolve(null); return; }
+            resolve(new Uint8Array(await b.arrayBuffer()));
+          }, "image/png");
+        } catch { resolve(null); }
+      };
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+  };
   const getTwinEmbed = async (url: string) => {
     if (twinEmbedCache.has(url)) return twinEmbedCache.get(url);
+    const fetched = await fetchAsBlob(url);
+    // Try vector SVG → PDF path first
     try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("svg fetch failed");
-      const svgText = await res.text();
-      const sizePt = 200;
-      const pdfBytes = await svgToVectorPdfBytes(svgText, sizePt, sizePt);
-      const [embedded] = await out.embedPdf(pdfBytes);
+      if (fetched) {
+        const looksSvg = /svg/i.test(fetched.contentType) || /\.svg(\?|$)/i.test(url);
+        if (looksSvg) {
+          const svgText = await fetched.blob.text();
+          const sizePt = 200;
+          const pdfBytes = await svgToVectorPdfBytes(svgText, sizePt, sizePt);
+          const [embedded] = await out.embedPdf(pdfBytes);
+          twinEmbedCache.set(url, embedded);
+          return embedded;
+        }
+        // raster path
+        const bytes = new Uint8Array(await fetched.blob.arrayBuffer());
+        const isJpg = /jpe?g/i.test(fetched.contentType);
+        const embedded = isJpg ? await out.embedJpg(bytes) : await out.embedPng(bytes);
+        twinEmbedCache.set(url, embedded);
+        return embedded;
+      }
+    } catch (e) {
+      console.warn("twin vector embed failed, falling back to raster", e);
+    }
+    // Final fallback: rasterize via <img>
+    try {
+      const png = await rasterViaImg(url, 512);
+      if (!png) throw new Error("raster failed");
+      const embedded = await out.embedPng(png);
       twinEmbedCache.set(url, embedded);
       return embedded;
-    } catch (e) { console.warn("twin svg embed failed", url, e); return null; }
+    } catch (e) {
+      console.warn("twin svg embed failed", url, e);
+      return null;
+    }
   };
 
   for (let idx = 0; idx < pageItems.length; idx++) {
@@ -1505,25 +1574,31 @@ export async function buildSiliconTwinPdfPage(opts: {
       }
     }
 
-    const fontPt = Math.max(4, proof.twinTextSize * MM);
-    const baselineYmm = cellYmm + effCellHmm + proof.twinTextGap + textHmm;
+    // Two-line label: ID on line 1, color name on line 2. Auto-shrink to fit cell width.
+    const idFontPtBase = Math.max(4, proof.twinTextSize * MM);
     const colorName = gradeColorNames[it.grade] || "";
     const idText = it.uniqueNo;
-    const colorFontPt = gradeColorStyle.fontSize;
     const colorFont = gradeColorStyle.fontWeight >= 650 ? helvBold : helv;
-    const sepText = colorName ? "  ·  " : "";
-    const sepFontPt = colorName ? Math.max(fontPt, colorFontPt) : fontPt;
-    const sepFont = colorFont;
-    const idW = helv.widthOfTextAtSize(idText, fontPt);
-    const sepW = colorName ? sepFont.widthOfTextAtSize(sepText, sepFontPt) : 0;
-    const colorW = colorName ? colorFont.widthOfTextAtSize(colorName, colorFontPt) : 0;
-    const totalW = idW + sepW + colorW;
-    const startX = (cellXmm + effCellWmm / 2) * MM - totalW / 2;
-    const textYpt = pageHpt - baselineYmm * MM;
-    page.drawText(idText, { x: startX, y: textYpt, size: fontPt, font: helv, color: rgb(0, 0, 0) });
+    const availPt = effCellWmm * MM * 0.98;
+
+    const idNaturalW = helv.widthOfTextAtSize(idText, idFontPtBase);
+    const idScale = idNaturalW > availPt ? availPt / idNaturalW : 1;
+    const idFontPt = idFontPtBase * idScale;
+    const idW = helv.widthOfTextAtSize(idText, idFontPt);
+
+    const line1Ymm = cellYmm + effCellHmm + proof.twinTextGap + textHmm;
+    const line1Ypt = pageHpt - line1Ymm * MM;
+    const centerXpt = (cellXmm + effCellWmm / 2) * MM;
+    page.drawText(idText, { x: centerXpt - idW / 2, y: line1Ypt, size: idFontPt, font: helv, color: rgb(0, 0, 0) });
+
     if (colorName) {
-      page.drawText(sepText, { x: startX + idW, y: textYpt, size: sepFontPt, font: sepFont, color: rgb(0, 0, 0) });
-      page.drawText(colorName, { x: startX + idW + sepW, y: textYpt, size: colorFontPt, font: colorFont, color: rgb(0, 0, 0) });
+      const colorNaturalW = colorFont.widthOfTextAtSize(colorName, colorFontPt);
+      const cScale = colorNaturalW > availPt ? availPt / colorNaturalW : 1;
+      const cFontPt = colorFontPt * cScale;
+      const cW = colorFont.widthOfTextAtSize(colorName, cFontPt);
+      const line2Ymm = line1Ymm + lineGapMm + colorLineHmm;
+      const line2Ypt = pageHpt - line2Ymm * MM;
+      page.drawText(colorName, { x: centerXpt - cW / 2, y: line2Ypt, size: cFontPt, font: colorFont, color: rgb(0, 0, 0) });
     }
   }
 
