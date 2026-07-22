@@ -1574,25 +1574,31 @@ export async function buildSiliconTwinPdfPage(opts: {
       }
     }
 
-    const fontPt = Math.max(4, proof.twinTextSize * MM);
-    const baselineYmm = cellYmm + effCellHmm + proof.twinTextGap + textHmm;
+    // Two-line label: ID on line 1, color name on line 2. Auto-shrink to fit cell width.
+    const idFontPtBase = Math.max(4, proof.twinTextSize * MM);
     const colorName = gradeColorNames[it.grade] || "";
     const idText = it.uniqueNo;
-    const colorFontPt = gradeColorStyle.fontSize;
     const colorFont = gradeColorStyle.fontWeight >= 650 ? helvBold : helv;
-    const sepText = colorName ? "  ·  " : "";
-    const sepFontPt = colorName ? Math.max(fontPt, colorFontPt) : fontPt;
-    const sepFont = colorFont;
-    const idW = helv.widthOfTextAtSize(idText, fontPt);
-    const sepW = colorName ? sepFont.widthOfTextAtSize(sepText, sepFontPt) : 0;
-    const colorW = colorName ? colorFont.widthOfTextAtSize(colorName, colorFontPt) : 0;
-    const totalW = idW + sepW + colorW;
-    const startX = (cellXmm + effCellWmm / 2) * MM - totalW / 2;
-    const textYpt = pageHpt - baselineYmm * MM;
-    page.drawText(idText, { x: startX, y: textYpt, size: fontPt, font: helv, color: rgb(0, 0, 0) });
+    const availPt = effCellWmm * MM * 0.98;
+
+    const idNaturalW = helv.widthOfTextAtSize(idText, idFontPtBase);
+    const idScale = idNaturalW > availPt ? availPt / idNaturalW : 1;
+    const idFontPt = idFontPtBase * idScale;
+    const idW = helv.widthOfTextAtSize(idText, idFontPt);
+
+    const line1Ymm = cellYmm + effCellHmm + proof.twinTextGap + textHmm;
+    const line1Ypt = pageHpt - line1Ymm * MM;
+    const centerXpt = (cellXmm + effCellWmm / 2) * MM;
+    page.drawText(idText, { x: centerXpt - idW / 2, y: line1Ypt, size: idFontPt, font: helv, color: rgb(0, 0, 0) });
+
     if (colorName) {
-      page.drawText(sepText, { x: startX + idW, y: textYpt, size: sepFontPt, font: sepFont, color: rgb(0, 0, 0) });
-      page.drawText(colorName, { x: startX + idW + sepW, y: textYpt, size: colorFontPt, font: colorFont, color: rgb(0, 0, 0) });
+      const colorNaturalW = colorFont.widthOfTextAtSize(colorName, colorFontPt);
+      const cScale = colorNaturalW > availPt ? availPt / colorNaturalW : 1;
+      const cFontPt = colorFontPt * cScale;
+      const cW = colorFont.widthOfTextAtSize(colorName, cFontPt);
+      const line2Ymm = line1Ymm + lineGapMm + colorLineHmm;
+      const line2Ypt = pageHpt - line2Ymm * MM;
+      page.drawText(colorName, { x: centerXpt - cW / 2, y: line2Ypt, size: cFontPt, font: colorFont, color: rgb(0, 0, 0) });
     }
   }
 
