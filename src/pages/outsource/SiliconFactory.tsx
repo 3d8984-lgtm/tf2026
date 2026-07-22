@@ -1449,18 +1449,83 @@ export async function buildSiliconTwinPdfPage(opts: {
   const page = out.addPage([pageWpt, pageHpt]);
 
   const twinEmbedCache = new Map<string, any>();
+  const fetchAsBlob = async (url: string): Promise<{ blob: Blob; contentType: string } | null> => {
+    try {
+      const res = await fetch(url, { mode: "cors" });
+      if (res.ok) {
+        const blob = await res.blob();
+        return { blob, contentType: blob.type || res.headers.get("content-type") || "" };
+      }
+    } catch {}
+    try {
+      const { data, error } = await supabase.functions.invoke("download-file", {
+        body: { url, filename: "twin.svg" },
+      });
+      if (error) throw error;
+      const blob: Blob = data instanceof Blob ? data : new Blob([data as any]);
+      return { blob, contentType: blob.type || "" };
+    } catch (e) {
+      console.warn("twin proxy fetch failed", url, e);
+      return null;
+    }
+  };
+  const rasterViaImg = async (url: string, sizePx = 512): Promise<Uint8Array | null> => {
+    return await new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        try {
+          const cvs = document.createElement("canvas");
+          cvs.width = sizePx; cvs.height = sizePx;
+          const ctx = cvs.getContext("2d")!;
+          ctx.clearRect(0, 0, sizePx, sizePx);
+          ctx.drawImage(img, 0, 0, sizePx, sizePx);
+          cvs.toBlob(async (b) => {
+            if (!b) { resolve(null); return; }
+            resolve(new Uint8Array(await b.arrayBuffer()));
+          }, "image/png");
+        } catch { resolve(null); }
+      };
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+  };
   const getTwinEmbed = async (url: string) => {
     if (twinEmbedCache.has(url)) return twinEmbedCache.get(url);
+    const fetched = await fetchAsBlob(url);
+    // Try vector SVG → PDF path first
     try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("svg fetch failed");
-      const svgText = await res.text();
-      const sizePt = 200;
-      const pdfBytes = await svgToVectorPdfBytes(svgText, sizePt, sizePt);
-      const [embedded] = await out.embedPdf(pdfBytes);
+      if (fetched) {
+        const looksSvg = /svg/i.test(fetched.contentType) || /\.svg(\?|$)/i.test(url);
+        if (looksSvg) {
+          const svgText = await fetched.blob.text();
+          const sizePt = 200;
+          const pdfBytes = await svgToVectorPdfBytes(svgText, sizePt, sizePt);
+          const [embedded] = await out.embedPdf(pdfBytes);
+          twinEmbedCache.set(url, embedded);
+          return embedded;
+        }
+        // raster path
+        const bytes = new Uint8Array(await fetched.blob.arrayBuffer());
+        const isJpg = /jpe?g/i.test(fetched.contentType);
+        const embedded = isJpg ? await out.embedJpg(bytes) : await out.embedPng(bytes);
+        twinEmbedCache.set(url, embedded);
+        return embedded;
+      }
+    } catch (e) {
+      console.warn("twin vector embed failed, falling back to raster", e);
+    }
+    // Final fallback: rasterize via <img>
+    try {
+      const png = await rasterViaImg(url, 512);
+      if (!png) throw new Error("raster failed");
+      const embedded = await out.embedPng(png);
       twinEmbedCache.set(url, embedded);
       return embedded;
-    } catch (e) { console.warn("twin svg embed failed", url, e); return null; }
+    } catch (e) {
+      console.warn("twin svg embed failed", url, e);
+      return null;
+    }
   };
 
   for (let idx = 0; idx < pageItems.length; idx++) {
