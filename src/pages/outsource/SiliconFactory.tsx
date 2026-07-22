@@ -2503,7 +2503,15 @@ function ProofBox({
     if (items.length === 0) { toast({ title: "다운로드할 항목이 없습니다", variant: "destructive" }); return; }
     setPdfBusy(true);
     try {
-      const bytes = await buildTwinPdfBytesForPage(pageT);
+      const bytes = await buildSiliconTwinPdfPage({
+        items,
+        pageIdx: pageT,
+        proof,
+        templates,
+        gradeColorNames: gradeColorNamesTwin,
+        gradeColorStyle: gradeColorStyleTwin,
+        overrideTwinSvgUrl: testTwinSvg?.url || null,
+      });
       downloadBlobAs(bytes, `${orderNo || "twincode"}(${pageT + 1}).pdf`);
       toast({ title: "PDF 다운로드 완료", description: `${orderNo}(${pageT + 1}).pdf` });
     } catch (e: any) {
@@ -2518,7 +2526,15 @@ function ProofBox({
       const JSZip = (await import("jszip")).default;
       const zip = new JSZip();
       for (let p = 0; p < totalPagesT; p++) {
-        const bytes = await buildTwinPdfBytesForPage(p);
+        const bytes = await buildSiliconTwinPdfPage({
+          items,
+          pageIdx: p,
+          proof,
+          templates,
+          gradeColorNames: gradeColorNamesTwin,
+          gradeColorStyle: gradeColorStyleTwin,
+          overrideTwinSvgUrl: testTwinSvg?.url || null,
+        });
         zip.file(`${orderNo || "twincode"}(${p + 1}).pdf`, bytes);
       }
       const zipBlob = await zip.generateAsync({ type: "blob" });
