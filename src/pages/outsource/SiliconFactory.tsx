@@ -1438,7 +1438,11 @@ export async function buildSiliconTwinPdfPage(opts: {
   }
 
   const textHmm = Math.max(0, proof.twinTextSize);
-  const textBlockMm = proof.twinTextGap + textHmm;
+  const colorFontPt = gradeColorStyle.fontSize;
+  const colorLineHmm = colorFontPt / MM;
+  const lineGapMm = 0.4;
+  const hasAnyColor = pageItems.some((it) => (gradeColorNames[it.grade] || "").length > 0);
+  const textBlockMm = proof.twinTextGap + textHmm + (hasAnyColor ? lineGapMm + colorLineHmm : 0);
   const marginMm = Math.max(0, proof.twinMargin);
   const cellTotalHmm = effCellHmm + textBlockMm;
 
