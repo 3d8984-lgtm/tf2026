@@ -1678,24 +1678,30 @@ export async function buildSiliconQrPdfAll(opts: {
         });
       } catch (e) { console.warn("qr embed failed", it.uniqueNo, e); }
 
-      const fontPt = Math.max(4, labelMm * MM);
+      const cellWpt = proof.qrCutSize * MM;
+      const centerXpt = (cellXmm + proof.qrCutSize / 2) * MM;
       const colorName = gradeColorNames[it.grade] || "";
-      const colorFontPt = gradeColorStyle.fontSize;
       const colorFont = gradeColorStyle.fontWeight >= 650 ? helvBold : helv;
-      const sepText = colorName ? "  ·  " : "";
-      const sepFontPt = colorName ? Math.max(fontPt, colorFontPt) : fontPt;
+
+      // Line 1: 마크 고유번호 (auto-shrink to cell width)
+      let idFontPt = Math.max(4, labelMm * MM);
       const idText = it.uniqueNo;
-      const idW = helv.widthOfTextAtSize(idText, fontPt);
-      const sepW = colorName ? colorFont.widthOfTextAtSize(sepText, sepFontPt) : 0;
-      const colorW = colorName ? colorFont.widthOfTextAtSize(colorName, colorFontPt) : 0;
-      const totalW = idW + sepW + colorW;
-      const labelYmm = blockTopYmm + qrSizeMm + gapMm + labelMm;
-      const labelXpt = (cellXmm + proof.qrCutSize / 2) * MM - totalW / 2;
-      const labelYpt = pageHpt - labelYmm * MM;
-      page.drawText(idText, { x: labelXpt, y: labelYpt, size: fontPt, font: helv, color: rgb(0, 0, 0) });
+      let idW = helv.widthOfTextAtSize(idText, idFontPt);
+      if (idW > cellWpt) { idFontPt = Math.max(3, idFontPt * (cellWpt / idW)); idW = helv.widthOfTextAtSize(idText, idFontPt); }
+
+      // Line 2: 등급 색상명 (auto-shrink)
+      let colorFontPt = gradeColorStyle.fontSize;
+      let colorW = colorName ? colorFont.widthOfTextAtSize(colorName, colorFontPt) : 0;
+      if (colorName && colorW > cellWpt) { colorFontPt = Math.max(3, colorFontPt * (cellWpt / colorW)); colorW = colorFont.widthOfTextAtSize(colorName, colorFontPt); }
+
+      const lineGapPt = Math.max(1, idFontPt * 0.25);
+      const line1Ymm = blockTopYmm + qrSizeMm + gapMm + labelMm;
+      const line1Ypt = pageHpt - line1Ymm * MM;
+      const line2Ypt = line1Ypt - (colorFontPt + lineGapPt);
+
+      page.drawText(idText, { x: centerXpt - idW / 2, y: line1Ypt, size: idFontPt, font: helv, color: rgb(0, 0, 0) });
       if (colorName) {
-        page.drawText(sepText, { x: labelXpt + idW, y: labelYpt, size: sepFontPt, font: colorFont, color: rgb(0, 0, 0) });
-        page.drawText(colorName, { x: labelXpt + idW + sepW, y: labelYpt, size: colorFontPt, font: colorFont, color: rgb(0, 0, 0) });
+        page.drawText(colorName, { x: centerXpt - colorW / 2, y: line2Ypt, size: colorFontPt, font: colorFont, color: rgb(0, 0, 0) });
       }
     }
   }
