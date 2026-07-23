@@ -490,6 +490,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "webhook.secretDesc": "x-webhook-secret 헤더로 인증할 수 있습니다",
 
     // Manual
+    "menu.cctvQuality": "CCTV 품질확인",
     "menu.manual": "매뉴얼",
     "manual.title": "사용 매뉴얼",
     "manual.desc": "시스템 운영에 필요한 주요 가이드를 확인합니다",
@@ -983,6 +984,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "webhook.secretDesc": "可以通过 x-webhook-secret 头进行认证",
 
     // Manual
+    "menu.cctvQuality": "CCTV 质量确认",
     "menu.manual": "使用手册",
     "manual.title": "使用手册",
     "manual.desc": "查看系统运营所需的主要指南",

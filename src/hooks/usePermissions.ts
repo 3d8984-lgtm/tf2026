@@ -15,7 +15,7 @@ const ROLE_PERMISSIONS: Record<UserRole, {
   };
 }> = {
   worker: {
-    menuAccess: ["/", "/all-orders", "/tshirt-work", "/card-qr-inspect", "/card-photo-inspect", "/tshirt", "/monitor", "/shipping", "/defects", "/manual",
+    menuAccess: ["/", "/all-orders", "/tshirt-work", "/card-qr-inspect", "/card-photo-inspect", "/tshirt", "/monitor", "/shipping", "/defects", "/cctv-quality", "/manual",
       "/outsource", "/outsource/orders", "/outsource/silicon", "/outsource/heat-transfer", "/outsource/hologram", "/outsource/nfc-card", "/outsource/card-order/templates", "/outsource/card-order/orders", "/outsource/logo", "/outsource/tshirt-order", "/outsource/tshirt-factory", "/outsource/packaging", "/outsource/history", "/outsource/settings"],
     settingsTabs: [],
     canEdit: {
@@ -27,7 +27,7 @@ const ROLE_PERMISSIONS: Record<UserRole, {
     },
   },
   manager: {
-    menuAccess: ["/", "/upload", "/all-orders", "/master", "/tshirt-work", "/card-qr-inspect", "/card-photo-inspect", "/tshirt", "/monitor", "/shipping", "/defects", "/reports", "/manual", "/settings",
+    menuAccess: ["/", "/upload", "/all-orders", "/master", "/tshirt-work", "/card-qr-inspect", "/card-photo-inspect", "/tshirt", "/monitor", "/shipping", "/defects", "/reports", "/cctv-quality", "/manual", "/settings",
       "/outsource", "/outsource/orders", "/outsource/silicon", "/outsource/heat-transfer", "/outsource/hologram", "/outsource/nfc-card", "/outsource/card-order/templates", "/outsource/card-order/orders", "/outsource/logo", "/outsource/tshirt-order", "/outsource/tshirt-factory", "/outsource/packaging", "/outsource/history", "/outsource/settings"],
     settingsTabs: ["general", "equipment", "plcTags", "sensors", "commands", "alarms", "inspection"],
     canEdit: {
@@ -39,7 +39,7 @@ const ROLE_PERMISSIONS: Record<UserRole, {
     },
   },
   admin: {
-    menuAccess: ["/", "/upload", "/all-orders", "/master", "/tshirt-work", "/card-qr-inspect", "/card-photo-inspect", "/tshirt", "/monitor", "/shipping", "/defects", "/reports", "/manual", "/settings",
+    menuAccess: ["/", "/upload", "/all-orders", "/master", "/tshirt-work", "/card-qr-inspect", "/card-photo-inspect", "/tshirt", "/monitor", "/shipping", "/defects", "/reports", "/cctv-quality", "/manual", "/settings",
       "/outsource", "/outsource/orders", "/outsource/silicon", "/outsource/heat-transfer", "/outsource/hologram", "/outsource/nfc-card", "/outsource/card-order/templates", "/outsource/card-order/orders", "/outsource/logo", "/outsource/tshirt-order", "/outsource/tshirt-factory", "/outsource/packaging", "/outsource/history", "/outsource/settings"],
     settingsTabs: ["general", "users", "equipment", "plcTags", "sensors", "commands", "alarms", "inspection", "webhook", "courier", "callback"],
     canEdit: {

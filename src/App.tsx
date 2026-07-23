@@ -26,6 +26,7 @@ import Defects from "@/pages/Defects";
 import Reports from "@/pages/Reports";
 import SystemSettings from "@/pages/SystemSettings";
 import Manual from "@/pages/Manual";
+import CCTVQuality from "@/pages/CCTVQuality";
 import Licenses from "@/pages/Licenses";
 import OutsourceDashboard from "@/pages/outsource/OutsourceDashboard";
 import OutsourceOrders from "@/pages/outsource/OutsourceOrders";
@@ -97,6 +98,7 @@ function ProtectedRoutes() {
         <Route path="/defects" element={<Defects />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/manual" element={<Manual />} />
+        <Route path="/cctv-quality" element={<CCTVQuality />} />
         <Route path="/settings" element={<SystemSettings />} />
         <Route path="/licenses" element={<Licenses />} />
         <Route path="/outsource" element={<OutsourceDashboard />} />
