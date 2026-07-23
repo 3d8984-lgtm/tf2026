@@ -98,6 +98,7 @@ function ProtectedRoutes() {
         <Route path="/defects" element={<Defects />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/manual" element={<Manual />} />
+        <Route path="/cctv-quality" element={<CCTVQuality />} />
         <Route path="/settings" element={<SystemSettings />} />
         <Route path="/licenses" element={<Licenses />} />
         <Route path="/outsource" element={<OutsourceDashboard />} />
