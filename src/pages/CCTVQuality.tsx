@@ -220,7 +220,7 @@ export default function CCTVQuality() {
             )}
             {cams.map((c) => {
               const active = selected?.id === c.id;
-              const online = (c.status || "").toLowerCase() === "online" || c.status === true || c.online === true;
+              const online = String(c.status ?? "").toLowerCase() === "online" || (c as any).online === true;
               return (
                 <button
                   key={c.id}
