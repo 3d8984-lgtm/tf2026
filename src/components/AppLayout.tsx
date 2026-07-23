@@ -55,6 +55,7 @@ const menuKeys: MenuItem[] = [
     { label: { ko: "불량 분석", zh: "不良分析" }, tab: "defect" },
     { label: { ko: "배송 현황", zh: "配送现况" }, tab: "shipping" },
   ]},
+  { path: "/cctv-quality", icon: Camera, key: "menu.cctvQuality", section: "hq" },
   { path: "/manual", icon: BookOpen, key: "menu.manual", section: "hq" },
   { path: "/master", icon: Database, key: "menu.master", section: "hq" },
   { path: "/settings", icon: Settings, key: "menu.settings", section: "hq", children: [
