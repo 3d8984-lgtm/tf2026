@@ -21,6 +21,7 @@ type Cam = {
   location?: string;
   status?: string;
   hls_url?: string;
+  live_playlist?: string;
   snapshot_url?: string;
   clip_url?: string;
   [k: string]: any;
