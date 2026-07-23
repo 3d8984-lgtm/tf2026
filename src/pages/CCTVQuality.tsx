@@ -125,7 +125,7 @@ export default function CCTVQuality() {
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !selected) return;
-    const hlsRaw = selected.hls_url || `/api/v1/cam/${selected.id}/hls/index.m3u8`;
+    const hlsRaw = selected.live_playlist || selected.hls_url || `/api/v1/cam/${selected.id}/live/stream.m3u8`;
     const src = toProxyUrl(hlsRaw);
     if (!src) return;
     // hls.js xhrSetup injects Supabase auth headers so the edge function accepts requests.
