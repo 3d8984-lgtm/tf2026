@@ -131,13 +131,12 @@ export default function CCTVQuality() {
     // hls.js xhrSetup injects Supabase auth headers so the edge function accepts requests.
     if (Hls.isSupported()) {
       const hls = new Hls({
-        xhrSetup: (xhr) => {
+        xhrSetup: (async (xhr: XMLHttpRequest) => {
           xhr.setRequestHeader("apikey", ANON_KEY);
-          supabase.auth.getSession().then(({ data }) => {
-            const tok = data.session?.access_token;
-            if (tok) xhr.setRequestHeader("Authorization", `Bearer ${tok}`);
-          });
-        },
+          const { data } = await supabase.auth.getSession();
+          const tok = data.session?.access_token;
+          if (tok) xhr.setRequestHeader("Authorization", `Bearer ${tok}`);
+        }) as any,
       });
       hls.loadSource(src);
       hls.attachMedia(video);
