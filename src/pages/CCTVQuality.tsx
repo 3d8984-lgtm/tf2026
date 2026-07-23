@@ -6,14 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useLang } from "@/contexts/LangContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Camera as CameraIcon, RefreshCw, Download, Image as ImageIcon, Loader2, PlayCircle } from "lucide-react";
+import { Camera as CameraIcon, RefreshCw, Download, Image as ImageIcon, Loader2, PlayCircle, Pencil, ArrowUp, ArrowDown } from "lucide-react";
 import { toast } from "sonner";
 
 const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+const LS_NAMES = "cctv_cam_names_v1";
+const LS_ORDER = "cctv_cam_order_v1";
 
 type Cam = {
   id: string | number;
@@ -27,7 +29,6 @@ type Cam = {
   [k: string]: any;
 };
 
-// Rewrite an upstream URL (absolute or path) so it flows through our proxy.
 function toProxyUrl(u: string | undefined | null): string | null {
   if (!u) return null;
   try {
@@ -60,10 +61,20 @@ function nowLocalDatetime(offsetMinutes = 0) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+function loadNameMap(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(LS_NAMES) || "{}"); } catch { return {}; }
+}
+function loadOrder(): string[] {
+  try { return JSON.parse(localStorage.getItem(LS_ORDER) || "[]"); } catch { return []; }
+}
+
 export default function CCTVQuality() {
   const { lang } = useLang();
   const isKo = lang === "ko";
   const [cams, setCams] = useState<Cam[]>([]);
+  const [nameMap, setNameMap] = useState<Record<string, string>>(loadNameMap);
+  const [order, setOrder] = useState<string[]>(loadOrder);
+  const [statusMap, setStatusMap] = useState<Record<string, "online" | "offline" | "checking">>({});
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<Cam | null>(null);
   const [snapshotTime, setSnapshotTime] = useState<string>(nowLocalDatetime(-1));
@@ -73,6 +84,8 @@ export default function CCTVQuality() {
   const [clipEnd, setClipEnd] = useState<string>(nowLocalDatetime(-1));
   const [clipLoading, setClipLoading] = useState(false);
   const [zoomSrc, setZoomSrc] = useState<string | null>(null);
+  const [renameTarget, setRenameTarget] = useState<Cam | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
 
@@ -95,12 +108,77 @@ export default function CCTVQuality() {
     download: isKo ? "MP4 다운로드" : "下载 MP4",
     online: isKo ? "온라인" : "在线",
     offline: isKo ? "오프라인" : "离线",
+    checking: isKo ? "확인중" : "检测中",
     fetchFail: isKo ? "카메라 목록을 불러오지 못했습니다." : "无法加载摄像头列表。",
     snapFail: isKo ? "스냅샷을 가져오지 못했습니다." : "无法获取快照。",
     clipFail: isKo ? "녹화본을 다운로드하지 못했습니다." : "无法下载录像。",
     clipDone: isKo ? "녹화본을 다운로드했습니다." : "录像已下载。",
     rangeInvalid: isKo ? "종료 시각이 시작 시각보다 늦어야 합니다." : "结束时间必须晚于开始时间。",
+    rename: isKo ? "이름 변경" : "重命名",
+    moveUp: isKo ? "위로" : "上移",
+    moveDown: isKo ? "아래로" : "下移",
+    renameTitle: isKo ? "카메라 이름 변경" : "重命名摄像头",
+    newName: isKo ? "새 이름" : "新名称",
+    save: isKo ? "저장" : "保存",
+    cancel: isKo ? "취소" : "取消",
+    reset: isKo ? "초기화" : "重置",
   }), [isKo]);
+
+  const displayName = (c: Cam) => nameMap[String(c.id)] || c.name || `Camera ${c.id}`;
+
+  const sortedCams = useMemo(() => {
+    if (!order.length) return cams;
+    const idx = new Map(order.map((id, i) => [id, i]));
+    return [...cams].sort((a, b) => {
+      const ai = idx.has(String(a.id)) ? (idx.get(String(a.id)) as number) : 9999;
+      const bi = idx.has(String(b.id)) ? (idx.get(String(b.id)) as number) : 9999;
+      return ai - bi;
+    });
+  }, [cams, order]);
+
+  const persistOrder = (list: Cam[]) => {
+    const ids = list.map((c) => String(c.id));
+    setOrder(ids);
+    localStorage.setItem(LS_ORDER, JSON.stringify(ids));
+  };
+
+  const moveCam = (id: string, dir: -1 | 1) => {
+    const list = [...sortedCams];
+    const i = list.findIndex((c) => String(c.id) === id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    persistOrder(list);
+  };
+
+  const saveRename = () => {
+    if (!renameTarget) return;
+    const key = String(renameTarget.id);
+    const next = { ...nameMap };
+    const v = renameValue.trim();
+    if (v) next[key] = v; else delete next[key];
+    setNameMap(next);
+    localStorage.setItem(LS_NAMES, JSON.stringify(next));
+    setRenameTarget(null);
+  };
+
+  // Probe each camera's playlist to determine real online/offline state.
+  const probeStatus = async (list: Cam[]) => {
+    const init: Record<string, "checking"> = {};
+    list.forEach((c) => (init[String(c.id)] = "checking"));
+    setStatusMap((s) => ({ ...s, ...init }));
+    await Promise.all(list.map(async (c) => {
+      const raw = c.live_playlist || c.hls_url || `/api/v1/cam/${c.id}/live/stream.m3u8`;
+      try {
+        const res = await proxyFetch(raw, { method: "GET" });
+        const ok = res.ok;
+        try { await res.body?.cancel(); } catch {}
+        setStatusMap((s) => ({ ...s, [String(c.id)]: ok ? "online" : "offline" }));
+      } catch {
+        setStatusMap((s) => ({ ...s, [String(c.id)]: "offline" }));
+      }
+    }));
+  };
 
   const loadCams = async () => {
     setLoading(true);
@@ -110,6 +188,7 @@ export default function CCTVQuality() {
       const data = await res.json();
       const list: Cam[] = Array.isArray(data) ? data : (data.cameras || data.items || data.data || []);
       setCams(list);
+      probeStatus(list);
     } catch (e) {
       console.error(e);
       toast.error(T.fetchFail);
@@ -121,14 +200,20 @@ export default function CCTVQuality() {
 
   useEffect(() => { loadCams(); /* eslint-disable-next-line */ }, []);
 
-  // Attach HLS when a camera is selected.
+  // Re-probe every 30s so status reflects actual connectivity.
+  useEffect(() => {
+    if (!cams.length) return;
+    const t = setInterval(() => probeStatus(cams), 30_000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line
+  }, [cams]);
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !selected) return;
     const hlsRaw = selected.live_playlist || selected.hls_url || `/api/v1/cam/${selected.id}/live/stream.m3u8`;
     const src = toProxyUrl(hlsRaw);
     if (!src) return;
-    // hls.js xhrSetup injects Supabase auth headers so the edge function accepts requests.
     if (Hls.isSupported()) {
       const hls = new Hls({
         xhrSetup: (async (xhr: XMLHttpRequest) => {
@@ -184,7 +269,7 @@ export default function CCTVQuality() {
       const a = document.createElement("a");
       const url = URL.createObjectURL(blob);
       a.href = url;
-      const nm = (selected.name || `cam-${selected.id}`).replace(/[^\w.-]+/g, "_");
+      const nm = (displayName(selected)).replace(/[^\w.-]+/g, "_");
       a.download = `${nm}_${clipStart.replace(/[:T]/g, "-")}_${clipEnd.replace(/[:T]/g, "-")}.mp4`;
       document.body.appendChild(a);
       a.click();
@@ -203,8 +288,7 @@ export default function CCTVQuality() {
     <div className="space-y-4">
       <PageHeader title={T.title} description={T.desc} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4">
-        {/* Camera list */}
+      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2">
             <CardTitle className="text-base flex items-center gap-2">
@@ -215,38 +299,70 @@ export default function CCTVQuality() {
             </Button>
           </CardHeader>
           <CardContent className="space-y-2 max-h-[70vh] overflow-y-auto">
-            {cams.length === 0 && !loading && (
+            {sortedCams.length === 0 && !loading && (
               <p className="text-sm text-muted-foreground py-8 text-center">{T.noCams}</p>
             )}
-            {cams.map((c) => {
-              const active = selected?.id === c.id;
-              const online = String(c.status ?? "").toLowerCase() === "online" || (c as any).online === true;
+            {sortedCams.map((c, i) => {
+              const idStr = String(c.id);
+              const active = selected && String(selected.id) === idStr;
+              const st = statusMap[idStr] || "checking";
+              const badgeVariant = st === "online" ? "default" : st === "offline" ? "secondary" : "outline";
+              const badgeText = st === "online" ? T.online : st === "offline" ? T.offline : T.checking;
               return (
-                <button
-                  key={c.id}
-                  onClick={() => setSelected(c)}
-                  className={`w-full text-left rounded-md border p-3 transition ${active ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"}`}
+                <div
+                  key={idStr}
+                  className={`rounded-md border p-3 transition ${active ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"}`}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium text-sm truncate">{c.name || `Camera ${c.id}`}</span>
-                    <Badge variant={online ? "default" : "secondary"} className="text-[10px]">
-                      {online ? T.online : T.offline}
-                    </Badge>
+                  <button onClick={() => setSelected(c)} className="w-full text-left">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-sm truncate">{displayName(c)}</span>
+                      <Badge variant={badgeVariant as any} className="text-[10px]">{badgeText}</Badge>
+                    </div>
+                    {c.location && <p className="text-xs text-muted-foreground mt-1 truncate">{c.location}</p>}
+                  </button>
+                  <div className="flex items-center gap-1 mt-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2"
+                      onClick={(e) => { e.stopPropagation(); setRenameTarget(c); setRenameValue(displayName(c)); }}
+                      title={T.rename}
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2"
+                      onClick={(e) => { e.stopPropagation(); moveCam(idStr, -1); }}
+                      disabled={i === 0}
+                      title={T.moveUp}
+                    >
+                      <ArrowUp className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2"
+                      onClick={(e) => { e.stopPropagation(); moveCam(idStr, 1); }}
+                      disabled={i === sortedCams.length - 1}
+                      title={T.moveDown}
+                    >
+                      <ArrowDown className="w-3.5 h-3.5" />
+                    </Button>
                   </div>
-                  {c.location && <p className="text-xs text-muted-foreground mt-1 truncate">{c.location}</p>}
-                </button>
+                </div>
               );
             })}
           </CardContent>
         </Card>
 
-        {/* Detail panel */}
         <div className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <PlayCircle className="w-4 h-4" /> {T.live}
-                {selected && <span className="text-sm text-muted-foreground font-normal ml-2">{selected.name || `Camera ${selected.id}`}</span>}
+                {selected && <span className="text-sm text-muted-foreground font-normal ml-2">{displayName(selected)}</span>}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -264,7 +380,6 @@ export default function CCTVQuality() {
 
           {selected && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Snapshot */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
@@ -288,7 +403,6 @@ export default function CCTVQuality() {
                 </CardContent>
               </Card>
 
-              {/* Clip download */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
@@ -321,6 +435,23 @@ export default function CCTVQuality() {
             <DialogTitle>{T.snapshot}</DialogTitle>
           </DialogHeader>
           {zoomSrc && <img src={zoomSrc} alt="snapshot zoom" className="w-full h-auto rounded" />}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!renameTarget} onOpenChange={(o) => !o && setRenameTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{T.renameTitle}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label className="text-xs">{T.newName}</Label>
+            <Input value={renameValue} onChange={(e) => setRenameValue(e.target.value)} autoFocus onKeyDown={(e) => { if (e.key === "Enter") saveRename(); }} />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => { setRenameValue(""); }}>{T.reset}</Button>
+            <Button variant="secondary" onClick={() => setRenameTarget(null)}>{T.cancel}</Button>
+            <Button onClick={saveRename}>{T.save}</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
