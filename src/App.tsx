@@ -26,6 +26,7 @@ import Defects from "@/pages/Defects";
 import Reports from "@/pages/Reports";
 import SystemSettings from "@/pages/SystemSettings";
 import Manual from "@/pages/Manual";
+import CCTVQuality from "@/pages/CCTVQuality";
 import Licenses from "@/pages/Licenses";
 import OutsourceDashboard from "@/pages/outsource/OutsourceDashboard";
 import OutsourceOrders from "@/pages/outsource/OutsourceOrders";
