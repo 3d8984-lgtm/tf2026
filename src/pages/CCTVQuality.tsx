@@ -16,6 +16,7 @@ const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 const LS_NAMES = "cctv_cam_names_v1";
 const LS_ORDER = "cctv_cam_order_v1";
+const MAX_CLIP_SECONDS = 360;
 
 type Cam = {
   id: string | number;
@@ -317,24 +318,52 @@ export default function CCTVQuality() {
     if (!(endMs > startMs)) { toast.error(T.rangeInvalid); return; }
     setClipLoading(true);
     try {
-      const duration = Math.max(1, Math.round((endMs - startMs) / 1000));
-      const params = new URLSearchParams({
-        start: new Date(startMs).toISOString(),
-        duration: String(duration),
-      });
-      const path = `/api/v1/cam/${selected.id}/clip?${params.toString()}`;
-      const res = await proxyFetch(path);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
+      const totalSeconds = Math.max(1, Math.ceil((endMs - startMs) / 1000));
+      const chunks: Array<{ startMs: number; duration: number }> = [];
+      let elapsedSeconds = 0;
+      while (elapsedSeconds < totalSeconds) {
+        const duration = Math.min(MAX_CLIP_SECONDS, totalSeconds - elapsedSeconds);
+        chunks.push({ startMs: startMs + elapsedSeconds * 1000, duration });
+        elapsedSeconds += duration;
+      }
+
+      const files: Array<{ name: string; blob: Blob }> = [];
+      for (let index = 0; index < chunks.length; index += 1) {
+        const chunk = chunks[index];
+        const params = new URLSearchParams({
+          start: new Date(chunk.startMs).toISOString(),
+          duration: String(chunk.duration),
+        });
+        const path = `/api/v1/cam/${selected.id}/clip?${params.toString()}`;
+        const res = await proxyFetch(path);
+        if (!res.ok) {
+          const detail = await res.text().catch(() => "");
+          throw new Error(`HTTP ${res.status}${detail ? `: ${detail}` : ""}`);
+        }
+        files.push({
+          name: `part-${String(index + 1).padStart(2, "0")}.mp4`,
+          blob: await res.blob(),
+        });
+      }
+
       const a = document.createElement("a");
-      const url = URL.createObjectURL(blob);
+      let downloadBlob = files[0].blob;
+      let extension = "mp4";
+      if (files.length > 1) {
+        const JSZip = (await import("jszip")).default;
+        const zip = new JSZip();
+        files.forEach((file) => zip.file(file.name, file.blob));
+        downloadBlob = await zip.generateAsync({ type: "blob" });
+        extension = "zip";
+      }
+      const url = URL.createObjectURL(downloadBlob);
       a.href = url;
       const nm = (displayName(selected)).replace(/[^\w.-]+/g, "_");
-      a.download = `${nm}_${clipStart.replace(/[:T]/g, "-")}_${clipEnd.replace(/[:T]/g, "-")}.mp4`;
+      a.download = `${nm}_${clipStart.replace(/[:T]/g, "-")}_${clipEnd.replace(/[:T]/g, "-")}.${extension}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(url);
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       toast.success(T.clipDone);
     } catch (e) {
       console.error(e);
