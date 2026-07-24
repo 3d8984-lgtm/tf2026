@@ -100,6 +100,7 @@ export default function CCTVQuality() {
   const [clipStart, setClipStart] = useState<string>(nowLocalDatetime(-10));
   const [clipEnd, setClipEnd] = useState<string>(nowLocalDatetime(-1));
   const [clipLoading, setClipLoading] = useState(false);
+  const clipAbortRef = useRef<AbortController | null>(null);
   const [zoomSrc, setZoomSrc] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<Cam | null>(null);
   const [renameValue, setRenameValue] = useState("");
