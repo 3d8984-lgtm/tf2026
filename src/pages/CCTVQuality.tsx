@@ -152,10 +152,20 @@ export default function CCTVQuality() {
     });
   }, [cams, order]);
 
-  const persistOrder = (list: Cam[]) => {
+  const persistOrder = async (list: Cam[]) => {
     const ids = list.map((c) => String(c.id));
     setOrder(ids);
     localStorage.setItem(LS_ORDER, JSON.stringify(ids));
+    try {
+      const rows = ids.map((cid, i) => ({
+        camera_id: cid,
+        sort_order: i,
+        display_name: nameMap[cid] ?? null,
+      }));
+      await supabase.from("cctv_camera_settings").upsert(rows, { onConflict: "camera_id" });
+    } catch (e) {
+      console.error("persistOrder failed", e);
+    }
   };
 
   const moveCam = (id: string, dir: -1 | 1) => {
@@ -167,7 +177,7 @@ export default function CCTVQuality() {
     persistOrder(list);
   };
 
-  const saveRename = () => {
+  const saveRename = async () => {
     if (!renameTarget) return;
     const key = String(renameTarget.id);
     const next = { ...nameMap };
@@ -176,7 +186,18 @@ export default function CCTVQuality() {
     setNameMap(next);
     localStorage.setItem(LS_NAMES, JSON.stringify(next));
     setRenameTarget(null);
+    try {
+      const idx = order.indexOf(key);
+      await supabase.from("cctv_camera_settings").upsert(
+        { camera_id: key, display_name: v || null, sort_order: idx >= 0 ? idx : 0 },
+        { onConflict: "camera_id" },
+      );
+    } catch (e) {
+      console.error("saveRename failed", e);
+      toast.error(isKo ? "이름 저장에 실패했습니다." : "保存名称失败。");
+    }
   };
+
 
   // Probe each camera's playlist to determine real online/offline state.
   const probeStatus = async (list: Cam[]) => {
