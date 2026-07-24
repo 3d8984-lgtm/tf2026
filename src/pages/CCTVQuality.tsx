@@ -551,6 +551,31 @@ export default function CCTVQuality() {
                   </Button>
                 </CardContent>
               </Card>
+
+              <Card className="md:col-span-2">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Play className="w-4 h-4" /> {T.playback}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">{T.from}</Label>
+                      <Input type="datetime-local" value={playStart} onChange={(e) => setPlayStart(e.target.value)} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">{T.to}</Label>
+                      <Input type="datetime-local" value={playEnd} onChange={(e) => setPlayEnd(e.target.value)} />
+                    </div>
+                  </div>
+                  <Button onClick={playClip} disabled={playLoading} className="w-full">
+                    {playLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
+                    {T.play}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">{T.playTooLong}</p>
+                </CardContent>
+              </Card>
             </div>
           )}
         </div>
