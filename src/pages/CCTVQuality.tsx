@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useLang } from "@/contexts/LangContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Camera as CameraIcon, RefreshCw, Download, Image as ImageIcon, Loader2, PlayCircle, Pencil, ArrowUp, ArrowDown } from "lucide-react";
+import { Camera as CameraIcon, RefreshCw, Download, Image as ImageIcon, Loader2, PlayCircle, Pencil, ArrowUp, ArrowDown, Play } from "lucide-react";
 import { toast } from "sonner";
 
 const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
@@ -103,6 +103,11 @@ export default function CCTVQuality() {
   const [zoomSrc, setZoomSrc] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<Cam | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [playStart, setPlayStart] = useState<string>(nowLocalDatetime(-10));
+  const [playEnd, setPlayEnd] = useState<string>(nowLocalDatetime(-5));
+  const [playLoading, setPlayLoading] = useState(false);
+  const [playSrc, setPlaySrc] = useState<string | null>(null);
+  const [playOpen, setPlayOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
 
@@ -139,6 +144,11 @@ export default function CCTVQuality() {
     save: isKo ? "저장" : "保存",
     cancel: isKo ? "취소" : "取消",
     reset: isKo ? "초기화" : "重置",
+    playback: isKo ? "녹화본 재생 (지정 구간)" : "录像回放（指定时段）",
+    play: isKo ? "재생" : "播放",
+    playTooLong: isKo ? "재생은 최대 6분(360초)까지 가능합니다." : "回放最长支持 6 分钟（360 秒）。",
+    playFail: isKo ? "녹화본을 재생하지 못했습니다." : "无法播放录像。",
+    playerTitle: isKo ? "녹화본 재생" : "录像回放",
   }), [isKo]);
 
   const displayName = (c: Cam) => nameMap[String(c.id)] || c.name || `Camera ${c.id}`;
@@ -373,6 +383,34 @@ export default function CCTVQuality() {
     }
   };
 
+  const playClip = async () => {
+    if (!selected) return;
+    const startMs = new Date(playStart).getTime();
+    const endMs = new Date(playEnd).getTime();
+    if (!(endMs > startMs)) { toast.error(T.rangeInvalid); return; }
+    const duration = Math.ceil((endMs - startMs) / 1000);
+    if (duration > MAX_CLIP_SECONDS) { toast.error(T.playTooLong); return; }
+    setPlayLoading(true);
+    try {
+      const params = new URLSearchParams({
+        start: new Date(startMs).toISOString(),
+        duration: String(duration),
+      });
+      const res = await proxyFetch(`/api/v1/cam/${selected.id}/clip?${params.toString()}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      if (playSrc) URL.revokeObjectURL(playSrc);
+      setPlaySrc(URL.createObjectURL(blob));
+      setPlayOpen(true);
+    } catch (e) {
+      console.error(e);
+      toast.error(T.playFail);
+    } finally {
+      setPlayLoading(false);
+    }
+  };
+
+
   return (
     <div className="space-y-4">
       <PageHeader title={T.title} description={T.desc} />
@@ -513,6 +551,31 @@ export default function CCTVQuality() {
                   </Button>
                 </CardContent>
               </Card>
+
+              <Card className="md:col-span-2">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Play className="w-4 h-4" /> {T.playback}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">{T.from}</Label>
+                      <Input type="datetime-local" value={playStart} onChange={(e) => setPlayStart(e.target.value)} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">{T.to}</Label>
+                      <Input type="datetime-local" value={playEnd} onChange={(e) => setPlayEnd(e.target.value)} />
+                    </div>
+                  </div>
+                  <Button onClick={playClip} disabled={playLoading} className="w-full">
+                    {playLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
+                    {T.play}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">{T.playTooLong}</p>
+                </CardContent>
+              </Card>
             </div>
           )}
         </div>
@@ -524,6 +587,17 @@ export default function CCTVQuality() {
             <DialogTitle>{T.snapshot}</DialogTitle>
           </DialogHeader>
           {zoomSrc && <img src={zoomSrc} alt="snapshot zoom" className="w-full h-auto rounded" />}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={playOpen} onOpenChange={(o) => { setPlayOpen(o); if (!o && playSrc) { URL.revokeObjectURL(playSrc); setPlaySrc(null); } }}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>{T.playerTitle}</DialogTitle>
+          </DialogHeader>
+          {playSrc && (
+            <video src={playSrc} controls autoPlay className="w-full h-auto rounded bg-black" />
+          )}
         </DialogContent>
       </Dialog>
 
