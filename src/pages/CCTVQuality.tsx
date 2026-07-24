@@ -329,6 +329,8 @@ export default function CCTVQuality() {
     const startMs = new Date(clipStart).getTime();
     const endMs = new Date(clipEnd).getTime();
     if (!(endMs > startMs)) { toast.error(T.rangeInvalid); return; }
+    const controller = new AbortController();
+    clipAbortRef.current = controller;
     setClipLoading(true);
     try {
       const totalSeconds = Math.max(1, Math.ceil((endMs - startMs) / 1000));
@@ -348,7 +350,7 @@ export default function CCTVQuality() {
           duration: String(chunk.duration),
         });
         const path = `/api/v1/cam/${selected.id}/clip?${params.toString()}`;
-        const res = await proxyFetch(path);
+        const res = await proxyFetch(path, { signal: controller.signal });
         if (!res.ok) {
           const detail = await res.text().catch(() => "");
           throw new Error(`HTTP ${res.status}${detail ? `: ${detail}` : ""}`);
@@ -357,6 +359,7 @@ export default function CCTVQuality() {
           name: `part-${String(index + 1).padStart(2, "0")}.mp4`,
           blob: await res.blob(),
         });
+        if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
       }
 
       const a = document.createElement("a");
@@ -378,13 +381,23 @@ export default function CCTVQuality() {
       a.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       toast.success(T.clipDone);
-    } catch (e) {
-      console.error(e);
-      toast.error(T.clipFail);
+    } catch (e: any) {
+      if (e?.name === "AbortError") {
+        toast.message(T.clipCanceled);
+      } else {
+        console.error(e);
+        toast.error(T.clipFail);
+      }
     } finally {
       setClipLoading(false);
+      clipAbortRef.current = null;
     }
   };
+
+  const cancelClipDownload = () => {
+    clipAbortRef.current?.abort();
+  };
+
 
   const playClip = async () => {
     if (!selected) return;
