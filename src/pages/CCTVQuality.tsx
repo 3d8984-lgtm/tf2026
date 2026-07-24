@@ -136,6 +136,8 @@ export default function CCTVQuality() {
     snapFail: isKo ? "스냅샷을 가져오지 못했습니다." : "无法获取快照。",
     clipFail: isKo ? "녹화본을 다운로드하지 못했습니다." : "无法下载录像。",
     clipDone: isKo ? "녹화본을 다운로드했습니다." : "录像已下载。",
+    clipCanceled: isKo ? "다운로드를 취소했습니다." : "已取消下载。",
+    cancelDownload: isKo ? "다운로드 취소" : "取消下载",
     rangeInvalid: isKo ? "종료 시각이 시작 시각보다 늦어야 합니다." : "结束时间必须晚于开始时间。",
     rename: isKo ? "이름 변경" : "重命名",
     moveUp: isKo ? "위로" : "上移",
