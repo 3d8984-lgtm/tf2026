@@ -240,6 +240,12 @@ export default function CCTVQuality() {
       const iso = new Date(snapshotTime).toISOString();
       const path = `/api/v1/cam/${selected.id}/snapshot?time=${encodeURIComponent(iso)}`;
       const res = await proxyFetch(path);
+      if (res.status === 404) {
+        toast.error(isKo
+          ? "해당 시각의 스냅샷이 서버에 없습니다. 다른 시각을 선택하세요."
+          : "该时间点没有可用快照，请选择其他时间。");
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const blob = await res.blob();
       setSnapshotSrc(URL.createObjectURL(blob));
@@ -250,6 +256,7 @@ export default function CCTVQuality() {
       setSnapLoading(false);
     }
   };
+
 
   const downloadClip = async () => {
     if (!selected) return;
