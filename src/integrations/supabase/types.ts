@@ -269,6 +269,33 @@ export type Database = {
         }
         Relationships: []
       }
+      cctv_camera_settings: {
+        Row: {
+          camera_id: string
+          created_at: string
+          display_name: string | null
+          sort_order: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          camera_id: string
+          created_at?: string
+          display_name?: string | null
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          camera_id?: string
+          created_at?: string
+          display_name?: string | null
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       order_job_items: {
         Row: {
           attempts: number
