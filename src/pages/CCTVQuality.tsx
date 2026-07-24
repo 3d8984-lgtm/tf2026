@@ -238,7 +238,9 @@ export default function CCTVQuality() {
     setSnapshotSrc(null);
     try {
       const iso = new Date(snapshotTime).toISOString();
-      const path = `/api/v1/cam/${selected.id}/snapshot?time=${encodeURIComponent(iso)}`;
+      // The recorder API exposes archived still frames through /seek?at=.
+      // /snapshot?time= is not a valid upstream route and always returns 404.
+      const path = `/api/v1/cam/${selected.id}/seek?at=${encodeURIComponent(iso)}`;
       const res = await proxyFetch(path);
       if (res.status === 404) {
         toast.error(isKo
