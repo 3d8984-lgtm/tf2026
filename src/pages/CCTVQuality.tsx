@@ -590,6 +590,17 @@ export default function CCTVQuality() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={playOpen} onOpenChange={(o) => { setPlayOpen(o); if (!o && playSrc) { URL.revokeObjectURL(playSrc); setPlaySrc(null); } }}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>{T.playerTitle}</DialogTitle>
+          </DialogHeader>
+          {playSrc && (
+            <video src={playSrc} controls autoPlay className="w-full h-auto rounded bg-black" />
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!renameTarget} onOpenChange={(o) => !o && setRenameTarget(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
