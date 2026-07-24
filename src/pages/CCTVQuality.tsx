@@ -103,6 +103,11 @@ export default function CCTVQuality() {
   const [zoomSrc, setZoomSrc] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<Cam | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [playStart, setPlayStart] = useState<string>(nowLocalDatetime(-10));
+  const [playEnd, setPlayEnd] = useState<string>(nowLocalDatetime(-5));
+  const [playLoading, setPlayLoading] = useState(false);
+  const [playSrc, setPlaySrc] = useState<string | null>(null);
+  const [playOpen, setPlayOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
 
