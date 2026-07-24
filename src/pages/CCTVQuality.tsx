@@ -100,6 +100,7 @@ export default function CCTVQuality() {
   const [clipStart, setClipStart] = useState<string>(nowLocalDatetime(-10));
   const [clipEnd, setClipEnd] = useState<string>(nowLocalDatetime(-1));
   const [clipLoading, setClipLoading] = useState(false);
+  const clipAbortRef = useRef<AbortController | null>(null);
   const [zoomSrc, setZoomSrc] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<Cam | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -135,6 +136,8 @@ export default function CCTVQuality() {
     snapFail: isKo ? "스냅샷을 가져오지 못했습니다." : "无法获取快照。",
     clipFail: isKo ? "녹화본을 다운로드하지 못했습니다." : "无法下载录像。",
     clipDone: isKo ? "녹화본을 다운로드했습니다." : "录像已下载。",
+    clipCanceled: isKo ? "다운로드를 취소했습니다." : "已取消下载。",
+    cancelDownload: isKo ? "다운로드 취소" : "取消下载",
     rangeInvalid: isKo ? "종료 시각이 시작 시각보다 늦어야 합니다." : "结束时间必须晚于开始时间。",
     rename: isKo ? "이름 변경" : "重命名",
     moveUp: isKo ? "위로" : "上移",
@@ -326,6 +329,8 @@ export default function CCTVQuality() {
     const startMs = new Date(clipStart).getTime();
     const endMs = new Date(clipEnd).getTime();
     if (!(endMs > startMs)) { toast.error(T.rangeInvalid); return; }
+    const controller = new AbortController();
+    clipAbortRef.current = controller;
     setClipLoading(true);
     try {
       const totalSeconds = Math.max(1, Math.ceil((endMs - startMs) / 1000));
@@ -345,7 +350,7 @@ export default function CCTVQuality() {
           duration: String(chunk.duration),
         });
         const path = `/api/v1/cam/${selected.id}/clip?${params.toString()}`;
-        const res = await proxyFetch(path);
+        const res = await proxyFetch(path, { signal: controller.signal });
         if (!res.ok) {
           const detail = await res.text().catch(() => "");
           throw new Error(`HTTP ${res.status}${detail ? `: ${detail}` : ""}`);
@@ -354,6 +359,7 @@ export default function CCTVQuality() {
           name: `part-${String(index + 1).padStart(2, "0")}.mp4`,
           blob: await res.blob(),
         });
+        if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
       }
 
       const a = document.createElement("a");
@@ -375,13 +381,23 @@ export default function CCTVQuality() {
       a.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       toast.success(T.clipDone);
-    } catch (e) {
-      console.error(e);
-      toast.error(T.clipFail);
+    } catch (e: any) {
+      if (e?.name === "AbortError") {
+        toast.message(T.clipCanceled);
+      } else {
+        console.error(e);
+        toast.error(T.clipFail);
+      }
     } finally {
       setClipLoading(false);
+      clipAbortRef.current = null;
     }
   };
+
+  const cancelClipDownload = () => {
+    clipAbortRef.current?.abort();
+  };
+
 
   const playClip = async () => {
     if (!selected) return;
@@ -549,6 +565,11 @@ export default function CCTVQuality() {
                     {clipLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Download className="w-4 h-4 mr-2" />}
                     {T.download}
                   </Button>
+                  {clipLoading && (
+                    <Button onClick={cancelClipDownload} variant="outline" className="w-full">
+                      {T.cancelDownload}
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
 
