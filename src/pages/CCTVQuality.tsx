@@ -383,6 +383,34 @@ export default function CCTVQuality() {
     }
   };
 
+  const playClip = async () => {
+    if (!selected) return;
+    const startMs = new Date(playStart).getTime();
+    const endMs = new Date(playEnd).getTime();
+    if (!(endMs > startMs)) { toast.error(T.rangeInvalid); return; }
+    const duration = Math.ceil((endMs - startMs) / 1000);
+    if (duration > MAX_CLIP_SECONDS) { toast.error(T.playTooLong); return; }
+    setPlayLoading(true);
+    try {
+      const params = new URLSearchParams({
+        start: new Date(startMs).toISOString(),
+        duration: String(duration),
+      });
+      const res = await proxyFetch(`/api/v1/cam/${selected.id}/clip?${params.toString()}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      if (playSrc) URL.revokeObjectURL(playSrc);
+      setPlaySrc(URL.createObjectURL(blob));
+      setPlayOpen(true);
+    } catch (e) {
+      console.error(e);
+      toast.error(T.playFail);
+    } finally {
+      setPlayLoading(false);
+    }
+  };
+
+
   return (
     <div className="space-y-4">
       <PageHeader title={T.title} description={T.desc} />
