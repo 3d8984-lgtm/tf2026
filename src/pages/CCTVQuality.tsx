@@ -68,6 +68,22 @@ function loadOrder(): string[] {
   try { return JSON.parse(localStorage.getItem(LS_ORDER) || "[]"); } catch { return []; }
 }
 
+async function fetchServerSettings(): Promise<{ names: Record<string, string>; order: string[] }> {
+  const { data, error } = await supabase
+    .from("cctv_camera_settings")
+    .select("camera_id, display_name, sort_order")
+    .order("sort_order", { ascending: true });
+  if (error || !data) return { names: {}, order: [] };
+  const names: Record<string, string> = {};
+  const order: string[] = [];
+  for (const row of data) {
+    if (row.display_name) names[row.camera_id] = row.display_name;
+    order.push(row.camera_id);
+  }
+  return { names, order };
+}
+
+
 export default function CCTVQuality() {
   const { lang } = useLang();
   const isKo = lang === "ko";
