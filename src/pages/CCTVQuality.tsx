@@ -144,6 +144,11 @@ export default function CCTVQuality() {
     save: isKo ? "저장" : "保存",
     cancel: isKo ? "취소" : "取消",
     reset: isKo ? "초기화" : "重置",
+    playback: isKo ? "녹화본 재생 (지정 구간)" : "录像回放（指定时段）",
+    play: isKo ? "재생" : "播放",
+    playTooLong: isKo ? "재생은 최대 6분(360초)까지 가능합니다." : "回放最长支持 6 分钟（360 秒）。",
+    playFail: isKo ? "녹화본을 재생하지 못했습니다." : "无法播放录像。",
+    playerTitle: isKo ? "녹화본 재생" : "录像回放",
   }), [isKo]);
 
   const displayName = (c: Cam) => nameMap[String(c.id)] || c.name || `Camera ${c.id}`;
