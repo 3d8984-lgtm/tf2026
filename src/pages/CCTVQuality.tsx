@@ -565,6 +565,11 @@ export default function CCTVQuality() {
                     {clipLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Download className="w-4 h-4 mr-2" />}
                     {T.download}
                   </Button>
+                  {clipLoading && (
+                    <Button onClick={cancelClipDownload} variant="outline" className="w-full">
+                      {T.cancelDownload}
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
 
