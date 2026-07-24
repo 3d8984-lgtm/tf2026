@@ -235,7 +235,20 @@ export default function CCTVQuality() {
     }
   };
 
-  useEffect(() => { loadCams(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => {
+    loadCams();
+    fetchServerSettings().then(({ names, order: srvOrder }) => {
+      if (Object.keys(names).length) {
+        setNameMap((prev) => ({ ...prev, ...names }));
+        localStorage.setItem(LS_NAMES, JSON.stringify(names));
+      }
+      if (srvOrder.length) {
+        setOrder(srvOrder);
+        localStorage.setItem(LS_ORDER, JSON.stringify(srvOrder));
+      }
+    }).catch((e) => console.error("fetchServerSettings failed", e));
+    /* eslint-disable-next-line */
+  }, []);
 
   // Re-probe every 30s so status reflects actual connectivity.
   useEffect(() => {
