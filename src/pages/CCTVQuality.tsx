@@ -317,9 +317,10 @@ export default function CCTVQuality() {
     if (!(endMs > startMs)) { toast.error(T.rangeInvalid); return; }
     setClipLoading(true);
     try {
+      const duration = Math.max(1, Math.round((endMs - startMs) / 1000));
       const params = new URLSearchParams({
         start: new Date(startMs).toISOString(),
-        end: new Date(endMs).toISOString(),
+        duration: String(duration),
       });
       const path = `/api/v1/cam/${selected.id}/clip?${params.toString()}`;
       const res = await proxyFetch(path);
