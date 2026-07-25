@@ -373,6 +373,10 @@ export default function CCTVQuality() {
         });
         const path = `/api/v1/cam/${selected.id}/clip?${params.toString()}`;
         const res = await proxyFetch(path, { signal: controller.signal });
+        if (res.status === 409 || res.status === 404) {
+          toast.error(T.rangeGap);
+          return;
+        }
         if (!res.ok) {
           const detail = await res.text().catch(() => "");
           throw new Error(`HTTP ${res.status}${detail ? `: ${detail}` : ""}`);
