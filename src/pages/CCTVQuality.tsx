@@ -287,10 +287,29 @@ export default function CCTVQuality() {
           if (tok) xhr.setRequestHeader("Authorization", `Bearer ${tok}`);
         }) as any,
       });
+      let retryTimer: number | null = null;
+      const scheduleReload = () => {
+        if (retryTimer) return;
+        retryTimer = window.setTimeout(() => {
+          retryTimer = null;
+          try { hls.loadSource(src); hls.startLoad(); } catch {}
+        }, 5000);
+      };
+      hls.on(Hls.Events.ERROR, (_e, data) => {
+        // 404 "camera not currently recording" is transient — don't blow up, retry.
+        const status = (data as any)?.response?.code;
+        if (data.fatal || status === 404) {
+          scheduleReload();
+        }
+      });
       hls.loadSource(src);
       hls.attachMedia(video);
       hlsRef.current = hls;
-      return () => { hls.destroy(); hlsRef.current = null; };
+      return () => {
+        if (retryTimer) window.clearTimeout(retryTimer);
+        hls.destroy();
+        hlsRef.current = null;
+      };
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = src;
     }
