@@ -656,11 +656,11 @@ export default function CCTVQuality() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label className="text-xs">{T.from}</Label>
-                      <Input type="datetime-local" value={playStart} onChange={(e) => setPlayStart(e.target.value)} />
+                      <DateTimePicker value={playStart} onChange={setPlayStart} />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs">{T.to}</Label>
-                      <Input type="datetime-local" value={playEnd} onChange={(e) => setPlayEnd(e.target.value)} />
+                      <DateTimePicker value={playEnd} onChange={setPlayEnd} />
                     </div>
                   </div>
                   <Button onClick={playClip} disabled={playLoading} className="w-full">
