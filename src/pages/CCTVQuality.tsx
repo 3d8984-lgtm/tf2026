@@ -628,11 +628,11 @@ export default function CCTVQuality() {
                 <CardContent className="space-y-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs">{T.from}</Label>
-                    <Input type="datetime-local" value={clipStart} onChange={(e) => setClipStart(e.target.value)} />
+                    <DateTimePicker value={clipStart} onChange={setClipStart} />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">{T.to}</Label>
-                    <Input type="datetime-local" value={clipEnd} onChange={(e) => setClipEnd(e.target.value)} />
+                    <DateTimePicker value={clipEnd} onChange={setClipEnd} />
                   </div>
                   <Button onClick={downloadClip} disabled={clipLoading} className="w-full">
                     {clipLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Download className="w-4 h-4 mr-2" />}
