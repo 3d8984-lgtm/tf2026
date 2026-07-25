@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
           });
         }
       }
-      if ([502, 503, 504, 520, 521, 522, 523, 524, 525, 526, 527, 530].includes(upstream.status)) {
+      if ([500, 502, 503, 504, 520, 521, 522, 523, 524, 525, 526, 527, 530].includes(upstream.status)) {
         return new Response(null, {
           status: 204,
           headers: {
@@ -72,6 +72,20 @@ Deno.serve(async (req) => {
           },
         });
       }
+    }
+
+    // PLC status: upstream returns 5xx when the on-site gateway/PLC is offline.
+    // Surface that as a graceful 503 JSON so the client shows "offline" instead
+    // of a runtime error overlay.
+    const isPlcStatus = /\/api\/v1\/plc\/[^/]+\/status$/i.test(url.pathname);
+    if (isPlcStatus && upstream.status >= 500) {
+      return new Response(
+        JSON.stringify({ offline: true, upstream_status: upstream.status }),
+        {
+          status: 503,
+          headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
+        },
+      );
     }
 
 
