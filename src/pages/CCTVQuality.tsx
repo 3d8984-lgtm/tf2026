@@ -439,6 +439,7 @@ export default function CCTVQuality() {
         duration: String(duration),
       });
       const res = await proxyFetch(`/api/v1/cam/${selected.id}/clip?${params.toString()}`);
+      if (res.status === 409 || res.status === 404) { toast.error(T.rangeGap); return; }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const blob = await res.blob();
       if (playSrc) URL.revokeObjectURL(playSrc);
