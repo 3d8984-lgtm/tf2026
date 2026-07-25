@@ -11,6 +11,7 @@ import { useLang } from "@/contexts/LangContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Camera as CameraIcon, RefreshCw, Download, Image as ImageIcon, Loader2, PlayCircle, Pencil, ArrowUp, ArrowDown, Play, VideoOff } from "lucide-react";
 import { toast } from "sonner";
+import { DateTimePicker } from "@/components/DateTimePicker";
 
 const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
@@ -604,7 +605,7 @@ export default function CCTVQuality() {
                 <CardContent className="space-y-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs">{T.snapshotAt}</Label>
-                    <Input type="datetime-local" value={snapshotTime} onChange={(e) => setSnapshotTime(e.target.value)} />
+                    <DateTimePicker value={snapshotTime} onChange={setSnapshotTime} />
                   </div>
                   <Button onClick={fetchSnapshot} disabled={snapLoading} className="w-full">
                     {snapLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ImageIcon className="w-4 h-4 mr-2" />}
@@ -627,11 +628,11 @@ export default function CCTVQuality() {
                 <CardContent className="space-y-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs">{T.from}</Label>
-                    <Input type="datetime-local" value={clipStart} onChange={(e) => setClipStart(e.target.value)} />
+                    <DateTimePicker value={clipStart} onChange={setClipStart} />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">{T.to}</Label>
-                    <Input type="datetime-local" value={clipEnd} onChange={(e) => setClipEnd(e.target.value)} />
+                    <DateTimePicker value={clipEnd} onChange={setClipEnd} />
                   </div>
                   <Button onClick={downloadClip} disabled={clipLoading} className="w-full">
                     {clipLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Download className="w-4 h-4 mr-2" />}
@@ -655,11 +656,11 @@ export default function CCTVQuality() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label className="text-xs">{T.from}</Label>
-                      <Input type="datetime-local" value={playStart} onChange={(e) => setPlayStart(e.target.value)} />
+                      <DateTimePicker value={playStart} onChange={setPlayStart} />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs">{T.to}</Label>
-                      <Input type="datetime-local" value={playEnd} onChange={(e) => setPlayEnd(e.target.value)} />
+                      <DateTimePicker value={playEnd} onChange={setPlayEnd} />
                     </div>
                   </div>
                   <Button onClick={playClip} disabled={playLoading} className="w-full">
