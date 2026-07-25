@@ -547,6 +547,44 @@ export type Database = {
         }
         Relationships: []
       }
+      plc_active_orders: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          created_at: string
+          order_id: string | null
+          plc_id: string
+          plc_label: string | null
+          updated_at: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          created_at?: string
+          order_id?: string | null
+          plc_id: string
+          plc_label?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          created_at?: string
+          order_id?: string | null
+          plc_id?: string
+          plc_label?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plc_active_orders_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       production_tracking: {
         Row: {
           completed_at: string | null
