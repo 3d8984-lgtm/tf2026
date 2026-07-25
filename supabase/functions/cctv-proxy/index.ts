@@ -6,7 +6,7 @@ import { corsHeaders as baseCors } from "npm:@supabase/supabase-js@2/cors";
 const corsHeaders = {
   ...baseCors,
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Expose-Headers": "content-type, content-length, content-disposition",
+  "Access-Control-Expose-Headers": "content-type, content-length, content-disposition, x-camera-stream-state",
 };
 
 const API_BASE = (Deno.env.get("TF2027_CAMERA_API_BASE") || "https://api.tf2027.xyz").replace(/\/+$/, "");
@@ -39,6 +39,24 @@ Deno.serve(async (req) => {
       },
       body: ["GET", "HEAD"].includes(req.method) ? undefined : await req.arrayBuffer(),
     });
+
+    // A recorder can briefly return 404 while its live recording pipeline is
+    // starting or rotating segments. Returning that status from an Edge
+    // Function is promoted to a client runtime error. Convert only this live
+    // playlist condition to an empty successful response; hls.js will retry.
+    if (upstream.status === 404 && /\/live\/stream\.m3u8$/i.test(url.pathname)) {
+      const detail = await upstream.clone().text().catch(() => "");
+      if (/not currently recording/i.test(detail)) {
+        return new Response(null, {
+          status: 204,
+          headers: {
+            ...corsHeaders,
+            "Cache-Control": "no-store",
+            "X-Camera-Stream-State": "not-recording",
+          },
+        });
+      }
+    }
 
     const headers = new Headers(corsHeaders);
     const ct = upstream.headers.get("content-type");

@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useLang } from "@/contexts/LangContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Camera as CameraIcon, RefreshCw, Download, Image as ImageIcon, Loader2, PlayCircle, Pencil, ArrowUp, ArrowDown, Play } from "lucide-react";
+import { Camera as CameraIcon, RefreshCw, Download, Image as ImageIcon, Loader2, PlayCircle, Pencil, ArrowUp, ArrowDown, Play, VideoOff } from "lucide-react";
 import { toast } from "sonner";
 
 const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
@@ -109,6 +109,7 @@ export default function CCTVQuality() {
   const [playLoading, setPlayLoading] = useState(false);
   const [playSrc, setPlaySrc] = useState<string | null>(null);
   const [playOpen, setPlayOpen] = useState(false);
+  const [liveState, setLiveState] = useState<"connecting" | "playing" | "waiting">("connecting");
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
 
@@ -155,6 +156,10 @@ export default function CCTVQuality() {
     rangeGap: isKo
       ? "선택한 구간에 녹화가 없거나 아직 저장되지 않았습니다. 다른 시각을 선택해 주세요."
       : "所选时段没有录像或尚未完成保存。请选择其他时段。",
+    liveWaiting: isKo
+      ? "카메라 녹화가 중지되어 있습니다. 자동으로 다시 연결합니다."
+      : "摄像头当前未在录像，正在自动重新连接。",
+    liveConnecting: isKo ? "실시간 영상 연결 중..." : "正在连接实时画面...",
   }), [isKo]);
 
   const displayName = (c: Cam) => nameMap[String(c.id)] || c.name || `Camera ${c.id}`;
@@ -225,7 +230,7 @@ export default function CCTVQuality() {
       const raw = c.live_playlist || c.hls_url || `/api/v1/cam/${c.id}/live/stream.m3u8`;
       try {
         const res = await proxyFetch(raw, { method: "GET" });
-        const ok = res.ok;
+        const ok = res.status === 200;
         try { await res.body?.cancel(); } catch {}
         setStatusMap((s) => ({ ...s, [String(c.id)]: ok ? "online" : "offline" }));
       } catch {
@@ -281,41 +286,69 @@ export default function CCTVQuality() {
     const hlsRaw = selected.live_playlist || selected.hls_url || `/api/v1/cam/${selected.id}/live/stream.m3u8`;
     const src = toProxyUrl(hlsRaw);
     if (!src) return;
-    if (Hls.isSupported()) {
-      const hls = new Hls({
-        xhrSetup: (async (xhr: XMLHttpRequest) => {
-          xhr.setRequestHeader("apikey", ANON_KEY);
-          const { data } = await supabase.auth.getSession();
-          const tok = data.session?.access_token;
-          if (tok) xhr.setRequestHeader("Authorization", `Bearer ${tok}`);
-        }) as any,
-      });
-      let retryTimer: number | null = null;
-      const scheduleReload = () => {
-        if (retryTimer) return;
-        retryTimer = window.setTimeout(() => {
-          retryTimer = null;
-          try { hls.loadSource(src); hls.startLoad(); } catch {}
-        }, 5000);
-      };
-      hls.on(Hls.Events.ERROR, (_e, data) => {
-        // 404 "camera not currently recording" is transient — don't blow up, retry.
-        const status = (data as any)?.response?.code;
-        if (data.fatal || status === 404) {
-          scheduleReload();
-        }
-      });
-      hls.loadSource(src);
-      hls.attachMedia(video);
-      hlsRef.current = hls;
-      return () => {
-        if (retryTimer) window.clearTimeout(retryTimer);
-        hls.destroy();
-        hlsRef.current = null;
-      };
-    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = src;
-    }
+    let disposed = false;
+    let retryTimer: number | null = null;
+    setLiveState("connecting");
+
+    const markPlaying = () => setLiveState("playing");
+    video.addEventListener("playing", markPlaying);
+
+    const initialize = async () => {
+      if (Hls.isSupported()) {
+        const { data } = await supabase.auth.getSession();
+        if (disposed) return;
+        const token = data.session?.access_token;
+        const hls = new Hls({
+          xhrSetup: (xhr: XMLHttpRequest) => {
+            xhr.setRequestHeader("apikey", ANON_KEY);
+            if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+          },
+        });
+        const scheduleReload = () => {
+          if (retryTimer || disposed) return;
+          setLiveState("waiting");
+          retryTimer = window.setTimeout(() => {
+            retryTimer = null;
+            if (disposed) return;
+            setLiveState("connecting");
+            try {
+              hls.stopLoad();
+              hls.loadSource(src);
+              hls.startLoad();
+            } catch {
+              scheduleReload();
+            }
+          }, 5000);
+        };
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          setLiveState("playing");
+          video.play().catch(() => undefined);
+        });
+        hls.on(Hls.Events.ERROR, (_event, errorData) => {
+          const status = errorData.response?.code;
+          if (status === 204 || status === 404 || errorData.fatal) scheduleReload();
+        });
+        hls.loadSource(src);
+        hls.attachMedia(video);
+        hlsRef.current = hls;
+      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        video.src = src;
+        video.play().catch(() => setLiveState("waiting"));
+      } else {
+        setLiveState("waiting");
+      }
+    };
+
+    initialize();
+    return () => {
+      disposed = true;
+      video.removeEventListener("playing", markPlaying);
+      if (retryTimer) window.clearTimeout(retryTimer);
+      hlsRef.current?.destroy();
+      hlsRef.current = null;
+      video.removeAttribute("src");
+      video.load();
+    };
   }, [selected]);
 
   const fetchSnapshot = async () => {
@@ -537,8 +570,20 @@ export default function CCTVQuality() {
             </CardHeader>
             <CardContent>
               {selected ? (
-                <div className="bg-black rounded-md overflow-hidden aspect-video">
+                <div className="relative bg-black rounded-md overflow-hidden aspect-video">
                   <video ref={videoRef} controls autoPlay muted playsInline className="w-full h-full" />
+                  {liveState !== "playing" && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/90 px-6 text-center">
+                      {liveState === "connecting" ? (
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      ) : (
+                        <VideoOff className="h-8 w-8 text-muted-foreground" />
+                      )}
+                      <p className="text-sm text-muted-foreground">
+                        {liveState === "connecting" ? T.liveConnecting : T.liveWaiting}
+                      </p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="bg-muted/30 rounded-md aspect-video flex items-center justify-center text-sm text-muted-foreground">
