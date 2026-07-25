@@ -605,7 +605,7 @@ export default function CCTVQuality() {
                 <CardContent className="space-y-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs">{T.snapshotAt}</Label>
-                    <Input type="datetime-local" value={snapshotTime} onChange={(e) => setSnapshotTime(e.target.value)} />
+                    <DateTimePicker value={snapshotTime} onChange={setSnapshotTime} />
                   </div>
                   <Button onClick={fetchSnapshot} disabled={snapLoading} className="w-full">
                     {snapLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ImageIcon className="w-4 h-4 mr-2" />}
