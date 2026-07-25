@@ -152,6 +152,9 @@ export default function CCTVQuality() {
     playTooLong: isKo ? "재생은 최대 6분(360초)까지 가능합니다." : "回放最长支持 6 分钟（360 秒）。",
     playFail: isKo ? "녹화본을 재생하지 못했습니다." : "无法播放录像。",
     playerTitle: isKo ? "녹화본 재생" : "录像回放",
+    rangeGap: isKo
+      ? "선택한 구간에 녹화가 없거나 아직 저장되지 않았습니다. 다른 시각을 선택해 주세요."
+      : "所选时段没有录像或尚未完成保存。请选择其他时段。",
   }), [isKo]);
 
   const displayName = (c: Cam) => nameMap[String(c.id)] || c.name || `Camera ${c.id}`;
