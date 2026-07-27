@@ -700,9 +700,17 @@ export default function CCTVQuality() {
 
               <Card className="md:col-span-2">
                 <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
+                  <CardTitle className="text-base flex items-center gap-2 flex-wrap">
                     <Play className="w-4 h-4" /> {T.playback}
+                    <Badge
+                      variant={hevcSupport === "yes" ? "default" : hevcSupport === "no" ? "destructive" : "secondary"}
+                      className="ml-auto text-[11px] font-normal"
+                    >
+                      {T.hevcLabel}:{" "}
+                      {hevcSupport === "checking" ? T.hevcChecking : hevcSupport === "yes" ? T.hevcYes : T.hevcNo}
+                    </Badge>
                   </CardTitle>
+
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
