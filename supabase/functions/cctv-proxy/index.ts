@@ -32,14 +32,22 @@ Deno.serve(async (req) => {
   const isPlcStatus = /\/api\/v1\/plc\/[^/]+\/status$/i.test(url.pathname);
 
   try {
+    const isBodyless = ["GET", "HEAD"].includes(req.method);
+    const fwdHeaders: Record<string, string> = {
+      "X-API-Key": API_KEY,
+      "Accept": req.headers.get("accept") || "*/*",
+    };
+    if (!isBodyless) {
+      // FastAPI needs the content type to parse the JSON body; without it the
+      // payload arrives as a raw string and fails model validation (422).
+      fwdHeaders["Content-Type"] = req.headers.get("content-type") || "application/json";
+    }
     const upstream = await fetch(target, {
       method: req.method,
-      headers: {
-        "X-API-Key": API_KEY,
-        "Accept": req.headers.get("accept") || "*/*",
-      },
-      body: ["GET", "HEAD"].includes(req.method) ? undefined : await req.arrayBuffer(),
+      headers: fwdHeaders,
+      body: isBodyless ? undefined : await req.arrayBuffer(),
     });
+
 
     // A recorder can briefly return 404 while its live recording pipeline is
     // starting or rotating segments. Also, the upstream host itself can be
