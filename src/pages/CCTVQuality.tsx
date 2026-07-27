@@ -471,13 +471,13 @@ export default function CCTVQuality() {
       const params = new URLSearchParams({
         start: new Date(startMs).toISOString(),
         duration: String(duration),
+        apikey: ANON_KEY,
       });
-      const res = await proxyFetch(`/api/v1/cam/${selected.id}/clip?${params.toString()}`);
-      if (res.status === 409 || res.status === 404) { toast.error(T.rangeGap); return; }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
-      if (playSrc) URL.revokeObjectURL(playSrc);
-      setPlaySrc(URL.createObjectURL(blob));
+      // Stream straight into <video> so playback starts as soon as the first
+      // bytes arrive, instead of buffering the whole MP4 into a blob first.
+      const streamUrl = `${PROXY_BASE}/api/v1/cam/${selected.id}/clip?${params.toString()}`;
+      if (playSrc?.startsWith("blob:")) URL.revokeObjectURL(playSrc);
+      setPlaySrc(streamUrl);
       setPlayOpen(true);
     } catch (e) {
       console.error(e);
@@ -486,6 +486,31 @@ export default function CCTVQuality() {
       setPlayLoading(false);
     }
   };
+
+  // Fallback: if progressive streaming fails (upstream without Range support),
+  // fetch the clip once and play it from a blob URL.
+  const playFallbackRef = useRef(false);
+  const handlePlayerError = async () => {
+    if (!playSrc || playSrc.startsWith("blob:") || playFallbackRef.current) {
+      toast.error(T.playFail);
+      return;
+    }
+    playFallbackRef.current = true;
+    setPlayLoading(true);
+    try {
+      const res = await proxyFetch(playSrc);
+      if (res.status === 409 || res.status === 404) { toast.error(T.rangeGap); return; }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      setPlaySrc(URL.createObjectURL(blob));
+    } catch (e) {
+      console.error(e);
+      toast.error(T.playFail);
+    } finally {
+      setPlayLoading(false);
+    }
+  };
+
 
 
   return (
@@ -684,16 +709,25 @@ export default function CCTVQuality() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={playOpen} onOpenChange={(o) => { setPlayOpen(o); if (!o && playSrc) { URL.revokeObjectURL(playSrc); setPlaySrc(null); } }}>
+      <Dialog open={playOpen} onOpenChange={(o) => { setPlayOpen(o); if (!o) { if (playSrc?.startsWith("blob:")) URL.revokeObjectURL(playSrc); setPlaySrc(null); playFallbackRef.current = false; } }}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>{T.playerTitle}</DialogTitle>
           </DialogHeader>
           {playSrc && (
-            <video src={playSrc} controls autoPlay className="w-full h-auto rounded bg-black" />
+            <video
+              key={playSrc}
+              src={playSrc}
+              controls
+              autoPlay
+              preload="auto"
+              className="w-full h-auto rounded bg-black"
+              onError={handlePlayerError}
+            />
           )}
         </DialogContent>
       </Dialog>
+
 
       <Dialog open={!!renameTarget} onOpenChange={(o) => !o && setRenameTarget(null)}>
         <DialogContent className="max-w-md">

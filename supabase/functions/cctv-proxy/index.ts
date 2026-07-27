@@ -5,8 +5,10 @@ import { corsHeaders as baseCors } from "npm:@supabase/supabase-js@2/cors";
 
 const corsHeaders = {
   ...baseCors,
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Expose-Headers": "content-type, content-length, content-disposition, x-camera-stream-state",
+  "Access-Control-Allow-Methods": "GET, POST, HEAD, OPTIONS",
+  "Access-Control-Allow-Headers": `${baseCors["Access-Control-Allow-Headers"] || "authorization, x-client-info, apikey, content-type"}, range`,
+
+  "Access-Control-Expose-Headers": "content-type, content-length, content-disposition, content-range, accept-ranges, x-camera-stream-state",
 };
 
 const API_BASE = (Deno.env.get("TF2027_CAMERA_API_BASE") || "https://api.tf2027.xyz").replace(/\/+$/, "");
@@ -37,6 +39,11 @@ Deno.serve(async (req) => {
       "X-API-Key": API_KEY,
       "Accept": req.headers.get("accept") || "*/*",
     };
+    // Forward Range so <video> can start playing (and seek) before the whole
+    // MP4 has been transferred, instead of buffering it fully as a blob.
+    const range = req.headers.get("range");
+    if (range) fwdHeaders["Range"] = range;
+
     if (!isBodyless) {
       // FastAPI needs the content type to parse the JSON body; without it the
       // payload arrives as a raw string and fails model validation (422).
@@ -104,6 +111,11 @@ Deno.serve(async (req) => {
     if (cl) headers.set("content-length", cl);
     const cd = upstream.headers.get("content-disposition");
     if (cd) headers.set("content-disposition", cd);
+    const cr = upstream.headers.get("content-range");
+    if (cr) headers.set("content-range", cr);
+    const ar = upstream.headers.get("accept-ranges");
+    headers.set("accept-ranges", ar || "bytes");
+
 
     return new Response(upstream.body, { status: upstream.status, headers });
   } catch (err) {
