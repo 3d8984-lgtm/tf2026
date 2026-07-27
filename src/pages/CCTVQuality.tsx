@@ -749,7 +749,11 @@ export default function CCTVQuality() {
           <DialogHeader>
             <DialogTitle>{T.playerTitle}</DialogTitle>
           </DialogHeader>
+          {hevcSupport === "no" && (
+            <p className="text-xs text-destructive border border-destructive/40 rounded p-2">{T.hevcWarn}</p>
+          )}
           {playSrc && (
+
             <video
               key={playSrc}
               src={playSrc}
