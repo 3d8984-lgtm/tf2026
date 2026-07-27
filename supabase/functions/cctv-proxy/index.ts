@@ -109,6 +109,11 @@ Deno.serve(async (req) => {
     if (cl) headers.set("content-length", cl);
     const cd = upstream.headers.get("content-disposition");
     if (cd) headers.set("content-disposition", cd);
+    const cr = upstream.headers.get("content-range");
+    if (cr) headers.set("content-range", cr);
+    const ar = upstream.headers.get("accept-ranges");
+    headers.set("accept-ranges", ar || "bytes");
+
 
     return new Response(upstream.body, { status: upstream.status, headers });
   } catch (err) {
