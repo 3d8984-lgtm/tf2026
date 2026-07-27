@@ -161,7 +161,34 @@ export default function CCTVQuality() {
       ? "카메라 녹화가 중지되어 있습니다. 자동으로 다시 연결합니다."
       : "摄像头当前未在录像，正在自动重新连接。",
     liveConnecting: isKo ? "실시간 영상 연결 중..." : "正在连接实时画面...",
+    hevcLabel: isKo ? "H.265(HEVC) 재생" : "H.265(HEVC) 播放",
+    hevcYes: isKo ? "이 PC에서 지원됨" : "此电脑支持",
+    hevcNo: isKo ? "이 PC에서 미지원" : "此电脑不支持",
+    hevcChecking: isKo ? "확인중" : "检测中",
+    hevcWarn: isKo
+      ? "이 브라우저/PC는 H.265(HEVC) 디코딩을 지원하지 않습니다. 서버가 H.265 원본을 그대로 보내면 화면이 검게 보일 수 있습니다."
+      : "此浏览器/电脑不支持 H.265(HEVC) 解码。若服务器直接发送 H.265 原始流，画面可能显示为黑屏。",
   }), [isKo]);
+
+  // Detect whether this machine can decode H.265 natively. Used to decide
+  // if the server can skip transcoding (send HEVC as-is) for this client.
+  const [hevcSupport, setHevcSupport] = useState<"checking" | "yes" | "no">("checking");
+  useEffect(() => {
+    const types = [
+      'video/mp4; codecs="hvc1.1.6.L93.B0"',
+      'video/mp4; codecs="hev1.1.6.L93.B0"',
+    ];
+    const el = document.createElement("video");
+    const canPlay = types.some((t) => el.canPlayType(t) !== "");
+    const mseOk =
+      typeof window !== "undefined" &&
+      "MediaSource" in window &&
+      types.some((t) => {
+        try { return window.MediaSource.isTypeSupported(t); } catch { return false; }
+      });
+    setHevcSupport(canPlay || mseOk ? "yes" : "no");
+  }, []);
+
 
   const displayName = (c: Cam) => nameMap[String(c.id)] || c.name || `Camera ${c.id}`;
 
@@ -673,9 +700,17 @@ export default function CCTVQuality() {
 
               <Card className="md:col-span-2">
                 <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
+                  <CardTitle className="text-base flex items-center gap-2 flex-wrap">
                     <Play className="w-4 h-4" /> {T.playback}
+                    <Badge
+                      variant={hevcSupport === "yes" ? "default" : hevcSupport === "no" ? "destructive" : "secondary"}
+                      className="ml-auto text-[11px] font-normal"
+                    >
+                      {T.hevcLabel}:{" "}
+                      {hevcSupport === "checking" ? T.hevcChecking : hevcSupport === "yes" ? T.hevcYes : T.hevcNo}
+                    </Badge>
                   </CardTitle>
+
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -714,7 +749,11 @@ export default function CCTVQuality() {
           <DialogHeader>
             <DialogTitle>{T.playerTitle}</DialogTitle>
           </DialogHeader>
+          {hevcSupport === "no" && (
+            <p className="text-xs text-destructive border border-destructive/40 rounded p-2">{T.hevcWarn}</p>
+          )}
           {playSrc && (
+
             <video
               key={playSrc}
               src={playSrc}
