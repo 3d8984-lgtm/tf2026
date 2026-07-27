@@ -86,7 +86,7 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
         }
         const j = (await res.json()) as PlcStatusResponse;
         if (!alive) return;
-        if ("offline" in j && j.offline) {
+        if ("upstream_status" in j) {
           setStatus(null);
           setOnline(false);
           setErrorMsg(isKo ? "PLC 연결 불가" : "PLC连接失败");
