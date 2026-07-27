@@ -31,6 +31,11 @@ type PlcStatus = {
   timestamp: string;
 };
 
+type PlcStatusResponse = PlcStatus | {
+  offline: true;
+  upstream_status: number;
+};
+
 async function proxyFetch(path: string, init?: RequestInit) {
   const headers = new Headers(init?.headers);
   headers.set("apikey", ANON_KEY);
@@ -74,17 +79,25 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
         const res = await proxyFetch(`/api/v1/plc/${plcId}/status`);
         if (!alive) return;
         if (!res.ok) {
+          setStatus(null);
           setOnline(false);
-          setErrorMsg(res.status === 503 ? (isKo ? "PLC 연결 불가" : "PLC连接失败") : `HTTP ${res.status}`);
+          setErrorMsg(isKo ? "PLC 연결 불가" : "PLC连接失败");
           return;
         }
-        const j = (await res.json()) as PlcStatus;
+        const j = (await res.json()) as PlcStatusResponse;
         if (!alive) return;
+        if ("offline" in j && j.offline) {
+          setStatus(null);
+          setOnline(false);
+          setErrorMsg(isKo ? "PLC 연결 불가" : "PLC连接失败");
+          return;
+        }
         setStatus(j);
         setOnline(true);
         setErrorMsg(null);
       } catch {
         if (!alive) return;
+        setStatus(null);
         setOnline(false);
         setErrorMsg(isKo ? "네트워크 오류" : "网络错误");
       }
