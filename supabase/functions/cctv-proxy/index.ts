@@ -29,6 +29,7 @@ Deno.serve(async (req) => {
   const idx = url.pathname.indexOf(marker);
   const rest = idx >= 0 ? url.pathname.slice(idx + marker.length) : url.pathname;
   const target = `${API_BASE}${rest || "/"}${url.search || ""}`;
+  const isPlcStatus = /\/api\/v1\/plc\/[^/]+\/status$/i.test(url.pathname);
 
   try {
     const upstream = await fetch(target, {
@@ -74,15 +75,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    // PLC status: upstream returns 5xx when the on-site gateway/PLC is offline.
-    // Surface that as a graceful 503 JSON so the client shows "offline" instead
-    // of a runtime error overlay.
-    const isPlcStatus = /\/api\/v1\/plc\/[^/]+\/status$/i.test(url.pathname);
+    // PLC status: an unreachable PLC is an expected device state, not an Edge
+    // Function failure. Keep HTTP successful so the host does not promote it to
+    // a runtime-error overlay; the client reads the explicit offline flag.
     if (isPlcStatus && upstream.status >= 500) {
       return new Response(
         JSON.stringify({ offline: true, upstream_status: upstream.status }),
         {
-          status: 503,
+          status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
         },
       );
@@ -99,6 +99,12 @@ Deno.serve(async (req) => {
 
     return new Response(upstream.body, { status: upstream.status, headers });
   } catch (err) {
+    if (isPlcStatus) {
+      return new Response(JSON.stringify({ offline: true, upstream_status: 0 }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
+      });
+    }
     return new Response(JSON.stringify({ error: String(err) }), {
       status: 502,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
