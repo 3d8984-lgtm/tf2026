@@ -6,7 +6,7 @@ import { corsHeaders as baseCors } from "npm:@supabase/supabase-js@2/cors";
 const corsHeaders = {
   ...baseCors,
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Expose-Headers": "content-type, content-length, content-disposition, x-camera-stream-state",
+  "Access-Control-Expose-Headers": "content-type, content-length, content-disposition, content-range, accept-ranges, x-camera-stream-state",
 };
 
 const API_BASE = (Deno.env.get("TF2027_CAMERA_API_BASE") || "https://api.tf2027.xyz").replace(/\/+$/, "");
