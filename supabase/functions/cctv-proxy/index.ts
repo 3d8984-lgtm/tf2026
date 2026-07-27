@@ -37,6 +37,11 @@ Deno.serve(async (req) => {
       "X-API-Key": API_KEY,
       "Accept": req.headers.get("accept") || "*/*",
     };
+    // Forward Range so <video> can start playing (and seek) before the whole
+    // MP4 has been transferred, instead of buffering it fully as a blob.
+    const range = req.headers.get("range");
+    if (range) fwdHeaders["Range"] = range;
+
     if (!isBodyless) {
       // FastAPI needs the content type to parse the JSON body; without it the
       // payload arrives as a raw string and fails model validation (422).
