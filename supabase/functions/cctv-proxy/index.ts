@@ -5,7 +5,9 @@ import { corsHeaders as baseCors } from "npm:@supabase/supabase-js@2/cors";
 
 const corsHeaders = {
   ...baseCors,
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, HEAD, OPTIONS",
+  "Access-Control-Allow-Headers": `${baseCors["Access-Control-Allow-Headers"] || "authorization, x-client-info, apikey, content-type"}, range`,
+
   "Access-Control-Expose-Headers": "content-type, content-length, content-disposition, content-range, accept-ranges, x-camera-stream-state",
 };
 
