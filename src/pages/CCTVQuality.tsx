@@ -759,11 +759,22 @@ export default function CCTVQuality() {
               src={playSrc}
               controls
               autoPlay
+              muted
+              playsInline
               preload="auto"
               className="w-full h-auto rounded bg-black"
+              onLoadedData={(e) => {
+                // Browsers block autoplay without a gesture; retry explicitly
+                // once the first frame is decoded so the clip does not sit paused.
+                e.currentTarget.play().catch(() => undefined);
+              }}
+              onCanPlay={(e) => {
+                e.currentTarget.play().catch(() => undefined);
+              }}
               onError={handlePlayerError}
             />
           )}
+
         </DialogContent>
       </Dialog>
 
