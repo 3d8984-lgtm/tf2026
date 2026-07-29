@@ -117,6 +117,7 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
       .eq("plc_id", plcId)
       .maybeSingle();
     setActiveOrderId(data?.order_id ?? null);
+    setPendingOrderId(data?.order_id ?? null);
     setAssignedAt(data?.assigned_at ?? null);
   };
   useEffect(() => { loadAssignment(); }, [plcId]);
@@ -136,14 +137,31 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
         .from("plc_active_orders")
         .upsert(payload, { onConflict: "plc_id" });
       if (error) throw error;
+
+      // Reset PLC counter so counting starts from 0 for this order
+      let resetOk = false;
+      try {
+        const res = await proxyFetch(`/api/v1/plc/${plcId}/control`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ command: "reset_counter" }),
+        });
+        resetOk = res.ok;
+      } catch { /* PLC offline — assignment still saved */ }
+
       await loadAssignment();
-      toast.success(isKo ? "작업 주문이 지정되었습니다" : "已指定作业订单");
+      toast.success(
+        resetOk
+          ? (isKo ? "저장되었습니다. 카운터를 초기화했습니다." : "已保存，计数器已重置。")
+          : (isKo ? "저장되었습니다. (카운터 초기화 실패 — PLC 연결 확인)" : "已保存。（计数器重置失败 — 请检查PLC连接）")
+      );
     } catch (e: any) {
       toast.error(e?.message || (isKo ? "지정 실패" : "指定失败"));
     } finally {
       setBusy(false);
     }
   };
+
 
   const clearAssignment = async () => {
     setBusy(true);
