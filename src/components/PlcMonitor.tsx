@@ -63,8 +63,10 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
   const [online, setOnline] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [assignedAt, setAssignedAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
 
   const activeOrder = useMemo(
     () => (orders || []).find((o: any) => o.id === activeOrderId) || null,
