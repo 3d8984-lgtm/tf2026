@@ -63,8 +63,10 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
   const [online, setOnline] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [assignedAt, setAssignedAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
 
   const activeOrder = useMemo(
     () => (orders || []).find((o: any) => o.id === activeOrderId) || null,
@@ -115,6 +117,7 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
       .eq("plc_id", plcId)
       .maybeSingle();
     setActiveOrderId(data?.order_id ?? null);
+    setPendingOrderId(data?.order_id ?? null);
     setAssignedAt(data?.assigned_at ?? null);
   };
   useEffect(() => { loadAssignment(); }, [plcId]);
@@ -134,14 +137,31 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
         .from("plc_active_orders")
         .upsert(payload, { onConflict: "plc_id" });
       if (error) throw error;
+
+      // Reset PLC counter so counting starts from 0 for this order
+      let resetOk = false;
+      try {
+        const res = await proxyFetch(`/api/v1/plc/${plcId}/control`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ command: "reset_counter" }),
+        });
+        resetOk = res.ok;
+      } catch { /* PLC offline — assignment still saved */ }
+
       await loadAssignment();
-      toast.success(isKo ? "작업 주문이 지정되었습니다" : "已指定作业订单");
+      toast.success(
+        resetOk
+          ? (isKo ? "저장되었습니다. 카운터를 초기화했습니다." : "已保存，计数器已重置。")
+          : (isKo ? "저장되었습니다. (카운터 초기화 실패 — PLC 연결 확인)" : "已保存。（计数器重置失败 — 请检查PLC连接）")
+      );
     } catch (e: any) {
       toast.error(e?.message || (isKo ? "지정 실패" : "指定失败"));
     } finally {
       setBusy(false);
     }
   };
+
 
   const clearAssignment = async () => {
     setBusy(true);
@@ -262,22 +282,38 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
               {isKo ? "지정된 주문이 없습니다. 아래에서 선택하세요." : "尚未指定订单，请从下方选择。"}
             </div>
           )}
-          <Select value={activeOrderId ?? undefined} onValueChange={(v) => assignOrder(v)} disabled={busy}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder={isKo ? "작업지시번호 선택…" : "选择工单号…"} />
-            </SelectTrigger>
-            <SelectContent className="max-h-72">
-              {(orders || [])
-                .filter((o: any) => o.status !== "completed" && o.status !== "cancelled")
-                .map((o: any) => (
-                  <SelectItem key={o.id} value={o.id} className="text-xs">
-                    <span className="font-mono">{o.external_order_id}</span>
-                    <span className="text-muted-foreground ml-2">· {o.recipient_name} · {o.quantity}{isKo ? "개" : "件"}</span>
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <Select value={pendingOrderId ?? undefined} onValueChange={setPendingOrderId} disabled={busy}>
+              <SelectTrigger className="h-8 text-xs flex-1">
+                <SelectValue placeholder={isKo ? "작업지시번호 선택…" : "选择工单号…"} />
+              </SelectTrigger>
+              <SelectContent className="max-h-72">
+                {(orders || [])
+                  .filter((o: any) => o.status !== "completed" && o.status !== "cancelled")
+                  .map((o: any) => (
+                    <SelectItem key={o.id} value={o.id} className="text-xs">
+                      <span className="font-mono">{o.external_order_id}</span>
+                      <span className="text-muted-foreground ml-2">· {o.recipient_name} · {o.quantity}{isKo ? "개" : "件"}</span>
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm"
+              className="h-8 text-xs"
+              disabled={busy || !pendingOrderId || pendingOrderId === activeOrderId}
+              onClick={() => pendingOrderId && assignOrder(pendingOrderId)}
+            >
+              {isKo ? "저장" : "保存"}
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            {isKo
+              ? "저장 시 해당 주문 기준으로 카운터가 0부터 다시 집계됩니다."
+              : "保存后计数器将以该订单为准从0重新统计。"}
+          </p>
         </div>
+
 
         {/* Live metrics */}
         {errorMsg && !status && (
