@@ -43,32 +43,12 @@ export default function Shipping() {
   const { data: kpis } = useShippingQueueKpis();
   const { data: rows = [], isLoading } = useShippingQueue({ status, search });
   const { data: couriers = [] } = useCouriers(false);
-  const qc = useQueryClient();
   const [picked, setPicked] = useState<Record<string, string>>({});
-  const [issuingId, setIssuingId] = useState<string | null>(null);
 
   const carrierOf = (r: any) =>
     picked[r.id] ?? r.carrier ?? (couriers.find((c) => c.is_default) ?? couriers[0])?.code ?? "";
 
 
-  const issue = async (r: any) => {
-    const code = carrierOf(r);
-    if (!code) {
-      toast.error(tr("택배사를 먼저 선택하세요", "请先选择承运商"));
-      return;
-    }
-    setIssuingId(r.id);
-    try {
-      const res = await requestCarrierLabel(r.id, code);
-      toast.success(`${code.toUpperCase()} · ${res.tracking_number}`);
-      qc.invalidateQueries({ queryKey: ["shipping_queue"] });
-      qc.invalidateQueries({ queryKey: ["shipping_queue_kpis"] });
-    } catch (e: any) {
-      toast.error(e?.message ?? tr("송장 발급 실패", "运单生成失败"));
-    } finally {
-      setIssuingId(null);
-    }
-  };
 
 
   const tr = (ko: string, zh: string) => (isKo ? ko : zh);
