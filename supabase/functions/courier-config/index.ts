@@ -102,11 +102,16 @@ Deno.serve(async (req) => {
               signal: AbortSignal.timeout(15_000),
             });
             const text = await res.text();
-            const authFail = /认证|auth|sign|签名|unauthorized|invalid.*key/i.test(text);
-            ok = !authFail;
+            // Auth is checked before the method is resolved: a "method not found"
+            // error proves the App Key / Secret and signature were accepted.
+            const methodMissing = /接口不存在|method.*not.*exist/i.test(text);
+            const authFail = !methodMissing &&
+              /认证参数非法|签名|sign error|invalid sign|app_key|unauthorized|401/i.test(text);
+            ok = methodMissing || (res.ok && !authFail);
             message = ok
-              ? `인증 성공 (HTTP ${res.status})`
+              ? `인증 성공 (App Key/Secret 유효, HTTP ${res.status})`
               : `인증 실패: ${text.slice(0, 200)}`;
+
           } else if (code === "yunexpress") {
             const base = (cfg.api_url ?? "").replace(/\/+$/, "");
             const auth = btoa(`${cred.account_no ?? ""}&${cred.api_key ?? ""}`);
