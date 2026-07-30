@@ -83,34 +83,9 @@ Deno.serve(async (req) => {
       } else {
         try {
           if (code === "4px") {
-            // Signed no-op call: auth is validated before the method is resolved,
-            // so a "method not exist" style error means the key/secret are valid.
-            const params: Record<string, string> = {
-              app_key: cred.api_key ?? "",
-              method: "ec.ping",
-              format: "json",
-              v: "1.0",
-              sign_method: "md5",
-              timestamp: new Date().toISOString().slice(0, 19).replace("T", " "),
-            };
-            const sorted = Object.keys(params).sort().map((k) => `${k}${params[k]}`).join("");
-            params.sign = md5(`${cred.api_secret ?? ""}${sorted}${cred.api_secret ?? ""}`).toUpperCase();
-            const res = await fetch(cfg.api_url, {
-              method: "POST",
-              headers: { "Content-Type": "application/x-www-form-urlencoded" },
-              body: new URLSearchParams(params),
-              signal: AbortSignal.timeout(15_000),
-            });
-            const text = await res.text();
-            // Auth is checked before the method is resolved: a "method not found"
-            // error proves the App Key / Secret and signature were accepted.
-            const methodMissing = /接口不存在|method.*not.*exist/i.test(text);
-            const authFail = !methodMissing &&
-              /认证参数非法|签名|sign error|invalid sign|app_key|unauthorized|401/i.test(text);
-            ok = methodMissing || (res.ok && !authFail);
-            message = ok
-              ? `인증 성공 (App Key/Secret 유효, HTTP ${res.status})`
-              : `인증 실패: ${text.slice(0, 200)}`;
+            const probe = await fpxProbe(fpxEndpoint(cfg.api_url, cfg.api_mode), cred);
+            ok = probe.ok;
+            message = ok ? `인증 성공 (App Key/Secret 유효)` : `인증 실패: ${probe.message}`;
 
           } else if (code === "yunexpress") {
             const base = (cfg.api_url ?? "").replace(/\/+$/, "");
