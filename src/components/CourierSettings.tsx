@@ -344,6 +344,71 @@ export default function CourierSettings() {
               <Label>{tr("배송 채널 코드", "运输渠道代码")}</Label>
               <Input value={cred.channel_code} onChange={(e) => setCred((c) => ({ ...c, channel_code: e.target.value }))} placeholder={tr("예: US-EXP", "例：US-EXP")} />
             </div>
+
+            <div className="pt-2 border-t space-y-3">
+              <p className="text-sm font-medium">{tr("발송인 주소", "发件人地址")}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("발송인명", "发件人")}</Label>
+                  <Input value={cred.sender_name} onChange={(e) => setCred((c) => ({ ...c, sender_name: e.target.value }))} placeholder="TWINMETA" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("회사명", "公司名")}</Label>
+                  <Input value={cred.sender_company} onChange={(e) => setCred((c) => ({ ...c, sender_company: e.target.value }))} placeholder="TWINMETA" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("전화번호", "电话")}</Label>
+                  <Input value={cred.sender_phone} onChange={(e) => setCred((c) => ({ ...c, sender_phone: e.target.value }))} placeholder="13000000000" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("우편번호", "邮编")}</Label>
+                  <Input value={cred.sender_post_code} onChange={(e) => setCred((c) => ({ ...c, sender_post_code: e.target.value }))} placeholder="518000" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("국가코드", "国家代码")}</Label>
+                  <Input value={cred.sender_country} onChange={(e) => setCred((c) => ({ ...c, sender_country: e.target.value }))} placeholder="CN" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("주/성", "省")}</Label>
+                  <Input value={cred.sender_state} onChange={(e) => setCred((c) => ({ ...c, sender_state: e.target.value }))} placeholder="GuangDong" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("도시", "城市")}</Label>
+                  <Input value={cred.sender_city} onChange={(e) => setCred((c) => ({ ...c, sender_city: e.target.value }))} placeholder="Shenzhen" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("상세주소", "详细地址")}</Label>
+                  <Input value={cred.sender_street} onChange={(e) => setCred((c) => ({ ...c, sender_street: e.target.value }))} />
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t space-y-3">
+              <p className="text-sm font-medium">{tr("통관 신고 정보", "报关申报信息")}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("HS코드", "HS编码")}</Label>
+                  <Input value={cred.hscode} onChange={(e) => setCred((c) => ({ ...c, hscode: e.target.value }))} placeholder="6109100010" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("신고단가 (USD)", "申报单价 (USD)")}</Label>
+                  <Input type="number" step="0.01" min="0" value={cred.unit_price} onChange={(e) => setCred((c) => ({ ...c, unit_price: e.target.value }))} placeholder="10" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("품명 (영문)", "品名 (英文)")}</Label>
+                  <Input value={cred.item_name_en} onChange={(e) => setCred((c) => ({ ...c, item_name_en: e.target.value }))} placeholder="T-Shirt" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("품명 (중문)", "品名 (中文)")}</Label>
+                  <Input value={cred.item_name_cn} onChange={(e) => setCred((c) => ({ ...c, item_name_cn: e.target.value }))} placeholder="T恤" />
+                </div>
+                <div className="space-y-1.5 col-span-2">
+                  <Label className="text-xs">{tr("브랜드", "品牌")}</Label>
+                  <Input value={cred.brand} onChange={(e) => setCred((c) => ({ ...c, brand: e.target.value }))} />
+                </div>
+              </div>
+            </div>
+
             <div className="flex justify-between gap-2 pt-2">
               <Button
                 variant="ghost"
