@@ -355,9 +355,19 @@ export default function ShippingScan() {
     qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
   }
 
+  // Label geometry per carrier. 4PX ships 100×150mm (10×15cm) labels.
+  function labelSizeFor(code?: string | null) {
+    const c = (code ?? "").toLowerCase();
+    if (c === "4px") return { w: 100, h: 150 };
+    return { w: 70, h: 130 };
+  }
+
   function buildLabelHtml(opts: { test?: boolean } = {}) {
     const test = !!opts.test;
-    const carrierName = (test ? TEST_RECIPIENT.carrier : (shipment?.carrier || carrier || "TEST")).toUpperCase();
+    const carrierCode = test ? TEST_RECIPIENT.carrier : (shipment?.carrier || carrier || "");
+    const carrierName = (carrierCode || "TEST").toUpperCase();
+    const { w: LW, h: LH } = labelSizeFor(carrierCode);
+    const big = LW >= 100;
     const tn = test ? TEST_RECIPIENT.trackingNumber : (shipment?.tracking_number || "—");
     const name = test ? TEST_RECIPIENT.name : (order?.recipient_name ?? "");
     const phone = test ? TEST_RECIPIENT.phone : (order?.recipient_phone ?? "");
@@ -367,28 +377,29 @@ export default function ShippingScan() {
     const jobNo = test ? TEST_RECIPIENT.jobNo : (order?.external_order_id ?? "");
     const qty = test ? TEST_RECIPIENT.qty : total;
     // Code128-ish visual bars from tracking number (purely decorative for preview/printer test)
+    const barH = big ? 22 : 14;
     const bars = Array.from(tn).map((c, i) => {
-      const w = (c.charCodeAt(0) % 4) + 1;
-      return `<span style="display:inline-block;width:${w}px;height:14mm;background:#000;margin-right:1px;${i % 3 === 0 ? "margin-right:2px;" : ""}"></span>`;
+      const w = ((c.charCodeAt(0) % 4) + 1) * (big ? 1.5 : 1);
+      return `<span style="display:inline-block;width:${w}px;height:${barH}mm;background:#000;margin-right:1px;${i % 3 === 0 ? "margin-right:2px;" : ""}"></span>`;
     }).join("");
     return `<!doctype html><html><head><meta charset="utf-8"/>
       <title>Label ${tn}</title>
       <style>
-        @page { size: 70mm 130mm; margin: 0; }
+        @page { size: ${LW}mm ${LH}mm; margin: 0; }
         html, body { margin: 0; padding: 0; }
         body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; color: #000; background: #fff; }
-        .label { width: 70mm; height: 130mm; padding: 4mm; box-sizing: border-box; display: flex; flex-direction: column; gap: 2mm; }
+        .label { width: ${LW}mm; height: ${LH}mm; padding: ${big ? 5 : 4}mm; box-sizing: border-box; display: flex; flex-direction: column; gap: 2mm; }
         .row { display: flex; justify-content: space-between; align-items: center; }
-        .carrier { font-size: 14pt; font-weight: 800; letter-spacing: 1px; }
-        .test-tag { font-size: 8pt; padding: 1mm 2mm; border: 1px solid #000; border-radius: 2mm; }
+        .carrier { font-size: ${big ? 20 : 14}pt; font-weight: 800; letter-spacing: 1px; }
+        .test-tag { font-size: ${big ? 10 : 8}pt; padding: 1mm 2mm; border: 1px solid #000; border-radius: 2mm; }
         .hr { border-top: 1px dashed #000; margin: 1mm 0; }
-        .to-label { font-size: 7pt; text-transform: uppercase; letter-spacing: 1px; color: #444; }
-        .name { font-size: 11pt; font-weight: 700; }
-        .addr { font-size: 9pt; line-height: 1.25; }
-        .meta { font-size: 7.5pt; color: #222; }
+        .to-label { font-size: ${big ? 9 : 7}pt; text-transform: uppercase; letter-spacing: 1px; color: #444; }
+        .name { font-size: ${big ? 15 : 11}pt; font-weight: 700; }
+        .addr { font-size: ${big ? 12 : 9}pt; line-height: 1.3; }
+        .meta { font-size: ${big ? 10 : 7.5}pt; color: #222; }
         .bars { text-align: center; line-height: 0; }
-        .tn { text-align: center; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 10pt; letter-spacing: 1px; margin-top: 1mm; }
-        .footer { margin-top: auto; font-size: 7pt; color: #555; text-align: center; }
+        .tn { text-align: center; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: ${big ? 14 : 10}pt; letter-spacing: 1px; margin-top: 1mm; }
+        .footer { margin-top: auto; font-size: ${big ? 9 : 7}pt; color: #555; text-align: center; }
       </style></head>
       <body><div class="label">
         <div class="row">
@@ -403,27 +414,52 @@ export default function ShippingScan() {
         <div class="bars">${bars}</div>
         <div class="tn">${tn}</div>
         <div class="meta">Job No: ${jobNo} · Qty: ${qty}</div>
-        <div class="footer">TWINMETA FACTORY · 70 × 130 mm</div>
+        <div class="footer">TWINMETA FACTORY · ${LW} × ${LH} mm</div>
       </div>
       <script>window.onload=()=>{setTimeout(()=>window.print(),150)};</script>
       </body></html>`;
   }
 
+  // Carrier-returned PDF label, forced to the carrier's paper size (4PX = 100×150mm).
+  function buildRemoteLabelHtml(url: string, code?: string | null) {
+    const { w: LW, h: LH } = labelSizeFor(code);
+    return `<!doctype html><html><head><meta charset="utf-8"/><title>Label</title>
+      <style>
+        @page { size: ${LW}mm ${LH}mm; margin: 0; }
+        html, body { margin: 0; padding: 0; width: ${LW}mm; height: ${LH}mm; }
+        embed, img { width: ${LW}mm; height: ${LH}mm; object-fit: contain; display: block; }
+      </style></head><body>
+      ${/\.(png|jpe?g)$/i.test(url)
+        ? `<img src="${url}" onload="setTimeout(()=>window.print(),200)"/>`
+        : `<embed src="${url}#toolbar=0" type="application/pdf"/><script>window.onload=()=>{setTimeout(()=>window.print(),800)};<\/script>`}
+      </body></html>`;
+  }
+
   function downloadLabelPdf() {
     if (!shipment) return;
-    const w = window.open("", "_blank", "width=320,height=560");
+    const size = labelSizeFor(shipment.carrier || carrier);
+    const w = window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
     if (!w) return;
-    w.document.write(buildLabelHtml());
+    w.document.write(
+      shipment.label_url
+        ? buildRemoteLabelHtml(shipment.label_url, shipment.carrier || carrier)
+        : buildLabelHtml(),
+    );
     w.document.close();
   }
 
   function printTestLabel() {
-    const w = window.open("", "_blank", "width=320,height=560");
+    const size = labelSizeFor(TEST_RECIPIENT.carrier);
+    const w = window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
     if (!w) return;
     w.document.write(buildLabelHtml({ test: true }));
     w.document.close();
-    toast({ title: tr("테스트 송장 출력", "测试运单打印"), description: tr("프린터 대화창이 열렸습니다 (70×130mm)", "已打开打印对话框 (70×130mm)") });
+    toast({
+      title: tr("테스트 송장 출력", "测试运单打印"),
+      description: tr(`프린터 대화창이 열렸습니다 (${size.w}×${size.h}mm)`, `已打开打印对话框 (${size.w}×${size.h}mm)`),
+    });
   }
+
 
   const feedbackBox = useMemo(() => {
     if (feedback.kind === "idle") return null;
