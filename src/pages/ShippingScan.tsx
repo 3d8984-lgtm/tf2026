@@ -68,6 +68,7 @@ export default function ShippingScan() {
   const [cameraOn, setCameraOn] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: FeedbackKind; msg: string }>({ kind: "idle", msg: "" });
   const [designConfirmed, setDesignConfirmed] = useState(false);
+  const [testMode, setTestMode] = useState(false);
   const [issuing, setIssuing] = useState(false);
   const [labelDialog, setLabelDialog] = useState(false);
   const [carrier, setCarrier] = useState("");
