@@ -132,6 +132,13 @@ Deno.serve(async (req) => {
         }
       }
 
+      await admin
+        .from("courier_configs")
+        .update({ last_test_at: new Date().toISOString(), last_test_ok: ok, last_test_message: message })
+        .eq("code", code);
+      return json({ ok, message });
+    }
+
 
     return json({ error: "unknown action" }, 400);
   } catch (e) {
