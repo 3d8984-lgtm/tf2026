@@ -21,7 +21,27 @@ import {
 } from "@/hooks/useCouriers";
 
 const emptyForm = { code: "", name: "", api_url: "", api_mode: "test", enabled: false, is_default: false, sort_order: 0 };
-const emptyCred = { api_key: "", api_secret: "", account_no: "", channel_code: "" };
+const emptyCred = {
+  api_key: "",
+  api_secret: "",
+  account_no: "",
+  channel_code: "",
+  // 발송인 정보
+  sender_name: "",
+  sender_company: "",
+  sender_phone: "",
+  sender_country: "",
+  sender_state: "",
+  sender_city: "",
+  sender_street: "",
+  sender_post_code: "",
+  // 신고 정보
+  hscode: "",
+  unit_price: "",
+  item_name_en: "",
+  item_name_cn: "",
+  brand: "",
+};
 
 export default function CourierSettings() {
   const { lang } = useLang();
