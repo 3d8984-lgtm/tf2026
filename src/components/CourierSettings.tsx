@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLang } from "@/contexts/LangContext";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,11 +17,32 @@ import {
   useSaveCourierCredentials,
   useClearCourierCredentials,
   useTestCourier,
+  useCourierExtra,
   type CourierConfigRow,
 } from "@/hooks/useCouriers";
 
 const emptyForm = { code: "", name: "", api_url: "", api_mode: "test", enabled: false, is_default: false, sort_order: 0 };
-const emptyCred = { api_key: "", api_secret: "", account_no: "", channel_code: "" };
+const emptyCred = {
+  api_key: "",
+  api_secret: "",
+  account_no: "",
+  channel_code: "",
+  // 발송인 정보
+  sender_name: "",
+  sender_company: "",
+  sender_phone: "",
+  sender_country: "",
+  sender_state: "",
+  sender_city: "",
+  sender_street: "",
+  sender_post_code: "",
+  // 신고 정보
+  hscode: "",
+  unit_price: "",
+  item_name_en: "",
+  item_name_cn: "",
+  brand: "",
+};
 
 export default function CourierSettings() {
   const { lang } = useLang();
@@ -82,15 +103,63 @@ export default function CourierSettings() {
 
   const openCred = (c: CourierConfigRow) => { setCred({ ...emptyCred }); setCredDialog(c); };
 
+  const { data: credExtra } = useCourierExtra(credDialog?.code ?? null);
+  useEffect(() => {
+    if (!credDialog || !credExtra) return;
+    const e = (credExtra.extra ?? {}) as Record<string, unknown>;
+    const s = (k: string) => (e[k] === undefined || e[k] === null ? "" : String(e[k]));
+    setCred((prev) => ({
+      ...prev,
+      account_no: credExtra.account_no ?? "",
+      channel_code: s("channel_code") || s("logistics_product_code"),
+      sender_name: s("sender_name"),
+      sender_company: s("sender_company"),
+      sender_phone: s("sender_phone"),
+      sender_country: s("sender_country"),
+      sender_state: s("sender_state"),
+      sender_city: s("sender_city"),
+      sender_street: s("sender_street"),
+      sender_post_code: s("sender_post_code"),
+      hscode: s("hscode"),
+      unit_price: s("unit_price"),
+      item_name_en: s("item_name_en"),
+      item_name_cn: s("item_name_cn"),
+      brand: s("brand"),
+    }));
+  }, [credDialog?.code, credExtra]);
+
   const handleSaveCred = async () => {
     if (!credDialog) return;
     try {
+      const base = (credExtra?.extra ?? {}) as Record<string, unknown>;
+      const extra: Record<string, unknown> = { ...base };
+      const put = (key: string, val: string) => {
+        const v = val.trim();
+        if (v) extra[key] = v;
+        else delete extra[key];
+      };
+      put("channel_code", cred.channel_code);
+      put("sender_name", cred.sender_name);
+      put("sender_company", cred.sender_company);
+      put("sender_phone", cred.sender_phone);
+      put("sender_country", cred.sender_country);
+      put("sender_state", cred.sender_state);
+      put("sender_city", cred.sender_city);
+      put("sender_street", cred.sender_street);
+      put("sender_post_code", cred.sender_post_code);
+      put("hscode", cred.hscode);
+      put("item_name_en", cred.item_name_en);
+      put("item_name_cn", cred.item_name_cn);
+      put("brand", cred.brand);
+      if (cred.unit_price.trim() && !Number.isNaN(Number(cred.unit_price))) extra.unit_price = Number(cred.unit_price);
+      else delete extra.unit_price;
+
       await saveCreds.mutateAsync({
         code: credDialog.code,
         api_key: cred.api_key,
         api_secret: cred.api_secret,
         account_no: cred.account_no,
-        extra: cred.channel_code ? { channel_code: cred.channel_code } : undefined,
+        extra,
       });
       setCredDialog(null);
       toast({ title: tr("인증정보가 안전하게 저장되었습니다", "认证信息已安全保存") });
@@ -248,7 +317,8 @@ export default function CourierSettings() {
 
       {/* Credentials dialog */}
       <Dialog open={!!credDialog} onOpenChange={(o) => !o && setCredDialog(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+
           <DialogHeader>
             <DialogTitle>{credDialog?.name} — {tr("API 인증정보", "API 认证信息")}</DialogTitle>
           </DialogHeader>
@@ -275,6 +345,71 @@ export default function CourierSettings() {
               <Label>{tr("배송 채널 코드", "运输渠道代码")}</Label>
               <Input value={cred.channel_code} onChange={(e) => setCred((c) => ({ ...c, channel_code: e.target.value }))} placeholder={tr("예: US-EXP", "例：US-EXP")} />
             </div>
+
+            <div className="pt-2 border-t space-y-3">
+              <p className="text-sm font-medium">{tr("발송인 주소", "发件人地址")}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("발송인명", "发件人")}</Label>
+                  <Input value={cred.sender_name} onChange={(e) => setCred((c) => ({ ...c, sender_name: e.target.value }))} placeholder="TWINMETA" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("회사명", "公司名")}</Label>
+                  <Input value={cred.sender_company} onChange={(e) => setCred((c) => ({ ...c, sender_company: e.target.value }))} placeholder="TWINMETA" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("전화번호", "电话")}</Label>
+                  <Input value={cred.sender_phone} onChange={(e) => setCred((c) => ({ ...c, sender_phone: e.target.value }))} placeholder="13000000000" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("우편번호", "邮编")}</Label>
+                  <Input value={cred.sender_post_code} onChange={(e) => setCred((c) => ({ ...c, sender_post_code: e.target.value }))} placeholder="518000" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("국가코드", "国家代码")}</Label>
+                  <Input value={cred.sender_country} onChange={(e) => setCred((c) => ({ ...c, sender_country: e.target.value }))} placeholder="CN" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("주/성", "省")}</Label>
+                  <Input value={cred.sender_state} onChange={(e) => setCred((c) => ({ ...c, sender_state: e.target.value }))} placeholder="GuangDong" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("도시", "城市")}</Label>
+                  <Input value={cred.sender_city} onChange={(e) => setCred((c) => ({ ...c, sender_city: e.target.value }))} placeholder="Shenzhen" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("상세주소", "详细地址")}</Label>
+                  <Input value={cred.sender_street} onChange={(e) => setCred((c) => ({ ...c, sender_street: e.target.value }))} />
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t space-y-3">
+              <p className="text-sm font-medium">{tr("통관 신고 정보", "报关申报信息")}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("HS코드", "HS编码")}</Label>
+                  <Input value={cred.hscode} onChange={(e) => setCred((c) => ({ ...c, hscode: e.target.value }))} placeholder="6109100010" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("신고단가 (USD)", "申报单价 (USD)")}</Label>
+                  <Input type="number" step="0.01" min="0" value={cred.unit_price} onChange={(e) => setCred((c) => ({ ...c, unit_price: e.target.value }))} placeholder="10" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("품명 (영문)", "品名 (英文)")}</Label>
+                  <Input value={cred.item_name_en} onChange={(e) => setCred((c) => ({ ...c, item_name_en: e.target.value }))} placeholder="T-Shirt" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("품명 (중문)", "品名 (中文)")}</Label>
+                  <Input value={cred.item_name_cn} onChange={(e) => setCred((c) => ({ ...c, item_name_cn: e.target.value }))} placeholder="T恤" />
+                </div>
+                <div className="space-y-1.5 col-span-2">
+                  <Label className="text-xs">{tr("브랜드", "品牌")}</Label>
+                  <Input value={cred.brand} onChange={(e) => setCred((c) => ({ ...c, brand: e.target.value }))} />
+                </div>
+              </div>
+            </div>
+
             <div className="flex justify-between gap-2 pt-2">
               <Button
                 variant="ghost"

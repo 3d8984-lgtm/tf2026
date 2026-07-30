@@ -83,6 +83,18 @@ export function useSaveCourierCredentials() {
   });
 }
 
+export function useCourierExtra(code: string | null) {
+  return useQuery({
+    queryKey: ["courier_extra", code],
+    enabled: !!code,
+    queryFn: async () =>
+      (await courierConfigFn({ action: "get_extra", code })) as {
+        account_no: string;
+        extra: Record<string, unknown>;
+      },
+  });
+}
+
 export function useClearCourierCredentials() {
   const qc = useQueryClient();
   return useMutation({

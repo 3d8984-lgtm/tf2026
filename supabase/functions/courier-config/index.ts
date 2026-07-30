@@ -60,6 +60,17 @@ Deno.serve(async (req) => {
       return json({ ok: true, has_credentials: has });
     }
 
+    if (action === "get_extra") {
+      if (!code) return json({ error: "code required" }, 400);
+      const { data: cred } = await admin
+        .from("courier_credentials")
+        .select("account_no, extra")
+        .eq("code", code)
+        .maybeSingle();
+      // Never return api_key / api_secret.
+      return json({ ok: true, account_no: cred?.account_no ?? "", extra: cred?.extra ?? {} });
+    }
+
     if (action === "clear_credentials") {
       if (!code) return json({ error: "code required" }, 400);
       await admin.from("courier_credentials").delete().eq("code", code);
