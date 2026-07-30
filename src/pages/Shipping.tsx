@@ -113,7 +113,7 @@ export default function Shipping() {
               <TableRow>
                 <TableHead>Job No</TableHead>
                 <TableHead>{tr("Twinker", "Twinker")}</TableHead>
-                <TableHead>{tr("도시/지역", "城市/州")}</TableHead>
+                
                 <TableHead className="text-center">{tr("진행", "进度")}</TableHead>
                 <TableHead>{tr("상태", "状态")}</TableHead>
                 <TableHead>{tr("택배사", "承运商")}</TableHead>
