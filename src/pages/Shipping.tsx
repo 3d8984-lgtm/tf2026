@@ -170,12 +170,48 @@ export default function Shipping() {
                       <TableCell>
                         <Badge variant="outline" className={STATUS_COLORS[r.scan_status] ?? ""}>{statusLabel(r.scan_status)}</Badge>
                       </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        {couriers.length === 0 ? (
+                          <span className="text-xs text-muted-foreground">{tr("설정 필요", "需配置")}</span>
+                        ) : (
+                          <div className="flex gap-1">
+                            {couriers.map((c) => {
+                              const active = carrierOf(r) === c.code;
+                              return (
+                                <Button
+                                  key={c.code}
+                                  size="sm"
+                                  variant={active ? "default" : "outline"}
+                                  className="h-7 px-2 text-xs"
+                                  disabled={!!r.tracking_number}
+                                  onClick={() => setPicked((p) => ({ ...p, [r.id]: c.code }))}
+                                >
+                                  {c.name}
+                                </Button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell className="font-mono text-xs">{r.tracking_number ?? "-"}</TableCell>
                       <TableCell className="text-sm">{r.orders?.project_completed_at ? format(new Date(r.orders.project_completed_at), "yyyy-MM-dd") : "-"}</TableCell>
                       <TableCell className="text-right">
-                        <Button size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/shipping/scan/${r.order_id}`); }}>
-                          <ScanLine className="w-4 h-4 mr-1" />
-                          {r.scan_status === "reported" ? tr("보기", "查看") : tr("스캔 시작", "开始扫码")}
+                        <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                          {!r.tracking_number && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              disabled={issuingId === r.id || couriers.length === 0}
+                              onClick={() => issue(r)}
+                            >
+                              {issuingId === r.id ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Truck className="w-4 h-4 mr-1" />}
+                              {tr("송장 발급", "生成运单")}
+                            </Button>
+                          )}
+                          <Button size="sm" onClick={() => navigate(`/shipping/scan/${r.order_id}`)}>
+                            <ScanLine className="w-4 h-4 mr-1" />
+                            {r.scan_status === "reported" ? tr("보기", "查看") : tr("스캔 시작", "开始扫码")}
+
                         </Button>
                       </TableCell>
                     </TableRow>
