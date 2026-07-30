@@ -806,8 +806,6 @@ export default function ShippingScan() {
               <Send className="w-4 h-4 mr-1"/>{tr("발송 + 회신", "发货并回报")}
             </Button>
           </div>
-
-          </div>
         </CardContent>
         {!allScanned && (
           <div className="px-4 pb-4 text-xs text-muted-foreground">{tr("모든 상품을 스캔하고 디자인 확인을 체크하면 송장 발급이 활성화됩니다.", "完成全部扫描并确认设计后方可出运单。")}</div>
