@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import PageHeader from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,10 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ScanLine, Search, Truck, Package, CheckCircle2, Send } from "lucide-react";
+import { ScanLine, Search, Truck, Package, CheckCircle2, Send, Loader2 } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { useShippingQueue, useShippingQueueKpis, type ScanStatus } from "@/hooks/useShippingQueue";
+import { useCouriers, requestCarrierLabel } from "@/hooks/useCouriers";
+import { toast } from "sonner";
 import { format } from "date-fns";
+
 
 const STATUSES: { value: ScanStatus | "all"; ko: string; zh: string }[] = [
   { value: "all", ko: "전체", zh: "全部" },
@@ -38,6 +42,33 @@ export default function Shipping() {
 
   const { data: kpis } = useShippingQueueKpis();
   const { data: rows = [], isLoading } = useShippingQueue({ status, search });
+  const { data: couriers = [] } = useCouriers(true);
+  const qc = useQueryClient();
+  const [picked, setPicked] = useState<Record<string, string>>({});
+  const [issuingId, setIssuingId] = useState<string | null>(null);
+
+  const carrierOf = (r: any) =>
+    picked[r.id] ?? r.carrier ?? (couriers.find((c) => c.is_default) ?? couriers[0])?.code ?? "";
+
+  const issue = async (r: any) => {
+    const code = carrierOf(r);
+    if (!code) {
+      toast.error(tr("택배사를 먼저 선택하세요", "请先选择承运商"));
+      return;
+    }
+    setIssuingId(r.id);
+    try {
+      const res = await requestCarrierLabel(r.id, code);
+      toast.success(`${code.toUpperCase()} · ${res.tracking_number}`);
+      qc.invalidateQueries({ queryKey: ["shipping_queue"] });
+      qc.invalidateQueries({ queryKey: ["shipping_queue_kpis"] });
+    } catch (e: any) {
+      toast.error(e?.message ?? tr("송장 발급 실패", "运单生成失败"));
+    } finally {
+      setIssuingId(null);
+    }
+  };
+
 
   const tr = (ko: string, zh: string) => (isKo ? ko : zh);
   const statusLabel = (s: string) => {
@@ -104,6 +135,7 @@ export default function Shipping() {
                 <TableHead>{tr("도시/지역", "城市/州")}</TableHead>
                 <TableHead className="text-center">{tr("진행", "进度")}</TableHead>
                 <TableHead>{tr("상태", "状态")}</TableHead>
+                <TableHead>{tr("택배사", "承运商")}</TableHead>
                 <TableHead>{tr("송장번호", "运单号")}</TableHead>
                 <TableHead>{tr("납기일", "交期")}</TableHead>
                 <TableHead className="text-right">{tr("작업", "操作")}</TableHead>
@@ -111,9 +143,10 @@ export default function Shipping() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-10">{tr("불러오는 중...", "加载中...")}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-10">{tr("불러오는 중...", "加载中...")}</TableCell></TableRow>
               ) : rows.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-10">{tr("표시할 주문이 없습니다", "暂无订单")}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-10">{tr("표시할 주문이 없습니다", "暂无订单")}</TableCell></TableRow>
+
               ) : (
                 rows.map((r: any) => {
                   const total = r.orders?.quantity ?? 0;
@@ -137,14 +170,51 @@ export default function Shipping() {
                       <TableCell>
                         <Badge variant="outline" className={STATUS_COLORS[r.scan_status] ?? ""}>{statusLabel(r.scan_status)}</Badge>
                       </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        {couriers.length === 0 ? (
+                          <span className="text-xs text-muted-foreground">{tr("설정 필요", "需配置")}</span>
+                        ) : (
+                          <div className="flex gap-1">
+                            {couriers.map((c) => {
+                              const active = carrierOf(r) === c.code;
+                              return (
+                                <Button
+                                  key={c.code}
+                                  size="sm"
+                                  variant={active ? "default" : "outline"}
+                                  className="h-7 px-2 text-xs"
+                                  disabled={!!r.tracking_number}
+                                  onClick={() => setPicked((p) => ({ ...p, [r.id]: c.code }))}
+                                >
+                                  {c.name}
+                                </Button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell className="font-mono text-xs">{r.tracking_number ?? "-"}</TableCell>
                       <TableCell className="text-sm">{r.orders?.project_completed_at ? format(new Date(r.orders.project_completed_at), "yyyy-MM-dd") : "-"}</TableCell>
                       <TableCell className="text-right">
-                        <Button size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/shipping/scan/${r.order_id}`); }}>
-                          <ScanLine className="w-4 h-4 mr-1" />
-                          {r.scan_status === "reported" ? tr("보기", "查看") : tr("스캔 시작", "开始扫码")}
-                        </Button>
+                        <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                          {!r.tracking_number && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              disabled={issuingId === r.id || couriers.length === 0}
+                              onClick={() => issue(r)}
+                            >
+                              {issuingId === r.id ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Truck className="w-4 h-4 mr-1" />}
+                              {tr("송장 발급", "生成运单")}
+                            </Button>
+                          )}
+                          <Button size="sm" onClick={() => navigate(`/shipping/scan/${r.order_id}`)}>
+                            <ScanLine className="w-4 h-4 mr-1" />
+                            {r.scan_status === "reported" ? tr("보기", "查看") : tr("스캔 시작", "开始扫码")}
+                          </Button>
+                        </div>
                       </TableCell>
+
                     </TableRow>
                   );
                 })
