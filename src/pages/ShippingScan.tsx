@@ -523,7 +523,16 @@ export default function ShippingScan() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <Button variant="ghost" onClick={() => navigate("/shipping")}><ArrowLeft className="w-4 h-4 mr-1"/>{tr("목록으로", "返回列表")}</Button>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <label
+            className={`flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm cursor-pointer transition-colors ${
+              testMode ? "border-amber-500/60 bg-amber-500/10 text-amber-300" : "text-muted-foreground"
+            }`}
+          >
+            <TestTube2 className="w-4 h-4" />
+            {tr("테스트 모드", "测试模式")}
+            <Switch checked={testMode} onCheckedChange={setTestMode} />
+          </label>
           <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="w-4 h-4 mr-1"/>{tr("새로고침", "刷新")}</Button>
         </div>
       </div>
