@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.58.0";
+import { md5 } from "../_shared/md5.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -59,7 +60,7 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any): Promise<
     biz_data: JSON.stringify(bizData),
   };
   const sorted = Object.keys(params).sort().map((k) => `${k}${params[k]}`).join("");
-  params.sign = (await md5(`${cred?.api_secret ?? ""}${sorted}${cred?.api_secret ?? ""}`)).toUpperCase();
+  params.sign = md5hex(`${cred?.api_secret ?? ""}${sorted}${cred?.api_secret ?? ""}`).toUpperCase();
 
   const res = await fetch(cfg.api_url, {
     method: "POST",
