@@ -200,17 +200,6 @@ export default function Shipping() {
                       <TableCell className="text-sm">{r.orders?.project_completed_at ? format(new Date(r.orders.project_completed_at), "yyyy-MM-dd") : "-"}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                          {!r.tracking_number && (
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              disabled={issuingId === r.id || couriers.length === 0}
-                              onClick={() => issue(r)}
-                            >
-                              {issuingId === r.id ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Truck className="w-4 h-4 mr-1" />}
-                              {tr("송장 발급", "生成运单")}
-                            </Button>
-                          )}
                           <Button size="sm" onClick={() => navigate(`/shipping/scan/${r.order_id}`)}>
                             <ScanLine className="w-4 h-4 mr-1" />
                             {r.scan_status === "reported" ? tr("보기", "查看") : tr("스캔 시작", "开始扫码")}
