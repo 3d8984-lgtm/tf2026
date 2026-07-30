@@ -515,7 +515,9 @@ export default function ShippingScan() {
     </div>
   );
 
-  const readyToIssue = allScanned && designConfirmed && !shipment.tracking_number;
+  const readyToIssue = testMode
+    ? !!carrier
+    : allScanned && !shipment.tracking_number;
 
   return (
     <div className="space-y-4">
