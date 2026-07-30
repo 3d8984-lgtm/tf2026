@@ -99,9 +99,9 @@ export function useTestCourier() {
   });
 }
 
-export async function requestCarrierLabel(shipmentId: string, carrier: string) {
+export async function requestCarrierLabel(shipmentId: string, carrier: string, test = false) {
   const { data, error } = await supabase.functions.invoke("courier-label", {
-    body: { shipment_id: shipmentId, carrier },
+    body: { shipment_id: shipmentId, carrier, test },
   });
   if (error) {
     const ctx = (error as any)?.context;
@@ -113,5 +113,12 @@ export async function requestCarrierLabel(shipmentId: string, carrier: string) {
     throw new Error(msg);
   }
   if ((data as any)?.error) throw new Error((data as any).error);
-  return data as { ok: boolean; carrier: string; tracking_number: string; label_url: string | null };
+  return data as {
+    ok: boolean;
+    carrier: string;
+    tracking_number: string;
+    label_url: string | null;
+    test?: boolean;
+    message?: string;
+  };
 }
