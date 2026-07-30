@@ -768,26 +768,36 @@ export default function ShippingScan() {
             <div>
               <Label className="text-xs">{tr("택배사", "承运商")}</Label>
               <Select value={carrier} onValueChange={setCarrier}>
-                <SelectTrigger><SelectValue/></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={tr("택배사 선택", "选择承运商")}/></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="4px">4PX</SelectItem>
-                  <SelectItem value="yunexpress">YunExpress</SelectItem>
-                  <SelectItem value="cjlogistics">CJ Logistics</SelectItem>
-                  <SelectItem value="usps">USPS</SelectItem>
+                  {couriers.map((c) => (
+                    <SelectItem key={c.code} value={c.code}>
+                      {c.name}{c.api_mode === "test" ? tr(" (테스트)", "（测试）") : ""}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              {couriers.length === 0 && (
+                <p className="text-[11px] text-destructive mt-1">
+                  {tr("시스템 설정 > 택배사 연동에서 택배사를 활성화하세요", "请在系统设置 > 快递对接中启用承运商")}
+                </p>
+              )}
             </div>
             <div>
-              <Label className="text-xs">{tr("송장번호 (수기 입력 시)", "运单号（手动输入）")}</Label>
-              <Input value={manualTracking} onChange={(e) => setManualTracking(e.target.value)} placeholder={tr("비워두면 자동발급(MOCK)", "留空则自动生成 (MOCK)")} className="font-mono"/>
+              <Label className="text-xs">{tr("송장번호 (수기 등록 시)", "运单号（手动登记）")}</Label>
+              <Input value={manualTracking} onChange={(e) => setManualTracking(e.target.value)} placeholder={tr("택배사에서 직접 받은 번호", "承运商线下提供的单号")} className="font-mono"/>
             </div>
           </div>
           <div className="flex gap-2 flex-wrap">
             <Button variant="ghost" onClick={printTestLabel}>
               <TestTube2 className="w-4 h-4 mr-1"/>{tr("프린터 테스트", "打印测试")}
             </Button>
-            <Button disabled={!readyToIssue || issuing} onClick={() => issueTracking(!manualTracking.trim())}>
-              <Truck className="w-4 h-4 mr-1"/>{tr("송장 발급", "出运单")}
+            <Button disabled={!readyToIssue || issuing || !carrier} onClick={issueTrackingViaApi}>
+              {issuing ? <RefreshCw className="w-4 h-4 mr-1 animate-spin"/> : <Truck className="w-4 h-4 mr-1"/>}
+              {tr("송장 발급 (API)", "出运单 (API)")}
+            </Button>
+            <Button variant="outline" disabled={!readyToIssue || issuing || !manualTracking.trim()} onClick={issueTrackingManual}>
+              {tr("수기 등록", "手动登记")}
             </Button>
             <Button variant="outline" disabled={!shipment.tracking_number} onClick={downloadLabelPdf}>
               <Printer className="w-4 h-4 mr-1"/>{tr("라벨 출력", "打印标签")}
@@ -795,6 +805,8 @@ export default function ShippingScan() {
             <Button variant="secondary" disabled={!shipment.tracking_number || shipment.scan_status === "reported"} onClick={markShippedAndReport}>
               <Send className="w-4 h-4 mr-1"/>{tr("발송 + 회신", "发货并回报")}
             </Button>
+          </div>
+
           </div>
         </CardContent>
         {!allScanned && (
