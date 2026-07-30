@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.58.0";
+import { md5 } from "../_shared/md5.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,13 +18,10 @@ function json(body: unknown, status = 200) {
   });
 }
 
-async function md5(text: string) {
-  const buf = await crypto.subtle.digest("MD5", new TextEncoder().encode(text)).catch(() => null);
-  if (buf) return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-  // Deno WebCrypto has no MD5 fallback: use SHA-256 (some sandboxes)
-  const sha = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return [...new Uint8Array(sha)].map((b) => b.toString(16).padStart(2, "0")).join("");
+function md5hex(text: string) {
+  return md5(text);
 }
+
 
 interface LabelResult {
   tracking_number: string | null;
@@ -62,7 +60,7 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any): Promise<
     biz_data: JSON.stringify(bizData),
   };
   const sorted = Object.keys(params).sort().map((k) => `${k}${params[k]}`).join("");
-  params.sign = (await md5(`${cred?.api_secret ?? ""}${sorted}${cred?.api_secret ?? ""}`)).toUpperCase();
+  params.sign = md5hex(`${cred?.api_secret ?? ""}${sorted}${cred?.api_secret ?? ""}`).toUpperCase();
 
   const res = await fetch(cfg.api_url, {
     method: "POST",
