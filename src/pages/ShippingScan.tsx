@@ -10,7 +10,6 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Camera, CameraOff, CheckCircle2, AlertTriangle, ScanLine, Truck, Send, Printer, RefreshCw, Usb, TestTube2, Download, QrCode } from "lucide-react";
 import QRCode from "qrcode";
 import { useLang } from "@/contexts/LangContext";
@@ -67,7 +66,6 @@ export default function ShippingScan() {
   const [scanInput, setScanInput] = useState("");
   const [cameraOn, setCameraOn] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: FeedbackKind; msg: string }>({ kind: "idle", msg: "" });
-  const [designConfirmed, setDesignConfirmed] = useState(false);
   const [testMode, setTestMode] = useState(false);
   const [issuing, setIssuing] = useState(false);
   const [labelDialog, setLabelDialog] = useState(false);
