@@ -16,6 +16,8 @@ import QRCode from "qrcode";
 import { useLang } from "@/contexts/LangContext";
 import { useShipmentScan } from "@/hooks/useShipmentScan";
 import { useAddressBook } from "@/hooks/useAddressBook";
+import { useCouriers, requestCarrierLabel } from "@/hooks/useCouriers";
+
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -68,8 +70,16 @@ export default function ShippingScan() {
   const [designConfirmed, setDesignConfirmed] = useState(false);
   const [issuing, setIssuing] = useState(false);
   const [labelDialog, setLabelDialog] = useState(false);
-  const [carrier, setCarrier] = useState("4px");
+  const [carrier, setCarrier] = useState("");
   const [manualTracking, setManualTracking] = useState("");
+  const { data: couriers = [] } = useCouriers(true);
+
+  useEffect(() => {
+    if (carrier || couriers.length === 0) return;
+    const current = shipment?.carrier && couriers.find((c) => c.code === shipment.carrier);
+    setCarrier((current ?? couriers.find((c) => c.is_default) ?? couriers[0]).code);
+  }, [couriers, shipment?.carrier, carrier]);
+
 
   const [hidActive, setHidActive] = useState(false);
   const [testQrDataUrl, setTestQrDataUrl] = useState<string>("");
@@ -274,9 +284,35 @@ export default function ShippingScan() {
     return `MOCK-${ymd}-${rnd}`;
   }
 
-  async function issueTracking(autoMock: boolean) {
+  // Call the selected courier's API to create the label / tracking number.
+  async function issueTrackingViaApi() {
     if (!shipment) return;
-    const trackingNumber = autoMock ? genMockTracking() : manualTracking.trim();
+    if (!carrier) {
+      toast({ variant: "destructive", title: tr("택배사를 선택하세요", "请选择承运商") });
+      return;
+    }
+    setIssuing(true);
+    try {
+      const res = await requestCarrierLabel(shipment.id, carrier);
+      await logAction("issue_tracking", { trackingNumber: res.tracking_number, carrier, via: "api" });
+      toast({ title: tr("송장이 발급되었습니다", "已生成运单"), description: res.tracking_number });
+      setLabelDialog(true);
+      qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
+    } catch (e: any) {
+      toast({
+        variant: "destructive",
+        title: tr("택배사 API 발급 실패", "承运商API出运单失败"),
+        description: e?.message ?? tr("알 수 없는 오류", "未知错误"),
+      });
+    } finally {
+      setIssuing(false);
+    }
+  }
+
+  // Manual entry fallback (used when the courier issues the number offline).
+  async function issueTrackingManual() {
+    if (!shipment) return;
+    const trackingNumber = manualTracking.trim();
     if (!trackingNumber) {
       toast({ variant: "destructive", title: tr("송장번호를 입력하세요", "请输入运单号") });
       return;
@@ -297,11 +333,12 @@ export default function ShippingScan() {
       toast({ variant: "destructive", title: tr("발급 실패", "出运单失败"), description: error.message });
       return;
     }
-    await logAction("issue_tracking", { trackingNumber, carrier, mock: autoMock });
-    toast({ title: tr("송장이 발급되었습니다", "已生成运单"), description: trackingNumber });
+    await logAction("issue_tracking", { trackingNumber, carrier, via: "manual" });
+    toast({ title: tr("송장이 등록되었습니다", "已登记运单"), description: trackingNumber });
     setLabelDialog(true);
     qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
   }
+
 
   async function markShippedAndReport() {
     if (!shipment) return;
@@ -731,26 +768,36 @@ export default function ShippingScan() {
             <div>
               <Label className="text-xs">{tr("택배사", "承运商")}</Label>
               <Select value={carrier} onValueChange={setCarrier}>
-                <SelectTrigger><SelectValue/></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={tr("택배사 선택", "选择承运商")}/></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="4px">4PX</SelectItem>
-                  <SelectItem value="yunexpress">YunExpress</SelectItem>
-                  <SelectItem value="cjlogistics">CJ Logistics</SelectItem>
-                  <SelectItem value="usps">USPS</SelectItem>
+                  {couriers.map((c) => (
+                    <SelectItem key={c.code} value={c.code}>
+                      {c.name}{c.api_mode === "test" ? tr(" (테스트)", "（测试）") : ""}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              {couriers.length === 0 && (
+                <p className="text-[11px] text-destructive mt-1">
+                  {tr("시스템 설정 > 택배사 연동에서 택배사를 활성화하세요", "请在系统设置 > 快递对接中启用承运商")}
+                </p>
+              )}
             </div>
             <div>
-              <Label className="text-xs">{tr("송장번호 (수기 입력 시)", "运单号（手动输入）")}</Label>
-              <Input value={manualTracking} onChange={(e) => setManualTracking(e.target.value)} placeholder={tr("비워두면 자동발급(MOCK)", "留空则自动生成 (MOCK)")} className="font-mono"/>
+              <Label className="text-xs">{tr("송장번호 (수기 등록 시)", "运单号（手动登记）")}</Label>
+              <Input value={manualTracking} onChange={(e) => setManualTracking(e.target.value)} placeholder={tr("택배사에서 직접 받은 번호", "承运商线下提供的单号")} className="font-mono"/>
             </div>
           </div>
           <div className="flex gap-2 flex-wrap">
             <Button variant="ghost" onClick={printTestLabel}>
               <TestTube2 className="w-4 h-4 mr-1"/>{tr("프린터 테스트", "打印测试")}
             </Button>
-            <Button disabled={!readyToIssue || issuing} onClick={() => issueTracking(!manualTracking.trim())}>
-              <Truck className="w-4 h-4 mr-1"/>{tr("송장 발급", "出运单")}
+            <Button disabled={!readyToIssue || issuing || !carrier} onClick={issueTrackingViaApi}>
+              {issuing ? <RefreshCw className="w-4 h-4 mr-1 animate-spin"/> : <Truck className="w-4 h-4 mr-1"/>}
+              {tr("송장 발급 (API)", "出运单 (API)")}
+            </Button>
+            <Button variant="outline" disabled={!readyToIssue || issuing || !manualTracking.trim()} onClick={issueTrackingManual}>
+              {tr("수기 등록", "手动登记")}
             </Button>
             <Button variant="outline" disabled={!shipment.tracking_number} onClick={downloadLabelPdf}>
               <Printer className="w-4 h-4 mr-1"/>{tr("라벨 출력", "打印标签")}
