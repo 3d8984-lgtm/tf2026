@@ -364,7 +364,7 @@ export default function ShippingScan() {
     return { w: 70, h: 130 };
   }
 
-  function buildLabelHtml(opts: { test?: boolean; testTracking?: string } = {}) {
+  function buildLabelHtml(opts: { test?: boolean; testTracking?: string; noPrint?: boolean } = {}) {
     // `test` = fixed dummy recipient (printer check).
     // `testTracking` = real order data, simulated tracking number (4PX test mode).
     const test = !!opts.test;
@@ -422,12 +422,12 @@ export default function ShippingScan() {
         <div class="meta">Job No: ${jobNo} · Qty: ${qty}</div>
         <div class="footer">TWINMETA FACTORY · ${LW} × ${LH} mm</div>
       </div>
-      <script>window.onload=()=>{setTimeout(()=>window.print(),150)};</script>
+      ${opts.noPrint ? "" : "<script>window.onload=()=>{setTimeout(()=>window.print(),150)};<\/script>"}
       </body></html>`;
   }
 
   // Carrier-returned PDF label, forced to the carrier's paper size (4PX = 100×150mm).
-  function buildRemoteLabelHtml(url: string, code?: string | null) {
+  function buildRemoteLabelHtml(url: string, code?: string | null, noPrint = false) {
     const { w: LW, h: LH } = labelSizeFor(code);
     return `<!doctype html><html><head><meta charset="utf-8"/><title>Label</title>
       <style>
@@ -436,8 +436,8 @@ export default function ShippingScan() {
         embed, img { width: ${LW}mm; height: ${LH}mm; object-fit: contain; display: block; }
       </style></head><body>
       ${/\.(png|jpe?g)$/i.test(url)
-        ? `<img src="${url}" onload="setTimeout(()=>window.print(),200)"/>`
-        : `<embed src="${url}#toolbar=0" type="application/pdf"/><script>window.onload=()=>{setTimeout(()=>window.print(),800)};<\/script>`}
+        ? `<img src="${url}" ${noPrint ? "" : 'onload="setTimeout(()=>window.print(),200)"'}/>`
+        : `<embed src="${url}#toolbar=0" type="application/pdf"/>${noPrint ? "" : "<script>window.onload=()=>{setTimeout(()=>window.print(),800)};<\/script>"}`}
       </body></html>`;
   }
 
@@ -504,8 +504,15 @@ export default function ShippingScan() {
   );
 
   const previewSize = labelSizeFor(shipment.carrier || carrier);
-  const previewPx = { w: 210, h: Math.round((210 * previewSize.h) / previewSize.w) };
   const sizeLabel = `${previewSize.w} × ${previewSize.h} mm`;
+  // Real device pixels for the label at 96dpi, then scaled down to fit the card.
+  const mmPx = (mm: number) => (mm * 96) / 25.4;
+  const previewScale = 230 / mmPx(previewSize.w);
+  const remoteLabelUrl = (shipment as any).label_url as string | null | undefined;
+  // The preview renders the exact same markup the printer receives.
+  const previewHtml = remoteLabelUrl
+    ? buildRemoteLabelHtml(remoteLabelUrl, shipment.carrier || carrier, true)
+    : buildLabelHtml({ testTracking: testMode && !shipment.tracking_number ? "TEST-PREVIEW-0000" : undefined, noPrint: true });
 
   const readyToIssue = testMode
     ? !!carrier
@@ -734,34 +741,28 @@ export default function ShippingScan() {
         </CardHeader>
         <CardContent className="flex flex-col md:flex-row items-start gap-6">
           <div
-            className="bg-white text-black rounded shadow-lg border border-border overflow-hidden"
-            style={{ width: `${previewPx.w}px`, height: `${previewPx.h}px`, padding: "12px", boxSizing: "border-box" }}
+            className="bg-white rounded shadow-lg border border-border overflow-hidden shrink-0"
+            style={{
+              width: `${Math.round(mmPx(previewSize.w) * previewScale)}px`,
+              height: `${Math.round(mmPx(previewSize.h) * previewScale)}px`,
+            }}
           >
-            <div className="flex justify-between items-center">
-              <div className="font-extrabold tracking-wider text-[18px]">{(shipment.carrier || carrier || "TEST").toUpperCase()}</div>
-              {!shipment.tracking_number && <div className="text-[9px] border border-black rounded px-1.5 py-0.5">PREVIEW</div>}
-            </div>
-            <div className="border-t border-dashed border-black my-1.5" />
-            <div className="text-[8px] uppercase tracking-wider text-neutral-600">To / 收件人</div>
-            <div className="font-bold text-[12px] leading-tight">{order?.recipient_name || "—"}</div>
-            <div className="text-[10px] leading-snug mt-0.5">
-              {order?.shipping_address || "—"}<br/>
-              {[order?.shipping_city, order?.shipping_state, order?.shipping_zip, order?.shipping_country].filter(Boolean).join(", ") || "—"}<br/>
-              {order?.recipient_phone || ""}
-            </div>
-            <div className="border-t border-dashed border-black my-1.5" />
-            <div className="text-center leading-none">
-              {Array.from((shipment.tracking_number || "PREVIEW-0000")).map((c, i) => {
-                const w = (c.charCodeAt(0) % 4) + 1;
-                return <span key={i} style={{ display: "inline-block", width: `${w}px`, height: "36px", background: "#000", marginRight: i % 3 === 0 ? "2px" : "1px" }} />;
-              })}
-            </div>
-            <div className="text-center font-mono text-[10px] tracking-wider mt-1 break-all">
-              {shipment.tracking_number || "PREVIEW-0000"}
-            </div>
-            <div className="text-[8px] mt-1 text-neutral-700">Job No: {order?.external_order_id} · Qty: {total}</div>
-            <div className="text-[7px] mt-3 text-neutral-500 text-center">TWINMETA FACTORY · {sizeLabel}</div>
+            <iframe
+              title="label-preview"
+              srcDoc={previewHtml}
+              sandbox="allow-same-origin"
+              scrolling="no"
+              style={{
+                width: `${mmPx(previewSize.w)}px`,
+                height: `${mmPx(previewSize.h)}px`,
+                border: "none",
+                transform: `scale(${previewScale})`,
+                transformOrigin: "top left",
+                background: "#fff",
+              }}
+            />
           </div>
+
 
           <div className="flex-1 space-y-3 text-sm">
             <Alert>
