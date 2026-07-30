@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+
 import PageHeader from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,11 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ScanLine, Search, Truck, Package, CheckCircle2, Send, Loader2 } from "lucide-react";
+import { ScanLine, Search, Truck, Package, CheckCircle2, Send } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { useShippingQueue, useShippingQueueKpis, type ScanStatus } from "@/hooks/useShippingQueue";
-import { useCouriers, requestCarrierLabel } from "@/hooks/useCouriers";
-import { toast } from "sonner";
+import { useCouriers } from "@/hooks/useCouriers";
+
 import { format } from "date-fns";
 
 
