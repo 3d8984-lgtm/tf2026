@@ -296,6 +296,95 @@ export type Database = {
         }
         Relationships: []
       }
+      courier_configs: {
+        Row: {
+          api_mode: string
+          api_url: string
+          code: string
+          created_at: string
+          enabled: boolean
+          has_credentials: boolean
+          id: string
+          is_default: boolean
+          last_test_at: string | null
+          last_test_message: string | null
+          last_test_ok: boolean | null
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          api_mode?: string
+          api_url?: string
+          code: string
+          created_at?: string
+          enabled?: boolean
+          has_credentials?: boolean
+          id?: string
+          is_default?: boolean
+          last_test_at?: string | null
+          last_test_message?: string | null
+          last_test_ok?: boolean | null
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          api_mode?: string
+          api_url?: string
+          code?: string
+          created_at?: string
+          enabled?: boolean
+          has_credentials?: boolean
+          id?: string
+          is_default?: boolean
+          last_test_at?: string | null
+          last_test_message?: string | null
+          last_test_ok?: boolean | null
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      courier_credentials: {
+        Row: {
+          account_no: string | null
+          api_key: string | null
+          api_secret: string | null
+          code: string
+          created_at: string
+          extra: Json
+          updated_at: string
+        }
+        Insert: {
+          account_no?: string | null
+          api_key?: string | null
+          api_secret?: string | null
+          code: string
+          created_at?: string
+          extra?: Json
+          updated_at?: string
+        }
+        Update: {
+          account_no?: string | null
+          api_key?: string | null
+          api_secret?: string | null
+          code?: string
+          created_at?: string
+          extra?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "courier_credentials_code_fkey"
+            columns: ["code"]
+            isOneToOne: true
+            referencedRelation: "courier_configs"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
       order_job_items: {
         Row: {
           attempts: number
