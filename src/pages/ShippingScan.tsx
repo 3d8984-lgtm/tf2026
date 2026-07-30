@@ -504,8 +504,15 @@ export default function ShippingScan() {
   );
 
   const previewSize = labelSizeFor(shipment.carrier || carrier);
-  const previewPx = { w: 210, h: Math.round((210 * previewSize.h) / previewSize.w) };
   const sizeLabel = `${previewSize.w} × ${previewSize.h} mm`;
+  // Real device pixels for the label at 96dpi, then scaled down to fit the card.
+  const mmPx = (mm: number) => (mm * 96) / 25.4;
+  const previewScale = 230 / mmPx(previewSize.w);
+  const remoteLabelUrl = (shipment as any).label_url as string | null | undefined;
+  // The preview renders the exact same markup the printer receives.
+  const previewHtml = remoteLabelUrl
+    ? buildRemoteLabelHtml(remoteLabelUrl, shipment.carrier || carrier, true)
+    : buildLabelHtml({ testTracking: testMode && !shipment.tracking_number ? "TEST-PREVIEW-0000" : undefined, noPrint: true });
 
   const readyToIssue = testMode
     ? !!carrier
