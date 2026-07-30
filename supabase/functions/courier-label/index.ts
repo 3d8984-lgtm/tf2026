@@ -17,13 +17,10 @@ function json(body: unknown, status = 200) {
   });
 }
 
-async function md5(text: string) {
-  const buf = await crypto.subtle.digest("MD5", new TextEncoder().encode(text)).catch(() => null);
-  if (buf) return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-  // Deno WebCrypto has no MD5 fallback: use SHA-256 (some sandboxes)
-  const sha = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return [...new Uint8Array(sha)].map((b) => b.toString(16).padStart(2, "0")).join("");
+function md5hex(text: string) {
+  return md5(text);
 }
+
 
 interface LabelResult {
   tracking_number: string | null;
