@@ -408,7 +408,7 @@ export default function ShippingScan() {
       <body><div class="label">
         <div class="row">
           <div class="carrier">${carrierName}</div>
-          ${test ? '<div class="test-tag">TEST PRINT</div>' : ""}
+          ${showTestTag ? '<div class="test-tag">TEST PRINT</div>' : ""}
         </div>
         <div class="hr"></div>
         <div class="to-label">To / 收件人</div>
