@@ -173,7 +173,7 @@ export default function Shipping() {
 
                         )}
                       </TableCell>
-                      <TableCell className="font-mono text-xs">{r.tracking_number ?? "-"}</TableCell>
+                      
                       <TableCell className="text-sm">{r.orders?.project_completed_at ? format(new Date(r.orders.project_completed_at), "yyyy-MM-dd") : "-"}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
