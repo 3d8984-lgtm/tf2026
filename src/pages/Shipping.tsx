@@ -124,9 +124,9 @@ export default function Shipping() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-10">{tr("불러오는 중...", "加载中...")}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">{tr("불러오는 중...", "加载中...")}</TableCell></TableRow>
               ) : rows.length === 0 ? (
-                <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-10">{tr("표시할 주문이 없습니다", "暂无订单")}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">{tr("표시할 주문이 없습니다", "暂无订单")}</TableCell></TableRow>
 
               ) : (
                 rows.map((r: any) => {
