@@ -6,11 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Camera, CameraOff, CheckCircle2, AlertTriangle, ScanLine, Truck, Send, Printer, RefreshCw, Usb, TestTube2, Download, QrCode } from "lucide-react";
 import QRCode from "qrcode";
 import { useLang } from "@/contexts/LangContext";
@@ -67,7 +66,7 @@ export default function ShippingScan() {
   const [scanInput, setScanInput] = useState("");
   const [cameraOn, setCameraOn] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: FeedbackKind; msg: string }>({ kind: "idle", msg: "" });
-  const [designConfirmed, setDesignConfirmed] = useState(false);
+  const [testMode, setTestMode] = useState(false);
   const [issuing, setIssuing] = useState(false);
   const [labelDialog, setLabelDialog] = useState(false);
   const [carrier, setCarrier] = useState("");
@@ -88,10 +87,6 @@ export default function ShippingScan() {
   const scannerDivId = "shipping-qr-reader";
   const lastScanRef = useRef<{ value: string; at: number }>({ value: "", at: 0 });
   const hidBufRef = useRef<{ buf: string; lastAt: number }>({ buf: "", lastAt: 0 });
-
-  useEffect(() => {
-    if (shipment) setDesignConfirmed(!!shipment.design_confirmed);
-  }, [shipment?.id]);
 
   // Generate the test QR image once on mount.
   useEffect(() => {
@@ -271,12 +266,6 @@ export default function ShippingScan() {
     }
   }
 
-  async function toggleDesignConfirmed(v: boolean) {
-    setDesignConfirmed(v);
-    if (!shipment) return;
-    await supabase.from("shipments").update({ design_confirmed: v }).eq("id", shipment.id);
-  }
-
   function genMockTracking() {
     const d = new Date();
     const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
@@ -285,6 +274,8 @@ export default function ShippingScan() {
   }
 
   // Call the selected courier's API to create the label / tracking number.
+  // In test mode the carrier credentials are verified (4PX signed call) but no real
+  // waybill is created — a simulated tracking number is printed instead.
   async function issueTrackingViaApi() {
     if (!shipment) return;
     if (!carrier) {
@@ -293,7 +284,16 @@ export default function ShippingScan() {
     }
     setIssuing(true);
     try {
-      const res = await requestCarrierLabel(shipment.id, carrier);
+      const res = await requestCarrierLabel(shipment.id, carrier, testMode);
+      if (testMode) {
+        await logAction("issue_tracking_test", { trackingNumber: res.tracking_number, carrier, via: "api-test" });
+        toast({
+          title: tr("테스트 송장 생성 (실제 발급 아님)", "测试运单已生成（非真实运单）"),
+          description: res.tracking_number,
+        });
+        printSimulatedLabel(res.tracking_number);
+        return;
+      }
       await logAction("issue_tracking", { trackingNumber: res.tracking_number, carrier, via: "api" });
       toast({ title: tr("송장이 발급되었습니다", "已生成运单"), description: res.tracking_number });
       setLabelDialog(true);
@@ -301,7 +301,9 @@ export default function ShippingScan() {
     } catch (e: any) {
       toast({
         variant: "destructive",
-        title: tr("택배사 API 발급 실패", "承运商API出运单失败"),
+        title: testMode
+          ? tr("테스트 송장 발급 실패", "测试运单生成失败")
+          : tr("택배사 API 발급 실패", "承运商API出运单失败"),
         description: e?.message ?? tr("알 수 없는 오류", "未知错误"),
       });
     } finally {
@@ -362,13 +364,16 @@ export default function ShippingScan() {
     return { w: 70, h: 130 };
   }
 
-  function buildLabelHtml(opts: { test?: boolean } = {}) {
+  function buildLabelHtml(opts: { test?: boolean; testTracking?: string } = {}) {
+    // `test` = fixed dummy recipient (printer check).
+    // `testTracking` = real order data, simulated tracking number (4PX test mode).
     const test = !!opts.test;
+    const simulated = !!opts.testTracking;
     const carrierCode = test ? TEST_RECIPIENT.carrier : (shipment?.carrier || carrier || "");
     const carrierName = (carrierCode || "TEST").toUpperCase();
     const { w: LW, h: LH } = labelSizeFor(carrierCode);
     const big = LW >= 100;
-    const tn = test ? TEST_RECIPIENT.trackingNumber : (shipment?.tracking_number || "—");
+    const tn = opts.testTracking ?? (test ? TEST_RECIPIENT.trackingNumber : (shipment?.tracking_number || "—"));
     const name = test ? TEST_RECIPIENT.name : (order?.recipient_name ?? "");
     const phone = test ? TEST_RECIPIENT.phone : (order?.recipient_phone ?? "");
     const addr1 = test ? TEST_RECIPIENT.address1 : (order?.shipping_address ?? "");
@@ -376,6 +381,7 @@ export default function ShippingScan() {
       : [order?.shipping_city, order?.shipping_state, order?.shipping_zip, order?.shipping_country].filter(Boolean).join(", ");
     const jobNo = test ? TEST_RECIPIENT.jobNo : (order?.external_order_id ?? "");
     const qty = test ? TEST_RECIPIENT.qty : total;
+    const showTestTag = test || simulated;
     // Code128-ish visual bars from tracking number (purely decorative for preview/printer test)
     const barH = big ? 22 : 14;
     const bars = Array.from(tn).map((c, i) => {
@@ -404,7 +410,7 @@ export default function ShippingScan() {
       <body><div class="label">
         <div class="row">
           <div class="carrier">${carrierName}</div>
-          ${test ? '<div class="test-tag">TEST PRINT</div>' : ""}
+          ${showTestTag ? '<div class="test-tag">TEST PRINT</div>' : ""}
         </div>
         <div class="hr"></div>
         <div class="to-label">To / 收件人</div>
@@ -461,6 +467,15 @@ export default function ShippingScan() {
     });
   }
 
+  // Test-mode label: real order/address data, simulated (non-billable) tracking number.
+  function printSimulatedLabel(trackingNumber: string) {
+    const size = labelSizeFor(carrier || shipment?.carrier);
+    const w = window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
+    if (!w) return;
+    w.document.write(buildLabelHtml({ testTracking: trackingNumber }));
+    w.document.close();
+  }
+
 
   const feedbackBox = useMemo(() => {
     if (feedback.kind === "idle") return null;
@@ -488,13 +503,24 @@ export default function ShippingScan() {
     </div>
   );
 
-  const readyToIssue = allScanned && designConfirmed && !shipment.tracking_number;
+  const readyToIssue = testMode
+    ? !!carrier
+    : allScanned && !shipment.tracking_number;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <Button variant="ghost" onClick={() => navigate("/shipping")}><ArrowLeft className="w-4 h-4 mr-1"/>{tr("목록으로", "返回列表")}</Button>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <label
+            className={`flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm cursor-pointer transition-colors ${
+              testMode ? "border-amber-500/60 bg-amber-500/10 text-amber-300" : "text-muted-foreground"
+            }`}
+          >
+            <TestTube2 className="w-4 h-4" />
+            {tr("테스트 모드", "测试模式")}
+            <Switch checked={testMode} onCheckedChange={setTestMode} />
+          </label>
           <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="w-4 h-4 mr-1"/>{tr("새로고침", "刷新")}</Button>
         </div>
       </div>
@@ -568,106 +594,69 @@ export default function ShippingScan() {
         </Card>
       </div>
 
-      {/* Design verification + Address book */}
+      {/* Address book */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center justify-between">
-            <span>{tr("디자인 검수 / 주소록", "设计检验 / 地址簿")}</span>
-            <label className="flex items-center gap-2 text-sm font-normal">
-              <Checkbox checked={designConfirmed} onCheckedChange={(v) => toggleDesignConfirmed(!!v)} />
-              {tr("디자인 확인 완료", "设计已确认")}
-            </label>
+            <span>{tr("주소록", "地址簿")}</span>
+            <Badge variant="outline" className="text-[10px]">{addressBook.length}</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="design" className="w-full">
-            <TabsList>
-              <TabsTrigger value="design">{tr("디자인 검수", "设计检验")} ({items.length})</TabsTrigger>
-              <TabsTrigger value="address">{tr("주소록", "地址簿")} ({addressBook.length})</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="design" className="mt-4">
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                {items.map((it) => (
-                  <div key={it.id} className={`rounded-lg border overflow-hidden ${it.is_scanned ? "border-emerald-500/40" : "border-border"}`}>
-                    <div className="aspect-square bg-muted relative flex items-center justify-center">
-                      {it.design_image_url ? (
-                        <img src={it.design_image_url} alt="" className="w-full h-full object-contain" />
-                      ) : (
-                        <span className="text-xs text-muted-foreground">{tr("이미지 없음", "无图")}</span>
-                      )}
-                      <div className="absolute top-1 left-1 text-[10px] bg-background/80 rounded px-1.5 py-0.5 font-mono">#{it.position}</div>
-                      {it.is_scanned && (
-                        <div className="absolute inset-0 bg-emerald-500/10 flex items-center justify-center">
-                          <CheckCircle2 className="w-8 h-8 text-emerald-400" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-2 text-[11px] space-y-0.5">
-                      <div className="font-mono truncate" title={it.qr_value ?? ""}>{it.qr_value ?? tr("대기", "待扫")}</div>
-                      <div className="text-muted-foreground truncate">{[it.color, it.size].filter(Boolean).join(" · ") || "-"}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="address" className="mt-4">
-              <p className="text-[11px] text-muted-foreground mb-2">
-                {tr("주문 데이터 가져오기에서 연동된 주문 목록입니다. 클릭하면 해당 주문의 스캔 화면으로 이동합니다.",
-                    "已通过\"订单数据导入\"关联的订单列表，点击可切换到对应订单的扫码页面。")}
-              </p>
-              <ScrollArea className="h-[420px] border rounded-md">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-background border-b text-xs text-muted-foreground">
-                    <tr>
-                      <th className="text-left px-3 py-2">Job No</th>
-                      <th className="text-left px-3 py-2">{tr("Twinker (받는사람)", "Twinker (收件人)")}</th>
-                      <th className="text-left px-3 py-2">{tr("전화", "电话")}</th>
-                      <th className="text-left px-3 py-2">{tr("주소", "地址")}</th>
-                      <th className="text-left px-3 py-2">{tr("도시/지역", "城市/州")}</th>
-                      <th className="text-center px-3 py-2">Qty</th>
-                      <th className="text-left px-3 py-2">{tr("상태", "状态")}</th>
-                      <th className="text-left px-3 py-2">{tr("송장번호", "运单号")}</th>
+          <p className="text-[11px] text-muted-foreground mb-2">
+            {tr("주문 데이터 가져오기에서 연동된 주문 목록입니다. 클릭하면 해당 주문의 스캔 화면으로 이동합니다.",
+                "已通过\"订单数据导入\"关联的订单列表，点击可切换到对应订单的扫码页面。")}
+          </p>
+          <ScrollArea className="h-[420px] border rounded-md">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-background border-b text-xs text-muted-foreground">
+                <tr>
+                  <th className="text-left px-3 py-2">Job No</th>
+                  <th className="text-left px-3 py-2">{tr("Twinker (받는사람)", "Twinker (收件人)")}</th>
+                  <th className="text-left px-3 py-2">{tr("전화", "电话")}</th>
+                  <th className="text-left px-3 py-2">{tr("주소", "地址")}</th>
+                  <th className="text-left px-3 py-2">{tr("도시/지역", "城市/州")}</th>
+                  <th className="text-center px-3 py-2">Qty</th>
+                  <th className="text-left px-3 py-2">{tr("상태", "状态")}</th>
+                  <th className="text-left px-3 py-2">{tr("송장번호", "运单号")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {addressBook.map((o: any) => {
+                  const s = o.shipments?.[0];
+                  const active = o.id === orderId;
+                  return (
+                    <tr
+                      key={o.id}
+                      onClick={() => navigate(`/shipping/scan/${o.id}`)}
+                      className={`cursor-pointer hover:bg-accent/40 border-b transition-colors ${active ? "bg-primary/10" : ""}`}
+                    >
+                      <td className="px-3 py-2 font-mono text-xs">{o.external_order_id}</td>
+                      <td className="px-3 py-2 font-medium">{o.recipient_name ?? "-"}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{o.recipient_phone ?? "-"}</td>
+                      <td className="px-3 py-2 text-xs max-w-[260px] truncate" title={o.shipping_address}>{o.shipping_address}</td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">
+                        {[o.shipping_city, o.shipping_state, o.shipping_zip, o.shipping_country].filter(Boolean).join(", ")}
+                      </td>
+                      <td className="px-3 py-2 text-center font-mono">{o.quantity ?? 0}</td>
+                      <td className="px-3 py-2">
+                        <Badge variant="outline" className="text-[10px] capitalize">{s?.scan_status ?? "pending"}</Badge>
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs">{s?.tracking_number ?? "-"}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {addressBook.map((o: any) => {
-                      const s = o.shipments?.[0];
-                      const active = o.id === orderId;
-                      return (
-                        <tr
-                          key={o.id}
-                          onClick={() => navigate(`/shipping/scan/${o.id}`)}
-                          className={`cursor-pointer hover:bg-accent/40 border-b transition-colors ${active ? "bg-primary/10" : ""}`}
-                        >
-                          <td className="px-3 py-2 font-mono text-xs">{o.external_order_id}</td>
-                          <td className="px-3 py-2 font-medium">{o.recipient_name ?? "-"}</td>
-                          <td className="px-3 py-2 font-mono text-xs">{o.recipient_phone ?? "-"}</td>
-                          <td className="px-3 py-2 text-xs max-w-[260px] truncate" title={o.shipping_address}>{o.shipping_address}</td>
-                          <td className="px-3 py-2 text-xs text-muted-foreground">
-                            {[o.shipping_city, o.shipping_state, o.shipping_zip, o.shipping_country].filter(Boolean).join(", ")}
-                          </td>
-                          <td className="px-3 py-2 text-center font-mono">{o.quantity ?? 0}</td>
-                          <td className="px-3 py-2">
-                            <Badge variant="outline" className="text-[10px] capitalize">{s?.scan_status ?? "pending"}</Badge>
-                          </td>
-                          <td className="px-3 py-2 font-mono text-xs">{s?.tracking_number ?? "-"}</td>
-                        </tr>
-                      );
-                    })}
-                    {addressBook.length === 0 && (
-                      <tr><td colSpan={8} className="text-center text-xs text-muted-foreground py-8">
-                        {tr("주문 데이터 가져오기 메뉴에서 연동된 주문이 없습니다.", "暂无通过\"订单数据导入\"关联的订单。")}
-                      </td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </ScrollArea>
-            </TabsContent>
-          </Tabs>
+                  );
+                })}
+                {addressBook.length === 0 && (
+                  <tr><td colSpan={8} className="text-center text-xs text-muted-foreground py-8">
+                    {tr("주문 데이터 가져오기 메뉴에서 연동된 주문이 없습니다.", "暂无通过\"订单数据导入\"关联的订单。")}
+                  </td></tr>
+                )}
+              </tbody>
+            </table>
+          </ScrollArea>
         </CardContent>
       </Card>
+
 
       {/* 🧪 Test QR generator */}
       <Card>
@@ -829,23 +818,32 @@ export default function ShippingScan() {
             <Button variant="ghost" onClick={printTestLabel}>
               <TestTube2 className="w-4 h-4 mr-1"/>{tr("프린터 테스트", "打印测试")}
             </Button>
-            <Button disabled={!readyToIssue || issuing || !carrier} onClick={issueTrackingViaApi}>
+            <Button
+              variant={testMode ? "secondary" : "default"}
+              disabled={!readyToIssue || issuing || !carrier}
+              onClick={issueTrackingViaApi}
+            >
               {issuing ? <RefreshCw className="w-4 h-4 mr-1 animate-spin"/> : <Truck className="w-4 h-4 mr-1"/>}
-              {tr("송장 발급 (API)", "出运单 (API)")}
+              {testMode ? tr("테스트 송장 출력 (API)", "测试运单打印 (API)") : tr("송장 발급 (API)", "出运单 (API)")}
             </Button>
-            <Button variant="outline" disabled={!readyToIssue || issuing || !manualTracking.trim()} onClick={issueTrackingManual}>
+            <Button variant="outline" disabled={testMode || !readyToIssue || issuing || !manualTracking.trim()} onClick={issueTrackingManual}>
               {tr("수기 등록", "手动登记")}
             </Button>
             <Button variant="outline" disabled={!shipment.tracking_number} onClick={downloadLabelPdf}>
               <Printer className="w-4 h-4 mr-1"/>{tr("라벨 출력", "打印标签")}
             </Button>
-            <Button variant="secondary" disabled={!shipment.tracking_number || shipment.scan_status === "reported"} onClick={markShippedAndReport}>
+            <Button variant="secondary" disabled={testMode || !shipment.tracking_number || shipment.scan_status === "reported"} onClick={markShippedAndReport}>
               <Send className="w-4 h-4 mr-1"/>{tr("발송 + 회신", "发货并回报")}
             </Button>
           </div>
         </CardContent>
-        {!allScanned && (
-          <div className="px-4 pb-4 text-xs text-muted-foreground">{tr("모든 상품을 스캔하고 디자인 확인을 체크하면 송장 발급이 활성화됩니다.", "完成全部扫描并确认设计后方可出运单。")}</div>
+        {testMode ? (
+          <div className="px-4 pb-4 text-xs text-amber-300">
+            {tr("테스트 모드: 4PX 인증만 확인하고 가상 송장번호로 출력합니다. 실제 송장은 생성되지 않습니다.",
+                "测试模式：仅校验 4PX 认证并以模拟单号打印，不会生成真实运单。")}
+          </div>
+        ) : !allScanned && (
+          <div className="px-4 pb-4 text-xs text-muted-foreground">{tr("모든 상품을 스캔하면 송장 발급이 활성화됩니다.", "完成全部扫描后方可出运单。")}</div>
         )}
       </Card>
 
