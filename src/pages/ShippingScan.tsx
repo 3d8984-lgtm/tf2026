@@ -88,10 +88,6 @@ export default function ShippingScan() {
   const lastScanRef = useRef<{ value: string; at: number }>({ value: "", at: 0 });
   const hidBufRef = useRef<{ buf: string; lastAt: number }>({ buf: "", lastAt: 0 });
 
-  useEffect(() => {
-    if (shipment) setDesignConfirmed(!!shipment.design_confirmed);
-  }, [shipment?.id]);
-
   // Generate the test QR image once on mount.
   useEffect(() => {
     QRCode.toDataURL(TEST_QR_VALUE, { width: 320, margin: 2, errorCorrectionLevel: "H" })
@@ -268,12 +264,6 @@ export default function ShippingScan() {
       setScanInput("");
       if (v.trim()) handleScan(v);
     }
-  }
-
-  async function toggleDesignConfirmed(v: boolean) {
-    setDesignConfirmed(v);
-    if (!shipment) return;
-    await supabase.from("shipments").update({ design_confirmed: v }).eq("id", shipment.id);
   }
 
   function genMockTracking() {
