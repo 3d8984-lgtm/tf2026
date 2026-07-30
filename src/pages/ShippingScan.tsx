@@ -830,23 +830,32 @@ export default function ShippingScan() {
             <Button variant="ghost" onClick={printTestLabel}>
               <TestTube2 className="w-4 h-4 mr-1"/>{tr("프린터 테스트", "打印测试")}
             </Button>
-            <Button disabled={!readyToIssue || issuing || !carrier} onClick={issueTrackingViaApi}>
+            <Button
+              variant={testMode ? "secondary" : "default"}
+              disabled={!readyToIssue || issuing || !carrier}
+              onClick={issueTrackingViaApi}
+            >
               {issuing ? <RefreshCw className="w-4 h-4 mr-1 animate-spin"/> : <Truck className="w-4 h-4 mr-1"/>}
-              {tr("송장 발급 (API)", "出运单 (API)")}
+              {testMode ? tr("테스트 송장 출력 (API)", "测试运单打印 (API)") : tr("송장 발급 (API)", "出运单 (API)")}
             </Button>
-            <Button variant="outline" disabled={!readyToIssue || issuing || !manualTracking.trim()} onClick={issueTrackingManual}>
+            <Button variant="outline" disabled={testMode || !readyToIssue || issuing || !manualTracking.trim()} onClick={issueTrackingManual}>
               {tr("수기 등록", "手动登记")}
             </Button>
             <Button variant="outline" disabled={!shipment.tracking_number} onClick={downloadLabelPdf}>
               <Printer className="w-4 h-4 mr-1"/>{tr("라벨 출력", "打印标签")}
             </Button>
-            <Button variant="secondary" disabled={!shipment.tracking_number || shipment.scan_status === "reported"} onClick={markShippedAndReport}>
+            <Button variant="secondary" disabled={testMode || !shipment.tracking_number || shipment.scan_status === "reported"} onClick={markShippedAndReport}>
               <Send className="w-4 h-4 mr-1"/>{tr("발송 + 회신", "发货并回报")}
             </Button>
           </div>
         </CardContent>
-        {!allScanned && (
-          <div className="px-4 pb-4 text-xs text-muted-foreground">{tr("모든 상품을 스캔하고 디자인 확인을 체크하면 송장 발급이 활성화됩니다.", "完成全部扫描并确认设计后方可出运单。")}</div>
+        {testMode ? (
+          <div className="px-4 pb-4 text-xs text-amber-300">
+            {tr("테스트 모드: 4PX 인증만 확인하고 가상 송장번호로 출력합니다. 실제 송장은 생성되지 않습니다.",
+                "测试模式：仅校验 4PX 认证并以模拟单号打印，不会生成真实运单。")}
+          </div>
+        ) : !allScanned && (
+          <div className="px-4 pb-4 text-xs text-muted-foreground">{tr("모든 상품을 스캔하면 송장 발급이 활성화됩니다.", "完成全部扫描后方可出运单。")}</div>
         )}
       </Card>
 
