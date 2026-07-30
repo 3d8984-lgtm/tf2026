@@ -135,6 +135,7 @@ export default function Shipping() {
                 <TableHead>{tr("도시/지역", "城市/州")}</TableHead>
                 <TableHead className="text-center">{tr("진행", "进度")}</TableHead>
                 <TableHead>{tr("상태", "状态")}</TableHead>
+                <TableHead>{tr("택배사", "承运商")}</TableHead>
                 <TableHead>{tr("송장번호", "运单号")}</TableHead>
                 <TableHead>{tr("납기일", "交期")}</TableHead>
                 <TableHead className="text-right">{tr("작업", "操作")}</TableHead>
@@ -142,9 +143,10 @@ export default function Shipping() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-10">{tr("불러오는 중...", "加载中...")}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-10">{tr("불러오는 중...", "加载中...")}</TableCell></TableRow>
               ) : rows.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-10">{tr("표시할 주문이 없습니다", "暂无订单")}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-10">{tr("표시할 주문이 없습니다", "暂无订单")}</TableCell></TableRow>
+
               ) : (
                 rows.map((r: any) => {
                   const total = r.orders?.quantity ?? 0;
