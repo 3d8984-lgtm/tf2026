@@ -80,25 +80,56 @@ Deno.serve(async (req) => {
         message = "API URL not configured";
       } else {
         try {
-          const res = await fetch(cfg.api_url, {
-            method: "GET",
-            headers: { Accept: "application/json" },
-            signal: AbortSignal.timeout(10_000),
-          });
-          ok = res.status < 500;
-          message = `HTTP ${res.status}`;
+          if (code === "4px") {
+            // Signed no-op call: auth is validated before the method is resolved,
+            // so a "method not exist" style error means the key/secret are valid.
+            const params: Record<string, string> = {
+              app_key: cred.api_key ?? "",
+              method: "ec.ping",
+              format: "json",
+              v: "1.0",
+              sign_method: "md5",
+              timestamp: new Date().toISOString().slice(0, 19).replace("T", " "),
+            };
+            const sorted = Object.keys(params).sort().map((k) => `${k}${params[k]}`).join("");
+            params.sign = md5(`${cred.api_secret ?? ""}${sorted}${cred.api_secret ?? ""}`).toUpperCase();
+            const res = await fetch(cfg.api_url, {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: new URLSearchParams(params),
+              signal: AbortSignal.timeout(15_000),
+            });
+            const text = await res.text();
+            const authFail = /认证|auth|sign|签名|unauthorized|invalid.*key/i.test(text);
+            ok = !authFail;
+            message = ok
+              ? `인증 성공 (HTTP ${res.status})`
+              : `인증 실패: ${text.slice(0, 200)}`;
+          } else if (code === "yunexpress") {
+            const base = (cfg.api_url ?? "").replace(/\/+$/, "");
+            const auth = btoa(`${cred.account_no ?? ""}&${cred.api_key ?? ""}`);
+            const res = await fetch(`${base}/api/Common/GetShippingMethods`, {
+              headers: { Authorization: `Basic ${auth}`, Accept: "application/json" },
+              signal: AbortSignal.timeout(15_000),
+            });
+            const text = await res.text();
+            ok = res.ok && !/unauthor|invalid|失败/i.test(text);
+            message = ok ? `인증 성공 (HTTP ${res.status})` : `HTTP ${res.status}: ${text.slice(0, 200)}`;
+          } else {
+            const res = await fetch(cfg.api_url, {
+              method: "GET",
+              headers: { Accept: "application/json" },
+              signal: AbortSignal.timeout(10_000),
+            });
+            ok = res.status < 500;
+            message = `HTTP ${res.status}`;
+          }
         } catch (e) {
           ok = false;
           message = e instanceof Error ? e.message : "network error";
         }
       }
 
-      await admin
-        .from("courier_configs")
-        .update({ last_test_at: new Date().toISOString(), last_test_ok: ok, last_test_message: message })
-        .eq("code", code);
-      return json({ ok, message });
-    }
 
     return json({ error: "unknown action" }, 400);
   } catch (e) {
