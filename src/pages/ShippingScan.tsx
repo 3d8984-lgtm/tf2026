@@ -440,9 +440,10 @@ export default function ShippingScan() {
     const size = labelSizeFor(shipment.carrier || carrier);
     const w = window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
     if (!w) return;
+    const labelUrl = (shipment as any).label_url as string | null | undefined;
     w.document.write(
-      shipment.label_url
-        ? buildRemoteLabelHtml(shipment.label_url, shipment.carrier || carrier)
+      labelUrl
+        ? buildRemoteLabelHtml(labelUrl, shipment.carrier || carrier)
         : buildLabelHtml(),
     );
     w.document.close();
