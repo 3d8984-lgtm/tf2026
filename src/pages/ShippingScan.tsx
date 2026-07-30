@@ -286,6 +286,8 @@ export default function ShippingScan() {
   }
 
   // Call the selected courier's API to create the label / tracking number.
+  // In test mode the carrier credentials are verified (4PX signed call) but no real
+  // waybill is created — a simulated tracking number is printed instead.
   async function issueTrackingViaApi() {
     if (!shipment) return;
     if (!carrier) {
@@ -294,7 +296,16 @@ export default function ShippingScan() {
     }
     setIssuing(true);
     try {
-      const res = await requestCarrierLabel(shipment.id, carrier);
+      const res = await requestCarrierLabel(shipment.id, carrier, testMode);
+      if (testMode) {
+        await logAction("issue_tracking_test", { trackingNumber: res.tracking_number, carrier, via: "api-test" });
+        toast({
+          title: tr("테스트 송장 생성 (실제 발급 아님)", "测试运单已生成（非真实运单）"),
+          description: res.tracking_number,
+        });
+        printSimulatedLabel(res.tracking_number);
+        return;
+      }
       await logAction("issue_tracking", { trackingNumber: res.tracking_number, carrier, via: "api" });
       toast({ title: tr("송장이 발급되었습니다", "已生成运单"), description: res.tracking_number });
       setLabelDialog(true);
@@ -302,7 +313,9 @@ export default function ShippingScan() {
     } catch (e: any) {
       toast({
         variant: "destructive",
-        title: tr("택배사 API 발급 실패", "承运商API出运单失败"),
+        title: testMode
+          ? tr("테스트 송장 발급 실패", "测试运单生成失败")
+          : tr("택배사 API 발급 실패", "承运商API出运单失败"),
         description: e?.message ?? tr("알 수 없는 오류", "未知错误"),
       });
     } finally {
