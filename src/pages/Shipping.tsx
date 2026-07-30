@@ -117,7 +117,7 @@ export default function Shipping() {
                 <TableHead className="text-center">{tr("진행", "进度")}</TableHead>
                 <TableHead>{tr("상태", "状态")}</TableHead>
                 <TableHead>{tr("택배사", "承运商")}</TableHead>
-                <TableHead>{tr("송장번호", "运单号")}</TableHead>
+                
                 <TableHead>{tr("납기일", "交期")}</TableHead>
                 <TableHead className="text-right">{tr("작업", "操作")}</TableHead>
               </TableRow>
