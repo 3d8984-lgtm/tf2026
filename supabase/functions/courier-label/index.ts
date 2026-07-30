@@ -230,61 +230,65 @@ Deno.serve(async (req) => {
     }
 
     // ---- TEST MODE ----------------------------------------------------------
-    // Validates the carrier credentials with a signed no-op call, then returns a
-    // simulated tracking number. Nothing is persisted on the shipment, so no real
-    // waybill is created at the carrier.
+    // 4PX: runs against the sandbox endpoint (open-test.4px.com) so a real test
+    // waybill + label PDF is produced. Nothing is persisted on the shipment.
     if (test) {
       let authOk = false;
       let message = "";
+      let tracking = "";
+      let labelUrl: string | null = null;
+      let raw: unknown = null;
+
       try {
         if (carrier === "4px") {
-          const params: Record<string, string> = {
-            app_key: cred.api_key ?? "",
-            method: "ec.ping",
-            format: "json",
-            v: "1.0",
-            sign_method: "md5",
-            timestamp: new Date().toISOString().slice(0, 19).replace("T", " "),
+          const extra = (cred.extra ?? {}) as Record<string, any>;
+          const sandboxCred = {
+            api_key: extra.test_app_key ?? "eb190f3b-d464-4e3f-a6f1-036399670823",
+            api_secret: extra.test_app_secret ?? "79df01f8-63d5-47f3-a1e3-3e43ceecf726",
+            extra: { ...extra, channel_code: extra.test_channel_code ?? extra.channel_code ?? "PY" },
           };
-          const sorted = Object.keys(params).sort().map((k) => `${k}${params[k]}`).join("");
-          params.sign = md5hex(`${cred.api_secret ?? ""}${sorted}${cred.api_secret ?? ""}`).toUpperCase();
-          const res = await fetch(cfg.api_url, {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams(params),
-            signal: AbortSignal.timeout(15_000),
-          });
-          const text = await res.text();
-          const methodMissing = /接口不存在|method.*not.*exist/i.test(text);
-          const authFail = !methodMissing &&
-            /认证参数非法|签名|sign error|invalid sign|app_key|unauthorized|401/i.test(text);
-          authOk = methodMissing || (res.ok && !authFail);
-          message = authOk ? `4PX auth OK (HTTP ${res.status})` : `4PX auth failed: ${text.slice(0, 160)}`;
+          const probe = await fpxProbe(FPX_TEST_URL, sandboxCred);
+          authOk = probe.ok;
+          message = probe.message;
+
+          const testOrder = { ...order, external_order_id: `TEST-${order.external_order_id}-${Date.now()}` };
+          const r = await call4px({ api_url: FPX_TEST_URL, api_mode: "test" }, sandboxCred, testOrder, shipment);
+          raw = r.raw;
+          if (r.tracking_number) {
+            authOk = true;
+            tracking = r.tracking_number;
+            labelUrl = r.label_url;
+            message = "4PX sandbox test waybill created";
+          } else if (!tracking) {
+            message = `${message} / sandbox order: ${r.error ?? "no tracking number"}`;
+          }
         } else {
           authOk = true;
           message = "test mode (no live auth check for this carrier)";
         }
       } catch (e) {
-        authOk = false;
         message = e instanceof Error ? e.message : "network error";
       }
 
-      const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-      const rnd = Math.random().toString(36).slice(2, 8).toUpperCase();
-      const tracking = `TEST-${carrier.toUpperCase()}-${stamp}-${rnd}`;
+      if (!tracking) {
+        const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+        const rnd = Math.random().toString(36).slice(2, 8).toUpperCase();
+        tracking = `TEST-${carrier.toUpperCase()}-${stamp}-${rnd}`;
+      }
 
       await admin.from("shipping_logs").insert({
         shipment_id: shipment.id,
         order_id: shipment.order_id,
         action_type: "carrier_api_test",
         worker_id: user.id,
-        details: { carrier, mode: cfg.api_mode, auth_ok: authOk, message, tracking_number: tracking },
+        details: { carrier, mode: "sandbox", auth_ok: authOk, message, tracking_number: tracking },
       });
 
-      if (!authOk) return json({ error: message }, 502);
+      if (!authOk) return json({ error: message, raw }, 502);
 
-      return json({ ok: true, test: true, carrier, tracking_number: tracking, label_url: null, message });
+      return json({ ok: true, test: true, carrier, tracking_number: tracking, label_url: labelUrl, message });
     }
+
 
     let result: LabelResult;
     if (carrier === "4px") result = await call4px(cfg, cred, order, shipment);
