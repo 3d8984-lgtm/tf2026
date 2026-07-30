@@ -362,13 +362,16 @@ export default function ShippingScan() {
     return { w: 70, h: 130 };
   }
 
-  function buildLabelHtml(opts: { test?: boolean } = {}) {
+  function buildLabelHtml(opts: { test?: boolean; testTracking?: string } = {}) {
+    // `test` = fixed dummy recipient (printer check).
+    // `testTracking` = real order data, simulated tracking number (4PX test mode).
     const test = !!opts.test;
+    const simulated = !!opts.testTracking;
     const carrierCode = test ? TEST_RECIPIENT.carrier : (shipment?.carrier || carrier || "");
     const carrierName = (carrierCode || "TEST").toUpperCase();
     const { w: LW, h: LH } = labelSizeFor(carrierCode);
     const big = LW >= 100;
-    const tn = test ? TEST_RECIPIENT.trackingNumber : (shipment?.tracking_number || "—");
+    const tn = opts.testTracking ?? (test ? TEST_RECIPIENT.trackingNumber : (shipment?.tracking_number || "—"));
     const name = test ? TEST_RECIPIENT.name : (order?.recipient_name ?? "");
     const phone = test ? TEST_RECIPIENT.phone : (order?.recipient_phone ?? "");
     const addr1 = test ? TEST_RECIPIENT.address1 : (order?.shipping_address ?? "");
@@ -376,6 +379,7 @@ export default function ShippingScan() {
       : [order?.shipping_city, order?.shipping_state, order?.shipping_zip, order?.shipping_country].filter(Boolean).join(", ");
     const jobNo = test ? TEST_RECIPIENT.jobNo : (order?.external_order_id ?? "");
     const qty = test ? TEST_RECIPIENT.qty : total;
+    const showTestTag = test || simulated;
     // Code128-ish visual bars from tracking number (purely decorative for preview/printer test)
     const barH = big ? 22 : 14;
     const bars = Array.from(tn).map((c, i) => {
