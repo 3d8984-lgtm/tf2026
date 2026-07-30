@@ -211,9 +211,10 @@ export default function Shipping() {
                           <Button size="sm" onClick={() => navigate(`/shipping/scan/${r.order_id}`)}>
                             <ScanLine className="w-4 h-4 mr-1" />
                             {r.scan_status === "reported" ? tr("보기", "查看") : tr("스캔 시작", "开始扫码")}
-
-                        </Button>
+                          </Button>
+                        </div>
                       </TableCell>
+
                     </TableRow>
                   );
                 })
