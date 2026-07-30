@@ -137,9 +137,6 @@ export default function Shipping() {
                     <TableRow key={r.id} className="cursor-pointer hover:bg-accent/30" onClick={() => navigate(`/shipping/scan/${r.order_id}`)}>
                       <TableCell className="font-mono text-sm text-primary hover:underline">{r.orders?.external_order_id}</TableCell>
                       <TableCell>{r.orders?.recipient_name}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {[r.orders?.shipping_city, r.orders?.shipping_state].filter(Boolean).join(", ")}
-                      </TableCell>
                       <TableCell className="text-center">
                         <div className="flex items-center gap-2 justify-center">
                           <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden">
