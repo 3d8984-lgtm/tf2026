@@ -741,34 +741,28 @@ export default function ShippingScan() {
         </CardHeader>
         <CardContent className="flex flex-col md:flex-row items-start gap-6">
           <div
-            className="bg-white text-black rounded shadow-lg border border-border overflow-hidden"
-            style={{ width: `${previewPx.w}px`, height: `${previewPx.h}px`, padding: "12px", boxSizing: "border-box" }}
+            className="bg-white rounded shadow-lg border border-border overflow-hidden shrink-0"
+            style={{
+              width: `${Math.round(mmPx(previewSize.w) * previewScale)}px`,
+              height: `${Math.round(mmPx(previewSize.h) * previewScale)}px`,
+            }}
           >
-            <div className="flex justify-between items-center">
-              <div className="font-extrabold tracking-wider text-[18px]">{(shipment.carrier || carrier || "TEST").toUpperCase()}</div>
-              {!shipment.tracking_number && <div className="text-[9px] border border-black rounded px-1.5 py-0.5">PREVIEW</div>}
-            </div>
-            <div className="border-t border-dashed border-black my-1.5" />
-            <div className="text-[8px] uppercase tracking-wider text-neutral-600">To / 收件人</div>
-            <div className="font-bold text-[12px] leading-tight">{order?.recipient_name || "—"}</div>
-            <div className="text-[10px] leading-snug mt-0.5">
-              {order?.shipping_address || "—"}<br/>
-              {[order?.shipping_city, order?.shipping_state, order?.shipping_zip, order?.shipping_country].filter(Boolean).join(", ") || "—"}<br/>
-              {order?.recipient_phone || ""}
-            </div>
-            <div className="border-t border-dashed border-black my-1.5" />
-            <div className="text-center leading-none">
-              {Array.from((shipment.tracking_number || "PREVIEW-0000")).map((c, i) => {
-                const w = (c.charCodeAt(0) % 4) + 1;
-                return <span key={i} style={{ display: "inline-block", width: `${w}px`, height: "36px", background: "#000", marginRight: i % 3 === 0 ? "2px" : "1px" }} />;
-              })}
-            </div>
-            <div className="text-center font-mono text-[10px] tracking-wider mt-1 break-all">
-              {shipment.tracking_number || "PREVIEW-0000"}
-            </div>
-            <div className="text-[8px] mt-1 text-neutral-700">Job No: {order?.external_order_id} · Qty: {total}</div>
-            <div className="text-[7px] mt-3 text-neutral-500 text-center">TWINMETA FACTORY · {sizeLabel}</div>
+            <iframe
+              title="label-preview"
+              srcDoc={previewHtml}
+              sandbox="allow-same-origin"
+              scrolling="no"
+              style={{
+                width: `${mmPx(previewSize.w)}px`,
+                height: `${mmPx(previewSize.h)}px`,
+                border: "none",
+                transform: `scale(${previewScale})`,
+                transformOrigin: "top left",
+                background: "#fff",
+              }}
+            />
           </div>
+
 
           <div className="flex-1 space-y-3 text-sm">
             <Alert>
