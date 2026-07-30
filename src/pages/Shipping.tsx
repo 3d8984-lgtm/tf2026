@@ -42,7 +42,7 @@ export default function Shipping() {
 
   const { data: kpis } = useShippingQueueKpis();
   const { data: rows = [], isLoading } = useShippingQueue({ status, search });
-  const { data: couriers = [] } = useCouriers(true);
+  const { data: couriers = [] } = useCouriers(false);
   const qc = useQueryClient();
   const [picked, setPicked] = useState<Record<string, string>>({});
   const [issuingId, setIssuingId] = useState<string | null>(null);
