@@ -113,20 +113,20 @@ export default function Shipping() {
               <TableRow>
                 <TableHead>Job No</TableHead>
                 <TableHead>{tr("Twinker", "Twinker")}</TableHead>
-                <TableHead>{tr("도시/지역", "城市/州")}</TableHead>
+                
                 <TableHead className="text-center">{tr("진행", "进度")}</TableHead>
                 <TableHead>{tr("상태", "状态")}</TableHead>
                 <TableHead>{tr("택배사", "承运商")}</TableHead>
-                <TableHead>{tr("송장번호", "运单号")}</TableHead>
+                
                 <TableHead>{tr("납기일", "交期")}</TableHead>
                 <TableHead className="text-right">{tr("작업", "操作")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-10">{tr("불러오는 중...", "加载中...")}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">{tr("불러오는 중...", "加载中...")}</TableCell></TableRow>
               ) : rows.length === 0 ? (
-                <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-10">{tr("표시할 주문이 없습니다", "暂无订单")}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">{tr("표시할 주문이 없습니다", "暂无订单")}</TableCell></TableRow>
 
               ) : (
                 rows.map((r: any) => {
@@ -137,9 +137,6 @@ export default function Shipping() {
                     <TableRow key={r.id} className="cursor-pointer hover:bg-accent/30" onClick={() => navigate(`/shipping/scan/${r.order_id}`)}>
                       <TableCell className="font-mono text-sm text-primary hover:underline">{r.orders?.external_order_id}</TableCell>
                       <TableCell>{r.orders?.recipient_name}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {[r.orders?.shipping_city, r.orders?.shipping_state].filter(Boolean).join(", ")}
-                      </TableCell>
                       <TableCell className="text-center">
                         <div className="flex items-center gap-2 justify-center">
                           <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden">
@@ -176,7 +173,7 @@ export default function Shipping() {
 
                         )}
                       </TableCell>
-                      <TableCell className="font-mono text-xs">{r.tracking_number ?? "-"}</TableCell>
+                      
                       <TableCell className="text-sm">{r.orders?.project_completed_at ? format(new Date(r.orders.project_completed_at), "yyyy-MM-dd") : "-"}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
