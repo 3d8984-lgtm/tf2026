@@ -50,6 +50,7 @@ export default function Shipping() {
   const carrierOf = (r: any) =>
     picked[r.id] ?? r.carrier ?? (couriers.find((c) => c.is_default) ?? couriers[0])?.code ?? "";
 
+
   const issue = async (r: any) => {
     const code = carrierOf(r);
     if (!code) {
