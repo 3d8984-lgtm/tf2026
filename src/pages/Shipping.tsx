@@ -42,13 +42,14 @@ export default function Shipping() {
 
   const { data: kpis } = useShippingQueueKpis();
   const { data: rows = [], isLoading } = useShippingQueue({ status, search });
-  const { data: couriers = [] } = useCouriers(true);
+  const { data: couriers = [] } = useCouriers(false);
   const qc = useQueryClient();
   const [picked, setPicked] = useState<Record<string, string>>({});
   const [issuingId, setIssuingId] = useState<string | null>(null);
 
   const carrierOf = (r: any) =>
     picked[r.id] ?? r.carrier ?? (couriers.find((c) => c.is_default) ?? couriers[0])?.code ?? "";
+
 
   const issue = async (r: any) => {
     const code = carrierOf(r);
@@ -174,7 +175,7 @@ export default function Shipping() {
                         {couriers.length === 0 ? (
                           <span className="text-xs text-muted-foreground">{tr("설정 필요", "需配置")}</span>
                         ) : (
-                          <div className="flex gap-1">
+                          <div className="flex flex-wrap gap-1">
                             {couriers.map((c) => {
                               const active = carrierOf(r) === c.code;
                               return (
@@ -183,7 +184,8 @@ export default function Shipping() {
                                   size="sm"
                                   variant={active ? "default" : "outline"}
                                   className="h-7 px-2 text-xs"
-                                  disabled={!!r.tracking_number}
+                                  title={c.enabled ? c.name : tr("비활성 (시스템 설정에서 활성화)", "未启用（请在系统设置启用）")}
+                                  disabled={!!r.tracking_number || !c.enabled}
                                   onClick={() => setPicked((p) => ({ ...p, [r.id]: c.code }))}
                                 >
                                   {c.name}
@@ -191,6 +193,7 @@ export default function Shipping() {
                               );
                             })}
                           </div>
+
                         )}
                       </TableCell>
                       <TableCell className="font-mono text-xs">{r.tracking_number ?? "-"}</TableCell>
