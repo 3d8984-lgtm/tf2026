@@ -479,6 +479,15 @@ export default function ShippingScan() {
     });
   }
 
+  // Test-mode label: real order/address data, simulated (non-billable) tracking number.
+  function printSimulatedLabel(trackingNumber: string) {
+    const size = labelSizeFor(carrier || shipment?.carrier);
+    const w = window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
+    if (!w) return;
+    w.document.write(buildLabelHtml({ testTracking: trackingNumber }));
+    w.document.close();
+  }
+
 
   const feedbackBox = useMemo(() => {
     if (feedback.kind === "idle") return null;
