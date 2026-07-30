@@ -317,7 +317,8 @@ export default function CourierSettings() {
 
       {/* Credentials dialog */}
       <Dialog open={!!credDialog} onOpenChange={(o) => !o && setCredDialog(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+
           <DialogHeader>
             <DialogTitle>{credDialog?.name} — {tr("API 인증정보", "API 认证信息")}</DialogTitle>
           </DialogHeader>
