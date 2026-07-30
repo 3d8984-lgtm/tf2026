@@ -364,7 +364,7 @@ export default function ShippingScan() {
     return { w: 70, h: 130 };
   }
 
-  function buildLabelHtml(opts: { test?: boolean; testTracking?: string } = {}) {
+  function buildLabelHtml(opts: { test?: boolean; testTracking?: string; noPrint?: boolean } = {}) {
     // `test` = fixed dummy recipient (printer check).
     // `testTracking` = real order data, simulated tracking number (4PX test mode).
     const test = !!opts.test;
@@ -422,12 +422,12 @@ export default function ShippingScan() {
         <div class="meta">Job No: ${jobNo} · Qty: ${qty}</div>
         <div class="footer">TWINMETA FACTORY · ${LW} × ${LH} mm</div>
       </div>
-      <script>window.onload=()=>{setTimeout(()=>window.print(),150)};</script>
+      ${opts.noPrint ? "" : "<script>window.onload=()=>{setTimeout(()=>window.print(),150)};<\/script>"}
       </body></html>`;
   }
 
   // Carrier-returned PDF label, forced to the carrier's paper size (4PX = 100×150mm).
-  function buildRemoteLabelHtml(url: string, code?: string | null) {
+  function buildRemoteLabelHtml(url: string, code?: string | null, noPrint = false) {
     const { w: LW, h: LH } = labelSizeFor(code);
     return `<!doctype html><html><head><meta charset="utf-8"/><title>Label</title>
       <style>
@@ -436,8 +436,8 @@ export default function ShippingScan() {
         embed, img { width: ${LW}mm; height: ${LH}mm; object-fit: contain; display: block; }
       </style></head><body>
       ${/\.(png|jpe?g)$/i.test(url)
-        ? `<img src="${url}" onload="setTimeout(()=>window.print(),200)"/>`
-        : `<embed src="${url}#toolbar=0" type="application/pdf"/><script>window.onload=()=>{setTimeout(()=>window.print(),800)};<\/script>`}
+        ? `<img src="${url}" ${noPrint ? "" : 'onload="setTimeout(()=>window.print(),200)"'}/>`
+        : `<embed src="${url}#toolbar=0" type="application/pdf"/>${noPrint ? "" : "<script>window.onload=()=>{setTimeout(()=>window.print(),800)};<\/script>"}`}
       </body></html>`;
   }
 
