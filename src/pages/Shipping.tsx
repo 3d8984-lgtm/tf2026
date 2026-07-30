@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+
 import PageHeader from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,11 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ScanLine, Search, Truck, Package, CheckCircle2, Send, Loader2 } from "lucide-react";
+import { ScanLine, Search, Truck, Package, CheckCircle2, Send } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { useShippingQueue, useShippingQueueKpis, type ScanStatus } from "@/hooks/useShippingQueue";
-import { useCouriers, requestCarrierLabel } from "@/hooks/useCouriers";
-import { toast } from "sonner";
+import { useCouriers } from "@/hooks/useCouriers";
+
 import { format } from "date-fns";
 
 
@@ -43,32 +43,12 @@ export default function Shipping() {
   const { data: kpis } = useShippingQueueKpis();
   const { data: rows = [], isLoading } = useShippingQueue({ status, search });
   const { data: couriers = [] } = useCouriers(false);
-  const qc = useQueryClient();
   const [picked, setPicked] = useState<Record<string, string>>({});
-  const [issuingId, setIssuingId] = useState<string | null>(null);
 
   const carrierOf = (r: any) =>
     picked[r.id] ?? r.carrier ?? (couriers.find((c) => c.is_default) ?? couriers[0])?.code ?? "";
 
 
-  const issue = async (r: any) => {
-    const code = carrierOf(r);
-    if (!code) {
-      toast.error(tr("택배사를 먼저 선택하세요", "请先选择承运商"));
-      return;
-    }
-    setIssuingId(r.id);
-    try {
-      const res = await requestCarrierLabel(r.id, code);
-      toast.success(`${code.toUpperCase()} · ${res.tracking_number}`);
-      qc.invalidateQueries({ queryKey: ["shipping_queue"] });
-      qc.invalidateQueries({ queryKey: ["shipping_queue_kpis"] });
-    } catch (e: any) {
-      toast.error(e?.message ?? tr("송장 발급 실패", "运单生成失败"));
-    } finally {
-      setIssuingId(null);
-    }
-  };
 
 
   const tr = (ko: string, zh: string) => (isKo ? ko : zh);
@@ -200,17 +180,6 @@ export default function Shipping() {
                       <TableCell className="text-sm">{r.orders?.project_completed_at ? format(new Date(r.orders.project_completed_at), "yyyy-MM-dd") : "-"}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                          {!r.tracking_number && (
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              disabled={issuingId === r.id || couriers.length === 0}
-                              onClick={() => issue(r)}
-                            >
-                              {issuingId === r.id ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Truck className="w-4 h-4 mr-1" />}
-                              {tr("송장 발급", "生成运单")}
-                            </Button>
-                          )}
                           <Button size="sm" onClick={() => navigate(`/shipping/scan/${r.order_id}`)}>
                             <ScanLine className="w-4 h-4 mr-1" />
                             {r.scan_status === "reported" ? tr("보기", "查看") : tr("스캔 시작", "开始扫码")}
