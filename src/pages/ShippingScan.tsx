@@ -503,6 +503,10 @@ export default function ShippingScan() {
     </div>
   );
 
+  const previewSize = labelSizeFor(shipment.carrier || carrier);
+  const previewPx = { w: 210, h: Math.round((210 * previewSize.h) / previewSize.w) };
+  const sizeLabel = `${previewSize.w} × ${previewSize.h} mm`;
+
   const readyToIssue = testMode
     ? !!carrier
     : allScanned && !shipment.tracking_number;
@@ -720,18 +724,18 @@ export default function ShippingScan() {
         </CardContent>
       </Card>
 
-      {/* Label preview (70 x 130 mm) */}
+      {/* Label preview — size follows the selected carrier (4PX = 100×150mm) */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center justify-between">
             <span className="flex items-center gap-2"><Printer className="w-4 h-4"/>{tr("송장 미리보기", "运单预览")}</span>
-            <span className="text-[11px] font-normal text-muted-foreground">70 × 130 mm</span>
+            <span className="text-[11px] font-normal text-muted-foreground">{sizeLabel}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col md:flex-row items-start gap-6">
           <div
             className="bg-white text-black rounded shadow-lg border border-border overflow-hidden"
-            style={{ width: "210px", height: "390px", padding: "12px", boxSizing: "border-box" }}
+            style={{ width: `${previewPx.w}px`, height: `${previewPx.h}px`, padding: "12px", boxSizing: "border-box" }}
           >
             <div className="flex justify-between items-center">
               <div className="font-extrabold tracking-wider text-[18px]">{(shipment.carrier || carrier || "TEST").toUpperCase()}</div>
@@ -756,7 +760,7 @@ export default function ShippingScan() {
               {shipment.tracking_number || "PREVIEW-0000"}
             </div>
             <div className="text-[8px] mt-1 text-neutral-700">Job No: {order?.external_order_id} · Qty: {total}</div>
-            <div className="text-[7px] mt-3 text-neutral-500 text-center">TWINMETA FACTORY · 70 × 130 mm</div>
+            <div className="text-[7px] mt-3 text-neutral-500 text-center">TWINMETA FACTORY · {sizeLabel}</div>
           </div>
 
           <div className="flex-1 space-y-3 text-sm">
@@ -764,8 +768,8 @@ export default function ShippingScan() {
               <TestTube2 className="w-4 h-4" />
               <AlertDescription className="text-xs">
                 {tr(
-                  "프린터/스캐너 연동을 확인하려면 '테스트 출력'을 사용하세요. 브라우저 프린트 대화창에서 용지 크기 70×130mm, 여백 '없음'으로 설정해야 라벨지에 정확히 출력됩니다.",
-                  "请使用『测试打印』确认打印机/扫描器连接。在打印对话框中将纸张设为 70×130mm、边距设为「无」即可精准打印。"
+                  `프린터/스캐너 연동을 확인하려면 '테스트 출력'을 사용하세요. 브라우저 프린트 대화창에서 용지 크기 ${previewSize.w}×${previewSize.h}mm, 여백 '없음'으로 설정해야 라벨지에 정확히 출력됩니다.`,
+                  `请使用『测试打印』确认打印机/扫描器连接。在打印对话框中将纸张设为 ${previewSize.w}×${previewSize.h}mm、边距设为「无」即可精准打印。`
                 )}
               </AlertDescription>
             </Alert>
