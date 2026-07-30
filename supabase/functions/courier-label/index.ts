@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.58.0";
-import { md5 } from "../_shared/md5.ts";
+import { fpxCall, fpxEndpoint, fpxProbe, FPX_TEST_URL } from "../_shared/fpx.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,68 +18,121 @@ function json(body: unknown, status = 200) {
   });
 }
 
-function md5hex(text: string) {
-  return md5(text);
-}
-
-
 interface LabelResult {
   tracking_number: string | null;
   label_url: string | null;
   raw: unknown;
   error?: string;
+  fpx_tracking_no?: string | null;
 }
 
+// ---- 4PX: ds.xms.order.create (v1.1.0) + ds.xms.label.get (v1.1.0) ----------
 async function call4px(cfg: any, cred: any, order: any, shipment: any): Promise<LabelResult> {
-  const ts = Date.now().toString();
+  const endpoint = fpxEndpoint(cfg.api_url, cfg.api_mode);
+  const extra = (cred?.extra ?? {}) as Record<string, any>;
+  const qty = Number(order.quantity ?? 1) || 1;
+  const unitPrice = Number(extra.unit_price ?? 10);
+  const weight = Math.max(1, Math.round(shipment.weight_grams ?? shipment.expected_weight_grams ?? 200));
+
   const bizData = {
-    order_no: order.external_order_id,
-    logistics_channel_no: cred?.extra?.channel_code ?? "",
-    consignee: {
-      name: order.recipient_name,
+    ref_no: order.external_order_id,
+    business_type: "BDS",
+    duty_type: extra.duty_type ?? "P",
+    logistics_service_info: {
+      logistics_product_code: extra.channel_code ?? extra.logistics_product_code ?? "",
+    },
+    return_info: {
+      is_return_on_domestic: extra.is_return_on_domestic ?? "N",
+      is_return_on_oversea: extra.is_return_on_oversea ?? "N",
+    },
+    parcel_list: [
+      {
+        weight,
+        parcel_value: Number((unitPrice * qty).toFixed(2)),
+        currency: "USD",
+        include_battery: "N",
+        declare_product_info: [
+          {
+            declare_product_name_cn: extra.item_name_cn ?? "T恤",
+            declare_product_name_en: extra.item_name_en ?? "T-Shirt",
+            declare_product_code_qty: String(qty),
+            declare_unit_price_export: unitPrice,
+            currency_export: "USD",
+            declare_unit_price_import: unitPrice,
+            currency_import: "USD",
+            brand_export: extra.brand ?? "",
+            brand_import: extra.brand ?? "",
+            hscode_export: extra.hscode ?? "",
+            hscode_import: extra.hscode ?? "",
+          },
+        ],
+      },
+    ],
+    is_insure: "N",
+    sender: {
+      first_name: extra.sender_name ?? "TWINMETA",
+      company: extra.sender_company ?? "TWINMETA",
+      phone: extra.sender_phone ?? "13000000000",
+      post_code: extra.sender_post_code ?? "518000",
+      country: extra.sender_country ?? "CN",
+      state: extra.sender_state ?? "GuangDong",
+      city: extra.sender_city ?? "Shenzhen",
+      street: extra.sender_street ?? "-",
+    },
+    recipient_info: {
+      first_name: order.recipient_name,
       phone: order.recipient_phone ?? "",
+      post_code: order.shipping_zip ?? "",
       country: order.shipping_country ?? "US",
       state: order.shipping_state ?? "",
       city: order.shipping_city ?? "",
       street: order.shipping_address ?? "",
-      post_code: order.shipping_zip ?? "",
+      email: extra.recipient_email ?? "",
     },
-    parcel: {
-      weight: shipment.weight_grams ?? shipment.expected_weight_grams ?? 0,
-      quantity: order.quantity ?? 1,
-      product_code: order.product_code,
-    },
+    deliver_type_info: { deliver_type: String(extra.deliver_type ?? "3") },
   };
-  const params: Record<string, string> = {
-    app_key: cred?.api_key ?? "",
-    method: cred?.extra?.method ?? "ec.order.create",
-    format: "json",
-    v: "1.0",
-    sign_method: "md5",
-    timestamp: ts,
-    biz_data: JSON.stringify(bizData),
-  };
-  const sorted = Object.keys(params).sort().map((k) => `${k}${params[k]}`).join("");
-  params.sign = md5hex(`${cred?.api_secret ?? ""}${sorted}${cred?.api_secret ?? ""}`).toUpperCase();
 
-  const res = await fetch(cfg.api_url, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams(params),
-    signal: AbortSignal.timeout(25_000),
-  });
-  const text = await res.text();
-  let raw: any = text;
-  try { raw = JSON.parse(text); } catch { /* keep text */ }
-
-  const tracking =
-    raw?.result?.tracking_no ?? raw?.data?.tracking_no ?? raw?.tracking_no ?? raw?.result?.waybill_no ?? null;
-  const label = raw?.result?.label_url ?? raw?.data?.label_url ?? null;
-  if (!res.ok || !tracking) {
-    return { tracking_number: null, label_url: null, raw, error: raw?.msg ?? raw?.message ?? `HTTP ${res.status}` };
+  const created = await fpxCall(endpoint, cred, "ds.xms.order.create", "1.1.0", bizData);
+  if (!created.ok) {
+    return {
+      tracking_number: null,
+      label_url: null,
+      raw: created.raw,
+      error: created.message ?? created.code ?? `HTTP ${created.httpStatus}`,
+    };
   }
-  return { tracking_number: tracking, label_url: label, raw };
+
+  const d = created.data ?? {};
+  const fpxNo = d["4px_tracking_no"] ?? d.fpx_tracking_no ?? null;
+  const tracking = d.logistics_channel_no || fpxNo;
+  if (!tracking) {
+    return { tracking_number: null, label_url: null, raw: created.raw, error: "4PX did not return a tracking number" };
+  }
+
+  // Label: 100x150mm PDF
+  let labelUrl: string | null = null;
+  let labelRaw: unknown = null;
+  try {
+    const label = await fpxCall(endpoint, cred, "ds.xms.label.get", "1.1.0", {
+      ref_no: order.external_order_id,
+      "4px_tracking_no": fpxNo ?? undefined,
+      label_size: "label_100x150",
+      is_print_pick_info: "N",
+      is_print_merge: "N",
+    });
+    labelRaw = label.raw;
+    const ld = label.data ?? {};
+    labelUrl = ld.label_url ?? ld.url ?? ld.file_url ?? (Array.isArray(ld.label_list) ? ld.label_list[0]?.label_url : null) ?? null;
+  } catch { /* label failure must not lose the tracking number */ }
+
+  return {
+    tracking_number: tracking,
+    label_url: labelUrl,
+    fpx_tracking_no: fpxNo,
+    raw: { create: created.raw, label: labelRaw },
+  };
 }
+
 
 async function callYunExpress(cfg: any, cred: any, order: any, shipment: any): Promise<LabelResult> {
   const base = (cfg.api_url ?? "").replace(/\/+$/, "");
@@ -177,61 +230,65 @@ Deno.serve(async (req) => {
     }
 
     // ---- TEST MODE ----------------------------------------------------------
-    // Validates the carrier credentials with a signed no-op call, then returns a
-    // simulated tracking number. Nothing is persisted on the shipment, so no real
-    // waybill is created at the carrier.
+    // 4PX: runs against the sandbox endpoint (open-test.4px.com) so a real test
+    // waybill + label PDF is produced. Nothing is persisted on the shipment.
     if (test) {
       let authOk = false;
       let message = "";
+      let tracking = "";
+      let labelUrl: string | null = null;
+      let raw: unknown = null;
+
       try {
         if (carrier === "4px") {
-          const params: Record<string, string> = {
-            app_key: cred.api_key ?? "",
-            method: "ec.ping",
-            format: "json",
-            v: "1.0",
-            sign_method: "md5",
-            timestamp: new Date().toISOString().slice(0, 19).replace("T", " "),
+          const extra = (cred.extra ?? {}) as Record<string, any>;
+          const sandboxCred = {
+            api_key: extra.test_app_key ?? "eb190f3b-d464-4e3f-a6f1-036399670823",
+            api_secret: extra.test_app_secret ?? "79df01f8-63d5-47f3-a1e3-3e43ceecf726",
+            extra: { ...extra, channel_code: extra.test_channel_code ?? extra.channel_code ?? "PY" },
           };
-          const sorted = Object.keys(params).sort().map((k) => `${k}${params[k]}`).join("");
-          params.sign = md5hex(`${cred.api_secret ?? ""}${sorted}${cred.api_secret ?? ""}`).toUpperCase();
-          const res = await fetch(cfg.api_url, {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams(params),
-            signal: AbortSignal.timeout(15_000),
-          });
-          const text = await res.text();
-          const methodMissing = /接口不存在|method.*not.*exist/i.test(text);
-          const authFail = !methodMissing &&
-            /认证参数非法|签名|sign error|invalid sign|app_key|unauthorized|401/i.test(text);
-          authOk = methodMissing || (res.ok && !authFail);
-          message = authOk ? `4PX auth OK (HTTP ${res.status})` : `4PX auth failed: ${text.slice(0, 160)}`;
+          const probe = await fpxProbe(FPX_TEST_URL, sandboxCred);
+          authOk = probe.ok;
+          message = probe.message;
+
+          const testOrder = { ...order, external_order_id: `TEST-${order.external_order_id}-${Date.now()}` };
+          const r = await call4px({ api_url: FPX_TEST_URL, api_mode: "test" }, sandboxCred, testOrder, shipment);
+          raw = r.raw;
+          if (r.tracking_number) {
+            authOk = true;
+            tracking = r.tracking_number;
+            labelUrl = r.label_url;
+            message = "4PX sandbox test waybill created";
+          } else if (!tracking) {
+            message = `${message} / sandbox order: ${r.error ?? "no tracking number"}`;
+          }
         } else {
           authOk = true;
           message = "test mode (no live auth check for this carrier)";
         }
       } catch (e) {
-        authOk = false;
         message = e instanceof Error ? e.message : "network error";
       }
 
-      const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-      const rnd = Math.random().toString(36).slice(2, 8).toUpperCase();
-      const tracking = `TEST-${carrier.toUpperCase()}-${stamp}-${rnd}`;
+      if (!tracking) {
+        const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+        const rnd = Math.random().toString(36).slice(2, 8).toUpperCase();
+        tracking = `TEST-${carrier.toUpperCase()}-${stamp}-${rnd}`;
+      }
 
       await admin.from("shipping_logs").insert({
         shipment_id: shipment.id,
         order_id: shipment.order_id,
         action_type: "carrier_api_test",
         worker_id: user.id,
-        details: { carrier, mode: cfg.api_mode, auth_ok: authOk, message, tracking_number: tracking },
+        details: { carrier, mode: "sandbox", auth_ok: authOk, message, tracking_number: tracking },
       });
 
-      if (!authOk) return json({ error: message }, 502);
+      if (!authOk) return json({ error: message, raw }, 502);
 
-      return json({ ok: true, test: true, carrier, tracking_number: tracking, label_url: null, message });
+      return json({ ok: true, test: true, carrier, tracking_number: tracking, label_url: labelUrl, message });
     }
+
 
     let result: LabelResult;
     if (carrier === "4px") result = await call4px(cfg, cred, order, shipment);
