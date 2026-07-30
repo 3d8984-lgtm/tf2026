@@ -102,15 +102,63 @@ export default function CourierSettings() {
 
   const openCred = (c: CourierConfigRow) => { setCred({ ...emptyCred }); setCredDialog(c); };
 
+  const { data: credExtra } = useCourierExtra(credDialog?.code ?? null);
+  useEffect(() => {
+    if (!credDialog || !credExtra) return;
+    const e = (credExtra.extra ?? {}) as Record<string, unknown>;
+    const s = (k: string) => (e[k] === undefined || e[k] === null ? "" : String(e[k]));
+    setCred((prev) => ({
+      ...prev,
+      account_no: credExtra.account_no ?? "",
+      channel_code: s("channel_code") || s("logistics_product_code"),
+      sender_name: s("sender_name"),
+      sender_company: s("sender_company"),
+      sender_phone: s("sender_phone"),
+      sender_country: s("sender_country"),
+      sender_state: s("sender_state"),
+      sender_city: s("sender_city"),
+      sender_street: s("sender_street"),
+      sender_post_code: s("sender_post_code"),
+      hscode: s("hscode"),
+      unit_price: s("unit_price"),
+      item_name_en: s("item_name_en"),
+      item_name_cn: s("item_name_cn"),
+      brand: s("brand"),
+    }));
+  }, [credDialog?.code, credExtra]);
+
   const handleSaveCred = async () => {
     if (!credDialog) return;
     try {
+      const base = (credExtra?.extra ?? {}) as Record<string, unknown>;
+      const extra: Record<string, unknown> = { ...base };
+      const put = (key: string, val: string) => {
+        const v = val.trim();
+        if (v) extra[key] = v;
+        else delete extra[key];
+      };
+      put("channel_code", cred.channel_code);
+      put("sender_name", cred.sender_name);
+      put("sender_company", cred.sender_company);
+      put("sender_phone", cred.sender_phone);
+      put("sender_country", cred.sender_country);
+      put("sender_state", cred.sender_state);
+      put("sender_city", cred.sender_city);
+      put("sender_street", cred.sender_street);
+      put("sender_post_code", cred.sender_post_code);
+      put("hscode", cred.hscode);
+      put("item_name_en", cred.item_name_en);
+      put("item_name_cn", cred.item_name_cn);
+      put("brand", cred.brand);
+      if (cred.unit_price.trim() && !Number.isNaN(Number(cred.unit_price))) extra.unit_price = Number(cred.unit_price);
+      else delete extra.unit_price;
+
       await saveCreds.mutateAsync({
         code: credDialog.code,
         api_key: cred.api_key,
         api_secret: cred.api_secret,
         account_no: cred.account_no,
-        extra: cred.channel_code ? { channel_code: cred.channel_code } : undefined,
+        extra,
       });
       setCredDialog(null);
       toast({ title: tr("인증정보가 안전하게 저장되었습니다", "认证信息已安全保存") });
