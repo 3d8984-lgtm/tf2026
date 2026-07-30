@@ -70,8 +70,16 @@ export default function ShippingScan() {
   const [designConfirmed, setDesignConfirmed] = useState(false);
   const [issuing, setIssuing] = useState(false);
   const [labelDialog, setLabelDialog] = useState(false);
-  const [carrier, setCarrier] = useState("4px");
+  const [carrier, setCarrier] = useState("");
   const [manualTracking, setManualTracking] = useState("");
+  const { data: couriers = [] } = useCouriers(true);
+
+  useEffect(() => {
+    if (carrier || couriers.length === 0) return;
+    const current = shipment?.carrier && couriers.find((c) => c.code === shipment.carrier);
+    setCarrier((current ?? couriers.find((c) => c.is_default) ?? couriers[0]).code);
+  }, [couriers, shipment?.carrier, carrier]);
+
 
   const [hidActive, setHidActive] = useState(false);
   const [testQrDataUrl, setTestQrDataUrl] = useState<string>("");
