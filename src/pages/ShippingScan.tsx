@@ -284,9 +284,35 @@ export default function ShippingScan() {
     return `MOCK-${ymd}-${rnd}`;
   }
 
-  async function issueTracking(autoMock: boolean) {
+  // Call the selected courier's API to create the label / tracking number.
+  async function issueTrackingViaApi() {
     if (!shipment) return;
-    const trackingNumber = autoMock ? genMockTracking() : manualTracking.trim();
+    if (!carrier) {
+      toast({ variant: "destructive", title: tr("택배사를 선택하세요", "请选择承运商") });
+      return;
+    }
+    setIssuing(true);
+    try {
+      const res = await requestCarrierLabel(shipment.id, carrier);
+      await logAction("issue_tracking", { trackingNumber: res.tracking_number, carrier, via: "api" });
+      toast({ title: tr("송장이 발급되었습니다", "已生成运单"), description: res.tracking_number });
+      setLabelDialog(true);
+      qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
+    } catch (e: any) {
+      toast({
+        variant: "destructive",
+        title: tr("택배사 API 발급 실패", "承运商API出运单失败"),
+        description: e?.message ?? tr("알 수 없는 오류", "未知错误"),
+      });
+    } finally {
+      setIssuing(false);
+    }
+  }
+
+  // Manual entry fallback (used when the courier issues the number offline).
+  async function issueTrackingManual() {
+    if (!shipment) return;
+    const trackingNumber = manualTracking.trim();
     if (!trackingNumber) {
       toast({ variant: "destructive", title: tr("송장번호를 입력하세요", "请输入运单号") });
       return;
@@ -307,11 +333,12 @@ export default function ShippingScan() {
       toast({ variant: "destructive", title: tr("발급 실패", "出运单失败"), description: error.message });
       return;
     }
-    await logAction("issue_tracking", { trackingNumber, carrier, mock: autoMock });
-    toast({ title: tr("송장이 발급되었습니다", "已生成运单"), description: trackingNumber });
+    await logAction("issue_tracking", { trackingNumber, carrier, via: "manual" });
+    toast({ title: tr("송장이 등록되었습니다", "已登记运单"), description: trackingNumber });
     setLabelDialog(true);
     qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
   }
+
 
   async function markShippedAndReport() {
     if (!shipment) return;
