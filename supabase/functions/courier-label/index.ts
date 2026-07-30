@@ -151,7 +151,7 @@ Deno.serve(async (req) => {
     const { data: approved } = await admin.rpc("is_approved", { _user_id: user.id });
     if (!approved) return json({ error: "forbidden" }, 403);
 
-    const { shipment_id, carrier } = await req.json();
+    const { shipment_id, carrier, test } = await req.json();
     if (!shipment_id || !carrier) return json({ error: "shipment_id and carrier required" }, 400);
 
     const { data: shipment, error: sErr } = await admin
@@ -160,7 +160,7 @@ Deno.serve(async (req) => {
       .eq("id", shipment_id)
       .maybeSingle();
     if (sErr || !shipment) return json({ error: "shipment not found" }, 404);
-    if (shipment.tracking_number) {
+    if (!test && shipment.tracking_number) {
       return json({ ok: true, already: true, tracking_number: shipment.tracking_number, carrier: shipment.carrier });
     }
 
@@ -174,6 +174,63 @@ Deno.serve(async (req) => {
     const { data: cred } = await admin.from("courier_credentials").select("*").eq("code", carrier).maybeSingle();
     if (!cred?.api_key && !cred?.api_secret) {
       return json({ error: `API credentials for '${cfg.name}' are not configured` }, 400);
+    }
+
+    // ---- TEST MODE ----------------------------------------------------------
+    // Validates the carrier credentials with a signed no-op call, then returns a
+    // simulated tracking number. Nothing is persisted on the shipment, so no real
+    // waybill is created at the carrier.
+    if (test) {
+      let authOk = false;
+      let message = "";
+      try {
+        if (carrier === "4px") {
+          const params: Record<string, string> = {
+            app_key: cred.api_key ?? "",
+            method: "ec.ping",
+            format: "json",
+            v: "1.0",
+            sign_method: "md5",
+            timestamp: new Date().toISOString().slice(0, 19).replace("T", " "),
+          };
+          const sorted = Object.keys(params).sort().map((k) => `${k}${params[k]}`).join("");
+          params.sign = md5hex(`${cred.api_secret ?? ""}${sorted}${cred.api_secret ?? ""}`).toUpperCase();
+          const res = await fetch(cfg.api_url, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams(params),
+            signal: AbortSignal.timeout(15_000),
+          });
+          const text = await res.text();
+          const methodMissing = /接口不存在|method.*not.*exist/i.test(text);
+          const authFail = !methodMissing &&
+            /认证参数非法|签名|sign error|invalid sign|app_key|unauthorized|401/i.test(text);
+          authOk = methodMissing || (res.ok && !authFail);
+          message = authOk ? `4PX auth OK (HTTP ${res.status})` : `4PX auth failed: ${text.slice(0, 160)}`;
+        } else {
+          authOk = true;
+          message = "test mode (no live auth check for this carrier)";
+        }
+      } catch (e) {
+        authOk = false;
+        message = e instanceof Error ? e.message : "network error";
+      }
+
+      const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      const rnd = Math.random().toString(36).slice(2, 8).toUpperCase();
+      const tracking = `TEST-${carrier.toUpperCase()}-${stamp}-${rnd}`;
+
+      await admin.from("shipping_logs").insert({
+        shipment_id: shipment.id,
+        order_id: shipment.order_id,
+        action_type: "carrier_api_test",
+        worker_id: user.id,
+        details: { carrier, mode: cfg.api_mode, auth_ok: authOk, message, tracking_number: tracking },
+      });
+
+      if (!authOk) return json({ error: message }, 502);
+
+      return json({ ok: true, test: true, carrier, tracking_number: tracking, label_url: null, message });
     }
 
     let result: LabelResult;
