@@ -16,6 +16,7 @@ export type PlcLive = {
   online: boolean;
   state: "running" | "stopped" | "fault" | "e_stop" | "unknown";
   count: number;
+  duration: string;
   orderId: string | null;
 };
 
