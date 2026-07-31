@@ -35,19 +35,32 @@ function proxyFetch(path: string) {
 /** 카드/세트 포장 설비의 실시간 상태 + 지정된 주문을 폴링한다. */
 export function usePlcLive(): Record<string, PlcLive> {
   const [live, setLive] = useState<Record<string, PlcLive>>({});
+  const [assigns, setAssigns] = useState<Record<string, string | null>>({});
+
+  // 설비별 지정 주문 (상태 폴링과 분리 — DB 호출이 지연돼도 상태 표시는 계속 갱신되도록)
+  useEffect(() => {
+    let alive = true;
+    const load = () => {
+      supabase
+        .from("plc_active_orders")
+        .select("plc_id, order_id")
+        .then(({ data }) => {
+          if (!alive || !data) return;
+          setAssigns(Object.fromEntries(data.map((a: any) => [a.plc_id, a.order_id ?? null])));
+        });
+    };
+    load();
+    const iv = setInterval(load, 15000);
+    return () => { alive = false; clearInterval(iv); };
+  }, []);
 
   useEffect(() => {
     let alive = true;
     const entries = Object.entries(STAGE_PLC);
 
     const tick = async () => {
-      const { data: assigns } = await supabase
-        .from("plc_active_orders")
-        .select("plc_id, order_id");
-      const assignMap = new Map((assigns ?? []).map((a: any) => [a.plc_id, a.order_id as string | null]));
-
-      const results: [string, PlcLive][] = await Promise.all(
-        entries.map(async ([stage, m]): Promise<[string, PlcLive]> => {
+      const results: [string, Omit<PlcLive, "orderId">][] = await Promise.all(
+        entries.map(async ([stage, m]): Promise<[string, Omit<PlcLive, "orderId">]> => {
           let online = false;
           let state: PlcLive["state"] = "unknown";
           let count = 0;
@@ -66,19 +79,39 @@ export function usePlcLive(): Record<string, PlcLive> {
           } catch {
             online = false;
           }
-          return [stage, { plcId: m.plcId, online, state, count, duration, orderId: assignMap.get(m.plcId) ?? null }];
+          return [stage, { plcId: m.plcId, online, state, count, duration }];
         })
       );
 
       if (!alive) return;
-      setLive(Object.fromEntries(results));
+      setLive((prev) =>
+        Object.fromEntries(
+          results.map(([stage, v]) => [stage, { ...v, orderId: prev[stage]?.orderId ?? null }])
+        )
+      );
     };
-
 
     tick();
     const iv = setInterval(tick, 5000);
     return () => { alive = false; clearInterval(iv); };
   }, []);
 
-  return live;
+  // 지정 주문 정보를 상태에 병합
+  const merged: Record<string, PlcLive> = Object.fromEntries(
+    Object.entries(STAGE_PLC).map(([stage, m]) => [
+      stage,
+      {
+        plcId: m.plcId,
+        online: live[stage]?.online ?? false,
+        state: live[stage]?.state ?? "unknown",
+        count: live[stage]?.count ?? 0,
+        duration: live[stage]?.duration ?? "",
+        orderId: assigns[m.plcId] ?? null,
+      },
+    ])
+  );
+
+  return merged;
+}
+
 }
