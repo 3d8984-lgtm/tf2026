@@ -7,8 +7,7 @@ const stages = [
   { key: "tshirt", label_ko: "티셔츠 제작", label_zh: "T恤制作", icon: Shirt },
   { key: "card", label_ko: "카드 포장", label_zh: "卡片包装", icon: CreditCard },
   { key: "set", label_ko: "세트 포장", label_zh: "套装包装", icon: Package },
-  { key: "courier", label_ko: "택배 포장", label_zh: "快递包装", icon: Mail },
-  { key: "invoice", label_ko: "송장 부착", label_zh: "运单贴附", icon: Truck },
+  { key: "courier", label_ko: "택배 포장 · 송장 부착", label_zh: "快递包装 · 运单贴附", icon: Truck },
   { key: "done", label_ko: "완료", label_zh: "完成", icon: CheckCircle2 },
 ] as const;
 
@@ -16,16 +15,17 @@ type StageKey = (typeof stages)[number]["key"];
 
 const stageColors: Record<StageKey, string> = {
   tshirt: "hsl(205 75% 42%)", card: "hsl(152 60% 42%)", set: "hsl(38 92% 50%)",
-  courier: "hsl(280 55% 52%)", invoice: "hsl(205 75% 55%)", done: "hsl(152 60% 36%)",
+  courier: "hsl(280 55% 52%)", done: "hsl(152 60% 36%)",
 };
 const stageBgColors: Record<StageKey, string> = {
   tshirt: "hsl(205 75% 42% / 0.1)", card: "hsl(152 60% 42% / 0.1)", set: "hsl(38 92% 50% / 0.1)",
-  courier: "hsl(280 55% 52% / 0.1)", invoice: "hsl(205 75% 55% / 0.1)", done: "hsl(152 60% 36% / 0.1)",
+  courier: "hsl(280 55% 52% / 0.1)", done: "hsl(152 60% 36% / 0.1)",
 };
 
 function pct(count: number, total: number) {
   return total === 0 ? 0 : Math.min(100, Math.round((count / total) * 100));
 }
+
 
 interface OrderPipelineProps {
   onStageClick?: (orderId: string, stage: StageKey) => void;
@@ -51,15 +51,17 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
   // Build pipeline data from DB - use external_order_id as 작업지시번호
   const pipelineOrders = (orders ?? []).map(order => {
     const orderTracking = (tracking ?? []).filter(t => t.order_id === order.id);
-    const stageCounts: Record<StageKey, number> = { tshirt: 0, card: 0, set: 0, courier: 0, invoice: 0, done: 0 };
+    const stageCounts: Record<StageKey, number> = { tshirt: 0, card: 0, set: 0, courier: 0, done: 0 };
 
     orderTracking.forEach(t => {
-      if (t.stage in stageCounts) {
-        stageCounts[t.stage as StageKey] = t.completed_count;
+      // 택배 포장 + 송장 부착은 하나의 단계로 합산(최대값) 처리
+      const key = (t.stage === "invoice" ? "courier" : t.stage) as StageKey;
+      if (key in stageCounts) {
+        stageCounts[key] = Math.max(stageCounts[key], t.completed_count);
       }
     });
 
-    const stageKeys: StageKey[] = ["tshirt", "card", "set", "courier", "invoice", "done"];
+    const stageKeys: StageKey[] = ["tshirt", "card", "set", "courier", "done"];
     let currentStage: StageKey = "tshirt";
     for (let i = stageKeys.length - 1; i >= 0; i--) {
       if (stageCounts[stageKeys[i]] > 0) {
@@ -67,6 +69,7 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
         break;
       }
     }
+
 
     const createdDate = new Date(order.created_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN");
     const dueDate = order.project_completed_at
@@ -110,8 +113,8 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
 
       {/* Order rows */}
       {pipelineOrders.map((order, oi) => {
-        const stageKeys: StageKey[] = ["tshirt", "card", "set", "courier", "invoice", "done"];
-        const currentIdx = stageKeys.indexOf(order.currentStage);
+        const stageKeys: StageKey[] = ["tshirt", "card", "set", "courier", "done"];
+        
         const overallDone = order.stageCounts.done;
         const overallPct = pct(overallDone, order.qty);
         const isDone = order.currentStage === "done" && overallDone === order.qty;
@@ -148,13 +151,18 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
               {stages.map((s, si) => {
                 const count = order.stageCounts[s.key];
                 const stagePct = pct(count, order.qty);
-                const isActive = si === currentIdx;
-                const isPast = si < currentIdx;
-                const isFuture = si > currentIdx;
                 const Icon = s.icon;
                 const machine = STAGE_PLC[s.key];
                 const live: PlcLive | undefined = machine ? plcLive[s.key] : undefined;
                 const isThisOrder = !!live && live.orderId === order.id;
+                // 단계 순서와 무관하게, 실적이 있거나 설비가 가동 중이면 활성 상태로 표시
+                const isRunning = isThisOrder && live?.online && live.state === "running";
+                const hasWork = count > 0;
+                const isComplete = order.qty > 0 && count >= order.qty;
+                const isActive = isRunning || (hasWork && !isComplete);
+                const isPast = isComplete;
+                const isFuture = !hasWork && !isRunning;
+
 
                 return (
                   <div key={s.key} className="flex items-center flex-1 min-w-0">
