@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.58.0";
-import { fpxCall, fpxEndpoint, fpxProbe, FPX_TEST_URL } from "../_shared/fpx.ts";
+import { fpxCall, fpxEndpoint, fpxProbe, fpxCancelOrder, FPX_TEST_URL } from "../_shared/fpx.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
