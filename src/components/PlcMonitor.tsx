@@ -374,7 +374,7 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
                 <RotateCcw className="w-3.5 h-3.5 mr-1" /> {isKo ? "카운터 초기화" : "计数重置"}
               </Button>
             </div>
-            {(ctrlUnsupported["start"] || ctrlUnsupported["stop"] || ctrlUnsupported["reset_counter"]) && (
+            {(ctrlUnsupported["stop"] || ctrlUnsupported["reset_counter"]) && (
               <p className="text-[10px] text-muted-foreground">
                 {isKo
                   ? "이 장비는 게이트웨이에 제어용 레지스터가 등록되어 있지 않아 원격 제어가 불가합니다. 현재는 모니터링 전용입니다."
