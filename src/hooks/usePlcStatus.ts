@@ -72,6 +72,7 @@ export function usePlcLive(): Record<string, PlcLive> {
       );
 
       if (!alive) return;
+      console.log("PLCLIVE", JSON.stringify(results));
       setLive(Object.fromEntries(results));
     };
 
