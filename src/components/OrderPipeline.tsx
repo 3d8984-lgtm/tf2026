@@ -185,7 +185,45 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
                         </span>
                         <span className="text-[10px] tabular-nums text-muted-foreground">{stagePct > 0 ? `${stagePct}%` : ""}</span>
                       </div>
+
+                      {machine && (
+                        <div className="mt-1.5 pt-1.5 border-t border-border/60">
+                          <div className="flex items-center gap-1">
+                            <span
+                              className="w-1.5 h-1.5 rounded-full shrink-0"
+                              style={{
+                                background: !live?.online
+                                  ? "hsl(var(--muted-foreground))"
+                                  : live.state === "running"
+                                  ? "hsl(var(--success))"
+                                  : live.state === "fault" || live.state === "e_stop"
+                                  ? "hsl(var(--destructive))"
+                                  : "hsl(var(--muted-foreground))",
+                              }}
+                            />
+                            <span className="text-[10px] font-medium text-muted-foreground truncate">
+                              {machine.label} · {!live?.online
+                                ? (isKo ? "연결 끊김" : "连接中断")
+                                : live.state === "running"
+                                ? (isKo ? "가동중" : "运行中")
+                                : live.state === "fault" || live.state === "e_stop"
+                                ? (isKo ? "이상" : "异常")
+                                : (isKo ? "정지" : "停止")}
+                            </span>
+                          </div>
+                          <div className="flex items-baseline justify-between mt-0.5">
+                            <span className="text-[10px] text-muted-foreground">{isKo ? "설비 카운트" : "设备计数"}</span>
+                            <span
+                              className="text-[11px] font-semibold tabular-nums"
+                              style={{ color: isThisOrder ? stageColors[s.key] : "hsl(var(--muted-foreground))" }}
+                            >
+                              {isThisOrder ? (live?.count ?? 0).toLocaleString() : "-"}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </button>
+
 
                     {si < stages.length - 1 && (
                       <div className="flex flex-col items-center justify-center px-0.5 shrink-0">
