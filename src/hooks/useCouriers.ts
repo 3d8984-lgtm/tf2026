@@ -111,9 +111,14 @@ export function useTestCourier() {
   });
 }
 
-export async function requestCarrierLabel(shipmentId: string, carrier: string, test = false) {
+export async function requestCarrierLabel(
+  shipmentId: string,
+  carrier: string,
+  test = false,
+  testVariant: "sandbox" | "live_cancel" = "sandbox",
+) {
   const { data, error } = await supabase.functions.invoke("courier-label", {
-    body: { shipment_id: shipmentId, carrier, test },
+    body: { shipment_id: shipmentId, carrier, test, test_variant: testVariant },
   });
   if (error) {
     const ctx = (error as any)?.context;
