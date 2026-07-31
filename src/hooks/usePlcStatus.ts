@@ -58,39 +58,35 @@ export function usePlcLive(): Record<string, PlcLive> {
     let alive = true;
     const entries = Object.entries(STAGE_PLC);
 
-    const tick = async () => {
-      const results: [string, Omit<PlcLive, "orderId">][] = await Promise.all(
-        entries.map(async ([stage, m]): Promise<[string, Omit<PlcLive, "orderId">]> => {
-          let online = false;
-          let state: PlcLive["state"] = "unknown";
-          let count = 0;
-          let duration = "";
-          try {
-            const res = await proxyFetch(`/api/v1/plc/${m.plcId}/status`);
-            console.log("PLCFETCH", m.plcId, res.status);
-            if (res.ok) {
-              const j: any = await res.json();
-              if (!("upstream_status" in j)) {
-                online = true;
-                state = j.state ?? "unknown";
-                count = normalizePlcCount(j.total_count);
-                duration = j.operating_duration ?? "";
-              }
-            }
-          } catch {
-            online = false;
+    // 설비 한 대가 응답을 지연시켜도 다른 설비 표시가 멈추지 않도록 개별로 갱신한다.
+    const pollOne = async (stage: string, m: { plcId: string }) => {
+      let online = false;
+      let state: PlcLive["state"] = "unknown";
+      let count = 0;
+      let duration = "";
+      try {
+        const res = await proxyFetch(`/api/v1/plc/${m.plcId}/status`);
+        if (res.ok) {
+          const j: any = await res.json();
+          if (!("upstream_status" in j)) {
+            online = true;
+            state = j.state ?? "unknown";
+            count = normalizePlcCount(j.total_count);
+            duration = j.operating_duration ?? "";
           }
-          return [stage, { plcId: m.plcId, online, state, count, duration }];
-        })
-      );
-
+        }
+      } catch {
+        online = false;
+      }
       if (!alive) return;
-      setLive((prev) =>
-        Object.fromEntries(
-          results.map(([stage, v]) => [stage, { ...v, orderId: prev[stage]?.orderId ?? null }])
-        )
-      );
+      setLive((prev) => ({
+        ...prev,
+        [stage]: { plcId: m.plcId, online, state, count, duration, orderId: prev[stage]?.orderId ?? null },
+      }));
     };
+
+    const tick = () => { entries.forEach(([stage, m]) => { void pollOne(stage, m); }); };
+
 
     tick();
     const iv = setInterval(tick, 5000);
