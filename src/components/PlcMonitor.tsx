@@ -66,6 +66,7 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [assignedAt, setAssignedAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [ctrlUnsupported, setCtrlUnsupported] = useState<Record<string, boolean>>({});
 
 
   const activeOrder = useMemo(
@@ -182,6 +183,15 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ command }),
       });
+      if (res.status === 501) {
+        setCtrlUnsupported(prev => ({ ...prev, [command]: true }));
+        toast.info(
+          isKo
+            ? "이 장비는 원격 제어(쓰기)가 지원되지 않습니다. 현장에서 조작해주세요. (모니터링 전용)"
+            : "该设备不支持远程控制（写入），请在现场操作。（仅监控）"
+        );
+        return;
+      }
       if (!res.ok) {
         const t = await res.text().catch(() => "");
         throw new Error(t || `HTTP ${res.status}`);
