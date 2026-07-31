@@ -296,7 +296,16 @@ export default function ShippingScan() {
           title: tr("테스트 송장 생성 (실제 발급 아님)", "测试运单已生成（非真实运单）"),
           description: res.tracking_number,
         });
-        printSimulatedLabel(res.tracking_number);
+        const url = (res as any)?.label_url as string | undefined;
+        setTestLabelUrl(url ?? null);
+        if (url) {
+          const size = labelSizeFor(carrier || shipment?.carrier);
+          const w = window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
+          if (w) { w.document.write(buildRemoteLabelHtml(url, carrier || shipment?.carrier)); w.document.close(); }
+        } else {
+          printSimulatedLabel(res.tracking_number);
+        }
+
         return;
       }
       await logAction("issue_tracking", { trackingNumber: res.tracking_number, carrier, via: "api" });
