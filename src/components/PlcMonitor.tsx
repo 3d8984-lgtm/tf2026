@@ -278,7 +278,7 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
                   <div className="flex justify-between text-[11px] mb-1">
                     <span className="text-muted-foreground">{isKo ? "진행률" : "进度"}</span>
                     <span className="tabular-nums font-medium">
-                      {status.total_count} / {activeOrder.quantity}
+                      {totalCount} / {activeOrder.quantity}
                       <span className="text-muted-foreground ml-1">({progressPct}%)</span>
                     </span>
                   </div>
@@ -346,7 +346,7 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
           <>
             <div className="grid grid-cols-3 gap-2">
               <div className="kpi-card text-center py-3">
-                <p className="text-xl font-semibold tabular-nums">{status.total_count.toLocaleString()}</p>
+                <p className="text-xl font-semibold tabular-nums">{totalCount.toLocaleString()}</p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">{isKo ? "누적 카운트" : "累计计数"}</p>
               </div>
               <div className="kpi-card text-center py-3">
