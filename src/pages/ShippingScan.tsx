@@ -873,10 +873,14 @@ export default function ShippingScan() {
           </div>
         </CardContent>
         {testMode ? (
-          <div className="px-4 pb-4 text-xs text-amber-300">
-            {tr("테스트 모드: 4PX 인증만 확인하고 가상 송장번호로 출력합니다. 실제 송장은 생성되지 않습니다.",
-                "测试模式：仅校验 4PX 认证并以模拟单号打印，不会生成真实运单。")}
+          <div className={`px-4 pb-4 text-xs ${testVariant === "live_cancel" ? "text-destructive" : "text-amber-300"}`}>
+            {testVariant === "live_cancel"
+              ? tr("운영주소 테스트: 실제 4PX 운영 서버에 테스트 주문을 생성해 송장을 발급한 뒤 즉시 취소합니다. 취소 실패 시 4PX 콘솔에서 직접 취소해야 합니다.",
+                   "生产地址测试：在 4PX 生产环境创建测试订单并出单，随后立即取消。若取消失败，请在 4PX 后台手动取消。")
+              : tr("샌드박스 테스트: open-test.4px.com에서 테스트 송장을 생성합니다. 운영 데이터에는 영향이 없습니다.",
+                   "沙箱测试：在 open-test.4px.com 生成测试运单，不影响生产数据。")}
           </div>
+
         ) : !allScanned && (
           <div className="px-4 pb-4 text-xs text-muted-foreground">{tr("모든 상품을 스캔하면 송장 발급이 활성화됩니다.", "完成全部扫描后方可出运单。")}</div>
         )}
