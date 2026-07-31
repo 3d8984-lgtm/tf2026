@@ -68,7 +68,7 @@ export default function ShippingScan() {
   const [scanInput, setScanInput] = useState("");
   const [cameraOn, setCameraOn] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: FeedbackKind; msg: string }>({ kind: "idle", msg: "" });
-  const [testMode, setTestMode] = useState(false);
+  const [testMode, setTestMode] = useState(true);
   // "sandbox" = open-test.4px.com, "live_cancel" = production endpoint then cancel
   const [testVariant, setTestVariant] = useState<"sandbox" | "live_cancel">("sandbox");
   const [issuing, setIssuing] = useState(false);
@@ -544,7 +544,7 @@ export default function ShippingScan() {
         <div className="flex items-center gap-3">
           <label
             className={`flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm cursor-pointer transition-colors ${
-              testMode ? "border-amber-500/60 bg-amber-500/10 text-amber-300" : "text-muted-foreground"
+              testMode ? "border-amber-500/60 bg-amber-500/10 text-foreground" : "text-muted-foreground"
             }`}
           >
             <TestTube2 className="w-4 h-4" />
@@ -873,7 +873,7 @@ export default function ShippingScan() {
           </div>
         </CardContent>
         {testMode ? (
-          <div className={`px-4 pb-4 text-xs ${testVariant === "live_cancel" ? "text-destructive" : "text-amber-300"}`}>
+          <div className={`px-4 pb-4 text-xs ${testVariant === "live_cancel" ? "text-destructive" : "text-foreground"}`}>
             {testVariant === "live_cancel"
               ? tr("운영주소 테스트: 실제 4PX 운영 서버에 테스트 주문을 생성해 송장을 발급한 뒤 즉시 취소합니다. 취소 실패 시 4PX 콘솔에서 직접 취소해야 합니다.",
                    "生产地址测试：在 4PX 生产环境创建测试订单并出单，随后立即取消。若取消失败，请在 4PX 后台手动取消。")
