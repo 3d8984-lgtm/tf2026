@@ -113,5 +113,3 @@ export function usePlcLive(): Record<string, PlcLive> {
 
   return merged;
 }
-
-}
