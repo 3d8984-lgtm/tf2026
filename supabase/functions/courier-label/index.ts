@@ -109,29 +109,50 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any): Promise<
     return { tracking_number: null, label_url: null, raw: created.raw, error: "4PX did not return a tracking number" };
   }
 
-  // Label: 100x150mm PDF
+  // Label: always use the carrier-issued waybill (4PX ds.xms.label.get, 100x150mm).
+  // 4PX may answer with a URL, or with the file itself as base64 (PDF) / raw HTML.
   let labelUrl: string | null = null;
   let labelRaw: unknown = null;
-  try {
-    const label = await fpxCall(endpoint, cred, "ds.xms.label.get", "1.1.0", {
-      ref_no: order.external_order_id,
-      "4px_tracking_no": fpxNo ?? undefined,
-      label_size: "label_100x150",
-      is_print_pick_info: "N",
-      is_print_merge: "N",
-    });
-    labelRaw = label.raw;
-    const ld = label.data ?? {};
-    labelUrl = ld.label_url ?? ld.url ?? ld.file_url ?? (Array.isArray(ld.label_list) ? ld.label_list[0]?.label_url : null) ?? null;
-  } catch { /* label failure must not lose the tracking number */ }
+  const attempts = [
+    { ref_no: order.external_order_id, "4px_tracking_no": fpxNo ?? undefined },
+    { "4px_tracking_no": fpxNo ?? undefined },
+    { ref_no: order.external_order_id },
+  ];
+  for (const key of attempts) {
+    if (labelUrl) break;
+    try {
+      const label = await fpxCall(endpoint, cred, "ds.xms.label.get", "1.1.0", {
+        ...key,
+        label_size: extra.label_size ?? "label_100x150",
+        is_print_pick_info: "N",
+        is_print_merge: "N",
+      });
+      labelRaw = label.raw;
+      const ld = label.data ?? {};
+      const first = Array.isArray(ld.label_list) ? ld.label_list[0] ?? {} : {};
+      const direct =
+        ld.label_url ?? ld.url ?? ld.file_url ?? first.label_url ?? first.url ?? null;
+      const b64 =
+        ld.label_content ?? ld.file_content ?? ld.content ?? ld.label_data ??
+        first.label_content ?? first.content ?? null;
+      if (direct) labelUrl = String(direct);
+      else if (typeof b64 === "string" && b64.length > 100) {
+        const clean = b64.replace(/\s/g, "");
+        const isHtml = /^(PCFE|PGh0|PGRp|PHN2)/.test(clean) || /^\s*</.test(b64);
+        labelUrl = `data:${isHtml ? "text/html" : "application/pdf"};base64,${clean}`;
+      }
+    } catch { /* try the next parameter combination */ }
+  }
 
   return {
     tracking_number: tracking,
     label_url: labelUrl,
     fpx_tracking_no: fpxNo,
+    error: labelUrl ? undefined : "4PX label (ds.xms.label.get) was not returned",
     raw: { create: created.raw, label: labelRaw },
   };
 }
+
 
 
 async function callYunExpress(cfg: any, cred: any, order: any, shipment: any): Promise<LabelResult> {
