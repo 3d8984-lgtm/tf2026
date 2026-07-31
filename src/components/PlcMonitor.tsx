@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Gauge, Activity, AlertTriangle, Play, Square, RotateCcw, Wifi, WifiOff, Package } from "lucide-react";
+import { Gauge, Activity, AlertTriangle, Square, RotateCcw, Wifi, WifiOff, Package } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useLang } from "@/contexts/LangContext";
 import { useOrders } from "@/hooks/useDbData";
@@ -367,9 +367,6 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
             )}
 
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" className="flex-1" onClick={() => control("start")} disabled={busy || status.running || ctrlUnsupported["start"]} title={ctrlUnsupported["start"] ? (isKo ? "원격 제어 미지원 (모니터링 전용)" : "不支持远程控制（仅监控）") : undefined}>
-                <Play className="w-3.5 h-3.5 mr-1" /> {isKo ? "가동" : "启动"}
-              </Button>
               <Button size="sm" variant="outline" className="flex-1" onClick={() => control("stop")} disabled={busy || !status.running || ctrlUnsupported["stop"]} title={ctrlUnsupported["stop"] ? (isKo ? "원격 제어 미지원 (모니터링 전용)" : "不支持远程控制（仅监控）") : undefined}>
                 <Square className="w-3.5 h-3.5 mr-1" /> {isKo ? "정지" : "停止"}
               </Button>
@@ -377,7 +374,7 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
                 <RotateCcw className="w-3.5 h-3.5 mr-1" /> {isKo ? "카운터 초기화" : "计数重置"}
               </Button>
             </div>
-            {(ctrlUnsupported["start"] || ctrlUnsupported["stop"] || ctrlUnsupported["reset_counter"]) && (
+            {(ctrlUnsupported["stop"] || ctrlUnsupported["reset_counter"]) && (
               <p className="text-[10px] text-muted-foreground">
                 {isKo
                   ? "이 장비는 게이트웨이에 제어용 레지스터가 등록되어 있지 않아 원격 제어가 불가합니다. 현재는 모니터링 전용입니다."
