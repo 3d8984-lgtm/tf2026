@@ -71,6 +71,9 @@ export default function ShippingScan() {
   const [testMode, setTestMode] = useState(false);
   const [issuing, setIssuing] = useState(false);
   const [labelDialog, setLabelDialog] = useState(false);
+  // Sandbox label PDF returned by the carrier during a test issuance.
+  const [testLabelUrl, setTestLabelUrl] = useState<string | null>(null);
+
   const [carrier, setCarrier] = useState("");
   const [manualTracking, setManualTracking] = useState("");
   const { data: couriers = [] } = useCouriers(true);
