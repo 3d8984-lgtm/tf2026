@@ -519,7 +519,7 @@ export default function ShippingScan() {
   // Real device pixels for the label at 96dpi, then scaled down to fit the card.
   const mmPx = (mm: number) => (mm * 96) / 25.4;
   const previewScale = 230 / mmPx(previewSize.w);
-  const remoteLabelUrl = (shipment as any).label_url as string | null | undefined;
+  const remoteLabelUrl = ((shipment as any).label_url as string | null | undefined) ?? testLabelUrl;
   // The preview renders the exact same markup the printer receives.
   const previewHtml = remoteLabelUrl
     ? buildRemoteLabelHtml(remoteLabelUrl, shipment.carrier || carrier, true)
