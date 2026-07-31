@@ -367,9 +367,6 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
             )}
 
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" className="flex-1" onClick={() => control("start")} disabled={busy || status.running || ctrlUnsupported["start"]} title={ctrlUnsupported["start"] ? (isKo ? "원격 제어 미지원 (모니터링 전용)" : "不支持远程控制（仅监控）") : undefined}>
-                <Play className="w-3.5 h-3.5 mr-1" /> {isKo ? "가동" : "启动"}
-              </Button>
               <Button size="sm" variant="outline" className="flex-1" onClick={() => control("stop")} disabled={busy || !status.running || ctrlUnsupported["stop"]} title={ctrlUnsupported["stop"] ? (isKo ? "원격 제어 미지원 (모니터링 전용)" : "不支持远程控制（仅监控）") : undefined}>
                 <Square className="w-3.5 h-3.5 mr-1" /> {isKo ? "정지" : "停止"}
               </Button>
