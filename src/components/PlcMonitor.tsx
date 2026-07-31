@@ -77,6 +77,11 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
   const [assignedAt, setAssignedAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [ctrlUnsupported, setCtrlUnsupported] = useState<Record<string, boolean>>({});
+  // 포장 길이 누적 (게이트웨이가 packaged_length_m 을 제공하지 않아 카운트 × 1회 길이로 산출)
+  const [pkgLenMm, setPkgLenMm] = useState<number>(0);
+  const [pkgLenInput, setPkgLenInput] = useState<string>("");
+  const [baseCount, setBaseCount] = useState<number>(0);
+  const [storedLenM, setStoredLenM] = useState<number>(0);
 
 
   const activeOrder = useMemo(
@@ -124,12 +129,17 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
   const loadAssignment = async () => {
     const { data } = await supabase
       .from("plc_active_orders")
-      .select("order_id, assigned_at")
+      .select("order_id, assigned_at, package_length_mm, length_base_count, cumulative_length_m")
       .eq("plc_id", plcId)
       .maybeSingle();
     setActiveOrderId(data?.order_id ?? null);
     setPendingOrderId(data?.order_id ?? null);
     setAssignedAt(data?.assigned_at ?? null);
+    const mm = Number((data as any)?.package_length_mm ?? 0);
+    setPkgLenMm(mm);
+    setPkgLenInput(mm ? String(mm) : "");
+    setBaseCount(Number((data as any)?.length_base_count ?? 0));
+    setStoredLenM(Number((data as any)?.cumulative_length_m ?? 0));
   };
   useEffect(() => { loadAssignment(); }, [plcId]);
 
