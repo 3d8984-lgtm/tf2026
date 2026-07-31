@@ -370,61 +370,58 @@ export default function ShippingScan() {
     const test = !!opts.test;
     const simulated = !!opts.testTracking;
     const carrierCode = test ? TEST_RECIPIENT.carrier : (shipment?.carrier || carrier || "");
-    const carrierName = (carrierCode || "TEST").toUpperCase();
-    const { w: LW, h: LH } = labelSizeFor(carrierCode);
-    const big = LW >= 100;
+    const size = labelSizeFor(carrierCode);
     const tn = opts.testTracking ?? (test ? TEST_RECIPIENT.trackingNumber : (shipment?.tracking_number || "—"));
-    const name = test ? TEST_RECIPIENT.name : (order?.recipient_name ?? "");
-    const phone = test ? TEST_RECIPIENT.phone : (order?.recipient_phone ?? "");
-    const addr1 = test ? TEST_RECIPIENT.address1 : (order?.shipping_address ?? "");
-    const addr2 = test ? TEST_RECIPIENT.address2
-      : [order?.shipping_city, order?.shipping_state, order?.shipping_zip, order?.shipping_country].filter(Boolean).join(", ");
-    const jobNo = test ? TEST_RECIPIENT.jobNo : (order?.external_order_id ?? "");
-    const qty = test ? TEST_RECIPIENT.qty : total;
-    const showTestTag = test || simulated;
-    // Code128-ish visual bars from tracking number (purely decorative for preview/printer test)
-    const barH = big ? 22 : 14;
-    const bars = Array.from(tn).map((c, i) => {
-      const w = ((c.charCodeAt(0) % 4) + 1) * (big ? 1.5 : 1);
-      return `<span style="display:inline-block;width:${w}px;height:${barH}mm;background:#000;margin-right:1px;${i % 3 === 0 ? "margin-right:2px;" : ""}"></span>`;
-    }).join("");
-    return `<!doctype html><html><head><meta charset="utf-8"/>
-      <title>Label ${tn}</title>
-      <style>
-        @page { size: ${LW}mm ${LH}mm; margin: 0; }
-        html, body { margin: 0; padding: 0; }
-        body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; color: #000; background: #fff; }
-        .label { width: ${LW}mm; height: ${LH}mm; padding: ${big ? 5 : 4}mm; box-sizing: border-box; display: flex; flex-direction: column; gap: 2mm; }
-        .row { display: flex; justify-content: space-between; align-items: center; }
-        .carrier { font-size: ${big ? 20 : 14}pt; font-weight: 800; letter-spacing: 1px; }
-        .test-tag { font-size: ${big ? 10 : 8}pt; padding: 1mm 2mm; border: 1px solid #000; border-radius: 2mm; }
-        .hr { border-top: 1px dashed #000; margin: 1mm 0; }
-        .to-label { font-size: ${big ? 9 : 7}pt; text-transform: uppercase; letter-spacing: 1px; color: #444; }
-        .name { font-size: ${big ? 15 : 11}pt; font-weight: 700; }
-        .addr { font-size: ${big ? 12 : 9}pt; line-height: 1.3; }
-        .meta { font-size: ${big ? 10 : 7.5}pt; color: #222; }
-        .bars { text-align: center; line-height: 0; }
-        .tn { text-align: center; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: ${big ? 14 : 10}pt; letter-spacing: 1px; margin-top: 1mm; }
-        .footer { margin-top: auto; font-size: ${big ? 9 : 7}pt; color: #555; text-align: center; }
-      </style></head>
-      <body><div class="label">
-        <div class="row">
-          <div class="carrier">${carrierName}</div>
-          ${showTestTag ? '<div class="test-tag">TEST PRINT</div>' : ""}
-        </div>
-        <div class="hr"></div>
-        <div class="to-label">To / 收件人</div>
-        <div class="name">${name}</div>
-        <div class="addr">${addr1}<br/>${addr2}<br/>${phone}</div>
-        <div class="hr"></div>
-        <div class="bars">${bars}</div>
-        <div class="tn">${tn}</div>
-        <div class="meta">Job No: ${jobNo} · Qty: ${qty}</div>
-        <div class="footer">TWINMETA FACTORY · ${LW} × ${LH} mm</div>
-      </div>
-      ${opts.noPrint ? "" : "<script>window.onload=()=>{setTimeout(()=>window.print(),150)};<\/script>"}
-      </body></html>`;
+    const qty = test ? TEST_RECIPIENT.qty : (total || 1);
+
+    return buildFpxLabelHtml(
+      {
+        carrierName: (carrierCode || "TEST").toUpperCase(),
+        trackingNumber: tn,
+        fpxTrackingNo: (shipment as any)?.carrier_response?.create?.data?.["4px_tracking_no"] ?? null,
+        serviceCode: null,
+        refNo: test ? TEST_RECIPIENT.jobNo : (order?.external_order_id ?? ""),
+        createdAt: shipment?.tracking_issued_at ?? null,
+        weightGrams: (shipment as any)?.weight_grams ?? (shipment as any)?.expected_weight_grams ?? qty * 200,
+        pieces: 1,
+        test: test || simulated,
+        recipient: test
+          ? {
+              name: TEST_RECIPIENT.name,
+              phone: TEST_RECIPIENT.phone,
+              street: TEST_RECIPIENT.address1,
+              city: "Seoul",
+              state: "",
+              zip: "06000",
+              country: "KR",
+            }
+          : {
+              name: order?.recipient_name,
+              phone: order?.recipient_phone,
+              street: order?.shipping_address,
+              city: order?.shipping_city,
+              state: order?.shipping_state,
+              zip: order?.shipping_zip,
+              country: order?.shipping_country ?? "US",
+            },
+        sender: {
+          company: "TWINMETA",
+          name: "TWINMETA",
+          phone: "+86 13000000000",
+          street: "-",
+          city: "Shenzhen",
+          state: "GuangDong",
+          zip: "518000",
+          country: "CN",
+        },
+        declarations: [{ nameEn: "T-Shirt", nameCn: "T恤", qty, price: 10 }],
+        width: size.w,
+        height: size.h,
+      },
+      { print: !opts.noPrint },
+    );
   }
+
 
   // Carrier-returned PDF label, forced to the carrier's paper size (4PX = 100×150mm).
   function buildRemoteLabelHtml(url: string, code?: string | null, noPrint = false) {
