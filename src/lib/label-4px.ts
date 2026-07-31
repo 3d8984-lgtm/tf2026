@@ -77,20 +77,13 @@ export function buildFpxLabelHtml(d: FpxLabelData, opts: { print?: boolean } = {
   const LW = d.width ?? 100;
   const LH = d.height ?? 150;
   const r = d.recipient ?? {};
-  const s = d.sender ?? {};
   const country = (r.country || "US").toUpperCase();
-  const date = (d.createdAt ? new Date(d.createdAt) : new Date()).toISOString().slice(0, 10);
+  const date = (d.createdAt ? new Date(d.createdAt) : new Date()).toISOString().slice(0, 16).replace("T", " ");
   const weightKg = ((d.weightGrams ?? 0) / 1000).toFixed(3);
   const decl = (d.declarations ?? []).slice(0, 4);
-
-  const declRows = decl.length
-    ? decl.map((it) => `<tr>
-        <td>${esc(it.nameEn || it.nameCn || "")}${it.nameCn ? ` / ${esc(it.nameCn)}` : ""}</td>
-        <td class="c">${esc(it.qty ?? 1)}</td>
-        <td class="c">${it.price != null ? `USD ${Number(it.price).toFixed(2)}` : "-"}</td>
-        <td class="c">${esc(it.hscode || "-")}</td>
-      </tr>`).join("")
-    : `<tr><td colspan="4" class="c muted">-</td></tr>`;
+  const itemLine = decl.length
+    ? decl.map((it) => `${esc(it.nameEn || it.nameCn || "item")}*${esc(it.qty ?? 1)}`).join(", ")
+    : "-";
 
   return `<!doctype html><html><head><meta charset="utf-8"/><title>Waybill ${esc(d.trackingNumber)}</title>
 <style>
@@ -98,90 +91,70 @@ export function buildFpxLabelHtml(d: FpxLabelData, opts: { print?: boolean } = {
   html, body { margin: 0; padding: 0; background: #fff; }
   * { box-sizing: border-box; }
   body { font-family: Arial, "Helvetica Neue", sans-serif; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .label { width: ${LW}mm; height: ${LH}mm; padding: 3mm; display: flex; flex-direction: column; }
-  .box { border: 0.4mm solid #000; }
-  .hd { display: flex; align-items: stretch; border-bottom: 0.4mm solid #000; }
-  .hd .dest { flex: 1; padding: 1.5mm 2mm; }
-  .hd .dest .cc { font-size: 26pt; font-weight: 900; line-height: 1; }
-  .hd .dest .svc { font-size: 8pt; letter-spacing: 0.5px; }
-  .hd .right { width: 34mm; border-left: 0.4mm solid #000; padding: 1.5mm 2mm; text-align: right; font-size: 7.5pt; }
-  .hd .right b { display: block; font-size: 11pt; }
-  .bcwrap { padding: 2mm 2mm 1mm; text-align: center; border-bottom: 0.4mm solid #000; }
-  .bcwrap .bc { height: 16mm; }
-  .bcwrap .num { font-family: ui-monospace, Consolas, monospace; font-size: 12pt; font-weight: 700; letter-spacing: 1px; margin-top: 0.8mm; }
-  .sec { border-bottom: 0.4mm solid #000; padding: 1.6mm 2mm; }
-  .sec .cap { font-size: 6.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #000; }
-  .sec .nm { font-size: 11pt; font-weight: 700; }
-  .sec .ad { font-size: 9pt; line-height: 1.28; }
-  .sec.small .nm { font-size: 8pt; font-weight: 700; }
-  .sec.small .ad { font-size: 7pt; line-height: 1.2; }
-  .grid { display: flex; border-bottom: 0.4mm solid #000; }
-  .grid div { flex: 1; padding: 1.2mm 2mm; font-size: 7.5pt; border-right: 0.4mm solid #000; }
-  .grid div:last-child { border-right: 0; }
-  .grid span { display: block; font-size: 6.5pt; color: #333; text-transform: uppercase; letter-spacing: 0.5px; }
-  .grid b { font-size: 9pt; }
-  table { width: 100%; border-collapse: collapse; font-size: 6.8pt; }
-  th, td { border-bottom: 0.2mm solid #000; padding: 0.8mm 1mm; text-align: left; }
-  th { font-size: 6pt; text-transform: uppercase; background: #eee; }
-  td.c, th.c { text-align: center; }
-  .muted { color: #666; }
-  .fpx { margin-top: auto; padding: 1.5mm 2mm 0; text-align: center; }
-  .fpx .bc { height: 11mm; }
-  .fpx .num { font-family: ui-monospace, Consolas, monospace; font-size: 9pt; letter-spacing: 1px; }
-  .foot { display: flex; justify-content: space-between; font-size: 6pt; color: #333; padding: 1mm 2mm 0; }
-  .test { position: absolute; top: 40mm; left: 0; width: ${LW}mm; text-align: center; font-size: 32pt; font-weight: 900; color: rgba(0,0,0,.12); transform: rotate(-20deg); letter-spacing: 4px; }
+  .label { width: ${LW}mm; height: ${LH}mm; padding: 3mm; display: flex; flex-direction: column; position: relative; }
+  .box { border: 0.4mm solid #000; display: flex; flex-direction: column; flex: 1; }
+  .hd { display: flex; align-items: center; justify-content: space-between; padding: 2mm 3mm; }
+  .hd .brand { font-size: 17pt; font-weight: 800; letter-spacing: -0.4px; }
+  .hd .qc { font-size: 9pt; letter-spacing: 3px; }
+  .mid { display: flex; border-top: 0.4mm solid #000; }
+  .mid .to { flex: 1; padding: 2mm 2.5mm; }
+  .mid .to .cap { font-size: 8pt; font-weight: 700; float: left; margin-right: 1.5mm; }
+  .mid .to .ad { font-size: 8.5pt; line-height: 1.35; word-break: break-word; }
+  .mid .side { width: 26mm; border-left: 0.4mm solid #000; padding: 2mm; display: flex; flex-direction: column; gap: 1.5mm; }
+  .mid .side .cc { font-size: 20pt; font-weight: 800; text-align: center; line-height: 1; }
+  .mid .side .cell { border: 0.4mm solid #000; height: 9mm; }
+  .mid .side .cell.svc { display: flex; align-items: center; justify-content: center; font-size: 12pt; font-weight: 800; }
+  .bcwrap { border-top: 0.4mm solid #000; padding: 2mm 3mm 2.5mm; text-align: center; }
+  .bcwrap .num { font-family: ui-monospace, Consolas, monospace; font-size: 10pt; letter-spacing: 1px; margin-bottom: 1mm; }
+  .bcwrap .bc { height: 17mm; }
+  .info { border-top: 0.4mm solid #000; padding: 2mm 3mm; font-size: 8pt; line-height: 1.5; }
+  .info .row1 { display: flex; justify-content: space-between; align-items: baseline; }
+  .info .ref { font-size: 9pt; }
+  .info .ref b { font-size: 10pt; }
+  .foot { margin-top: auto; display: flex; justify-content: space-between; font-size: 6pt; color: #333; padding: 1mm 3mm; }
+  .test { position: absolute; top: 45mm; left: 0; width: ${LW}mm; text-align: center; font-size: 32pt; font-weight: 900; color: rgba(0,0,0,.12); transform: rotate(-20deg); letter-spacing: 4px; }
 </style></head><body>
 <div class="label">
   ${d.test ? `<div class="test">TEST</div>` : ""}
-  <div class="box" style="display:flex;flex-direction:column;flex:1;">
+  <div class="box">
     <div class="hd">
-      <div class="dest">
-        <div class="cc">${esc(country)}</div>
-        <div class="svc">${esc(d.serviceCode || d.carrierName)}</div>
+      <div class="brand">${esc(d.carrierName)}</div>
+      <div class="qc">QC QC</div>
+    </div>
+
+    <div class="mid">
+      <div class="to">
+        <div class="cap">TO:</div>
+        <div class="ad">${esc(r.name)}<br/>
+          ${esc(r.street)}<br/>
+          ${esc([r.zip, r.city, r.state].filter(Boolean).join("; "))}<br/>
+          TEL ${esc(r.phone)}</div>
       </div>
-      <div class="right">
-        <b>${esc(d.carrierName)}</b>
-        ${esc(date)}<br/>${esc(r.zip || "")}
+      <div class="side">
+        <div class="cc">${esc(country)}</div>
+        <div class="cell"></div>
+        <div class="cell svc">${esc(d.serviceCode || "S")}</div>
       </div>
     </div>
 
     <div class="bcwrap">
-      <div class="bc">${code128Svg(d.trackingNumber, { height: 40 })}</div>
       <div class="num">${esc(d.trackingNumber)}</div>
+      <div class="bc">${code128Svg(d.trackingNumber, { height: 40 })}</div>
     </div>
 
-    <div class="sec">
-      <div class="cap">Ship To / 收件人</div>
-      <div class="nm">${esc(r.name)}</div>
-      <div class="ad">${esc(r.street)}<br/>
-        ${esc([r.city, r.state, r.zip].filter(Boolean).join(", "))}<br/>
-        ${esc(country)} · TEL ${esc(r.phone)}</div>
+    <div class="info">
+      <div class="row1">
+        <span>【${esc(d.fpxTrackingNo || d.refNo || "-")}】&nbsp;&nbsp;Print time: ${esc(date)}</span>
+        <b>GW: ${weightKg} kg</b>
+      </div>
+      <div class="ref">Ref No: <b>${esc(d.refNo || "-")}</b></div>
+      <div>${itemLine}</div>
     </div>
 
-    <div class="sec small">
-      <div class="cap">Sender / 寄件人</div>
-      <div class="nm">${esc(s.company || s.name)}</div>
-      <div class="ad">${esc([s.street, s.city, s.state, s.zip, s.country].filter(Boolean).join(", "))} · TEL ${esc(s.phone)}</div>
-    </div>
-
-    <div class="grid">
-      <div><span>Ref No</span><b>${esc(d.refNo || "-")}</b></div>
-      <div><span>Weight</span><b>${weightKg} kg</b></div>
-      <div><span>Pcs</span><b>${esc(d.pieces ?? 1)}</b></div>
-    </div>
-
-    <table>
-      <tr><th>Declared Item</th><th class="c">Qty</th><th class="c">Value</th><th class="c">HS Code</th></tr>
-      ${declRows}
-    </table>
-
-    <div class="fpx">
-      <div class="bc">${code128Svg(d.fpxTrackingNo || d.refNo || d.trackingNumber, { height: 28 })}</div>
-      <div class="num">${esc(d.fpxTrackingNo || d.refNo || d.trackingNumber)}</div>
-    </div>
     <div class="foot"><span>TWINMETA FACTORY</span><span>${LW} × ${LH} mm</span></div>
   </div>
 </div>
 ${opts.print ? "<script>window.onload=()=>{setTimeout(()=>window.print(),200)};<\/script>" : ""}
 </body></html>`;
 }
+
