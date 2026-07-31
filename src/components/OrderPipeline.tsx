@@ -38,6 +38,7 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
   const isKo = lang === "ko";
   const { data: orders, isLoading: ordersLoading } = useOrders();
   const { data: tracking, isLoading: trackingLoading } = useProductionTracking();
+  const plcLive = usePlcLive();
 
   if (ordersLoading || trackingLoading) {
     return (
