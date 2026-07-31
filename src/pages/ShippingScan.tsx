@@ -551,6 +551,17 @@ export default function ShippingScan() {
             {tr("테스트 모드", "测试模式")}
             <Switch checked={testMode} onCheckedChange={setTestMode} />
           </label>
+          {testMode && (
+            <Select value={testVariant} onValueChange={(v) => setTestVariant(v as "sandbox" | "live_cancel")}>
+              <SelectTrigger className="w-[230px] h-9 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="sandbox">{tr("샌드박스 (open-test)", "沙箱 (open-test)")}</SelectItem>
+                <SelectItem value="live_cancel">{tr("운영주소 테스트 (발급 후 취소)", "生产地址测试（出单后取消）")}</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
           <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="w-4 h-4 mr-1"/>{tr("새로고침", "刷新")}</Button>
         </div>
       </div>
