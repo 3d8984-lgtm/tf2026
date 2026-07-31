@@ -41,17 +41,17 @@ export function usePlcLive(): Record<string, PlcLive> {
     const entries = Object.entries(STAGE_PLC);
 
     const tick = async () => {
-      console.log("PLC tick start");
       const { data: assigns } = await supabase
         .from("plc_active_orders")
         .select("plc_id, order_id");
       const assignMap = new Map((assigns ?? []).map((a: any) => [a.plc_id, a.order_id as string | null]));
 
-      const results = await Promise.all(
-        entries.map(async ([stage, m]) => {
+      const results: [string, PlcLive][] = await Promise.all(
+        entries.map(async ([stage, m]): Promise<[string, PlcLive]> => {
           let online = false;
           let state: PlcLive["state"] = "unknown";
           let count = 0;
+          let duration = "";
           try {
             const res = await proxyFetch(`/api/v1/plc/${m.plcId}/status`);
             if (res.ok) {
@@ -60,19 +60,20 @@ export function usePlcLive(): Record<string, PlcLive> {
                 online = true;
                 state = j.state ?? "unknown";
                 count = normalizePlcCount(j.total_count);
+                duration = j.operating_duration ?? "";
               }
             }
           } catch {
             online = false;
           }
-          return [stage, { plcId: m.plcId, online, state, count, orderId: assignMap.get(m.plcId) ?? null }] as const;
+          return [stage, { plcId: m.plcId, online, state, count, duration, orderId: assignMap.get(m.plcId) ?? null }];
         })
       );
 
       if (!alive) return;
-      console.log("PLCLIVE", JSON.stringify(results));
       setLive(Object.fromEntries(results));
     };
+
 
     tick();
     const iv = setInterval(tick, 5000);
