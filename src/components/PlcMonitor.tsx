@@ -45,6 +45,16 @@ async function proxyFetch(path: string, init?: RequestInit) {
   return fetch(`${PROXY_BASE}${path.startsWith("/") ? "" : "/"}${path}`, { ...init, headers });
 }
 
+// 게이트웨이의 32비트 카운터 워드 순서(word order) 오류 보정.
+// PLC가 low word를 먼저 보내는데 high<<16 | low 로 조합되어 값이 65,536배로 부풀려짐.
+// 서버 데이터 오염 방지를 위해 표시 단계에서만 보정한다.
+const WORD_SHIFT = 65536;
+function normalizeCount(raw?: number | null): number {
+  const v = Number(raw ?? 0);
+  if (!Number.isFinite(v) || v <= 0) return 0;
+  return v >= WORD_SHIFT && v % WORD_SHIFT === 0 ? v / WORD_SHIFT : v;
+}
+
 function stateBadgeClass(state?: string) {
   switch (state) {
     case "running": return "bg-success text-success-foreground";
@@ -212,11 +222,12 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
     unknown: isKo ? "알수없음" : "未知",
   };
 
+  const totalCount = normalizeCount(status?.total_count);
   const remaining = activeOrder && status
-    ? Math.max(0, (activeOrder.quantity || 0) - (status.total_count || 0))
+    ? Math.max(0, (activeOrder.quantity || 0) - totalCount)
     : null;
   const progressPct = activeOrder && status
-    ? Math.min(100, Math.round(((status.total_count || 0) / Math.max(1, activeOrder.quantity || 1)) * 100))
+    ? Math.min(100, Math.round((totalCount / Math.max(1, activeOrder.quantity || 1)) * 100))
     : 0;
 
   return (
