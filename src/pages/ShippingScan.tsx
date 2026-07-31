@@ -22,6 +22,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { scanSuccess, scanFail, scanDuplicate } from "@/lib/scan-sound";
+import { buildFpxLabelHtml } from "@/lib/label-4px";
+
 import { Html5Qrcode } from "html5-qrcode";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
