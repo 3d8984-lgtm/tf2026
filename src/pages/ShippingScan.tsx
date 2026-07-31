@@ -68,7 +68,7 @@ export default function ShippingScan() {
   const [scanInput, setScanInput] = useState("");
   const [cameraOn, setCameraOn] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: FeedbackKind; msg: string }>({ kind: "idle", msg: "" });
-  const [testMode, setTestMode] = useState(false);
+  const [testMode, setTestMode] = useState(true);
   // "sandbox" = open-test.4px.com, "live_cancel" = production endpoint then cancel
   const [testVariant, setTestVariant] = useState<"sandbox" | "live_cancel">("sandbox");
   const [issuing, setIssuing] = useState(false);
@@ -544,7 +544,7 @@ export default function ShippingScan() {
         <div className="flex items-center gap-3">
           <label
             className={`flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm cursor-pointer transition-colors ${
-              testMode ? "border-amber-500/60 bg-amber-500/10 text-amber-300" : "text-muted-foreground"
+              testMode ? "border-amber-500/60 bg-amber-500/10 text-foreground" : "text-muted-foreground"
             }`}
           >
             <TestTube2 className="w-4 h-4" />
