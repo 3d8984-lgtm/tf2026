@@ -94,3 +94,22 @@ export async function fpxProbe(endpoint: string, cred: FpxCred) {
     raw: r.raw,
   };
 }
+
+/** Cancel an order created for testing on the production endpoint. */
+export async function fpxCancelOrder(endpoint: string, cred: FpxCred, refNo: string, fpxTrackingNo?: string | null) {
+  const attempts: Array<{ method: string; v: string; biz: Record<string, unknown> }> = [
+    { method: "ds.xms.order.cancel", v: "1.0.0", biz: { ref_no: refNo, "4px_tracking_no": fpxTrackingNo ?? undefined } },
+    { method: "ds.xms.order.delete", v: "1.0.0", biz: { ref_no: refNo } },
+  ];
+  const tried: unknown[] = [];
+  for (const a of attempts) {
+    try {
+      const r = await fpxCall(endpoint, cred, a.method, a.v, a.biz, "en", 15_000);
+      tried.push({ method: a.method, ok: r.ok, message: r.message, code: r.code });
+      if (r.ok) return { ok: true, method: a.method, raw: r.raw, tried };
+    } catch (e) {
+      tried.push({ method: a.method, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  return { ok: false, method: null, raw: null, tried };
+}
