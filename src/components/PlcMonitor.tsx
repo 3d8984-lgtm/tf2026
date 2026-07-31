@@ -318,7 +318,7 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
     unknown: isKo ? "알수없음" : "未知",
   };
 
-  const totalCount = normalizeCount(status?.total_count);
+  const totalCount = liveCount;
   const remaining = activeOrder && status
     ? Math.max(0, (activeOrder.quantity || 0) - totalCount)
     : null;
