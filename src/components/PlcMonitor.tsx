@@ -66,6 +66,7 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [assignedAt, setAssignedAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [ctrlUnsupported, setCtrlUnsupported] = useState<Record<string, boolean>>({});
 
 
   const activeOrder = useMemo(
@@ -182,6 +183,15 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ command }),
       });
+      if (res.status === 501) {
+        setCtrlUnsupported(prev => ({ ...prev, [command]: true }));
+        toast.info(
+          isKo
+            ? "이 장비는 원격 제어(쓰기)가 지원되지 않습니다. 현장에서 조작해주세요. (모니터링 전용)"
+            : "该设备不支持远程控制（写入），请在现场操作。（仅监控）"
+        );
+        return;
+      }
       if (!res.ok) {
         const t = await res.text().catch(() => "");
         throw new Error(t || `HTTP ${res.status}`);
@@ -357,16 +367,23 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
             )}
 
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" className="flex-1" onClick={() => control("start")} disabled={busy || status.running}>
+              <Button size="sm" variant="outline" className="flex-1" onClick={() => control("start")} disabled={busy || status.running || ctrlUnsupported["start"]} title={ctrlUnsupported["start"] ? (isKo ? "원격 제어 미지원 (모니터링 전용)" : "不支持远程控制（仅监控）") : undefined}>
                 <Play className="w-3.5 h-3.5 mr-1" /> {isKo ? "가동" : "启动"}
               </Button>
-              <Button size="sm" variant="outline" className="flex-1" onClick={() => control("stop")} disabled={busy || !status.running}>
+              <Button size="sm" variant="outline" className="flex-1" onClick={() => control("stop")} disabled={busy || !status.running || ctrlUnsupported["stop"]} title={ctrlUnsupported["stop"] ? (isKo ? "원격 제어 미지원 (모니터링 전용)" : "不支持远程控制（仅监控）") : undefined}>
                 <Square className="w-3.5 h-3.5 mr-1" /> {isKo ? "정지" : "停止"}
               </Button>
-              <Button size="sm" variant="outline" className="flex-1" onClick={() => control("reset_counter")} disabled={busy}>
+              <Button size="sm" variant="outline" className="flex-1" onClick={() => control("reset_counter")} disabled={busy || ctrlUnsupported["reset_counter"]}>
                 <RotateCcw className="w-3.5 h-3.5 mr-1" /> {isKo ? "카운터 초기화" : "计数重置"}
               </Button>
             </div>
+            {(ctrlUnsupported["start"] || ctrlUnsupported["stop"] || ctrlUnsupported["reset_counter"]) && (
+              <p className="text-[10px] text-muted-foreground">
+                {isKo
+                  ? "이 장비는 게이트웨이에 제어용 레지스터가 등록되어 있지 않아 원격 제어가 불가합니다. 현재는 모니터링 전용입니다."
+                  : "该设备未在网关登记控制寄存器，无法远程控制。当前仅支持监控。"}
+              </p>
+            )}
           </>
         )}
       </CardContent>
