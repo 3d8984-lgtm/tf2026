@@ -204,7 +204,10 @@ Deno.serve(async (req) => {
     const { data: approved } = await admin.rpc("is_approved", { _user_id: user.id });
     if (!approved) return json({ error: "forbidden" }, 403);
 
-    const { shipment_id, carrier, test } = await req.json();
+    const { shipment_id, carrier, test, test_variant } = await req.json();
+    // "sandbox"     -> open-test.4px.com with sandbox credentials
+    // "live_cancel" -> production endpoint + real credentials, order is cancelled right after
+    const variant: "sandbox" | "live_cancel" = test_variant === "live_cancel" ? "live_cancel" : "sandbox";
     if (!shipment_id || !carrier) return json({ error: "shipment_id and carrier required" }, 400);
 
     const { data: shipment, error: sErr } = await admin
