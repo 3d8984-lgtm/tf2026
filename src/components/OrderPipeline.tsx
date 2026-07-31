@@ -51,15 +51,17 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
   // Build pipeline data from DB - use external_order_id as 작업지시번호
   const pipelineOrders = (orders ?? []).map(order => {
     const orderTracking = (tracking ?? []).filter(t => t.order_id === order.id);
-    const stageCounts: Record<StageKey, number> = { tshirt: 0, card: 0, set: 0, courier: 0, invoice: 0, done: 0 };
+    const stageCounts: Record<StageKey, number> = { tshirt: 0, card: 0, set: 0, courier: 0, done: 0 };
 
     orderTracking.forEach(t => {
-      if (t.stage in stageCounts) {
-        stageCounts[t.stage as StageKey] = t.completed_count;
+      // 택배 포장 + 송장 부착은 하나의 단계로 합산(최대값) 처리
+      const key = (t.stage === "invoice" ? "courier" : t.stage) as StageKey;
+      if (key in stageCounts) {
+        stageCounts[key] = Math.max(stageCounts[key], t.completed_count);
       }
     });
 
-    const stageKeys: StageKey[] = ["tshirt", "card", "set", "courier", "invoice", "done"];
+    const stageKeys: StageKey[] = ["tshirt", "card", "set", "courier", "done"];
     let currentStage: StageKey = "tshirt";
     for (let i = stageKeys.length - 1; i >= 0; i--) {
       if (stageCounts[stageKeys[i]] > 0) {
@@ -67,6 +69,7 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
         break;
       }
     }
+
 
     const createdDate = new Date(order.created_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN");
     const dueDate = order.project_completed_at
