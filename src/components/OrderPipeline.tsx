@@ -212,7 +212,7 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
                             </span>
                           </div>
                           <div className="flex items-baseline justify-between mt-0.5">
-                            <span className="text-[10px] text-muted-foreground">{isKo ? "설비 카운트" : "设备计数"}</span>
+                            <span className="text-[10px] text-muted-foreground">{isKo ? "누적 카운트" : "累计计数"}</span>
                             <span
                               className="text-[11px] font-semibold tabular-nums"
                               style={{ color: isThisOrder ? stageColors[s.key] : "hsl(var(--muted-foreground))" }}
@@ -220,6 +220,13 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
                               {isThisOrder ? (live?.count ?? 0).toLocaleString() : "-"}
                             </span>
                           </div>
+                          <div className="flex items-baseline justify-between mt-0.5">
+                            <span className="text-[10px] text-muted-foreground">{isKo ? "가동시간" : "运行时间"}</span>
+                            <span className="text-[11px] tabular-nums text-muted-foreground">
+                              {isThisOrder && live?.duration ? live.duration : "-"}
+                            </span>
+                          </div>
+
                         </div>
                       )}
                     </button>
