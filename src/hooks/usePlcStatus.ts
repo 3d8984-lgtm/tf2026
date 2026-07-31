@@ -26,13 +26,9 @@ export function normalizePlcCount(raw?: number | null): number {
   return v >= WORD_SHIFT && v % WORD_SHIFT === 0 ? v / WORD_SHIFT : v;
 }
 
-async function proxyFetch(path: string) {
-  const headers = new Headers();
-  headers.set("apikey", ANON_KEY);
-  const s = await supabase.auth.getSession();
-  const token = s.data.session?.access_token;
-  if (token) headers.set("Authorization", `Bearer ${token}`);
-  return fetch(`${PROXY_BASE}${path}`, { headers });
+function proxyFetch(path: string) {
+  // getSession() 을 매 폴링마다 호출하면 auth lock 경합으로 요청이 멈추므로 apikey 만 사용한다.
+  return fetch(`${PROXY_BASE}${path}`, { headers: { apikey: ANON_KEY } });
 }
 
 /** 카드/세트 포장 설비의 실시간 상태 + 지정된 주문을 폴링한다. */
