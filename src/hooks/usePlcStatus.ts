@@ -67,6 +67,7 @@ export function usePlcLive(): Record<string, PlcLive> {
           let duration = "";
           try {
             const res = await proxyFetch(`/api/v1/plc/${m.plcId}/status`);
+            console.log("PLCFETCH", m.plcId, res.status);
             if (res.ok) {
               const j: any = await res.json();
               if (!("upstream_status" in j)) {
