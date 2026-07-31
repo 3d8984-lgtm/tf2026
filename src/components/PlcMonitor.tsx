@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Gauge, Activity, AlertTriangle, Play, Square, RotateCcw, Wifi, WifiOff, Package } from "lucide-react";
+import { Gauge, Activity, AlertTriangle, Square, RotateCcw, Wifi, WifiOff, Package } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useLang } from "@/contexts/LangContext";
 import { useOrders } from "@/hooks/useDbData";
