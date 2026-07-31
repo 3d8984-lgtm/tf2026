@@ -44,6 +44,7 @@ export function usePlcLive(): Record<string, PlcLive> {
     const entries = Object.entries(STAGE_PLC);
 
     const tick = async () => {
+      console.log("PLC tick start");
       const { data: assigns } = await supabase
         .from("plc_active_orders")
         .select("plc_id, order_id");
