@@ -311,8 +311,14 @@ export default function ShippingScan() {
           const w = window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
           if (w) { w.document.write(buildRemoteLabelHtml(url, carrier || shipment?.carrier)); w.document.close(); }
         } else {
+          toast({
+            variant: "destructive",
+            title: tr("4PX 공식 송장(PDF)을 받지 못했습니다", "未获取到4PX官方面单(PDF)"),
+            description: tr("임시 미리보기를 출력합니다. 4PX에 ds.xms.label.get 권한을 확인하세요.", "已输出临时预览。请确认4PX的 ds.xms.label.get 权限。"),
+          });
           printSimulatedLabel(res.tracking_number);
         }
+
 
         return;
       }
