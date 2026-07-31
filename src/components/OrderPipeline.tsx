@@ -1,6 +1,7 @@
 import { Shirt, CreditCard, Package, Mail, Truck, CheckCircle2 } from "lucide-react";
 import { useOrders, useProductionTracking } from "@/hooks/useDbData";
 import { useLang } from "@/contexts/LangContext";
+import { usePlcLive, STAGE_PLC, type PlcLive } from "@/hooks/usePlcStatus";
 
 const stages = [
   { key: "tshirt", label_ko: "티셔츠 제작", label_zh: "T恤制作", icon: Shirt },
