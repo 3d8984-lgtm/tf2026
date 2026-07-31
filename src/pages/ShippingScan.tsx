@@ -291,12 +291,18 @@ export default function ShippingScan() {
     }
     setIssuing(true);
     try {
-      const res = await requestCarrierLabel(shipment.id, carrier, testMode);
+      const res = await requestCarrierLabel(shipment.id, carrier, testMode, testVariant);
       if (testMode) {
-        await logAction("issue_tracking_test", { trackingNumber: res.tracking_number, carrier, via: "api-test" });
+        await logAction("issue_tracking_test", { trackingNumber: res.tracking_number, carrier, via: "api-test", variant: testVariant });
+        const cancelled = (res as any)?.cancelled;
         toast({
-          title: tr("테스트 송장 생성 (실제 발급 아님)", "测试运单已生成（非真实运单）"),
-          description: res.tracking_number,
+          title: testVariant === "live_cancel"
+            ? (cancelled === false
+                ? tr("운영 테스트 송장 생성됨 · 자동취소 실패", "生产测试运单已生成 · 自动取消失败")
+                : tr("운영 테스트 송장 생성 후 취소됨", "生产测试运单已生成并取消"))
+            : tr("테스트 송장 생성 (실제 발급 아님)", "测试运单已生成（非真实运单）"),
+          variant: testVariant === "live_cancel" && cancelled === false ? "destructive" : undefined,
+          description: `${res.tracking_number}${(res as any)?.message ? ` · ${(res as any).message}` : ""}`,
         });
         const url = (res as any)?.label_url as string | undefined;
         setTestLabelUrl(url ?? null);
