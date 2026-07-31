@@ -113,7 +113,7 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
 
       {/* Order rows */}
       {pipelineOrders.map((order, oi) => {
-        const stageKeys: StageKey[] = ["tshirt", "card", "set", "courier", "invoice", "done"];
+        const stageKeys: StageKey[] = ["tshirt", "card", "set", "courier", "done"];
         const currentIdx = stageKeys.indexOf(order.currentStage);
         const overallDone = order.stageCounts.done;
         const overallPct = pct(overallDone, order.qty);
