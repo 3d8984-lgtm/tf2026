@@ -150,9 +150,8 @@ export function buildFpxLabelHtml(d: FpxLabelData, opts: { print?: boolean } = {
       <div class="ref">Ref No: <b>${esc(d.refNo || "-")}</b></div>
       <div>${itemLine}</div>
     </div>
-
-    <div class="foot"><span>TWINMETA FACTORY</span><span>${LW} × ${LH} mm</span></div>
   </div>
+
 </div>
 ${opts.print ? "<script>window.onload=()=>{setTimeout(()=>window.print(),200)};<\/script>" : ""}
 </body></html>`;
