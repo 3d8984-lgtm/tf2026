@@ -69,6 +69,8 @@ export default function ShippingScan() {
   const [cameraOn, setCameraOn] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: FeedbackKind; msg: string }>({ kind: "idle", msg: "" });
   const [testMode, setTestMode] = useState(false);
+  // "sandbox" = open-test.4px.com, "live_cancel" = production endpoint then cancel
+  const [testVariant, setTestVariant] = useState<"sandbox" | "live_cancel">("sandbox");
   const [issuing, setIssuing] = useState(false);
   const [labelDialog, setLabelDialog] = useState(false);
   // Sandbox label PDF returned by the carrier during a test issuance.
