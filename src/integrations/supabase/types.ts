@@ -641,7 +641,10 @@ export type Database = {
           assigned_at: string
           assigned_by: string | null
           created_at: string
+          cumulative_length_m: number
+          length_base_count: number
           order_id: string | null
+          package_length_mm: number
           plc_id: string
           plc_label: string | null
           updated_at: string
@@ -650,7 +653,10 @@ export type Database = {
           assigned_at?: string
           assigned_by?: string | null
           created_at?: string
+          cumulative_length_m?: number
+          length_base_count?: number
           order_id?: string | null
+          package_length_mm?: number
           plc_id: string
           plc_label?: string | null
           updated_at?: string
@@ -659,7 +665,10 @@ export type Database = {
           assigned_at?: string
           assigned_by?: string | null
           created_at?: string
+          cumulative_length_m?: number
+          length_base_count?: number
           order_id?: string | null
+          package_length_mm?: number
           plc_id?: string
           plc_label?: string | null
           updated_at?: string

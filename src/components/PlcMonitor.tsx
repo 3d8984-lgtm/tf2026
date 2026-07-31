@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Gauge, Activity, AlertTriangle, Square, RotateCcw, Wifi, WifiOff, Package } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -77,6 +78,11 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
   const [assignedAt, setAssignedAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [ctrlUnsupported, setCtrlUnsupported] = useState<Record<string, boolean>>({});
+  // 포장 길이 누적 (게이트웨이가 packaged_length_m 을 제공하지 않아 카운트 × 1회 길이로 산출)
+  const [pkgLenMm, setPkgLenMm] = useState<number>(0);
+  const [pkgLenInput, setPkgLenInput] = useState<string>("");
+  const [baseCount, setBaseCount] = useState<number>(0);
+  const [storedLenM, setStoredLenM] = useState<number>(0);
 
 
   const activeOrder = useMemo(
@@ -124,14 +130,97 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
   const loadAssignment = async () => {
     const { data } = await supabase
       .from("plc_active_orders")
-      .select("order_id, assigned_at")
+      .select("order_id, assigned_at, package_length_mm, length_base_count, cumulative_length_m")
       .eq("plc_id", plcId)
       .maybeSingle();
     setActiveOrderId(data?.order_id ?? null);
     setPendingOrderId(data?.order_id ?? null);
     setAssignedAt(data?.assigned_at ?? null);
+    const mm = Number((data as any)?.package_length_mm ?? 0);
+    setPkgLenMm(mm);
+    setPkgLenInput(mm ? String(mm) : "");
+    setBaseCount(Number((data as any)?.length_base_count ?? 0));
+    setStoredLenM(Number((data as any)?.cumulative_length_m ?? 0));
   };
   useEffect(() => { loadAssignment(); }, [plcId]);
+
+  const liveCount = normalizeCount(status?.total_count);
+  // 현재 세션 구간(base 이후)에서 늘어난 길이 + DB에 저장된 누적 길이
+  const sessionLenM = pkgLenMm > 0 ? (Math.max(0, liveCount - baseCount) * pkgLenMm) / 1000 : 0;
+  const totalLenM = storedLenM + sessionLenM;
+
+  // 카운터가 초기화되면(현재 카운트 < 기준 카운트) 그때까지의 길이를 DB 누적에 확정 저장
+  useEffect(() => {
+    if (!status || pkgLenMm <= 0) return;
+    if (liveCount >= baseCount) return;
+    const committed = storedLenM + (Math.max(0, baseCount) * pkgLenMm) / 1000;
+    setStoredLenM(committed);
+    setBaseCount(0);
+    supabase
+      .from("plc_active_orders")
+      .update({ cumulative_length_m: committed, length_base_count: 0 })
+      .eq("plc_id", plcId)
+      .then(() => {});
+  }, [liveCount, baseCount, pkgLenMm, storedLenM, plcId, status]);
+
+  // 주기적으로 현재 진행분을 DB에 반영 (새로고침/재접속 시에도 누적 유지)
+  useEffect(() => {
+    if (pkgLenMm <= 0) return;
+    const iv = setInterval(() => {
+      supabase
+        .from("plc_active_orders")
+        .update({ cumulative_length_m: totalLenM, length_base_count: liveCount })
+        .eq("plc_id", plcId)
+        .then(() => {
+          setStoredLenM(totalLenM);
+          setBaseCount(liveCount);
+        });
+    }, 60000);
+    return () => clearInterval(iv);
+  }, [pkgLenMm, totalLenM, liveCount, plcId]);
+
+  const savePkgLen = async () => {
+    const mm = Number(pkgLenInput);
+    if (!Number.isFinite(mm) || mm < 0) {
+      toast.error(isKo ? "올바른 길이를 입력하세요" : "请输入正确的长度");
+      return;
+    }
+    setBusy(true);
+    try {
+      const user = (await supabase.auth.getUser()).data.user;
+      const { error } = await supabase.from("plc_active_orders").upsert({
+        plc_id: plcId,
+        plc_label: `${label} · ${name}`,
+        order_id: activeOrderId,
+        assigned_by: user?.id ?? null,
+        package_length_mm: mm,
+        length_base_count: liveCount,
+        cumulative_length_m: totalLenM,
+      } as any, { onConflict: "plc_id" });
+      if (error) throw error;
+      await loadAssignment();
+      toast.success(isKo ? "1회 포장 길이가 저장되었습니다" : "已保存单次包装长度");
+    } catch (e: any) {
+      toast.error(e?.message || (isKo ? "저장 실패" : "保存失败"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resetCumulativeLength = async () => {
+    setBusy(true);
+    try {
+      await supabase
+        .from("plc_active_orders")
+        .update({ cumulative_length_m: 0, length_base_count: liveCount } as any)
+        .eq("plc_id", plcId);
+      setStoredLenM(0);
+      setBaseCount(liveCount);
+      toast.success(isKo ? "누적 포장 길이를 초기화했습니다" : "已重置累计包装长度");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const assignOrder = async (orderId: string | null) => {
     setBusy(true);
@@ -143,6 +232,10 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
         order_id: orderId,
         assigned_by: user?.id ?? null,
         assigned_at: new Date().toISOString(),
+        package_length_mm: pkgLenMm,
+        // 카운터를 0으로 초기화하므로 지금까지의 길이를 누적으로 확정하고 기준을 0으로
+        cumulative_length_m: totalLenM,
+        length_base_count: 0,
       };
       const { error } = await supabase
         .from("plc_active_orders")
@@ -177,7 +270,11 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
   const clearAssignment = async () => {
     setBusy(true);
     try {
-      await supabase.from("plc_active_orders").delete().eq("plc_id", plcId);
+      // 설정(1회 길이·누적 길이)은 유지하고 주문 지정만 해제
+      await supabase
+        .from("plc_active_orders")
+        .update({ order_id: null } as any)
+        .eq("plc_id", plcId);
       await loadAssignment();
       toast.success(isKo ? "지정이 해제되었습니다" : "已解除指定");
     } finally {
@@ -222,7 +319,7 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
     unknown: isKo ? "알수없음" : "未知",
   };
 
-  const totalCount = normalizeCount(status?.total_count);
+  const totalCount = liveCount;
   const remaining = activeOrder && status
     ? Math.max(0, (activeOrder.quantity || 0) - totalCount)
     : null;
@@ -351,14 +448,49 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
               </div>
               <div className="kpi-card text-center py-3">
                 <p className="text-xl font-semibold tabular-nums">
-                  {status.packaged_length_m != null ? `${status.packaged_length_m.toFixed(1)}m` : "—"}
+                  {status.packaged_length_m != null
+                    ? `${status.packaged_length_m.toFixed(1)}m`
+                    : pkgLenMm > 0
+                      ? `${totalLenM.toFixed(1)}m`
+                      : "—"}
                 </p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{isKo ? "포장 길이" : "包装长度"}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {isKo ? "누적 포장 길이" : "累计包装长度"}
+                </p>
               </div>
               <div className="kpi-card text-center py-3">
                 <p className="text-xl font-semibold tabular-nums">{status.operating_duration}</p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">{isKo ? "가동시간" : "运行时长"}</p>
               </div>
+            </div>
+
+            {/* 1회 포장 길이 설정 (게이트웨이가 길이 레지스터를 제공하지 않아 카운트 × 길이로 산출) */}
+            <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+              <div className="text-xs font-medium text-muted-foreground">
+                {isKo ? "1회 포장 길이 (mm)" : "单次包装长度 (mm)"}
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.1"
+                  value={pkgLenInput}
+                  onChange={(e) => setPkgLenInput(e.target.value)}
+                  placeholder={isKo ? "예: 250" : "例: 250"}
+                  className="h-8 text-xs"
+                />
+                <Button size="sm" className="h-8 text-xs" onClick={savePkgLen} disabled={busy}>
+                  {isKo ? "저장" : "保存"}
+                </Button>
+                <Button size="sm" variant="outline" className="h-8 text-xs whitespace-nowrap" onClick={resetCumulativeLength} disabled={busy}>
+                  {isKo ? "누적 초기화" : "重置累计"}
+                </Button>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                {isKo
+                  ? "설비가 길이 값을 전송하지 않아 (카운트 × 1회 길이)로 누적 계산하며, 카운터 초기화 후에도 누적 길이는 유지됩니다."
+                  : "设备未上报长度值，按（计数 × 单次长度）累计计算；计数器重置后累计长度仍保留。"}
+              </p>
             </div>
 
             {(status.faults?.length > 0 || status.e_stop) && (
