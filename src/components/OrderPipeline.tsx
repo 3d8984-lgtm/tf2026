@@ -152,6 +152,9 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
                 const isPast = si < currentIdx;
                 const isFuture = si > currentIdx;
                 const Icon = s.icon;
+                const machine = STAGE_PLC[s.key];
+                const live: PlcLive | undefined = machine ? plcLive[s.key] : undefined;
+                const isThisOrder = !!live && live.orderId === order.id;
 
                 return (
                   <div key={s.key} className="flex items-center flex-1 min-w-0">
