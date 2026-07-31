@@ -7,8 +7,7 @@ const stages = [
   { key: "tshirt", label_ko: "티셔츠 제작", label_zh: "T恤制作", icon: Shirt },
   { key: "card", label_ko: "카드 포장", label_zh: "卡片包装", icon: CreditCard },
   { key: "set", label_ko: "세트 포장", label_zh: "套装包装", icon: Package },
-  { key: "courier", label_ko: "택배 포장", label_zh: "快递包装", icon: Mail },
-  { key: "invoice", label_ko: "송장 부착", label_zh: "运单贴附", icon: Truck },
+  { key: "courier", label_ko: "택배 포장 · 송장 부착", label_zh: "快递包装 · 运单贴附", icon: Truck },
   { key: "done", label_ko: "완료", label_zh: "完成", icon: CheckCircle2 },
 ] as const;
 
@@ -16,16 +15,17 @@ type StageKey = (typeof stages)[number]["key"];
 
 const stageColors: Record<StageKey, string> = {
   tshirt: "hsl(205 75% 42%)", card: "hsl(152 60% 42%)", set: "hsl(38 92% 50%)",
-  courier: "hsl(280 55% 52%)", invoice: "hsl(205 75% 55%)", done: "hsl(152 60% 36%)",
+  courier: "hsl(280 55% 52%)", done: "hsl(152 60% 36%)",
 };
 const stageBgColors: Record<StageKey, string> = {
   tshirt: "hsl(205 75% 42% / 0.1)", card: "hsl(152 60% 42% / 0.1)", set: "hsl(38 92% 50% / 0.1)",
-  courier: "hsl(280 55% 52% / 0.1)", invoice: "hsl(205 75% 55% / 0.1)", done: "hsl(152 60% 36% / 0.1)",
+  courier: "hsl(280 55% 52% / 0.1)", done: "hsl(152 60% 36% / 0.1)",
 };
 
 function pct(count: number, total: number) {
   return total === 0 ? 0 : Math.min(100, Math.round((count / total) * 100));
 }
+
 
 interface OrderPipelineProps {
   onStageClick?: (orderId: string, stage: StageKey) => void;
