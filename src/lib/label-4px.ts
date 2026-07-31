@@ -1,0 +1,187 @@
+// 4PX waybill (100 × 150 mm) renderer.
+// Layout follows the 4PX open-platform label spec (ds.xms.label.get, label_100x150):
+// destination/service header → service-provider tracking barcode → Ship To →
+// Sender → reference / weight / pieces → 4PX tracking barcode → declaration table.
+
+// ---- Code128 (subset B / C auto) -------------------------------------------
+const CODE128_PATTERNS = [
+  "212222","222122","222221","121223","121322","131222","122213","122312","132212","221213",
+  "221312","231212","112232","122132","122231","113222","123122","123221","223211","221132",
+  "221231","213212","223112","312131","311222","321122","321221","312212","322112","322211",
+  "212123","212321","232121","111323","131123","131321","112313","132113","132311","211313",
+  "231113","231311","112133","112331","132131","113123","113321","133121","313121","211331",
+  "231131","213113","213311","213131","311123","311321","331121","312113","312311","332111",
+  "314111","221411","431111","111224","111422","121124","121421","141122","141221","112214",
+  "112412","122114","122411","142112","142211","241211","221114","413111","241112","134111",
+  "111242","121142","121241","114212","124112","124211","411212","421112","421211","212141",
+  "214121","412121","111143","111341","131141","114113","114311","411113","411311","113141",
+  "114131","311141","411131","211412","211214","211232","2331112",
+];
+
+/** Renders a Code128-B barcode as inline SVG (crisp at any print DPI). */
+export function code128Svg(value: string, opts: { height?: number; module?: number } = {}) {
+  const text = (value || "").replace(/[^\x20-\x7E]/g, "");
+  const height = opts.height ?? 40;
+  const module = opts.module ?? 1;
+  if (!text) return "";
+  const codes: number[] = [104]; // START B
+  for (const ch of text) codes.push(ch.charCodeAt(0) - 32);
+  let sum = 104;
+  codes.slice(1).forEach((c, i) => { sum += c * (i + 1); });
+  codes.push(sum % 103);
+  codes.push(106); // STOP
+
+  let x = 0;
+  let rects = "";
+  for (const c of codes) {
+    const pattern = CODE128_PATTERNS[c] ?? CODE128_PATTERNS[0];
+    let bar = true;
+    for (const wChar of pattern) {
+      const w = Number(wChar) * module;
+      if (bar) rects += `<rect x="${x}" y="0" width="${w}" height="${height}" fill="#000"/>`;
+      x += w;
+      bar = !bar;
+    }
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${x} ${height}" preserveAspectRatio="none" width="100%" height="100%">${rects}</svg>`;
+}
+
+const esc = (v: unknown) =>
+  String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string));
+
+export interface FpxLabelData {
+  carrierName: string;          // 4PX / YUNEXPRESS ...
+  trackingNumber: string;       // logistics_channel_no (service provider)
+  fpxTrackingNo?: string | null; // 4px_tracking_no
+  serviceCode?: string | null;  // logistics_product_code
+  refNo?: string | null;        // ref_no (job / external order id)
+  createdAt?: string | null;
+  weightGrams?: number | null;
+  pieces?: number | null;
+  test?: boolean;
+  recipient: {
+    name?: string | null; phone?: string | null; street?: string | null;
+    city?: string | null; state?: string | null; zip?: string | null; country?: string | null;
+  };
+  sender: {
+    name?: string | null; company?: string | null; phone?: string | null; street?: string | null;
+    city?: string | null; state?: string | null; zip?: string | null; country?: string | null;
+  };
+  declarations?: Array<{ nameEn?: string | null; nameCn?: string | null; qty?: number | null; price?: number | null; hscode?: string | null }>;
+  width?: number;
+  height?: number;
+}
+
+/** Full-page HTML for a 4PX-format waybill. Identical markup is used for preview and print. */
+export function buildFpxLabelHtml(d: FpxLabelData, opts: { print?: boolean } = {}) {
+  const LW = d.width ?? 100;
+  const LH = d.height ?? 150;
+  const r = d.recipient ?? {};
+  const s = d.sender ?? {};
+  const country = (r.country || "US").toUpperCase();
+  const date = (d.createdAt ? new Date(d.createdAt) : new Date()).toISOString().slice(0, 10);
+  const weightKg = ((d.weightGrams ?? 0) / 1000).toFixed(3);
+  const decl = (d.declarations ?? []).slice(0, 4);
+
+  const declRows = decl.length
+    ? decl.map((it) => `<tr>
+        <td>${esc(it.nameEn || it.nameCn || "")}${it.nameCn ? ` / ${esc(it.nameCn)}` : ""}</td>
+        <td class="c">${esc(it.qty ?? 1)}</td>
+        <td class="c">${it.price != null ? `USD ${Number(it.price).toFixed(2)}` : "-"}</td>
+        <td class="c">${esc(it.hscode || "-")}</td>
+      </tr>`).join("")
+    : `<tr><td colspan="4" class="c muted">-</td></tr>`;
+
+  return `<!doctype html><html><head><meta charset="utf-8"/><title>Waybill ${esc(d.trackingNumber)}</title>
+<style>
+  @page { size: ${LW}mm ${LH}mm; margin: 0; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, "Helvetica Neue", sans-serif; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .label { width: ${LW}mm; height: ${LH}mm; padding: 3mm; display: flex; flex-direction: column; }
+  .box { border: 0.4mm solid #000; }
+  .hd { display: flex; align-items: stretch; border-bottom: 0.4mm solid #000; }
+  .hd .dest { flex: 1; padding: 1.5mm 2mm; }
+  .hd .dest .cc { font-size: 26pt; font-weight: 900; line-height: 1; }
+  .hd .dest .svc { font-size: 8pt; letter-spacing: 0.5px; }
+  .hd .right { width: 34mm; border-left: 0.4mm solid #000; padding: 1.5mm 2mm; text-align: right; font-size: 7.5pt; }
+  .hd .right b { display: block; font-size: 11pt; }
+  .bcwrap { padding: 2mm 2mm 1mm; text-align: center; border-bottom: 0.4mm solid #000; }
+  .bcwrap .bc { height: 16mm; }
+  .bcwrap .num { font-family: ui-monospace, Consolas, monospace; font-size: 12pt; font-weight: 700; letter-spacing: 1px; margin-top: 0.8mm; }
+  .sec { border-bottom: 0.4mm solid #000; padding: 1.6mm 2mm; }
+  .sec .cap { font-size: 6.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #000; }
+  .sec .nm { font-size: 11pt; font-weight: 700; }
+  .sec .ad { font-size: 9pt; line-height: 1.28; }
+  .sec.small .nm { font-size: 8pt; font-weight: 700; }
+  .sec.small .ad { font-size: 7pt; line-height: 1.2; }
+  .grid { display: flex; border-bottom: 0.4mm solid #000; }
+  .grid div { flex: 1; padding: 1.2mm 2mm; font-size: 7.5pt; border-right: 0.4mm solid #000; }
+  .grid div:last-child { border-right: 0; }
+  .grid span { display: block; font-size: 6.5pt; color: #333; text-transform: uppercase; letter-spacing: 0.5px; }
+  .grid b { font-size: 9pt; }
+  table { width: 100%; border-collapse: collapse; font-size: 6.8pt; }
+  th, td { border-bottom: 0.2mm solid #000; padding: 0.8mm 1mm; text-align: left; }
+  th { font-size: 6pt; text-transform: uppercase; background: #eee; }
+  td.c, th.c { text-align: center; }
+  .muted { color: #666; }
+  .fpx { margin-top: auto; padding: 1.5mm 2mm 0; text-align: center; }
+  .fpx .bc { height: 11mm; }
+  .fpx .num { font-family: ui-monospace, Consolas, monospace; font-size: 9pt; letter-spacing: 1px; }
+  .foot { display: flex; justify-content: space-between; font-size: 6pt; color: #333; padding: 1mm 2mm 0; }
+  .test { position: absolute; top: 40mm; left: 0; width: ${LW}mm; text-align: center; font-size: 32pt; font-weight: 900; color: rgba(0,0,0,.12); transform: rotate(-20deg); letter-spacing: 4px; }
+</style></head><body>
+<div class="label">
+  ${d.test ? `<div class="test">TEST</div>` : ""}
+  <div class="box" style="display:flex;flex-direction:column;flex:1;">
+    <div class="hd">
+      <div class="dest">
+        <div class="cc">${esc(country)}</div>
+        <div class="svc">${esc(d.serviceCode || d.carrierName)}</div>
+      </div>
+      <div class="right">
+        <b>${esc(d.carrierName)}</b>
+        ${esc(date)}<br/>${esc(r.zip || "")}
+      </div>
+    </div>
+
+    <div class="bcwrap">
+      <div class="bc">${code128Svg(d.trackingNumber, { height: 40 })}</div>
+      <div class="num">${esc(d.trackingNumber)}</div>
+    </div>
+
+    <div class="sec">
+      <div class="cap">Ship To / 收件人</div>
+      <div class="nm">${esc(r.name)}</div>
+      <div class="ad">${esc(r.street)}<br/>
+        ${esc([r.city, r.state, r.zip].filter(Boolean).join(", "))}<br/>
+        ${esc(country)} · TEL ${esc(r.phone)}</div>
+    </div>
+
+    <div class="sec small">
+      <div class="cap">Sender / 寄件人</div>
+      <div class="nm">${esc(s.company || s.name)}</div>
+      <div class="ad">${esc([s.street, s.city, s.state, s.zip, s.country].filter(Boolean).join(", "))} · TEL ${esc(s.phone)}</div>
+    </div>
+
+    <div class="grid">
+      <div><span>Ref No</span><b>${esc(d.refNo || "-")}</b></div>
+      <div><span>Weight</span><b>${weightKg} kg</b></div>
+      <div><span>Pcs</span><b>${esc(d.pieces ?? 1)}</b></div>
+    </div>
+
+    <table>
+      <tr><th>Declared Item</th><th class="c">Qty</th><th class="c">Value</th><th class="c">HS Code</th></tr>
+      ${declRows}
+    </table>
+
+    <div class="fpx">
+      <div class="bc">${code128Svg(d.fpxTrackingNo || d.refNo || d.trackingNumber, { height: 28 })}</div>
+      <div class="num">${esc(d.fpxTrackingNo || d.refNo || d.trackingNumber)}</div>
+    </div>
+    <div class="foot"><span>TWINMETA FACTORY</span><span>${LW} × ${LH} mm</span></div>
+  </div>
+</div>
+${opts.print ? "<script>window.onload=()=>{setTimeout(()=>window.print(),200)};<\/script>" : ""}
+</body></html>`;
+}
