@@ -445,20 +445,28 @@ export default function ShippingScan() {
   }
 
 
-  // Carrier-returned PDF label, forced to the carrier's paper size (4PX = 100×150mm).
+  // Carrier-issued waybill (4PX ds.xms.label.get), forced to the carrier's paper size.
+  // Accepts a URL, a base64 data-URL PDF, or an HTML label returned by the carrier.
   function buildRemoteLabelHtml(url: string, code?: string | null, noPrint = false) {
     const { w: LW, h: LH } = labelSizeFor(code);
+    const isImg = /^data:image\//i.test(url) || /\.(png|jpe?g)$/i.test(url);
+    const isHtml = /^data:text\/html/i.test(url) || /\.html?$/i.test(url);
+    const printScript = noPrint ? "" : `<script>window.onload=()=>{setTimeout(()=>window.print(),800)};<\/script>`;
+    const body = isImg
+      ? `<img src="${url}"/>`
+      : isHtml
+        ? `<iframe src="${url}" frameborder="0"></iframe>`
+        : `<embed src="${url}#toolbar=0" type="application/pdf"/>`;
     return `<!doctype html><html><head><meta charset="utf-8"/><title>Label</title>
       <style>
         @page { size: ${LW}mm ${LH}mm; margin: 0; }
         html, body { margin: 0; padding: 0; width: ${LW}mm; height: ${LH}mm; }
-        embed, img { width: ${LW}mm; height: ${LH}mm; object-fit: contain; display: block; }
+        embed, img, iframe { width: ${LW}mm; height: ${LH}mm; object-fit: contain; display: block; border: 0; }
       </style></head><body>
-      ${/\.(png|jpe?g)$/i.test(url)
-        ? `<img src="${url}" ${noPrint ? "" : 'onload="setTimeout(()=>window.print(),200)"'}/>`
-        : `<embed src="${url}#toolbar=0" type="application/pdf"/>${noPrint ? "" : "<script>window.onload=()=>{setTimeout(()=>window.print(),800)};<\/script>"}`}
+      ${body}${printScript}
       </body></html>`;
   }
+
 
   function downloadLabelPdf() {
     if (!shipment) return;
