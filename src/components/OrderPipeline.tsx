@@ -151,13 +151,18 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
               {stages.map((s, si) => {
                 const count = order.stageCounts[s.key];
                 const stagePct = pct(count, order.qty);
-                const isActive = si === currentIdx;
-                const isPast = si < currentIdx;
-                const isFuture = si > currentIdx;
                 const Icon = s.icon;
                 const machine = STAGE_PLC[s.key];
                 const live: PlcLive | undefined = machine ? plcLive[s.key] : undefined;
                 const isThisOrder = !!live && live.orderId === order.id;
+                // 단계 순서와 무관하게, 실적이 있거나 설비가 가동 중이면 활성 상태로 표시
+                const isRunning = isThisOrder && live?.online && live.state === "running";
+                const hasWork = count > 0;
+                const isComplete = order.qty > 0 && count >= order.qty;
+                const isActive = isRunning || (hasWork && !isComplete);
+                const isPast = isComplete;
+                const isFuture = !hasWork && !isRunning;
+
 
                 return (
                   <div key={s.key} className="flex items-center flex-1 min-w-0">
