@@ -233,37 +233,58 @@ Deno.serve(async (req) => {
     }
 
     // ---- TEST MODE ----------------------------------------------------------
-    // 4PX: runs against the sandbox endpoint (open-test.4px.com) so a real test
-    // waybill + label PDF is produced. Nothing is persisted on the shipment.
+    // sandbox     : open-test.4px.com with sandbox credentials.
+    // live_cancel : production endpoint with the real credentials; the test order is
+    //               cancelled immediately after the label is fetched.
     if (test) {
       let authOk = false;
       let message = "";
       let tracking = "";
       let labelUrl: string | null = null;
       let raw: unknown = null;
+      let cancelInfo: unknown = null;
 
       try {
         if (carrier === "4px") {
           const extra = (cred.extra ?? {}) as Record<string, any>;
-          const sandboxCred = {
-            api_key: extra.test_app_key ?? "eb190f3b-d464-4e3f-a6f1-036399670823",
-            api_secret: extra.test_app_secret ?? "79df01f8-63d5-47f3-a1e3-3e43ceecf726",
-            extra: { ...extra, channel_code: extra.test_channel_code ?? extra.channel_code ?? "PY" },
-          };
-          const probe = await fpxProbe(FPX_TEST_URL, sandboxCred);
+          const useLive = variant === "live_cancel";
+          const endpoint = useLive ? fpxEndpoint(cfg.api_url, cfg.api_mode ?? "prod") : FPX_TEST_URL;
+          const useCred = useLive
+            ? cred
+            : {
+                api_key: extra.test_app_key ?? "eb190f3b-d464-4e3f-a6f1-036399670823",
+                api_secret: extra.test_app_secret ?? "79df01f8-63d5-47f3-a1e3-3e43ceecf726",
+                extra: { ...extra, channel_code: extra.test_channel_code ?? extra.channel_code ?? "PY" },
+              };
+
+          const probe = await fpxProbe(endpoint, useCred);
           authOk = probe.ok;
           message = probe.message;
 
-          const testOrder = { ...order, external_order_id: `TEST-${order.external_order_id}-${Date.now()}` };
-          const r = await call4px({ api_url: FPX_TEST_URL, api_mode: "test" }, sandboxCred, testOrder, shipment);
+          const refNo = `TEST-${order.external_order_id}-${Date.now()}`;
+          const testOrder = { ...order, external_order_id: refNo };
+          const r = await call4px(
+            { api_url: endpoint, api_mode: useLive ? (cfg.api_mode ?? "prod") : "test" },
+            useCred,
+            testOrder,
+            shipment,
+          );
           raw = r.raw;
           if (r.tracking_number) {
             authOk = true;
             tracking = r.tracking_number;
             labelUrl = r.label_url;
-            message = "4PX sandbox test waybill created";
+            message = useLive ? "4PX live test waybill created" : "4PX sandbox test waybill created";
+
+            if (useLive) {
+              const c = await fpxCancelOrder(endpoint, useCred, refNo, r.fpx_tracking_no ?? null);
+              cancelInfo = c;
+              message += c.ok
+                ? ` / cancelled (${c.method})`
+                : " / CANCEL FAILED - cancel this order manually in the 4PX console";
+            }
           } else if (!tracking) {
-            message = `${message} / sandbox order: ${r.error ?? "no tracking number"}`;
+            message = `${message} / ${useLive ? "live" : "sandbox"} order: ${r.error ?? "no tracking number"}`;
           }
         } else {
           authOk = true;
@@ -284,13 +305,23 @@ Deno.serve(async (req) => {
         order_id: shipment.order_id,
         action_type: "carrier_api_test",
         worker_id: user.id,
-        details: { carrier, mode: "sandbox", auth_ok: authOk, message, tracking_number: tracking },
+        details: { carrier, mode: variant, auth_ok: authOk, message, tracking_number: tracking, cancel: cancelInfo },
       });
 
       if (!authOk) return json({ error: message, raw }, 502);
 
-      return json({ ok: true, test: true, carrier, tracking_number: tracking, label_url: labelUrl, message });
+      return json({
+        ok: true,
+        test: true,
+        test_variant: variant,
+        carrier,
+        tracking_number: tracking,
+        label_url: labelUrl,
+        cancelled: (cancelInfo as any)?.ok ?? null,
+        message,
+      });
     }
+
 
 
     let result: LabelResult;
