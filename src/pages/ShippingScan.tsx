@@ -215,18 +215,22 @@ export default function ShippingScan() {
     }
 
     // Look up in hologram master — the QR on the hologram sticker identifies the parcel.
-    const { data: master, error } = await supabase
+    const { data: master } = await supabase
       .from("qr_hologram_master")
       .select("qr_value, serial_number, hologram_type")
       .eq("qr_value", qrValue)
       .maybeSingle();
 
-    if (error || !master) {
+    // Also accept the hologram unique numbers shown in the detail list (`{주문번호}-3`).
+    const knownHere = holoUniqueNos.includes(qrValue) || items.some((i) => i.qr_value === qrValue);
+
+    if (!master && !knownHere) {
       scanFail();
       setFeedback({ kind: "notfound", msg: tr("등록되지 않은 홀로그램 QR입니다", "未注册的全息二维码") });
       await logAction("notfound", { qrValue });
       return;
     }
+
 
     // Fill next empty slot
     const slot = items.find((i) => !i.is_scanned);
