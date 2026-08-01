@@ -121,15 +121,11 @@ Deno.serve(async (req) => {
 
     return new Response(upstream.body, { status: upstream.status, headers });
   } catch (err) {
-    if (isPlcStatus) {
-      return new Response(JSON.stringify({ offline: true, upstream_status: 0 }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
-      });
-    }
-    return new Response(JSON.stringify({ error: String(err) }), {
-      status: 502,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    console.error("cctv-proxy upstream failure", target, String(err));
+    return new Response(JSON.stringify({ offline: true, upstream_status: 0, error: String(err) }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
     });
   }
+
 });
