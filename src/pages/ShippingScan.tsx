@@ -60,6 +60,17 @@ export default function ShippingScan() {
   const items = data?.items ?? [];
   const { data: holoSerials = {} } = useHologramSerials(items.map((i: any) => i.qr_value ?? ""));
   const order: any = shipment?.orders;
+  // Hologram sticker unique numbers — identical rule to 홀로그램 스티커 공장 detail list:
+  // uniqueNo = `${item.order_id || item.sequence_no || index+1}-3`
+  const holoUniqueNos = useMemo<string[]>(() => {
+    const src: any[] = Array.isArray(order?.source_data?.items) ? order.source_data.items : [];
+    const count = Math.max(src.length, order?.quantity ?? 0);
+    return Array.from({ length: count }, (_, idx) => {
+      const it = src[idx] || {};
+      const individualOrderNo = (it.order_id as string) || (it.sequence_no as string) || `${idx + 1}`;
+      return `${individualOrderNo}-3`;
+    });
+  }, [order]);
   const total = order?.quantity ?? 0;
   const scannedCount = items.filter((i) => i.is_scanned).length;
   const allScanned = total > 0 && scannedCount === total;
