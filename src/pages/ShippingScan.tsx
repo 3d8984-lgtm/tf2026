@@ -14,7 +14,7 @@ import { ArrowLeft, Camera, CameraOff, CheckCircle2, AlertTriangle, ScanLine, Tr
 import QRCode from "qrcode";
 import { useLang } from "@/contexts/LangContext";
 import { useShipmentScan } from "@/hooks/useShipmentScan";
-import { useAddressBook } from "@/hooks/useAddressBook";
+import { useHologramSerials } from "@/hooks/useHologramSerials";
 import { useCouriers, requestCarrierLabel } from "@/hooks/useCouriers";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -57,13 +57,14 @@ export default function ShippingScan() {
   const qc = useQueryClient();
 
   const { data, isLoading, refetch } = useShipmentScan(orderId);
-  const { data: addressBook = [] } = useAddressBook(orderId);
   const shipment = data?.shipment;
   const items = data?.items ?? [];
+  const { data: holoSerials = {} } = useHologramSerials(items.map((i: any) => i.qr_value ?? ""));
   const order: any = shipment?.orders;
   const total = order?.quantity ?? 0;
   const scannedCount = items.filter((i) => i.is_scanned).length;
   const allScanned = total > 0 && scannedCount === total;
+
 
   const [scanInput, setScanInput] = useState("");
   const [cameraOn, setCameraOn] = useState(false);
