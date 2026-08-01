@@ -90,10 +90,11 @@ Deno.serve(async (req) => {
       }
     }
 
-    // PLC status: an unreachable PLC is an expected device state, not an Edge
-    // Function failure. Keep HTTP successful so the host does not promote it to
-    // a runtime-error overlay; the client reads the explicit offline flag.
-    if (isPlcStatus && upstream.status >= 500) {
+    // Any upstream gateway/tunnel failure (on-site server offline) is an
+    // expected device state, not an Edge Function failure. Returning a 5xx from
+    // here is promoted by the host to a client runtime error / blank screen, so
+    // answer 200 with an explicit offline flag and let the UI decide.
+    if (upstream.status >= 500) {
       return new Response(
         JSON.stringify({ offline: true, upstream_status: upstream.status }),
         {
@@ -102,6 +103,7 @@ Deno.serve(async (req) => {
         },
       );
     }
+
 
 
     const headers = new Headers(corsHeaders);
@@ -119,15 +121,11 @@ Deno.serve(async (req) => {
 
     return new Response(upstream.body, { status: upstream.status, headers });
   } catch (err) {
-    if (isPlcStatus) {
-      return new Response(JSON.stringify({ offline: true, upstream_status: 0 }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
-      });
-    }
-    return new Response(JSON.stringify({ error: String(err) }), {
-      status: 502,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    console.error("cctv-proxy upstream failure", target, String(err));
+    return new Response(JSON.stringify({ offline: true, upstream_status: 0, error: String(err) }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
     });
   }
+
 });
