@@ -649,61 +649,68 @@ export default function ShippingScan() {
         </Card>
       </div>
 
-      {/* Address book */}
+      {/* Order detail list (items of the selected order) */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center justify-between">
-            <span>{tr("주소록", "地址簿")}</span>
-            <Badge variant="outline" className="text-[10px]">{addressBook.length}</Badge>
+            <span>{tr("주소록 · 주문 상세 목록", "地址簿 · 订单明细")}</span>
+            <Badge variant="outline" className="text-[10px]">{items.length}</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-[11px] text-muted-foreground mb-2">
-            {tr("주문 데이터 가져오기에서 연동된 주문 목록입니다. 클릭하면 해당 주문의 스캔 화면으로 이동합니다.",
-                "已通过\"订单数据导入\"关联的订单列表，点击可切换到对应订单的扫码页面。")}
+            {tr("선택한 주문건의 상세 목록입니다. 송장번호가 발급되면 자동으로 반영됩니다.",
+                "所选订单的明细列表，运单号生成后会自动同步。")}
           </p>
           <ScrollArea className="h-[420px] border rounded-md">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-background border-b text-xs text-muted-foreground">
                 <tr>
+                  <th className="text-center px-3 py-2">#</th>
                   <th className="text-left px-3 py-2">Job No</th>
+                  <th className="text-left px-3 py-2">{tr("홀로그램 고유번호", "全息码")}</th>
+                  <th className="text-left px-3 py-2">QR</th>
+                  <th className="text-left px-3 py-2">{tr("제품/색상/사이즈", "产品/颜色/尺码")}</th>
                   <th className="text-left px-3 py-2">{tr("Twinker (받는사람)", "Twinker (收件人)")}</th>
                   <th className="text-left px-3 py-2">{tr("전화", "电话")}</th>
                   <th className="text-left px-3 py-2">{tr("주소", "地址")}</th>
-                  <th className="text-left px-3 py-2">{tr("도시/지역", "城市/州")}</th>
-                  <th className="text-center px-3 py-2">Qty</th>
-                  <th className="text-left px-3 py-2">{tr("상태", "状态")}</th>
+                  <th className="text-left px-3 py-2">{tr("도시/지역/국가", "城市/州/国家")}</th>
+                  <th className="text-center px-3 py-2">{tr("스캔", "扫码")}</th>
+                  <th className="text-left px-3 py-2">{tr("택배사", "承运商")}</th>
                   <th className="text-left px-3 py-2">{tr("송장번호", "运单号")}</th>
                 </tr>
               </thead>
               <tbody>
-                {addressBook.map((o: any) => {
-                  const s = o.shipments?.[0];
-                  const active = o.id === orderId;
+                {items.map((it: any) => {
+                  const holo = it.qr_value ? holoSerials[it.qr_value] : undefined;
                   return (
-                    <tr
-                      key={o.id}
-                      onClick={() => navigate(`/shipping/scan/${o.id}`)}
-                      className={`cursor-pointer hover:bg-accent/40 border-b transition-colors ${active ? "bg-primary/10" : ""}`}
-                    >
-                      <td className="px-3 py-2 font-mono text-xs">{o.external_order_id}</td>
-                      <td className="px-3 py-2 font-medium">{o.recipient_name ?? "-"}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{o.recipient_phone ?? "-"}</td>
-                      <td className="px-3 py-2 text-xs max-w-[260px] truncate" title={o.shipping_address}>{o.shipping_address}</td>
+                    <tr key={it.id} className="border-b hover:bg-accent/30 transition-colors">
+                      <td className="px-3 py-2 text-center font-mono text-xs">{it.position}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{order?.external_order_id ?? "-"}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{holo?.serial || "-"}</td>
+                      <td className="px-3 py-2 font-mono text-xs max-w-[180px] truncate" title={it.qr_value ?? ""}>{it.qr_value ?? "-"}</td>
+                      <td className="px-3 py-2 text-xs">
+                        {[it.product_code, it.color, it.size].filter(Boolean).join(" / ") || "-"}
+                      </td>
+                      <td className="px-3 py-2 font-medium">{order?.recipient_name ?? "-"}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{order?.recipient_phone ?? "-"}</td>
+                      <td className="px-3 py-2 text-xs max-w-[240px] truncate" title={order?.shipping_address ?? ""}>{order?.shipping_address ?? "-"}</td>
                       <td className="px-3 py-2 text-xs text-muted-foreground">
-                        {[o.shipping_city, o.shipping_state, o.shipping_zip, o.shipping_country].filter(Boolean).join(", ")}
+                        {[order?.shipping_city, order?.shipping_state, order?.shipping_zip, order?.shipping_country].filter(Boolean).join(", ")}
                       </td>
-                      <td className="px-3 py-2 text-center font-mono">{o.quantity ?? 0}</td>
-                      <td className="px-3 py-2">
-                        <Badge variant="outline" className="text-[10px] capitalize">{s?.scan_status ?? "pending"}</Badge>
+                      <td className="px-3 py-2 text-center">
+                        {it.is_scanned
+                          ? <Badge variant="outline" className="text-[10px] bg-emerald-500/15 text-emerald-400 border-emerald-500/30">OK</Badge>
+                          : <Badge variant="outline" className="text-[10px]">{tr("대기", "待扫")}</Badge>}
                       </td>
-                      <td className="px-3 py-2 font-mono text-xs">{s?.tracking_number ?? "-"}</td>
+                      <td className="px-3 py-2 text-xs uppercase">{shipment.carrier ?? "-"}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{shipment.tracking_number ?? "-"}</td>
                     </tr>
                   );
                 })}
-                {addressBook.length === 0 && (
-                  <tr><td colSpan={8} className="text-center text-xs text-muted-foreground py-8">
-                    {tr("주문 데이터 가져오기 메뉴에서 연동된 주문이 없습니다.", "暂无通过\"订单数据导入\"关联的订单。")}
+                {items.length === 0 && (
+                  <tr><td colSpan={12} className="text-center text-xs text-muted-foreground py-8">
+                    {tr("이 주문의 상세 항목이 없습니다.", "该订单暂无明细。")}
                   </td></tr>
                 )}
               </tbody>
@@ -712,68 +719,6 @@ export default function ShippingScan() {
         </CardContent>
       </Card>
 
-
-      {/* 🧪 Test QR generator */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center justify-between">
-            <span className="flex items-center gap-2"><QrCode className="w-4 h-4"/>{tr("테스트 QR 코드", "测试二维码")}</span>
-            <Badge variant="outline" className="font-mono text-[10px]">{TEST_QR_VALUE}</Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col md:flex-row items-start gap-6">
-          <div className="bg-white rounded-lg p-3 border border-border shadow-md flex flex-col items-center gap-2" style={{ width: "200px" }}>
-            {testQrDataUrl ? (
-              <img src={testQrDataUrl} alt="Test QR" className="w-[176px] h-[176px]" />
-            ) : (
-              <div className="w-[176px] h-[176px] bg-muted animate-pulse" />
-            )}
-            <div className="text-[9px] font-mono text-black text-center break-all leading-tight">{TEST_QR_VALUE}</div>
-            <a
-              href={testQrDataUrl || "#"}
-              download={`${TEST_QR_VALUE}.png`}
-              className="w-full"
-              onClick={(e) => { if (!testQrDataUrl) e.preventDefault(); }}
-            >
-              <Button variant="outline" size="sm" className="w-full" disabled={!testQrDataUrl}>
-                <Download className="w-3.5 h-3.5 mr-1" />{tr("QR 다운로드", "下载二维码")}
-              </Button>
-            </a>
-          </div>
-
-          <div className="flex-1 space-y-3 text-sm">
-            <Alert>
-              <TestTube2 className="w-4 h-4" />
-              <AlertDescription className="text-xs">
-                {tr(
-                  "이 QR을 다운로드해서 인쇄/모니터에 띄운 뒤 스캐너로 쏘면, 아래 테스트 주소로 송장이 자동 생성되어 프린터 대화창이 열립니다.",
-                  "下载该二维码并打印/显示后用扫描器扫一下，将自动以下方测试地址生成运单并打开打印对话框。"
-                )}
-              </AlertDescription>
-            </Alert>
-            <div className="rounded-md border border-border p-3 bg-muted/30 space-y-1 text-xs">
-              <div className="font-semibold text-sm mb-1">{tr("연동된 테스트 송장 정보", "绑定的测试运单信息")}</div>
-              <div className="grid grid-cols-[100px_1fr] gap-x-2 gap-y-1">
-                <span className="text-muted-foreground">{tr("택배사", "承运商")}</span><span className="font-mono">{TEST_RECIPIENT.carrier}</span>
-                <span className="text-muted-foreground">{tr("송장번호", "运单号")}</span><span className="font-mono">{TEST_RECIPIENT.trackingNumber}</span>
-                <span className="text-muted-foreground">Job No</span><span className="font-mono">{TEST_RECIPIENT.jobNo}</span>
-                <span className="text-muted-foreground">{tr("수취인", "收件人")}</span><span>{TEST_RECIPIENT.name}</span>
-                <span className="text-muted-foreground">{tr("전화", "电话")}</span><span className="font-mono">{TEST_RECIPIENT.phone}</span>
-                <span className="text-muted-foreground">{tr("주소", "地址")}</span><span>{TEST_RECIPIENT.address1}<br/>{TEST_RECIPIENT.address2}</span>
-                <span className="text-muted-foreground">{tr("수량", "数量")}</span><span className="font-mono">{TEST_RECIPIENT.qty}</span>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={() => handleScan(TEST_QR_VALUE)}>
-                <ScanLine className="w-4 h-4 mr-1" />{tr("스캔 시뮬레이션", "模拟扫描")}
-              </Button>
-              <Button variant="outline" onClick={printTestLabel}>
-                <Printer className="w-4 h-4 mr-1" />{tr("바로 출력", "直接打印")}
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Label preview — size follows the selected carrier (4PX = 100×150mm) */}
       <Card>
