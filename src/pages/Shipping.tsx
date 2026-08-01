@@ -44,9 +44,17 @@ export default function Shipping() {
   const { data: rows = [], isLoading } = useShippingQueue({ status, search });
   const { data: couriers = [] } = useCouriers(false);
   const [picked, setPicked] = useState<Record<string, string>>({});
+  const [defaultCarrier, setDefaultCarrier] = useState<string>(
+    () => localStorage.getItem("shipping_default_carrier") || "4px",
+  );
+
+  const pickDefault = (code: string) => {
+    setDefaultCarrier(code);
+    localStorage.setItem("shipping_default_carrier", code);
+  };
 
   const carrierOf = (r: any) =>
-    picked[r.id] ?? r.carrier ?? (couriers.find((c) => c.is_default) ?? couriers[0])?.code ?? "";
+    picked[r.id] ?? r.carrier ?? defaultCarrier ?? "";
 
 
 
@@ -102,6 +110,22 @@ export default function Shipping() {
               ))}
             </SelectContent>
           </Select>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground whitespace-nowrap">{tr("기본 택배사", "默认承运商")}</span>
+            <div className="flex gap-1">
+              {(couriers.length ? couriers.map((c) => ({ code: c.code, name: c.name })) : [{ code: "4px", name: "4PX" }, { code: "yunexpress", name: "YunExpress" }]).map((c) => (
+                <Button
+                  key={c.code}
+                  size="sm"
+                  variant={defaultCarrier === c.code ? "default" : "outline"}
+                  className="h-8 px-3 text-xs"
+                  onClick={() => pickDefault(c.code)}
+                >
+                  {c.name}
+                </Button>
+              ))}
+            </div>
+          </div>
         </CardContent>
       </Card>
 
