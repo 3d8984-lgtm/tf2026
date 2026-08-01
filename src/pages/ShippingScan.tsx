@@ -784,69 +784,8 @@ export default function ShippingScan() {
       </Card>
 
 
-      {/* Action bar */}
-      <Card>
-        <CardContent className="p-4 flex flex-col md:flex-row md:items-end gap-3">
-          <div className="flex-1 grid sm:grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs">{tr("택배사", "承运商")}</Label>
-              <Select value={carrier} onValueChange={setCarrier}>
-                <SelectTrigger><SelectValue placeholder={tr("택배사 선택", "选择承运商")}/></SelectTrigger>
-                <SelectContent>
-                  {couriers.map((c) => (
-                    <SelectItem key={c.code} value={c.code}>
-                      {c.name}{c.api_mode === "test" ? tr(" (테스트)", "（测试）") : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {couriers.length === 0 && (
-                <p className="text-[11px] text-destructive mt-1">
-                  {tr("시스템 설정 > 택배사 연동에서 택배사를 활성화하세요", "请在系统设置 > 快递对接中启用承运商")}
-                </p>
-              )}
-            </div>
-            <div>
-              <Label className="text-xs">{tr("송장번호 (수기 등록 시)", "运单号（手动登记）")}</Label>
-              <Input value={manualTracking} onChange={(e) => setManualTracking(e.target.value)} placeholder={tr("택배사에서 직접 받은 번호", "承运商线下提供的单号")} className="font-mono"/>
-            </div>
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            <Button variant="ghost" onClick={printTestLabel}>
-              <TestTube2 className="w-4 h-4 mr-1"/>{tr("프린터 테스트", "打印测试")}
-            </Button>
-            <Button
-              variant={testMode ? "secondary" : "default"}
-              disabled={!readyToIssue || issuing || !carrier}
-              onClick={issueTrackingViaApi}
-            >
-              {issuing ? <RefreshCw className="w-4 h-4 mr-1 animate-spin"/> : <Truck className="w-4 h-4 mr-1"/>}
-              {testMode ? tr("테스트 송장 출력 (API)", "测试运单打印 (API)") : tr("송장 발급 (API)", "出运单 (API)")}
-            </Button>
-            <Button variant="outline" disabled={testMode || !readyToIssue || issuing || !manualTracking.trim()} onClick={issueTrackingManual}>
-              {tr("수기 등록", "手动登记")}
-            </Button>
-            <Button variant="outline" disabled={!shipment.tracking_number} onClick={downloadLabelPdf}>
-              <Printer className="w-4 h-4 mr-1"/>{tr("라벨 출력", "打印标签")}
-            </Button>
-            <Button variant="secondary" disabled={testMode || !shipment.tracking_number || shipment.scan_status === "reported"} onClick={markShippedAndReport}>
-              <Send className="w-4 h-4 mr-1"/>{tr("발송 + 회신", "发货并回报")}
-            </Button>
-          </div>
-        </CardContent>
-        {testMode ? (
-          <div className={`px-4 pb-4 text-xs ${testVariant === "live_cancel" ? "text-destructive" : "text-foreground"}`}>
-            {testVariant === "live_cancel"
-              ? tr("운영주소 테스트: 실제 4PX 운영 서버에 테스트 주문을 생성해 송장을 발급한 뒤 즉시 취소합니다. 취소 실패 시 4PX 콘솔에서 직접 취소해야 합니다.",
-                   "生产地址测试：在 4PX 生产环境创建测试订单并出单，随后立即取消。若取消失败，请在 4PX 后台手动取消。")
-              : tr("샌드박스 테스트: open-test.4px.com에서 테스트 송장을 생성합니다. 운영 데이터에는 영향이 없습니다.",
-                   "沙箱测试：在 open-test.4px.com 生成测试运单，不影响生产数据。")}
-          </div>
 
-        ) : !allScanned && (
-          <div className="px-4 pb-4 text-xs text-muted-foreground">{tr("모든 상품을 스캔하면 송장 발급이 활성화됩니다.", "完成全部扫描后方可出运单。")}</div>
-        )}
-      </Card>
+
 
       {/* Label dialog */}
       <Dialog open={labelDialog} onOpenChange={setLabelDialog}>
