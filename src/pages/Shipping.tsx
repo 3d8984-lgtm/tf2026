@@ -110,6 +110,22 @@ export default function Shipping() {
               ))}
             </SelectContent>
           </Select>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground whitespace-nowrap">{tr("기본 택배사", "默认承运商")}</span>
+            <div className="flex gap-1">
+              {(couriers.length ? couriers.map((c) => ({ code: c.code, name: c.name })) : [{ code: "4px", name: "4PX" }, { code: "yunexpress", name: "YunExpress" }]).map((c) => (
+                <Button
+                  key={c.code}
+                  size="sm"
+                  variant={defaultCarrier === c.code ? "default" : "outline"}
+                  className="h-8 px-3 text-xs"
+                  onClick={() => pickDefault(c.code)}
+                >
+                  {c.name}
+                </Button>
+              ))}
+            </div>
+          </div>
         </CardContent>
       </Card>
 
