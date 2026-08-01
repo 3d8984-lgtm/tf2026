@@ -215,18 +215,22 @@ export default function ShippingScan() {
     }
 
     // Look up in hologram master — the QR on the hologram sticker identifies the parcel.
-    const { data: master, error } = await supabase
+    const { data: master } = await supabase
       .from("qr_hologram_master")
       .select("qr_value, serial_number, hologram_type")
       .eq("qr_value", qrValue)
       .maybeSingle();
 
-    if (error || !master) {
+    // Also accept the hologram unique numbers shown in the detail list (`{주문번호}-3`).
+    const knownHere = holoUniqueNos.includes(qrValue) || items.some((i) => i.qr_value === qrValue);
+
+    if (!master && !knownHere) {
       scanFail();
       setFeedback({ kind: "notfound", msg: tr("등록되지 않은 홀로그램 QR입니다", "未注册的全息二维码") });
       await logAction("notfound", { qrValue });
       return;
     }
+
 
     // Fill next empty slot
     const slot = items.find((i) => !i.is_scanned);
@@ -266,7 +270,11 @@ export default function ShippingScan() {
     setFeedback({ kind: "success", msg: tr(`${slot.position}번 슬롯 스캔 완료 (${newCount}/${total})`, `第 ${slot.position} 槽完成 (${newCount}/${total})`) });
     setScanInput("");
     qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
+
+    // Auto-issue + print the waybill for the scanned parcel.
+    if (!issuing) void issueTrackingViaApi();
   }
+
 
   function onInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") {
@@ -328,8 +336,17 @@ export default function ShippingScan() {
       }
       await logAction("issue_tracking", { trackingNumber: res.tracking_number, carrier, via: "api" });
       toast({ title: tr("송장이 발급되었습니다", "已生成运单"), description: res.tracking_number });
-      setLabelDialog(true);
+      // Auto-print the carrier-issued waybill right after issuance.
+      const liveUrl = (res as any)?.label_url as string | undefined;
+      if (liveUrl) {
+        const size = labelSizeFor(carrier || shipment?.carrier);
+        const w = window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
+        if (w) { w.document.write(buildRemoteLabelHtml(liveUrl, carrier || shipment?.carrier)); w.document.close(); }
+      } else {
+        setLabelDialog(true);
+      }
       qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
+
     } catch (e: any) {
       toast({
         variant: "destructive",
