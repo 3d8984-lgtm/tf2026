@@ -273,9 +273,16 @@ export default function CCTVQuality() {
       const res = await proxyFetch("/api/v1/cam");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      if (data && !Array.isArray(data) && data.offline) {
+        // On-site camera server unreachable (tunnel down) — not a crash.
+        setCams([]);
+        toast.error(isKo ? "카메라 서버에 연결할 수 없습니다 (현장 서버 오프라인)." : "无法连接摄像头服务器（现场服务器离线）。");
+        return;
+      }
       const list: Cam[] = Array.isArray(data) ? data : (data.cameras || data.items || data.data || []);
       setCams(list);
       probeStatus(list);
+
     } catch (e) {
       console.error(e);
       toast.error(T.fetchFail);
