@@ -671,7 +671,6 @@ export default function ShippingScan() {
               <thead className="sticky top-0 bg-background border-b text-xs text-muted-foreground">
                 <tr>
                   <th className="text-center px-3 py-2">#</th>
-                  <th className="text-left px-3 py-2">Job No</th>
                   <th className="text-left px-3 py-2">{tr("홀로그램 고유번호", "全息码")}</th>
                   <th className="text-left px-3 py-2">QR</th>
                   <th className="text-left px-3 py-2">{tr("제품/색상/사이즈", "产品/颜色/尺码")}</th>
@@ -687,11 +686,11 @@ export default function ShippingScan() {
               <tbody>
                 {items.map((it: any) => {
                   const holo = it.qr_value ? holoSerials[it.qr_value] : undefined;
+                  const holoNo = holoUniqueNos[(it.position ?? 1) - 1] || holo?.serial || "-";
                   return (
                     <tr key={it.id} className="border-b hover:bg-accent/30 transition-colors">
                       <td className="px-3 py-2 text-center font-mono text-xs">{it.position}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{order?.external_order_id ?? "-"}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{holo?.serial || "-"}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{holoNo}</td>
                       <td className="px-3 py-2 font-mono text-xs max-w-[180px] truncate" title={it.qr_value ?? ""}>{it.qr_value ?? "-"}</td>
                       <td className="px-3 py-2 text-xs">
                         {[it.product_code, it.color, it.size].filter(Boolean).join(" / ") || "-"}
