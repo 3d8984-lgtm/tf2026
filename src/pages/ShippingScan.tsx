@@ -270,7 +270,11 @@ export default function ShippingScan() {
     setFeedback({ kind: "success", msg: tr(`${slot.position}번 슬롯 스캔 완료 (${newCount}/${total})`, `第 ${slot.position} 槽完成 (${newCount}/${total})`) });
     setScanInput("");
     qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
+
+    // Auto-issue + print the waybill for the scanned parcel.
+    if (!issuing) void issueTrackingViaApi();
   }
+
 
   function onInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") {
