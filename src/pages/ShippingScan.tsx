@@ -336,8 +336,17 @@ export default function ShippingScan() {
       }
       await logAction("issue_tracking", { trackingNumber: res.tracking_number, carrier, via: "api" });
       toast({ title: tr("송장이 발급되었습니다", "已生成运单"), description: res.tracking_number });
-      setLabelDialog(true);
+      // Auto-print the carrier-issued waybill right after issuance.
+      const liveUrl = (res as any)?.label_url as string | undefined;
+      if (liveUrl) {
+        const size = labelSizeFor(carrier || shipment?.carrier);
+        const w = window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
+        if (w) { w.document.write(buildRemoteLabelHtml(liveUrl, carrier || shipment?.carrier)); w.document.close(); }
+      } else {
+        setLabelDialog(true);
+      }
       qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
+
     } catch (e: any) {
       toast({
         variant: "destructive",
