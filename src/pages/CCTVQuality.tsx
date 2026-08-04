@@ -138,6 +138,10 @@ export default function CCTVQuality() {
   const [playLoading, setPlayLoading] = useState(false);
   const [playSrc, setPlaySrc] = useState<string | null>(null);
   const [playOpen, setPlayOpen] = useState(false);
+  const [recDate, setRecDate] = useState<string>(todayLocalDate());
+  const [recLoading, setRecLoading] = useState(false);
+  const [recRanges, setRecRanges] = useState<{ start: string; end: string; duration_sec: number }[] | null>(null);
+
   const [liveState, setLiveState] = useState<"connecting" | "playing" | "waiting">("connecting");
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
