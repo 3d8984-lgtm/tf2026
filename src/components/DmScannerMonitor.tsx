@@ -218,6 +218,24 @@ export default function DmScannerMonitor() {
               />
             </div>
             <p className="text-[11px] text-muted-foreground">{tr("경고등", "警示灯")}</p>
+            <div className="flex gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-[11px] border-emerald-500/50 text-emerald-500 hover:bg-emerald-500/10"
+                onClick={() => flashLamp("green")}
+              >
+                {tr("녹색등 테스트", "绿灯测试")}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-[11px] border-destructive/50 text-destructive hover:bg-destructive/10"
+                onClick={() => flashLamp("red")}
+              >
+                {tr("적색등 테스트", "红灯测试")}
+              </Button>
+            </div>
           </div>
           <div>
             <p className="text-2xl font-semibold tabular-nums">{status?.count ?? 0}</p>
