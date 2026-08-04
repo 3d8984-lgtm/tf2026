@@ -534,6 +534,42 @@ export default function CCTVQuality() {
     clipAbortRef.current?.abort();
   };
 
+  const fetchRecordings = async () => {
+    if (!selected) return;
+    setRecLoading(true);
+    try {
+      const dayStart = new Date(`${recDate}T00:00:00`);
+      const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+      const params = new URLSearchParams({
+        start: dayStart.toISOString(),
+        end: dayEnd.toISOString(),
+      });
+      const res = await proxyFetch(`/api/v1/cam/${selected.id}/recordings?${params.toString()}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setRecRanges(Array.isArray(data?.ranges) ? data.ranges : []);
+    } catch (e) {
+      console.error(e);
+      toast.error(T.recFail);
+      setRecRanges(null);
+    } finally {
+      setRecLoading(false);
+    }
+  };
+
+  const applyRange = (r: { start: string; end: string }) => {
+    const startMs = new Date(r.start).getTime();
+    const endMs = Math.min(new Date(r.end).getTime(), startMs + MAX_CLIP_SECONDS * 1000);
+    setPlayStart(isoToLocalInput(new Date(startMs).toISOString()));
+    setPlayEnd(isoToLocalInput(new Date(endMs).toISOString()));
+    setClipStart(isoToLocalInput(new Date(startMs).toISOString()));
+    setClipEnd(isoToLocalInput(new Date(endMs).toISOString()));
+  };
+
+  useEffect(() => {
+    setRecRanges(null);
+  }, [selected?.id]);
+
 
   const playClip = async () => {
     if (!selected) return;
