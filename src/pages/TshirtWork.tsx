@@ -514,7 +514,7 @@ export default function TshirtWork() {
                 </tr></thead>
                 <tbody>
                   {selectedOrder.items.map(item => {
-                    const orderIdNo = `${selectedOrder.externalOrderId}-${item.seq}`;
+                    const orderIdNo = item.orderIdNo;
                     return (
                     <tr key={item.seq} className={`border-b last:border-0 transition-colors ${item.status === "pending" ? "hover:bg-muted/30" : ""}`}>
 
