@@ -197,7 +197,17 @@ export default function CCTVQuality() {
     hevcYes: isKo ? "이 PC에서 지원됨" : "此电脑支持",
     hevcNo: isKo ? "이 PC에서 미지원" : "此电脑不支持",
     hevcChecking: isKo ? "확인중" : "检测中",
+    recTitle: isKo ? "서버 저장 녹화 목록" : "服务器录像列表",
+    recDateLabel: isKo ? "조회 날짜" : "查询日期",
+    recSearch: isKo ? "녹화 목록 조회" : "查询录像",
+    recNone: isKo ? "이 날짜에 저장된 녹화가 없습니다." : "该日期没有已保存的录像。",
+    recHint: isKo
+      ? "항목을 클릭하면 해당 구간이 재생/다운로드 시각에 자동 입력됩니다. (최대 6분 단위로 재생)"
+      : "点击条目会自动填入回放/下载时间。（每次回放最长 6 分钟）",
+    recTotal: isKo ? "총 녹화 시간" : "录像总时长",
+    recFail: isKo ? "녹화 목록을 불러오지 못했습니다." : "无法加载录像列表。",
     hevcWarn: isKo
+
       ? "이 브라우저/PC는 H.265(HEVC) 디코딩을 지원하지 않습니다. 서버가 H.265 원본을 그대로 보내면 화면이 검게 보일 수 있습니다."
       : "此浏览器/电脑不支持 H.265(HEVC) 解码。若服务器直接发送 H.265 原始流，画面可能显示为黑屏。",
   }), [isKo]);
