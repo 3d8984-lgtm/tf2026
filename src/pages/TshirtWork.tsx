@@ -17,6 +17,7 @@ type StepStatus = "waiting" | "scanning" | "pass" | "fail";
 
 interface WorkItem {
   seq: number;
+  orderIdNo: string;
   color: string;
   size: string;
   siliconQR: string;
@@ -209,6 +210,7 @@ export default function TshirtWork() {
         const tshirtKey = `${o.product_code ?? ""}-${color}-${size}`;
         return {
           seq: idx + 1,
+          orderIdNo: String(item.order_id ?? item.sequence_no ?? `${o.external_order_id}-${idx + 1}`),
           color,
           size,
           siliconQR: qr,
@@ -512,7 +514,7 @@ export default function TshirtWork() {
                 </tr></thead>
                 <tbody>
                   {selectedOrder.items.map(item => {
-                    const orderIdNo = `${selectedOrder.externalOrderId}-${item.seq}`;
+                    const orderIdNo = item.orderIdNo;
                     return (
                     <tr key={item.seq} className={`border-b last:border-0 transition-colors ${item.status === "pending" ? "hover:bg-muted/30" : ""}`}>
 
