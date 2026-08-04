@@ -91,6 +91,10 @@ export default function ProductionMonitor() {
           <TabsContent value="cctv" className="space-y-6">
             <CctvMonitor />
           </TabsContent>
+
+          <TabsContent value="scanner" className="space-y-6">
+            <DmScannerMonitor />
+          </TabsContent>
         </Tabs>
       </div>
 
