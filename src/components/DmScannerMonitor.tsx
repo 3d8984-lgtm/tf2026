@@ -168,8 +168,15 @@ export default function DmScannerMonitor() {
     duplicate: { ko: "중복 스캔", zh: "重复扫描", cls: "text-destructive" },
   };
 
-  const lampOk = lastVerdict === "ok";
-  const lampBad = lastVerdict != null && lastVerdict !== "ok";
+  const lampOk = testLamp ? testLamp === "green" : lastVerdict === "ok";
+  const lampBad = testLamp ? testLamp === "red" : lastVerdict != null && lastVerdict !== "ok";
+
+  // 테스트 점등은 3초 후 자동 해제
+  const flashLamp = (color: "green" | "red") => {
+    setTestLamp(color);
+    if (testTimerRef.current) clearTimeout(testTimerRef.current);
+    testTimerRef.current = setTimeout(() => setTestLamp(null), 3000);
+  };
 
   return (
     <div className="space-y-6">
