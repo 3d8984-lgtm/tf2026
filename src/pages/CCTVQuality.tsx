@@ -63,6 +63,34 @@ function nowLocalDatetime(offsetMinutes = 0) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+function isoToLocalInput(iso: string) {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function fmtLocalTime(iso: string) {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function fmtDuration(sec: number) {
+  const s = Math.round(sec);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const r = s % 60;
+  return h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${r}s` : `${r}s`;
+}
+
+function todayLocalDate() {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+
+
 function loadNameMap(): Record<string, string> {
   try { return JSON.parse(localStorage.getItem(LS_NAMES) || "{}"); } catch { return {}; }
 }
@@ -110,6 +138,10 @@ export default function CCTVQuality() {
   const [playLoading, setPlayLoading] = useState(false);
   const [playSrc, setPlaySrc] = useState<string | null>(null);
   const [playOpen, setPlayOpen] = useState(false);
+  const [recDate, setRecDate] = useState<string>(todayLocalDate());
+  const [recLoading, setRecLoading] = useState(false);
+  const [recRanges, setRecRanges] = useState<{ start: string; end: string; duration_sec: number }[] | null>(null);
+
   const [liveState, setLiveState] = useState<"connecting" | "playing" | "waiting">("connecting");
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -165,7 +197,17 @@ export default function CCTVQuality() {
     hevcYes: isKo ? "이 PC에서 지원됨" : "此电脑支持",
     hevcNo: isKo ? "이 PC에서 미지원" : "此电脑不支持",
     hevcChecking: isKo ? "확인중" : "检测中",
+    recTitle: isKo ? "서버 저장 녹화 목록" : "服务器录像列表",
+    recDateLabel: isKo ? "조회 날짜" : "查询日期",
+    recSearch: isKo ? "녹화 목록 조회" : "查询录像",
+    recNone: isKo ? "이 날짜에 저장된 녹화가 없습니다." : "该日期没有已保存的录像。",
+    recHint: isKo
+      ? "항목을 클릭하면 해당 구간이 재생/다운로드 시각에 자동 입력됩니다. (최대 6분 단위로 재생)"
+      : "点击条目会自动填入回放/下载时间。（每次回放最长 6 分钟）",
+    recTotal: isKo ? "총 녹화 시간" : "录像总时长",
+    recFail: isKo ? "녹화 목록을 불러오지 못했습니다." : "无法加载录像列表。",
     hevcWarn: isKo
+
       ? "이 브라우저/PC는 H.265(HEVC) 디코딩을 지원하지 않습니다. 서버가 H.265 원본을 그대로 보내면 화면이 검게 보일 수 있습니다."
       : "此浏览器/电脑不支持 H.265(HEVC) 解码。若服务器直接发送 H.265 原始流，画面可能显示为黑屏。",
   }), [isKo]);
@@ -492,6 +534,42 @@ export default function CCTVQuality() {
     clipAbortRef.current?.abort();
   };
 
+  const fetchRecordings = async () => {
+    if (!selected) return;
+    setRecLoading(true);
+    try {
+      const dayStart = new Date(`${recDate}T00:00:00`);
+      const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+      const params = new URLSearchParams({
+        start: dayStart.toISOString(),
+        end: dayEnd.toISOString(),
+      });
+      const res = await proxyFetch(`/api/v1/cam/${selected.id}/recordings?${params.toString()}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setRecRanges(Array.isArray(data?.ranges) ? data.ranges : []);
+    } catch (e) {
+      console.error(e);
+      toast.error(T.recFail);
+      setRecRanges(null);
+    } finally {
+      setRecLoading(false);
+    }
+  };
+
+  const applyRange = (r: { start: string; end: string }) => {
+    const startMs = new Date(r.start).getTime();
+    const endMs = Math.min(new Date(r.end).getTime(), startMs + MAX_CLIP_SECONDS * 1000);
+    setPlayStart(isoToLocalInput(new Date(startMs).toISOString()));
+    setPlayEnd(isoToLocalInput(new Date(endMs).toISOString()));
+    setClipStart(isoToLocalInput(new Date(startMs).toISOString()));
+    setClipEnd(isoToLocalInput(new Date(endMs).toISOString()));
+  };
+
+  useEffect(() => {
+    setRecRanges(null);
+  }, [selected?.id]);
+
 
   const playClip = async () => {
     if (!selected) return;
@@ -752,6 +830,58 @@ export default function CCTVQuality() {
                   <p className="text-xs text-muted-foreground">{T.playTooLong}</p>
                 </CardContent>
               </Card>
+
+              <Card className="md:col-span-2">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <VideoOff className="w-4 h-4 rotate-0" /> {T.recTitle}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+                    <div className="space-y-1.5 flex-1">
+                      <Label className="text-xs">{T.recDateLabel}</Label>
+                      <Input type="date" value={recDate} onChange={(e) => setRecDate(e.target.value)} />
+                    </div>
+                    <Button onClick={fetchRecordings} disabled={recLoading} className="sm:w-48">
+                      {recLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                      {T.recSearch}
+                    </Button>
+                  </div>
+
+                  {recRanges && recRanges.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {T.recTotal}: {fmtDuration(recRanges.reduce((a, r) => a + (r.duration_sec || 0), 0))} · {recRanges.length}
+                    </p>
+                  )}
+
+                  {recRanges && recRanges.length === 0 && (
+                    <p className="text-sm text-muted-foreground">{T.recNone}</p>
+                  )}
+
+                  {recRanges && recRanges.length > 0 && (
+                    <div className="max-h-72 overflow-y-auto rounded-md border divide-y">
+                      {recRanges.map((r, i) => (
+                        <button
+                          key={`${r.start}-${i}`}
+                          onClick={() => applyRange(r)}
+                          className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted/60 transition-colors"
+                        >
+                          <span className="font-mono">
+                            {fmtLocalTime(r.start)} ~ {fmtLocalTime(r.end)}
+                          </span>
+                          <Badge variant="secondary" className="font-normal">
+                            {fmtDuration(r.duration_sec || 0)}
+                          </Badge>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <p className="text-xs text-muted-foreground">{T.recHint}</p>
+                </CardContent>
+              </Card>
+
             </div>
           )}
         </div>
