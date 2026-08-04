@@ -534,7 +534,8 @@ export default function TshirtWork() {
                         )}
                       </td>
                     </tr>
-                  ))}
+                  ); })}
+
                 </tbody>
               </table>
             </div>
