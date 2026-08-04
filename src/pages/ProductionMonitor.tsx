@@ -4,10 +4,9 @@ import PageHeader from "@/components/PageHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLang } from "@/contexts/LangContext";
 import OrderPipeline from "@/components/OrderPipeline";
-import CctvMonitor from "@/components/CctvMonitor";
 import PlcMonitor from "@/components/PlcMonitor";
 import DmScannerMonitor from "@/components/DmScannerMonitor";
-import { Gauge, ScanLine, Package, Printer, Activity, Shirt, CreditCard, Mail, Truck, CheckCircle2, Video } from "lucide-react";
+import { Gauge, ScanLine, Package, Printer, Activity, Shirt, CreditCard, Mail, Truck, CheckCircle2 } from "lucide-react";
 import { useOrders, useProductionTracking, useShipments } from "@/hooks/useDbData";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -72,7 +71,7 @@ export default function ProductionMonitor() {
           <TabsList className="mb-6">
             <TabsTrigger value="pipeline" className="gap-1.5"><Activity className="w-3.5 h-3.5" />{t("monitor.tab.pipeline")}</TabsTrigger>
             <TabsTrigger value="machines" className="gap-1.5"><Gauge className="w-3.5 h-3.5" />{t("monitor.tab.machines")}</TabsTrigger>
-            <TabsTrigger value="cctv" className="gap-1.5"><Video className="w-3.5 h-3.5" />{isKo ? "CCTV 모니터링" : "CCTV监控"}</TabsTrigger>
+            
             <TabsTrigger value="scanner" className="gap-1.5"><ScanLine className="w-3.5 h-3.5" />{isKo ? "DM 바코드 스캐너" : "DM条码扫描仪"}</TabsTrigger>
           </TabsList>
 
@@ -88,9 +87,6 @@ export default function ProductionMonitor() {
             <PlcMonitor />
           </TabsContent>
 
-          <TabsContent value="cctv" className="space-y-6">
-            <CctvMonitor />
-          </TabsContent>
 
           <TabsContent value="scanner" className="space-y-6">
             <DmScannerMonitor />
