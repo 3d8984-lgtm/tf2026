@@ -49,6 +49,8 @@ export default function DmScannerMonitor() {
   const [log, setLog] = useState<LogRow[]>([]);
   const [cursor, setCursor] = useState(0);
   const [lastVerdict, setLastVerdict] = useState<Verdict | null>(null);
+  const [testLamp, setTestLamp] = useState<"green" | "red" | null>(null);
+  const testTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seenRef = useRef<Set<string>>(new Set());
   const lastKeyRef = useRef<string>("");
 
@@ -168,8 +170,15 @@ export default function DmScannerMonitor() {
     duplicate: { ko: "중복 스캔", zh: "重复扫描", cls: "text-destructive" },
   };
 
-  const lampOk = lastVerdict === "ok";
-  const lampBad = lastVerdict != null && lastVerdict !== "ok";
+  const lampOk = testLamp ? testLamp === "green" : lastVerdict === "ok";
+  const lampBad = testLamp ? testLamp === "red" : lastVerdict != null && lastVerdict !== "ok";
+
+  // 테스트 점등은 3초 후 자동 해제
+  const flashLamp = (color: "green" | "red") => {
+    setTestLamp(color);
+    if (testTimerRef.current) clearTimeout(testTimerRef.current);
+    testTimerRef.current = setTimeout(() => setTestLamp(null), 3000);
+  };
 
   return (
     <div className="space-y-6">
@@ -209,6 +218,24 @@ export default function DmScannerMonitor() {
               />
             </div>
             <p className="text-[11px] text-muted-foreground">{tr("경고등", "警示灯")}</p>
+            <div className="flex gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-[11px] border-emerald-500/50 text-emerald-500 hover:bg-emerald-500/10"
+                onClick={() => flashLamp("green")}
+              >
+                {tr("녹색등 테스트", "绿灯测试")}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-[11px] border-destructive/50 text-destructive hover:bg-destructive/10"
+                onClick={() => flashLamp("red")}
+              >
+                {tr("적색등 테스트", "红灯测试")}
+              </Button>
+            </div>
           </div>
           <div>
             <p className="text-2xl font-semibold tabular-nums">{status?.count ?? 0}</p>
