@@ -6,6 +6,7 @@ import { useLang } from "@/contexts/LangContext";
 import OrderPipeline from "@/components/OrderPipeline";
 import CctvMonitor from "@/components/CctvMonitor";
 import PlcMonitor from "@/components/PlcMonitor";
+import DmScannerMonitor from "@/components/DmScannerMonitor";
 import { Gauge, ScanLine, Package, Printer, Activity, Shirt, CreditCard, Mail, Truck, CheckCircle2, Video } from "lucide-react";
 import { useOrders, useProductionTracking, useShipments } from "@/hooks/useDbData";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
