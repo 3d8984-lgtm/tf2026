@@ -511,15 +511,19 @@ export default function TshirtWork() {
                   <th className="pb-2"></th>
                 </tr></thead>
                 <tbody>
-                  {selectedOrder.items.map(item => (
+                  {selectedOrder.items.map(item => {
+                    const orderIdNo = `${selectedOrder.externalOrderId}-${item.seq}`;
+                    return (
                     <tr key={item.seq} className={`border-b last:border-0 transition-colors ${item.status === "pending" ? "hover:bg-muted/30" : ""}`}>
-                      <td className="py-2.5 font-mono text-xs pr-4">{selectedOrder.externalOrderId}-{item.seq}</td>
+
+                      <td className="py-2.5 font-mono text-xs pr-4">{orderIdNo}</td>
                       <td className="py-2.5 pr-4 font-medium">{selectedOrder.product || "-"}</td>
                       <td className="py-2.5 pr-4 font-medium">{item.color}</td>
                       <td className="py-2.5 pr-4">{item.size}</td>
-                      <td className="py-2.5 font-mono text-xs pr-4">{item.siliconQR}</td>
-                      <td className="py-2.5 font-mono text-xs pr-4">{item.designQR}</td>
-                      <td className="py-2.5 font-mono text-xs pr-4">{item.hologramQR}</td>
+                      <td className="py-2.5 font-mono text-xs pr-4">{orderIdNo}-1</td>
+                      <td className="py-2.5 font-mono text-xs pr-4">{orderIdNo}-2</td>
+                      <td className="py-2.5 font-mono text-xs pr-4">{orderIdNo}-3</td>
+
 
                       <td className="py-2.5 pr-4"><StatusBadge status={item.status} t={t} /></td>
                       <td className="py-2.5">
@@ -530,7 +534,8 @@ export default function TshirtWork() {
                         )}
                       </td>
                     </tr>
-                  ))}
+                  ); })}
+
                 </tbody>
               </table>
             </div>
