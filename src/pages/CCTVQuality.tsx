@@ -507,10 +507,25 @@ export default function CCTVQuality() {
         duration: String(duration),
         apikey: ANON_KEY,
       });
+      // Pre-check the range so a missing recording reports the real reason
+      // instead of a generic <video> decode error.
+      const probe = await proxyFetch(
+        `/api/v1/cam/${selected.id}/clip?${params.toString()}`,
+        { headers: { Range: "bytes=0-1" } },
+      );
+      if (probe.status === 404 || probe.status === 409) {
+        toast.error(T.rangeGap);
+        return;
+      }
+      if (!probe.ok && probe.status !== 206) {
+        const detail = await probe.text().catch(() => "");
+        throw new Error(`HTTP ${probe.status}${detail ? `: ${detail}` : ""}`);
+      }
       // Stream straight into <video> so playback starts as soon as the first
       // bytes arrive, instead of buffering the whole MP4 into a blob first.
       const streamUrl = `${PROXY_BASE}/api/v1/cam/${selected.id}/clip?${params.toString()}`;
       if (playSrc?.startsWith("blob:")) URL.revokeObjectURL(playSrc);
+      playFallbackRef.current = false;
       setPlaySrc(streamUrl);
       setPlayOpen(true);
     } catch (e) {
