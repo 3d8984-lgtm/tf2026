@@ -49,6 +49,8 @@ export default function DmScannerMonitor() {
   const [log, setLog] = useState<LogRow[]>([]);
   const [cursor, setCursor] = useState(0);
   const [lastVerdict, setLastVerdict] = useState<Verdict | null>(null);
+  const [testLamp, setTestLamp] = useState<"green" | "red" | null>(null);
+  const testTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seenRef = useRef<Set<string>>(new Set());
   const lastKeyRef = useRef<string>("");
 
