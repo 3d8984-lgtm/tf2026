@@ -830,6 +830,58 @@ export default function CCTVQuality() {
                   <p className="text-xs text-muted-foreground">{T.playTooLong}</p>
                 </CardContent>
               </Card>
+
+              <Card className="md:col-span-2">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <VideoOff className="w-4 h-4 rotate-0" /> {T.recTitle}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+                    <div className="space-y-1.5 flex-1">
+                      <Label className="text-xs">{T.recDateLabel}</Label>
+                      <Input type="date" value={recDate} onChange={(e) => setRecDate(e.target.value)} />
+                    </div>
+                    <Button onClick={fetchRecordings} disabled={recLoading} className="sm:w-48">
+                      {recLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                      {T.recSearch}
+                    </Button>
+                  </div>
+
+                  {recRanges && recRanges.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {T.recTotal}: {fmtDuration(recRanges.reduce((a, r) => a + (r.duration_sec || 0), 0))} · {recRanges.length}
+                    </p>
+                  )}
+
+                  {recRanges && recRanges.length === 0 && (
+                    <p className="text-sm text-muted-foreground">{T.recNone}</p>
+                  )}
+
+                  {recRanges && recRanges.length > 0 && (
+                    <div className="max-h-72 overflow-y-auto rounded-md border divide-y">
+                      {recRanges.map((r, i) => (
+                        <button
+                          key={`${r.start}-${i}`}
+                          onClick={() => applyRange(r)}
+                          className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted/60 transition-colors"
+                        >
+                          <span className="font-mono">
+                            {fmtLocalTime(r.start)} ~ {fmtLocalTime(r.end)}
+                          </span>
+                          <Badge variant="secondary" className="font-normal">
+                            {fmtDuration(r.duration_sec || 0)}
+                          </Badge>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <p className="text-xs text-muted-foreground">{T.recHint}</p>
+                </CardContent>
+              </Card>
+
             </div>
           )}
         </div>
