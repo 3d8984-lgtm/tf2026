@@ -686,11 +686,12 @@ export default function TshirtWork() {
               {!allDone && !hasFail && (
                 <div className="flex gap-2">
                   <input ref={inputRef} type="text" value={scanValue} onChange={e => setScanValue(e.target.value)} onKeyDown={handleKeyDown}
-                    placeholder={steps[currentStep]?.placeholder ?? ""} disabled={processing}
-                    className="flex-1 h-10 rounded-md border border-input bg-background px-3 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50" autoFocus />
-                  <Button onClick={handleScan} disabled={!scanValue.trim() || processing}>{t("tshirtWork.scan")}</Button>
+                    placeholder={steps[currentStep]?.placeholder ?? ""} readOnly={processing}
+                    className="flex-1 h-10 rounded-md border border-input bg-background px-3 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" autoFocus />
+                  <Button onClick={() => handleScan()} disabled={!scanValue.trim() || processing}>{t("tshirtWork.scan")}</Button>
                 </div>
               )}
+
             </div>
           </div>
 
