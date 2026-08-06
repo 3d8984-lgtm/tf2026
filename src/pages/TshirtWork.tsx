@@ -24,6 +24,9 @@ interface WorkItem {
   designQR: string;
   hologramQR: string;
   tshirtSerial: string;
+  logoUrl?: string | null;
+  designUrl?: string | null;
+  twincodeUrl?: string | null;
   status: "pending" | "done" | "fail";
 }
 
