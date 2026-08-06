@@ -24,6 +24,9 @@ interface WorkItem {
   designQR: string;
   hologramQR: string;
   tshirtSerial: string;
+  logoUrl?: string | null;
+  designUrl?: string | null;
+  twincodeUrl?: string | null;
   status: "pending" | "done" | "fail";
 }
 
@@ -219,6 +222,9 @@ export default function TshirtWork() {
           designQR: qr,
           hologramQR: qr,
           tshirtSerial: tshirtKey,
+          logoUrl: item.twinker_logo_url ?? null,
+          designUrl: item.gft_original_image_url ?? item.design_image_url ?? null,
+          twincodeUrl: item.twincode_svg_url ?? item.twincode_url ?? null,
           status: "pending" as const,
         };
       });
@@ -757,13 +763,13 @@ export default function TshirtWork() {
             {/* Logo check */}
             <div className="kpi-card flex flex-col items-center justify-center min-h-[180px]">
               <h3 className="text-sm font-medium mb-3 flex items-center gap-2 self-start"><Image className="w-4 h-4" /> {t("tshirtWork.logoCheck")}</h3>
-              {selectedOrder!.logoUrl ? (
+              {(activeWorkItem.logoUrl || selectedOrder!.logoUrl) ? (
                 <div className="flex-1 flex flex-col items-center justify-center gap-2">
                   <div
                     className={`w-28 h-28 rounded-lg border-2 bg-muted/40 flex items-center justify-center overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/40 transition-shadow ${logoVerified ? "border-[hsl(var(--success)/0.3)]" : "border-border"}`}
-                    onClick={() => setZoomedImage({ src: selectedOrder!.logoUrl!, alt: "Logo" })}
+                    onClick={() => setZoomedImage({ src: (activeWorkItem.logoUrl || selectedOrder!.logoUrl)!, alt: "Logo" })}
                   >
-                    <img src={selectedOrder!.logoUrl} alt="Logo" className="max-w-full max-h-full object-contain" />
+                    <img src={(activeWorkItem.logoUrl || selectedOrder!.logoUrl)!} alt="Logo" className="max-w-full max-h-full object-contain" />
                   </div>
                   {logoVerified ? (
                     <span className="text-xs text-[hsl(var(--success))] font-medium flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> {t("tshirtWork.logoConfirmed")}</span>
@@ -785,7 +791,8 @@ export default function TshirtWork() {
               const files = (folder && designImageFiles?.[folder]) || {};
               const cands = [`${activeWorkItem.orderIdNo}-2`, activeWorkItem.orderIdNo, activeWorkItem.tshirtSerial, String(activeWorkItem.seq)];
               const key = cands.find(c => c && files[c]) ?? `${activeWorkItem.orderIdNo}-2`;
-              const url = files[key] || null;
+              const url = files[key] || activeWorkItem.designUrl || null;
+
 
               return (
                 <div className="kpi-card flex flex-col items-center justify-center min-h-[180px]">
@@ -817,7 +824,8 @@ export default function TshirtWork() {
               const files = (folder && twincodeImageFiles?.[folder]) || {};
               const cands = [activeWorkItem.orderIdNo, `${activeWorkItem.orderIdNo}-2`, activeWorkItem.tshirtSerial, String(activeWorkItem.seq)];
               const key = cands.find(c => c && files[c]) ?? activeWorkItem.orderIdNo;
-              const url = files[key] || null;
+              const url = files[key] || activeWorkItem.twincodeUrl || null;
+
 
               return (
                 <div className="kpi-card flex flex-col items-center justify-center min-h-[180px]">
