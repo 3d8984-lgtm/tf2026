@@ -654,7 +654,7 @@ export default function TshirtWork() {
         <Button variant="outline" size="sm" onClick={() => { setSelectedOrderId(null); setActiveWorkItemSeq(null); resetScan(); }}><ChevronLeft className="w-4 h-4 mr-1" /> {t("tshirtWork.orderList")}</Button>
       </PageHeader>
       <div className="p-6 space-y-4">
-        <div className="kpi-card grid grid-cols-2 md:grid-cols-7 gap-4 items-center">
+        <div className="kpi-card grid grid-cols-2 md:grid-cols-8 gap-4 items-center">
           <div className="flex items-center gap-2">
             <Shirt className="w-5 h-5 text-primary" />
             <div><p className="text-xs text-muted-foreground">#{activeWorkItem.seq}</p><p className="text-sm font-semibold">{selectedOrder!.twinker}</p></div>
