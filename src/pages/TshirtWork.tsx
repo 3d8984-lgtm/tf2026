@@ -222,6 +222,9 @@ export default function TshirtWork() {
           designQR: qr,
           hologramQR: qr,
           tshirtSerial: tshirtKey,
+          logoUrl: item.twinker_logo_url ?? null,
+          designUrl: item.gft_original_image_url ?? item.design_image_url ?? null,
+          twincodeUrl: item.twincode_svg_url ?? item.twincode_url ?? null,
           status: "pending" as const,
         };
       });
