@@ -824,7 +824,8 @@ export default function TshirtWork() {
               const files = (folder && twincodeImageFiles?.[folder]) || {};
               const cands = [activeWorkItem.orderIdNo, `${activeWorkItem.orderIdNo}-2`, activeWorkItem.tshirtSerial, String(activeWorkItem.seq)];
               const key = cands.find(c => c && files[c]) ?? activeWorkItem.orderIdNo;
-              const url = files[key] || null;
+              const url = files[key] || activeWorkItem.twincodeUrl || null;
+
 
               return (
                 <div className="kpi-card flex flex-col items-center justify-center min-h-[180px]">
