@@ -715,32 +715,40 @@ export default function TshirtWork() {
           <div className="lg:col-span-2 space-y-4">
             <div className={`kpi-card border-2 transition-colors duration-300 ${hasFail ? "border-destructive" : allPass ? "border-[hsl(var(--success))]" : "border-border"}`}>
               <h3 className="text-sm font-medium mb-5 flex items-center gap-2"><ScanLine className="w-4 h-4" /> {t("tshirtWork.autoScan")}</h3>
-              <div className="space-y-3 mb-5">
+              <div className="space-y-3 mb-2">
                 {steps.map((step, i) => {
                   const isActive = i === currentStep && !hasFail && !allDone;
+                  const expected = expectedFor(i, selectedOrder!, activeWorkItem);
                   return (
                     <div key={step.key} className={`flex items-center gap-3 p-3 rounded-lg transition-colors duration-200 ${isActive ? "bg-primary/5 ring-1 ring-primary/20" : "bg-muted/30"}`}>
                       {statusIcon(stepStatuses[i])}
                       <div className="flex items-center gap-2 w-44 shrink-0">
                         <step.icon className="w-4 h-4 text-muted-foreground" />
-                        <span className={`text-sm ${isActive ? "font-semibold text-foreground" : "font-medium text-muted-foreground"}`}>{step.label}</span>
+                        <div className="min-w-0">
+                          <p className={`text-sm ${isActive ? "font-semibold text-foreground" : "font-medium text-muted-foreground"}`}>{step.label}</p>
+                          <p className="text-[11px] font-mono text-muted-foreground truncate">{expected}</p>
+                        </div>
                       </div>
-                      <span className="text-sm font-mono text-muted-foreground flex-1 truncate">
-                        {scannedValues[i] || (isActive ? t("tshirtWork.scanWaiting") : "")}
-                      </span>
+                      {isActive ? (
+                        <div className="flex flex-1 gap-2">
+                          <input ref={inputRef} type="text" value={scanValue}
+                            onChange={e => { bufferRef.current = e.target.value; setScanValue(e.target.value); }}
+                            onKeyDown={handleKeyDown}
+                            placeholder={step.placeholder} readOnly={processing}
+                            className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                            autoFocus />
+                          <Button size="sm" onClick={() => handleScan()} disabled={!scanValue.trim() || processing}>{t("tshirtWork.scan")}</Button>
+                        </div>
+                      ) : (
+                        <span className={`text-sm font-mono flex-1 truncate ${stepStatuses[i] === "fail" ? "text-destructive" : stepStatuses[i] === "pass" ? "text-[hsl(var(--success))]" : "text-muted-foreground"}`}>
+                          {scannedValues[i] || "—"}
+                        </span>
+                      )}
                     </div>
                   );
                 })}
               </div>
 
-              {!allDone && !hasFail && (
-                <div className="flex gap-2">
-                  <input ref={inputRef} type="text" value={scanValue} onChange={e => { bufferRef.current = e.target.value; setScanValue(e.target.value); }} onKeyDown={handleKeyDown}
-                    placeholder={steps[currentStep]?.placeholder ?? ""} readOnly={processing}
-                    className="flex-1 h-10 rounded-md border border-input bg-background px-3 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" autoFocus />
-                  <Button onClick={() => handleScan()} disabled={!scanValue.trim() || processing}>{t("tshirtWork.scan")}</Button>
-                </div>
-              )}
 
             </div>
           </div>
