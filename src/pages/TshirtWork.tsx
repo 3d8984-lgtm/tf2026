@@ -335,9 +335,25 @@ export default function TshirtWork() {
   useEffect(() => {
     if (!activeWorkItem || allDone || hasFail) return;
     const onKey = (e: KeyboardEvent) => {
-      const el = e.target as HTMLElement | null;
-      const inField = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
-      if (inField && el !== inputRef.current) return; // let other fields work normally
+      // Hardware scanners can be configured with Ctrl+F, Tab, or other
+      // prefix/suffix keys. While scanning a work item, never allow those
+      // keys to reach browser find, sidebar search, or another focused field.
+      const blockEvent = () => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+      };
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+        blockEvent();
+        inputRef.current?.focus();
+        return;
+      }
+      if (e.key === "Tab" || e.key === "Escape") {
+        blockEvent();
+        inputRef.current?.focus();
+        return;
+      }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
       const now = Date.now();
@@ -345,22 +361,21 @@ export default function TshirtWork() {
       lastKeyRef.current = now;
 
       if (e.key === "Enter") {
-        e.preventDefault();
-        const value = (inField ? scanValue : bufferRef.current);
+        blockEvent();
+        const value = bufferRef.current || scanValue;
         bufferRef.current = "";
         handleScan(value);
         inputRef.current?.focus();
         return;
       }
-      if (inField) return; // input element handles its own typing
       if (e.key === "Backspace") {
-        e.preventDefault();
+        blockEvent();
         bufferRef.current = bufferRef.current.slice(0, -1);
         setScanValue(bufferRef.current);
         return;
       }
       if (e.key.length === 1) {
-        e.preventDefault(); // block browser quick-find / page navigation
+        blockEvent();
         bufferRef.current += e.key;
         setScanValue(bufferRef.current);
         inputRef.current?.focus();
@@ -685,7 +700,7 @@ export default function TshirtWork() {
 
               {!allDone && !hasFail && (
                 <div className="flex gap-2">
-                  <input ref={inputRef} type="text" value={scanValue} onChange={e => setScanValue(e.target.value)} onKeyDown={handleKeyDown}
+                  <input ref={inputRef} type="text" value={scanValue} onChange={e => { bufferRef.current = e.target.value; setScanValue(e.target.value); }} onKeyDown={handleKeyDown}
                     placeholder={steps[currentStep]?.placeholder ?? ""} readOnly={processing}
                     className="flex-1 h-10 rounded-md border border-input bg-background px-3 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" autoFocus />
                   <Button onClick={() => handleScan()} disabled={!scanValue.trim() || processing}>{t("tshirtWork.scan")}</Button>
