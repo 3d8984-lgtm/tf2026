@@ -112,12 +112,14 @@ export default function TshirtWork() {
   const isKo = lang === "ko";
   const { tshirtQR: mockTshirtQR, siliconQR: mockSiliconQR, designQR: mockDesignQR, holoQR: mockHoloQR } = useQrMasterData();
 
+  // Scan order: 마크고유번호(-1) → 티셔츠 → 디자인 고유번호(-2) → 스티커 고유번호(-3)
   const steps = [
-    { key: "silicon", label: t("tshirtWork.siliconQR"), icon: Sticker, placeholder: isKo ? "실리콘 마크 QR을 먼저 스캔하세요" : "请先扫描硅胶标QR" },
+    { key: "mark", label: isKo ? "마크 고유번호" : "标识唯一编号", icon: Sticker, placeholder: isKo ? "마크 고유번호(-1)를 스캔하세요" : "请扫描标识唯一编号(-1)" },
     { key: "tshirt", label: t("tshirtWork.tshirtScan"), icon: Shirt, placeholder: isKo ? "티셔츠 QR을 스캔하세요" : "请扫描T恤QR" },
-    { key: "hologram", label: t("tshirtWork.hologramQR"), icon: Hash, placeholder: isKo ? "홀로그램 QR을 스캔하세요" : "请扫描全息QR" },
-    { key: "design", label: t("tshirtWork.designQR"), icon: QrCode, placeholder: isKo ? "디자인 QR을 스캔하세요" : "请扫描设计QR" },
+    { key: "design", label: isKo ? "디자인 고유번호" : "设计唯一编号", icon: QrCode, placeholder: isKo ? "디자인 고유번호(-2)를 스캔하세요" : "请扫描设计唯一编号(-2)" },
+    { key: "sticker", label: isKo ? "스티커 고유번호" : "贴纸唯一编号", icon: Hash, placeholder: isKo ? "스티커 고유번호(-3)를 스캔하세요" : "请扫描贴纸唯一编号(-3)" },
   ];
+
 
   // 3-level navigation: null → order list, order → work items list, order+workItem → scan view
   const { data: dbOrders } = useOrders();
@@ -284,40 +286,39 @@ export default function TshirtWork() {
     setTimeout(() => inputRef.current?.focus(), 50);
   }, []);
 
+  // Expected value for each scan step (마크 -1 / 티셔츠 / 디자인 -2 / 스티커 -3)
+  const expectedFor = useCallback((step: number, order: OrderData, workItem: WorkItem) => {
+    const uid = workItem.orderIdNo;
+    if (step === 0) return `${uid}-1`;
+    if (step === 1) return `${order.product}-${workItem.color}-${workItem.size}`;
+    if (step === 2) return `${uid}-2`;
+    return `${uid}-3`;
+  }, []);
+
   const processStep = useCallback((step: number, value: string, baseProduct: { product: string; design: string } | null, order: OrderData, workItem: WorkItem) => {
     setProcessing(true);
     setStepStatuses(prev => { const n = [...prev]; n[step] = "scanning"; return n; });
     setScannedValues(prev => { const n = [...prev]; n[step] = value; return n; });
     setTimeout(() => {
-      let pass = false; let reason = "";
-      if (step === 0) {
-        const found = mockSiliconQR[value] ?? (value === workItem.siliconQR ? { product: order.product, design: order.design } : undefined);
-        if (found && found.product === order.product && found.design === order.design) { pass = true; setMatchedProduct(found); }
-        else if (!found) reason = isKo ? `실리콘 QR [${value}] 기준 데이터에 없음` : `硅胶QR [${value}] 基准数据中不存在`;
-        else reason = isKo ? "실리콘 QR 상품/디자인코드 불일치" : "硅胶QR 商品/设计代码不匹配";
-      } else if (step === 1) {
-        const expected = `${order.product}-${workItem.color}-${workItem.size}`.toLowerCase();
-        const scanned = value.toLowerCase();
-        if (scanned === expected) { pass = true; }
-        else reason = isKo ? `티셔츠 정보 불일치 (${value} ≠ ${order.product}-${workItem.color}-${workItem.size})` : `T恤信息不匹配 (${value} ≠ ${order.product}-${workItem.color}-${workItem.size})`;
-      } else if (step === 2) {
-        const found = mockHoloQR[value] ?? (value === workItem.hologramQR ? { product: order.product, design: order.design, used: false } : undefined);
-        if (found && baseProduct && found.product === baseProduct.product && found.design === baseProduct.design && !found.used) { pass = true; setLogoVerified(true); }
-        else if (!found) reason = isKo ? `홀로그램 QR [${value}] 기준 데이터에 없음` : `全息QR [${value}] 基准数据中不存在`;
-        else if (found?.used) reason = isKo ? `홀로그램 QR [${value}] 이미 사용됨 (중복)` : `全息QR [${value}] 已使用（重复）`;
-        else reason = isKo ? "홀로그램 QR 상품/디자인코드 불일치" : "全息QR 商品/设计代码不匹配";
-      } else if (step === 3) {
-        const found = mockDesignQR[value] ?? (value === workItem.designQR ? { product: order.product, design: order.design } : undefined);
-        if (found && baseProduct && found.product === baseProduct.product && found.design === baseProduct.design) pass = true;
-        else if (!found) reason = isKo ? `디자인 QR [${value}] 기준 데이터에 없음` : `设计QR [${value}] 基准数据中不存在`;
-        else reason = isKo ? "디자인 QR 상품/디자인코드 불일치" : "设计QR 商品/设计代码不匹配";
-      }
+      const expected = expectedFor(step, order, workItem);
+      const norm = (v: string) => v.trim().toLowerCase();
+      const pass = norm(value) === norm(expected);
+      const labels = [
+        isKo ? "마크 고유번호" : "标识唯一编号",
+        isKo ? "티셔츠" : "T恤",
+        isKo ? "디자인 고유번호" : "设计唯一编号",
+        isKo ? "스티커 고유번호" : "贴纸唯一编号",
+      ];
+      const reason = pass ? "" : `${labels[step]} ${isKo ? "불일치" : "不匹配"} (${value} ≠ ${expected})`;
+      if (pass && step === 0) setMatchedProduct({ product: order.product, design: order.design });
+      if (pass && step === 3) setLogoVerified(true);
       setStepStatuses(prev => { const n = [...prev]; n[step] = pass ? "pass" : "fail"; return n; });
       if (!pass) { setFailReason(reason); setProcessing(false); }
       else if (step < 3) { setCurrentStep(step + 1); setProcessing(false); }
       else { setProcessing(false); }
     }, 400);
-  }, [isKo, mockTshirtQR, mockSiliconQR, mockDesignQR, mockHoloQR]);
+  }, [isKo, expectedFor]);
+
 
   const handleScan = useCallback((raw?: string) => {
     const value = hangulToQwerty(raw ?? scanValue).trim();
@@ -653,20 +654,25 @@ export default function TshirtWork() {
         <Button variant="outline" size="sm" onClick={() => { setSelectedOrderId(null); setActiveWorkItemSeq(null); resetScan(); }}><ChevronLeft className="w-4 h-4 mr-1" /> {t("tshirtWork.orderList")}</Button>
       </PageHeader>
       <div className="p-6 space-y-4">
-        <div className="kpi-card grid grid-cols-2 md:grid-cols-7 gap-4 items-center">
+        <div className="kpi-card grid grid-cols-2 md:grid-cols-8 gap-4 items-center">
           <div className="flex items-center gap-2">
             <Shirt className="w-5 h-5 text-primary" />
             <div><p className="text-xs text-muted-foreground">#{activeWorkItem.seq}</p><p className="text-sm font-semibold">{selectedOrder!.twinker}</p></div>
           </div>
           <div><p className="text-xs text-muted-foreground">{t("tshirtWork.product")}</p><p className="text-sm font-semibold">{selectedOrder!.product}</p></div>
           <div>
-            <p className="text-xs text-muted-foreground">{t("tshirtWork.design")}</p>
-            <p className="text-sm font-semibold font-mono">{activeWorkItem.designQR || selectedOrder!.design || "-"}</p>
+            <p className="text-xs text-muted-foreground">{isKo ? "마크 고유번호" : "标识唯一编号"}</p>
+            <p className="text-sm font-semibold font-mono">{activeWorkItem.orderIdNo}-1</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">{isKo ? "트윈코드" : "TwinCode"}</p>
-            <p className="text-sm font-semibold font-mono">{activeWorkItem.tshirtSerial || "-"}</p>
+            <p className="text-xs text-muted-foreground">{isKo ? "디자인 고유번호" : "设计唯一编号"}</p>
+            <p className="text-sm font-semibold font-mono">{activeWorkItem.orderIdNo}-2</p>
           </div>
+          <div>
+            <p className="text-xs text-muted-foreground">{isKo ? "스티커 고유번호" : "贴纸唯一编号"}</p>
+            <p className="text-sm font-semibold font-mono">{activeWorkItem.orderIdNo}-3</p>
+          </div>
+
           <div><p className="text-xs text-muted-foreground">{t("tshirtWork.color")}</p><p className="text-sm font-semibold">{activeWorkItem.color}</p></div>
           <div><p className="text-xs text-muted-foreground">{t("tshirtWork.size")}</p><p className="text-sm font-semibold">{activeWorkItem.size}</p></div>
           <div className="ml-auto">
@@ -709,32 +715,40 @@ export default function TshirtWork() {
           <div className="lg:col-span-2 space-y-4">
             <div className={`kpi-card border-2 transition-colors duration-300 ${hasFail ? "border-destructive" : allPass ? "border-[hsl(var(--success))]" : "border-border"}`}>
               <h3 className="text-sm font-medium mb-5 flex items-center gap-2"><ScanLine className="w-4 h-4" /> {t("tshirtWork.autoScan")}</h3>
-              <div className="space-y-3 mb-5">
+              <div className="space-y-3 mb-2">
                 {steps.map((step, i) => {
                   const isActive = i === currentStep && !hasFail && !allDone;
+                  const expected = expectedFor(i, selectedOrder!, activeWorkItem);
                   return (
                     <div key={step.key} className={`flex items-center gap-3 p-3 rounded-lg transition-colors duration-200 ${isActive ? "bg-primary/5 ring-1 ring-primary/20" : "bg-muted/30"}`}>
                       {statusIcon(stepStatuses[i])}
                       <div className="flex items-center gap-2 w-44 shrink-0">
                         <step.icon className="w-4 h-4 text-muted-foreground" />
-                        <span className={`text-sm ${isActive ? "font-semibold text-foreground" : "font-medium text-muted-foreground"}`}>{step.label}</span>
+                        <div className="min-w-0">
+                          <p className={`text-sm ${isActive ? "font-semibold text-foreground" : "font-medium text-muted-foreground"}`}>{step.label}</p>
+                          <p className="text-[11px] font-mono text-muted-foreground truncate">{expected}</p>
+                        </div>
                       </div>
-                      <span className="text-sm font-mono text-muted-foreground flex-1 truncate">
-                        {scannedValues[i] || (isActive ? t("tshirtWork.scanWaiting") : "")}
-                      </span>
+                      {isActive ? (
+                        <div className="flex flex-1 gap-2">
+                          <input ref={inputRef} type="text" value={scanValue}
+                            onChange={e => { bufferRef.current = e.target.value; setScanValue(e.target.value); }}
+                            onKeyDown={handleKeyDown}
+                            placeholder={step.placeholder} readOnly={processing}
+                            className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                            autoFocus />
+                          <Button size="sm" onClick={() => handleScan()} disabled={!scanValue.trim() || processing}>{t("tshirtWork.scan")}</Button>
+                        </div>
+                      ) : (
+                        <span className={`text-sm font-mono flex-1 truncate ${stepStatuses[i] === "fail" ? "text-destructive" : stepStatuses[i] === "pass" ? "text-[hsl(var(--success))]" : "text-muted-foreground"}`}>
+                          {scannedValues[i] || "—"}
+                        </span>
+                      )}
                     </div>
                   );
                 })}
               </div>
 
-              {!allDone && !hasFail && (
-                <div className="flex gap-2">
-                  <input ref={inputRef} type="text" value={scanValue} onChange={e => { bufferRef.current = e.target.value; setScanValue(e.target.value); }} onKeyDown={handleKeyDown}
-                    placeholder={steps[currentStep]?.placeholder ?? ""} readOnly={processing}
-                    className="flex-1 h-10 rounded-md border border-input bg-background px-3 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" autoFocus />
-                  <Button onClick={() => handleScan()} disabled={!scanValue.trim() || processing}>{t("tshirtWork.scan")}</Button>
-                </div>
-              )}
 
             </div>
           </div>
@@ -768,8 +782,11 @@ export default function TshirtWork() {
             {/* Design image check (per work item by tshirt_serial) */}
             {(() => {
               const folder = selectedOrder!.externalOrderId;
-              const key = activeWorkItem.tshirtSerial;
-              const url = (folder && key && designImageFiles?.[folder]?.[key]) || null;
+              const files = (folder && designImageFiles?.[folder]) || {};
+              const cands = [`${activeWorkItem.orderIdNo}-2`, activeWorkItem.orderIdNo, activeWorkItem.tshirtSerial, String(activeWorkItem.seq)];
+              const key = cands.find(c => c && files[c]) ?? `${activeWorkItem.orderIdNo}-2`;
+              const url = files[key] || null;
+
               return (
                 <div className="kpi-card flex flex-col items-center justify-center min-h-[180px]">
                   <h3 className="text-sm font-medium mb-3 flex items-center gap-2 self-start"><QrCode className="w-4 h-4" /> {isKo ? "디자인 확인" : "设计确认"}</h3>
@@ -797,8 +814,11 @@ export default function TshirtWork() {
             {/* Twincode image check (per work item by tshirt_serial) */}
             {(() => {
               const folder = selectedOrder!.externalOrderId;
-              const key = activeWorkItem.tshirtSerial;
-              const url = (folder && key && twincodeImageFiles?.[folder]?.[key]) || null;
+              const files = (folder && twincodeImageFiles?.[folder]) || {};
+              const cands = [activeWorkItem.orderIdNo, `${activeWorkItem.orderIdNo}-2`, activeWorkItem.tshirtSerial, String(activeWorkItem.seq)];
+              const key = cands.find(c => c && files[c]) ?? activeWorkItem.orderIdNo;
+              const url = files[key] || null;
+
               return (
                 <div className="kpi-card flex flex-col items-center justify-center min-h-[180px]">
                   <h3 className="text-sm font-medium mb-3 flex items-center gap-2 self-start"><Hash className="w-4 h-4" /> {isKo ? "트윈코드 확인" : "TwinCode确认"}</h3>
