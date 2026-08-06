@@ -814,8 +814,11 @@ export default function TshirtWork() {
             {/* Twincode image check (per work item by tshirt_serial) */}
             {(() => {
               const folder = selectedOrder!.externalOrderId;
-              const key = activeWorkItem.tshirtSerial;
-              const url = (folder && key && twincodeImageFiles?.[folder]?.[key]) || null;
+              const files = (folder && twincodeImageFiles?.[folder]) || {};
+              const cands = [activeWorkItem.orderIdNo, `${activeWorkItem.orderIdNo}-2`, activeWorkItem.tshirtSerial, String(activeWorkItem.seq)];
+              const key = cands.find(c => c && files[c]) ?? activeWorkItem.orderIdNo;
+              const url = files[key] || null;
+
               return (
                 <div className="kpi-card flex flex-col items-center justify-center min-h-[180px]">
                   <h3 className="text-sm font-medium mb-3 flex items-center gap-2 self-start"><Hash className="w-4 h-4" /> {isKo ? "트윈코드 확인" : "TwinCode确认"}</h3>
