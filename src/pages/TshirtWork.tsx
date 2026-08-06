@@ -782,8 +782,11 @@ export default function TshirtWork() {
             {/* Design image check (per work item by tshirt_serial) */}
             {(() => {
               const folder = selectedOrder!.externalOrderId;
-              const key = activeWorkItem.tshirtSerial;
-              const url = (folder && key && designImageFiles?.[folder]?.[key]) || null;
+              const files = (folder && designImageFiles?.[folder]) || {};
+              const cands = [`${activeWorkItem.orderIdNo}-2`, activeWorkItem.orderIdNo, activeWorkItem.tshirtSerial, String(activeWorkItem.seq)];
+              const key = cands.find(c => c && files[c]) ?? `${activeWorkItem.orderIdNo}-2`;
+              const url = files[key] || null;
+
               return (
                 <div className="kpi-card flex flex-col items-center justify-center min-h-[180px]">
                   <h3 className="text-sm font-medium mb-3 flex items-center gap-2 self-start"><QrCode className="w-4 h-4" /> {isKo ? "디자인 확인" : "设计确认"}</h3>
