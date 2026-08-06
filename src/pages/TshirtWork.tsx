@@ -286,40 +286,39 @@ export default function TshirtWork() {
     setTimeout(() => inputRef.current?.focus(), 50);
   }, []);
 
+  // Expected value for each scan step (마크 -1 / 티셔츠 / 디자인 -2 / 스티커 -3)
+  const expectedFor = useCallback((step: number, order: OrderData, workItem: WorkItem) => {
+    const uid = workItem.orderIdNo;
+    if (step === 0) return `${uid}-1`;
+    if (step === 1) return `${order.product}-${workItem.color}-${workItem.size}`;
+    if (step === 2) return `${uid}-2`;
+    return `${uid}-3`;
+  }, []);
+
   const processStep = useCallback((step: number, value: string, baseProduct: { product: string; design: string } | null, order: OrderData, workItem: WorkItem) => {
     setProcessing(true);
     setStepStatuses(prev => { const n = [...prev]; n[step] = "scanning"; return n; });
     setScannedValues(prev => { const n = [...prev]; n[step] = value; return n; });
     setTimeout(() => {
-      let pass = false; let reason = "";
-      if (step === 0) {
-        const found = mockSiliconQR[value] ?? (value === workItem.siliconQR ? { product: order.product, design: order.design } : undefined);
-        if (found && found.product === order.product && found.design === order.design) { pass = true; setMatchedProduct(found); }
-        else if (!found) reason = isKo ? `실리콘 QR [${value}] 기준 데이터에 없음` : `硅胶QR [${value}] 基准数据中不存在`;
-        else reason = isKo ? "실리콘 QR 상품/디자인코드 불일치" : "硅胶QR 商品/设计代码不匹配";
-      } else if (step === 1) {
-        const expected = `${order.product}-${workItem.color}-${workItem.size}`.toLowerCase();
-        const scanned = value.toLowerCase();
-        if (scanned === expected) { pass = true; }
-        else reason = isKo ? `티셔츠 정보 불일치 (${value} ≠ ${order.product}-${workItem.color}-${workItem.size})` : `T恤信息不匹配 (${value} ≠ ${order.product}-${workItem.color}-${workItem.size})`;
-      } else if (step === 2) {
-        const found = mockHoloQR[value] ?? (value === workItem.hologramQR ? { product: order.product, design: order.design, used: false } : undefined);
-        if (found && baseProduct && found.product === baseProduct.product && found.design === baseProduct.design && !found.used) { pass = true; setLogoVerified(true); }
-        else if (!found) reason = isKo ? `홀로그램 QR [${value}] 기준 데이터에 없음` : `全息QR [${value}] 基准数据中不存在`;
-        else if (found?.used) reason = isKo ? `홀로그램 QR [${value}] 이미 사용됨 (중복)` : `全息QR [${value}] 已使用（重复）`;
-        else reason = isKo ? "홀로그램 QR 상품/디자인코드 불일치" : "全息QR 商品/设计代码不匹配";
-      } else if (step === 3) {
-        const found = mockDesignQR[value] ?? (value === workItem.designQR ? { product: order.product, design: order.design } : undefined);
-        if (found && baseProduct && found.product === baseProduct.product && found.design === baseProduct.design) pass = true;
-        else if (!found) reason = isKo ? `디자인 QR [${value}] 기준 데이터에 없음` : `设计QR [${value}] 基准数据中不存在`;
-        else reason = isKo ? "디자인 QR 상품/디자인코드 불일치" : "设计QR 商品/设计代码不匹配";
-      }
+      const expected = expectedFor(step, order, workItem);
+      const norm = (v: string) => v.trim().toLowerCase();
+      const pass = norm(value) === norm(expected);
+      const labels = [
+        isKo ? "마크 고유번호" : "标识唯一编号",
+        isKo ? "티셔츠" : "T恤",
+        isKo ? "디자인 고유번호" : "设计唯一编号",
+        isKo ? "스티커 고유번호" : "贴纸唯一编号",
+      ];
+      const reason = pass ? "" : `${labels[step]} ${isKo ? "불일치" : "不匹配"} (${value} ≠ ${expected})`;
+      if (pass && step === 0) setMatchedProduct({ product: order.product, design: order.design });
+      if (pass && step === 3) setLogoVerified(true);
       setStepStatuses(prev => { const n = [...prev]; n[step] = pass ? "pass" : "fail"; return n; });
       if (!pass) { setFailReason(reason); setProcessing(false); }
       else if (step < 3) { setCurrentStep(step + 1); setProcessing(false); }
       else { setProcessing(false); }
     }, 400);
-  }, [isKo, mockTshirtQR, mockSiliconQR, mockDesignQR, mockHoloQR]);
+  }, [isKo, expectedFor]);
+
 
   const handleScan = useCallback((raw?: string) => {
     const value = hangulToQwerty(raw ?? scanValue).trim();
