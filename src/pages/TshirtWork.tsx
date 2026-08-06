@@ -780,7 +780,59 @@ export default function TshirtWork() {
             })()}
           </div>
         </div>
+
+        {/* Actual work item list for this order */}
+        <div className="kpi-card section-enter" style={{ animationDelay: "160ms" }}>
+          <h3 className="text-sm font-medium mb-4 flex items-center gap-2">
+            <List className="w-4 h-4" /> {t("tshirtWork.workItems")}
+            <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+              {selectedOrder!.items.filter(i => i.status === "done").length}/{selectedOrder!.items.length} {t("tshirtWork.completed")}
+            </span>
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="border-b text-left">
+                {[
+                  isKo ? "주문번호" : "订单号",
+                  isKo ? "티셔츠 종류" : "T恤种类",
+                  t("tshirtWork.color"),
+                  t("tshirtWork.size"),
+                  isKo ? "마크고유번호" : "标识唯一编号",
+                  isKo ? "디자인 고유번호" : "设计唯一编号",
+                  isKo ? "스티커 고유번호" : "贴纸唯一编号",
+                  t("tshirtWork.status"),
+                ].map(h => <th key={h} className="pb-2 font-medium text-muted-foreground whitespace-nowrap pr-4">{h}</th>)}
+                <th className="pb-2"></th>
+              </tr></thead>
+              <tbody>
+                {selectedOrder!.items.map(item => (
+                  <tr key={item.seq}
+                    className={`border-b last:border-0 transition-colors ${item.seq === activeWorkItem.seq ? "bg-primary/5" : item.status === "pending" ? "hover:bg-muted/30" : ""}`}>
+                    <td className="py-2.5 font-mono text-xs pr-4">{item.orderIdNo}</td>
+                    <td className="py-2.5 pr-4 font-medium">{selectedOrder!.product || "-"}</td>
+                    <td className="py-2.5 pr-4 font-medium">{item.color}</td>
+                    <td className="py-2.5 pr-4">{item.size}</td>
+                    <td className="py-2.5 font-mono text-xs pr-4">{item.orderIdNo}-1</td>
+                    <td className="py-2.5 font-mono text-xs pr-4">{item.orderIdNo}-2</td>
+                    <td className="py-2.5 font-mono text-xs pr-4">{item.orderIdNo}-3</td>
+                    <td className="py-2.5 pr-4"><StatusBadge status={item.status} t={t} /></td>
+                    <td className="py-2.5">
+                      {item.seq === activeWorkItem.seq ? (
+                        <span className="text-xs font-medium text-primary">{isKo ? "작업 중" : "作业中"}</span>
+                      ) : item.status === "pending" ? (
+                        <Button variant="outline" size="sm" onClick={() => { setActiveWorkItemSeq(item.seq); resetScan(); }}>
+                          <ScanLine className="w-3.5 h-3.5 mr-1" /> {t("tshirtWork.startVerify")}
+                        </Button>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
+
 
       {/* Zoomed image dialog */}
       <Dialog open={!!zoomedImage} onOpenChange={() => setZoomedImage(null)}>
