@@ -112,12 +112,14 @@ export default function TshirtWork() {
   const isKo = lang === "ko";
   const { tshirtQR: mockTshirtQR, siliconQR: mockSiliconQR, designQR: mockDesignQR, holoQR: mockHoloQR } = useQrMasterData();
 
+  // Scan order: 마크고유번호(-1) → 티셔츠 → 디자인 고유번호(-2) → 스티커 고유번호(-3)
   const steps = [
-    { key: "silicon", label: t("tshirtWork.siliconQR"), icon: Sticker, placeholder: isKo ? "실리콘 마크 QR을 먼저 스캔하세요" : "请先扫描硅胶标QR" },
+    { key: "mark", label: isKo ? "마크 고유번호" : "标识唯一编号", icon: Sticker, placeholder: isKo ? "마크 고유번호(-1)를 스캔하세요" : "请扫描标识唯一编号(-1)" },
     { key: "tshirt", label: t("tshirtWork.tshirtScan"), icon: Shirt, placeholder: isKo ? "티셔츠 QR을 스캔하세요" : "请扫描T恤QR" },
-    { key: "hologram", label: t("tshirtWork.hologramQR"), icon: Hash, placeholder: isKo ? "홀로그램 QR을 스캔하세요" : "请扫描全息QR" },
-    { key: "design", label: t("tshirtWork.designQR"), icon: QrCode, placeholder: isKo ? "디자인 QR을 스캔하세요" : "请扫描设计QR" },
+    { key: "design", label: isKo ? "디자인 고유번호" : "设计唯一编号", icon: QrCode, placeholder: isKo ? "디자인 고유번호(-2)를 스캔하세요" : "请扫描设计唯一编号(-2)" },
+    { key: "sticker", label: isKo ? "스티커 고유번호" : "贴纸唯一编号", icon: Hash, placeholder: isKo ? "스티커 고유번호(-3)를 스캔하세요" : "请扫描贴纸唯一编号(-3)" },
   ];
+
 
   // 3-level navigation: null → order list, order → work items list, order+workItem → scan view
   const { data: dbOrders } = useOrders();
