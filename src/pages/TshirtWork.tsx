@@ -661,13 +661,18 @@ export default function TshirtWork() {
           </div>
           <div><p className="text-xs text-muted-foreground">{t("tshirtWork.product")}</p><p className="text-sm font-semibold">{selectedOrder!.product}</p></div>
           <div>
-            <p className="text-xs text-muted-foreground">{t("tshirtWork.design")}</p>
-            <p className="text-sm font-semibold font-mono">{activeWorkItem.designQR || selectedOrder!.design || "-"}</p>
+            <p className="text-xs text-muted-foreground">{isKo ? "마크 고유번호" : "标识唯一编号"}</p>
+            <p className="text-sm font-semibold font-mono">{activeWorkItem.orderIdNo}-1</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">{isKo ? "트윈코드" : "TwinCode"}</p>
-            <p className="text-sm font-semibold font-mono">{activeWorkItem.tshirtSerial || "-"}</p>
+            <p className="text-xs text-muted-foreground">{isKo ? "디자인 고유번호" : "设计唯一编号"}</p>
+            <p className="text-sm font-semibold font-mono">{activeWorkItem.orderIdNo}-2</p>
           </div>
+          <div>
+            <p className="text-xs text-muted-foreground">{isKo ? "스티커 고유번호" : "贴纸唯一编号"}</p>
+            <p className="text-sm font-semibold font-mono">{activeWorkItem.orderIdNo}-3</p>
+          </div>
+
           <div><p className="text-xs text-muted-foreground">{t("tshirtWork.color")}</p><p className="text-sm font-semibold">{activeWorkItem.color}</p></div>
           <div><p className="text-xs text-muted-foreground">{t("tshirtWork.size")}</p><p className="text-sm font-semibold">{activeWorkItem.size}</p></div>
           <div className="ml-auto">
