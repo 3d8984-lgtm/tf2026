@@ -763,13 +763,13 @@ export default function TshirtWork() {
             {/* Logo check */}
             <div className="kpi-card flex flex-col items-center justify-center min-h-[180px]">
               <h3 className="text-sm font-medium mb-3 flex items-center gap-2 self-start"><Image className="w-4 h-4" /> {t("tshirtWork.logoCheck")}</h3>
-              {selectedOrder!.logoUrl ? (
+              {(activeWorkItem.logoUrl || selectedOrder!.logoUrl) ? (
                 <div className="flex-1 flex flex-col items-center justify-center gap-2">
                   <div
                     className={`w-28 h-28 rounded-lg border-2 bg-muted/40 flex items-center justify-center overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/40 transition-shadow ${logoVerified ? "border-[hsl(var(--success)/0.3)]" : "border-border"}`}
-                    onClick={() => setZoomedImage({ src: selectedOrder!.logoUrl!, alt: "Logo" })}
+                    onClick={() => setZoomedImage({ src: (activeWorkItem.logoUrl || selectedOrder!.logoUrl)!, alt: "Logo" })}
                   >
-                    <img src={selectedOrder!.logoUrl} alt="Logo" className="max-w-full max-h-full object-contain" />
+                    <img src={(activeWorkItem.logoUrl || selectedOrder!.logoUrl)!} alt="Logo" className="max-w-full max-h-full object-contain" />
                   </div>
                   {logoVerified ? (
                     <span className="text-xs text-[hsl(var(--success))] font-medium flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> {t("tshirtWork.logoConfirmed")}</span>
