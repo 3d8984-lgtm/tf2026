@@ -332,8 +332,20 @@ export default function TshirtWork() {
   // ---- Global scanner capture: works even when the input lost focus ----
   const bufferRef = useRef("");
   const lastKeyRef = useRef(0);
+  const scanValueRef = useRef("");
+  const handleScanRef = useRef(handleScan);
+
+  useEffect(() => {
+    scanValueRef.current = scanValue;
+    handleScanRef.current = handleScan;
+  }, [scanValue, handleScan]);
+
   useEffect(() => {
     if (!activeWorkItem || allDone || hasFail) return;
+    const blockedNavigationKeys = new Set([
+      "Tab", "Escape", "F1", "F3", "F5", "F6", "F7", "F10", "F11", "F12",
+      "BrowserSearch", "BrowserHome", "BrowserBack", "BrowserForward",
+    ]);
     const onKey = (e: KeyboardEvent) => {
       // Hardware scanners can be configured with Ctrl+F, Tab, or other
       // prefix/suffix keys. While scanning a work item, never allow those
@@ -344,17 +356,23 @@ export default function TshirtWork() {
         e.stopImmediatePropagation();
       };
 
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+      // Scanner prefixes such as Ctrl+F/Ctrl+L/Ctrl+K, Alt+D and function
+      // keys can move focus to browser search/address UI before QR data arrives.
+      // No modified shortcut is needed in the active scanning view, so block
+      // every one rather than trying to maintain a browser-specific list.
+      if (e.ctrlKey || e.metaKey || e.altKey || blockedNavigationKeys.has(e.key)) {
         blockEvent();
         inputRef.current?.focus();
         return;
       }
-      if (e.key === "Tab" || e.key === "Escape") {
+
+      // Modifier keydown events themselves may be scanner prefixes. Suppress
+      // them as well; Shift remains available for uppercase QR characters.
+      if (e.key === "Control" || e.key === "Meta" || e.key === "Alt") {
         blockEvent();
         inputRef.current?.focus();
         return;
       }
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
 
       const now = Date.now();
       if (now - lastKeyRef.current > 1000) bufferRef.current = "";
@@ -362,9 +380,9 @@ export default function TshirtWork() {
 
       if (e.key === "Enter") {
         blockEvent();
-        const value = bufferRef.current || scanValue;
+        const value = bufferRef.current || scanValueRef.current;
         bufferRef.current = "";
-        handleScan(value);
+        handleScanRef.current(value);
         inputRef.current?.focus();
         return;
       }
@@ -381,9 +399,20 @@ export default function TshirtWork() {
         inputRef.current?.focus();
       }
     };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || blockedNavigationKeys.has(e.key) || e.key === "Control" || e.key === "Meta" || e.key === "Alt") {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+      }
+    };
     window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, [activeWorkItem, allDone, hasFail, scanValue, handleScan]);
+    window.addEventListener("keyup", onKeyUp, true);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("keyup", onKeyUp, true);
+    };
+  }, [activeWorkItem, allDone, hasFail]);
 
   // Keep the scan input focused so scanner keystrokes never escape the page
   useEffect(() => {
