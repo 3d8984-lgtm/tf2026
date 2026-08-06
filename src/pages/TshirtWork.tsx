@@ -791,7 +791,8 @@ export default function TshirtWork() {
               const files = (folder && designImageFiles?.[folder]) || {};
               const cands = [`${activeWorkItem.orderIdNo}-2`, activeWorkItem.orderIdNo, activeWorkItem.tshirtSerial, String(activeWorkItem.seq)];
               const key = cands.find(c => c && files[c]) ?? `${activeWorkItem.orderIdNo}-2`;
-              const url = files[key] || null;
+              const url = files[key] || activeWorkItem.designUrl || null;
+
 
               return (
                 <div className="kpi-card flex flex-col items-center justify-center min-h-[180px]">
