@@ -685,7 +685,12 @@ export default function TshirtWork() {
 
         <div className="grid lg:grid-cols-3 gap-5 section-enter" style={{ animationDelay: "100ms" }}>
           <div className="lg:col-span-2 space-y-4">
+            {/* Area 1: USB camera preview + auto recording */}
+            <WorkCamRecorder recording={isRecording} onRecorded={handleRecorded} uploading={uploadingVideo} />
+
+            {/* Area 2: auto verification scan */}
             <div className={`kpi-card border-2 transition-colors duration-300 ${hasFail ? "border-destructive" : allPass ? "border-[hsl(var(--success))]" : "border-border"}`}>
+
               <h3 className="text-sm font-medium mb-5 flex items-center gap-2"><ScanLine className="w-4 h-4" /> {t("tshirtWork.autoScan")}</h3>
               <div className="space-y-3 mb-2">
                 {steps.map((step, i) => {
