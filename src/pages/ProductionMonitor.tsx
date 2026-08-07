@@ -62,8 +62,14 @@ export default function ProductionMonitor() {
   const stageLabel = meta ? (isKo ? meta.ko : meta.zh) : "";
 
   const orderQty = detailOrder?.quantity ?? 0;
-  const stageDone = detailTracking.reduce((s, t) => s + (t.completed_count ?? 0), 0);
-  const stageFail = detailTracking.reduce((s, t) => s + ((t as any).failed_count ?? 0), 0);
+  const barcodeSrc = stageDetail ? STAGE_BARCODE[stageDetail.stage] : undefined;
+  const barcodeProg = stageDetail && barcodeSrc ? barcodeProgress?.[stageDetail.orderId]?.[barcodeSrc.kind] : undefined;
+  const stageDone = barcodeProg
+    ? barcodeProg.done
+    : detailTracking.reduce((s, t) => s + (t.completed_count ?? 0), 0);
+  const stageFail = barcodeProg
+    ? barcodeProg.failed
+    : detailTracking.reduce((s, t) => s + ((t as any).failed_count ?? 0), 0);
 
   return (
     <div>
