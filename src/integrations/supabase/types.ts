@@ -14,6 +14,65 @@ export type Database = {
   }
   public: {
     Tables: {
+      barcode_print_items: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          kind: string
+          order_id: string
+          position: number
+          printed_at: string | null
+          scanned_at: string | null
+          scanned_value: string | null
+          status: string
+          test_mode: boolean
+          updated_at: string
+          verdict: string | null
+          worked_by: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          kind: string
+          order_id: string
+          position: number
+          printed_at?: string | null
+          scanned_at?: string | null
+          scanned_value?: string | null
+          status?: string
+          test_mode?: boolean
+          updated_at?: string
+          verdict?: string | null
+          worked_by?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          order_id?: string
+          position?: number
+          printed_at?: string | null
+          scanned_at?: string | null
+          scanned_value?: string | null
+          status?: string
+          test_mode?: boolean
+          updated_at?: string
+          verdict?: string | null
+          worked_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "barcode_print_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       callback_settings: {
         Row: {
           auth_header: string
