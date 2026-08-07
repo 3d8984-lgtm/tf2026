@@ -450,8 +450,10 @@ export default function TshirtWork() {
       resetScan();
     } else {
       setActiveWorkItemSeq(null);
+      setSelectedOrderId(null);
       resetScan();
     }
+
   };
 
   const statusIcon = (s: StepStatus) => {
