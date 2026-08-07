@@ -85,12 +85,19 @@ export function usePlcLive(): Record<string, PlcLive> {
       }));
     };
 
-    const tick = () => { entries.forEach(([stage, m]) => { void pollOne(stage, m); }); };
+    // 실패(503 등)가 이어지면 폴링 간격을 늘려 엣지 런타임 과부하를 피한다.
+    let delay = 5000;
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = async () => {
+      const results = await Promise.all(entries.map(([stage, m]) => pollOne(stage, m)));
+      if (!alive) return;
+      const anyOk = results.some(Boolean);
+      delay = anyOk ? 5000 : Math.min(delay * 2, 60000);
+      timer = setTimeout(tick, delay);
+    };
 
-
-    tick();
-    const iv = setInterval(tick, 5000);
-    return () => { alive = false; clearInterval(iv); };
+    void tick();
+    return () => { alive = false; clearTimeout(timer); };
   }, []);
 
   // 지정 주문 정보를 상태에 병합
