@@ -13,6 +13,8 @@ import {
 import { useLang } from "@/contexts/LangContext";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import WorkCamRecorder from "@/components/WorkCamRecorder";
+import { toast } from "@/hooks/use-toast";
+
 
 
 type StepStatus = "waiting" | "scanning" | "pass" | "fail";
