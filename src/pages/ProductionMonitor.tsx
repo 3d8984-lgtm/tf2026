@@ -6,6 +6,8 @@ import { useLang } from "@/contexts/LangContext";
 import OrderPipeline from "@/components/OrderPipeline";
 import PlcMonitor from "@/components/PlcMonitor";
 import DmScannerMonitor from "@/components/DmScannerMonitor";
+import BarcodeStageDetail from "@/components/BarcodeStageDetail";
+import { useBarcodePrintProgress, STAGE_BARCODE } from "@/hooks/useBarcodePrintProgress";
 import { Gauge, ScanLine, Package, Printer, Activity, Shirt, CreditCard, Mail, Truck, CheckCircle2 } from "lucide-react";
 import { useOrders, useProductionTracking, useShipments } from "@/hooks/useDbData";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
