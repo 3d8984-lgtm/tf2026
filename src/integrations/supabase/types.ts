@@ -1471,6 +1471,84 @@ export type Database = {
         }
         Relationships: []
       }
+      work_video_records: {
+        Row: {
+          bucket: string
+          created_at: string
+          deleted_at: string | null
+          external_order_id: string | null
+          has_defect: boolean
+          id: string
+          item_no: string | null
+          order_id: string | null
+          path: string
+          retain: boolean
+          size_bytes: number | null
+          updated_at: string
+        }
+        Insert: {
+          bucket?: string
+          created_at?: string
+          deleted_at?: string | null
+          external_order_id?: string | null
+          has_defect?: boolean
+          id?: string
+          item_no?: string | null
+          order_id?: string | null
+          path: string
+          retain?: boolean
+          size_bytes?: number | null
+          updated_at?: string
+        }
+        Update: {
+          bucket?: string
+          created_at?: string
+          deleted_at?: string | null
+          external_order_id?: string | null
+          has_defect?: boolean
+          id?: string
+          item_no?: string | null
+          order_id?: string | null
+          path?: string
+          retain?: boolean
+          size_bytes?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      work_video_settings: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          keep_defects: boolean
+          last_run_at: string | null
+          last_run_deleted: number | null
+          retention_days: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          keep_defects?: boolean
+          last_run_at?: string | null
+          last_run_deleted?: number | null
+          retention_days?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          keep_defects?: boolean
+          last_run_at?: string | null
+          last_run_deleted?: number | null
+          retention_days?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
