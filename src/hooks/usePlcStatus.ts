@@ -59,13 +59,15 @@ export function usePlcLive(): Record<string, PlcLive> {
     const entries = Object.entries(STAGE_PLC);
 
     // 설비 한 대가 응답을 지연시켜도 다른 설비 표시가 멈추지 않도록 개별로 갱신한다.
-    const pollOne = async (stage: string, m: { plcId: string }) => {
+    const pollOne = async (stage: string, m: { plcId: string }): Promise<boolean> => {
       let online = false;
       let state: PlcLive["state"] = "unknown";
       let count = 0;
       let duration = "";
+      let reachable = false;
       try {
         const res = await proxyFetch(`/api/v1/plc/${m.plcId}/status`);
+        reachable = res.ok;
         if (res.ok) {
           const j: any = await res.json();
           if (!("upstream_status" in j)) {
@@ -78,19 +80,27 @@ export function usePlcLive(): Record<string, PlcLive> {
       } catch {
         online = false;
       }
-      if (!alive) return;
+      if (!alive) return reachable;
       setLive((prev) => ({
         ...prev,
         [stage]: { plcId: m.plcId, online, state, count, duration, orderId: prev[stage]?.orderId ?? null },
       }));
+      return reachable;
     };
 
-    const tick = () => { entries.forEach(([stage, m]) => { void pollOne(stage, m); }); };
+    // 실패(503 등)가 이어지면 폴링 간격을 늘려 엣지 런타임 과부하를 피한다.
+    let delay = 5000;
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = async () => {
+      const results = await Promise.all(entries.map(([stage, m]) => pollOne(stage, m)));
+      if (!alive) return;
+      const anyOk = results.some(Boolean);
+      delay = anyOk ? 5000 : Math.min(delay * 2, 60000);
+      timer = setTimeout(tick, delay);
+    };
 
-
-    tick();
-    const iv = setInterval(tick, 5000);
-    return () => { alive = false; clearInterval(iv); };
+    void tick();
+    return () => { alive = false; clearTimeout(timer); };
   }, []);
 
   // 지정 주문 정보를 상태에 병합
