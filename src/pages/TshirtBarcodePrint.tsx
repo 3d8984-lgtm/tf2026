@@ -88,8 +88,8 @@ export default function TshirtBarcodePrint() {
   return (
     <div className="flex flex-col h-full">
       <PageHeader
-        title={tr("카드 바코드 인쇄 작업", "卡片条码打印作业")}
-        description={tr("주문건을 선택하면 스캔 검증 및 인쇄 모니터링 화면으로 이동합니다", "选择订单后进入扫描检验与打印监控界面")}
+        title={tr("티셔츠 바코드 인쇄 작업", "T恤条码打印作业")}
+        description={tr("홀로그램 스티커 고유번호를 스캔해 QR코드를 인쇄합니다", "扫描全息贴纸唯一编号并打印二维码")}
       />
       <div className="flex-1 overflow-auto p-4 md:p-6">
         {loading ? (
@@ -106,7 +106,7 @@ export default function TshirtBarcodePrint() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <span className="font-mono text-sm font-medium break-all">{o.external_order_id}</span>
-                  <Badge variant="outline" className="shrink-0 tabular-nums">{o.quantity}{tr("장", "张")}</Badge>
+                  <Badge variant="outline" className="shrink-0 tabular-nums">{o.quantity}{tr("장", "件")}</Badge>
                 </div>
                 <div className="mt-2 space-y-1 text-xs text-muted-foreground">
                   <p>{tr("상품코드", "商品代码")} · {o.product_code}</p>
@@ -138,7 +138,7 @@ function OrderDetail({ order, onBack }: { order: OrderRow; onBack: () => void })
   const seenRef = useRef<Set<string>>(new Set());
   const lastKeyRef = useRef<string>("");
 
-  // 기대 스캔 순서 = 카드 고유번호(개별 주문번호-4) 순서
+  // 기대 스캔 순서 = 홀로그램 스티커 고유번호(개별 주문번호-3) 순서
   const expected = useMemo(() => {
     const src: any[] = Array.isArray(order.source_data?.items) ? order.source_data.items : [];
     const count = Math.max(src.length, order.quantity ?? 0);
@@ -147,7 +147,7 @@ function OrderDetail({ order, onBack }: { order: OrderRow; onBack: () => void })
       const base = String(
         it.order_id ?? it.sequence_no ?? `${order.external_order_id}-${idx + 1}`
       );
-      const cardNo = `${base}-4`;
+      const cardNo = `${base}-3`;
       return {
         position: idx + 1,
         no: cardNo,
@@ -247,7 +247,7 @@ function OrderDetail({ order, onBack }: { order: OrderRow; onBack: () => void })
   return (
     <div className="flex flex-col h-full">
       <PageHeader
-        title={`${tr("카드 바코드 인쇄", "卡片条码打印")} · ${order.external_order_id}`}
+        title={`${tr("티셔츠 바코드 인쇄", "T恤条码打印")} · ${order.external_order_id}`}
         description={`${tr("상품", "商品")} ${order.product_code} · ${tr("수량", "数量")} ${order.quantity}`}
       >
         <Button variant="outline" size="sm" className="gap-1" onClick={onBack}>
@@ -311,7 +311,7 @@ function OrderDetail({ order, onBack }: { order: OrderRow; onBack: () => void })
         {halted && (
           <div className="flex items-center gap-2 rounded-lg border border-destructive bg-destructive/10 px-4 py-3 text-sm text-destructive">
             <AlertTriangle className="w-4 h-4 shrink-0" />
-            {tr("검증 실패 — 인쇄가 중지되었습니다. 카드 순서를 확인한 뒤 재개하세요.", "检验失败 — 打印已停止。请确认卡片顺序后恢复。")}
+            {tr("검증 실패 — 인쇄가 중지되었습니다. 스티커 순서를 확인한 뒤 재개하세요.", "检验失败 — 打印已停止。请确认贴纸顺序后恢复。")}
           </div>
         )}
 
@@ -320,7 +320,7 @@ function OrderDetail({ order, onBack }: { order: OrderRow; onBack: () => void })
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <ScanLine className="w-4 h-4" />{tr("주문 상세 목록 · 카드 고유번호 (스캔 순서)", "订单明细 · 卡片唯一编号（扫描顺序）")}
+                <ScanLine className="w-4 h-4" />{tr("주문 상세 목록 · 스티커 고유번호 (스캔 순서)", "订单明细 · 贴纸唯一编号（扫描顺序）")}
               </CardTitle>
             </CardHeader>
             <CardContent>
