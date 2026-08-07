@@ -186,16 +186,20 @@ export default function AppLayout() {
   };
   const getLabel = (item: MenuItem) => custom[item.path]?.label?.trim() || t(item.key);
   const sortWith = (items: MenuItem[], src: MenuCustom) => {
-    // Offset fallback so items without a stored order never collide with stored 0..n-1 values.
-    const OFFSET = 10000;
-    const indexed = items.map((m, i) => ({ m, i }));
-    indexed.sort((a, b) => {
-      const oa = src[a.m.path]?.order ?? (OFFSET + a.i);
-      const ob = src[b.m.path]?.order ?? (OFFSET + b.i);
-      return oa - ob || a.i - b.i;
+    // Items without a stored order inherit the position of the closest preceding
+    // stored item, so newly added menus stay at their canonical spot.
+    let last = -1;
+    let gap = 0;
+    const indexed = items.map((m, i) => {
+      const stored = src[m.path]?.order;
+      if (typeof stored === "number") { last = stored; gap = 0; return { m, i, o: stored }; }
+      gap += 1;
+      return { m, i, o: last + gap / (items.length + 1) };
     });
+    indexed.sort((a, b) => a.o - b.o || a.i - b.i);
     return indexed.map(x => x.m);
   };
+
   const sortItems = (items: MenuItem[]) => sortWith(items, custom);
   const openCustomize = () => {
     setDraft(JSON.parse(JSON.stringify(loadCustom())));
