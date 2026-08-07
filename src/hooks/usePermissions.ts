@@ -41,7 +41,7 @@ const ROLE_PERMISSIONS: Record<UserRole, {
   admin: {
     menuAccess: ["/", "/upload", "/all-orders", "/master", "/tshirt-work", "/card-qr-inspect", "/card-photo-inspect", "/tshirt", "/monitor", "/shipping", "/defects", "/reports", "/cctv-quality", "/manual", "/settings",
       "/outsource", "/outsource/orders", "/outsource/silicon", "/outsource/heat-transfer", "/outsource/hologram", "/outsource/nfc-card", "/outsource/card-order/templates", "/outsource/card-order/orders", "/outsource/logo", "/outsource/tshirt-order", "/outsource/tshirt-factory", "/outsource/packaging", "/outsource/history", "/outsource/settings"],
-    settingsTabs: ["general", "users", "equipment", "plcTags", "sensors", "commands", "alarms", "inspection", "webhook", "courier", "callback"],
+    settingsTabs: ["general", "users", "equipment", "camera", "plcTags", "sensors", "commands", "alarms", "inspection", "webhook", "courier", "callback", "workVideo"],
     canEdit: {
       orders: true,
       production: true,

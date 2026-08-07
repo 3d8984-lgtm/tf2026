@@ -284,7 +284,8 @@ export default function TshirtWork() {
   const queryClient = useQueryClient();
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [playingVideo, setPlayingVideo] = useState<{ url: string; label: string } | null>(null);
-  const recordTargetRef = useRef<{ folder: string; itemNo: string } | null>(null);
+  const recordTargetRef = useRef<{ folder: string; itemNo: string; orderId: string } | null>(null);
+  const defectRef = useRef(false);
 
   // Videos already stored for the selected order
   const videoFolder = selectedOrder?.externalOrderId ?? "";
@@ -303,10 +304,22 @@ export default function TshirtWork() {
     const target = recordTargetRef.current;
     if (!target) return;
     setUploadingVideo(true);
+    const path = `${target.folder}/${target.itemNo}.webm`;
     try {
       await supabase.storage
         .from("work-videos")
-        .upload(`${target.folder}/${target.itemNo}.webm`, blob, { contentType: "video/webm", upsert: true });
+        .upload(path, blob, { contentType: "video/webm", upsert: true });
+      // Retention bookkeeping: normal videos expire, defect ones are kept.
+      await supabase.from("work_video_records").upsert({
+        bucket: "work-videos",
+        path,
+        order_id: target.orderId,
+        external_order_id: target.folder,
+        item_no: target.itemNo,
+        has_defect: defectRef.current,
+        size_bytes: blob.size,
+        deleted_at: null,
+      }, { onConflict: "path" });
       queryClient.invalidateQueries({ queryKey: ["work_videos", target.folder] });
     } finally {
       setUploadingVideo(false);
@@ -327,9 +340,12 @@ export default function TshirtWork() {
   const isRecording = !!activeWorkItem && !!selectedOrder && !!scannedValues[0] && !allDone;
   useEffect(() => {
     if (isRecording && selectedOrder && activeWorkItem) {
-      recordTargetRef.current = { folder: selectedOrder.externalOrderId, itemNo: activeWorkItem.orderIdNo };
+      recordTargetRef.current = { folder: selectedOrder.externalOrderId, itemNo: activeWorkItem.orderIdNo, orderId: selectedOrder.id };
     }
   }, [isRecording, selectedOrder, activeWorkItem]);
+
+  // Defect flag decides whether the video is exempt from auto-deletion.
+  useEffect(() => { defectRef.current = hasFail; }, [hasFail]);
 
 
 
