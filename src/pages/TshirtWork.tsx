@@ -602,6 +602,17 @@ export default function TshirtWork() {
 
   };
 
+  // Auto-advance to the next work item once all 4 steps pass.
+  const confirmRef = useRef(handleConfirmAttach);
+  useEffect(() => { confirmRef.current = handleConfirmAttach; });
+  useEffect(() => {
+    if (!allPass || hasFail || !activeWorkItem) return;
+    const id = window.setTimeout(() => confirmRef.current(), 1500);
+    return () => window.clearTimeout(id);
+  }, [allPass, hasFail, activeWorkItem]);
+
+
+
   const statusIcon = (s: StepStatus) => {
     switch (s) {
       case "waiting": return <span className="w-6 h-6 rounded-full border-2 border-border flex items-center justify-center text-xs text-muted-foreground">–</span>;
@@ -764,6 +775,12 @@ export default function TshirtWork() {
                 <p className="text-sm text-muted-foreground mt-1">
                   {allPass ? `${activeWorkItem.color} / ${activeWorkItem.size} · ${matchedProduct?.product}` : failReason}
                 </p>
+                {allPass && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {isKo ? "잠시 후 다음 작업건으로 자동 이동합니다" : "稍后自动进入下一作业项"}
+                  </p>
+                )}
+
               </div>
             </div>
             {allPass ? (
