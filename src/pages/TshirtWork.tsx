@@ -264,8 +264,32 @@ export default function TshirtWork() {
     });
   }, [dbOrders, isKo, logoUrlMap]);
 
-  // Merge DB data with local work item statuses
-  const [workItemStatuses, setWorkItemStatuses] = useState<Record<string, Record<number, "pending" | "done" | "fail">>>({});
+  // Persisted work item results (survive refresh / page changes)
+  const { data: savedWorkItems } = useQuery({
+    queryKey: ["tshirt_work_items"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tshirt_work_items")
+        .select("order_id, seq, status");
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 10_000,
+  });
+
+  const [localStatuses, setLocalStatuses] = useState<Record<string, Record<number, "pending" | "done" | "fail">>>({});
+  const workItemStatuses = useMemo(() => {
+    const merged: Record<string, Record<number, "pending" | "done" | "fail">> = {};
+    for (const row of savedWorkItems ?? []) {
+      const st = row.status as "pending" | "done" | "fail";
+      merged[row.order_id] = { ...(merged[row.order_id] ?? {}), [row.seq]: st };
+    }
+    for (const [oid, seqs] of Object.entries(localStatuses)) {
+      merged[oid] = { ...(merged[oid] ?? {}), ...seqs };
+    }
+    return merged;
+  }, [savedWorkItems, localStatuses]);
+
   const orders = useMemo<OrderData[]>(() => {
     return dbOrderData.map(o => ({
       ...o,
@@ -275,6 +299,7 @@ export default function TshirtWork() {
       })),
     }));
   }, [dbOrderData, workItemStatuses]);
+
 
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [activeWorkItemSeq, setActiveWorkItemSeq] = useState<number | null>(null);
