@@ -812,12 +812,18 @@ export default function TshirtWork() {
           {orders.filter(o => o.items.every(i => i.status === "done")).length > 0 && (
             <div className="section-enter" style={{ animationDelay: "180ms" }}>
               <h3 className="text-sm font-medium text-muted-foreground mb-3">{t("tshirtWork.completedOrders")}</h3>
-              <div className="space-y-2 opacity-70">
+              <div className="space-y-2">
                 {orders.filter(o => o.items.every(i => i.status === "done")).map(order => {
                   const total = order.items.length;
                   const fail = order.items.filter(i => i.status === "fail").length;
                   return (
-                    <div key={order.id} className="kpi-card flex items-center gap-4">
+                    <button key={order.id} onClick={() => {
+                        const first = order.items[0];
+                        setSelectedOrderId(order.id);
+                        setActiveWorkItemSeq(first ? first.seq : null);
+                        resetScan();
+                      }}
+                      className="w-full kpi-card flex items-center gap-4 text-left hover:ring-2 hover:ring-primary/30 transition-all duration-150 active:scale-[0.99] cursor-pointer">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success))]" />
@@ -827,10 +833,14 @@ export default function TshirtWork() {
 
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <span>{isKo ? "트윈커" : "Twinker"}: {order.twinker}</span>
+                          <span>{t("tshirtWork.orderDate")}: {order.orderDate}</span>
+                          <span>{t("tshirtWork.dueDate")}: {order.dueDate}</span>
+                          <span>{t("tshirtWork.workItems")}: <strong className="text-foreground">{total}{isKo ? "건" : "件"}</strong></span>
                         </div>
                       </div>
                       <ProgressBar done={total} total={total} fail={fail} defectLabel={defectLabel} />
-                    </div>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                    </button>
                   );
                 })}
               </div>
