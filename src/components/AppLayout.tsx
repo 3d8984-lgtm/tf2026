@@ -40,6 +40,7 @@ const menuKeys: MenuItem[] = [
   { path: "/card-qr-inspect", icon: QrCode, key: "menu.cardQrInspect", section: "hq" },
   { path: "/card-photo-inspect", icon: Camera, key: "menu.cardPhotoInspect", section: "hq" },
   { path: "/card-barcode-print", icon: Printer, key: "menu.cardBarcodePrint", section: "hq" },
+  { path: "/tshirt-barcode-print", icon: Printer, key: "menu.tshirtBarcodePrint", section: "hq" },
   { path: "/tshirt-work", icon: ScanLine, key: "menu.tshirtWork", section: "hq" },
   { path: "/monitor", icon: Activity, key: "menu.monitor", section: "hq", children: [
     { label: { ko: "주문 관리", zh: "订单管理" }, tab: "orders" },
