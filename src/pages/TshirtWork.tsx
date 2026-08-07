@@ -86,6 +86,18 @@ function hangulToQwerty(input: string): string {
   return hasHangul ? out : input;
 }
 
+// Scanners may append non-printing separators or emit a Unicode dash that
+// looks identical to "-" on screen. Canonicalize both scanned and stored QR
+// values before comparing them.
+function normalizeQrValue(input: string): string {
+  return hangulToQwerty(input)
+    .normalize("NFKC")
+    .replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200D\u2060\uFEFF]/g, "")
+    .replace(/[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g, "-")
+    .trim()
+    .toLowerCase();
+}
+
 function ProgressBar({ done, total, fail, defectLabel }: { done: number; total: number; fail: number; defectLabel: string }) {
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   const isComplete = done >= total;
@@ -366,6 +378,8 @@ export default function TshirtWork() {
   }, [currentStep, activeWorkItem, allDone]);
 
   const resetScan = useCallback(() => {
+    bufferRef.current = "";
+    scanValueRef.current = "";
     setScanValue(""); setStepStatuses(["waiting", "waiting", "waiting", "waiting"]); setScannedValues(["", "", "", ""]);
     setCurrentStep(0); setMatchedProduct(null); setLogoVerified(false); setFailReason(""); setProcessing(false);
     setTimeout(() => inputRef.current?.focus(), 50);
@@ -389,7 +403,7 @@ export default function TshirtWork() {
     else if (step === 1) list.push(workItem.tshirtSerial);
     else if (step === 2) list.push(workItem.designQR);
     else list.push(workItem.hologramQR);
-    return list.filter(Boolean).map(v => String(v).trim().toLowerCase());
+    return list.filter(Boolean).map(v => normalizeQrValue(String(v)));
   }, [expectedFor]);
 
   const processStep = useCallback((step: number, value: string, baseProduct: { product: string; design: string } | null, order: OrderData, workItem: WorkItem) => {
@@ -398,11 +412,12 @@ export default function TshirtWork() {
     setScannedValues(prev => { const n = [...prev]; n[step] = value; return n; });
     setTimeout(() => {
       const expected = expectedFor(step, order, workItem);
-      const norm = (v: string) => v.trim().toLowerCase();
+      const norm = normalizeQrValue;
       let pass = acceptedFor(step, order, workItem).includes(norm(value));
       // T-shirt QR: also accept a master-data QR whose color/size match the item.
       if (!pass && step === 1) {
-        const m = mockTshirtQR[value.trim()] || mockTshirtQR[value.trim().toUpperCase()];
+        const cleanValue = value.trim();
+        const m = mockTshirtQR[cleanValue] || mockTshirtQR[cleanValue.toUpperCase()];
         if (m && norm(m.color) === norm(workItem.color) && norm(m.size) === norm(workItem.size)) pass = true;
       }
 
@@ -424,7 +439,7 @@ export default function TshirtWork() {
 
 
   const handleScan = useCallback((raw?: string) => {
-    const value = hangulToQwerty(raw ?? scanValue).trim();
+    const value = normalizeQrValue(raw ?? scanValue);
     if (!value || processing || !selectedOrder || !activeWorkItem) return;
     setScanValue("");
     if (hasFail || allDone) { resetScan(); return; }
