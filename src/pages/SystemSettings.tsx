@@ -133,6 +133,7 @@ export default function SystemSettings() {
     { icon: Webhook, label: t("settings.webhook"), desc: isKo ? "수신 웹훅 로그 확인 및 관리" : "接收Webhook日志查看及管理", tab: "webhook" },
     { icon: Truck, label: isKo ? "택배사 연동" : "快递对接", desc: isKo ? "4PX, YunExpress 등 택배사 API 설정" : "4PX、云途等快递公司API设置", tab: "courier" },
     { icon: ArrowUpRight, label: isKo ? "TWINMETA 회신" : "TWINMETA回调", desc: isKo ? "TWINMETA 사이트 콜백 URL 및 자동 전송 설정" : "TWINMETA站点回调URL及自动发送设置", tab: "callback" },
+    { icon: HardDrive, label: isKo ? "작업 영상 보관" : "作业视频保留", desc: isKo ? "작업 영상 자동 삭제 기간 및 보존 규칙" : "作业视频自动删除周期及保留规则", tab: "workVideo" },
   ];
 
   const tabItems = [
