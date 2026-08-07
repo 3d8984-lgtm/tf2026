@@ -444,7 +444,12 @@ export default function TshirtWork() {
         isKo ? "디자인 고유번호" : "设计唯一编号",
         isKo ? "스티커 고유번호" : "贴纸唯一编号",
       ];
-      const reason = pass ? "" : `${labels[step]} ${isKo ? "불일치" : "不匹配"} (${value} ≠ ${expected})`;
+      const glitch = !pass && acceptedFor(step, order, workItem).some(a => isOneEditApart(a, norm(value)));
+      const reason = pass
+        ? ""
+        : glitch
+          ? `${labels[step]} ${isKo ? "스캐너 오입력 의심 — 한 글자가 빠지거나 중복 입력되었습니다. 다시 스캔하세요." : "疑似扫描枪误输入 — 缺少或重复了一个字符，请重新扫描。"} (${value} ≠ ${expected})`
+          : `${labels[step]} ${isKo ? "불일치" : "不匹配"} (${value} ≠ ${expected})`;
       if (pass && step === 0) setMatchedProduct({ product: order.product, design: order.design });
       if (pass && step === 3) setLogoVerified(true);
       setStepStatuses(prev => { const n = [...prev]; n[step] = pass ? "pass" : "fail"; return n; });
