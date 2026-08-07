@@ -368,6 +368,18 @@ export default function TshirtWork() {
     return `${uid}-3`;
   }, []);
 
+  // A physical QR may be printed either as the derived unique number (xxx-1/-2/-3)
+  // or as the actual QR value registered on the order item / QR master data.
+  const acceptedFor = useCallback((step: number, order: OrderData, workItem: WorkItem) => {
+    const uid = workItem.orderIdNo;
+    const list: (string | undefined | null)[] = [expectedFor(step, order, workItem)];
+    if (step === 0) list.push(uid, workItem.siliconQR);
+    else if (step === 1) list.push(workItem.tshirtSerial);
+    else if (step === 2) list.push(workItem.designQR);
+    else list.push(workItem.hologramQR);
+    return list.filter(Boolean).map(v => String(v).trim().toLowerCase());
+  }, [expectedFor]);
+
   const processStep = useCallback((step: number, value: string, baseProduct: { product: string; design: string } | null, order: OrderData, workItem: WorkItem) => {
     setProcessing(true);
     setStepStatuses(prev => { const n = [...prev]; n[step] = "scanning"; return n; });
@@ -375,7 +387,13 @@ export default function TshirtWork() {
     setTimeout(() => {
       const expected = expectedFor(step, order, workItem);
       const norm = (v: string) => v.trim().toLowerCase();
-      const pass = norm(value) === norm(expected);
+      let pass = acceptedFor(step, order, workItem).includes(norm(value));
+      // T-shirt QR: also accept a master-data QR whose color/size match the item.
+      if (!pass && step === 1) {
+        const m = mockTshirtQR[value.trim()] || mockTshirtQR[value.trim().toUpperCase()];
+        if (m && norm(m.color) === norm(workItem.color) && norm(m.size) === norm(workItem.size)) pass = true;
+      }
+
       const labels = [
         isKo ? "마크 고유번호" : "标识唯一编号",
         isKo ? "티셔츠" : "T恤",
