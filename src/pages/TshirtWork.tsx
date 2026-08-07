@@ -408,7 +408,7 @@ export default function TshirtWork() {
       else if (step < 3) { setCurrentStep(step + 1); setProcessing(false); }
       else { setProcessing(false); }
     }, 400);
-  }, [isKo, expectedFor]);
+  }, [isKo, expectedFor, acceptedFor, mockTshirtQR]);
 
 
   const handleScan = useCallback((raw?: string) => {
