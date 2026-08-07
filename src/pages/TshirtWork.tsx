@@ -264,8 +264,32 @@ export default function TshirtWork() {
     });
   }, [dbOrders, isKo, logoUrlMap]);
 
-  // Merge DB data with local work item statuses
-  const [workItemStatuses, setWorkItemStatuses] = useState<Record<string, Record<number, "pending" | "done" | "fail">>>({});
+  // Persisted work item results (survive refresh / page changes)
+  const { data: savedWorkItems } = useQuery({
+    queryKey: ["tshirt_work_items"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tshirt_work_items")
+        .select("order_id, seq, status");
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 10_000,
+  });
+
+  const [localStatuses, setLocalStatuses] = useState<Record<string, Record<number, "pending" | "done" | "fail">>>({});
+  const workItemStatuses = useMemo(() => {
+    const merged: Record<string, Record<number, "pending" | "done" | "fail">> = {};
+    for (const row of savedWorkItems ?? []) {
+      const st = row.status as "pending" | "done" | "fail";
+      merged[row.order_id] = { ...(merged[row.order_id] ?? {}), [row.seq]: st };
+    }
+    for (const [oid, seqs] of Object.entries(localStatuses)) {
+      merged[oid] = { ...(merged[oid] ?? {}), ...seqs };
+    }
+    return merged;
+  }, [savedWorkItems, localStatuses]);
+
   const orders = useMemo<OrderData[]>(() => {
     return dbOrderData.map(o => ({
       ...o,
@@ -275,6 +299,7 @@ export default function TshirtWork() {
       })),
     }));
   }, [dbOrderData, workItemStatuses]);
+
 
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [activeWorkItemSeq, setActiveWorkItemSeq] = useState<number | null>(null);
@@ -371,17 +396,56 @@ export default function TshirtWork() {
   // Defect flag decides whether the video is exempt from auto-deletion.
   useEffect(() => { defectRef.current = hasFail; }, [hasFail]);
 
+  // Persist a work item result to the server so it survives refresh/navigation.
+  const persistWorkItem = useCallback(async (
+    orderId: string,
+    seq: number,
+    status: "done" | "fail",
+    opts?: { itemNo?: string; scanned?: string[]; failReason?: string },
+  ) => {
+    setLocalStatuses(prev => ({
+      ...prev,
+      [orderId]: { ...(prev[orderId] ?? {}), [seq]: status },
+    }));
+    const { data: auth } = await supabase.auth.getUser();
+    const { error } = await supabase.from("tshirt_work_items").upsert({
+      order_id: orderId,
+      seq,
+      item_no: opts?.itemNo ?? null,
+      status,
+      scanned_values: opts?.scanned ?? [],
+      fail_reason: opts?.failReason ?? null,
+      completed_at: new Date().toISOString(),
+      worked_by: auth.user?.id ?? null,
+    }, { onConflict: "order_id,seq" });
+    if (error) {
+      toast({ title: isKo ? "작업 결과 저장 실패" : "作业结果保存失败", description: error.message, variant: "destructive" });
+    } else {
+      queryClient.invalidateQueries({ queryKey: ["tshirt_work_items"] });
+    }
+  }, [queryClient, isKo]);
+
   // All four codes verified with no mismatch → the item is completed.
   useEffect(() => {
     if (!allPass || !selectedOrder || !activeWorkItem) return;
-    setWorkItemStatuses(prev => {
-      if (prev[selectedOrder.id]?.[activeWorkItem.seq] === "done") return prev;
-      return {
-        ...prev,
-        [selectedOrder.id]: { ...(prev[selectedOrder.id] ?? {}), [activeWorkItem.seq]: "done" as const },
-      };
+    if (workItemStatuses[selectedOrder.id]?.[activeWorkItem.seq] === "done") return;
+    persistWorkItem(selectedOrder.id, activeWorkItem.seq, "done", {
+      itemNo: activeWorkItem.orderIdNo,
+      scanned: scannedValues,
     });
-  }, [allPass, selectedOrder, activeWorkItem]);
+  }, [allPass, selectedOrder, activeWorkItem, workItemStatuses, scannedValues, persistWorkItem]);
+
+  // A mismatch marks the item as defective, also persisted.
+  useEffect(() => {
+    if (!hasFail || !allDone || !selectedOrder || !activeWorkItem) return;
+    if (workItemStatuses[selectedOrder.id]?.[activeWorkItem.seq] === "fail") return;
+    persistWorkItem(selectedOrder.id, activeWorkItem.seq, "fail", {
+      itemNo: activeWorkItem.orderIdNo,
+      scanned: scannedValues,
+      failReason: failReason || undefined,
+    });
+  }, [hasFail, allDone, selectedOrder, activeWorkItem, workItemStatuses, scannedValues, failReason, persistWorkItem]);
+
 
 
 
@@ -581,14 +645,12 @@ export default function TshirtWork() {
 
   const handleConfirmAttach = () => {
     if (!selectedOrder || !activeWorkItem) return;
-    // Mark current work item as done
-    setWorkItemStatuses(prev => ({
-      ...prev,
-      [selectedOrder.id]: {
-        ...(prev[selectedOrder.id] ?? {}),
-        [activeWorkItem.seq]: "done" as const,
-      },
-    }));
+    // Mark current work item as done (persisted server-side)
+    persistWorkItem(selectedOrder.id, activeWorkItem.seq, "done", {
+      itemNo: activeWorkItem.orderIdNo,
+      scanned: scannedValues,
+    });
+
     // Auto-advance to next pending item
     const nextPending = selectedOrder.items.find(i => i.seq > activeWorkItem.seq && i.status === "pending");
     if (nextPending) {
