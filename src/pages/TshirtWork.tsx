@@ -1114,7 +1114,8 @@ export default function TshirtWork() {
                   const videoPath = workVideos?.[item.orderIdNo];
                   return (
                   <tr key={item.seq}
-                    className={`border-b last:border-0 transition-colors ${item.seq === activeWorkItem.seq ? "bg-primary/5" : item.status === "pending" ? "hover:bg-muted/30" : ""}`}>
+                    onClick={() => { if (item.seq !== activeWorkItem.seq) { setActiveWorkItemSeq(item.seq); resetScan(); } }}
+                    className={`border-b last:border-0 transition-colors cursor-pointer ${item.seq === activeWorkItem.seq ? "bg-primary/5" : "hover:bg-muted/30"}`}>
                     <td className="py-2.5 font-mono text-xs pr-4">{item.orderIdNo}</td>
                     <td className="py-2.5 pr-4 font-medium">{selectedOrder!.product || "-"}</td>
                     <td className="py-2.5 pr-4 font-medium">{item.color}</td>
@@ -1123,7 +1124,7 @@ export default function TshirtWork() {
                     <td className="py-2.5 font-mono text-xs pr-4">{item.orderIdNo}-2</td>
                     <td className="py-2.5 font-mono text-xs pr-4">{item.orderIdNo}-3</td>
                     <td className="py-2.5 pr-4"><StatusBadge status={item.status} t={t} /></td>
-                    <td className="py-2.5 pr-4">
+                    <td className="py-2.5 pr-4" onClick={e => e.stopPropagation()}>
                       {videoPath ? (
                         <Button variant="outline" size="sm" onClick={() => openVideo(videoPath, `#${item.seq} ${item.orderIdNo}`)}>
                           <Play className="w-3.5 h-3.5 mr-1" /> {isKo ? "영상 재생" : "播放"}
@@ -1132,18 +1133,21 @@ export default function TshirtWork() {
                         <span className="text-xs text-muted-foreground">{isKo ? "영상 없음" : "无视频"}</span>
                       )}
                     </td>
-                    <td className="py-2.5">
-                      {item.seq === activeWorkItem.seq ? (
-                        <span className="text-xs font-medium text-primary">{isKo ? "작업 중" : "作业中"}</span>
-                      ) : item.status === "pending" ? (
-                        <Button variant="outline" size="sm" onClick={() => { setActiveWorkItemSeq(item.seq); resetScan(); }}>
-                          <ScanLine className="w-3.5 h-3.5 mr-1" /> {t("tshirtWork.startVerify")}
-                        </Button>
-                      ) : (
-                        <Button variant="outline" size="sm" onClick={() => reworkItem(item.seq)}>
-                          <RotateCcw className="w-3.5 h-3.5 mr-1" /> {isKo ? "재작업" : "返工"}
-                        </Button>
-                      )}
+                    <td className="py-2.5" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center gap-2">
+                        {item.seq === activeWorkItem.seq ? (
+                          <span className="text-xs font-medium text-primary">{isKo ? "선택됨" : "已选择"}</span>
+                        ) : (
+                          <Button variant="outline" size="sm" onClick={() => { setActiveWorkItemSeq(item.seq); resetScan(); }}>
+                            {item.status === "pending" ? (<><ScanLine className="w-3.5 h-3.5 mr-1" /> {t("tshirtWork.startVerify")}</>) : (<><Image className="w-3.5 h-3.5 mr-1" /> {isKo ? "확인" : "查看"}</>)}
+                          </Button>
+                        )}
+                        {item.status !== "pending" && (
+                          <Button variant="ghost" size="sm" onClick={() => reworkItem(item.seq)}>
+                            <RotateCcw className="w-3.5 h-3.5 mr-1" /> {isKo ? "재작업" : "返工"}
+                          </Button>
+                        )}
+                      </div>
                     </td>
 
                   </tr>
