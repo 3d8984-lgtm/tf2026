@@ -58,7 +58,7 @@ export default function WorkVideoRetentionSettings() {
     },
   });
 
-  const patch = async (values: Record<string, unknown>) => {
+  const patch = async (values: { enabled?: boolean; retention_days?: number; keep_defects?: boolean }) => {
     if (!settings) return;
     const { error } = await supabase.from("work_video_settings").update(values).eq("id", settings.id);
     if (error) { toast({ title: isKo ? "저장 실패" : "保存失败", description: error.message, variant: "destructive" }); return; }
