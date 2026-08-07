@@ -93,7 +93,10 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
   // Poll status
   useEffect(() => {
     let alive = true;
+    let delay = 2000;
+    let timer: ReturnType<typeof setTimeout>;
     const tick = async () => {
+      let ok = false;
       try {
         const res = await proxyFetch(`/api/v1/plc/${plcId}/status`);
         if (!alive) return;
@@ -101,29 +104,33 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
           setStatus(null);
           setOnline(false);
           setErrorMsg(isKo ? "PLC 연결 불가" : "PLC连接失败");
-          return;
+        } else {
+          const j = (await res.json()) as PlcStatusResponse;
+          if (!alive) return;
+          if ("upstream_status" in j) {
+            setStatus(null);
+            setOnline(false);
+            setErrorMsg(isKo ? "PLC 연결 불가" : "PLC连接失败");
+          } else {
+            ok = true;
+            setStatus(j);
+            setOnline(true);
+            setErrorMsg(null);
+          }
         }
-        const j = (await res.json()) as PlcStatusResponse;
-        if (!alive) return;
-        if ("upstream_status" in j) {
-          setStatus(null);
-          setOnline(false);
-          setErrorMsg(isKo ? "PLC 연결 불가" : "PLC连接失败");
-          return;
-        }
-        setStatus(j);
-        setOnline(true);
-        setErrorMsg(null);
       } catch {
         if (!alive) return;
         setStatus(null);
         setOnline(false);
         setErrorMsg(isKo ? "네트워크 오류" : "网络错误");
       }
+      if (!alive) return;
+      // 실패가 반복되면 간격을 늘려 엣지 함수 과부하(503)를 방지
+      delay = ok ? 2000 : Math.min(delay * 2, 60000);
+      timer = setTimeout(tick, delay);
     };
-    tick();
-    const iv = setInterval(tick, 2000);
-    return () => { alive = false; clearInterval(iv); };
+    void tick();
+    return () => { alive = false; clearTimeout(timer); };
   }, [plcId, isKo]);
 
   // Load active order assignment
