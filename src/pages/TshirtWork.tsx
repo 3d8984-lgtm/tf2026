@@ -844,11 +844,14 @@ export default function TshirtWork() {
                   isKo ? "디자인 고유번호" : "设计唯一编号",
                   isKo ? "스티커 고유번호" : "贴纸唯一编号",
                   t("tshirtWork.status"),
+                  isKo ? "영상 재생" : "视频播放",
                 ].map(h => <th key={h} className="pb-2 font-medium text-muted-foreground whitespace-nowrap pr-4">{h}</th>)}
                 <th className="pb-2"></th>
               </tr></thead>
               <tbody>
-                {selectedOrder!.items.map(item => (
+                {selectedOrder!.items.map(item => {
+                  const videoPath = workVideos?.[item.orderIdNo];
+                  return (
                   <tr key={item.seq}
                     className={`border-b last:border-0 transition-colors ${item.seq === activeWorkItem.seq ? "bg-primary/5" : item.status === "pending" ? "hover:bg-muted/30" : ""}`}>
                     <td className="py-2.5 font-mono text-xs pr-4">{item.orderIdNo}</td>
@@ -859,6 +862,15 @@ export default function TshirtWork() {
                     <td className="py-2.5 font-mono text-xs pr-4">{item.orderIdNo}-2</td>
                     <td className="py-2.5 font-mono text-xs pr-4">{item.orderIdNo}-3</td>
                     <td className="py-2.5 pr-4"><StatusBadge status={item.status} t={t} /></td>
+                    <td className="py-2.5 pr-4">
+                      {videoPath ? (
+                        <Button variant="outline" size="sm" onClick={() => openVideo(videoPath, `#${item.seq} ${item.orderIdNo}`)}>
+                          <Play className="w-3.5 h-3.5 mr-1" /> {isKo ? "영상 재생" : "播放"}
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">{isKo ? "영상 없음" : "无视频"}</span>
+                      )}
+                    </td>
                     <td className="py-2.5">
                       {item.seq === activeWorkItem.seq ? (
                         <span className="text-xs font-medium text-primary">{isKo ? "작업 중" : "作业中"}</span>
@@ -869,7 +881,8 @@ export default function TshirtWork() {
                       ) : null}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -887,6 +900,19 @@ export default function TshirtWork() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Work video playback dialog */}
+      <Dialog open={!!playingVideo} onOpenChange={() => setPlayingVideo(null)}>
+        <DialogContent className="max-w-3xl p-4 bg-background">
+          {playingVideo && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium font-mono">{playingVideo.label}</p>
+              <video src={playingVideo.url} controls autoPlay className="w-full rounded-lg bg-black" />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
