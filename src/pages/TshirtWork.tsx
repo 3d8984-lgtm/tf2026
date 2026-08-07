@@ -88,6 +88,36 @@ function hangulToQwerty(input: string): string {
   return hasHangul ? out : input;
 }
 
+// Physical-key → latin character map. Scanners send US-QWERTY key codes, so
+// deriving the character from `event.code` makes scanning immune to the OS
+// input language (Korean IME, etc.).
+const CODE_CHAR_MAP: Record<string, [string, string]> = (() => {
+  const map: Record<string, [string, string]> = {};
+  for (const c of "abcdefghijklmnopqrstuvwxyz") map[`Key${c.toUpperCase()}`] = [c, c.toUpperCase()];
+  const digits: Record<string, string> = { "1": "!", "2": "@", "3": "#", "4": "$", "5": "%", "6": "^", "7": "&", "8": "*", "9": "(", "0": ")" };
+  for (const [d, s] of Object.entries(digits)) {
+    map[`Digit${d}`] = [d, s];
+    map[`Numpad${d}`] = [d, d];
+  }
+  Object.assign(map, {
+    Minus: ["-", "_"], Equal: ["=", "+"], BracketLeft: ["[", "{"], BracketRight: ["]", "}"],
+    Backslash: ["\\", "|"], Semicolon: [";", ":"], Quote: ["'", '"'], Backquote: ["`", "~"],
+    Comma: [",", "<"], Period: [".", ">"], Slash: ["/", "?"], Space: [" ", " "],
+    NumpadSubtract: ["-", "-"], NumpadAdd: ["+", "+"], NumpadDecimal: [".", "."],
+    NumpadMultiply: ["*", "*"], NumpadDivide: ["/", "/"],
+  } as Record<string, [string, string]>);
+  return map;
+})();
+
+// Returns the latin character for a keydown event regardless of the active IME.
+function latinCharFromEvent(e: KeyboardEvent): string | null {
+  const mapped = CODE_CHAR_MAP[e.code];
+  if (mapped) return e.shiftKey ? mapped[1] : mapped[0];
+  if (e.key.length === 1) return hangulToQwerty(e.key);
+  return null;
+}
+
+
 // Scanners may append non-printing separators or emit a Unicode dash that
 // looks identical to "-" on screen. Canonicalize both scanned and stored QR
 // values before comparing them.
