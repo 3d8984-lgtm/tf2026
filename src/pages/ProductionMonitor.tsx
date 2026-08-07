@@ -33,6 +33,7 @@ export default function ProductionMonitor() {
   const { data: orders } = useOrders();
   const { data: tracking } = useProductionTracking();
   const { data: shipments } = useShipments();
+  const { data: barcodeProgress } = useBarcodePrintProgress();
 
   const [stageDetail, setStageDetail] = useState<{ orderId: string; stage: StageKey } | null>(null);
   const [orderDetailId, setOrderDetailId] = useState<string | null>(null);
