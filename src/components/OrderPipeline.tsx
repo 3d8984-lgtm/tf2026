@@ -247,9 +247,6 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
                             <div className="mt-0.5 text-[10px] text-warning">{isKo ? "테스트 모드" : "测试模式"}</div>
                           )}
                         </div>
-
-
-                        </div>
                       )}
                     </button>
 
