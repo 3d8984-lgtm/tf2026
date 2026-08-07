@@ -284,7 +284,8 @@ export default function TshirtWork() {
   const queryClient = useQueryClient();
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [playingVideo, setPlayingVideo] = useState<{ url: string; label: string } | null>(null);
-  const recordTargetRef = useRef<{ folder: string; itemNo: string } | null>(null);
+  const recordTargetRef = useRef<{ folder: string; itemNo: string; orderId: string } | null>(null);
+  const defectRef = useRef(false);
 
   // Videos already stored for the selected order
   const videoFolder = selectedOrder?.externalOrderId ?? "";
