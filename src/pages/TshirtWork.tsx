@@ -499,8 +499,14 @@ export default function TshirtWork() {
                   const fail = order.items.filter(i => i.status === "fail").length;
                   const total = order.items.length;
                   return (
-                    <button key={order.id} onClick={() => setSelectedOrderId(order.id)}
+                    <button key={order.id} onClick={() => {
+                        const first = order.items.find(i => i.status === "pending") ?? order.items[0];
+                        setSelectedOrderId(order.id);
+                        setActiveWorkItemSeq(first ? first.seq : null);
+                        resetScan();
+                      }}
                       className="w-full kpi-card flex items-center gap-4 text-left hover:ring-2 hover:ring-primary/30 transition-all duration-150 active:scale-[0.99] cursor-pointer">
+
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-sm font-semibold text-primary">{order.externalOrderId}</span>
