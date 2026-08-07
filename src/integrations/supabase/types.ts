@@ -1327,6 +1327,56 @@ export type Database = {
           },
         ]
       }
+      tshirt_work_items: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          fail_reason: string | null
+          id: string
+          item_no: string | null
+          order_id: string
+          scanned_values: Json
+          seq: number
+          status: string
+          updated_at: string
+          worked_by: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          fail_reason?: string | null
+          id?: string
+          item_no?: string | null
+          order_id: string
+          scanned_values?: Json
+          seq: number
+          status?: string
+          updated_at?: string
+          worked_by?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          fail_reason?: string | null
+          id?: string
+          item_no?: string | null
+          order_id?: string
+          scanned_values?: Json
+          seq?: number
+          status?: string
+          updated_at?: string
+          worked_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tshirt_work_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tshirt_work_logs: {
         Row: {
           color_code: string
