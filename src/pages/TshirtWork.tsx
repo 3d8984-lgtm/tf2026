@@ -394,6 +394,23 @@ export default function TshirtWork() {
     return `${uid}-3`;
   }, []);
 
+  // Scanner glitches (dropped/duplicated/inserted keystroke) produce a value that
+  // differs from the expected one by a single character. Detect it to warn the worker.
+  const isOneEditApart = (a: string, b: string) => {
+    if (a === b) return false;
+    if (Math.abs(a.length - b.length) > 1) return false;
+    const [s, l] = a.length <= b.length ? [a, b] : [b, a];
+    let i = 0, j = 0, edits = 0;
+    while (i < s.length && j < l.length) {
+      if (s[i] === l[j]) { i++; j++; continue; }
+      if (++edits > 1) return false;
+      if (s.length === l.length) i++;
+      j++;
+    }
+    return edits + (l.length - j) + (s.length - i) <= 1;
+  };
+
+
   // A physical QR may be printed either as the derived unique number (xxx-1/-2/-3)
   // or as the actual QR value registered on the order item / QR master data.
   const acceptedFor = useCallback((step: number, order: OrderData, workItem: WorkItem) => {
