@@ -387,7 +387,17 @@ export default function TshirtWork() {
     setTimeout(() => {
       const expected = expectedFor(step, order, workItem);
       const norm = (v: string) => v.trim().toLowerCase();
-      let pass = acceptedFor(step, order, workItem).includes(norm(value));
+      const candidates = acceptedFor(step, order, workItem);
+      let pass = candidates.includes(norm(value));
+      // Hardware scanners occasionally emit a repeated keystroke (e.g. "18f2f8ee"
+      // instead of "18f28ee"). Collapse repeated characters before comparing so a
+      // physically correct code is not rejected by a scanner artifact.
+      if (!pass) {
+        const dedup = (v: string) => v.replace(/(.)\1+/g, "$1");
+        const d = dedup(norm(value));
+        pass = candidates.some(c => dedup(c) === d);
+      }
+
       // T-shirt QR: also accept a master-data QR whose color/size match the item.
       if (!pass && step === 1) {
         const m = mockTshirtQR[value.trim()] || mockTshirtQR[value.trim().toUpperCase()];
