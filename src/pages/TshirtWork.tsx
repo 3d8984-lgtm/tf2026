@@ -3,15 +3,17 @@ import PageHeader from "@/components/PageHeader";
 import { useOrders } from "@/hooks/useDbData";
 import { supabase } from "@/integrations/supabase/client";
 import { useQrMasterData } from "@/hooks/useQrMasterData";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   ScanLine, CheckCircle2, XCircle, Clock, AlertTriangle,
   Image, Sticker, QrCode, Hash, Shirt, RotateCcw, Loader2,
-  ChevronRight, Package, ChevronLeft, List
+  ChevronRight, Package, ChevronLeft, List, Play
 } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import WorkCamRecorder from "@/components/WorkCamRecorder";
+
 
 type StepStatus = "waiting" | "scanning" | "pass" | "fail";
 
@@ -278,9 +280,58 @@ export default function TshirtWork() {
   const selectedOrder = orders.find(o => o.id === selectedOrderId) ?? null;
   const activeWorkItem = selectedOrder?.items.find(i => i.seq === activeWorkItemSeq) ?? null;
 
+  // ---- Work video recording (USB camera) ----
+  const queryClient = useQueryClient();
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [playingVideo, setPlayingVideo] = useState<{ url: string; label: string } | null>(null);
+  const recordTargetRef = useRef<{ folder: string; itemNo: string } | null>(null);
+
+  // Videos already stored for the selected order
+  const videoFolder = selectedOrder?.externalOrderId ?? "";
+  const { data: workVideos } = useQuery({
+    queryKey: ["work_videos", videoFolder],
+    enabled: !!videoFolder,
+    queryFn: async () => {
+      const { data } = await supabase.storage.from("work-videos").list(videoFolder);
+      const map: Record<string, string> = {};
+      for (const f of data ?? []) map[f.name.replace(/\.[^.]+$/, "")] = `${videoFolder}/${f.name}`;
+      return map;
+    },
+  });
+
+  const handleRecorded = useCallback(async (blob: Blob) => {
+    const target = recordTargetRef.current;
+    if (!target) return;
+    setUploadingVideo(true);
+    try {
+      await supabase.storage
+        .from("work-videos")
+        .upload(`${target.folder}/${target.itemNo}.webm`, blob, { contentType: "video/webm", upsert: true });
+      queryClient.invalidateQueries({ queryKey: ["work_videos", target.folder] });
+    } finally {
+      setUploadingVideo(false);
+    }
+  }, [queryClient]);
+
+  const openVideo = useCallback(async (path: string, label: string) => {
+    const { data } = await supabase.storage.from("work-videos").createSignedUrl(path, 60 * 60);
+    if (data?.signedUrl) setPlayingVideo({ url: data.signedUrl, label });
+  }, []);
+
+
   const allPass = stepStatuses.every(s => s === "pass");
   const hasFail = stepStatuses.some(s => s === "fail");
   const allDone = stepStatuses.every(s => s === "pass" || s === "fail");
+
+  // Record from the first scan until the last (sticker) code is verified.
+  const isRecording = !!activeWorkItem && !!selectedOrder && !!scannedValues[0] && !allDone;
+  useEffect(() => {
+    if (isRecording && selectedOrder && activeWorkItem) {
+      recordTargetRef.current = { folder: selectedOrder.externalOrderId, itemNo: activeWorkItem.orderIdNo };
+    }
+  }, [isRecording, selectedOrder, activeWorkItem]);
+
+
 
   useEffect(() => {
     if (activeWorkItem && !allDone) inputRef.current?.focus();
@@ -634,7 +685,12 @@ export default function TshirtWork() {
 
         <div className="grid lg:grid-cols-3 gap-5 section-enter" style={{ animationDelay: "100ms" }}>
           <div className="lg:col-span-2 space-y-4">
+            {/* Area 1: USB camera preview + auto recording */}
+            <WorkCamRecorder recording={isRecording} onRecorded={handleRecorded} uploading={uploadingVideo} />
+
+            {/* Area 2: auto verification scan */}
             <div className={`kpi-card border-2 transition-colors duration-300 ${hasFail ? "border-destructive" : allPass ? "border-[hsl(var(--success))]" : "border-border"}`}>
+
               <h3 className="text-sm font-medium mb-5 flex items-center gap-2"><ScanLine className="w-4 h-4" /> {t("tshirtWork.autoScan")}</h3>
               <div className="space-y-3 mb-2">
                 {steps.map((step, i) => {
@@ -788,11 +844,14 @@ export default function TshirtWork() {
                   isKo ? "디자인 고유번호" : "设计唯一编号",
                   isKo ? "스티커 고유번호" : "贴纸唯一编号",
                   t("tshirtWork.status"),
+                  isKo ? "영상 재생" : "视频播放",
                 ].map(h => <th key={h} className="pb-2 font-medium text-muted-foreground whitespace-nowrap pr-4">{h}</th>)}
                 <th className="pb-2"></th>
               </tr></thead>
               <tbody>
-                {selectedOrder!.items.map(item => (
+                {selectedOrder!.items.map(item => {
+                  const videoPath = workVideos?.[item.orderIdNo];
+                  return (
                   <tr key={item.seq}
                     className={`border-b last:border-0 transition-colors ${item.seq === activeWorkItem.seq ? "bg-primary/5" : item.status === "pending" ? "hover:bg-muted/30" : ""}`}>
                     <td className="py-2.5 font-mono text-xs pr-4">{item.orderIdNo}</td>
@@ -803,6 +862,15 @@ export default function TshirtWork() {
                     <td className="py-2.5 font-mono text-xs pr-4">{item.orderIdNo}-2</td>
                     <td className="py-2.5 font-mono text-xs pr-4">{item.orderIdNo}-3</td>
                     <td className="py-2.5 pr-4"><StatusBadge status={item.status} t={t} /></td>
+                    <td className="py-2.5 pr-4">
+                      {videoPath ? (
+                        <Button variant="outline" size="sm" onClick={() => openVideo(videoPath, `#${item.seq} ${item.orderIdNo}`)}>
+                          <Play className="w-3.5 h-3.5 mr-1" /> {isKo ? "영상 재생" : "播放"}
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">{isKo ? "영상 없음" : "无视频"}</span>
+                      )}
+                    </td>
                     <td className="py-2.5">
                       {item.seq === activeWorkItem.seq ? (
                         <span className="text-xs font-medium text-primary">{isKo ? "작업 중" : "作业中"}</span>
@@ -813,7 +881,8 @@ export default function TshirtWork() {
                       ) : null}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -831,6 +900,19 @@ export default function TshirtWork() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Work video playback dialog */}
+      <Dialog open={!!playingVideo} onOpenChange={() => setPlayingVideo(null)}>
+        <DialogContent className="max-w-3xl p-4 bg-background">
+          {playingVideo && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium font-mono">{playingVideo.label}</p>
+              <video src={playingVideo.url} controls autoPlay className="w-full rounded-lg bg-black" />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
