@@ -573,7 +573,6 @@ export default function TshirtWork() {
       <PageHeader title={t("tshirtWork.title")} description={`${selectedOrder!.twinker} · #${activeWorkItem.seq}`}>
         <Button variant="outline" size="sm" onClick={() => { setSelectedOrderId(null); setActiveWorkItemSeq(null); resetScan(); }}><ChevronLeft className="w-4 h-4 mr-1" /> {t("tshirtWork.orderList")}</Button>
         <Button variant="outline" size="sm" onClick={resetScan}><RotateCcw className="w-4 h-4 mr-1" /> {t("tshirtWork.reset")}</Button>
-        <Button variant="outline" size="sm" onClick={() => { setSelectedOrderId(null); setActiveWorkItemSeq(null); resetScan(); }}><ChevronLeft className="w-4 h-4 mr-1" /> {t("tshirtWork.orderList")}</Button>
       </PageHeader>
       <div className="p-6 space-y-4">
         <div className="kpi-card grid grid-cols-2 md:grid-cols-8 gap-4 items-center">
