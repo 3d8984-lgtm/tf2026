@@ -340,9 +340,12 @@ export default function TshirtWork() {
   const isRecording = !!activeWorkItem && !!selectedOrder && !!scannedValues[0] && !allDone;
   useEffect(() => {
     if (isRecording && selectedOrder && activeWorkItem) {
-      recordTargetRef.current = { folder: selectedOrder.externalOrderId, itemNo: activeWorkItem.orderIdNo };
+      recordTargetRef.current = { folder: selectedOrder.externalOrderId, itemNo: activeWorkItem.orderIdNo, orderId: selectedOrder.id };
     }
   }, [isRecording, selectedOrder, activeWorkItem]);
+
+  // Defect flag decides whether the video is exempt from auto-deletion.
+  useEffect(() => { defectRef.current = hasFail; }, [hasFail]);
 
 
 
