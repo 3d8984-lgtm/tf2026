@@ -9,6 +9,7 @@ import WebhookSettings from "@/components/WebhookSettings";
 import CourierSettings from "@/components/CourierSettings";
 import SiteCallbackSettings from "@/components/SiteCallbackSettings";
 import CameraSettings from "@/components/CameraSettings";
+import WorkVideoRetentionSettings from "@/components/WorkVideoRetentionSettings";
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
