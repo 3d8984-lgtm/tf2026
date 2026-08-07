@@ -323,6 +323,16 @@ export default function TshirtWork() {
   const hasFail = stepStatuses.some(s => s === "fail");
   const allDone = stepStatuses.every(s => s === "pass" || s === "fail");
 
+  // Record from the first scan until the last (sticker) code is verified.
+  const isRecording = !!activeWorkItem && !!selectedOrder && !!scannedValues[0] && !allDone;
+  useEffect(() => {
+    if (isRecording && selectedOrder && activeWorkItem) {
+      recordTargetRef.current = { folder: selectedOrder.externalOrderId, itemNo: activeWorkItem.orderIdNo };
+    }
+  }, [isRecording, selectedOrder, activeWorkItem]);
+
+
+
   useEffect(() => {
     if (activeWorkItem && !allDone) inputRef.current?.focus();
   }, [currentStep, activeWorkItem, allDone]);
