@@ -304,10 +304,22 @@ export default function TshirtWork() {
     const target = recordTargetRef.current;
     if (!target) return;
     setUploadingVideo(true);
+    const path = `${target.folder}/${target.itemNo}.webm`;
     try {
       await supabase.storage
         .from("work-videos")
-        .upload(`${target.folder}/${target.itemNo}.webm`, blob, { contentType: "video/webm", upsert: true });
+        .upload(path, blob, { contentType: "video/webm", upsert: true });
+      // Retention bookkeeping: normal videos expire, defect ones are kept.
+      await supabase.from("work_video_records").upsert({
+        bucket: "work-videos",
+        path,
+        order_id: target.orderId,
+        external_order_id: target.folder,
+        item_no: target.itemNo,
+        has_defect: defectRef.current,
+        size_bytes: blob.size,
+        deleted_at: null,
+      }, { onConflict: "path" });
       queryClient.invalidateQueries({ queryKey: ["work_videos", target.folder] });
     } finally {
       setUploadingVideo(false);
