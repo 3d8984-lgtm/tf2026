@@ -320,7 +320,7 @@ function OrderDetail({ order, onBack }: { order: OrderRow; onBack: () => void })
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <ScanLine className="w-4 h-4" />{tr("주문 상세 목록 (스캔 순서)", "订单明细（扫描顺序）")}
+                <ScanLine className="w-4 h-4" />{tr("주문 상세 목록 · 카드 고유번호 (스캔 순서)", "订单明细 · 卡片唯一编号（扫描顺序）")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -335,9 +335,6 @@ function OrderDetail({ order, onBack }: { order: OrderRow; onBack: () => void })
                     <div key={i} className={`flex items-center gap-3 py-2.5 px-2 text-sm ${current ? "bg-primary/10 rounded" : ""}`}>
                       <span className="w-8 tabular-nums text-muted-foreground">{e.position}</span>
                       <span className="flex-1 font-mono text-xs break-all">{e.no}</span>
-                      {(e.color || e.size) && (
-                        <span className="text-[11px] text-muted-foreground">{e.color} {e.size}</span>
-                      )}
                       {done ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                         : current ? <Badge variant="outline" className="shrink-0 text-[10px]">{tr("대기", "等待")}</Badge>
                         : <span className="w-4" />}
