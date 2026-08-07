@@ -737,7 +737,12 @@ export default function TshirtWork() {
             {/* Area 2: auto verification scan */}
             <div className={`kpi-card border-2 transition-colors duration-300 ${hasFail ? "border-destructive" : allPass ? "border-[hsl(var(--success))]" : "border-border"}`}>
 
-              <h3 className="text-sm font-medium mb-5 flex items-center gap-2"><ScanLine className="w-4 h-4" /> {t("tshirtWork.autoScan")}</h3>
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-sm font-medium flex items-center gap-2"><ScanLine className="w-4 h-4" /> {t("tshirtWork.autoScan")}</h3>
+                <Button variant="outline" size="sm" onClick={resetScan}>
+                  <RotateCcw className="w-4 h-4 mr-1" /> {isKo ? "초기화" : "重置"}
+                </Button>
+              </div>
               <div className="space-y-3 mb-2">
                 {steps.map((step, i) => {
                   const isActive = i === currentStep && !hasFail && !allDone;
