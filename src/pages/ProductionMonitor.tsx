@@ -6,6 +6,8 @@ import { useLang } from "@/contexts/LangContext";
 import OrderPipeline from "@/components/OrderPipeline";
 import PlcMonitor from "@/components/PlcMonitor";
 import DmScannerMonitor from "@/components/DmScannerMonitor";
+import BarcodeStageDetail from "@/components/BarcodeStageDetail";
+import { useBarcodePrintProgress, STAGE_BARCODE } from "@/hooks/useBarcodePrintProgress";
 import { Gauge, ScanLine, Package, Printer, Activity, Shirt, CreditCard, Mail, Truck, CheckCircle2 } from "lucide-react";
 import { useOrders, useProductionTracking, useShipments } from "@/hooks/useDbData";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -31,6 +33,7 @@ export default function ProductionMonitor() {
   const { data: orders } = useOrders();
   const { data: tracking } = useProductionTracking();
   const { data: shipments } = useShipments();
+  const { data: barcodeProgress } = useBarcodePrintProgress();
 
   const [stageDetail, setStageDetail] = useState<{ orderId: string; stage: StageKey } | null>(null);
   const [orderDetailId, setOrderDetailId] = useState<string | null>(null);
@@ -60,8 +63,14 @@ export default function ProductionMonitor() {
   const stageLabel = meta ? (isKo ? meta.ko : meta.zh) : "";
 
   const orderQty = detailOrder?.quantity ?? 0;
-  const stageDone = detailTracking.reduce((s, t) => s + (t.completed_count ?? 0), 0);
-  const stageFail = detailTracking.reduce((s, t) => s + ((t as any).failed_count ?? 0), 0);
+  const barcodeSrc = stageDetail ? STAGE_BARCODE[stageDetail.stage] : undefined;
+  const barcodeProg = stageDetail && barcodeSrc ? barcodeProgress?.[stageDetail.orderId]?.[barcodeSrc.kind] : undefined;
+  const stageDone = barcodeProg
+    ? barcodeProg.done
+    : detailTracking.reduce((s, t) => s + (t.completed_count ?? 0), 0);
+  const stageFail = barcodeProg
+    ? barcodeProg.failed
+    : detailTracking.reduce((s, t) => s + ((t as any).failed_count ?? 0), 0);
 
   return (
     <div>
@@ -193,6 +202,10 @@ export default function ProductionMonitor() {
                     </div>
                   )}
                 </div>
+              )}
+
+              {stageDetail && (stageDetail.stage === "card" || stageDetail.stage === "set") && (
+                <BarcodeStageDetail orderId={stageDetail.orderId} stage={stageDetail.stage} />
               )}
             </div>
           )}

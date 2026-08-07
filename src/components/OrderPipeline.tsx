@@ -1,7 +1,7 @@
 import { Shirt, CreditCard, Package, Mail, Truck, CheckCircle2 } from "lucide-react";
 import { useOrders, useProductionTracking } from "@/hooks/useDbData";
 import { useLang } from "@/contexts/LangContext";
-import { usePlcLive, STAGE_PLC, type PlcLive } from "@/hooks/usePlcStatus";
+import { useBarcodePrintProgress, STAGE_BARCODE, type BarcodeProgress } from "@/hooks/useBarcodePrintProgress";
 
 const stages = [
   { key: "tshirt", label_ko: "티셔츠 제작", label_zh: "T恤制作", icon: Shirt },
@@ -38,7 +38,7 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
   const isKo = lang === "ko";
   const { data: orders, isLoading: ordersLoading } = useOrders();
   const { data: tracking, isLoading: trackingLoading } = useProductionTracking();
-  const plcLive = usePlcLive();
+  const { data: barcodeProgress } = useBarcodePrintProgress();
 
   if (ordersLoading || trackingLoading) {
     return (
@@ -60,6 +60,13 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
         stageCounts[key] = Math.max(stageCounts[key], t.completed_count);
       }
     });
+
+    // 카드 포장 / 세트 포장 실적은 바코드 인쇄 작업 데이터를 우선 사용
+    const bp = barcodeProgress?.[order.id];
+    if (bp) {
+      stageCounts.card = Math.max(stageCounts.card, bp.card.done);
+      stageCounts.set = Math.max(stageCounts.set, bp.tshirt.done);
+    }
 
     const stageKeys: StageKey[] = ["tshirt", "card", "set", "courier", "done"];
     let currentStage: StageKey = "tshirt";
@@ -152,11 +159,9 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
                 const count = order.stageCounts[s.key];
                 const stagePct = pct(count, order.qty);
                 const Icon = s.icon;
-                const machine = STAGE_PLC[s.key];
-                const live: PlcLive | undefined = machine ? plcLive[s.key] : undefined;
-                const isThisOrder = !!live && live.orderId === order.id;
-                // 단계 순서와 무관하게, 실적이 있거나 설비가 가동 중이면 활성 상태로 표시
-                const isRunning = isThisOrder && live?.online && live.state === "running";
+                const src = STAGE_BARCODE[s.key];
+                const prog: BarcodeProgress | undefined = src ? barcodeProgress?.[order.id]?.[src.kind] : undefined;
+                const isRunning = !!prog?.active;
                 const hasWork = count > 0;
                 const isComplete = order.qty > 0 && count >= order.qty;
                 const isActive = isRunning || (hasWork && !isComplete);
@@ -194,47 +199,53 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
                         <span className="text-[10px] tabular-nums text-muted-foreground">{stagePct > 0 ? `${stagePct}%` : ""}</span>
                       </div>
 
-                      {machine && (
+                      {src && (
                         <div className="mt-1.5 pt-1.5 border-t border-border/60">
                           <div className="flex items-center gap-1">
                             <span
                               className="w-1.5 h-1.5 rounded-full shrink-0"
                               style={{
-                                background: !live?.online
-                                  ? "hsl(var(--muted-foreground))"
-                                  : live.state === "running"
+                                background: prog?.active
                                   ? "hsl(var(--success))"
-                                  : live.state === "fault" || live.state === "e_stop"
+                                  : (prog?.failed ?? 0) > 0
                                   ? "hsl(var(--destructive))"
                                   : "hsl(var(--muted-foreground))",
                               }}
                             />
                             <span className="text-[10px] font-medium text-muted-foreground truncate">
-                              {machine.label} · {!live?.online
-                                ? (isKo ? "연결 끊김" : "连接中断")
-                                : live.state === "running"
-                                ? (isKo ? "가동중" : "运行中")
-                                : live.state === "fault" || live.state === "e_stop"
-                                ? (isKo ? "이상" : "异常")
-                                : (isKo ? "정지" : "停止")}
+                              {isKo ? src.nameKo : src.nameZh} · {!prog || prog.total === 0
+                                ? (isKo ? "미시작" : "未开始")
+                                : prog.active
+                                ? (isKo ? "작업중" : "作业中")
+                                : prog.done >= order.qty && order.qty > 0
+                                ? (isKo ? "완료" : "完成")
+                                : (isKo ? "대기" : "待处理")}
                             </span>
                           </div>
                           <div className="flex items-baseline justify-between mt-0.5">
-                            <span className="text-[10px] text-muted-foreground">{isKo ? "누적 카운트" : "累计计数"}</span>
+                            <span className="text-[10px] text-muted-foreground">{isKo ? "인쇄 완료" : "打印完成"}</span>
                             <span
                               className="text-[11px] font-semibold tabular-nums"
-                              style={{ color: isThisOrder ? stageColors[s.key] : "hsl(var(--muted-foreground))" }}
+                              style={{ color: (prog?.done ?? 0) > 0 ? stageColors[s.key] : "hsl(var(--muted-foreground))" }}
                             >
-                              {isThisOrder ? (live?.count ?? 0).toLocaleString() : "-"}
+                              {(prog?.done ?? 0).toLocaleString()} / {order.qty.toLocaleString()}
                             </span>
                           </div>
                           <div className="flex items-baseline justify-between mt-0.5">
-                            <span className="text-[10px] text-muted-foreground">{isKo ? "가동시간" : "运行时间"}</span>
+                            <span className="text-[10px] text-muted-foreground">{isKo ? "최근 작업" : "最近作业"}</span>
                             <span className="text-[11px] tabular-nums text-muted-foreground">
-                              {isThisOrder && live?.duration ? live.duration : "-"}
+                              {prog?.lastAt ? new Date(prog.lastAt).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN", { hour: "2-digit", minute: "2-digit" }) : "-"}
                             </span>
                           </div>
-
+                          {(prog?.failed ?? 0) > 0 && (
+                            <div className="flex items-baseline justify-between mt-0.5">
+                              <span className="text-[10px] text-muted-foreground">{isKo ? "오류" : "错误"}</span>
+                              <span className="text-[11px] tabular-nums text-destructive font-semibold">{prog?.failed}</span>
+                            </div>
+                          )}
+                          {prog?.testMode && (
+                            <div className="mt-0.5 text-[10px] text-warning">{isKo ? "테스트 모드" : "测试模式"}</div>
+                          )}
                         </div>
                       )}
                     </button>
