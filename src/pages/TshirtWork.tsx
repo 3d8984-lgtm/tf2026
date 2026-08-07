@@ -461,6 +461,30 @@ export default function TshirtWork() {
     setTimeout(() => inputRef.current?.focus(), 50);
   }, []);
 
+  // Reset an already finished item back to pending so it can be re-verified.
+  const reworkItem = useCallback(async (seq: number) => {
+    if (!selectedOrderId) return;
+    setLocalStatuses(prev => ({
+      ...prev,
+      [selectedOrderId]: { ...(prev[selectedOrderId] ?? {}), [seq]: "pending" },
+    }));
+    setActiveWorkItemSeq(seq);
+    resetScan();
+    const { error } = await supabase
+      .from("tshirt_work_items")
+      .delete()
+      .eq("order_id", selectedOrderId)
+      .eq("seq", seq);
+    if (error) {
+      toast({ title: isKo ? "재작업 처리 실패" : "返工处理失败", description: error.message, variant: "destructive" });
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ["tshirt_work_items"] });
+    toast({ title: isKo ? "재작업으로 전환됨" : "已转为返工", description: `#${seq}` });
+  }, [selectedOrderId, resetScan, queryClient, isKo]);
+
+
+
   // Expected value for each scan step (마크 -1 / 티셔츠 / 디자인 -2 / 스티커 -3)
   const expectedFor = useCallback((step: number, order: OrderData, workItem: WorkItem) => {
     const uid = workItem.orderIdNo;
