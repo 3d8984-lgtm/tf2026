@@ -645,14 +645,12 @@ export default function TshirtWork() {
 
   const handleConfirmAttach = () => {
     if (!selectedOrder || !activeWorkItem) return;
-    // Mark current work item as done
-    setWorkItemStatuses(prev => ({
-      ...prev,
-      [selectedOrder.id]: {
-        ...(prev[selectedOrder.id] ?? {}),
-        [activeWorkItem.seq]: "done" as const,
-      },
-    }));
+    // Mark current work item as done (persisted server-side)
+    persistWorkItem(selectedOrder.id, activeWorkItem.seq, "done", {
+      itemNo: activeWorkItem.orderIdNo,
+      scanned: scannedValues,
+    });
+
     // Auto-advance to next pending item
     const nextPending = selectedOrder.items.find(i => i.seq > activeWorkItem.seq && i.status === "pending");
     if (nextPending) {
