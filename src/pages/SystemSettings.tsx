@@ -149,6 +149,7 @@ export default function SystemSettings() {
     { value: "webhook", icon: Webhook, label: t("settings.webhook") },
     { value: "courier", icon: Truck, label: isKo ? "택배사 연동" : "快递对接" },
     { value: "callback", icon: ArrowUpRight, label: isKo ? "TWINMETA 회신" : "TWINMETA回调" },
+    { value: "workVideo", icon: HardDrive, label: isKo ? "작업 영상 보관" : "作业视频保留" },
   ];
 
   const visibleTabs = tabItems.filter(tab => tab.value === "general" || canAccessSettingsTab(tab.value));
