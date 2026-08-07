@@ -652,7 +652,9 @@ export default function TshirtWork() {
       if (now - lastKeyRef.current > 1000) bufferRef.current = "";
       lastKeyRef.current = now;
 
-      if (e.key === "Enter") {
+      // With a Korean IME active the browser reports key as "Process"; rely on
+      // the physical key code (e.code) instead so scanning is always latin.
+      if (e.key === "Enter" || e.code === "Enter" || e.code === "NumpadEnter") {
         blockEvent();
         const value = bufferRef.current || scanValueRef.current;
         bufferRef.current = "";
@@ -660,18 +662,20 @@ export default function TshirtWork() {
         inputRef.current?.focus();
         return;
       }
-      if (e.key === "Backspace") {
+      if (e.key === "Backspace" || e.code === "Backspace") {
         blockEvent();
         bufferRef.current = bufferRef.current.slice(0, -1);
         setScanValue(bufferRef.current);
         return;
       }
-      if (e.key.length === 1) {
+      const ch = latinCharFromEvent(e);
+      if (ch) {
         blockEvent();
-        bufferRef.current += e.key;
+        bufferRef.current += ch;
         setScanValue(bufferRef.current);
         inputRef.current?.focus();
       }
+
     };
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey || blockedNavigationKeys.has(e.key) || e.key === "Control" || e.key === "Meta" || e.key === "Alt") {
