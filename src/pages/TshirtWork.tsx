@@ -3,15 +3,17 @@ import PageHeader from "@/components/PageHeader";
 import { useOrders } from "@/hooks/useDbData";
 import { supabase } from "@/integrations/supabase/client";
 import { useQrMasterData } from "@/hooks/useQrMasterData";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   ScanLine, CheckCircle2, XCircle, Clock, AlertTriangle,
   Image, Sticker, QrCode, Hash, Shirt, RotateCcw, Loader2,
-  ChevronRight, Package, ChevronLeft, List
+  ChevronRight, Package, ChevronLeft, List, Play
 } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import WorkCamRecorder from "@/components/WorkCamRecorder";
+
 
 type StepStatus = "waiting" | "scanning" | "pass" | "fail";
 
