@@ -470,11 +470,14 @@ export default function TshirtWork() {
     }));
     setActiveWorkItemSeq(seq);
     resetScan();
-    const { error } = await supabase
-      .from("tshirt_work_items")
-      .delete()
-      .eq("order_id", selectedOrderId)
-      .eq("seq", seq);
+    const { error } = await supabase.from("tshirt_work_items").upsert({
+      order_id: selectedOrderId,
+      seq,
+      status: "pending",
+      scanned_values: [],
+      fail_reason: null,
+      completed_at: null,
+    }, { onConflict: "order_id,seq" });
     if (error) {
       toast({ title: isKo ? "재작업 처리 실패" : "返工处理失败", description: error.message, variant: "destructive" });
       return;
