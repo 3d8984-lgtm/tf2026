@@ -347,6 +347,18 @@ export default function TshirtWork() {
   // Defect flag decides whether the video is exempt from auto-deletion.
   useEffect(() => { defectRef.current = hasFail; }, [hasFail]);
 
+  // All four codes verified with no mismatch → the item is completed.
+  useEffect(() => {
+    if (!allPass || !selectedOrder || !activeWorkItem) return;
+    setWorkItemStatuses(prev => {
+      if (prev[selectedOrder.id]?.[activeWorkItem.seq] === "done") return prev;
+      return {
+        ...prev,
+        [selectedOrder.id]: { ...(prev[selectedOrder.id] ?? {}), [activeWorkItem.seq]: "done" as const },
+      };
+    });
+  }, [allPass, selectedOrder, activeWorkItem]);
+
 
 
   useEffect(() => {
