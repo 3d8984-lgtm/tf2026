@@ -280,6 +280,45 @@ export default function TshirtWork() {
   const selectedOrder = orders.find(o => o.id === selectedOrderId) ?? null;
   const activeWorkItem = selectedOrder?.items.find(i => i.seq === activeWorkItemSeq) ?? null;
 
+  // ---- Work video recording (USB camera) ----
+  const queryClient = useQueryClient();
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [playingVideo, setPlayingVideo] = useState<{ url: string; label: string } | null>(null);
+  const recordTargetRef = useRef<{ folder: string; itemNo: string } | null>(null);
+
+  // Videos already stored for the selected order
+  const videoFolder = selectedOrder?.externalOrderId ?? "";
+  const { data: workVideos } = useQuery({
+    queryKey: ["work_videos", videoFolder],
+    enabled: !!videoFolder,
+    queryFn: async () => {
+      const { data } = await supabase.storage.from("work-videos").list(videoFolder);
+      const map: Record<string, string> = {};
+      for (const f of data ?? []) map[f.name.replace(/\.[^.]+$/, "")] = `${videoFolder}/${f.name}`;
+      return map;
+    },
+  });
+
+  const handleRecorded = useCallback(async (blob: Blob) => {
+    const target = recordTargetRef.current;
+    if (!target) return;
+    setUploadingVideo(true);
+    try {
+      await supabase.storage
+        .from("work-videos")
+        .upload(`${target.folder}/${target.itemNo}.webm`, blob, { contentType: "video/webm", upsert: true });
+      queryClient.invalidateQueries({ queryKey: ["work_videos", target.folder] });
+    } finally {
+      setUploadingVideo(false);
+    }
+  }, [queryClient]);
+
+  const openVideo = useCallback(async (path: string, label: string) => {
+    const { data } = await supabase.storage.from("work-videos").createSignedUrl(path, 60 * 60);
+    if (data?.signedUrl) setPlayingVideo({ url: data.signedUrl, label });
+  }, []);
+
+
   const allPass = stepStatuses.every(s => s === "pass");
   const hasFail = stepStatuses.some(s => s === "fail");
   const allDone = stepStatuses.every(s => s === "pass" || s === "fail");
