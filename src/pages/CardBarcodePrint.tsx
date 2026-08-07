@@ -138,21 +138,21 @@ function OrderDetail({ order, onBack }: { order: OrderRow; onBack: () => void })
   const seenRef = useRef<Set<string>>(new Set());
   const lastKeyRef = useRef<string>("");
 
-  // 기대 스캔 순서 (주문 상세 항목 순서)
+  // 기대 스캔 순서 = 카드 고유번호(개별 주문번호-4) 순서
   const expected = useMemo(() => {
     const src: any[] = Array.isArray(order.source_data?.items) ? order.source_data.items : [];
     const count = Math.max(src.length, order.quantity ?? 0);
     return Array.from({ length: count }, (_, idx) => {
       const it = src[idx] || {};
-      const no = (it.order_id as string) || (it.sequence_no as string) || `${idx + 1}`;
+      const base = String(
+        it.order_id ?? it.sequence_no ?? `${order.external_order_id}-${idx + 1}`
+      );
+      const cardNo = `${base}-4`;
       return {
         position: idx + 1,
-        no: String(no),
-        color: it.tshirt_color ?? "",
-        size: it.tshirt_size ?? "",
-        keys: [String(no), `${no}-1`, `${no}-2`, `${no}-3`, it.qr_value, it.dm_code, it.barcode]
-          .filter(Boolean)
-          .map((v: string) => norm(v)),
+        no: cardNo,
+        base,
+        keys: [cardNo, base].filter(Boolean).map((v: string) => norm(v)),
       };
     });
   }, [order]);
