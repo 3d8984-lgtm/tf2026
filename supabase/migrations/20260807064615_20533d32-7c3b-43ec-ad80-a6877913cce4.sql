@@ -1,0 +1,4 @@
+CREATE POLICY "work_videos_select_approved" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'work-videos' AND public.is_approved(auth.uid()));
+CREATE POLICY "work_videos_insert_approved" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'work-videos' AND public.is_approved(auth.uid()));
+CREATE POLICY "work_videos_update_approved" ON storage.objects FOR UPDATE TO authenticated USING (bucket_id = 'work-videos' AND public.is_approved(auth.uid()));
+CREATE POLICY "work_videos_delete_admin" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = 'work-videos' AND public.is_admin(auth.uid()));
