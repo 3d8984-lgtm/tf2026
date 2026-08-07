@@ -138,21 +138,21 @@ function OrderDetail({ order, onBack }: { order: OrderRow; onBack: () => void })
   const seenRef = useRef<Set<string>>(new Set());
   const lastKeyRef = useRef<string>("");
 
-  // 기대 스캔 순서 (주문 상세 항목 순서)
+  // 기대 스캔 순서 = 카드 고유번호(개별 주문번호-4) 순서
   const expected = useMemo(() => {
     const src: any[] = Array.isArray(order.source_data?.items) ? order.source_data.items : [];
     const count = Math.max(src.length, order.quantity ?? 0);
     return Array.from({ length: count }, (_, idx) => {
       const it = src[idx] || {};
-      const no = (it.order_id as string) || (it.sequence_no as string) || `${idx + 1}`;
+      const base = String(
+        it.order_id ?? it.sequence_no ?? `${order.external_order_id}-${idx + 1}`
+      );
+      const cardNo = `${base}-4`;
       return {
         position: idx + 1,
-        no: String(no),
-        color: it.tshirt_color ?? "",
-        size: it.tshirt_size ?? "",
-        keys: [String(no), `${no}-1`, `${no}-2`, `${no}-3`, it.qr_value, it.dm_code, it.barcode]
-          .filter(Boolean)
-          .map((v: string) => norm(v)),
+        no: cardNo,
+        base,
+        keys: [cardNo, base].filter(Boolean).map((v: string) => norm(v)),
       };
     });
   }, [order]);
@@ -320,7 +320,7 @@ function OrderDetail({ order, onBack }: { order: OrderRow; onBack: () => void })
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <ScanLine className="w-4 h-4" />{tr("주문 상세 목록 (스캔 순서)", "订单明细（扫描顺序）")}
+                <ScanLine className="w-4 h-4" />{tr("주문 상세 목록 · 카드 고유번호 (스캔 순서)", "订单明细 · 卡片唯一编号（扫描顺序）")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -335,9 +335,6 @@ function OrderDetail({ order, onBack }: { order: OrderRow; onBack: () => void })
                     <div key={i} className={`flex items-center gap-3 py-2.5 px-2 text-sm ${current ? "bg-primary/10 rounded" : ""}`}>
                       <span className="w-8 tabular-nums text-muted-foreground">{e.position}</span>
                       <span className="flex-1 font-mono text-xs break-all">{e.no}</span>
-                      {(e.color || e.size) && (
-                        <span className="text-[11px] text-muted-foreground">{e.color} {e.size}</span>
-                      )}
                       {done ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                         : current ? <Badge variant="outline" className="shrink-0 text-[10px]">{tr("대기", "等待")}</Badge>
                         : <span className="w-4" />}
