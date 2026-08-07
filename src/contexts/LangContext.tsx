@@ -517,6 +517,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "menu.tshirtWork": "T恤贴附作业",
     "menu.cardQrInspect": "卡片QR码手动检验",
     "menu.cardPhotoInspect": "卡片照片检验",
+    "menu.cardBarcodePrint": "卡片条码打印作业",
     "menu.monitor": "生产/包装监控",
     "menu.shipping": "配送管理",
     "menu.defects": "不良/异常管理",

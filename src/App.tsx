@@ -92,6 +92,7 @@ function ProtectedRoutes() {
         
         <Route path="/card-qr-inspect" element={<CardQrInspection />} />
         <Route path="/card-photo-inspect" element={<CardPhotoInspection />} />
+        <Route path="/card-barcode-print" element={<CardBarcodePrint />} />
         <Route path="/tshirt-work" element={<TshirtWork />} />
         <Route path="/monitor" element={<ProductionMonitor />} />
         <Route path="/shipping" element={<Shipping />} />
