@@ -61,6 +61,13 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
       }
     });
 
+    // 카드 포장 / 세트 포장 실적은 바코드 인쇄 작업 데이터를 우선 사용
+    const bp = barcodeProgress?.[order.id];
+    if (bp) {
+      stageCounts.card = Math.max(stageCounts.card, bp.card.done);
+      stageCounts.set = Math.max(stageCounts.set, bp.tshirt.done);
+    }
+
     const stageKeys: StageKey[] = ["tshirt", "card", "set", "courier", "done"];
     let currentStage: StageKey = "tshirt";
     for (let i = stageKeys.length - 1; i >= 0; i--) {
