@@ -1,7 +1,7 @@
 import PageHeader from "@/components/PageHeader";
 import { useLang } from "@/contexts/LangContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Bell, Shield, Cog, Server, Cpu, Radio, Play, AlertTriangle, Plus, Pencil, Trash2, Wifi, WifiOff, ShieldCheck, Webhook, Truck, ArrowUpRight, Video } from "lucide-react";
+import { Users, Bell, Shield, Cog, Server, Cpu, Radio, Play, AlertTriangle, Plus, Pencil, Trash2, Wifi, WifiOff, ShieldCheck, Webhook, Truck, ArrowUpRight, Video, HardDrive } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import InspectionStandards from "@/components/InspectionStandards";
 import UserManagement from "@/components/UserManagement";
