@@ -775,6 +775,12 @@ export default function TshirtWork() {
                 <p className="text-sm text-muted-foreground mt-1">
                   {allPass ? `${activeWorkItem.color} / ${activeWorkItem.size} · ${matchedProduct?.product}` : failReason}
                 </p>
+                {allPass && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {isKo ? "잠시 후 다음 작업건으로 자동 이동합니다" : "稍后自动进入下一作业项"}
+                  </p>
+                )}
+
               </div>
             </div>
             {allPass ? (
