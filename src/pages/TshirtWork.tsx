@@ -1057,8 +1057,13 @@ export default function TshirtWork() {
                         <Button variant="outline" size="sm" onClick={() => { setActiveWorkItemSeq(item.seq); resetScan(); }}>
                           <ScanLine className="w-3.5 h-3.5 mr-1" /> {t("tshirtWork.startVerify")}
                         </Button>
-                      ) : null}
+                      ) : (
+                        <Button variant="outline" size="sm" onClick={() => reworkItem(item.seq)}>
+                          <RotateCcw className="w-3.5 h-3.5 mr-1" /> {isKo ? "재작업" : "返工"}
+                        </Button>
+                      )}
                     </td>
+
                   </tr>
                   );
                 })}
