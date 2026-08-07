@@ -949,11 +949,22 @@ export default function TshirtWork() {
                       {isActive ? (
                         <div className="flex flex-1 gap-2">
                           <input ref={inputRef} type="text" value={scanValue}
-                            onChange={e => { bufferRef.current = e.target.value; setScanValue(e.target.value); }}
+                            lang="en" inputMode="text" autoCapitalize="off" autoCorrect="off" spellCheck={false}
+                            onChange={e => {
+                              // Strip any IME output so the field is always latin.
+                              const v = hangulToQwerty(e.target.value);
+                              bufferRef.current = v; setScanValue(v);
+                            }}
+                            onCompositionEnd={e => {
+                              const v = hangulToQwerty((e.target as HTMLInputElement).value);
+                              bufferRef.current = v; setScanValue(v);
+                            }}
                             onKeyDown={handleKeyDown}
                             placeholder={step.placeholder} readOnly={processing}
+                            style={{ imeMode: "disabled" } as React.CSSProperties}
                             className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                             autoFocus />
+
                           <Button size="sm" onClick={() => handleScan()} disabled={!scanValue.trim() || processing}>{t("tshirtWork.scan")}</Button>
                         </div>
                       ) : (
