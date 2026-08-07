@@ -88,6 +88,36 @@ function hangulToQwerty(input: string): string {
   return hasHangul ? out : input;
 }
 
+// Physical-key → latin character map. Scanners send US-QWERTY key codes, so
+// deriving the character from `event.code` makes scanning immune to the OS
+// input language (Korean IME, etc.).
+const CODE_CHAR_MAP: Record<string, [string, string]> = (() => {
+  const map: Record<string, [string, string]> = {};
+  for (const c of "abcdefghijklmnopqrstuvwxyz") map[`Key${c.toUpperCase()}`] = [c, c.toUpperCase()];
+  const digits: Record<string, string> = { "1": "!", "2": "@", "3": "#", "4": "$", "5": "%", "6": "^", "7": "&", "8": "*", "9": "(", "0": ")" };
+  for (const [d, s] of Object.entries(digits)) {
+    map[`Digit${d}`] = [d, s];
+    map[`Numpad${d}`] = [d, d];
+  }
+  Object.assign(map, {
+    Minus: ["-", "_"], Equal: ["=", "+"], BracketLeft: ["[", "{"], BracketRight: ["]", "}"],
+    Backslash: ["\\", "|"], Semicolon: [";", ":"], Quote: ["'", '"'], Backquote: ["`", "~"],
+    Comma: [",", "<"], Period: [".", ">"], Slash: ["/", "?"], Space: [" ", " "],
+    NumpadSubtract: ["-", "-"], NumpadAdd: ["+", "+"], NumpadDecimal: [".", "."],
+    NumpadMultiply: ["*", "*"], NumpadDivide: ["/", "/"],
+  } as Record<string, [string, string]>);
+  return map;
+})();
+
+// Returns the latin character for a keydown event regardless of the active IME.
+function latinCharFromEvent(e: KeyboardEvent): string | null {
+  const mapped = CODE_CHAR_MAP[e.code];
+  if (mapped) return e.shiftKey ? mapped[1] : mapped[0];
+  if (e.key.length === 1) return hangulToQwerty(e.key);
+  return null;
+}
+
+
 // Scanners may append non-printing separators or emit a Unicode dash that
 // looks identical to "-" on screen. Canonicalize both scanned and stored QR
 // values before comparing them.
@@ -622,7 +652,9 @@ export default function TshirtWork() {
       if (now - lastKeyRef.current > 1000) bufferRef.current = "";
       lastKeyRef.current = now;
 
-      if (e.key === "Enter") {
+      // With a Korean IME active the browser reports key as "Process"; rely on
+      // the physical key code (e.code) instead so scanning is always latin.
+      if (e.key === "Enter" || e.code === "Enter" || e.code === "NumpadEnter") {
         blockEvent();
         const value = bufferRef.current || scanValueRef.current;
         bufferRef.current = "";
@@ -630,18 +662,20 @@ export default function TshirtWork() {
         inputRef.current?.focus();
         return;
       }
-      if (e.key === "Backspace") {
+      if (e.key === "Backspace" || e.code === "Backspace") {
         blockEvent();
         bufferRef.current = bufferRef.current.slice(0, -1);
         setScanValue(bufferRef.current);
         return;
       }
-      if (e.key.length === 1) {
+      const ch = latinCharFromEvent(e);
+      if (ch) {
         blockEvent();
-        bufferRef.current += e.key;
+        bufferRef.current += ch;
         setScanValue(bufferRef.current);
         inputRef.current?.focus();
       }
+
     };
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey || blockedNavigationKeys.has(e.key) || e.key === "Control" || e.key === "Meta" || e.key === "Alt") {
@@ -915,11 +949,22 @@ export default function TshirtWork() {
                       {isActive ? (
                         <div className="flex flex-1 gap-2">
                           <input ref={inputRef} type="text" value={scanValue}
-                            onChange={e => { bufferRef.current = e.target.value; setScanValue(e.target.value); }}
+                            lang="en" inputMode="text" autoCapitalize="off" autoCorrect="off" spellCheck={false}
+                            onChange={e => {
+                              // Strip any IME output so the field is always latin.
+                              const v = hangulToQwerty(e.target.value);
+                              bufferRef.current = v; setScanValue(v);
+                            }}
+                            onCompositionEnd={e => {
+                              const v = hangulToQwerty((e.target as HTMLInputElement).value);
+                              bufferRef.current = v; setScanValue(v);
+                            }}
                             onKeyDown={handleKeyDown}
                             placeholder={step.placeholder} readOnly={processing}
+                            style={{ imeMode: "disabled" } as React.CSSProperties}
                             className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                             autoFocus />
+
                           <Button size="sm" onClick={() => handleScan()} disabled={!scanValue.trim() || processing}>{t("tshirtWork.scan")}</Button>
                         </div>
                       ) : (
