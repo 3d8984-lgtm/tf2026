@@ -194,6 +194,10 @@ export default function ProductionMonitor() {
                   )}
                 </div>
               )}
+
+              {stageDetail && (stageDetail.stage === "card" || stageDetail.stage === "set") && (
+                <BarcodeStageDetail orderId={stageDetail.orderId} stage={stageDetail.stage} />
+              )}
             </div>
           )}
         </DialogContent>
