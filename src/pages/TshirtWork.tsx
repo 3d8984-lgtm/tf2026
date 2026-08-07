@@ -450,8 +450,10 @@ export default function TshirtWork() {
       resetScan();
     } else {
       setActiveWorkItemSeq(null);
+      setSelectedOrderId(null);
       resetScan();
     }
+
   };
 
   const statusIcon = (s: StepStatus) => {
@@ -497,8 +499,14 @@ export default function TshirtWork() {
                   const fail = order.items.filter(i => i.status === "fail").length;
                   const total = order.items.length;
                   return (
-                    <button key={order.id} onClick={() => setSelectedOrderId(order.id)}
+                    <button key={order.id} onClick={() => {
+                        const first = order.items.find(i => i.status === "pending") ?? order.items[0];
+                        setSelectedOrderId(order.id);
+                        setActiveWorkItemSeq(first ? first.seq : null);
+                        resetScan();
+                      }}
                       className="w-full kpi-card flex items-center gap-4 text-left hover:ring-2 hover:ring-primary/30 transition-all duration-150 active:scale-[0.99] cursor-pointer">
+
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-sm font-semibold text-primary">{order.externalOrderId}</span>
@@ -553,111 +561,18 @@ export default function TshirtWork() {
     );
   }
 
-  // ===== VIEW 2: WORK ITEMS LIST =====
-  if (!activeWorkItemSeq || !activeWorkItem) {
-    if (!selectedOrder) return null;
-    const done = selectedOrder.items.filter(i => i.status === "done").length;
-    const fail = selectedOrder.items.filter(i => i.status === "fail").length;
-    const total = selectedOrder.items.length;
-    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-    const firstPending = selectedOrder.items.find(i => i.status === "pending");
-
-    return (
-      <div>
-        <PageHeader title={t("tshirtWork.title")} description={`${selectedOrder.twinker} · ${selectedOrder.externalOrderId}`}>
-          <Button variant="outline" size="sm" onClick={() => { setSelectedOrderId(null); }}><ChevronLeft className="w-4 h-4 mr-1" /> {t("tshirtWork.orderList")}</Button>
-        </PageHeader>
-        <div className="p-6 space-y-6">
-          {/* Order summary */}
-          <div className="kpi-card section-enter flex items-center gap-6 flex-wrap">
-            <div className="flex items-center gap-2">
-              <Package className="w-5 h-5 text-primary" />
-              <div><p className="text-xs text-muted-foreground">{isKo ? "작업지시번호" : "工单号"}</p><p className="text-sm font-semibold text-primary">{selectedOrder.externalOrderId}</p></div>
-            </div>
-            <div><p className="text-xs text-muted-foreground">{isKo ? "트윈커" : "Twinker"}</p><p className="text-sm font-semibold">{selectedOrder.twinker}</p></div>
-            <div><p className="text-xs text-muted-foreground">{t("tshirtWork.dueDate")}</p><p className="text-sm font-semibold">{selectedOrder.dueDate}</p></div>
-            <div className="ml-auto flex items-center gap-3">
-              <div><p className="text-xs text-muted-foreground text-right">{t("tshirtWork.progressRate")}</p><p className="text-lg font-bold tabular-nums text-right">{pct}%</p></div>
-              <div className="w-32 h-3 rounded-full bg-muted overflow-hidden"><div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${pct}%` }} /></div>
-              <span className="text-sm tabular-nums text-muted-foreground">{done}/{total}</span>
-            </div>
-          </div>
-
-          {/* Start work button */}
-          {firstPending && (
-            <div className="section-enter" style={{ animationDelay: "80ms" }}>
-              <Button size="lg" className="w-full" onClick={() => { setActiveWorkItemSeq(firstPending.seq); resetScan(); }}>
-                <Shirt className="w-5 h-5 mr-2" />
-                {isKo ? `다음 작업 시작 (#${firstPending.seq} · ${firstPending.color} / ${firstPending.size})` : `开始下一项作业 (#${firstPending.seq} · ${firstPending.color} / ${firstPending.size})`}
-              </Button>
-            </div>
-          )}
-
-          {/* Work items table */}
-          <div className="kpi-card section-enter" style={{ animationDelay: "120ms" }}>
-            <h3 className="text-sm font-medium mb-4 flex items-center gap-2">
-              <List className="w-4 h-4" /> {t("tshirtWork.workItems")}
-              <span className="ml-auto text-xs tabular-nums text-muted-foreground">{done}/{total} {t("tshirtWork.completed")}</span>
-            </h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead><tr className="border-b text-left">
-                  {[
-                    isKo ? "주문번호" : "订单号",
-                    isKo ? "티셔츠 종류" : "T恤种类",
-                    t("tshirtWork.color"),
-                    t("tshirtWork.size"),
-                    isKo ? "마크고유번호" : "标识唯一编号",
-                    isKo ? "디자인 고유번호" : "设计唯一编号",
-                    isKo ? "스티커 고유번호" : "贴纸唯一编号",
-                    t("tshirtWork.status"),
-                  ].map(h =>
-                    <th key={h} className="pb-2 font-medium text-muted-foreground whitespace-nowrap pr-4">{h}</th>
-                  )}
-                  <th className="pb-2"></th>
-                </tr></thead>
-                <tbody>
-                  {selectedOrder.items.map(item => {
-                    const orderIdNo = item.orderIdNo;
-                    return (
-                    <tr key={item.seq} className={`border-b last:border-0 transition-colors ${item.status === "pending" ? "hover:bg-muted/30" : ""}`}>
-
-                      <td className="py-2.5 font-mono text-xs pr-4">{orderIdNo}</td>
-                      <td className="py-2.5 pr-4 font-medium">{selectedOrder.product || "-"}</td>
-                      <td className="py-2.5 pr-4 font-medium">{item.color}</td>
-                      <td className="py-2.5 pr-4">{item.size}</td>
-                      <td className="py-2.5 font-mono text-xs pr-4">{orderIdNo}-1</td>
-                      <td className="py-2.5 font-mono text-xs pr-4">{orderIdNo}-2</td>
-                      <td className="py-2.5 font-mono text-xs pr-4">{orderIdNo}-3</td>
-
-
-                      <td className="py-2.5 pr-4"><StatusBadge status={item.status} t={t} /></td>
-                      <td className="py-2.5">
-                        {item.status === "pending" && (
-                          <Button variant="outline" size="sm" onClick={() => { setActiveWorkItemSeq(item.seq); resetScan(); }}>
-                            <ScanLine className="w-3.5 h-3.5 mr-1" /> {t("tshirtWork.startVerify")}
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  ); })}
-
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+  // No active work item (order fully done / invalid) → back to order list
+  if (!activeWorkItemSeq || !activeWorkItem || !selectedOrder) {
+    return null;
   }
+
 
   // ===== VIEW 3: SCAN VIEW =====
   return (
     <div>
       <PageHeader title={t("tshirtWork.title")} description={`${selectedOrder!.twinker} · #${activeWorkItem.seq}`}>
-        <Button variant="outline" size="sm" onClick={() => { setActiveWorkItemSeq(null); resetScan(); }}><ChevronLeft className="w-4 h-4 mr-1" /> {t("tshirtWork.workItems")}</Button>
-        <Button variant="outline" size="sm" onClick={resetScan}><RotateCcw className="w-4 h-4 mr-1" /> {t("tshirtWork.reset")}</Button>
         <Button variant="outline" size="sm" onClick={() => { setSelectedOrderId(null); setActiveWorkItemSeq(null); resetScan(); }}><ChevronLeft className="w-4 h-4 mr-1" /> {t("tshirtWork.orderList")}</Button>
+        <Button variant="outline" size="sm" onClick={resetScan}><RotateCcw className="w-4 h-4 mr-1" /> {t("tshirtWork.reset")}</Button>
       </PageHeader>
       <div className="p-6 space-y-4">
         <div className="kpi-card grid grid-cols-2 md:grid-cols-8 gap-4 items-center">
