@@ -318,11 +318,15 @@ export default function TshirtWork() {
     setUploadingVideo(true);
     const path = `${target.folder}/${target.itemNo}.webm`;
     try {
-      await supabase.storage
+      const { error: upErr } = await supabase.storage
         .from("work-videos")
         .upload(path, blob, { contentType: "video/webm", upsert: true });
+      if (upErr) {
+        toast({ title: isKo ? "영상 저장 실패" : "视频保存失败", description: upErr.message, variant: "destructive" });
+        return;
+      }
       // Retention bookkeeping: normal videos expire, defect ones are kept.
-      await supabase.from("work_video_records").upsert({
+      const { error: recErr } = await supabase.from("work_video_records").upsert({
         bucket: "work-videos",
         path,
         order_id: target.orderId,
@@ -332,11 +336,17 @@ export default function TshirtWork() {
         size_bytes: blob.size,
         deleted_at: null,
       }, { onConflict: "path" });
+      if (recErr) {
+        toast({ title: isKo ? "영상 기록 저장 실패" : "视频记录保存失败", description: recErr.message, variant: "destructive" });
+      } else {
+        toast({ title: isKo ? "작업 영상 저장됨" : "作业视频已保存", description: path });
+      }
       queryClient.invalidateQueries({ queryKey: ["work_videos", target.folder] });
     } finally {
       setUploadingVideo(false);
     }
-  }, [queryClient]);
+  }, [queryClient, isKo]);
+
 
   const openVideo = useCallback(async (path: string, label: string) => {
     const { data } = await supabase.storage.from("work-videos").createSignedUrl(path, 60 * 60);
