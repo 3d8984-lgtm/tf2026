@@ -516,30 +516,61 @@ export default function TshirtWork() {
     setTimeout(() => inputRef.current?.focus(), 50);
   }, []);
 
+  // Rework requires a reason; it is logged to the defect/exception board.
+  const [reworkTarget, setReworkTarget] = useState<{ seq: number; itemNo: string } | null>(null);
+  const [reworkReason, setReworkReason] = useState("");
+  const [reworkSaving, setReworkSaving] = useState(false);
+
   // Reset an already finished item back to pending so it can be re-verified.
-  const reworkItem = useCallback(async (seq: number) => {
+  const reworkItem = useCallback(async (seq: number, reason: string) => {
     if (!selectedOrderId) return;
+    const order = orders.find(o => o.id === selectedOrderId) ?? null;
+    const item = order?.items.find(i => i.seq === seq) ?? null;
+    const prevCount = reworkInfo[selectedOrderId]?.[seq]?.count ?? 0;
     setLocalStatuses(prev => ({
       ...prev,
       [selectedOrderId]: { ...(prev[selectedOrderId] ?? {}), [seq]: "pending" },
     }));
     setActiveWorkItemSeq(seq);
     resetScan();
+    const { data: auth } = await supabase.auth.getUser();
     const { error } = await supabase.from("tshirt_work_items").upsert({
       order_id: selectedOrderId,
       seq,
+      item_no: item?.orderIdNo ?? null,
       status: "pending",
       scanned_values: [],
       fail_reason: null,
       completed_at: null,
+      rework_reason: reason,
+      reworked_at: new Date().toISOString(),
+      rework_count: prevCount + 1,
     }, { onConflict: "order_id,seq" });
     if (error) {
       toast({ title: isKo ? "재작업 처리 실패" : "返工处理失败", description: error.message, variant: "destructive" });
       return;
     }
+    const { error: logErr } = await supabase.from("defect_logs").insert({
+      source: "tshirt_work",
+      order_id: selectedOrderId,
+      external_order_id: order?.externalOrderId ?? null,
+      item_no: item?.orderIdNo ?? null,
+      seq,
+      defect_type: "attach_fail",
+      severity: "medium",
+      occurred_process: isKo ? "티셔츠 부착 작업" : "T恤贴附作业",
+      detail: reason,
+      status: "rework_queued",
+      restart_stage: "tshirt",
+      created_by: auth.user?.id ?? null,
+    });
+    if (logErr) {
+      toast({ title: isKo ? "불량 로그 기록 실패" : "不良日志记录失败", description: logErr.message, variant: "destructive" });
+    }
     queryClient.invalidateQueries({ queryKey: ["tshirt_work_items"] });
+    queryClient.invalidateQueries({ queryKey: ["defect_logs"] });
     toast({ title: isKo ? "재작업으로 전환됨" : "已转为返工", description: `#${seq}` });
-  }, [selectedOrderId, resetScan, queryClient, isKo]);
+  }, [selectedOrderId, orders, reworkInfo, resetScan, queryClient, isKo]);
 
 
 
