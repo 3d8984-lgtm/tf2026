@@ -1114,13 +1114,37 @@ export default function TshirtWork() {
         </div>
 
         {/* Actual work item list for this order */}
+        {(() => {
+          const rw = reworkInfo[selectedOrder!.id] ?? {};
+          const isRework = (item: WorkItem) => !!rw[item.seq] && item.status === "pending";
+          const reworkCount = selectedOrder!.items.filter(isRework).length;
+          const q = itemSearch.trim().toLowerCase();
+          const visibleItems = q
+            ? selectedOrder!.items.filter(i =>
+                [i.orderIdNo, i.color, i.size, selectedOrder!.product, `${i.orderIdNo}-1`, `${i.orderIdNo}-2`, `${i.orderIdNo}-3`, String(i.seq)]
+                  .some(v => (v ?? "").toString().toLowerCase().includes(q)))
+            : selectedOrder!.items;
+          return (
         <div className="kpi-card section-enter" style={{ animationDelay: "160ms" }}>
-          <h3 className="text-sm font-medium mb-4 flex items-center gap-2">
+          <h3 className="text-sm font-medium mb-3 flex items-center gap-2 flex-wrap">
             <List className="w-4 h-4" /> {t("tshirtWork.workItems")}
+            {reworkCount > 0 && (
+              <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-destructive/10 text-destructive">
+                <RotateCcw className="w-3 h-3" /> {isKo ? "재작업" : "返工"} {reworkCount}
+              </span>
+            )}
             <span className="ml-auto text-xs tabular-nums text-muted-foreground">
               {selectedOrder!.items.filter(i => i.status === "done").length}/{selectedOrder!.items.length} {t("tshirtWork.completed")}
             </span>
           </h3>
+          <div className="mb-3">
+            <Input
+              value={itemSearch}
+              onChange={e => setItemSearch(e.target.value)}
+              placeholder={isKo ? "주문번호 · 색상 · 사이즈 · 고유번호 검색" : "搜索订单号 · 颜色 · 尺码 · 唯一编号"}
+              className="h-8 max-w-xs text-sm"
+            />
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="border-b text-left">
@@ -1138,13 +1162,25 @@ export default function TshirtWork() {
                 <th className="pb-2"></th>
               </tr></thead>
               <tbody>
-                {selectedOrder!.items.map(item => {
-                  const videoPath = workVideos?.[item.orderIdNo];
+                {visibleItems.length === 0 && (
+                  <tr><td colSpan={10} className="py-6 text-center text-xs text-muted-foreground">{isKo ? "검색 결과가 없습니다" : "无搜索结果"}</td></tr>
+                )}
+                {visibleItems.map(item => {
+                  const takes = workVideos?.[item.orderIdNo] ?? [];
+                  const rework = isRework(item);
                   return (
                   <tr key={item.seq}
                     onClick={() => { if (item.seq !== activeWorkItem.seq) { setActiveWorkItemSeq(item.seq); resetScan(); } }}
-                    className={`border-b last:border-0 transition-colors cursor-pointer ${item.seq === activeWorkItem.seq ? "bg-primary/5" : "hover:bg-muted/30"}`}>
-                    <td className="py-2.5 font-mono text-xs pr-4">{item.orderIdNo}</td>
+                    className={`border-b last:border-0 transition-colors cursor-pointer ${
+                      rework ? "bg-destructive/10 hover:bg-destructive/15" : item.seq === activeWorkItem.seq ? "bg-primary/5" : "hover:bg-muted/30"}`}>
+                    <td className="py-2.5 font-mono text-xs pr-4">
+                      {item.orderIdNo}
+                      {rework && (
+                        <span className="ml-1.5 text-[10px] font-medium text-destructive" title={rw[item.seq]?.reason ?? ""}>
+                          {isKo ? "재작업" : "返工"}{(rw[item.seq]?.count ?? 0) > 1 ? ` ×${rw[item.seq]?.count}` : ""}
+                        </span>
+                      )}
+                    </td>
                     <td className="py-2.5 pr-4 font-medium">{selectedOrder!.product || "-"}</td>
                     <td className="py-2.5 pr-4 font-medium">{item.color}</td>
                     <td className="py-2.5 pr-4">{item.size}</td>
@@ -1153,9 +1189,10 @@ export default function TshirtWork() {
                     <td className="py-2.5 font-mono text-xs pr-4">{item.orderIdNo}-3</td>
                     <td className="py-2.5 pr-4"><StatusBadge status={item.status} t={t} /></td>
                     <td className="py-2.5 pr-4" onClick={e => e.stopPropagation()}>
-                      {videoPath ? (
-                        <Button variant="outline" size="sm" onClick={() => openVideo(videoPath, `#${item.seq} ${item.orderIdNo}`)}>
+                      {takes.length > 0 ? (
+                        <Button variant="outline" size="sm" onClick={() => openVideo(takes, `#${item.seq} ${item.orderIdNo}`)}>
                           <Play className="w-3.5 h-3.5 mr-1" /> {isKo ? "영상 재생" : "播放"}
+                          {takes.length > 1 && <span className="ml-1 text-[10px] opacity-70">({takes.length})</span>}
                         </Button>
                       ) : (
                         <span className="text-xs text-muted-foreground">{isKo ? "영상 없음" : "无视频"}</span>
@@ -1171,7 +1208,7 @@ export default function TshirtWork() {
                           </Button>
                         )}
                         {item.status !== "pending" && (
-                          <Button variant="ghost" size="sm" onClick={() => reworkItem(item.seq)}>
+                          <Button variant="ghost" size="sm" onClick={() => { setReworkReason(""); setReworkTarget({ seq: item.seq, itemNo: item.orderIdNo }); }}>
                             <RotateCcw className="w-3.5 h-3.5 mr-1" /> {isKo ? "재작업" : "返工"}
                           </Button>
                         )}
