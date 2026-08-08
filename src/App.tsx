@@ -21,6 +21,7 @@ import CardQrInspection from "@/pages/CardQrInspection";
 import CardPhotoInspection from "@/pages/CardPhotoInspection";
 import CardBarcodePrint from "@/pages/CardBarcodePrint";
 import TshirtBarcodePrint from "@/pages/TshirtBarcodePrint";
+import SetQrInspection from "@/pages/SetQrInspection";
 import ProductionMonitor from "@/pages/ProductionMonitor";
 import Shipping from "@/pages/Shipping";
 import ShippingScan from "@/pages/ShippingScan";
@@ -96,6 +97,7 @@ function ProtectedRoutes() {
         <Route path="/card-barcode-print" element={<CardBarcodePrint />} />
         <Route path="/tshirt-barcode-print" element={<TshirtBarcodePrint />} />
         <Route path="/tshirt-work" element={<TshirtWork />} />
+        <Route path="/set-qr-inspect" element={<SetQrInspection />} />
         <Route path="/monitor" element={<ProductionMonitor />} />
         <Route path="/shipping" element={<Shipping />} />
         <Route path="/shipping/scan/:orderId" element={<ShippingScan />} />
