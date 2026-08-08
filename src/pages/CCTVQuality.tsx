@@ -147,7 +147,7 @@ export default function CCTVQuality() {
   const hlsRef = useRef<Hls | null>(null);
 
   const T = useMemo(() => ({
-    title: isKo ? "CCTV 품질확인" : "CCTV 质量确认",
+    title: isKo ? "작동상태 확인용 CCTV" : "运行状态确认用 CCTV",
     desc: isKo
       ? "공장에 설치된 카메라의 실시간 영상과 지정 시간 스냅샷, 구간 녹화본을 조회합니다."
       : "查看工厂摄像头的实时画面、指定时间快照和时段录像。",
