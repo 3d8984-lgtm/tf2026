@@ -53,11 +53,6 @@ const menuKeys: MenuItem[] = [
   ]},
   { path: "/shipping", icon: Truck, key: "menu.shipping", section: "hq" },
   { path: "/defects", icon: AlertTriangle, key: "menu.defects", section: "hq" },
-  { path: "/reports", icon: FileBarChart, key: "menu.reports", section: "hq", children: [
-    { label: { ko: "생산 실적", zh: "生产实绩" }, tab: "production" },
-    { label: { ko: "불량 분석", zh: "不良分析" }, tab: "defect" },
-    { label: { ko: "배송 현황", zh: "配送现况" }, tab: "shipping" },
-  ]},
   { path: "/cctv-quality", icon: Camera, key: "menu.cctvQuality", section: "hq" },
   { path: "/manual", icon: BookOpen, key: "menu.manual", section: "hq" },
   { path: "/master", icon: Database, key: "menu.master", section: "hq" },
