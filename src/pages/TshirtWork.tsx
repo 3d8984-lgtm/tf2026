@@ -680,6 +680,16 @@ export default function TshirtWork() {
       "BrowserSearch", "BrowserHome", "BrowserBack", "BrowserForward",
     ]);
     const onKey = (e: KeyboardEvent) => {
+      // Never hijack typing in other editable fields (rework reason textarea,
+      // search box, dialogs). Korean IME composition must be left untouched.
+      const el = e.target as HTMLElement | null;
+      const editable =
+        el &&
+        (el.isContentEditable ||
+          el.tagName === "TEXTAREA" ||
+          (el.tagName === "INPUT" && el !== inputRef.current));
+      if (editable || e.isComposing || e.key === "Process" || (e as any).keyCode === 229) return;
+
       // Hardware scanners can be configured with Ctrl+F, Tab, or other
       // prefix/suffix keys. While scanning a work item, never allow those
       // keys to reach browser find, sidebar search, or another focused field.
@@ -688,6 +698,7 @@ export default function TshirtWork() {
         e.stopPropagation();
         e.stopImmediatePropagation();
       };
+
 
       // Scanner prefixes such as Ctrl+F/Ctrl+L/Ctrl+K, Alt+D and function
       // keys can move focus to browser search/address UI before QR data arrives.
@@ -737,7 +748,10 @@ export default function TshirtWork() {
 
     };
     const onKeyUp = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.isContentEditable || el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && el !== inputRef.current))) return;
       if (e.ctrlKey || e.metaKey || e.altKey || blockedNavigationKeys.has(e.key) || e.key === "Control" || e.key === "Meta" || e.key === "Alt") {
+
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
