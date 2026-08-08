@@ -335,9 +335,9 @@ function OrderDetail({
   const reprint = async (position: number, code: string) => {
     const ok = await enqueuePrint(code);
     await markDone(position, code, null, testMode);
-    toast[ok ? "success" : "warning"](
+    toast[ok ? "success" : "error"](
       ok ? tr("인쇄 요청을 보냈습니다", "已发送打印请求")
-         : tr("인쇄기 응답 없음 — 기록만 저장했습니다", "打印机无响应 — 仅保存记录"),
+         : tr("인쇄 전송 실패(게이트웨이에 인쇄 API 없음) — 기록만 저장했습니다", "打印发送失败（网关无打印接口）— 仅保存记录"),
     );
   };
 
@@ -349,9 +349,11 @@ function OrderDetail({
     await markDone(target.position, target.no, null, true);
     setCursor((c) => c + 1);
     seenRef.current.add(norm(target.no));
-    toast[ok ? "success" : "warning"](
-      ok ? `${target.no} ${tr("인쇄 요청", "打印请求")}` : tr("인쇄기 응답 없음", "打印机无响应"),
+    toast[ok ? "success" : "error"](
+      ok ? `${target.no} ${tr("인쇄 요청", "打印请求")}`
+         : tr("인쇄 전송 실패(게이트웨이에 인쇄 API 없음)", "打印发送失败（网关无打印接口）"),
     );
+
   };
 
   const total = expected.length;
