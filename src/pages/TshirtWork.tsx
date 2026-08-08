@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import WorkCamRecorder from "@/components/WorkCamRecorder";
 import { toast } from "@/hooks/use-toast";
 
@@ -300,7 +302,7 @@ export default function TshirtWork() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tshirt_work_items")
-        .select("order_id, seq, status");
+        .select("order_id, seq, status, rework_reason, reworked_at, rework_count");
       if (error) throw error;
       return data ?? [];
     },
@@ -319,6 +321,17 @@ export default function TshirtWork() {
     }
     return merged;
   }, [savedWorkItems, localStatuses]);
+
+  // Rework metadata per order/seq (reason + timestamp + how many times).
+  const reworkInfo = useMemo(() => {
+    const map: Record<string, Record<number, { reason: string | null; at: string | null; count: number }>> = {};
+    for (const row of savedWorkItems ?? []) {
+      const r = row as { order_id: string; seq: number; rework_reason?: string | null; reworked_at?: string | null; rework_count?: number | null };
+      if (!r.reworked_at) continue;
+      map[r.order_id] = { ...(map[r.order_id] ?? {}), [r.seq]: { reason: r.rework_reason ?? null, at: r.reworked_at, count: r.rework_count ?? 0 } };
+    }
+    return map;
+  }, [savedWorkItems]);
 
   const orders = useMemo<OrderData[]>(() => {
     return dbOrderData.map(o => ({
@@ -352,19 +365,27 @@ export default function TshirtWork() {
   // ---- Work video recording (USB camera) ----
   const queryClient = useQueryClient();
   const [uploadingVideo, setUploadingVideo] = useState(false);
-  const [playingVideo, setPlayingVideo] = useState<{ url: string; label: string } | null>(null);
+  const [playingVideo, setPlayingVideo] = useState<
+    { label: string; takes: { path: string; name: string; url: string }[]; index: number } | null
+  >(null);
   const recordTargetRef = useRef<{ folder: string; itemNo: string; orderId: string } | null>(null);
   const defectRef = useRef(false);
 
-  // Videos already stored for the selected order
+  // Videos already stored for the selected order, grouped per work item.
+  // Older takes are kept: files are named `<itemNo>__<timestamp>.webm`.
   const videoFolder = selectedOrder?.externalOrderId ?? "";
   const { data: workVideos } = useQuery({
     queryKey: ["work_videos", videoFolder],
     enabled: !!videoFolder,
     queryFn: async () => {
-      const { data } = await supabase.storage.from("work-videos").list(videoFolder);
-      const map: Record<string, string> = {};
-      for (const f of data ?? []) map[f.name.replace(/\.[^.]+$/, "")] = `${videoFolder}/${f.name}`;
+      const { data } = await supabase.storage.from("work-videos").list(videoFolder, { limit: 1000 });
+      const map: Record<string, { path: string; name: string }[]> = {};
+      for (const f of data ?? []) {
+        const base = f.name.replace(/\.[^.]+$/, "");
+        const itemNo = base.split("__")[0];
+        (map[itemNo] ??= []).push({ path: `${videoFolder}/${f.name}`, name: base });
+      }
+      for (const list of Object.values(map)) list.sort((a, b) => a.name.localeCompare(b.name));
       return map;
     },
   });
@@ -373,7 +394,8 @@ export default function TshirtWork() {
     const target = recordTargetRef.current;
     if (!target) return;
     setUploadingVideo(true);
-    const path = `${target.folder}/${target.itemNo}.webm`;
+    // Unique file name per take so previous recordings stay available.
+    const path = `${target.folder}/${target.itemNo}__${Date.now()}.webm`;
     try {
       const { error: upErr } = await supabase.storage
         .from("work-videos")
@@ -405,9 +427,14 @@ export default function TshirtWork() {
   }, [queryClient, isKo]);
 
 
-  const openVideo = useCallback(async (path: string, label: string) => {
-    const { data } = await supabase.storage.from("work-videos").createSignedUrl(path, 60 * 60);
-    if (data?.signedUrl) setPlayingVideo({ url: data.signedUrl, label });
+  // Open every recorded take for a work item (original + rework recordings).
+  const openVideo = useCallback(async (takes: { path: string; name: string }[], label: string) => {
+    const signed = await Promise.all(takes.map(async tk => {
+      const { data } = await supabase.storage.from("work-videos").createSignedUrl(tk.path, 60 * 60);
+      return { ...tk, url: data?.signedUrl ?? "" };
+    }));
+    const usable = signed.filter(s => s.url);
+    if (usable.length) setPlayingVideo({ label, takes: usable, index: usable.length - 1 });
   }, []);
 
 
@@ -491,30 +518,62 @@ export default function TshirtWork() {
     setTimeout(() => inputRef.current?.focus(), 50);
   }, []);
 
+  // Rework requires a reason; it is logged to the defect/exception board.
+  const [reworkTarget, setReworkTarget] = useState<{ seq: number; itemNo: string } | null>(null);
+  const [reworkReason, setReworkReason] = useState("");
+  const [reworkSaving, setReworkSaving] = useState(false);
+  const [itemSearch, setItemSearch] = useState("");
+
   // Reset an already finished item back to pending so it can be re-verified.
-  const reworkItem = useCallback(async (seq: number) => {
+  const reworkItem = useCallback(async (seq: number, reason: string) => {
     if (!selectedOrderId) return;
+    const order = orders.find(o => o.id === selectedOrderId) ?? null;
+    const item = order?.items.find(i => i.seq === seq) ?? null;
+    const prevCount = reworkInfo[selectedOrderId]?.[seq]?.count ?? 0;
     setLocalStatuses(prev => ({
       ...prev,
       [selectedOrderId]: { ...(prev[selectedOrderId] ?? {}), [seq]: "pending" },
     }));
     setActiveWorkItemSeq(seq);
     resetScan();
+    const { data: auth } = await supabase.auth.getUser();
     const { error } = await supabase.from("tshirt_work_items").upsert({
       order_id: selectedOrderId,
       seq,
+      item_no: item?.orderIdNo ?? null,
       status: "pending",
       scanned_values: [],
       fail_reason: null,
       completed_at: null,
+      rework_reason: reason,
+      reworked_at: new Date().toISOString(),
+      rework_count: prevCount + 1,
     }, { onConflict: "order_id,seq" });
     if (error) {
       toast({ title: isKo ? "재작업 처리 실패" : "返工处理失败", description: error.message, variant: "destructive" });
       return;
     }
+    const { error: logErr } = await supabase.from("defect_logs").insert({
+      source: "tshirt_work",
+      order_id: selectedOrderId,
+      external_order_id: order?.externalOrderId ?? null,
+      item_no: item?.orderIdNo ?? null,
+      seq,
+      defect_type: "attach_fail",
+      severity: "medium",
+      occurred_process: isKo ? "티셔츠 부착 작업" : "T恤贴附作业",
+      detail: reason,
+      status: "rework_queued",
+      restart_stage: "tshirt",
+      created_by: auth.user?.id ?? null,
+    });
+    if (logErr) {
+      toast({ title: isKo ? "불량 로그 기록 실패" : "不良日志记录失败", description: logErr.message, variant: "destructive" });
+    }
     queryClient.invalidateQueries({ queryKey: ["tshirt_work_items"] });
+    queryClient.invalidateQueries({ queryKey: ["defect_logs"] });
     toast({ title: isKo ? "재작업으로 전환됨" : "已转为返工", description: `#${seq}` });
-  }, [selectedOrderId, resetScan, queryClient, isKo]);
+  }, [selectedOrderId, orders, reworkInfo, resetScan, queryClient, isKo]);
 
 
 
@@ -1058,13 +1117,37 @@ export default function TshirtWork() {
         </div>
 
         {/* Actual work item list for this order */}
+        {(() => {
+          const rw = reworkInfo[selectedOrder!.id] ?? {};
+          const isRework = (item: WorkItem) => !!rw[item.seq] && item.status === "pending";
+          const reworkCount = selectedOrder!.items.filter(isRework).length;
+          const q = itemSearch.trim().toLowerCase();
+          const visibleItems = q
+            ? selectedOrder!.items.filter(i =>
+                [i.orderIdNo, i.color, i.size, selectedOrder!.product, `${i.orderIdNo}-1`, `${i.orderIdNo}-2`, `${i.orderIdNo}-3`, String(i.seq)]
+                  .some(v => (v ?? "").toString().toLowerCase().includes(q)))
+            : selectedOrder!.items;
+          return (
         <div className="kpi-card section-enter" style={{ animationDelay: "160ms" }}>
-          <h3 className="text-sm font-medium mb-4 flex items-center gap-2">
+          <h3 className="text-sm font-medium mb-3 flex items-center gap-2 flex-wrap">
             <List className="w-4 h-4" /> {t("tshirtWork.workItems")}
+            {reworkCount > 0 && (
+              <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-destructive/10 text-destructive">
+                <RotateCcw className="w-3 h-3" /> {isKo ? "재작업" : "返工"} {reworkCount}
+              </span>
+            )}
             <span className="ml-auto text-xs tabular-nums text-muted-foreground">
               {selectedOrder!.items.filter(i => i.status === "done").length}/{selectedOrder!.items.length} {t("tshirtWork.completed")}
             </span>
           </h3>
+          <div className="mb-3">
+            <Input
+              value={itemSearch}
+              onChange={e => setItemSearch(e.target.value)}
+              placeholder={isKo ? "주문번호 · 색상 · 사이즈 · 고유번호 검색" : "搜索订单号 · 颜色 · 尺码 · 唯一编号"}
+              className="h-8 max-w-xs text-sm"
+            />
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="border-b text-left">
@@ -1082,13 +1165,25 @@ export default function TshirtWork() {
                 <th className="pb-2"></th>
               </tr></thead>
               <tbody>
-                {selectedOrder!.items.map(item => {
-                  const videoPath = workVideos?.[item.orderIdNo];
+                {visibleItems.length === 0 && (
+                  <tr><td colSpan={10} className="py-6 text-center text-xs text-muted-foreground">{isKo ? "검색 결과가 없습니다" : "无搜索结果"}</td></tr>
+                )}
+                {visibleItems.map(item => {
+                  const takes = workVideos?.[item.orderIdNo] ?? [];
+                  const rework = isRework(item);
                   return (
                   <tr key={item.seq}
                     onClick={() => { if (item.seq !== activeWorkItem.seq) { setActiveWorkItemSeq(item.seq); resetScan(); } }}
-                    className={`border-b last:border-0 transition-colors cursor-pointer ${item.seq === activeWorkItem.seq ? "bg-primary/5" : "hover:bg-muted/30"}`}>
-                    <td className="py-2.5 font-mono text-xs pr-4">{item.orderIdNo}</td>
+                    className={`border-b last:border-0 transition-colors cursor-pointer ${
+                      rework ? "bg-destructive/10 hover:bg-destructive/15" : item.seq === activeWorkItem.seq ? "bg-primary/5" : "hover:bg-muted/30"}`}>
+                    <td className="py-2.5 font-mono text-xs pr-4">
+                      {item.orderIdNo}
+                      {rework && (
+                        <span className="ml-1.5 text-[10px] font-medium text-destructive" title={rw[item.seq]?.reason ?? ""}>
+                          {isKo ? "재작업" : "返工"}{(rw[item.seq]?.count ?? 0) > 1 ? ` ×${rw[item.seq]?.count}` : ""}
+                        </span>
+                      )}
+                    </td>
                     <td className="py-2.5 pr-4 font-medium">{selectedOrder!.product || "-"}</td>
                     <td className="py-2.5 pr-4 font-medium">{item.color}</td>
                     <td className="py-2.5 pr-4">{item.size}</td>
@@ -1097,9 +1192,10 @@ export default function TshirtWork() {
                     <td className="py-2.5 font-mono text-xs pr-4">{item.orderIdNo}-3</td>
                     <td className="py-2.5 pr-4"><StatusBadge status={item.status} t={t} /></td>
                     <td className="py-2.5 pr-4" onClick={e => e.stopPropagation()}>
-                      {videoPath ? (
-                        <Button variant="outline" size="sm" onClick={() => openVideo(videoPath, `#${item.seq} ${item.orderIdNo}`)}>
+                      {takes.length > 0 ? (
+                        <Button variant="outline" size="sm" onClick={() => openVideo(takes, `#${item.seq} ${item.orderIdNo}`)}>
                           <Play className="w-3.5 h-3.5 mr-1" /> {isKo ? "영상 재생" : "播放"}
+                          {takes.length > 1 && <span className="ml-1 text-[10px] opacity-70">({takes.length})</span>}
                         </Button>
                       ) : (
                         <span className="text-xs text-muted-foreground">{isKo ? "영상 없음" : "无视频"}</span>
@@ -1115,7 +1211,7 @@ export default function TshirtWork() {
                           </Button>
                         )}
                         {item.status !== "pending" && (
-                          <Button variant="ghost" size="sm" onClick={() => reworkItem(item.seq)}>
+                          <Button variant="ghost" size="sm" onClick={() => { setReworkReason(""); setReworkTarget({ seq: item.seq, itemNo: item.orderIdNo }); }}>
                             <RotateCcw className="w-3.5 h-3.5 mr-1" /> {isKo ? "재작업" : "返工"}
                           </Button>
                         )}
@@ -1129,6 +1225,8 @@ export default function TshirtWork() {
             </table>
           </div>
         </div>
+          );
+        })()}
       </div>
 
 
@@ -1143,15 +1241,67 @@ export default function TshirtWork() {
         </DialogContent>
       </Dialog>
 
-      {/* Work video playback dialog */}
+      {/* Work video playback dialog — every take (original + reworks) is kept */}
       <Dialog open={!!playingVideo} onOpenChange={() => setPlayingVideo(null)}>
         <DialogContent className="max-w-3xl p-4 bg-background">
           {playingVideo && (
-            <div className="space-y-2">
+            <div className="space-y-3">
               <p className="text-sm font-medium font-mono">{playingVideo.label}</p>
-              <video src={playingVideo.url} controls autoPlay className="w-full rounded-lg bg-black" />
+              <video key={playingVideo.takes[playingVideo.index].path} src={playingVideo.takes[playingVideo.index].url} controls autoPlay className="w-full rounded-lg bg-black" />
+              {playingVideo.takes.length > 1 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {playingVideo.takes.map((tk, i) => {
+                    const ts = tk.name.split("__")[1];
+                    const label = ts ? new Date(Number(ts)).toLocaleString(isKo ? "ko-KR" : "zh-CN") : (isKo ? "최초 작업" : "首次作业");
+                    return (
+                      <Button key={tk.path} size="sm" variant={i === playingVideo.index ? "default" : "outline"}
+                        onClick={() => setPlayingVideo(p => p && { ...p, index: i })}>
+                        {i === 0 ? (isKo ? "최초" : "首次") : `${isKo ? "재작업" : "返工"} ${i}`} · {label}
+                      </Button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Rework reason dialog */}
+      <Dialog open={!!reworkTarget} onOpenChange={o => { if (!o) setReworkTarget(null); }}>
+        <DialogContent className="max-w-md p-5 bg-background">
+          <div className="space-y-3">
+            <p className="text-sm font-medium">
+              {isKo ? "재작업 사유 입력" : "输入返工原因"}
+              {reworkTarget && <span className="ml-2 font-mono text-xs text-muted-foreground">#{reworkTarget.seq} {reworkTarget.itemNo}</span>}
+            </p>
+            <Textarea
+              value={reworkReason}
+              onChange={e => setReworkReason(e.target.value)}
+              rows={4}
+              placeholder={isKo ? "예: 스티커 위치 불량, 디자인 오인쇄 등" : "例如：贴纸位置不良、设计误印等"}
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setReworkTarget(null)}>{isKo ? "취소" : "取消"}</Button>
+              <Button
+                size="sm"
+                disabled={!reworkReason.trim() || reworkSaving}
+                onClick={async () => {
+                  if (!reworkTarget) return;
+                  setReworkSaving(true);
+                  try {
+                    await reworkItem(reworkTarget.seq, reworkReason.trim());
+                    setReworkTarget(null);
+                  } finally {
+                    setReworkSaving(false);
+                  }
+                }}
+              >
+                {reworkSaving && <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />}
+                {isKo ? "재작업 시작" : "开始返工"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

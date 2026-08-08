@@ -444,6 +444,66 @@ export type Database = {
           },
         ]
       }
+      defect_logs: {
+        Row: {
+          assignee: string | null
+          created_at: string
+          created_by: string | null
+          defect_type: string
+          detail: string | null
+          external_order_id: string | null
+          id: string
+          item_no: string | null
+          occurred_process: string | null
+          order_id: string | null
+          resolved_at: string | null
+          restart_stage: string | null
+          seq: number | null
+          severity: string
+          source: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assignee?: string | null
+          created_at?: string
+          created_by?: string | null
+          defect_type?: string
+          detail?: string | null
+          external_order_id?: string | null
+          id?: string
+          item_no?: string | null
+          occurred_process?: string | null
+          order_id?: string | null
+          resolved_at?: string | null
+          restart_stage?: string | null
+          seq?: number | null
+          severity?: string
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          assignee?: string | null
+          created_at?: string
+          created_by?: string | null
+          defect_type?: string
+          detail?: string | null
+          external_order_id?: string | null
+          id?: string
+          item_no?: string | null
+          occurred_process?: string | null
+          order_id?: string | null
+          resolved_at?: string | null
+          restart_stage?: string | null
+          seq?: number | null
+          severity?: string
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       order_job_items: {
         Row: {
           attempts: number
@@ -1394,6 +1454,9 @@ export type Database = {
           id: string
           item_no: string | null
           order_id: string
+          rework_count: number
+          rework_reason: string | null
+          reworked_at: string | null
           scanned_values: Json
           seq: number
           status: string
@@ -1407,6 +1470,9 @@ export type Database = {
           id?: string
           item_no?: string | null
           order_id: string
+          rework_count?: number
+          rework_reason?: string | null
+          reworked_at?: string | null
           scanned_values?: Json
           seq: number
           status?: string
@@ -1420,6 +1486,9 @@ export type Database = {
           id?: string
           item_no?: string | null
           order_id?: string
+          rework_count?: number
+          rework_reason?: string | null
+          reworked_at?: string | null
           scanned_values?: Json
           seq?: number
           status?: string

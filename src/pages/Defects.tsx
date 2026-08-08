@@ -8,6 +8,9 @@ import {
 } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
 type DefectType = "qr_mismatch" | "duplicate_qr" | "attach_fail" | "pack_fail" | "machine_error" | "material_short" | "print_fail";
 type DefectStatus = "unprocessed" | "rework_queued" | "rework_in_progress" | "rework_done" | "disposed";
@@ -26,6 +29,7 @@ interface DefectItem {
   restartStage: RestartStage | null;
   assignee: string;
   resolvedAt: string | null;
+  rowId: string;
 }
 
 const stageOrder: RestartStage[] = ["tshirt", "card", "set", "courier", "invoice"];
@@ -93,35 +97,61 @@ export default function Defects() {
     print_fail: "invoice",
   };
 
-  const [defects, setDefects] = useState<DefectItem[]>([]);
-
   const [activeTab, setActiveTab] = useState<"all" | "queue" | "history">("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filterSeverity, setFilterSeverity] = useState<Severity | "all">("all");
+  const queryClient = useQueryClient();
 
-  const handleAddToReworkQueue = (id: string) => {
-    setDefects(prev => prev.map(d => {
-      if (d.id !== id) return d;
-      const restart = autoRestartMap[d.defectType];
-      return { ...d, status: "rework_queued" as DefectStatus, restartStage: restart };
-    }));
+  // Defect / rework logs recorded by the work stations.
+  const { data: rows } = useQuery({
+    queryKey: ["defect_logs"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("defect_logs")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const fmtTime = (v: string | null) =>
+    v ? new Date(v).toLocaleString(isKo ? "ko-KR" : "zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : null;
+
+  const defects: DefectItem[] = (rows ?? []).map(r => ({
+    id: (r.item_no as string) || (r.id as string).slice(0, 8),
+    orderNo: (r.external_order_id as string) || "-",
+    defectType: (r.defect_type as DefectType) ?? "attach_fail",
+    severity: (r.severity as Severity) ?? "medium",
+    occurredAt: fmtTime(r.created_at as string) ?? "",
+    occurredProcess: (r.occurred_process as string) || "-",
+    detail: (r.detail as string) || "-",
+    status: (r.status as DefectStatus) ?? "unprocessed",
+    restartStage: (r.restart_stage as RestartStage) ?? null,
+    assignee: (r.assignee as string) || "-",
+    resolvedAt: fmtTime(r.resolved_at as string | null),
+    rowId: r.id as string,
+  }));
+
+  const patchDefect = async (rowId: string, patch: { status?: string; restart_stage?: string; resolved_at?: string }) => {
+    const { error } = await supabase.from("defect_logs").update(patch).eq("id", rowId);
+    if (error) {
+      toast({ title: isKo ? "저장 실패" : "保存失败", description: error.message, variant: "destructive" });
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ["defect_logs"] });
   };
 
-  const handleStartRework = (id: string) => {
-    setDefects(prev => prev.map(d => d.id === id ? { ...d, status: "rework_in_progress" as DefectStatus } : d));
-  };
+  const handleAddToReworkQueue = (rowId: string, type: DefectType) =>
+    patchDefect(rowId, { status: "rework_queued", restart_stage: autoRestartMap[type] });
 
-  const handleCompleteRework = (id: string) => {
-    const now = new Date();
-    const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-    setDefects(prev => prev.map(d => d.id === id ? { ...d, status: "rework_done" as DefectStatus, resolvedAt: time } : d));
-  };
+  const handleStartRework = (rowId: string) => patchDefect(rowId, { status: "rework_in_progress" });
 
-  const handleDispose = (id: string) => {
-    const now = new Date();
-    const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-    setDefects(prev => prev.map(d => d.id === id ? { ...d, status: "disposed" as DefectStatus, resolvedAt: time } : d));
-  };
+  const handleCompleteRework = (rowId: string) =>
+    patchDefect(rowId, { status: "rework_done", resolved_at: new Date().toISOString() });
+
+  const handleDispose = (rowId: string) =>
+    patchDefect(rowId, { status: "disposed", resolved_at: new Date().toISOString() });
 
   const filtered = defects.filter(d => {
     if (filterSeverity !== "all" && d.severity !== filterSeverity) return false;
@@ -198,12 +228,12 @@ export default function Defects() {
             </div>
           )}
           {filtered.map(d => {
-            const isExpanded = expandedId === d.id;
+            const isExpanded = expandedId === d.rowId;
             const restart = d.restartStage;
             return (
-              <div key={d.id} className="kpi-card overflow-hidden">
+              <div key={d.rowId} className="kpi-card overflow-hidden">
                 {/* Header row */}
-                <button onClick={() => setExpandedId(isExpanded ? null : d.id)}
+                <button onClick={() => setExpandedId(isExpanded ? null : d.rowId)}
                   className="w-full flex items-center gap-3 text-left">
                   {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
                   <span className="text-sm font-semibold w-20 shrink-0">{d.id}</span>
@@ -269,21 +299,21 @@ export default function Defects() {
                     <div className="flex gap-2">
                       {d.status === "unprocessed" && (
                         <>
-                          <Button size="sm" variant="outline" className="gap-1" onClick={() => handleAddToReworkQueue(d.id)}>
+                          <Button size="sm" variant="outline" className="gap-1" onClick={() => handleAddToReworkQueue(d.rowId, d.defectType)}>
                             <RotateCcw className="w-3.5 h-3.5" /> {t("defects.addToQueue")}
                           </Button>
-                          <Button size="sm" variant="outline" className="gap-1 text-destructive" onClick={() => handleDispose(d.id)}>
+                          <Button size="sm" variant="outline" className="gap-1 text-destructive" onClick={() => handleDispose(d.rowId)}>
                             <Trash2 className="w-3.5 h-3.5" /> {t("defects.dispose")}
                           </Button>
                         </>
                       )}
                       {d.status === "rework_queued" && (
-                        <Button size="sm" className="gap-1" onClick={() => handleStartRework(d.id)}>
+                        <Button size="sm" className="gap-1" onClick={() => handleStartRework(d.rowId)}>
                           <RotateCcw className="w-3.5 h-3.5" /> {t("defects.startRework")}
                         </Button>
                       )}
                       {d.status === "rework_in_progress" && (
-                        <Button size="sm" className="gap-1 bg-[hsl(var(--success))] hover:bg-[hsl(var(--success)/0.9)] text-white" onClick={() => handleCompleteRework(d.id)}>
+                        <Button size="sm" className="gap-1 bg-[hsl(var(--success))] hover:bg-[hsl(var(--success)/0.9)] text-white" onClick={() => handleCompleteRework(d.rowId)}>
                           <CheckCircle2 className="w-3.5 h-3.5" /> {t("defects.completeRework")}
                         </Button>
                       )}
