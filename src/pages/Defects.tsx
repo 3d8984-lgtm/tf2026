@@ -132,7 +132,7 @@ export default function Defects() {
     rowId: r.id as string,
   }));
 
-  const patchDefect = async (rowId: string, patch: Record<string, unknown>) => {
+  const patchDefect = async (rowId: string, patch: { status?: string; restart_stage?: string; resolved_at?: string }) => {
     const { error } = await supabase.from("defect_logs").update(patch).eq("id", rowId);
     if (error) {
       toast({ title: isKo ? "저장 실패" : "保存失败", description: error.message, variant: "destructive" });
