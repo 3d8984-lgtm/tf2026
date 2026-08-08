@@ -151,8 +151,9 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
                 const count = order.stageCounts[s.key];
                 const stagePct = pct(count, order.qty);
                 const Icon = s.icon;
-                const src = STAGE_BARCODE[s.key];
-                const prog: BarcodeProgress | undefined = src ? barcodeProgress?.[order.id]?.[src.kind] : undefined;
+                const src = STAGE_SOURCE[s.key];
+                const prog: StageStat | undefined = src ? stageProgress?.[order.id]?.[s.key as StageProgressKey] : undefined;
+
                 const isRunning = !!prog?.active;
                 const hasWork = count > 0;
                 const isComplete = order.qty > 0 && count >= order.qty;
