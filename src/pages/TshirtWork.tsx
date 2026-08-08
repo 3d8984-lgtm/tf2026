@@ -865,34 +865,6 @@ export default function TshirtWork() {
         <Button variant="outline" size="sm" onClick={resetScan}><RotateCcw className="w-4 h-4 mr-1" /> {t("tshirtWork.reset")}</Button>
       </PageHeader>
       <div className="p-6 space-y-4">
-        <div className="kpi-card grid grid-cols-2 md:grid-cols-8 gap-4 items-center">
-          <div className="flex items-center gap-2">
-            <Shirt className="w-5 h-5 text-primary" />
-            <div><p className="text-xs text-muted-foreground">#{activeWorkItem.seq}</p><p className="text-sm font-semibold">{selectedOrder!.twinker}</p></div>
-          </div>
-          <div><p className="text-xs text-muted-foreground">{t("tshirtWork.product")}</p><p className="text-sm font-semibold">{selectedOrder!.product}</p></div>
-          <div>
-            <p className="text-xs text-muted-foreground">{isKo ? "마크 고유번호" : "标识唯一编号"}</p>
-            <p className="text-sm font-semibold font-mono">{activeWorkItem.orderIdNo}-1</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">{isKo ? "디자인 고유번호" : "设计唯一编号"}</p>
-            <p className="text-sm font-semibold font-mono">{activeWorkItem.orderIdNo}-2</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">{isKo ? "스티커 고유번호" : "贴纸唯一编号"}</p>
-            <p className="text-sm font-semibold font-mono">{activeWorkItem.orderIdNo}-3</p>
-          </div>
-
-          <div><p className="text-xs text-muted-foreground">{t("tshirtWork.color")}</p><p className="text-sm font-semibold">{activeWorkItem.color}</p></div>
-          <div><p className="text-xs text-muted-foreground">{t("tshirtWork.size")}</p><p className="text-sm font-semibold">{activeWorkItem.size}</p></div>
-          <div className="ml-auto">
-            <p className="text-xs text-muted-foreground text-right">{t("tshirtWork.progressRate")}</p>
-            <p className="text-sm font-semibold tabular-nums text-right">
-              {selectedOrder!.items.filter(i => i.status === "done").length}/{selectedOrder!.items.length}
-            </p>
-          </div>
-        </div>
 
         {/* Large O/X result indicator - always visible */}
         {(allPass || hasFail) && (
