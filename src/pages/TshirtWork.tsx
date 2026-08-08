@@ -1222,6 +1222,8 @@ export default function TshirtWork() {
             </table>
           </div>
         </div>
+          );
+        })()}
       </div>
 
 
@@ -1236,15 +1238,67 @@ export default function TshirtWork() {
         </DialogContent>
       </Dialog>
 
-      {/* Work video playback dialog */}
+      {/* Work video playback dialog — every take (original + reworks) is kept */}
       <Dialog open={!!playingVideo} onOpenChange={() => setPlayingVideo(null)}>
         <DialogContent className="max-w-3xl p-4 bg-background">
           {playingVideo && (
-            <div className="space-y-2">
+            <div className="space-y-3">
               <p className="text-sm font-medium font-mono">{playingVideo.label}</p>
-              <video src={playingVideo.url} controls autoPlay className="w-full rounded-lg bg-black" />
+              <video key={playingVideo.takes[playingVideo.index].path} src={playingVideo.takes[playingVideo.index].url} controls autoPlay className="w-full rounded-lg bg-black" />
+              {playingVideo.takes.length > 1 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {playingVideo.takes.map((tk, i) => {
+                    const ts = tk.name.split("__")[1];
+                    const label = ts ? new Date(Number(ts)).toLocaleString(isKo ? "ko-KR" : "zh-CN") : (isKo ? "최초 작업" : "首次作业");
+                    return (
+                      <Button key={tk.path} size="sm" variant={i === playingVideo.index ? "default" : "outline"}
+                        onClick={() => setPlayingVideo(p => p && { ...p, index: i })}>
+                        {i === 0 ? (isKo ? "최초" : "首次") : `${isKo ? "재작업" : "返工"} ${i}`} · {label}
+                      </Button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Rework reason dialog */}
+      <Dialog open={!!reworkTarget} onOpenChange={o => { if (!o) setReworkTarget(null); }}>
+        <DialogContent className="max-w-md p-5 bg-background">
+          <div className="space-y-3">
+            <p className="text-sm font-medium">
+              {isKo ? "재작업 사유 입력" : "输入返工原因"}
+              {reworkTarget && <span className="ml-2 font-mono text-xs text-muted-foreground">#{reworkTarget.seq} {reworkTarget.itemNo}</span>}
+            </p>
+            <Textarea
+              value={reworkReason}
+              onChange={e => setReworkReason(e.target.value)}
+              rows={4}
+              placeholder={isKo ? "예: 스티커 위치 불량, 디자인 오인쇄 등" : "例如：贴纸位置不良、设计误印等"}
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setReworkTarget(null)}>{isKo ? "취소" : "取消"}</Button>
+              <Button
+                size="sm"
+                disabled={!reworkReason.trim() || reworkSaving}
+                onClick={async () => {
+                  if (!reworkTarget) return;
+                  setReworkSaving(true);
+                  try {
+                    await reworkItem(reworkTarget.seq, reworkReason.trim());
+                    setReworkTarget(null);
+                  } finally {
+                    setReworkSaving(false);
+                  }
+                }}
+              >
+                {reworkSaving && <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />}
+                {isKo ? "재작업 시작" : "开始返工"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
