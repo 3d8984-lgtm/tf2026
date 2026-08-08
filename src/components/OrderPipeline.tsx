@@ -216,7 +216,7 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
                             </span>
                           </div>
                           <div className="flex items-baseline justify-between mt-0.5">
-                            <span className="text-[10px] text-muted-foreground">{isKo ? "인쇄 완료" : "打印完成"}</span>
+                            <span className="text-[10px] text-muted-foreground">{isKo ? "작업 완료" : "作业完成"}</span>
                             <span
                               className="text-[11px] font-semibold tabular-nums"
                               style={{ color: (prog?.done ?? 0) > 0 ? stageColors[s.key] : "hsl(var(--muted-foreground))" }}
