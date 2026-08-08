@@ -320,6 +320,17 @@ export default function TshirtWork() {
     return merged;
   }, [savedWorkItems, localStatuses]);
 
+  // Rework metadata per order/seq (reason + timestamp + how many times).
+  const reworkInfo = useMemo(() => {
+    const map: Record<string, Record<number, { reason: string | null; at: string | null; count: number }>> = {};
+    for (const row of savedWorkItems ?? []) {
+      const r = row as { order_id: string; seq: number; rework_reason?: string | null; reworked_at?: string | null; rework_count?: number | null };
+      if (!r.reworked_at) continue;
+      map[r.order_id] = { ...(map[r.order_id] ?? {}), [r.seq]: { reason: r.rework_reason ?? null, at: r.reworked_at, count: r.rework_count ?? 0 } };
+    }
+    return map;
+  }, [savedWorkItems]);
+
   const orders = useMemo<OrderData[]>(() => {
     return dbOrderData.map(o => ({
       ...o,
