@@ -1,14 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Gauge, Activity, AlertTriangle, Square, RotateCcw, Wifi, WifiOff, Package } from "lucide-react";
+import { Gauge, Activity, AlertTriangle, Wifi, WifiOff, CheckCircle2, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useLang } from "@/contexts/LangContext";
-import { useOrders } from "@/hooks/useDbData";
-import { toast } from "sonner";
 
 const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
@@ -32,10 +27,7 @@ type PlcStatus = {
   timestamp: string;
 };
 
-type PlcStatusResponse = PlcStatus | {
-  offline: true;
-  upstream_status: number;
-};
+type PlcStatusResponse = PlcStatus | { offline: true; upstream_status: number };
 
 async function proxyFetch(path: string, init?: RequestInit) {
   const headers = new Headers(init?.headers);
@@ -47,8 +39,6 @@ async function proxyFetch(path: string, init?: RequestInit) {
 }
 
 // 게이트웨이의 32비트 카운터 워드 순서(word order) 오류 보정.
-// PLC가 low word를 먼저 보내는데 high<<16 | low 로 조합되어 값이 65,536배로 부풀려짐.
-// 서버 데이터 오염 방지를 위해 표시 단계에서만 보정한다.
 const WORD_SHIFT = 65536;
 function normalizeCount(raw?: number | null): number {
   const v = Number(raw ?? 0);
@@ -66,31 +56,26 @@ function stateBadgeClass(state?: string) {
   }
 }
 
+function BoolRow({ label, value, invert }: { label: string; value: boolean; invert?: boolean }) {
+  const bad = invert ? value : false;
+  return (
+    <div className="flex items-center justify-between text-xs py-1 border-b last:border-b-0">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={`flex items-center gap-1 font-medium ${bad ? "text-destructive" : value ? "text-success" : "text-muted-foreground"}`}>
+        {value ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+        {value ? "YES" : "NO"}
+      </span>
+    </div>
+  );
+}
+
 function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: string }) {
   const { lang } = useLang();
   const isKo = lang === "ko";
-  const { data: orders } = useOrders();
   const [status, setStatus] = useState<PlcStatus | null>(null);
   const [online, setOnline] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
-  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
-  const [assignedAt, setAssignedAt] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [ctrlUnsupported, setCtrlUnsupported] = useState<Record<string, boolean>>({});
-  // 포장 길이 누적 (게이트웨이가 packaged_length_m 을 제공하지 않아 카운트 × 1회 길이로 산출)
-  const [pkgLenMm, setPkgLenMm] = useState<number>(0);
-  const [pkgLenInput, setPkgLenInput] = useState<string>("");
-  const [baseCount, setBaseCount] = useState<number>(0);
-  const [storedLenM, setStoredLenM] = useState<number>(0);
 
-
-  const activeOrder = useMemo(
-    () => (orders || []).find((o: any) => o.id === activeOrderId) || null,
-    [orders, activeOrderId]
-  );
-
-  // Poll status
   useEffect(() => {
     let alive = true;
     let delay = 2000;
@@ -101,222 +86,31 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
         const res = await proxyFetch(`/api/v1/plc/${plcId}/status`);
         if (!alive) return;
         if (!res.ok) {
-          setStatus(null);
-          setOnline(false);
+          setStatus(null); setOnline(false);
           setErrorMsg(isKo ? "PLC 연결 불가" : "PLC连接失败");
         } else {
           const j = (await res.json()) as PlcStatusResponse;
           if (!alive) return;
           if ("upstream_status" in j) {
-            setStatus(null);
-            setOnline(false);
+            setStatus(null); setOnline(false);
             setErrorMsg(isKo ? "PLC 연결 불가" : "PLC连接失败");
           } else {
             ok = true;
-            setStatus(j);
-            setOnline(true);
-            setErrorMsg(null);
+            setStatus(j); setOnline(true); setErrorMsg(null);
           }
         }
       } catch {
         if (!alive) return;
-        setStatus(null);
-        setOnline(false);
+        setStatus(null); setOnline(false);
         setErrorMsg(isKo ? "네트워크 오류" : "网络错误");
       }
       if (!alive) return;
-      // 실패가 반복되면 간격을 늘려 엣지 함수 과부하(503)를 방지
       delay = ok ? 2000 : Math.min(delay * 2, 60000);
       timer = setTimeout(tick, delay);
     };
     void tick();
     return () => { alive = false; clearTimeout(timer); };
   }, [plcId, isKo]);
-
-  // Load active order assignment
-  const loadAssignment = async () => {
-    const { data } = await supabase
-      .from("plc_active_orders")
-      .select("order_id, assigned_at, package_length_mm, length_base_count, cumulative_length_m")
-      .eq("plc_id", plcId)
-      .maybeSingle();
-    setActiveOrderId(data?.order_id ?? null);
-    setPendingOrderId(data?.order_id ?? null);
-    setAssignedAt(data?.assigned_at ?? null);
-    const mm = Number((data as any)?.package_length_mm ?? 0);
-    setPkgLenMm(mm);
-    setPkgLenInput(mm ? String(mm) : "");
-    setBaseCount(Number((data as any)?.length_base_count ?? 0));
-    setStoredLenM(Number((data as any)?.cumulative_length_m ?? 0));
-  };
-  useEffect(() => { loadAssignment(); }, [plcId]);
-
-  const liveCount = normalizeCount(status?.total_count);
-  // 현재 세션 구간(base 이후)에서 늘어난 길이 + DB에 저장된 누적 길이
-  const sessionLenM = pkgLenMm > 0 ? (Math.max(0, liveCount - baseCount) * pkgLenMm) / 1000 : 0;
-  const totalLenM = storedLenM + sessionLenM;
-
-  // 카운터가 초기화되면(현재 카운트 < 기준 카운트) 그때까지의 길이를 DB 누적에 확정 저장
-  useEffect(() => {
-    if (!status || pkgLenMm <= 0) return;
-    if (liveCount >= baseCount) return;
-    const committed = storedLenM + (Math.max(0, baseCount) * pkgLenMm) / 1000;
-    setStoredLenM(committed);
-    setBaseCount(0);
-    supabase
-      .from("plc_active_orders")
-      .update({ cumulative_length_m: committed, length_base_count: 0 })
-      .eq("plc_id", plcId)
-      .then(() => {});
-  }, [liveCount, baseCount, pkgLenMm, storedLenM, plcId, status]);
-
-  // 주기적으로 현재 진행분을 DB에 반영 (새로고침/재접속 시에도 누적 유지)
-  useEffect(() => {
-    if (pkgLenMm <= 0) return;
-    const iv = setInterval(() => {
-      supabase
-        .from("plc_active_orders")
-        .update({ cumulative_length_m: totalLenM, length_base_count: liveCount })
-        .eq("plc_id", plcId)
-        .then(() => {
-          setStoredLenM(totalLenM);
-          setBaseCount(liveCount);
-        });
-    }, 60000);
-    return () => clearInterval(iv);
-  }, [pkgLenMm, totalLenM, liveCount, plcId]);
-
-  const savePkgLen = async () => {
-    const mm = Number(pkgLenInput);
-    if (!Number.isFinite(mm) || mm < 0) {
-      toast.error(isKo ? "올바른 길이를 입력하세요" : "请输入正确的长度");
-      return;
-    }
-    setBusy(true);
-    try {
-      const user = (await supabase.auth.getUser()).data.user;
-      const { error } = await supabase.from("plc_active_orders").upsert({
-        plc_id: plcId,
-        plc_label: `${label} · ${name}`,
-        order_id: activeOrderId,
-        assigned_by: user?.id ?? null,
-        package_length_mm: mm,
-        length_base_count: liveCount,
-        cumulative_length_m: totalLenM,
-      } as any, { onConflict: "plc_id" });
-      if (error) throw error;
-      await loadAssignment();
-      toast.success(isKo ? "1회 포장 길이가 저장되었습니다" : "已保存单次包装长度");
-    } catch (e: any) {
-      toast.error(e?.message || (isKo ? "저장 실패" : "保存失败"));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const resetCumulativeLength = async () => {
-    setBusy(true);
-    try {
-      await supabase
-        .from("plc_active_orders")
-        .update({ cumulative_length_m: 0, length_base_count: liveCount } as any)
-        .eq("plc_id", plcId);
-      setStoredLenM(0);
-      setBaseCount(liveCount);
-      toast.success(isKo ? "누적 포장 길이를 초기화했습니다" : "已重置累计包装长度");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const assignOrder = async (orderId: string | null) => {
-    setBusy(true);
-    try {
-      const user = (await supabase.auth.getUser()).data.user;
-      const payload: any = {
-        plc_id: plcId,
-        plc_label: `${label} · ${name}`,
-        order_id: orderId,
-        assigned_by: user?.id ?? null,
-        assigned_at: new Date().toISOString(),
-        package_length_mm: pkgLenMm,
-        // 카운터를 0으로 초기화하므로 지금까지의 길이를 누적으로 확정하고 기준을 0으로
-        cumulative_length_m: totalLenM,
-        length_base_count: 0,
-      };
-      const { error } = await supabase
-        .from("plc_active_orders")
-        .upsert(payload, { onConflict: "plc_id" });
-      if (error) throw error;
-
-      // Reset PLC counter so counting starts from 0 for this order
-      let resetOk = false;
-      try {
-        const res = await proxyFetch(`/api/v1/plc/${plcId}/control`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ command: "reset_counter" }),
-        });
-        resetOk = res.ok;
-      } catch { /* PLC offline — assignment still saved */ }
-
-      await loadAssignment();
-      toast.success(
-        resetOk
-          ? (isKo ? "저장되었습니다. 카운터를 초기화했습니다." : "已保存，计数器已重置。")
-          : (isKo ? "저장되었습니다. (카운터 초기화 실패 — PLC 연결 확인)" : "已保存。（计数器重置失败 — 请检查PLC连接）")
-      );
-    } catch (e: any) {
-      toast.error(e?.message || (isKo ? "지정 실패" : "指定失败"));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-
-  const clearAssignment = async () => {
-    setBusy(true);
-    try {
-      // 설정(1회 길이·누적 길이)은 유지하고 주문 지정만 해제
-      await supabase
-        .from("plc_active_orders")
-        .update({ order_id: null } as any)
-        .eq("plc_id", plcId);
-      await loadAssignment();
-      toast.success(isKo ? "지정이 해제되었습니다" : "已解除指定");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const control = async (command: "start" | "stop" | "reset_counter") => {
-    setBusy(true);
-    try {
-      const res = await proxyFetch(`/api/v1/plc/${plcId}/control`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command }),
-      });
-      if (res.status === 501) {
-        setCtrlUnsupported(prev => ({ ...prev, [command]: true }));
-        toast.info(
-          isKo
-            ? "이 장비는 원격 제어(쓰기)가 지원되지 않습니다. 현장에서 조작해주세요. (모니터링 전용)"
-            : "该设备不支持远程控制（写入），请在现场操作。（仅监控）"
-        );
-        return;
-      }
-      if (!res.ok) {
-        const t = await res.text().catch(() => "");
-        throw new Error(t || `HTTP ${res.status}`);
-      }
-      toast.success(isKo ? `명령 전송: ${command}` : `命令已发送: ${command}`);
-    } catch (e: any) {
-      toast.error(e?.message || (isKo ? "명령 실패" : "命令失败"));
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const stateLabels: Record<string, string> = {
     running: isKo ? "가동중" : "运行中",
@@ -326,13 +120,7 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
     unknown: isKo ? "알수없음" : "未知",
   };
 
-  const totalCount = liveCount;
-  const remaining = activeOrder && status
-    ? Math.max(0, (activeOrder.quantity || 0) - totalCount)
-    : null;
-  const progressPct = activeOrder && status
-    ? Math.min(100, Math.round((totalCount / Math.max(1, activeOrder.quantity || 1)) * 100))
-    : 0;
+  const totalCount = normalizeCount(status?.total_count);
 
   return (
     <Card>
@@ -356,96 +144,12 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Active order */}
-        <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="text-xs font-medium flex items-center gap-1.5 text-muted-foreground">
-              <Package className="w-3.5 h-3.5" />
-              {isKo ? "현재 작업 주문" : "当前作业订单"}
-            </div>
-            {activeOrder && (
-              <Button size="sm" variant="ghost" className="h-6 text-[11px]" onClick={clearAssignment} disabled={busy}>
-                {isKo ? "해제" : "解除"}
-              </Button>
-            )}
-          </div>
-          {activeOrder ? (
-            <div className="space-y-1">
-              <div className="text-sm font-medium font-mono">{activeOrder.external_order_id}</div>
-              <div className="text-[11px] text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
-                <span>{isKo ? "트윈커" : "Twinker"}: {activeOrder.recipient_name}</span>
-                <span>{isKo ? "수량" : "数量"}: {activeOrder.quantity}</span>
-                {activeOrder.product_code && <span>{isKo ? "상품" : "商品"}: {activeOrder.product_code}</span>}
-              </div>
-              {status && (
-                <div className="pt-1">
-                  <div className="flex justify-between text-[11px] mb-1">
-                    <span className="text-muted-foreground">{isKo ? "진행률" : "进度"}</span>
-                    <span className="tabular-nums font-medium">
-                      {totalCount} / {activeOrder.quantity}
-                      <span className="text-muted-foreground ml-1">({progressPct}%)</span>
-                    </span>
-                  </div>
-                  <div className="h-1.5 bg-muted rounded overflow-hidden">
-                    <div className="h-full bg-primary transition-all" style={{ width: `${progressPct}%` }} />
-                  </div>
-                  {remaining !== null && (
-                    <div className="text-[10px] text-muted-foreground mt-1">
-                      {isKo ? "남은 수량" : "剩余"}: {remaining}
-                    </div>
-                  )}
-                </div>
-              )}
-              {assignedAt && (
-                <div className="text-[10px] text-muted-foreground">
-                  {isKo ? "지정" : "指定"}: {new Date(assignedAt).toLocaleString(isKo ? "ko-KR" : "zh-CN")}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-[11px] text-muted-foreground">
-              {isKo ? "지정된 주문이 없습니다. 아래에서 선택하세요." : "尚未指定订单，请从下方选择。"}
-            </div>
-          )}
-          <div className="flex items-center gap-2">
-            <Select value={pendingOrderId ?? undefined} onValueChange={setPendingOrderId} disabled={busy}>
-              <SelectTrigger className="h-8 text-xs flex-1">
-                <SelectValue placeholder={isKo ? "작업지시번호 선택…" : "选择工单号…"} />
-              </SelectTrigger>
-              <SelectContent className="max-h-72">
-                {(orders || [])
-                  .filter((o: any) => o.status !== "completed" && o.status !== "cancelled")
-                  .map((o: any) => (
-                    <SelectItem key={o.id} value={o.id} className="text-xs">
-                      <span className="font-mono">{o.external_order_id}</span>
-                      <span className="text-muted-foreground ml-2">· {o.recipient_name} · {o.quantity}{isKo ? "개" : "件"}</span>
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-            <Button
-              size="sm"
-              className="h-8 text-xs"
-              disabled={busy || !pendingOrderId || pendingOrderId === activeOrderId}
-              onClick={() => pendingOrderId && assignOrder(pendingOrderId)}
-            >
-              {isKo ? "저장" : "保存"}
-            </Button>
-          </div>
-          <p className="text-[10px] text-muted-foreground">
-            {isKo
-              ? "저장 시 해당 주문 기준으로 카운터가 0부터 다시 집계됩니다."
-              : "保存后计数器将以该订单为准从0重新统计。"}
-          </p>
-        </div>
-
-
-        {/* Live metrics */}
         {errorMsg && !status && (
           <div className="rounded border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive flex items-center gap-1.5">
             <AlertTriangle className="w-3.5 h-3.5" /> {errorMsg}
           </div>
         )}
+
         {status && (
           <>
             <div className="grid grid-cols-3 gap-2">
@@ -455,49 +159,24 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
               </div>
               <div className="kpi-card text-center py-3">
                 <p className="text-xl font-semibold tabular-nums">
-                  {status.packaged_length_m != null
-                    ? `${status.packaged_length_m.toFixed(1)}m`
-                    : pkgLenMm > 0
-                      ? `${totalLenM.toFixed(1)}m`
-                      : "—"}
+                  {status.packaged_length_m != null ? `${status.packaged_length_m.toFixed(1)}m` : "—"}
                 </p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  {isKo ? "누적 포장 길이" : "累计包装长度"}
-                </p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{isKo ? "포장 길이" : "包装长度"}</p>
               </div>
               <div className="kpi-card text-center py-3">
-                <p className="text-xl font-semibold tabular-nums">{status.operating_duration}</p>
+                <p className="text-xl font-semibold tabular-nums">{status.operating_duration || "—"}</p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">{isKo ? "가동시간" : "运行时长"}</p>
               </div>
             </div>
 
-            {/* 1회 포장 길이 설정 (게이트웨이가 길이 레지스터를 제공하지 않아 카운트 × 길이로 산출) */}
-            <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
-              <div className="text-xs font-medium text-muted-foreground">
-                {isKo ? "1회 포장 길이 (mm)" : "单次包装长度 (mm)"}
+            <div className="rounded-lg border bg-muted/30 px-3 py-1">
+              <BoolRow label={isKo ? "가동 여부" : "是否运行"} value={status.running} />
+              <BoolRow label={isKo ? "목표 수량 도달" : "达到目标数量"} value={status.target_count_reached} />
+              <BoolRow label={isKo ? "비상정지" : "急停"} value={status.e_stop} invert />
+              <div className="flex items-center justify-between text-xs py-1">
+                <span className="text-muted-foreground">{isKo ? "가동 시간(초)" : "运行秒数"}</span>
+                <span className="font-medium tabular-nums">{Number(status.operating_seconds ?? 0).toLocaleString()}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  min={0}
-                  step="0.1"
-                  value={pkgLenInput}
-                  onChange={(e) => setPkgLenInput(e.target.value)}
-                  placeholder={isKo ? "예: 250" : "例: 250"}
-                  className="h-8 text-xs"
-                />
-                <Button size="sm" className="h-8 text-xs" onClick={savePkgLen} disabled={busy}>
-                  {isKo ? "저장" : "保存"}
-                </Button>
-                <Button size="sm" variant="outline" className="h-8 text-xs whitespace-nowrap" onClick={resetCumulativeLength} disabled={busy}>
-                  {isKo ? "누적 초기화" : "重置累计"}
-                </Button>
-              </div>
-              <p className="text-[10px] text-muted-foreground">
-                {isKo
-                  ? "설비가 길이 값을 전송하지 않아 (카운트 × 1회 길이)로 누적 계산하며, 카운터 초기화 후에도 누적 길이는 유지됩니다."
-                  : "设备未上报长度值，按（计数 × 单次长度）累计计算；计数器重置后累计长度仍保留。"}
-              </p>
             </div>
 
             {(status.faults?.length > 0 || status.e_stop) && (
@@ -516,19 +195,9 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
               </div>
             )}
 
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" className="flex-1" onClick={() => control("stop")} disabled={busy || !status.running || ctrlUnsupported["stop"]} title={ctrlUnsupported["stop"] ? (isKo ? "원격 제어 미지원 (모니터링 전용)" : "不支持远程控制（仅监控）") : undefined}>
-                <Square className="w-3.5 h-3.5 mr-1" /> {isKo ? "정지" : "停止"}
-              </Button>
-              <Button size="sm" variant="outline" className="flex-1" onClick={() => control("reset_counter")} disabled={busy || ctrlUnsupported["reset_counter"]}>
-                <RotateCcw className="w-3.5 h-3.5 mr-1" /> {isKo ? "카운터 초기화" : "计数重置"}
-              </Button>
-            </div>
-            {(ctrlUnsupported["stop"] || ctrlUnsupported["reset_counter"]) && (
-              <p className="text-[10px] text-muted-foreground">
-                {isKo
-                  ? "이 장비는 게이트웨이에 제어용 레지스터가 등록되어 있지 않아 원격 제어가 불가합니다. 현재는 모니터링 전용입니다."
-                  : "该设备未在网关登记控制寄存器，无法远程控制。当前仅支持监控。"}
+            {status.timestamp && (
+              <p className="text-[10px] text-muted-foreground text-right">
+                {isKo ? "수신" : "接收"}: {new Date(status.timestamp).toLocaleString(isKo ? "ko-KR" : "zh-CN")}
               </p>
             )}
           </>
@@ -546,8 +215,8 @@ export default function PlcMonitor() {
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Activity className="w-4 h-4" />
         {isKo
-          ? "PLC 실시간 상태 · 2초 간격 폴링. 작업 시작 전 반드시 '현재 작업 주문'을 지정하세요."
-          : "PLC实时状态 · 每2秒轮询。作业开始前请务必指定「当前作业订单」。"}
+          ? "PLC 실시간 상태 · 2초 간격 폴링. (모니터링 전용)"
+          : "PLC实时状态 · 每2秒轮询。（仅监控）"}
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         {MACHINES.map(m => (
