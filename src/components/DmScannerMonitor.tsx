@@ -217,7 +217,7 @@ export default function DmScannerMonitor() {
                 className={`w-8 h-8 rounded-full border transition-all ${lampBad ? "bg-destructive shadow-[0_0_18px_hsl(var(--destructive)/0.6)]" : "bg-muted"}`}
               />
             </div>
-            <p className="text-[11px] text-muted-foreground">{tr("경고등", "警示灯")}</p>
+            <p className="text-[11px] text-muted-foreground">{tr("경고등 (화면 표시)", "警示灯（画面显示）")}</p>
             <div className="flex gap-1.5">
               <Button
                 size="sm"
