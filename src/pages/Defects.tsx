@@ -96,6 +96,11 @@ export default function Defects() {
     print_fail: "invoice",
   };
 
+  const [activeTab, setActiveTab] = useState<"all" | "queue" | "history">("all");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [filterSeverity, setFilterSeverity] = useState<Severity | "all">("all");
+  const queryClient = useQueryClient();
+
   // Defect / rework logs recorded by the work stations.
   const { data: rows } = useQuery({
     queryKey: ["defect_logs"],
