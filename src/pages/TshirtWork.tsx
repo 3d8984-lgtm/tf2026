@@ -522,6 +522,7 @@ export default function TshirtWork() {
   const [reworkTarget, setReworkTarget] = useState<{ seq: number; itemNo: string } | null>(null);
   const [reworkReason, setReworkReason] = useState("");
   const [reworkSaving, setReworkSaving] = useState(false);
+  const [itemSearch, setItemSearch] = useState("");
 
   // Reset an already finished item back to pending so it can be re-verified.
   const reworkItem = useCallback(async (seq: number, reason: string) => {
