@@ -748,7 +748,10 @@ export default function TshirtWork() {
 
     };
     const onKeyUp = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.isContentEditable || el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && el !== inputRef.current))) return;
       if (e.ctrlKey || e.metaKey || e.altKey || blockedNavigationKeys.has(e.key) || e.key === "Control" || e.key === "Meta" || e.key === "Alt") {
+
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
