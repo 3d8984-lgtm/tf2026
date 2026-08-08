@@ -1,7 +1,8 @@
 import { Shirt, CreditCard, Package, Mail, Truck, CheckCircle2 } from "lucide-react";
-import { useOrders, useProductionTracking } from "@/hooks/useDbData";
+import { useOrders } from "@/hooks/useDbData";
 import { useLang } from "@/contexts/LangContext";
-import { useBarcodePrintProgress, STAGE_BARCODE, type BarcodeProgress } from "@/hooks/useBarcodePrintProgress";
+import { useStageProgress, STAGE_SOURCE, type StageStat, type StageProgressKey } from "@/hooks/useStageProgress";
+
 
 const stages = [
   { key: "tshirt", label_ko: "티셔츠 제작", label_zh: "T恤制作", icon: Shirt },
