@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import WorkCamRecorder from "@/components/WorkCamRecorder";
 import { toast } from "@/hooks/use-toast";
 
