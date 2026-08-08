@@ -27,7 +27,6 @@ import Shipping from "@/pages/Shipping";
 import ShippingScan from "@/pages/ShippingScan";
 import Defects from "@/pages/Defects";
 import SystemSettings from "@/pages/SystemSettings";
-import Manual from "@/pages/Manual";
 import CCTVQuality from "@/pages/CCTVQuality";
 import Licenses from "@/pages/Licenses";
 import OutsourceDashboard from "@/pages/outsource/OutsourceDashboard";
@@ -101,7 +100,6 @@ function ProtectedRoutes() {
         <Route path="/shipping" element={<Shipping />} />
         <Route path="/shipping/scan/:orderId" element={<ShippingScan />} />
         <Route path="/defects" element={<Defects />} />
-        <Route path="/manual" element={<Manual />} />
         <Route path="/cctv-quality" element={<CCTVQuality />} />
         <Route path="/settings" element={<SystemSettings />} />
         <Route path="/licenses" element={<Licenses />} />
