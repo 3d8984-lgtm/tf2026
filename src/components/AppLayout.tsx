@@ -54,7 +54,6 @@ const menuKeys: MenuItem[] = [
   { path: "/shipping", icon: Truck, key: "menu.shipping", section: "hq" },
   { path: "/defects", icon: AlertTriangle, key: "menu.defects", section: "hq" },
   { path: "/cctv-quality", icon: Camera, key: "menu.cctvQuality", section: "hq" },
-  { path: "/manual", icon: BookOpen, key: "menu.manual", section: "hq" },
   { path: "/master", icon: Database, key: "menu.master", section: "hq" },
   { path: "/settings", icon: Settings, key: "menu.settings", section: "hq", children: [
     { label: { ko: "일반", zh: "常规" }, tab: "general" },
