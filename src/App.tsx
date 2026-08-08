@@ -13,7 +13,6 @@ import ResetPassword from "@/pages/ResetPassword";
 import Dashboard from "@/pages/Dashboard";
 import FileUpload from "@/pages/FileUpload";
 import AllOrders from "@/pages/AllOrders";
-import MasterData from "@/pages/MasterData";
 
 
 import TshirtWork from "@/pages/TshirtWork";
@@ -87,7 +86,6 @@ function ProtectedRoutes() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/upload" element={<FileUpload />} />
         <Route path="/all-orders" element={<AllOrders />} />
-        <Route path="/master" element={<MasterData />} />
         
         
         <Route path="/card-qr-inspect" element={<CardQrInspection />} />
