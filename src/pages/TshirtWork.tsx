@@ -300,7 +300,7 @@ export default function TshirtWork() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tshirt_work_items")
-        .select("order_id, seq, status");
+        .select("order_id, seq, status, rework_reason, reworked_at, rework_count");
       if (error) throw error;
       return data ?? [];
     },
