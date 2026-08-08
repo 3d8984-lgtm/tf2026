@@ -67,7 +67,7 @@ export default function Shipping() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={tr("배송 관리 > 택배 포장 작업", "配送管理 > 快递包装作业")} description={tr("QR 스캔 → 디자인 검수 → 송장 발급 → 트윈메타 회신", "扫码 → 检验 → 出运单 → 回报")} />
+      <PageHeader title={tr("택배 포장 작업", "快递包装作业")} description={tr("QR 스캔 → 디자인 검수 → 송장 발급 → 트윈메타 회신", "扫码 → 检验 → 出运单 → 回报")} />
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
