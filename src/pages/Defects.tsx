@@ -93,35 +93,56 @@ export default function Defects() {
     print_fail: "invoice",
   };
 
-  const [defects, setDefects] = useState<DefectItem[]>([]);
+  // Defect / rework logs recorded by the work stations.
+  const { data: rows } = useQuery({
+    queryKey: ["defect_logs"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("defect_logs")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
-  const [activeTab, setActiveTab] = useState<"all" | "queue" | "history">("all");
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [filterSeverity, setFilterSeverity] = useState<Severity | "all">("all");
+  const fmtTime = (v: string | null) =>
+    v ? new Date(v).toLocaleString(isKo ? "ko-KR" : "zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : null;
 
-  const handleAddToReworkQueue = (id: string) => {
-    setDefects(prev => prev.map(d => {
-      if (d.id !== id) return d;
-      const restart = autoRestartMap[d.defectType];
-      return { ...d, status: "rework_queued" as DefectStatus, restartStage: restart };
-    }));
+  const defects: DefectItem[] = (rows ?? []).map(r => ({
+    id: (r.item_no as string) || (r.id as string).slice(0, 8),
+    orderNo: (r.external_order_id as string) || "-",
+    defectType: (r.defect_type as DefectType) ?? "attach_fail",
+    severity: (r.severity as Severity) ?? "medium",
+    occurredAt: fmtTime(r.created_at as string) ?? "",
+    occurredProcess: (r.occurred_process as string) || "-",
+    detail: (r.detail as string) || "-",
+    status: (r.status as DefectStatus) ?? "unprocessed",
+    restartStage: (r.restart_stage as RestartStage) ?? null,
+    assignee: (r.assignee as string) || "-",
+    resolvedAt: fmtTime(r.resolved_at as string | null),
+    rowId: r.id as string,
+  }));
+
+  const patchDefect = async (rowId: string, patch: Record<string, unknown>) => {
+    const { error } = await supabase.from("defect_logs").update(patch).eq("id", rowId);
+    if (error) {
+      toast({ title: isKo ? "저장 실패" : "保存失败", description: error.message, variant: "destructive" });
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ["defect_logs"] });
   };
 
-  const handleStartRework = (id: string) => {
-    setDefects(prev => prev.map(d => d.id === id ? { ...d, status: "rework_in_progress" as DefectStatus } : d));
-  };
+  const handleAddToReworkQueue = (rowId: string, type: DefectType) =>
+    patchDefect(rowId, { status: "rework_queued", restart_stage: autoRestartMap[type] });
 
-  const handleCompleteRework = (id: string) => {
-    const now = new Date();
-    const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-    setDefects(prev => prev.map(d => d.id === id ? { ...d, status: "rework_done" as DefectStatus, resolvedAt: time } : d));
-  };
+  const handleStartRework = (rowId: string) => patchDefect(rowId, { status: "rework_in_progress" });
 
-  const handleDispose = (id: string) => {
-    const now = new Date();
-    const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-    setDefects(prev => prev.map(d => d.id === id ? { ...d, status: "disposed" as DefectStatus, resolvedAt: time } : d));
-  };
+  const handleCompleteRework = (rowId: string) =>
+    patchDefect(rowId, { status: "rework_done", resolved_at: new Date().toISOString() });
+
+  const handleDispose = (rowId: string) =>
+    patchDefect(rowId, { status: "disposed", resolved_at: new Date().toISOString() });
 
   const filtered = defects.filter(d => {
     if (filterSeverity !== "all" && d.severity !== filterSeverity) return false;
