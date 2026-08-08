@@ -7,7 +7,7 @@ import OrderPipeline from "@/components/OrderPipeline";
 import PlcMonitor from "@/components/PlcMonitor";
 import DmScannerMonitor from "@/components/DmScannerMonitor";
 import BarcodeStageDetail from "@/components/BarcodeStageDetail";
-import { useBarcodePrintProgress, STAGE_BARCODE } from "@/hooks/useBarcodePrintProgress";
+import { useStageProgress, type StageProgressKey } from "@/hooks/useStageProgress";
 import { Gauge, ScanLine, Package, Printer, Activity, Shirt, CreditCard, Mail, Truck, CheckCircle2 } from "lucide-react";
 import { useOrders, useProductionTracking, useShipments } from "@/hooks/useDbData";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -33,7 +33,7 @@ export default function ProductionMonitor() {
   const { data: orders } = useOrders();
   const { data: tracking } = useProductionTracking();
   const { data: shipments } = useShipments();
-  const { data: barcodeProgress } = useBarcodePrintProgress();
+  const { data: stageProgress } = useStageProgress();
 
   const [stageDetail, setStageDetail] = useState<{ orderId: string; stage: StageKey } | null>(null);
   const [orderDetailId, setOrderDetailId] = useState<string | null>(null);
@@ -63,13 +63,18 @@ export default function ProductionMonitor() {
   const stageLabel = meta ? (isKo ? meta.ko : meta.zh) : "";
 
   const orderQty = detailOrder?.quantity ?? 0;
-  const barcodeSrc = stageDetail ? STAGE_BARCODE[stageDetail.stage] : undefined;
-  const barcodeProg = stageDetail && barcodeSrc ? barcodeProgress?.[stageDetail.orderId]?.[barcodeSrc.kind] : undefined;
-  const stageDone = barcodeProg
-    ? barcodeProg.done
+  const spOrder = stageDetail ? stageProgress?.[stageDetail.orderId] : undefined;
+  const stageStat =
+    stageDetail && spOrder && ["tshirt", "card", "set", "courier"].includes(stageDetail.stage)
+      ? spOrder[stageDetail.stage as StageProgressKey]
+      : undefined;
+  const stageDone = stageDetail?.stage === "done"
+    ? (spOrder?.done ?? 0)
+    : stageStat
+    ? stageStat.done
     : detailTracking.reduce((s, t) => s + (t.completed_count ?? 0), 0);
-  const stageFail = barcodeProg
-    ? barcodeProg.failed
+  const stageFail = stageStat
+    ? stageStat.failed
     : detailTracking.reduce((s, t) => s + ((t as any).failed_count ?? 0), 0);
 
   return (
