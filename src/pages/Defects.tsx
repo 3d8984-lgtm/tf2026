@@ -29,6 +29,7 @@ interface DefectItem {
   restartStage: RestartStage | null;
   assignee: string;
   resolvedAt: string | null;
+  rowId: string;
 }
 
 const stageOrder: RestartStage[] = ["tshirt", "card", "set", "courier", "invoice"];
@@ -227,12 +228,12 @@ export default function Defects() {
             </div>
           )}
           {filtered.map(d => {
-            const isExpanded = expandedId === d.id;
+            const isExpanded = expandedId === d.rowId;
             const restart = d.restartStage;
             return (
-              <div key={d.id} className="kpi-card overflow-hidden">
+              <div key={d.rowId} className="kpi-card overflow-hidden">
                 {/* Header row */}
-                <button onClick={() => setExpandedId(isExpanded ? null : d.id)}
+                <button onClick={() => setExpandedId(isExpanded ? null : d.rowId)}
                   className="w-full flex items-center gap-3 text-left">
                   {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
                   <span className="text-sm font-semibold w-20 shrink-0">{d.id}</span>
@@ -298,21 +299,21 @@ export default function Defects() {
                     <div className="flex gap-2">
                       {d.status === "unprocessed" && (
                         <>
-                          <Button size="sm" variant="outline" className="gap-1" onClick={() => handleAddToReworkQueue(d.id)}>
+                          <Button size="sm" variant="outline" className="gap-1" onClick={() => handleAddToReworkQueue(d.rowId, d.defectType)}>
                             <RotateCcw className="w-3.5 h-3.5" /> {t("defects.addToQueue")}
                           </Button>
-                          <Button size="sm" variant="outline" className="gap-1 text-destructive" onClick={() => handleDispose(d.id)}>
+                          <Button size="sm" variant="outline" className="gap-1 text-destructive" onClick={() => handleDispose(d.rowId)}>
                             <Trash2 className="w-3.5 h-3.5" /> {t("defects.dispose")}
                           </Button>
                         </>
                       )}
                       {d.status === "rework_queued" && (
-                        <Button size="sm" className="gap-1" onClick={() => handleStartRework(d.id)}>
+                        <Button size="sm" className="gap-1" onClick={() => handleStartRework(d.rowId)}>
                           <RotateCcw className="w-3.5 h-3.5" /> {t("defects.startRework")}
                         </Button>
                       )}
                       {d.status === "rework_in_progress" && (
-                        <Button size="sm" className="gap-1 bg-[hsl(var(--success))] hover:bg-[hsl(var(--success)/0.9)] text-white" onClick={() => handleCompleteRework(d.id)}>
+                        <Button size="sm" className="gap-1 bg-[hsl(var(--success))] hover:bg-[hsl(var(--success)/0.9)] text-white" onClick={() => handleCompleteRework(d.rowId)}>
                           <CheckCircle2 className="w-3.5 h-3.5" /> {t("defects.completeRework")}
                         </Button>
                       )}
