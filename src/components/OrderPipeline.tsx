@@ -38,10 +38,9 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
   const { lang } = useLang();
   const isKo = lang === "ko";
   const { data: orders, isLoading: ordersLoading } = useOrders();
-  const { data: tracking, isLoading: trackingLoading } = useProductionTracking();
-  const { data: barcodeProgress } = useBarcodePrintProgress();
+  const { data: stageProgress, isLoading: progressLoading } = useStageProgress();
 
-  if (ordersLoading || trackingLoading) {
+  if (ordersLoading || progressLoading) {
     return (
       <div className="flex justify-center py-12">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -49,25 +48,17 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
     );
   }
 
-  // Build pipeline data from DB - use external_order_id as 작업지시번호
+  // 각 단계 실적은 실제 작업 메뉴 데이터에서 집계 (PLC 미사용)
   const pipelineOrders = (orders ?? []).map(order => {
-    const orderTracking = (tracking ?? []).filter(t => t.order_id === order.id);
-    const stageCounts: Record<StageKey, number> = { tshirt: 0, card: 0, set: 0, courier: 0, done: 0 };
+    const sp = stageProgress?.[order.id];
+    const stageCounts: Record<StageKey, number> = {
+      tshirt: sp?.tshirt.done ?? 0,
+      card: sp?.card.done ?? 0,
+      set: sp?.set.done ?? 0,
+      courier: sp?.courier.done ?? 0,
+      done: sp?.done ?? 0,
+    };
 
-    orderTracking.forEach(t => {
-      // 택배 포장 + 송장 부착은 하나의 단계로 합산(최대값) 처리
-      const key = (t.stage === "invoice" ? "courier" : t.stage) as StageKey;
-      if (key in stageCounts) {
-        stageCounts[key] = Math.max(stageCounts[key], t.completed_count);
-      }
-    });
-
-    // 카드 포장 / 세트 포장 실적은 바코드 인쇄 작업 데이터를 우선 사용
-    const bp = barcodeProgress?.[order.id];
-    if (bp) {
-      stageCounts.card = Math.max(stageCounts.card, bp.card.done);
-      stageCounts.set = Math.max(stageCounts.set, bp.tshirt.done);
-    }
 
     const stageKeys: StageKey[] = ["tshirt", "card", "set", "courier", "done"];
     let currentStage: StageKey = "tshirt";
