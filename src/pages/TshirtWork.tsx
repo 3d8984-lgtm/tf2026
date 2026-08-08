@@ -363,19 +363,27 @@ export default function TshirtWork() {
   // ---- Work video recording (USB camera) ----
   const queryClient = useQueryClient();
   const [uploadingVideo, setUploadingVideo] = useState(false);
-  const [playingVideo, setPlayingVideo] = useState<{ url: string; label: string } | null>(null);
+  const [playingVideo, setPlayingVideo] = useState<
+    { label: string; takes: { path: string; name: string; url: string }[]; index: number } | null
+  >(null);
   const recordTargetRef = useRef<{ folder: string; itemNo: string; orderId: string } | null>(null);
   const defectRef = useRef(false);
 
-  // Videos already stored for the selected order
+  // Videos already stored for the selected order, grouped per work item.
+  // Older takes are kept: files are named `<itemNo>__<timestamp>.webm`.
   const videoFolder = selectedOrder?.externalOrderId ?? "";
   const { data: workVideos } = useQuery({
     queryKey: ["work_videos", videoFolder],
     enabled: !!videoFolder,
     queryFn: async () => {
-      const { data } = await supabase.storage.from("work-videos").list(videoFolder);
-      const map: Record<string, string> = {};
-      for (const f of data ?? []) map[f.name.replace(/\.[^.]+$/, "")] = `${videoFolder}/${f.name}`;
+      const { data } = await supabase.storage.from("work-videos").list(videoFolder, { limit: 1000 });
+      const map: Record<string, { path: string; name: string }[]> = {};
+      for (const f of data ?? []) {
+        const base = f.name.replace(/\.[^.]+$/, "");
+        const itemNo = base.split("__")[0];
+        (map[itemNo] ??= []).push({ path: `${videoFolder}/${f.name}`, name: base });
+      }
+      for (const list of Object.values(map)) list.sort((a, b) => a.name.localeCompare(b.name));
       return map;
     },
   });
@@ -384,7 +392,8 @@ export default function TshirtWork() {
     const target = recordTargetRef.current;
     if (!target) return;
     setUploadingVideo(true);
-    const path = `${target.folder}/${target.itemNo}.webm`;
+    // Unique file name per take so previous recordings stay available.
+    const path = `${target.folder}/${target.itemNo}__${Date.now()}.webm`;
     try {
       const { error: upErr } = await supabase.storage
         .from("work-videos")
@@ -416,9 +425,14 @@ export default function TshirtWork() {
   }, [queryClient, isKo]);
 
 
-  const openVideo = useCallback(async (path: string, label: string) => {
-    const { data } = await supabase.storage.from("work-videos").createSignedUrl(path, 60 * 60);
-    if (data?.signedUrl) setPlayingVideo({ url: data.signedUrl, label });
+  // Open every recorded take for a work item (original + rework recordings).
+  const openVideo = useCallback(async (takes: { path: string; name: string }[], label: string) => {
+    const signed = await Promise.all(takes.map(async tk => {
+      const { data } = await supabase.storage.from("work-videos").createSignedUrl(tk.path, 60 * 60);
+      return { ...tk, url: data?.signedUrl ?? "" };
+    }));
+    const usable = signed.filter(s => s.url);
+    if (usable.length) setPlayingVideo({ label, takes: usable, index: usable.length - 1 });
   }, []);
 
 
