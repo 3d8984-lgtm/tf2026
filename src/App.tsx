@@ -26,7 +26,6 @@ import ProductionMonitor from "@/pages/ProductionMonitor";
 import Shipping from "@/pages/Shipping";
 import ShippingScan from "@/pages/ShippingScan";
 import Defects from "@/pages/Defects";
-import Reports from "@/pages/Reports";
 import SystemSettings from "@/pages/SystemSettings";
 import Manual from "@/pages/Manual";
 import CCTVQuality from "@/pages/CCTVQuality";
@@ -102,7 +101,6 @@ function ProtectedRoutes() {
         <Route path="/shipping" element={<Shipping />} />
         <Route path="/shipping/scan/:orderId" element={<ShippingScan />} />
         <Route path="/defects" element={<Defects />} />
-        <Route path="/reports" element={<Reports />} />
         <Route path="/manual" element={<Manual />} />
         <Route path="/cctv-quality" element={<CCTVQuality />} />
         <Route path="/settings" element={<SystemSettings />} />
