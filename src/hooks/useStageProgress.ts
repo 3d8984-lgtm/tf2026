@@ -85,7 +85,8 @@ export function useStageProgress() {
         if (row.status === "done") s.done += 1;
         if (row.verdict && row.verdict !== "ok") s.failed += 1;
         if (row.test_mode) s.testMode = true;
-        touch(s, row.printed_at ?? row.scanned_at ?? row.updated_at ?? null);
+        // 실제 작업(스캔/인쇄)이 일어난 시각만 반영 — 생성만 된 행은 제외
+        touch(s, row.printed_at ?? row.scanned_at ?? null);
       }
 
       for (const row of (tshirtRes.data ?? []) as any[]) {
@@ -93,14 +94,15 @@ export function useStageProgress() {
         s.total += 1;
         if (row.status === "done") s.done += 1;
         if (row.status === "fail") s.failed += 1;
-        touch(s, row.completed_at ?? row.updated_at ?? null);
+        touch(s, row.completed_at ?? (row.status !== "pending" ? row.updated_at : null) ?? null);
       }
 
       for (const row of (scanRes.data ?? []) as any[]) {
         const s = get(row.order_id).courier;
         s.total += 1;
         if (row.is_scanned) s.done += 1;
-        touch(s, row.scanned_at ?? row.updated_at ?? null);
+        touch(s, row.is_scanned ? row.scanned_at ?? row.updated_at ?? null : null);
+
       }
 
       const now = Date.now();
