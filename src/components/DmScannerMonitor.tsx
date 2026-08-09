@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useLang } from "@/contexts/LangContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ScanLine, RotateCcw, CheckCircle2, XCircle, Wifi, WifiOff, ShieldAlert } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { ScanLine, RotateCcw, CheckCircle2, XCircle, Wifi, WifiOff, ShieldAlert, Printer, AlertTriangle, BellOff } from "lucide-react";
 import { STAGE_PLC } from "@/hooks/usePlcStatus";
+import { scanSuccess, scanFail } from "@/lib/scan-sound";
 
 const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
@@ -27,13 +30,18 @@ type ScanStatus = {
 
 type Verdict = "ok" | "order" | "mismatch" | "duplicate";
 
+type PrintState = "none" | "sent" | "failed" | "skipped";
+
 type LogRow = {
   at: string;
   barcode: string;
   verdict: Verdict;
   expected: string | null;
   position: number | null;
+  print: PrintState;
+  printError?: string;
 };
+
 
 const norm = (v: string) => (v || "").trim().toUpperCase();
 
@@ -50,9 +58,15 @@ export default function DmScannerMonitor() {
   const [cursor, setCursor] = useState(0);
   const [lastVerdict, setLastVerdict] = useState<Verdict | null>(null);
   const [testLamp, setTestLamp] = useState<"green" | "red" | null>(null);
+  const [autoPrint, setAutoPrint] = useState(true);
+  const [alarm, setAlarm] = useState<{ code: string; verdict: Verdict; at: string } | null>(null);
+  const [printedCount, setPrintedCount] = useState(0);
   const testTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seenRef = useRef<Set<string>>(new Set());
   const lastKeyRef = useRef<string>("");
+  const autoPrintRef = useRef(true);
+  useEffect(() => { autoPrintRef.current = autoPrint; }, [autoPrint]);
+
 
   // 카드 포장기(plc1)에 지정된 주문을 기준으로 검수한다.
   useEffect(() => {
@@ -115,14 +129,33 @@ export default function DmScannerMonitor() {
     return () => { alive = false; clearInterval(iv); };
   }, []);
 
-  // 새 스캔 감지 → 자동 검수
+  /** 검수 통과 건을 QR 인쇄기로 전송 (POST /api/v1/print/test) */
+  const sendToPrinter = useCallback(async (code: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const res = await proxyFetch("/api/v1/print/test", {
+        method: "POST",
+        body: JSON.stringify({ text: code.slice(0, 200) }),
+      });
+      const j: any = await res.json().catch(() => ({}));
+      if (res.ok && j?.accepted) return { ok: true };
+      const d = j?.detail;
+      const msg = typeof d === "string" ? d : Array.isArray(d) ? d.map((x: any) => x.msg).join(", ") : `HTTP ${res.status}`;
+      return { ok: false, error: msg };
+    } catch (e) {
+      return { ok: false, error: String(e) };
+    }
+  }, []);
+
+  // 새 스캔 감지 → 자동 검수 → 통과 시 인쇄 신호 / 오류 시 경보
   useEffect(() => {
     if (!status?.last_barcode) return;
     const key = `${status.last_seen ?? ""}|${status.last_barcode}|${status.count}`;
     if (key === lastKeyRef.current) return;
     lastKeyRef.current = key;
 
-    const code = norm(status.last_barcode);
+    const raw = status.last_barcode as string;
+    const at = status.last_seen ?? new Date().toISOString();
+    const code = norm(raw);
     let verdict: Verdict = "mismatch";
     let position: number | null = null;
     const target = expected[cursor];
@@ -141,17 +174,34 @@ export default function DmScannerMonitor() {
     }
 
     setLastVerdict(verdict);
+    const rowId = `${at}|${code}`;
     setLog((prev) => [
-      {
-        at: status.last_seen ?? new Date().toISOString(),
-        barcode: status.last_barcode as string,
-        verdict,
-        expected: target?.no ?? null,
-        position,
-      },
+      { at, barcode: raw, verdict, expected: target?.no ?? null, position, print: "none" as PrintState },
       ...prev,
     ].slice(0, 100));
-  }, [status, expected, cursor]);
+
+    if (verdict === "ok") {
+      scanSuccess();
+      if (autoPrintRef.current) {
+        void sendToPrinter(raw).then(({ ok, error }) => {
+          setLog((prev) =>
+            prev.map((r) =>
+              `${r.at}|${norm(r.barcode)}` === rowId ? { ...r, print: ok ? "sent" : "failed", printError: error } : r
+            )
+          );
+          if (ok) setPrintedCount((c) => c + 1);
+          else setAlarm({ code: raw, verdict: "mismatch", at });
+        });
+      } else {
+        setLog((prev) => prev.map((r) => (`${r.at}|${norm(r.barcode)}` === rowId ? { ...r, print: "skipped" } : r)));
+      }
+    } else {
+      // 주문건에 없는 값 / 순서 오류 / 중복 → 인쇄 차단 + 경보등 점등
+      scanFail();
+      setLog((prev) => prev.map((r) => (`${r.at}|${norm(r.barcode)}` === rowId ? { ...r, print: "skipped" } : r)));
+      setAlarm({ code: raw, verdict, at });
+    }
+  }, [status, expected, cursor, sendToPrinter]);
 
   const resetScanner = async () => {
     await proxyFetch("/api/v1/scan/reset", { method: "POST", body: "{}" }).catch(() => null);
@@ -159,6 +209,8 @@ export default function DmScannerMonitor() {
     setCursor(0);
     setLog([]);
     setLastVerdict(null);
+    setAlarm(null);
+    setPrintedCount(0);
     lastKeyRef.current = "";
   };
 
@@ -166,12 +218,18 @@ export default function DmScannerMonitor() {
   const verdictMeta: Record<Verdict, { ko: string; zh: string; cls: string }> = {
     ok: { ko: "일치", zh: "匹配", cls: "text-emerald-500" },
     order: { ko: "순서 오류", zh: "顺序错误", cls: "text-destructive" },
-    mismatch: { ko: "불일치", zh: "不匹配", cls: "text-destructive" },
+    mismatch: { ko: "주문에 없는 코드", zh: "订单中不存在的编码", cls: "text-destructive" },
     duplicate: { ko: "중복 스캔", zh: "重复扫描", cls: "text-destructive" },
   };
+  const printMeta: Record<PrintState, { ko: string; zh: string; cls: string }> = {
+    none: { ko: "대기", zh: "等待", cls: "text-muted-foreground" },
+    sent: { ko: "인쇄 전송", zh: "已发送打印", cls: "text-emerald-500" },
+    failed: { ko: "인쇄 실패", zh: "打印失败", cls: "text-destructive" },
+    skipped: { ko: "인쇄 차단", zh: "已阻止打印", cls: "text-muted-foreground" },
+  };
 
-  const lampOk = testLamp ? testLamp === "green" : lastVerdict === "ok";
-  const lampBad = testLamp ? testLamp === "red" : lastVerdict != null && lastVerdict !== "ok";
+  const lampOk = testLamp ? testLamp === "green" : alarm == null && lastVerdict === "ok";
+  const lampBad = testLamp ? testLamp === "red" : alarm != null;
 
   // 테스트 점등은 3초 후 자동 해제
   const flashLamp = (color: "green" | "red") => {
@@ -180,10 +238,34 @@ export default function DmScannerMonitor() {
     testTimerRef.current = setTimeout(() => setTestLamp(null), 3000);
   };
 
+
+
   return (
     <div className="space-y-6">
+      {/* 오류 경보 */}
+      {alarm && (
+        <div className="rounded-lg border border-destructive bg-destructive/10 p-4 flex items-start justify-between gap-4 animate-pulse">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-6 h-6 text-destructive shrink-0" />
+            <div className="space-y-1">
+              <p className="font-semibold text-destructive">
+                {tr("검수 오류 · 인쇄 차단됨", "检验错误 · 已阻止打印")} · {isKo ? verdictMeta[alarm.verdict].ko : verdictMeta[alarm.verdict].zh}
+              </p>
+              <p className="text-xs font-mono break-all">{alarm.code}</p>
+              <p className="text-xs text-muted-foreground">
+                {tr("주문 데이터와 일치하지 않는 코드입니다. 확인 후 경보를 해제하세요.", "该编码与订单数据不一致，请确认后解除报警。")}
+              </p>
+            </div>
+          </div>
+          <Button size="sm" variant="outline" className="gap-1 shrink-0" onClick={() => setAlarm(null)}>
+            <BellOff className="w-3.5 h-3.5" />{tr("경보 해제", "解除报警")}
+          </Button>
+        </div>
+      )}
+
       {/* 장비 상태 */}
       <Card>
+
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center justify-between gap-2">
             <span className="flex items-center gap-2">
@@ -200,13 +282,21 @@ export default function DmScannerMonitor() {
                   <Wifi className="w-3 h-3" />{tr("연결됨", "已连接")}
                 </Badge>
               )}
+              <span className="flex items-center gap-1.5 text-xs font-normal">
+                <Printer className="w-3.5 h-3.5 text-muted-foreground" />
+                <Label htmlFor="auto-print" className="text-xs font-normal cursor-pointer">
+                  {tr("검수 통과 시 자동 인쇄", "检验通过自动打印")}
+                </Label>
+                <Switch id="auto-print" checked={autoPrint} onCheckedChange={setAutoPrint} />
+              </span>
               <Button size="sm" variant="outline" className="gap-1" onClick={resetScanner}>
                 <RotateCcw className="w-3.5 h-3.5" />{tr("카운터 초기화", "计数复位")}
               </Button>
             </span>
+
           </CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-2 md:grid-cols-5 gap-4 items-center">
+        <CardContent className="grid grid-cols-2 md:grid-cols-6 gap-4 items-center">
           {/* 경고등 */}
           <div className="flex flex-col items-center gap-2">
             <div className="flex gap-2">
@@ -248,6 +338,11 @@ export default function DmScannerMonitor() {
             </p>
             <p className="text-[11px] text-muted-foreground">{tr("검수 통과 수량", "检验通过数量")}</p>
           </div>
+          <div>
+            <p className="text-2xl font-semibold tabular-nums text-primary">{printedCount}</p>
+            <p className="text-[11px] text-muted-foreground">{tr("인쇄 전송 수량", "打印发送数量")}</p>
+          </div>
+
           <div>
             <p className="text-sm font-mono break-all">{status?.last_barcode ?? "-"}</p>
             <p className="text-[11px] text-muted-foreground">{tr("최근 바코드", "最近条码")}</p>
@@ -309,11 +404,12 @@ export default function DmScannerMonitor() {
                   <th className="px-2 py-1.5">{tr("순번", "序号")}</th>
                   <th className="px-2 py-1.5">{tr("기대 값", "期望值")}</th>
                   <th className="px-2 py-1.5">{tr("판정", "判定")}</th>
+                  <th className="px-2 py-1.5">{tr("인쇄", "打印")}</th>
                 </tr>
               </thead>
               <tbody>
                 {log.length === 0 ? (
-                  <tr><td colSpan={5} className="px-2 py-4 text-center text-muted-foreground">{tr("스캔 데이터가 없습니다", "暂无扫描数据")}</td></tr>
+                  <tr><td colSpan={6} className="px-2 py-4 text-center text-muted-foreground">{tr("스캔 데이터가 없습니다", "暂无扫描数据")}</td></tr>
                 ) : log.map((r, i) => (
                   <tr key={i} className={`border-t ${r.verdict === "ok" ? "" : "bg-destructive/5"}`}>
                     <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{new Date(r.at).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN")}</td>
@@ -326,8 +422,12 @@ export default function DmScannerMonitor() {
                         {isKo ? verdictMeta[r.verdict].ko : verdictMeta[r.verdict].zh}
                       </span>
                     </td>
+                    <td className={`px-2 py-1.5 ${printMeta[r.print].cls}`} title={r.printError ?? ""}>
+                      {isKo ? printMeta[r.print].ko : printMeta[r.print].zh}
+                    </td>
                   </tr>
                 ))}
+
               </tbody>
             </table>
           </div>
