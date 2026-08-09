@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
   ScanLine, Printer, RotateCcw, CheckCircle2, XCircle, Wifi, WifiOff,
@@ -40,6 +41,16 @@ type PrintJob = {
   enqueued_at: string;
   printed_at: string | null;
   error: string | null;
+};
+
+/** 게이트웨이가 기록한 원본 스캔 이력 (GET /api/v1/scan/history) */
+type ScanEvent = {
+  id: string;
+  barcode: string;
+  scanned_at: string;
+  duration: number | null;
+  print_status: "pending" | "printing" | "done" | "failed" | "unknown";
+  printed: boolean;
 };
 
 type Verdict = "ok" | "order" | "mismatch" | "duplicate";
@@ -165,8 +176,12 @@ function OrderDetail({
   const [testMode, setTestMode] = useState(false);
   const [saved, setSaved] = useState<Record<number, SavedItem>>({});
   const [ready, setReady] = useState(false);
+  const [history, setHistory] = useState<ScanEvent[]>([]);
+  const [printerTestText, setPrinterTestText] = useState("TEST123");
+  const [printerTesting, setPrinterTesting] = useState(false);
   const seenRef = useRef<Set<string>>(new Set());
   const lastKeyRef = useRef<string>("");
+
 
   // 기대 스캔 순서 = 고유번호(개별 주문번호 + suffix) 순서
   const expected = useMemo(() => {
@@ -234,23 +249,39 @@ function OrderDetail({
     setSaved((prev) => ({ ...prev, [position]: { position, code, status: "done", test_mode: isTest, printed_at: now } }));
   }, [kind, order.id]);
 
-  const enqueuePrint = useCallback(async (code: string) => {
-    const body = JSON.stringify({ barcode: code });
-    let res = await proxyFetch("/api/v1/print", { method: "POST", body }).catch(() => null);
-    if (!res || !res.ok) {
-      res = await proxyFetch("/api/v1/print/enqueue", { method: "POST", body }).catch(() => null);
+  /**
+   * 게이트웨이 프린터 전송.
+   * 게이트웨이에는 큐 투입 API가 없고(큐는 스캔 이벤트로만 채워짐),
+   * 진단/직접 인쇄용 `POST /api/v1/print/test` 만 제공된다.
+   */
+  const sendToPrinter = useCallback(async (code: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const res = await proxyFetch("/api/v1/print/test", {
+        method: "POST",
+        body: JSON.stringify({ text: code.slice(0, 200) }),
+      });
+      const j: any = await res.json().catch(() => ({}));
+      if (res.ok && j?.accepted) return { ok: true };
+      const detail = j?.detail;
+      const msg = typeof detail === "string"
+        ? detail
+        : Array.isArray(detail) ? detail.map((d: any) => d.msg).join(", ") : `HTTP ${res.status}`;
+      return { ok: false, error: msg };
+    } catch (e) {
+      return { ok: false, error: String(e) };
     }
-    return !!res?.ok;
   }, []);
+
 
   // 스캐너 상태 + 인쇄 대기열 폴링
   useEffect(() => {
     let alive = true;
     const tick = async () => {
       try {
-        const [sRes, pRes] = await Promise.all([
+        const [sRes, pRes, hRes] = await Promise.all([
           proxyFetch("/api/v1/scan/status"),
           proxyFetch("/api/v1/print/queue"),
+          proxyFetch("/api/v1/scan/history"),
         ]);
         const s: any = await sRes.json();
         if (!alive) return;
@@ -260,6 +291,11 @@ function OrderDetail({
           const p: any = await pRes.json();
           if (Array.isArray(p?.jobs)) { setJobs(p.jobs.slice(-50).reverse()); setPendingCount(p.pending_count ?? 0); }
         }
+        if (hRes.ok) {
+          const h: any = await hRes.json();
+          if (Array.isArray(h?.events)) setHistory((h.events as ScanEvent[]).slice(-100).reverse());
+        }
+
       } catch {
         if (alive) setOffline(true);
       }
@@ -333,11 +369,11 @@ function OrderDetail({
 
   // 개별 재작업(스캔 없이 즉시 인쇄)
   const reprint = async (position: number, code: string) => {
-    const ok = await enqueuePrint(code);
+    const r = await sendToPrinter(code);
     await markDone(position, code, null, testMode);
-    toast[ok ? "success" : "error"](
-      ok ? tr("인쇄 요청을 보냈습니다", "已发送打印请求")
-         : tr("인쇄 전송 실패(게이트웨이에 인쇄 API 없음) — 기록만 저장했습니다", "打印发送失败（网关无打印接口）— 仅保存记录"),
+    toast[r.ok ? "success" : "error"](
+      r.ok ? tr("인쇄 요청을 보냈습니다", "已发送打印请求")
+           : `${tr("인쇄 전송 실패", "打印发送失败")} — ${r.error ?? ""}`,
     );
   };
 
@@ -345,16 +381,28 @@ function OrderDetail({
   const printNextTest = async () => {
     const target = expected[cursor];
     if (!target) return;
-    const ok = await enqueuePrint(target.no);
+    const r = await sendToPrinter(target.no);
     await markDone(target.position, target.no, null, true);
     setCursor((c) => c + 1);
     seenRef.current.add(norm(target.no));
-    toast[ok ? "success" : "error"](
-      ok ? `${target.no} ${tr("인쇄 요청", "打印请求")}`
-         : tr("인쇄 전송 실패(게이트웨이에 인쇄 API 없음)", "打印发送失败（网关无打印接口）"),
+    toast[r.ok ? "success" : "error"](
+      r.ok ? `${target.no} ${tr("인쇄 요청", "打印请求")}`
+           : `${tr("인쇄 전송 실패", "打印发送失败")} — ${r.error ?? ""}`,
     );
-
   };
+
+  // 프린터 연결 진단 (임의 텍스트 즉시 전송)
+  const runPrinterTest = async () => {
+    const text = (printerTestText || "TEST123").slice(0, 200);
+    setPrinterTesting(true);
+    const r = await sendToPrinter(text);
+    setPrinterTesting(false);
+    toast[r.ok ? "success" : "error"](
+      r.ok ? `${tr("프린터로 전송했습니다", "已发送到打印机")} · ${text}`
+           : `${tr("프린터 전송 실패", "打印机发送失败")} — ${r.error ?? ""}`,
+    );
+  };
+
 
   const total = expected.length;
   const doneCount = Object.values(saved).filter((s) => s.status === "done").length;
@@ -466,6 +514,38 @@ function OrderDetail({
             )}
           </CardContent>
         </Card>
+
+        {/* 프린터 진단 (POST /api/v1/print/test) */}
+        <Card>
+          <CardContent className="p-4 flex flex-wrap items-center gap-3">
+            <div className="min-w-[200px]">
+              <p className="text-sm font-medium flex items-center gap-2">
+                <Printer className="w-4 h-4" />{tr("프린터 연결 테스트", "打印机连接测试")}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {tr("대기열을 거치지 않고 임의 텍스트를 프린터로 즉시 전송합니다 (기록에 남지 않음)",
+                    "不经队列，直接向打印机发送任意文本（不留记录）")}
+              </p>
+            </div>
+            <Input
+              value={printerTestText}
+              onChange={(e) => setPrinterTestText(e.target.value.slice(0, 200))}
+              placeholder="TEST123"
+              className="w-48 font-mono"
+            />
+            <Button size="sm" variant="outline" className="gap-1" onClick={runPrinterTest} disabled={printerTesting}>
+              {printerTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FlaskConical className="w-4 h-4" />}
+              {tr("테스트 인쇄", "测试打印")}
+            </Button>
+            <span className="text-[11px] text-muted-foreground ml-auto">
+              {kind === "card"
+                ? tr("연결 장비: 카드 바코드 프린터 · 카드 DM 스캐너", "连接设备：卡片条码打印机 · 卡片DM扫描仪")
+                : tr("※ 현재 게이트웨이에는 카드용 장비만 연결되어 있습니다 (티셔츠 장비 추가 예정)",
+                     "※ 当前网关仅连接卡片设备（T恤设备待接入）")}
+            </span>
+          </CardContent>
+        </Card>
+
 
         {halted && !testMode && (
           <div className="flex items-center gap-2 rounded-lg border border-destructive bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -597,6 +677,53 @@ function OrderDetail({
             </div>
           </CardContent>
         </Card>
+
+        {/* 게이트웨이 원본 스캔 로그 (스캐너 이상 여부 진단용) */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2">
+                <ScanLine className="w-4 h-4" />{tr("게이트웨이 스캔 로그 (원본)", "网关扫描日志（原始）")}
+              </span>
+              <span className="text-xs font-normal text-muted-foreground">
+                {tr("스캐너가 실제로 보낸 값 · 최근 100건", "扫描仪实际发送值 · 最近100条")}
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="max-h-[360px] overflow-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/40">
+                  <tr className="text-left">
+                    <th className="px-2 py-1.5">{tr("시간", "时间")}</th>
+                    <th className="px-2 py-1.5">{tr("스캔 값", "扫描值")}</th>
+                    <th className="px-2 py-1.5">{tr("간격", "间隔")}</th>
+                    <th className="px-2 py-1.5">{tr("인쇄 상태", "打印状态")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.length === 0 ? (
+                    <tr><td colSpan={4} className="px-2 py-6 text-center text-muted-foreground">{tr("게이트웨이 스캔 기록이 없습니다", "网关暂无扫描记录")}</td></tr>
+                  ) : history.map((h) => (
+                    <tr key={h.id} className={`border-t ${h.print_status === "failed" ? "bg-destructive/5" : ""}`}>
+                      <td className="px-2 py-1.5 tabular-nums text-muted-foreground">
+                        {new Date(h.scanned_at).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN")}
+                      </td>
+                      <td className="px-2 py-1.5 font-mono break-all">{h.barcode}</td>
+                      <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{h.duration != null ? `${h.duration}s` : "-"}</td>
+                      <td className={`px-2 py-1.5 font-medium ${jobMeta[h.print_status]?.cls ?? "text-muted-foreground"}`}>
+                        {jobMeta[h.print_status]
+                          ? (isKo ? jobMeta[h.print_status].ko : jobMeta[h.print_status].zh)
+                          : tr("알 수 없음", "未知")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
       </div>
     </div>
   );
