@@ -277,9 +277,10 @@ function OrderDetail({
     let alive = true;
     const tick = async () => {
       try {
-        const [sRes, pRes] = await Promise.all([
+        const [sRes, pRes, hRes] = await Promise.all([
           proxyFetch("/api/v1/scan/status"),
           proxyFetch("/api/v1/print/queue"),
+          proxyFetch("/api/v1/scan/history"),
         ]);
         const s: any = await sRes.json();
         if (!alive) return;
@@ -289,6 +290,11 @@ function OrderDetail({
           const p: any = await pRes.json();
           if (Array.isArray(p?.jobs)) { setJobs(p.jobs.slice(-50).reverse()); setPendingCount(p.pending_count ?? 0); }
         }
+        if (hRes.ok) {
+          const h: any = await hRes.json();
+          if (Array.isArray(h?.events)) setHistory((h.events as ScanEvent[]).slice(-100).reverse());
+        }
+
       } catch {
         if (alive) setOffline(true);
       }
