@@ -348,11 +348,11 @@ function OrderDetail({
 
   // 개별 재작업(스캔 없이 즉시 인쇄)
   const reprint = async (position: number, code: string) => {
-    const ok = await enqueuePrint(code);
+    const r = await sendToPrinter(code);
     await markDone(position, code, null, testMode);
-    toast[ok ? "success" : "error"](
-      ok ? tr("인쇄 요청을 보냈습니다", "已发送打印请求")
-         : tr("인쇄 전송 실패(게이트웨이에 인쇄 API 없음) — 기록만 저장했습니다", "打印发送失败（网关无打印接口）— 仅保存记录"),
+    toast[r.ok ? "success" : "error"](
+      r.ok ? tr("인쇄 요청을 보냈습니다", "已发送打印请求")
+           : `${tr("인쇄 전송 실패", "打印发送失败")} — ${r.error ?? ""}`,
     );
   };
 
@@ -360,16 +360,28 @@ function OrderDetail({
   const printNextTest = async () => {
     const target = expected[cursor];
     if (!target) return;
-    const ok = await enqueuePrint(target.no);
+    const r = await sendToPrinter(target.no);
     await markDone(target.position, target.no, null, true);
     setCursor((c) => c + 1);
     seenRef.current.add(norm(target.no));
-    toast[ok ? "success" : "error"](
-      ok ? `${target.no} ${tr("인쇄 요청", "打印请求")}`
-         : tr("인쇄 전송 실패(게이트웨이에 인쇄 API 없음)", "打印发送失败（网关无打印接口）"),
+    toast[r.ok ? "success" : "error"](
+      r.ok ? `${target.no} ${tr("인쇄 요청", "打印请求")}`
+           : `${tr("인쇄 전송 실패", "打印发送失败")} — ${r.error ?? ""}`,
     );
-
   };
+
+  // 프린터 연결 진단 (임의 텍스트 즉시 전송)
+  const runPrinterTest = async () => {
+    const text = (printerTestText || "TEST123").slice(0, 200);
+    setPrinterTesting(true);
+    const r = await sendToPrinter(text);
+    setPrinterTesting(false);
+    toast[r.ok ? "success" : "error"](
+      r.ok ? `${tr("프린터로 전송했습니다", "已发送到打印机")} · ${text}`
+           : `${tr("프린터 전송 실패", "打印机发送失败")} — ${r.error ?? ""}`,
+    );
+  };
+
 
   const total = expected.length;
   const doneCount = Object.values(saved).filter((s) => s.status === "done").length;
