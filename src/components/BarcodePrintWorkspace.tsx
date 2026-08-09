@@ -167,6 +167,7 @@ function OrderDetail({
 
   const [status, setStatus] = useState<ScanStatus | null>(null);
   const [offline, setOffline] = useState(false);
+  const [printerOffline, setPrinterOffline] = useState(false);
   const [jobs, setJobs] = useState<PrintJob[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
   const [log, setLog] = useState<LogRow[]>([]);
