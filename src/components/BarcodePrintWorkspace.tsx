@@ -234,14 +234,29 @@ function OrderDetail({
     setSaved((prev) => ({ ...prev, [position]: { position, code, status: "done", test_mode: isTest, printed_at: now } }));
   }, [kind, order.id]);
 
-  const enqueuePrint = useCallback(async (code: string) => {
-    const body = JSON.stringify({ barcode: code });
-    let res = await proxyFetch("/api/v1/print", { method: "POST", body }).catch(() => null);
-    if (!res || !res.ok) {
-      res = await proxyFetch("/api/v1/print/enqueue", { method: "POST", body }).catch(() => null);
+  /**
+   * 게이트웨이 프린터 전송.
+   * 게이트웨이에는 큐 투입 API가 없고(큐는 스캔 이벤트로만 채워짐),
+   * 진단/직접 인쇄용 `POST /api/v1/print/test` 만 제공된다.
+   */
+  const sendToPrinter = useCallback(async (code: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const res = await proxyFetch("/api/v1/print/test", {
+        method: "POST",
+        body: JSON.stringify({ text: code.slice(0, 200) }),
+      });
+      const j: any = await res.json().catch(() => ({}));
+      if (res.ok && j?.accepted) return { ok: true };
+      const detail = j?.detail;
+      const msg = typeof detail === "string"
+        ? detail
+        : Array.isArray(detail) ? detail.map((d: any) => d.msg).join(", ") : `HTTP ${res.status}`;
+      return { ok: false, error: msg };
+    } catch (e) {
+      return { ok: false, error: String(e) };
     }
-    return !!res?.ok;
   }, []);
+
 
   // 스캐너 상태 + 인쇄 대기열 폴링
   useEffect(() => {
