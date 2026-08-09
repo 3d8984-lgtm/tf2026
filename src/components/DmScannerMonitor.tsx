@@ -296,7 +296,7 @@ export default function DmScannerMonitor() {
 
           </CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-2 md:grid-cols-5 gap-4 items-center">
+        <CardContent className="grid grid-cols-2 md:grid-cols-6 gap-4 items-center">
           {/* 경고등 */}
           <div className="flex flex-col items-center gap-2">
             <div className="flex gap-2">
