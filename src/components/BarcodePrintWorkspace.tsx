@@ -427,6 +427,13 @@ function OrderDetail({
   const lampOk = !halted && lastVerdict === "ok";
   const lampBad = halted;
 
+  // 프린터 장비 상태 (게이트웨이 인쇄 대기열 기준)
+  const printedJobs = jobs.filter((j) => j.status === "done").length;
+  const failedJobs = jobs.filter((j) => j.status === "failed").length;
+  const lastJob = jobs[0] ?? null;
+  const printerOk = !printerOffline && failedJobs === 0;
+
+
   return (
     <div className="flex flex-col h-full">
       <PageHeader
