@@ -518,6 +518,59 @@ export default function TshirtWork() {
     setTimeout(() => inputRef.current?.focus(), 50);
   }, []);
 
+  // Hard reset: wipe the current work item's saved result AND delete its recorded
+  // videos from server storage so the item can be worked from scratch.
+  const [hardResetting, setHardResetting] = useState(false);
+  const hardResetItem = useCallback(async () => {
+    if (!selectedOrder || !activeWorkItem) return;
+    const itemNo = activeWorkItem.orderIdNo;
+    const confirmMsg = isKo
+      ? `#${activeWorkItem.seq} 작업건의 완료 데이터와 저장된 영상을 모두 삭제할까요? 되돌릴 수 없습니다.`
+      : `确定删除 #${activeWorkItem.seq} 作业项的完成数据和已保存视频吗？此操作不可撤销。`;
+    if (!window.confirm(confirmMsg)) return;
+    setHardResetting(true);
+    try {
+      // 1) Remove recorded takes from storage
+      const folder = selectedOrder.externalOrderId;
+      const { data: files } = await supabase.storage.from("work-videos").list(folder, { limit: 1000 });
+      const paths = (files ?? [])
+        .filter(f => f.name.replace(/\.[^.]+$/, "").split("__")[0] === itemNo)
+        .map(f => `${folder}/${f.name}`);
+      if (paths.length) {
+        const { error: rmErr } = await supabase.storage.from("work-videos").remove(paths);
+        if (rmErr) throw rmErr;
+        await supabase
+          .from("work_video_records")
+          .update({ deleted_at: new Date().toISOString(), retain: false })
+          .in("path", paths);
+      }
+      // 2) Remove the persisted work result
+      const { error: delErr } = await supabase
+        .from("tshirt_work_items")
+        .delete()
+        .eq("order_id", selectedOrder.id)
+        .eq("seq", activeWorkItem.seq);
+      if (delErr) throw delErr;
+
+      setLocalStatuses(prev => ({
+        ...prev,
+        [selectedOrder.id]: { ...(prev[selectedOrder.id] ?? {}), [activeWorkItem.seq]: "pending" },
+      }));
+      resetScan();
+      queryClient.invalidateQueries({ queryKey: ["tshirt_work_items"] });
+      queryClient.invalidateQueries({ queryKey: ["work_videos", folder] });
+      toast({
+        title: isKo ? "초기화 완료" : "重置完成",
+        description: isKo ? `영상 ${paths.length}건 삭제됨` : `已删除 ${paths.length} 个视频`,
+      });
+    } catch (e: any) {
+      toast({ title: isKo ? "초기화 실패" : "重置失败", description: String(e?.message ?? e), variant: "destructive" });
+    } finally {
+      setHardResetting(false);
+    }
+  }, [selectedOrder, activeWorkItem, isKo, resetScan, queryClient]);
+
+
   // Rework requires a reason; it is logged to the defect/exception board.
   const [reworkTarget, setReworkTarget] = useState<{ seq: number; itemNo: string } | null>(null);
   const [reworkReason, setReworkReason] = useState("");
