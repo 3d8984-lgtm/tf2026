@@ -282,10 +282,18 @@ export default function DmScannerMonitor() {
                   <Wifi className="w-3 h-3" />{tr("연결됨", "已连接")}
                 </Badge>
               )}
+              <span className="flex items-center gap-1.5 text-xs font-normal">
+                <Printer className="w-3.5 h-3.5 text-muted-foreground" />
+                <Label htmlFor="auto-print" className="text-xs font-normal cursor-pointer">
+                  {tr("검수 통과 시 자동 인쇄", "检验通过自动打印")}
+                </Label>
+                <Switch id="auto-print" checked={autoPrint} onCheckedChange={setAutoPrint} />
+              </span>
               <Button size="sm" variant="outline" className="gap-1" onClick={resetScanner}>
                 <RotateCcw className="w-3.5 h-3.5" />{tr("카운터 초기화", "计数复位")}
               </Button>
             </span>
+
           </CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-2 md:grid-cols-5 gap-4 items-center">
