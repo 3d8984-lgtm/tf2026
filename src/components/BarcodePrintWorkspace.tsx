@@ -677,6 +677,53 @@ function OrderDetail({
             </div>
           </CardContent>
         </Card>
+
+        {/* 게이트웨이 원본 스캔 로그 (스캐너 이상 여부 진단용) */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2">
+                <ScanLine className="w-4 h-4" />{tr("게이트웨이 스캔 로그 (원본)", "网关扫描日志（原始）")}
+              </span>
+              <span className="text-xs font-normal text-muted-foreground">
+                {tr("스캐너가 실제로 보낸 값 · 최근 100건", "扫描仪实际发送值 · 最近100条")}
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="max-h-[360px] overflow-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/40">
+                  <tr className="text-left">
+                    <th className="px-2 py-1.5">{tr("시간", "时间")}</th>
+                    <th className="px-2 py-1.5">{tr("스캔 값", "扫描值")}</th>
+                    <th className="px-2 py-1.5">{tr("간격", "间隔")}</th>
+                    <th className="px-2 py-1.5">{tr("인쇄 상태", "打印状态")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.length === 0 ? (
+                    <tr><td colSpan={4} className="px-2 py-6 text-center text-muted-foreground">{tr("게이트웨이 스캔 기록이 없습니다", "网关暂无扫描记录")}</td></tr>
+                  ) : history.map((h) => (
+                    <tr key={h.id} className={`border-t ${h.print_status === "failed" ? "bg-destructive/5" : ""}`}>
+                      <td className="px-2 py-1.5 tabular-nums text-muted-foreground">
+                        {new Date(h.scanned_at).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN")}
+                      </td>
+                      <td className="px-2 py-1.5 font-mono break-all">{h.barcode}</td>
+                      <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{h.duration != null ? `${h.duration}s` : "-"}</td>
+                      <td className={`px-2 py-1.5 font-medium ${jobMeta[h.print_status]?.cls ?? "text-muted-foreground"}`}>
+                        {jobMeta[h.print_status]
+                          ? (isKo ? jobMeta[h.print_status].ko : jobMeta[h.print_status].zh)
+                          : tr("알 수 없음", "未知")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
       </div>
     </div>
   );
