@@ -175,6 +175,7 @@ function OrderDetail({
   const [lastVerdict, setLastVerdict] = useState<Verdict | null>(null);
   const [halted, setHalted] = useState(false);
   const [testMode, setTestMode] = useState(false);
+  const [autoPrint, setAutoPrint] = useState(true);
   const [saved, setSaved] = useState<Record<number, SavedItem>>({});
   const [ready, setReady] = useState(false);
   const [history, setHistory] = useState<ScanEvent[]>([]);
