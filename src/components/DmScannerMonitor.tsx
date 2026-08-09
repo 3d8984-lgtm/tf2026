@@ -129,14 +129,33 @@ export default function DmScannerMonitor() {
     return () => { alive = false; clearInterval(iv); };
   }, []);
 
-  // 새 스캔 감지 → 자동 검수
+  /** 검수 통과 건을 QR 인쇄기로 전송 (POST /api/v1/print/test) */
+  const sendToPrinter = useCallback(async (code: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const res = await proxyFetch("/api/v1/print/test", {
+        method: "POST",
+        body: JSON.stringify({ text: code.slice(0, 200) }),
+      });
+      const j: any = await res.json().catch(() => ({}));
+      if (res.ok && j?.accepted) return { ok: true };
+      const d = j?.detail;
+      const msg = typeof d === "string" ? d : Array.isArray(d) ? d.map((x: any) => x.msg).join(", ") : `HTTP ${res.status}`;
+      return { ok: false, error: msg };
+    } catch (e) {
+      return { ok: false, error: String(e) };
+    }
+  }, []);
+
+  // 새 스캔 감지 → 자동 검수 → 통과 시 인쇄 신호 / 오류 시 경보
   useEffect(() => {
     if (!status?.last_barcode) return;
     const key = `${status.last_seen ?? ""}|${status.last_barcode}|${status.count}`;
     if (key === lastKeyRef.current) return;
     lastKeyRef.current = key;
 
-    const code = norm(status.last_barcode);
+    const raw = status.last_barcode as string;
+    const at = status.last_seen ?? new Date().toISOString();
+    const code = norm(raw);
     let verdict: Verdict = "mismatch";
     let position: number | null = null;
     const target = expected[cursor];
@@ -155,17 +174,34 @@ export default function DmScannerMonitor() {
     }
 
     setLastVerdict(verdict);
+    const rowId = `${at}|${code}`;
     setLog((prev) => [
-      {
-        at: status.last_seen ?? new Date().toISOString(),
-        barcode: status.last_barcode as string,
-        verdict,
-        expected: target?.no ?? null,
-        position,
-      },
+      { at, barcode: raw, verdict, expected: target?.no ?? null, position, print: "none" as PrintState },
       ...prev,
     ].slice(0, 100));
-  }, [status, expected, cursor]);
+
+    if (verdict === "ok") {
+      scanSuccess();
+      if (autoPrintRef.current) {
+        void sendToPrinter(raw).then(({ ok, error }) => {
+          setLog((prev) =>
+            prev.map((r) =>
+              `${r.at}|${norm(r.barcode)}` === rowId ? { ...r, print: ok ? "sent" : "failed", printError: error } : r
+            )
+          );
+          if (ok) setPrintedCount((c) => c + 1);
+          else setAlarm({ code: raw, verdict: "mismatch", at });
+        });
+      } else {
+        setLog((prev) => prev.map((r) => (`${r.at}|${norm(r.barcode)}` === rowId ? { ...r, print: "skipped" } : r)));
+      }
+    } else {
+      // 주문건에 없는 값 / 순서 오류 / 중복 → 인쇄 차단 + 경보등 점등
+      scanFail();
+      setLog((prev) => prev.map((r) => (`${r.at}|${norm(r.barcode)}` === rowId ? { ...r, print: "skipped" } : r)));
+      setAlarm({ code: raw, verdict, at });
+    }
+  }, [status, expected, cursor, sendToPrinter]);
 
   const resetScanner = async () => {
     await proxyFetch("/api/v1/scan/reset", { method: "POST", body: "{}" }).catch(() => null);
@@ -173,6 +209,8 @@ export default function DmScannerMonitor() {
     setCursor(0);
     setLog([]);
     setLastVerdict(null);
+    setAlarm(null);
+    setPrintedCount(0);
     lastKeyRef.current = "";
   };
 
@@ -180,12 +218,18 @@ export default function DmScannerMonitor() {
   const verdictMeta: Record<Verdict, { ko: string; zh: string; cls: string }> = {
     ok: { ko: "일치", zh: "匹配", cls: "text-emerald-500" },
     order: { ko: "순서 오류", zh: "顺序错误", cls: "text-destructive" },
-    mismatch: { ko: "불일치", zh: "不匹配", cls: "text-destructive" },
+    mismatch: { ko: "주문에 없는 코드", zh: "订单中不存在的编码", cls: "text-destructive" },
     duplicate: { ko: "중복 스캔", zh: "重复扫描", cls: "text-destructive" },
   };
+  const printMeta: Record<PrintState, { ko: string; zh: string; cls: string }> = {
+    none: { ko: "대기", zh: "等待", cls: "text-muted-foreground" },
+    sent: { ko: "인쇄 전송", zh: "已发送打印", cls: "text-emerald-500" },
+    failed: { ko: "인쇄 실패", zh: "打印失败", cls: "text-destructive" },
+    skipped: { ko: "인쇄 차단", zh: "已阻止打印", cls: "text-muted-foreground" },
+  };
 
-  const lampOk = testLamp ? testLamp === "green" : lastVerdict === "ok";
-  const lampBad = testLamp ? testLamp === "red" : lastVerdict != null && lastVerdict !== "ok";
+  const lampOk = testLamp ? testLamp === "green" : alarm == null && lastVerdict === "ok";
+  const lampBad = testLamp ? testLamp === "red" : alarm != null;
 
   // 테스트 점등은 3초 후 자동 해제
   const flashLamp = (color: "green" | "red") => {
@@ -193,6 +237,8 @@ export default function DmScannerMonitor() {
     if (testTimerRef.current) clearTimeout(testTimerRef.current);
     testTimerRef.current = setTimeout(() => setTestLamp(null), 3000);
   };
+
+
 
   return (
     <div className="space-y-6">
