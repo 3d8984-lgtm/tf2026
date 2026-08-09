@@ -86,7 +86,7 @@ export default function ProductionMonitor() {
             <TabsTrigger value="pipeline" className="gap-1.5"><Activity className="w-3.5 h-3.5" />{t("monitor.tab.pipeline")}</TabsTrigger>
             <TabsTrigger value="machines" className="gap-1.5"><Gauge className="w-3.5 h-3.5" />{t("monitor.tab.machines")}</TabsTrigger>
             
-            <TabsTrigger value="scanner" className="gap-1.5"><ScanLine className="w-3.5 h-3.5" />{isKo ? "DM 바코드 스캐너" : "DM条码扫描仪"}</TabsTrigger>
+            <TabsTrigger value="scanner" className="gap-1.5"><ScanLine className="w-3.5 h-3.5" />{isKo ? "99 DM 바코드 스캐너" : "99 DM条码扫描仪"}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="pipeline" className="space-y-6">

@@ -188,7 +188,7 @@ export default function DmScannerMonitor() {
           <CardTitle className="text-base flex items-center justify-between gap-2">
             <span className="flex items-center gap-2">
               <ScanLine className="w-4 h-4" />
-              {tr("카드 DM 바코드 스캐너", "卡片DM条码扫描仪")}
+              {tr("99 DM 바코드 스캐너", "99 DM条码扫描仪")}
             </span>
             <span className="flex items-center gap-2">
               {offline || !status?.connected ? (
