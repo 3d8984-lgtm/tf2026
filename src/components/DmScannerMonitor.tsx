@@ -339,6 +339,11 @@ export default function DmScannerMonitor() {
             <p className="text-[11px] text-muted-foreground">{tr("검수 통과 수량", "检验通过数量")}</p>
           </div>
           <div>
+            <p className="text-2xl font-semibold tabular-nums text-primary">{printedCount}</p>
+            <p className="text-[11px] text-muted-foreground">{tr("인쇄 전송 수량", "打印发送数量")}</p>
+          </div>
+
+          <div>
             <p className="text-sm font-mono break-all">{status?.last_barcode ?? "-"}</p>
             <p className="text-[11px] text-muted-foreground">{tr("최근 바코드", "最近条码")}</p>
           </div>
