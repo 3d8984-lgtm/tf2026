@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useLang } from "@/contexts/LangContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ScanLine, RotateCcw, CheckCircle2, XCircle, Wifi, WifiOff, ShieldAlert } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { ScanLine, RotateCcw, CheckCircle2, XCircle, Wifi, WifiOff, ShieldAlert, Printer, AlertTriangle, BellOff } from "lucide-react";
 import { STAGE_PLC } from "@/hooks/usePlcStatus";
+import { scanSuccess, scanFail } from "@/lib/scan-sound";
 
 const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
@@ -27,13 +30,18 @@ type ScanStatus = {
 
 type Verdict = "ok" | "order" | "mismatch" | "duplicate";
 
+type PrintState = "none" | "sent" | "failed" | "skipped";
+
 type LogRow = {
   at: string;
   barcode: string;
   verdict: Verdict;
   expected: string | null;
   position: number | null;
+  print: PrintState;
+  printError?: string;
 };
+
 
 const norm = (v: string) => (v || "").trim().toUpperCase();
 
