@@ -404,11 +404,12 @@ export default function DmScannerMonitor() {
                   <th className="px-2 py-1.5">{tr("순번", "序号")}</th>
                   <th className="px-2 py-1.5">{tr("기대 값", "期望值")}</th>
                   <th className="px-2 py-1.5">{tr("판정", "判定")}</th>
+                  <th className="px-2 py-1.5">{tr("인쇄", "打印")}</th>
                 </tr>
               </thead>
               <tbody>
                 {log.length === 0 ? (
-                  <tr><td colSpan={5} className="px-2 py-4 text-center text-muted-foreground">{tr("스캔 데이터가 없습니다", "暂无扫描数据")}</td></tr>
+                  <tr><td colSpan={6} className="px-2 py-4 text-center text-muted-foreground">{tr("스캔 데이터가 없습니다", "暂无扫描数据")}</td></tr>
                 ) : log.map((r, i) => (
                   <tr key={i} className={`border-t ${r.verdict === "ok" ? "" : "bg-destructive/5"}`}>
                     <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{new Date(r.at).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN")}</td>
@@ -421,8 +422,12 @@ export default function DmScannerMonitor() {
                         {isKo ? verdictMeta[r.verdict].ko : verdictMeta[r.verdict].zh}
                       </span>
                     </td>
+                    <td className={`px-2 py-1.5 ${printMeta[r.print].cls}`} title={r.printError ?? ""}>
+                      {isKo ? printMeta[r.print].ko : printMeta[r.print].zh}
+                    </td>
                   </tr>
                 ))}
+
               </tbody>
             </table>
           </div>
