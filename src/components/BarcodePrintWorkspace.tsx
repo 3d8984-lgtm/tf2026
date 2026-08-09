@@ -165,8 +165,12 @@ function OrderDetail({
   const [testMode, setTestMode] = useState(false);
   const [saved, setSaved] = useState<Record<number, SavedItem>>({});
   const [ready, setReady] = useState(false);
+  const [history, setHistory] = useState<ScanEvent[]>([]);
+  const [printerTestText, setPrinterTestText] = useState("TEST123");
+  const [printerTesting, setPrinterTesting] = useState(false);
   const seenRef = useRef<Set<string>>(new Set());
   const lastKeyRef = useRef<string>("");
+
 
   // 기대 스캔 순서 = 고유번호(개별 주문번호 + suffix) 순서
   const expected = useMemo(() => {
