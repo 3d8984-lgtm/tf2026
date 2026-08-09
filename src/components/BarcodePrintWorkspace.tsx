@@ -42,6 +42,16 @@ type PrintJob = {
   error: string | null;
 };
 
+/** 게이트웨이가 기록한 원본 스캔 이력 (GET /api/v1/scan/history) */
+type ScanEvent = {
+  id: string;
+  barcode: string;
+  scanned_at: string;
+  duration: number | null;
+  print_status: "pending" | "printing" | "done" | "failed" | "unknown";
+  printed: boolean;
+};
+
 type Verdict = "ok" | "order" | "mismatch" | "duplicate";
 
 type LogRow = {
