@@ -514,6 +514,38 @@ function OrderDetail({
           </CardContent>
         </Card>
 
+        {/* 프린터 진단 (POST /api/v1/print/test) */}
+        <Card>
+          <CardContent className="p-4 flex flex-wrap items-center gap-3">
+            <div className="min-w-[200px]">
+              <p className="text-sm font-medium flex items-center gap-2">
+                <Printer className="w-4 h-4" />{tr("프린터 연결 테스트", "打印机连接测试")}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {tr("대기열을 거치지 않고 임의 텍스트를 프린터로 즉시 전송합니다 (기록에 남지 않음)",
+                    "不经队列，直接向打印机发送任意文本（不留记录）")}
+              </p>
+            </div>
+            <Input
+              value={printerTestText}
+              onChange={(e) => setPrinterTestText(e.target.value.slice(0, 200))}
+              placeholder="TEST123"
+              className="w-48 font-mono"
+            />
+            <Button size="sm" variant="outline" className="gap-1" onClick={runPrinterTest} disabled={printerTesting}>
+              {printerTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FlaskConical className="w-4 h-4" />}
+              {tr("테스트 인쇄", "测试打印")}
+            </Button>
+            <span className="text-[11px] text-muted-foreground ml-auto">
+              {kind === "card"
+                ? tr("연결 장비: 카드 바코드 프린터 · 카드 DM 스캐너", "连接设备：卡片条码打印机 · 卡片DM扫描仪")
+                : tr("※ 현재 게이트웨이에는 카드용 장비만 연결되어 있습니다 (티셔츠 장비 추가 예정)",
+                     "※ 当前网关仅连接卡片设备（T恤设备待接入）")}
+            </span>
+          </CardContent>
+        </Card>
+
+
         {halted && !testMode && (
           <div className="flex items-center gap-2 rounded-lg border border-destructive bg-destructive/10 px-4 py-3 text-sm text-destructive">
             <AlertTriangle className="w-4 h-4 shrink-0" />
