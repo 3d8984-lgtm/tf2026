@@ -290,7 +290,10 @@ function OrderDetail({
         else { setOffline(false); setStatus(s as ScanStatus); }
         if (pRes.ok) {
           const p: any = await pRes.json();
+          setPrinterOffline("upstream_status" in p);
           if (Array.isArray(p?.jobs)) { setJobs(p.jobs.slice(-50).reverse()); setPendingCount(p.pending_count ?? 0); }
+        } else {
+          setPrinterOffline(true);
         }
         if (hRes.ok) {
           const h: any = await hRes.json();
@@ -298,7 +301,7 @@ function OrderDetail({
         }
 
       } catch {
-        if (alive) setOffline(true);
+        if (alive) { setOffline(true); setPrinterOffline(true); }
       }
     };
     tick();
