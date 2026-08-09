@@ -356,7 +356,7 @@ function OrderDetail({
       { at: status.last_seen ?? new Date().toISOString(), barcode: status.last_barcode as string, verdict, expected: target?.no ?? null, position },
       ...prev,
     ].slice(0, 100));
-  }, [status, expected, cursor, testMode, ready, markDone]);
+  }, [status, expected, cursor, testMode, ready, markDone, sendToPrinter]);
 
   // 전체 초기화 — 서버 기록 삭제
   const resetAll = async () => {
