@@ -175,6 +175,7 @@ function OrderDetail({
   const [lastVerdict, setLastVerdict] = useState<Verdict | null>(null);
   const [halted, setHalted] = useState(false);
   const [testMode, setTestMode] = useState(false);
+  const [autoPrint, setAutoPrint] = useState(true);
   const [saved, setSaved] = useState<Record<number, SavedItem>>({});
   const [ready, setReady] = useState(false);
   const [history, setHistory] = useState<ScanEvent[]>([]);
@@ -182,6 +183,10 @@ function OrderDetail({
   const [printerTesting, setPrinterTesting] = useState(false);
   const seenRef = useRef<Set<string>>(new Set());
   const lastKeyRef = useRef<string>("");
+  const autoPrintRef = useRef(true);
+  useEffect(() => { autoPrintRef.current = autoPrint; }, [autoPrint]);
+
+
 
 
   // 기대 스캔 순서 = 고유번호(개별 주문번호 + suffix) 순서
@@ -331,6 +336,15 @@ function OrderDetail({
       seenRef.current.add(code);
       setCursor((c) => c + 1);
       void markDone(target.position, target.no, status.last_barcode as string, false);
+      // 검수 통과 시 QR 인쇄기로 자동 인쇄 명령 전송
+      if (autoPrintRef.current) {
+        void sendToPrinter(target.no).then((r) => {
+          if (!r.ok) {
+            toast.error(`${target.no} · ${r.error ?? "print failed"}`);
+            setHalted(true);
+          }
+        });
+      }
     } else {
       const found = expected.findIndex((e) => e.keys.includes(code));
       if (found >= 0) { verdict = "order"; position = found + 1; }
@@ -342,7 +356,7 @@ function OrderDetail({
       { at: status.last_seen ?? new Date().toISOString(), barcode: status.last_barcode as string, verdict, expected: target?.no ?? null, position },
       ...prev,
     ].slice(0, 100));
-  }, [status, expected, cursor, testMode, ready, markDone]);
+  }, [status, expected, cursor, testMode, ready, markDone, sendToPrinter]);
 
   // 전체 초기화 — 서버 기록 삭제
   const resetAll = async () => {
@@ -580,6 +594,22 @@ function OrderDetail({
                   : `${tr("다음 인쇄", "打印下一个")} · ${expected[cursor]?.no ?? ""}`}
               </Button>
             )}
+          </CardContent>
+        </Card>
+
+        {/* 검수 통과 시 자동 인쇄 */}
+        <Card>
+          <CardContent className="p-4 flex flex-wrap items-center gap-3">
+            <Switch id="bp-auto-print" checked={autoPrint} onCheckedChange={setAutoPrint} disabled={testMode} />
+            <Label htmlFor="bp-auto-print" className="cursor-pointer">
+              <span className="font-medium flex items-center gap-1.5">
+                <Printer className="w-4 h-4" />{tr("검수 통과 시 자동 인쇄", "检验通过自动打印")}
+              </span>
+              <span className="block text-xs text-muted-foreground">
+                {tr("스캔 판정이 일치일 때 해당 고유번호를 QR 인쇄기로 즉시 전송합니다 (오류·중복·순서 오류는 인쇄 차단)",
+                    "扫描判定匹配时立即将该唯一编号发送至二维码打印机（错误·重复·顺序错误将阻止打印）")}
+              </span>
+            </Label>
           </CardContent>
         </Card>
 
