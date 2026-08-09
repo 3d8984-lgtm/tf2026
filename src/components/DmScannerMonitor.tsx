@@ -242,8 +242,30 @@ export default function DmScannerMonitor() {
 
   return (
     <div className="space-y-6">
+      {/* 오류 경보 */}
+      {alarm && (
+        <div className="rounded-lg border border-destructive bg-destructive/10 p-4 flex items-start justify-between gap-4 animate-pulse">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-6 h-6 text-destructive shrink-0" />
+            <div className="space-y-1">
+              <p className="font-semibold text-destructive">
+                {tr("검수 오류 · 인쇄 차단됨", "检验错误 · 已阻止打印")} · {isKo ? verdictMeta[alarm.verdict].ko : verdictMeta[alarm.verdict].zh}
+              </p>
+              <p className="text-xs font-mono break-all">{alarm.code}</p>
+              <p className="text-xs text-muted-foreground">
+                {tr("주문 데이터와 일치하지 않는 코드입니다. 확인 후 경보를 해제하세요.", "该编码与订单数据不一致，请确认后解除报警。")}
+              </p>
+            </div>
+          </div>
+          <Button size="sm" variant="outline" className="gap-1 shrink-0" onClick={() => setAlarm(null)}>
+            <BellOff className="w-3.5 h-3.5" />{tr("경보 해제", "解除报警")}
+          </Button>
+        </div>
+      )}
+
       {/* 장비 상태 */}
       <Card>
+
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center justify-between gap-2">
             <span className="flex items-center gap-2">
