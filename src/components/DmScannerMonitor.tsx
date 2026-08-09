@@ -58,9 +58,15 @@ export default function DmScannerMonitor() {
   const [cursor, setCursor] = useState(0);
   const [lastVerdict, setLastVerdict] = useState<Verdict | null>(null);
   const [testLamp, setTestLamp] = useState<"green" | "red" | null>(null);
+  const [autoPrint, setAutoPrint] = useState(true);
+  const [alarm, setAlarm] = useState<{ code: string; verdict: Verdict; at: string } | null>(null);
+  const [printedCount, setPrintedCount] = useState(0);
   const testTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seenRef = useRef<Set<string>>(new Set());
   const lastKeyRef = useRef<string>("");
+  const autoPrintRef = useRef(true);
+  useEffect(() => { autoPrintRef.current = autoPrint; }, [autoPrint]);
+
 
   // 카드 포장기(plc1)에 지정된 주문을 기준으로 검수한다.
   useEffect(() => {
