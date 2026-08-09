@@ -336,6 +336,15 @@ function OrderDetail({
       seenRef.current.add(code);
       setCursor((c) => c + 1);
       void markDone(target.position, target.no, status.last_barcode as string, false);
+      // 검수 통과 시 QR 인쇄기로 자동 인쇄 명령 전송
+      if (autoPrintRef.current) {
+        void sendToPrinter(target.no).then((r) => {
+          if (!r.ok) {
+            toast.error(`${target.no} · ${r.error ?? "print failed"}`);
+            setHalted(true);
+          }
+        });
+      }
     } else {
       const found = expected.findIndex((e) => e.keys.includes(code));
       if (found >= 0) { verdict = "order"; position = found + 1; }
