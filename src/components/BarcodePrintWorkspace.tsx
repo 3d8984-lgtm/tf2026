@@ -167,6 +167,7 @@ function OrderDetail({
 
   const [status, setStatus] = useState<ScanStatus | null>(null);
   const [offline, setOffline] = useState(false);
+  const [printerOffline, setPrinterOffline] = useState(false);
   const [jobs, setJobs] = useState<PrintJob[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
   const [log, setLog] = useState<LogRow[]>([]);
@@ -289,7 +290,10 @@ function OrderDetail({
         else { setOffline(false); setStatus(s as ScanStatus); }
         if (pRes.ok) {
           const p: any = await pRes.json();
+          setPrinterOffline("upstream_status" in p);
           if (Array.isArray(p?.jobs)) { setJobs(p.jobs.slice(-50).reverse()); setPendingCount(p.pending_count ?? 0); }
+        } else {
+          setPrinterOffline(true);
         }
         if (hRes.ok) {
           const h: any = await hRes.json();
@@ -297,7 +301,7 @@ function OrderDetail({
         }
 
       } catch {
-        if (alive) setOffline(true);
+        if (alive) { setOffline(true); setPrinterOffline(true); }
       }
     };
     tick();
@@ -423,6 +427,13 @@ function OrderDetail({
   const lampOk = !halted && lastVerdict === "ok";
   const lampBad = halted;
 
+  // 프린터 장비 상태 (게이트웨이 인쇄 대기열 기준)
+  const printedJobs = jobs.filter((j) => j.status === "done").length;
+  const failedJobs = jobs.filter((j) => j.status === "failed").length;
+  const lastJob = jobs[0] ?? null;
+  const printerOk = !printerOffline && failedJobs === 0;
+
+
   return (
     <div className="flex flex-col h-full">
       <PageHeader
@@ -435,6 +446,63 @@ function OrderDetail({
       </PageHeader>
 
       <div className="flex-1 overflow-auto p-4 md:p-6 space-y-4">
+        {/* 장비 상태 (스캐너 · 프린터) */}
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardContent className="p-4 flex items-center gap-4">
+              <ScanLine className="w-5 h-5 text-muted-foreground shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">
+                  {kind === "card" ? tr("카드 DM 바코드 스캐너", "卡片DM条码扫描仪") : tr("티셔츠 바코드 스캐너", "T恤条码扫描仪")}
+                </p>
+                <p className="text-[11px] text-muted-foreground truncate">
+                  {tr("누적", "累计")} {status?.count ?? 0} · {tr("최근", "最近")}{" "}
+                  {status?.last_seen ? new Date(status.last_seen).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN") : "-"}
+                  {status?.last_duration != null && ` · ${status.last_duration}s`}
+                </p>
+              </div>
+              {offline || !status?.connected ? (
+                <Badge variant="outline" className="gap-1 text-destructive border-destructive/40 shrink-0">
+                  <WifiOff className="w-3 h-3" />{tr("연결 끊김", "连接断开")}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="gap-1 text-emerald-500 border-emerald-500/40 shrink-0">
+                  <Wifi className="w-3 h-3" />{tr("연결됨", "已连接")}
+                </Badge>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className={printerOffline ? "border-destructive" : ""}>
+            <CardContent className="p-4 flex items-center gap-4">
+              <Printer className="w-5 h-5 text-muted-foreground shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">
+                  {kind === "card" ? tr("카드 QR 인쇄기", "卡片二维码打印机") : tr("티셔츠 QR 인쇄기", "T恤二维码打印机")}
+                </p>
+                <p className="text-[11px] text-muted-foreground truncate">
+                  {tr("대기", "等待")} {pendingCount} · {tr("완료", "完成")} {printedJobs} · {tr("실패", "失败")} {failedJobs}
+                  {lastJob && ` · ${tr("최근", "最近")} ${lastJob.barcode}`}
+                </p>
+                {lastJob?.error && <p className="text-[11px] text-destructive truncate">{lastJob.error}</p>}
+              </div>
+              {printerOffline ? (
+                <Badge variant="outline" className="gap-1 text-destructive border-destructive/40 shrink-0">
+                  <WifiOff className="w-3 h-3" />{tr("연결 끊김", "连接断开")}
+                </Badge>
+              ) : printerOk ? (
+                <Badge variant="outline" className="gap-1 text-emerald-500 border-emerald-500/40 shrink-0">
+                  <Wifi className="w-3 h-3" />{tr("정상", "正常")}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="gap-1 text-amber-600 dark:text-amber-400 border-amber-500/40 shrink-0">
+                  <AlertTriangle className="w-3 h-3" />{tr("인쇄 실패 있음", "存在打印失败")}
+                </Badge>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
         {/* 상단 상태 바 */}
         <Card className={halted ? "border-destructive" : ""}>
           <CardContent className="p-4 grid grid-cols-2 md:grid-cols-5 gap-4 items-center">
