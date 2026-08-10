@@ -11,6 +11,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import DefectReviewPanel from "@/components/DefectReviewPanel";
 
 type DefectType = "qr_mismatch" | "duplicate_qr" | "attach_fail" | "pack_fail" | "machine_error" | "material_short" | "print_fail";
 type DefectStatus = "unprocessed" | "rework_queued" | "rework_in_progress" | "rework_done" | "disposed";
