@@ -123,6 +123,19 @@ export default function DefectReviewPanel({
     toast({ title: isKo ? "재작업으로 전환됨" : "已转为返工" });
   }, [orderId, seq, itemNo, detail, workItem, rowId, isKo, queryClient]);
 
+  // Remove the defect record itself (work data and videos stay untouched).
+  const deleteLog = useCallback(async () => {
+    setBusy(true);
+    const { error } = await supabase.from("defect_logs").delete().eq("id", rowId);
+    setBusy(false);
+    if (error) {
+      toast({ title: isKo ? "삭제 실패" : "删除失败", description: error.message, variant: "destructive" });
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ["defect_logs"] });
+    toast({ title: isKo ? "삭제되었습니다" : "已删除" });
+  }, [rowId, isKo, queryClient]);
+
   const current = videos?.[videoIndex];
 
   return (
