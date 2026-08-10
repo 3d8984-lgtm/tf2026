@@ -3,7 +3,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
-import { CheckCircle2, RotateCcw, Video, ScanLine } from "lucide-react";
+import { CheckCircle2, RotateCcw, Video, ScanLine, Trash2 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface Props {
   rowId: string;
@@ -119,6 +123,19 @@ export default function DefectReviewPanel({
     toast({ title: isKo ? "재작업으로 전환됨" : "已转为返工" });
   }, [orderId, seq, itemNo, detail, workItem, rowId, isKo, queryClient]);
 
+  // Remove the defect record itself (work data and videos stay untouched).
+  const deleteLog = useCallback(async () => {
+    setBusy(true);
+    const { error } = await supabase.from("defect_logs").delete().eq("id", rowId);
+    setBusy(false);
+    if (error) {
+      toast({ title: isKo ? "삭제 실패" : "删除失败", description: error.message, variant: "destructive" });
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ["defect_logs"] });
+    toast({ title: isKo ? "삭제되었습니다" : "已删除" });
+  }, [rowId, isKo, queryClient]);
+
   const current = videos?.[videoIndex];
 
   return (
@@ -180,8 +197,30 @@ export default function DefectReviewPanel({
           <Button size="sm" variant="outline" disabled={busy} className="gap-1" onClick={sendToRework}>
             <RotateCcw className="w-3.5 h-3.5" /> {isKo ? "재작업" : "返工"}
           </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button size="sm" variant="outline" disabled={busy} className="gap-1 ml-auto text-destructive">
+                <Trash2 className="w-3.5 h-3.5" /> {isKo ? "삭제" : "删除"}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{isKo ? "이 불량 기록을 삭제할까요?" : "删除该不良记录？"}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {isKo
+                    ? "기록이 목록에서 완전히 삭제됩니다. 작업 영상과 작업 데이터는 유지됩니다."
+                    : "记录将从列表中永久删除。作业视频与作业数据将保留。"}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{isKo ? "취소" : "取消"}</AlertDialogCancel>
+                <AlertDialogAction onClick={deleteLog}>{isKo ? "삭제" : "删除"}</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       )}
+
     </div>
   );
 }
