@@ -20,6 +20,9 @@ type Severity = "high" | "medium" | "low";
 interface DefectItem {
   id: string;
   orderNo: string;
+  orderId: string | null;
+  itemNo: string | null;
+  seq: number | null;
   defectType: DefectType;
   severity: Severity;
   occurredAt: string;
