@@ -124,6 +124,10 @@ export default function Defects() {
   const defects: DefectItem[] = (rows ?? []).map(r => ({
     id: (r.item_no as string) || (r.id as string).slice(0, 8),
     orderNo: (r.external_order_id as string) || "-",
+    orderId: (r.order_id as string | null) ?? null,
+    itemNo: (r.item_no as string | null) ?? null,
+    seq: (r.seq as number | null) ?? null,
+
     defectType: (r.defect_type as DefectType) ?? "attach_fail",
     severity: (r.severity as Severity) ?? "medium",
     occurredAt: fmtTime(r.created_at as string) ?? "",
