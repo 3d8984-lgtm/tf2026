@@ -11,6 +11,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import DefectReviewPanel from "@/components/DefectReviewPanel";
 
 type DefectType = "qr_mismatch" | "duplicate_qr" | "attach_fail" | "pack_fail" | "machine_error" | "material_short" | "print_fail";
 type DefectStatus = "unprocessed" | "rework_queued" | "rework_in_progress" | "rework_done" | "disposed";
@@ -20,6 +21,9 @@ type Severity = "high" | "medium" | "low";
 interface DefectItem {
   id: string;
   orderNo: string;
+  orderId: string | null;
+  itemNo: string | null;
+  seq: number | null;
   defectType: DefectType;
   severity: Severity;
   occurredAt: string;
@@ -121,6 +125,10 @@ export default function Defects() {
   const defects: DefectItem[] = (rows ?? []).map(r => ({
     id: (r.item_no as string) || (r.id as string).slice(0, 8),
     orderNo: (r.external_order_id as string) || "-",
+    orderId: (r.order_id as string | null) ?? null,
+    itemNo: (r.item_no as string | null) ?? null,
+    seq: (r.seq as number | null) ?? null,
+
     defectType: (r.defect_type as DefectType) ?? "attach_fail",
     severity: (r.severity as Severity) ?? "medium",
     occurredAt: fmtTime(r.created_at as string) ?? "",
@@ -247,80 +255,20 @@ export default function Defects() {
                   <span className={`status-badge shrink-0 ${statusCls[d.status]}`}>{statusLabel[d.status]}</span>
                 </button>
 
-                {/* Expanded detail */}
+                {/* Expanded detail: inspector review (video + scan result) */}
                 {isExpanded && (
-                  <div className="mt-4 pt-4 border-t space-y-4">
-                    {/* Detail */}
-                    <div className="flex gap-6 text-sm">
-                      <div className="flex-1">
-                        <p className="text-xs text-muted-foreground mb-1">{t("defects.detailLabel")}</p>
-                        <p>{d.detail}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-1">{t("defects.assigneeLabel")}</p>
-                        <p className="font-medium">{d.assignee}</p>
-                      </div>
-                      {d.resolvedAt && (
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-1">{t("defects.resolvedAt")}</p>
-                          <p className="font-medium tabular-nums">{d.resolvedAt}</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Restart stage visual */}
-                    {restart && (
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-2">{t("defects.restartFrom")}</p>
-                        <div className="flex items-center gap-1">
-                          {stageOrder.map((stage, i) => {
-                            const StIcon = stageIcon[stage];
-                            const isRestart = stage === restart;
-                            const isAfter = stageOrder.indexOf(stage) >= stageOrder.indexOf(restart);
-                            return (
-                              <div key={stage} className="flex items-center gap-1">
-                                <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                                  isRestart ? "bg-primary text-primary-foreground ring-2 ring-primary/30" :
-                                  isAfter ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground line-through"
-                                }`}>
-                                  <StIcon className="w-3.5 h-3.5" />
-                                  {stageLabel[stage]}
-                                </div>
-                                {i < stageOrder.length - 1 && <ArrowRight className="w-3 h-3 text-muted-foreground" />}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Action buttons */}
-                    {canEditDefects && (
-                    <div className="flex gap-2">
-                      {d.status === "unprocessed" && (
-                        <>
-                          <Button size="sm" variant="outline" className="gap-1" onClick={() => handleAddToReworkQueue(d.rowId, d.defectType)}>
-                            <RotateCcw className="w-3.5 h-3.5" /> {t("defects.addToQueue")}
-                          </Button>
-                          <Button size="sm" variant="outline" className="gap-1 text-destructive" onClick={() => handleDispose(d.rowId)}>
-                            <Trash2 className="w-3.5 h-3.5" /> {t("defects.dispose")}
-                          </Button>
-                        </>
-                      )}
-                      {d.status === "rework_queued" && (
-                        <Button size="sm" className="gap-1" onClick={() => handleStartRework(d.rowId)}>
-                          <RotateCcw className="w-3.5 h-3.5" /> {t("defects.startRework")}
-                        </Button>
-                      )}
-                      {d.status === "rework_in_progress" && (
-                        <Button size="sm" className="gap-1 bg-[hsl(var(--success))] hover:bg-[hsl(var(--success)/0.9)] text-white" onClick={() => handleCompleteRework(d.rowId)}>
-                          <CheckCircle2 className="w-3.5 h-3.5" /> {t("defects.completeRework")}
-                        </Button>
-                      )}
-                    </div>
-                    )}
-                  </div>
+                  <DefectReviewPanel
+                    rowId={d.rowId}
+                    orderId={d.orderId}
+                    externalOrderId={d.orderNo === "-" ? null : d.orderNo}
+                    itemNo={d.itemNo}
+                    seq={d.seq}
+                    detail={d.detail}
+                    isKo={isKo}
+                    canEdit={canEditDefects}
+                  />
                 )}
+
               </div>
             );
           })}
