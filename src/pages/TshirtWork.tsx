@@ -1037,8 +1037,8 @@ export default function TshirtWork() {
 
               <div className="flex items-center justify-between mb-5">
                 <h3 className="text-sm font-medium flex items-center gap-2"><ScanLine className="w-4 h-4" /> {t("tshirtWork.autoScan")}</h3>
-                <Button variant="outline" size="sm" onClick={hardResetItem} disabled={hardResetting}>
-                  <RotateCcw className={`w-4 h-4 mr-1 ${hardResetting ? "animate-spin" : ""}`} /> {isKo ? "초기화" : "重置"}
+                <Button variant="outline" size="sm" onClick={resetScan} title={isKo ? "현재 스캔 기록만 지웁니다" : "仅清除当前扫描记录"}>
+                  <RotateCcw className="w-4 h-4 mr-1" /> {isKo ? "초기화" : "重置"}
                 </Button>
               </div>
               <div className="space-y-3 mb-2">
