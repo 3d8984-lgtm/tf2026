@@ -180,8 +180,30 @@ export default function DefectReviewPanel({
           <Button size="sm" variant="outline" disabled={busy} className="gap-1" onClick={sendToRework}>
             <RotateCcw className="w-3.5 h-3.5" /> {isKo ? "재작업" : "返工"}
           </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button size="sm" variant="outline" disabled={busy} className="gap-1 ml-auto text-destructive">
+                <Trash2 className="w-3.5 h-3.5" /> {isKo ? "삭제" : "删除"}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{isKo ? "이 불량 기록을 삭제할까요?" : "删除该不良记录？"}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {isKo
+                    ? "기록이 목록에서 완전히 삭제됩니다. 작업 영상과 작업 데이터는 유지됩니다."
+                    : "记录将从列表中永久删除。作业视频与作业数据将保留。"}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{isKo ? "취소" : "取消"}</AlertDialogCancel>
+                <AlertDialogAction onClick={deleteLog}>{isKo ? "삭제" : "删除"}</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       )}
+
     </div>
   );
 }
