@@ -2053,6 +2053,33 @@ export default function CardPhotoInspection() {
           )}
         </div>
       </div>
+
+      {/* 촬영 사진 크게 보기 */}
+      <Dialog open={!!photoViewer} onOpenChange={(o) => !o && setPhotoViewer(null)}>
+        <DialogContent className="max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>
+              {t(`카드 ${(photoViewer?.itemIdx ?? 0) + 1} 촬영 사진`, `卡片 ${(photoViewer?.itemIdx ?? 0) + 1} 拍摄照片`)}
+              {photoViewer?.cardSerial ? <span className="ml-2 text-xs font-mono text-muted-foreground">{photoViewer.cardSerial}</span> : null}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 md:grid-cols-2">
+            {([["front", photoViewer?.frontPhoto, t("앞면", "正面")], ["back", photoViewer?.backPhoto, t("뒷면", "背面")]] as const).map(([k, src, label]) => (
+              <div key={k} className="rounded-lg border overflow-hidden bg-muted/20">
+                <div className="px-3 py-1.5 text-xs font-semibold border-b bg-muted/30">{label}</div>
+                {src ? (
+                  <img src={src} alt={label} className="w-full max-h-[70vh] object-contain bg-black/40" />
+                ) : (
+                  <div className="h-48 grid place-items-center text-xs text-muted-foreground">
+                    {t("사진 없음", "无照片")}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
