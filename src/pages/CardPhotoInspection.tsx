@@ -861,14 +861,15 @@ export default function CardPhotoInspection() {
             <span>
               {t("이 주문 검사 기록", "本订单检验记录")}
               <span className="ml-2 text-xs text-muted-foreground">
-                {t(`완료 ${orderHistory.length}/${order.items.length}`, `已完成 ${orderHistory.length}/${order.items.length}`)}
+                {t(`표본 완료 ${sampleDone.length}/${sampleIdxs.length}`, `抽检完成 ${sampleDone.length}/${sampleIdxs.length}`)}
               </span>
             </span>
-            {allDone && (
+            {allDone && !sampleComplete && (
               <Button size="sm" variant="outline" onClick={goToNextCard}>
-                {t("다음 카드", "下一张卡片")}
+                {t("다음 표본 카드", "下一张抽检卡片")}
               </Button>
             )}
+
           </div>
           {orderHistory.length === 0 ? (
             <div className="px-4 py-6 text-center text-sm text-muted-foreground">
