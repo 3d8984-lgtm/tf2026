@@ -89,7 +89,7 @@ export default function CardPhotoInspection() {
     return dbOrders.map((o: any) => {
       const sd: any = o.source_data ?? {};
       const items: CardItem[] = (sd.items ?? []).map((it: any, idx: number) => ({
-        card_barcode: it.card_barcode ?? "",
+        card_barcode: it.card_barcode ?? it.dm_barcode ?? it.dm_code ?? it.nfc_ndef_data ?? "",
         card_serial: it.card_serial ?? it.issued_no ?? sd.issued_no ?? "",
         card_grade: it.card_grade ?? it.grade ?? sd.grade ?? "",
         design_qr: it.design_qr ?? "",
