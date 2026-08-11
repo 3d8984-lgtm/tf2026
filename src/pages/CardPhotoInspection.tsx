@@ -351,7 +351,7 @@ export default function CardPhotoInspection() {
       return;
     }
     if (side === "front") { setFrontImg(url); setFrontResult(null); setFrontMatch("idle"); }
-    else { setBackImg(url); setBackResult(null); }
+    else { setBackImg(url); setBackResult(null); setDmDecoded(""); }
     await inspectImage(side, url);
   };
 
