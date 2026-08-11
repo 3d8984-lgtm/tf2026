@@ -280,6 +280,25 @@ export default function CardPhotoInspection() {
   const [frontMatch, setFrontMatch] = useState<"idle" | "matched" | "failed">("idle");
   /** 뒷면 사진에서 실제 디코딩된 DM 바코드 값 */
   const [dmDecoded, setDmDecoded] = useState<string>("");
+  /** 뒷면 사진에서 트윈코드 영역만 잘라낸 이미지 (형태 비교용) */
+  const [twinCrop, setTwinCrop] = useState<string>("");
+  /** 원본 트윈코드 vs 촬영 트윈코드 형태 유사도 (0~1) */
+  const [twinScore, setTwinScore] = useState<number | null>(null);
+  /**
+   * 트윈코드 가이드 영역(촬영 화면 기준 비율).
+   * 카드를 매번 같은 위치에 두면 이 영역에서 트윈코드를 자동 추출한다.
+   */
+  const [twinRoi, setTwinRoi] = useState<{ x: number; y: number; w: number; h: number }>(() => {
+    try {
+      const s = localStorage.getItem("card-photo-twin-roi");
+      if (s) return JSON.parse(s);
+    } catch { /* ignore */ }
+    return { x: 0.26, y: 0.24, w: 0.13, h: 0.22 };
+  });
+  useEffect(() => {
+    try { localStorage.setItem("card-photo-twin-roi", JSON.stringify(twinRoi)); } catch { /* ignore */ }
+  }, [twinRoi]);
+
 
 
   const normKey = (v: any) => String(v ?? "").trim().toLowerCase().replace(/\s+/g, "");
