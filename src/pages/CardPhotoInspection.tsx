@@ -392,18 +392,76 @@ export default function CardPhotoInspection() {
     [history, order]
   );
 
+  // ── Random sampling plan: 3 rounds × 3 consecutive cards ──────────────
+  const ROUNDS = 3;
+  const RUN = 3;
+  const PLAN_KEY = "card-photo-sample-plans";
+  const [plans, setPlans] = useState<Record<string, number[]>>(() => {
+    try {
+      const raw = localStorage.getItem(PLAN_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(PLAN_KEY, JSON.stringify(plans)); } catch {}
+  }, [plans]);
+
+  const buildPlan = useCallback((total: number): number[] => {
+    if (total <= 0) return [];
+    if (total < RUN) return [0];
+    const maxStart = total - RUN;
+    const starts: number[] = [];
+    let guard = 0;
+    while (starts.length < Math.min(ROUNDS, Math.floor(total / RUN)) && guard++ < 500) {
+      const s = Math.floor(Math.random() * (maxStart + 1));
+      if (starts.every(x => Math.abs(x - s) >= RUN)) starts.push(s);
+    }
+    return starts.sort((a, b) => a - b);
+  }, []);
+
+  // Ensure a plan exists for the opened order
+  useEffect(() => {
+    if (!order) return;
+    if (plans[order.id]?.length) return;
+    const p = buildPlan(order.items.length);
+    if (p.length) setPlans(prev => ({ ...prev, [order.id]: p }));
+  }, [order, plans, buildPlan]);
+
+  const planStarts = order ? (plans[order.id] ?? []) : [];
+  const sampleRounds = useMemo(
+    () => planStarts.map(s => Array.from({ length: Math.min(RUN, (order?.items.length ?? 0) - s) }, (_, k) => s + k)),
+    [planStarts, order]
+  );
+  const sampleIdxs = useMemo(() => sampleRounds.flat(), [sampleRounds]);
+  const sampleDone = sampleIdxs.filter(i => orderHistory.some(h => h.itemIdx === i));
+  const samplePass = sampleIdxs.filter(i => orderHistory.some(h => h.itemIdx === i && h.pass));
+  const sampleFail = sampleIdxs.filter(i => orderHistory.some(h => h.itemIdx === i && !h.pass));
+  const sampleComplete = sampleIdxs.length > 0 && sampleDone.length === sampleIdxs.length;
+  const finalPass = sampleComplete && sampleFail.length === 0;
+
+  const reshufflePlan = () => {
+    if (!order) return;
+    const p = buildPlan(order.items.length);
+    setPlans(prev => ({ ...prev, [order.id]: p }));
+    if (p[0] !== undefined) setSelectedItemIdx(p[0]);
+    reset();
+    toast.success(t("표본을 다시 추첨했습니다", "已重新抽取样本"));
+  };
+
   const goToNextCard = () => {
     if (!order) return;
-    const next = selectedItemIdx + 1;
+    const nextPending = sampleIdxs.find(i =>
+      i !== selectedItemIdx && !orderHistory.some(h => h.itemIdx === i));
     reset();
-    if (next < order.items.length) setSelectedItemIdx(next);
-    else toast.success(t("이 주문의 모든 카드 검사가 완료되었습니다", "本订单所有卡片检验已完成"));
+    if (nextPending !== undefined) setSelectedItemIdx(nextPending);
+    else toast.success(t("표본 검사 3회(9장)가 모두 완료되었습니다", "3轮抽检(9张)已全部完成"));
   };
 
   const removeHistory = (key: string) => {
     recordedRef.current.delete(key);
     setHistory(prev => prev.filter(h => h.key !== key));
   };
+
 
   // ── Order selection view ──────────────────────────────────────────────
   if (!order) {
