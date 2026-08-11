@@ -832,7 +832,7 @@ export default function CardPhotoInspection() {
             </div>
 
 
-            {expected?.sign && (
+            {frontMatch === "matched" && expected?.sign && (
               <div className="px-4 py-3 border-t">
                 <div className="text-xs text-muted-foreground mb-1">{t("등록된 서명", "已登记签名")}</div>
                 <div className="text-2xl font-serif italic">{expected.sign}</div>
