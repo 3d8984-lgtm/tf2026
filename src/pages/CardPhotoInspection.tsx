@@ -457,7 +457,7 @@ export default function CardPhotoInspection() {
       i !== selectedItemIdx && !orderHistory.some(h => h.itemIdx === i));
     reset();
     if (nextPending !== undefined) setSelectedItemIdx(nextPending);
-    else toast.success(t("표본 검사 3회(9장)가 모두 완료되었습니다", "3轮抽检(9张)已全部完成"));
+    else toast.success(t(`표본 검사 ${sampleRounds.length}회(${sampleIdxs.length}장)가 모두 완료되었습니다`, `${sampleRounds.length} 轮抽检(${sampleIdxs.length} 张)已全部完成`));
   };
 
   const removeHistory = (key: string) => {
