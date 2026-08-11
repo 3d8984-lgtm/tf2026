@@ -436,10 +436,120 @@ export default function CardPhotoInspection() {
     }
   };
 
+  const loadImage = (src: string) => new Promise<HTMLImageElement>((res, rej) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => res(img);
+    img.onerror = () => rej(new Error("load failed"));
+    img.src = src;
+  });
+
+  /** 촬영 이미지에서 가이드 영역(트윈코드)만 잘라 확대한다. */
+  const cropRoi = async (dataUrl: string, roi: { x: number; y: number; w: number; h: number }) => {
+    try {
+      const img = await loadImage(dataUrl);
+      const sx = Math.max(0, roi.x * img.width);
+      const sy = Math.max(0, roi.y * img.height);
+      const sw = Math.min(img.width - sx, roi.w * img.width);
+      const sh = Math.min(img.height - sy, roi.h * img.height);
+      if (sw <= 2 || sh <= 2) return "";
+      const scale = Math.min(4, 512 / Math.max(sw, sh));
+      const c = document.createElement("canvas");
+      c.width = Math.round(sw * scale);
+      c.height = Math.round(sh * scale);
+      const ctx = c.getContext("2d");
+      if (!ctx) return "";
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+      return c.toDataURL("image/png");
+    } catch { return ""; }
+  };
+
+  /** 이미지를 N×N 이진 마스크(잉크=1)로 변환. 여백은 잘라내 정규화한다. */
+  const toMask = async (src: string, N = 96): Promise<Uint8Array | null> => {
+    try {
+      const img = await loadImage(src);
+      const c = document.createElement("canvas");
+      const w = 256, h = 256;
+      c.width = w; c.height = h;
+      const ctx = c.getContext("2d");
+      if (!ctx) return null;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      const d = ctx.getImageData(0, 0, w, h).data;
+      const gray = new Float32Array(w * h);
+      let sum = 0;
+      for (let i = 0; i < w * h; i++) {
+        const g = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+        gray[i] = g; sum += g;
+      }
+      const thr = sum / (w * h) * 0.85;
+      // bounding box of ink
+      let x0 = w, y0 = h, x1 = -1, y1 = -1;
+      const bin = new Uint8Array(w * h);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        if (gray[y * w + x] < thr) {
+          bin[y * w + x] = 1;
+          if (x < x0) x0 = x; if (x > x1) x1 = x;
+          if (y < y0) y0 = y; if (y > y1) y1 = y;
+        }
+      }
+      if (x1 < 0) return null;
+      const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+      const out = new Uint8Array(N * N);
+      for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+        const sxp = x0 + Math.floor((x / N) * bw);
+        const syp = y0 + Math.floor((y / N) * bh);
+        out[y * N + x] = bin[syp * w + sxp];
+      }
+      return out;
+    } catch { return null; }
+  };
+
+  const rotateMask = (m: Uint8Array, N: number) => {
+    const r = new Uint8Array(N * N);
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) r[x * N + (N - 1 - y)] = m[y * N + x];
+    return r;
+  };
+
+  const iou = (a: Uint8Array, b: Uint8Array) => {
+    let inter = 0, uni = 0;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] || b[i]) uni++;
+      if (a[i] && b[i]) inter++;
+    }
+    return uni ? inter / uni : 0;
+  };
+
+  /** 원본 트윈코드와 촬영 크롭의 형태 유사도(0~1). 회전 4방향 중 최대값. */
+  const compareTwinShape = async (refSrc: string, cropSrc: string): Promise<number | null> => {
+    const N = 96;
+    const [a, b0] = await Promise.all([toMask(refSrc, N), toMask(cropSrc, N)]);
+    if (!a || !b0) return null;
+    let best = 0, b = b0;
+    for (let i = 0; i < 4; i++) {
+      best = Math.max(best, iou(a, b));
+      b = rotateMask(b, N);
+    }
+    return best;
+  };
+
   const inspectImage = async (side: "front" | "back", dataUrl: string) => {
     setBusySide(side);
     try {
       const referenceTwincode = side === "back" ? await toRasterDataUrl(expectedTwincodeUrl || "") : undefined;
+
+      if (side === "back") {
+        const crop = await cropRoi(dataUrl, twinRoi);
+        setTwinCrop(crop);
+        if (crop && referenceTwincode) {
+          setTwinScore(await compareTwinShape(referenceTwincode, crop));
+        } else {
+          setTwinScore(null);
+        }
+      }
 
       const [{ data, error }, decodedDm] = await Promise.all([
         supabase.functions.invoke("card-photo-inspect", {
@@ -447,6 +557,7 @@ export default function CardPhotoInspection() {
         }),
         side === "back" ? decodeDataMatrix(dataUrl) : Promise.resolve(""),
       ]);
+
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       const ex = data?.extracted;
