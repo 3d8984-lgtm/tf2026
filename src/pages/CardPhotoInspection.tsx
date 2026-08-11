@@ -198,21 +198,39 @@ export default function CardPhotoInspection() {
 
   const normKey = (v: any) => String(v ?? "").trim().toLowerCase().replace(/\s+/g, "");
   const digits = (v: any) => String(v ?? "").replace(/\D/g, "");
+  /** "EDITION 3/8", "#3", "03" → "3" (compare only the edition number itself). */
+  const edNum = (v: any) => {
+    const s = String(v ?? "").replace(/edition/gi, "").trim();
+    const m = s.match(/\d+/);
+    return m ? String(parseInt(m[0], 10)) : "";
+  };
 
   /** Find a card whose CP score AND edition both match the detected front values. */
   const findByFront = useCallback((cp: string, ed: string) => {
     const cpD = digits(cp);
-    const edN = normKey(ed);
+    const edN = edNum(ed);
     if (!cpD && !edN) return null;
     const pool = order ? [order] : orders;
-    for (const o of pool) {
-      const idx = o.items.findIndex(it =>
-        (!!cpD && digits(it.cp_score) === cpD) &&
-        (!!edN && normKey(it.edition) === edN));
-      if (idx >= 0) return { o, idx };
+    // 1) CP + EDITION both match  2) EDITION only  3) CP only (single candidate)
+    const matchers: ((it: CardItem) => boolean)[] = [
+      it => !!cpD && !!edN && digits(it.cp_score) === cpD && edNum(it.edition) === edN,
+      it => !!edN && edNum(it.edition) === edN,
+      it => !!cpD && digits(it.cp_score) === cpD,
+    ];
+    for (const fn of matchers) {
+      for (const o of pool) {
+        const hits = o.items.map((it, i) => (fn(it) ? i : -1)).filter(i => i >= 0);
+        if (hits.length === 1) return { o, idx: hits[0] };
+        // 여러 장이 같은 값이면 현재 선택된 카드가 후보에 있으면 그것을 사용
+        if (hits.length > 1) {
+          if (o.id === order?.id && hits.includes(selectedItemIdx)) return { o, idx: selectedItemIdx };
+          return { o, idx: hits[0] };
+        }
+      }
     }
     return null;
-  }, [orders, order]);
+  }, [orders, order, selectedItemIdx]);
+
 
   const inspectImage = async (side: "front" | "back", dataUrl: string) => {
     setBusySide(side);
@@ -298,7 +316,7 @@ export default function CardPhotoInspection() {
         label: "EDITION",
         expected: String(expected.edition ?? ""),
         detected: frontResult.edition ?? "",
-        match: norm(expected.edition) === norm(frontResult.edition) && !!norm(expected.edition),
+        match: !!edNum(expected.edition) && edNum(expected.edition) === edNum(frontResult.edition),
       });
     }
     if (backResult) {
