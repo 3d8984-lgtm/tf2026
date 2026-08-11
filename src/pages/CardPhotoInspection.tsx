@@ -293,6 +293,8 @@ export default function CardPhotoInspection() {
   const [twinScore, setTwinScore] = useState<number | null>(null);
   /** 작업자가 수동으로 트윈코드 일치를 확정했는지 여부 */
   const [twinManual, setTwinManual] = useState(false);
+  /** 유사도 점수가 계산되지 않은 경우의 사유 */
+  const [twinScoreNote, setTwinScoreNote] = useState("");
   /**
    * 트윈코드 가이드 영역(촬영 화면 기준 비율).
    * 카드를 매번 같은 위치에 두면 이 영역에서 트윈코드를 자동 추출한다.
@@ -563,12 +565,20 @@ export default function CardPhotoInspection() {
     if (!url) return undefined;
     if (!/\.svg($|\?)/i.test(url) && !url.startsWith("data:image/svg")) return url;
     try {
+      // SVG는 CORS 오염(tainted canvas)로 getImageData가 실패할 수 있으므로
+      // 원문을 직접 받아 data URL로 인라인한 뒤 래스터화한다.
+      let src = url;
+      if (!url.startsWith("data:")) {
+        const res = await fetch(url, { mode: "cors" });
+        if (!res.ok) throw new Error(`fetch ${res.status}`);
+        const text = await res.text();
+        src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(text)}`;
+      }
       const img = new Image();
-      img.crossOrigin = "anonymous";
       await new Promise<void>((res, rej) => {
         img.onload = () => res();
         img.onerror = () => rej(new Error("load failed"));
-        img.src = url;
+        img.src = src;
       });
       const size = 1024;
       const c = document.createElement("canvas");
@@ -583,6 +593,7 @@ export default function CardPhotoInspection() {
       return undefined;
     }
   };
+
 
   const loadImage = (src: string) => new Promise<HTMLImageElement>((res, rej) => {
     const img = new Image();
@@ -794,12 +805,22 @@ export default function CardPhotoInspection() {
         // 저장 후 슬라이더가 다시 움직였더라도 실제 검사는 마지막으로 확정 저장한 영역만 사용한다.
         const crop = await cropRoi(dataUrl, savedRoi ?? getDisplayedGuideRoi());
         setTwinCrop(crop);
-        if (crop && referenceTwincode) {
-          setTwinScore(await compareTwinShape(referenceTwincode, crop));
-        } else {
+        if (!expectedTwincodeUrl) {
           setTwinScore(null);
+          setTwinScoreNote(t("주문에 등록된 원본 트윈코드가 없습니다", "订单未登记原始TwinCode"));
+        } else if (!referenceTwincode) {
+          setTwinScore(null);
+          setTwinScoreNote(t("원본 트윈코드 이미지를 불러오지 못했습니다", "无法加载原始TwinCode图像"));
+        } else if (!crop) {
+          setTwinScore(null);
+          setTwinScoreNote(t("가이드 영역 추출에 실패했습니다", "引导区域提取失败"));
+        } else {
+          const s = await compareTwinShape(referenceTwincode, crop);
+          setTwinScore(s);
+          setTwinScoreNote(s === null ? t("이미지에서 형태를 인식하지 못했습니다 (초점/대비 확인)", "无法识别形状（请检查对焦/对比度）") : "");
         }
       }
+
 
       const [{ data, error }, decodedDm] = await Promise.all([
         supabase.functions.invoke("card-photo-inspect", {
@@ -871,15 +892,15 @@ export default function CardPhotoInspection() {
       return;
     }
     if (side === "front") { setFrontImg(url); setFrontResult(null); setFrontMatch("idle"); }
-    else { setBackImg(url); setBackResult(null); setDmDecoded(""); setTwinCrop(""); setTwinScore(null); setTwinManual(false); }
-    await inspectImage(side, url);
+    else { setBackImg(url); setBackResult(null); setDmDecoded(""); setTwinCrop(""); setTwinScore(null); setTwinScoreNote(""); setTwinManual(false); }
+    setFrontMatch("idle");
   };
 
   const reset = () => {
     setFrontImg(null); setBackImg(null);
-    setFrontResult(null); setBackResult(null); setDmDecoded("");
-    setTwinCrop(""); setTwinScore(null); setTwinManual(false);
-    setFrontMatch("idle");
+    setFrontResult(null); setBackResult(null);
+    setFrontMatch("idle"); setDmDecoded("");
+    setTwinCrop(""); setTwinScore(null); setTwinScoreNote(""); setTwinManual(false);
   };
 
 
@@ -1628,6 +1649,10 @@ export default function CardPhotoInspection() {
                 <span className="text-[11px] text-muted-foreground">
                   {t(`기준 ${Math.round(TWIN_MATCH_MIN * 100)}% 이상`, `标准 ${Math.round(TWIN_MATCH_MIN * 100)}% 以上`)}
                 </span>
+                {twinScore === null && twinScoreNote && (
+                  <span className="text-[11px] text-destructive">· {twinScoreNote}</span>
+                )}
+
               </div>
               <div className="ml-auto flex items-center gap-2">
                 {twinManual ? (
