@@ -298,6 +298,19 @@ export default function CardPhotoInspection() {
   useEffect(() => {
     try { localStorage.setItem("card-photo-twin-roi", JSON.stringify(twinRoi)); } catch { /* ignore */ }
   }, [twinRoi]);
+  /** 실제 카메라 프레임의 종횡비 (object-contain 레터박스 계산용) */
+  const [videoAr, setVideoAr] = useState(16 / 9);
+  /** 컨테이너(16:9) 안에서 실제 영상이 차지하는 영역 (0~1 비율) */
+  const videoBox = (() => {
+    const box = 16 / 9;
+    if (!videoAr || videoAr === box) return { left: 0, top: 0, width: 1, height: 1 };
+    if (videoAr > box) {
+      const h = box / videoAr;
+      return { left: 0, top: (1 - h) / 2, width: 1, height: h };
+    }
+    const w = videoAr / box;
+    return { left: (1 - w) / 2, top: 0, width: w, height: 1 };
+  })();
 
 
 
@@ -1100,15 +1113,25 @@ export default function CardPhotoInspection() {
             </div>
           </div>
           <div className="relative aspect-video bg-black rounded overflow-hidden flex items-center justify-center">
-            <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-contain" />
-            {/* 트윈코드 가이드 영역 — 카드를 이 사각형에 맞춰 놓으면 자동 추출됩니다 */}
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-contain"
+              onLoadedMetadata={e => {
+                const v = e.currentTarget;
+                if (v.videoWidth && v.videoHeight) setVideoAr(v.videoWidth / v.videoHeight);
+              }}
+            />
+            {/* 트윈코드 가이드 영역 — 실제 영상 표시 영역(레터박스 제외) 기준으로 그린다 */}
             <div
               className="absolute border-2 border-destructive pointer-events-none"
               style={{
-                left: `${twinRoi.x * 100}%`,
-                top: `${twinRoi.y * 100}%`,
-                width: `${twinRoi.w * 100}%`,
-                height: `${twinRoi.h * 100}%`,
+                left: `${(videoBox.left + twinRoi.x * videoBox.width) * 100}%`,
+                top: `${(videoBox.top + twinRoi.y * videoBox.height) * 100}%`,
+                width: `${twinRoi.w * videoBox.width * 100}%`,
+                height: `${twinRoi.h * videoBox.height * 100}%`,
                 boxShadow: "0 0 0 9999px hsl(var(--background) / 0.25)",
               }}
             >
