@@ -14,6 +14,8 @@ import { toast } from "sonner";
 
 interface CardItem {
   card_barcode: string;
+  /** DM 바코드 기준값 = 개별 주문번호 + "-4" */
+  dm_expected: string;
   card_serial: string;
   card_grade: string;
   design_qr: string;
@@ -30,6 +32,7 @@ interface CardItem {
   gft_url?: string;
 
 }
+
 
 interface OrderRow {
   id: string;
@@ -75,7 +78,7 @@ const VISUAL_FIELDS: {
   { key: "twin", side: "back", label: t => t("트윈코드", "TwinCode"),
     getExpected: e => e.twincode || e.design_qr || "", getDetected: r => r.twincode ?? "" },
   { key: "dm", side: "back", label: t => t("DM 바코드", "DM条码"),
-    getExpected: e => e.card_barcode ?? "", getDetected: r => r.dm_barcode ?? "" },
+    getExpected: e => e.dm_expected ?? "", getDetected: r => r.dm_barcode ?? "" },
 ];
 
 export default function CardPhotoInspection() {
@@ -90,6 +93,8 @@ export default function CardPhotoInspection() {
       const sd: any = o.source_data ?? {};
       const items: CardItem[] = (sd.items ?? []).map((it: any, idx: number) => ({
         card_barcode: it.card_barcode ?? it.dm_barcode ?? it.dm_code ?? it.nfc_ndef_data ?? "",
+        // DM 바코드 기준값 = 개별 주문번호 + "-4" (카드 바코드 인쇄 작업과 동일 규칙)
+        dm_expected: `${String(it.order_id ?? it.sequence_no ?? `${o.external_order_id}-${idx + 1}`)}-4`,
         card_serial: it.card_serial ?? it.issued_no ?? sd.issued_no ?? "",
         card_grade: it.card_grade ?? it.grade ?? sd.grade ?? "",
         design_qr: it.design_qr ?? "",
@@ -167,14 +172,51 @@ export default function CardPhotoInspection() {
     return designImages?.list?.[selectedItemIdx] ?? designImages?.list?.[0];
   }, [expected, designImages, selectedItemIdx]);
 
+  // 주문 폴더에 업로드된 트윈코드 이미지(형태 비교 기준)
+  const { data: twincodeImages } = useQuery({
+    queryKey: ["card-photo-twincode", order?.externalOrderId],
+    enabled: !!order?.externalOrderId,
+    queryFn: async () => {
+      const folder = order!.externalOrderId;
+      const map: Record<string, string> = {};
+      const list: string[] = [];
+      const { data: files } = await supabase.storage.from("twincode-images").list(folder);
+      if (files) {
+        for (const f of files) {
+          const url = supabase.storage.from("twincode-images").getPublicUrl(`${folder}/${f.name}`).data.publicUrl;
+          const k = f.name.replace(/\.[^.]+$/, "");
+          map[k] = url;
+          map[k.toLowerCase()] = url;
+          list.push(url);
+        }
+      }
+      return { map, list };
+    },
+  });
+
+  /** 형태 비교에 사용할 등록 트윈코드 이미지 URL */
+  const expectedTwincodeUrl = useMemo(() => {
+    if (!expected) return undefined;
+    if (expected.twincode_url) return expected.twincode_url;
+    const map = twincodeImages?.map ?? {};
+    const keys = [expected.twincode, expected.design_qr, expected.card_serial, expected.dm_expected]
+      .filter(Boolean) as string[];
+    for (const k of keys) {
+      if (map[k]) return map[k];
+      if (map[k.toLowerCase()]) return map[k.toLowerCase()];
+    }
+    return twincodeImages?.list?.[selectedItemIdx] ?? twincodeImages?.list?.[0];
+  }, [expected, twincodeImages, selectedItemIdx]);
+
 
   // ── Auto-match by DM barcode ──────────────────────────────────────────
   const [dmInput, setDmInput] = useState("");
   const handleDmLookup = useCallback((raw: string) => {
     const code = raw.trim();
     if (!code) return;
+    const nz = (v: any) => String(v ?? "").trim().toLowerCase();
     for (const o of orders) {
-      const idx = o.items.findIndex(it => it.card_barcode === code);
+      const idx = o.items.findIndex(it => nz(it.dm_expected) === nz(code) || nz(it.card_barcode) === nz(code));
       if (idx >= 0) {
         setSelectedOrderId(o.id);
         setSelectedItemIdx(idx);
@@ -185,6 +227,7 @@ export default function CardPhotoInspection() {
     }
     toast.error(t("DM 바코드와 일치하는 카드가 없습니다", "未找到匹配DM条码的卡片"));
   }, [orders, isKo]);
+
 
   // ── Camera ─────────────────────────────────────────────────────────────
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -280,12 +323,59 @@ export default function CardPhotoInspection() {
       hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.DATA_MATRIX, BarcodeFormat.QR_CODE]);
       hints.set(DecodeHintType.TRY_HARDER, true);
       const reader = new BrowserMultiFormatReader(hints as any);
-      const res = await reader.decodeFromImageUrl(dataUrl);
-      return res?.getText?.()?.trim() ?? "";
+
+      const tryUrl = async (u: string) => {
+        try {
+          const r = await reader.decodeFromImageUrl(u);
+          return r?.getText?.()?.trim() ?? "";
+        } catch { return ""; }
+      };
+
+      // 1) 원본 그대로
+      const direct = await tryUrl(dataUrl);
+      if (direct) return direct;
+
+      // 2) 카드에서 DM 코드는 작게 인쇄되므로 영역을 나눠 확대 후 재시도
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      await new Promise<void>((res, rej) => {
+        img.onload = () => res();
+        img.onerror = () => rej(new Error("load failed"));
+        img.src = dataUrl;
+      });
+      const tiles: [number, number, number, number][] = [];
+      const cols = 3, rows = 3;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          // 25% 겹치도록 타일 구성
+          const w = img.width / cols, h = img.height / rows;
+          tiles.push([
+            Math.max(0, c * w - w * 0.25),
+            Math.max(0, r * h - h * 0.25),
+            Math.min(img.width, w * 1.5),
+            Math.min(img.height, h * 1.5),
+          ]);
+        }
+      }
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return "";
+      for (const [sx, sy, sw, sh] of tiles) {
+        const scale = Math.min(3, 900 / Math.max(sw, sh));
+        canvas.width = Math.round(sw * scale);
+        canvas.height = Math.round(sh * scale);
+        ctx.imageSmoothingEnabled = true;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+        const hit = await tryUrl(canvas.toDataURL("image/png"));
+        if (hit) return hit;
+      }
+      return "";
     } catch {
       return "";
     }
   };
+
 
   // The AI model cannot read SVG URLs, so rasterize the registered TwinCode to PNG.
   const toRasterDataUrl = async (url: string): Promise<string | undefined> => {
@@ -316,7 +406,7 @@ export default function CardPhotoInspection() {
   const inspectImage = async (side: "front" | "back", dataUrl: string) => {
     setBusySide(side);
     try {
-      const referenceTwincode = side === "back" ? await toRasterDataUrl(expected?.twincode_url || "") : undefined;
+      const referenceTwincode = side === "back" ? await toRasterDataUrl(expectedTwincodeUrl || "") : undefined;
 
       const [{ data, error }, decodedDm] = await Promise.all([
         supabase.functions.invoke("card-photo-inspect", {
@@ -351,10 +441,13 @@ export default function CardPhotoInspection() {
       } else {
         setBackResult(ex);
         // Auto-match order by detected DM barcode
-        const dm = String(ex.dm_barcode ?? "").trim();
+        const dm = String(ex.dm_barcode ?? "").trim().toLowerCase();
         if (dm && !selectedOrderId) {
           for (const o of orders) {
-            const idx = o.items.findIndex(it => it.card_barcode === dm);
+            const idx = o.items.findIndex(it =>
+              String(it.dm_expected ?? "").trim().toLowerCase() === dm ||
+              String(it.card_barcode ?? "").trim().toLowerCase() === dm);
+
             if (idx >= 0) {
               setSelectedOrderId(o.id);
               setSelectedItemIdx(idx);
@@ -450,29 +543,31 @@ export default function CardPhotoInspection() {
         const shape = backResult.twincode_shape_match === true;
         list.push({
           label: t("트윈코드 (형태 비교)", "TwinCode (形状比对)"),
-          expected: expected.twincode_url
+          expected: expectedTwincodeUrl
             ? t("등록된 트윈코드 형태", "已登记TwinCode形状")
             : t("등록 이미지 없음", "无已登记图像"),
-          detected: expected.twincode_url
+          detected: expectedTwincodeUrl
             ? (shape ? t("형태 일치", "形状一致") : t("형태 불일치", "形状不一致"))
             : t("비교 불가", "无法比对"),
-          match: !!expected.twincode_url && shape,
+          match: !!expectedTwincodeUrl && shape,
         });
       }
       {
-        const expDm = norm(expected.card_barcode);
+        // 기준값은 개별 주문번호 + "-4"
+        const expDm = norm(expected.dm_expected);
         const gotDm = norm(dmDecoded || backResult.dm_barcode);
         list.push({
           label: t("DM 바코드 (값 비교)", "DM条码 (值比对)"),
-          expected: expected.card_barcode ?? "",
+          expected: expected.dm_expected ?? "",
           detected: dmDecoded || backResult.dm_barcode || t("디코딩 실패", "解码失败"),
           match: !!expDm && !!gotDm && expDm === gotDm,
         });
       }
 
+
     }
     return list;
-  }, [expected, frontResult, backResult, dmDecoded, isKo]);
+  }, [expected, frontResult, backResult, dmDecoded, expectedTwincodeUrl, isKo]);
 
   const failCount = checks.filter(c => !c.match).length;
   const allDone = !!frontResult && !!backResult;
@@ -514,7 +609,7 @@ export default function CardPhotoInspection() {
       externalOrderId: order.externalOrderId,
       itemIdx: selectedItemIdx,
       cardSerial: expected.card_serial ?? "",
-      dmBarcode: expected.card_barcode ?? "",
+      dmBarcode: expected.dm_expected ?? "",
       pass: failCount === 0,
       failCount,
       fields: checks.map(c => ({ label: c.label, expected: c.expected, detected: c.detected, match: c.match })),
