@@ -392,18 +392,76 @@ export default function CardPhotoInspection() {
     [history, order]
   );
 
+  // ── Random sampling plan: 3 rounds × 3 consecutive cards ──────────────
+  const ROUNDS = 3;
+  const RUN = 3;
+  const PLAN_KEY = "card-photo-sample-plans";
+  const [plans, setPlans] = useState<Record<string, number[]>>(() => {
+    try {
+      const raw = localStorage.getItem(PLAN_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(PLAN_KEY, JSON.stringify(plans)); } catch {}
+  }, [plans]);
+
+  const buildPlan = useCallback((total: number): number[] => {
+    if (total <= 0) return [];
+    if (total < RUN) return [0];
+    const maxStart = total - RUN;
+    const starts: number[] = [];
+    let guard = 0;
+    while (starts.length < Math.min(ROUNDS, Math.floor(total / RUN)) && guard++ < 500) {
+      const s = Math.floor(Math.random() * (maxStart + 1));
+      if (starts.every(x => Math.abs(x - s) >= RUN)) starts.push(s);
+    }
+    return starts.sort((a, b) => a - b);
+  }, []);
+
+  // Ensure a plan exists for the opened order
+  useEffect(() => {
+    if (!order) return;
+    if (plans[order.id]?.length) return;
+    const p = buildPlan(order.items.length);
+    if (p.length) setPlans(prev => ({ ...prev, [order.id]: p }));
+  }, [order, plans, buildPlan]);
+
+  const planStarts = order ? (plans[order.id] ?? []) : [];
+  const sampleRounds = useMemo(
+    () => planStarts.map(s => Array.from({ length: Math.min(RUN, (order?.items.length ?? 0) - s) }, (_, k) => s + k)),
+    [planStarts, order]
+  );
+  const sampleIdxs = useMemo(() => sampleRounds.flat(), [sampleRounds]);
+  const sampleDone = sampleIdxs.filter(i => orderHistory.some(h => h.itemIdx === i));
+  const samplePass = sampleIdxs.filter(i => orderHistory.some(h => h.itemIdx === i && h.pass));
+  const sampleFail = sampleIdxs.filter(i => orderHistory.some(h => h.itemIdx === i && !h.pass));
+  const sampleComplete = sampleIdxs.length > 0 && sampleDone.length === sampleIdxs.length;
+  const finalPass = sampleComplete && sampleFail.length === 0;
+
+  const reshufflePlan = () => {
+    if (!order) return;
+    const p = buildPlan(order.items.length);
+    setPlans(prev => ({ ...prev, [order.id]: p }));
+    if (p[0] !== undefined) setSelectedItemIdx(p[0]);
+    reset();
+    toast.success(t("표본을 다시 추첨했습니다", "已重新抽取样本"));
+  };
+
   const goToNextCard = () => {
     if (!order) return;
-    const next = selectedItemIdx + 1;
+    const nextPending = sampleIdxs.find(i =>
+      i !== selectedItemIdx && !orderHistory.some(h => h.itemIdx === i));
     reset();
-    if (next < order.items.length) setSelectedItemIdx(next);
-    else toast.success(t("이 주문의 모든 카드 검사가 완료되었습니다", "本订单所有卡片检验已完成"));
+    if (nextPending !== undefined) setSelectedItemIdx(nextPending);
+    else toast.success(t("표본 검사 3회(9장)가 모두 완료되었습니다", "3轮抽检(9张)已全部完成"));
   };
 
   const removeHistory = (key: string) => {
     recordedRef.current.delete(key);
     setHistory(prev => prev.filter(h => h.key !== key));
   };
+
 
   // ── Order selection view ──────────────────────────────────────────────
   if (!order) {
@@ -442,22 +500,25 @@ export default function CardPhotoInspection() {
                   <th className="text-left px-4 py-2 font-medium">{t("트윈커", "Twinker")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("상품", "商品")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("카드 수량", "卡片数量")}</th>
-                  <th className="text-left px-4 py-2 font-medium">{t("검사 진행", "检验进度")}</th>
+                  <th className="text-left px-4 py-2 font-medium">{t("표본 검사 (3회 × 3장)", "抽检 (3轮 × 3张)")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("납기", "交期")}</th>
                   <th className="px-4 py-2"></th>
                 </tr>
               </thead>
               <tbody>
                 {orders.map(o => {
-                  const oh = history.filter(h => h.orderId === o.id);
+                  const total = o.items.length;
+                  const starts = plans[o.id] ?? [];
+                  const idxs = starts.flatMap(s => Array.from({ length: Math.min(3, total - s) }, (_, k) => s + k));
+                  const target = idxs.length || Math.min(9, total);
+                  const oh = history.filter(h => h.orderId === o.id && idxs.includes(h.itemIdx));
                   const pass = oh.filter(h => h.pass).length;
                   const fail = oh.filter(h => !h.pass).length;
-                  const total = o.items.length;
                   const done = oh.length;
-                  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                  const pct = target > 0 ? Math.round((done / target) * 100) : 0;
                   return (
                     <tr key={o.id} className="border-t hover:bg-muted/20 cursor-pointer"
-                      onClick={() => { setSelectedOrderId(o.id); setSelectedItemIdx(0); }}>
+                      onClick={() => { setSelectedOrderId(o.id); setSelectedItemIdx((plans[o.id] ?? [0])[0] ?? 0); }}>
                       <td className="px-4 py-3 font-medium text-primary hover:underline">{o.externalOrderId}</td>
                       <td className="px-4 py-3">{o.twinker}</td>
                       <td className="px-4 py-3">{o.product}</td>
@@ -467,7 +528,8 @@ export default function CardPhotoInspection() {
                           <div className="w-24 h-1.5 rounded-full bg-muted overflow-hidden">
                             <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
                           </div>
-                          <span className="text-xs tabular-nums text-muted-foreground">{done}/{total}</span>
+                          <span className="text-xs tabular-nums text-muted-foreground">{done}/{target}</span>
+
                           {pass > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]">✓{pass}</span>}
                           {fail > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[hsl(var(--warning)/0.15)] text-[hsl(var(--warning))]">!{fail}</span>}
                         </div>
@@ -506,41 +568,107 @@ export default function CardPhotoInspection() {
       </PageHeader>
 
       <div className="flex-1 overflow-auto p-6 space-y-4">
-        {/* Card grid — per-card status, click to select */}
+        {/* Random sampling plan — 3 rounds × 3 consecutive cards */}
         <div className="rounded-lg border bg-card overflow-hidden">
-          <div className="px-4 py-2 border-b bg-muted/30 text-sm font-semibold flex items-center justify-between">
-            <span>{t("카드 목록", "卡片列表")}</span>
-            <span className="text-xs text-muted-foreground">
-              {t(`완료 ${orderHistory.length}/${order.items.length}`, `已完成 ${orderHistory.length}/${order.items.length}`)}
+          <div className="px-4 py-2 border-b bg-muted/30 text-sm font-semibold flex items-center justify-between gap-2 flex-wrap">
+            <span>
+              {t("랜덤 표본 검사 (연속 3장 × 3회)", "随机抽检 (连续3张 × 3轮)")}
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                {t(`전체 ${order.items.length}장 중 ${sampleIdxs.length}장 검사`, `共 ${order.items.length} 张中抽检 ${sampleIdxs.length} 张`)}
+              </span>
             </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {t(`완료 ${sampleDone.length}/${sampleIdxs.length}`, `已完成 ${sampleDone.length}/${sampleIdxs.length}`)}
+                {samplePass.length > 0 && ` · ✓${samplePass.length}`}
+                {sampleFail.length > 0 && ` · ✗${sampleFail.length}`}
+              </span>
+              <Button size="sm" variant="outline" onClick={reshufflePlan}>
+                <RotateCcw className="w-3.5 h-3.5" /> {t("표본 재추첨", "重新抽样")}
+              </Button>
+            </div>
           </div>
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 p-3">
-            {order.items.map((it, idx) => {
-              const h = orderHistory.find(x => x.itemIdx === idx);
-              const status: "pending" | "pass" | "fail" = !h ? "pending" : h.pass ? "pass" : "fail";
-              const isActive = idx === selectedItemIdx;
-              const styles = {
-                pending: "border-border bg-muted/20 text-muted-foreground",
-                pass: "border-[hsl(var(--success)/0.5)] bg-[hsl(var(--success)/0.1)] text-[hsl(var(--success))]",
-                fail: "border-[hsl(var(--warning)/0.5)] bg-[hsl(var(--warning)/0.1)] text-[hsl(var(--warning))]",
-              }[status];
-              return (
-                <button
-                  key={idx}
-                  onClick={() => { setSelectedItemIdx(idx); reset(); }}
-                  className={`relative rounded-lg border p-2 text-left transition-all ${styles} ${isActive ? "ring-2 ring-primary" : ""}`}
-                  title={it.card_serial || it.card_barcode}
-                >
-                  <div className="text-[10px] font-semibold opacity-70">#{idx + 1}</div>
-                  <div className="text-xs font-mono truncate">{it.card_serial || "-"}</div>
-                  <div className="text-[10px] opacity-60">
-                    {status === "pending" ? t("대기", "等待") : status === "pass" ? t("합격", "合格") : t(`불일치 ${h?.failCount}`, `不一致 ${h?.failCount}`)}
+
+          {sampleIdxs.length === 0 ? (
+            <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+              {t("검사할 카드가 없습니다", "无可检验卡片")}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-3">
+              {sampleRounds.map((round, ri) => {
+                const rDone = round.filter(i => orderHistory.some(h => h.itemIdx === i)).length;
+                const rFail = round.filter(i => orderHistory.some(h => h.itemIdx === i && !h.pass)).length;
+                const roundState = rDone < round.length ? "pending" : rFail > 0 ? "fail" : "pass";
+                return (
+                  <div key={ri} className={`rounded-lg border p-3 ${
+                    roundState === "pass" ? "border-[hsl(var(--success)/0.5)] bg-[hsl(var(--success)/0.06)]"
+                    : roundState === "fail" ? "border-destructive/50 bg-destructive/5"
+                    : "border-border bg-muted/10"}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-xs font-semibold">
+                        {t(`${ri + 1}회차`, `第 ${ri + 1} 轮`)}
+                        <span className="ml-1 text-[10px] text-muted-foreground">
+                          #{round[0] + 1}~#{round[round.length - 1] + 1}
+                        </span>
+                      </div>
+                      <span className="text-[10px] tabular-nums text-muted-foreground">{rDone}/{round.length}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {round.map(idx => {
+                        const it = order.items[idx];
+                        const h = orderHistory.find(x => x.itemIdx === idx);
+                        const status: "pending" | "pass" | "fail" = !h ? "pending" : h.pass ? "pass" : "fail";
+                        const isActive = idx === selectedItemIdx;
+                        const styles = {
+                          pending: "border-border bg-muted/20 text-muted-foreground",
+                          pass: "border-[hsl(var(--success)/0.5)] bg-[hsl(var(--success)/0.1)] text-[hsl(var(--success))]",
+                          fail: "border-destructive/50 bg-destructive/10 text-destructive",
+                        }[status];
+                        return (
+                          <button
+                            key={idx}
+                            onClick={() => { setSelectedItemIdx(idx); reset(); }}
+                            className={`rounded-lg border p-2 text-left transition-all ${styles} ${isActive ? "ring-2 ring-primary" : ""}`}
+                            title={it?.card_serial || it?.card_barcode}
+                          >
+                            <div className="text-[10px] font-semibold opacity-70">#{idx + 1}</div>
+                            <div className="text-[10px] font-mono truncate">{it?.card_serial || "-"}</div>
+                            <div className="text-[10px] opacity-70">
+                              {status === "pending" ? t("대기", "等待") : status === "pass" ? t("합격", "合格") : t("불합격", "不合格")}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </button>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
+
+        {/* Final sampling verdict */}
+        {sampleComplete && (
+          <div className={`rounded-lg border p-4 flex items-center gap-3 ${
+            finalPass
+              ? "bg-[hsl(var(--success)/0.1)] border-[hsl(var(--success)/0.4)] text-[hsl(var(--success))]"
+              : "bg-destructive/10 border-destructive/40 text-destructive"}`}>
+            {finalPass ? <CheckCircle2 className="w-6 h-6" /> : <XCircle className="w-6 h-6" />}
+            <div>
+              <div className="font-semibold">
+                {finalPass
+                  ? t("최종 통과 — 표본 3회(연속 3장) 검사 완료", "最终通过 — 3轮抽检(连续3张)已完成")
+                  : t(`최종 불합격 — 표본 중 ${sampleFail.length}장 불일치`, `最终不合格 — 抽检中 ${sampleFail.length} 张不一致`)}
+              </div>
+              <div className="text-sm opacity-90">
+                {finalPass
+                  ? t("카드 순서와 인쇄 데이터가 정상으로 확인되었습니다.", "卡片顺序与印刷数据确认正常。")
+                  : t("불합격 카드를 확인하고 재검사하거나 표본을 재추첨하세요.", "请确认不合格卡片并复检或重新抽样。")}
+              </div>
+            </div>
+          </div>
+        )}
+
 
         {/* Camera */}
         <div className="rounded-lg border bg-card p-4">
@@ -733,14 +861,15 @@ export default function CardPhotoInspection() {
             <span>
               {t("이 주문 검사 기록", "本订单检验记录")}
               <span className="ml-2 text-xs text-muted-foreground">
-                {t(`완료 ${orderHistory.length}/${order.items.length}`, `已完成 ${orderHistory.length}/${order.items.length}`)}
+                {t(`표본 완료 ${sampleDone.length}/${sampleIdxs.length}`, `抽检完成 ${sampleDone.length}/${sampleIdxs.length}`)}
               </span>
             </span>
-            {allDone && (
+            {allDone && !sampleComplete && (
               <Button size="sm" variant="outline" onClick={goToNextCard}>
-                {t("다음 카드", "下一张卡片")}
+                {t("다음 표본 카드", "下一张抽检卡片")}
               </Button>
             )}
+
           </div>
           {orderHistory.length === 0 ? (
             <div className="px-4 py-6 text-center text-sm text-muted-foreground">
