@@ -400,21 +400,32 @@ export default function CardPhotoInspection() {
         label: t("카드 등급", "卡片等级"),
         expected: expected.card_grade ?? "",
         detected: backResult.card_grade ?? "",
-        match: norm(expected.card_grade) === norm(backResult.card_grade) && !!norm(expected.card_grade),
+        match: !!gradeNorm(expected.card_grade) && gradeNorm(expected.card_grade) === gradeNorm(backResult.card_grade),
       });
-      list.push({
-        label: t("트윈코드", "TwinCode"),
-        expected: expected.twincode || expected.design_qr || "",
-        detected: backResult.twincode ?? "",
-        match: norm(expected.twincode || expected.design_qr) === norm(backResult.twincode)
-          && !!norm(expected.twincode || expected.design_qr),
-      });
-      list.push({
-        label: t("DM 바코드", "DM条码"),
-        expected: expected.card_barcode ?? "",
-        detected: backResult.dm_barcode ?? "",
-        match: norm(expected.card_barcode) === norm(backResult.dm_barcode) && !!norm(expected.card_barcode),
-      });
+      {
+        const shape = backResult.twincode_shape_match === true;
+        list.push({
+          label: t("트윈코드 (형태 비교)", "TwinCode (形状比对)"),
+          expected: expected.twincode_url
+            ? t("등록된 트윈코드 형태", "已登记TwinCode形状")
+            : t("등록 이미지 없음", "无已登记图像"),
+          detected: expected.twincode_url
+            ? (shape ? t("형태 일치", "形状一致") : t("형태 불일치", "形状不一致"))
+            : t("비교 불가", "无法比对"),
+          match: !!expected.twincode_url && shape,
+        });
+      }
+      {
+        const expDm = norm(expected.card_barcode);
+        const gotDm = norm(dmDecoded || backResult.dm_barcode);
+        list.push({
+          label: t("DM 바코드 (값 비교)", "DM条码 (值比对)"),
+          expected: expected.card_barcode ?? "",
+          detected: dmDecoded || backResult.dm_barcode || t("디코딩 실패", "解码失败"),
+          match: !!expDm && !!gotDm && expDm === gotDm,
+        });
+      }
+
     }
     return list;
   }, [expected, frontResult, backResult, isKo]);
