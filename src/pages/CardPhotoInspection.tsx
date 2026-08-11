@@ -252,26 +252,38 @@ export default function CardPhotoInspection() {
     try { localStorage.setItem(CAM_KEY, JSON.stringify({ deviceId: id, label: label ?? "" })); } catch { /* ignore */ }
   };
 
+  const [camError, setCamError] = useState<string>("");
+
   const startCamera = useCallback(async (id?: string) => {
     try {
+      setCamError("");
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setCamError(t("이 브라우저/환경에서는 카메라를 사용할 수 없습니다(HTTPS 필요).", "此环境无法使用摄像头(需 HTTPS)。"));
+        return;
+      }
       if (stream) stream.getTracks().forEach(t => t.stop());
       // 트윈코드 형태 비교 정확도를 위해 최대한 높은 해상도를 요청한다.
       const hiRes = { width: { ideal: 3840 }, height: { ideal: 2160 }, frameRate: { ideal: 30 } };
       let saved: { deviceId?: string; label?: string } = {};
       try { saved = JSON.parse(localStorage.getItem(CAM_KEY) || "{}"); } catch { /* ignore */ }
       const wanted = id || deviceId || saved.deviceId || "";
-      let s: MediaStream;
-      try {
-        s = await navigator.mediaDevices.getUserMedia({
-          video: wanted ? { deviceId: { exact: wanted }, ...hiRes } : { facingMode: "environment", ...hiRes },
-          audio: false,
-        });
-      } catch {
-        // 저장된 카메라가 연결 해제된 경우 기본 카메라로 폴백
-        s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", ...hiRes }, audio: false });
+      // 우선순위: 지정 기기(고해상도) → 지정 기기(제약 없음) → 아무 카메라
+      const attempts: MediaStreamConstraints[] = [];
+      if (wanted) {
+        attempts.push({ video: { deviceId: { exact: wanted }, ...hiRes }, audio: false });
+        attempts.push({ video: { deviceId: { exact: wanted } }, audio: false });
       }
+      attempts.push({ video: hiRes, audio: false });
+      attempts.push({ video: true, audio: false });
+
+      let s: MediaStream | null = null;
+      let lastErr: any = null;
+      for (const c of attempts) {
+        try { s = await navigator.mediaDevices.getUserMedia(c); break; } catch (e) { lastErr = e; }
+      }
+      if (!s) throw lastErr || new Error("no camera");
+
       setStream(s);
-      if (videoRef.current) videoRef.current.srcObject = s;
       const list = await navigator.mediaDevices.enumerateDevices();
       const cams = list.filter(d => d.kind === "videoinput");
       setDevices(cams);
@@ -286,11 +298,30 @@ export default function CardPhotoInspection() {
         rememberCamera(finalId, cams.find(c => c.deviceId === finalId)?.label);
       }
     } catch (e: any) {
-      toast.error(t("카메라 접근 실패: " + (e?.message ?? ""), "无法访问摄像头: " + (e?.message ?? "")));
+      const name = e?.name || "";
+      const msg = name === "NotReadableError"
+        ? t("카메라가 다른 프로그램에서 사용 중입니다. 해당 프로그램을 종료 후 다시 시도하세요.", "摄像头被其他程序占用，请关闭后重试。")
+        : name === "NotAllowedError"
+          ? t("브라우저에서 카메라 권한이 차단되었습니다. 주소창의 카메라 아이콘에서 허용하세요.", "浏览器摄像头权限被拒绝，请在地址栏允许。")
+          : t("카메라 접근 실패: " + (e?.message ?? ""), "无法访问摄像头: " + (e?.message ?? ""));
+      setCamError(msg);
+      toast.error(msg);
     }
   }, [stream, deviceId, isKo]);
 
   useEffect(() => () => { stream?.getTracks().forEach(t => t.stop()); }, [stream]);
+
+  /** stream 이 준비되면 video 에 연결하고 재생을 강제한다. */
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (!stream) { v.srcObject = null; return; }
+    if (v.srcObject !== stream) v.srcObject = stream;
+    v.muted = true;
+    v.play().catch(() => {
+      setCamError(t("영상 재생이 차단되었습니다. 화면을 클릭한 뒤 '카메라 시작'을 다시 눌러주세요.", "视频播放被阻止，请点击页面后重新启动摄像头。"));
+    });
+  }, [stream]);
 
   /** 저장된 카메라가 있으면 페이지 진입 시 자동으로 시작한다. */
   useEffect(() => {
@@ -302,6 +333,7 @@ export default function CardPhotoInspection() {
     startCamera(saved);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
 
 
   const captureDataUrl = (): string | null => {
