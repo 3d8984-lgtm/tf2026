@@ -193,6 +193,26 @@ export default function CardPhotoInspection() {
   const [frontResult, setFrontResult] = useState<FrontExtract | null>(null);
   const [backResult, setBackResult] = useState<BackExtract | null>(null);
   const [busySide, setBusySide] = useState<"front" | "back" | null>(null);
+  /** Result of matching the FRONT photo (CP + EDITION) against order data. */
+  const [frontMatch, setFrontMatch] = useState<"idle" | "matched" | "failed">("idle");
+
+  const normKey = (v: any) => String(v ?? "").trim().toLowerCase().replace(/\s+/g, "");
+  const digits = (v: any) => String(v ?? "").replace(/\D/g, "");
+
+  /** Find a card whose CP score AND edition both match the detected front values. */
+  const findByFront = useCallback((cp: string, ed: string) => {
+    const cpD = digits(cp);
+    const edN = normKey(ed);
+    if (!cpD && !edN) return null;
+    const pool = order ? [order] : orders;
+    for (const o of pool) {
+      const idx = o.items.findIndex(it =>
+        (!!cpD && digits(it.cp_score) === cpD) &&
+        (!!edN && normKey(it.edition) === edN));
+      if (idx >= 0) return { o, idx };
+    }
+    return null;
+  }, [orders, order]);
 
   const inspectImage = async (side: "front" | "back", dataUrl: string) => {
     setBusySide(side);
@@ -204,8 +224,22 @@ export default function CardPhotoInspection() {
       if (data?.error) throw new Error(data.error);
       const ex = data?.extracted;
       if (!ex) throw new Error(t("추출 결과 없음", "无提取结果"));
-      if (side === "front") setFrontResult(ex);
-      else {
+      if (side === "front") {
+        setFrontResult(ex);
+        // Match the order/card by CP score + EDITION number.
+        const hit = findByFront(ex.cp_score, ex.edition);
+        if (hit) {
+          setSelectedOrderId(hit.o.id);
+          setSelectedItemIdx(hit.idx);
+          setFrontMatch("matched");
+          toast.success(t(
+            `주문 ${hit.o.externalOrderId} 카드 ${hit.idx + 1} 매칭 (CP ${ex.cp_score} · EDITION ${ex.edition})`,
+            `订单 ${hit.o.externalOrderId} 卡片 ${hit.idx + 1} 已匹配 (CP ${ex.cp_score} · EDITION ${ex.edition})`));
+        } else {
+          setFrontMatch("failed");
+          toast.error(t("CP/EDITION과 일치하는 주문 카드가 없습니다", "未找到与CP/EDITION一致的订单卡片"));
+        }
+      } else {
         setBackResult(ex);
         // Auto-match order by detected DM barcode
         const dm = String(ex.dm_barcode ?? "").trim();
@@ -234,7 +268,7 @@ export default function CardPhotoInspection() {
       toast.error(t("카메라가 준비되지 않았습니다", "摄像头未准备好"));
       return;
     }
-    if (side === "front") { setFrontImg(url); setFrontResult(null); }
+    if (side === "front") { setFrontImg(url); setFrontResult(null); setFrontMatch("idle"); }
     else { setBackImg(url); setBackResult(null); }
     await inspectImage(side, url);
   };
@@ -242,7 +276,9 @@ export default function CardPhotoInspection() {
   const reset = () => {
     setFrontImg(null); setBackImg(null);
     setFrontResult(null); setBackResult(null);
+    setFrontMatch("idle");
   };
+
 
   // ── Comparison (text fields only) ─────────────────────────────────────
   const norm = (v: any) => String(v ?? "").trim().toLowerCase().replace(/\s+/g, "");
@@ -305,6 +341,7 @@ export default function CardPhotoInspection() {
   const allDone = !!frontResult && !!backResult;
 
   // ── Inspection history (persisted in localStorage) ────────────────────
+  type HistoryField = { label: string; expected: string; detected: string; match: boolean };
   type HistoryEntry = {
     key: string;             // orderId + itemIdx
     orderId: string;
@@ -314,6 +351,7 @@ export default function CardPhotoInspection() {
     dmBarcode: string;
     pass: boolean;
     failCount: number;
+    fields?: HistoryField[];
     at: number;              // epoch ms
   };
   const HISTORY_KEY = "card-photo-inspect-history";
@@ -342,10 +380,12 @@ export default function CardPhotoInspection() {
       dmBarcode: expected.card_barcode ?? "",
       pass: failCount === 0,
       failCount,
+      fields: checks.map(c => ({ label: c.label, expected: c.expected, detected: c.detected, match: c.match })),
       at: Date.now(),
     };
     setHistory(prev => [entry, ...prev.filter(h => h.key !== key)]);
-  }, [allDone, order, expected, selectedItemIdx, failCount]);
+  }, [allDone, order, expected, selectedItemIdx, failCount, checks]);
+
 
   const orderHistory = useMemo(
     () => history.filter(h => order && h.orderId === order.id),
@@ -531,18 +571,42 @@ export default function CardPhotoInspection() {
             <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-contain" />
           </div>
           <div className="text-xs text-muted-foreground mt-3 mb-2">
-            {t("① 뒷면을 먼저 촬영하면 DM 바코드로 주문이 자동 매칭됩니다. ② 그 다음 앞면을 촬영하세요.", "① 先拍摄背面，通过DM条码自动匹配订单。② 然后拍摄正面。")}
+            {t("① 앞면을 먼저 촬영하면 CP 점수와 EDITION으로 주문 카드가 자동 매칭됩니다. ② 그 다음 뒷면을 촬영하세요.", "① 先拍摄正面，通过CP分数与EDITION自动匹配订单卡片。② 然后拍摄背面。")}
           </div>
+
+          {/* Front match status (requirement: green when matched, red when not) */}
+          {frontMatch !== "idle" && (
+            <div className={`mb-3 rounded-lg border p-3 flex items-center gap-3 ${
+              frontMatch === "matched"
+                ? "bg-[hsl(var(--success)/0.1)] border-[hsl(var(--success)/0.4)] text-[hsl(var(--success))]"
+                : "bg-destructive/10 border-destructive/40 text-destructive"
+            }`}>
+              {frontMatch === "matched" ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+              <div className="text-sm">
+                <div className="font-semibold">
+                  {frontMatch === "matched"
+                    ? t("주문 매칭 통과 (CP · EDITION)", "订单匹配通过 (CP · EDITION)")
+                    : t("주문 매칭 실패 (CP · EDITION)", "订单匹配失败 (CP · EDITION)")}
+                </div>
+                <div className="opacity-90 font-mono text-xs">
+                  CP {frontResult?.cp_score || "-"} · EDITION {frontResult?.edition || "-"}
+                  {frontMatch === "matched" && order ? ` → ${order.externalOrderId} #${selectedItemIdx + 1}` : ""}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
-            <Button onClick={() => captureSide("back")} disabled={!stream || busySide !== null}>
-              {busySide === "back" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
-              {t("① 뒷면 촬영 & 분석", "① 拍摄并分析背面")}
-            </Button>
-            <Button onClick={() => captureSide("front")} disabled={!stream || busySide !== null} variant="secondary">
+            <Button onClick={() => captureSide("front")} disabled={!stream || busySide !== null}>
               {busySide === "front" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
-              {t("② 앞면 촬영 & 분석", "② 拍摄并分析正面")}
+              {t("① 앞면 촬영 & 분석", "① 拍摄并分析正面")}
+            </Button>
+            <Button onClick={() => captureSide("back")} disabled={!stream || busySide !== null} variant="secondary">
+              {busySide === "back" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+              {t("② 뒷면 촬영 & 분석", "② 拍摄并分析背面")}
             </Button>
           </div>
+
         </div>
 
         {/* Result banner */}
@@ -568,17 +632,23 @@ export default function CardPhotoInspection() {
 
         {/* Visual reference (image + signature) for human judgement */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="rounded-lg border bg-card overflow-hidden">
+          <div className={`rounded-lg border bg-card overflow-hidden ${frontMatch === "matched" ? "border-[hsl(var(--success)/0.5)] ring-1 ring-[hsl(var(--success)/0.3)]" : ""}`}>
             <div className="px-4 py-2 border-b bg-muted/30 text-sm font-semibold flex items-center gap-2">
-              <ImageIcon className="w-4 h-4" /> {t("등록된 이미지 (작업자 비교용)", "已登记图像 (供操作员对比)")}
+              <ImageIcon className="w-4 h-4" /> {t("등록된 GFT 이미지 (작업자 비교용)", "已登记GFT图像 (供操作员对比)")}
+              {frontMatch === "matched" && (
+                <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]">
+                  {t(`매칭 #${selectedItemIdx + 1}`, `匹配 #${selectedItemIdx + 1}`)}
+                </span>
+              )}
             </div>
             <div className="aspect-[3/4] bg-muted/20 flex items-center justify-center">
               {expectedDesignUrl ? (
-                <img src={expectedDesignUrl} alt="registered design" className="w-full h-full object-contain" />
+                <img src={expectedDesignUrl} alt={t("등록된 GFT 이미지", "已登记GFT图像")} className="w-full h-full object-contain" />
               ) : (
                 <div className="text-muted-foreground text-sm">{t("등록 이미지 없음", "无已登记图像")}</div>
               )}
             </div>
+
             {expected?.sign && (
               <div className="px-4 py-3 border-t">
                 <div className="text-xs text-muted-foreground mb-1">{t("등록된 서명", "已登记签名")}</div>
@@ -683,6 +753,7 @@ export default function CardPhotoInspection() {
                   <th className="text-left px-4 py-2 font-medium">#</th>
                   <th className="text-left px-4 py-2 font-medium">{t("카드 순번", "卡片序号")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("DM 바코드", "DM条码")}</th>
+                  <th className="text-left px-4 py-2 font-medium">{t("검사 항목", "检验项目")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("결과", "结果")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("시각", "时间")}</th>
                   <th className="px-4 py-2"></th>
@@ -690,21 +761,43 @@ export default function CardPhotoInspection() {
               </thead>
               <tbody>
                 {orderHistory.map(h => (
-                  <tr key={h.key} className="border-t hover:bg-muted/20">
+                  <tr key={h.key} className="border-t hover:bg-muted/20 align-top">
                     <td className="px-4 py-2 tabular-nums">{h.itemIdx + 1}</td>
                     <td className="px-4 py-2 font-mono text-xs">{h.cardSerial || "-"}</td>
                     <td className="px-4 py-2 font-mono text-xs">{h.dmBarcode || "-"}</td>
+                    <td className="px-4 py-2">
+                      {h.fields?.length ? (
+                        <div className="flex flex-wrap gap-1">
+                          {h.fields.map((f, i) => (
+                            <span
+                              key={i}
+                              title={`${t("기준", "标准")}: ${f.expected || "-"} / ${t("추출", "提取")}: ${f.detected || "-"}`}
+                              className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border ${
+                                f.match
+                                  ? "border-[hsl(var(--success)/0.4)] bg-[hsl(var(--success)/0.12)] text-[hsl(var(--success))]"
+                                  : "border-destructive/40 bg-destructive/10 text-destructive"
+                              }`}
+                            >
+                              {f.match ? "O" : "X"} {f.label}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
+                    </td>
                     <td className="px-4 py-2">
                       {h.pass ? (
                         <span className="inline-flex items-center gap-1 text-[hsl(var(--success))] text-xs font-semibold">
                           <CheckCircle2 className="w-3.5 h-3.5" /> {t("합격", "合格")}
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-[hsl(var(--warning))] text-xs font-semibold">
-                          <AlertTriangle className="w-3.5 h-3.5" /> {t(`불일치 ${h.failCount}`, `不一致 ${h.failCount}`)}
+                        <span className="inline-flex items-center gap-1 text-destructive text-xs font-semibold">
+                          <XCircle className="w-3.5 h-3.5" /> {t(`불일치 ${h.failCount}`, `不一致 ${h.failCount}`)}
                         </span>
                       )}
                     </td>
+
                     <td className="px-4 py-2 text-xs text-muted-foreground">
                       {new Date(h.at).toLocaleString(isKo ? "ko-KR" : "zh-CN")}
                     </td>
