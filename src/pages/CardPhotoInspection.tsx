@@ -328,6 +328,45 @@ export default function CardPhotoInspection() {
     toast.info(t("트윈코드 영역이 초기화되었습니다", "TwinCode 区域已重置"));
   };
 
+  /**
+   * DM 바코드 가이드 영역 (촬영 화면 기준 비율).
+   * DM 코드는 매우 작게 인쇄되므로 이 영역만 잘라 확대·이진화 후 디코딩한다.
+   */
+  const DM_ROI_DEFAULT = { x: 0.6, y: 0.6, w: 0.14, h: 0.2 };
+  const [dmRoi, setDmRoi] = useState<{ x: number; y: number; w: number; h: number }>(() => {
+    try {
+      const s = localStorage.getItem("card-photo-dm-roi-v1");
+      if (s) return JSON.parse(s);
+    } catch { /* ignore */ }
+    return DM_ROI_DEFAULT;
+  });
+  const [savedDmRoi, setSavedDmRoi] = useState<{ x: number; y: number; w: number; h: number } | null>(() => {
+    try {
+      const s = localStorage.getItem("card-photo-dm-roi-v1");
+      if (s) return JSON.parse(s);
+    } catch { /* ignore */ }
+    return null;
+  });
+  const dmRoiDirty = !savedDmRoi || (["x", "y", "w", "h"] as const).some(k => Math.abs(savedDmRoi[k] - dmRoi[k]) > 0.001);
+  const saveDmRoi = () => {
+    const n = {
+      x: Math.max(0, Math.min(1, dmRoi.x)),
+      y: Math.max(0, Math.min(1, dmRoi.y)),
+      w: Math.max(0.02, Math.min(1 - dmRoi.x, dmRoi.w)),
+      h: Math.max(0.02, Math.min(1 - dmRoi.y, dmRoi.h)),
+    };
+    try { localStorage.setItem("card-photo-dm-roi-v1", JSON.stringify(n)); } catch { /* ignore */ }
+    setDmRoi(n);
+    setSavedDmRoi(n);
+    toast.success(t("DM 바코드 영역이 저장되었습니다", "DM条码区域已保存"));
+  };
+  const resetDmRoi = () => {
+    setDmRoi(DM_ROI_DEFAULT);
+    setSavedDmRoi(null);
+    try { localStorage.removeItem("card-photo-dm-roi-v1"); } catch { /* ignore */ }
+    toast.info(t("DM 바코드 영역이 초기화되었습니다", "DM条码区域已重置"));
+  };
+
   /** 실제 카메라 프레임의 종횡비 (object-contain 레터박스 계산용) */
   const [videoAr, setVideoAr] = useState(16 / 9);
   /** 컨테이너(16:9) 안에서 실제 영상이 차지하는 영역 (0~1 비율) */
