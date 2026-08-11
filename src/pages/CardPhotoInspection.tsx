@@ -365,6 +365,23 @@ export default function CardPhotoInspection() {
   // ── Comparison (text fields only) ─────────────────────────────────────
   const norm = (v: any) => String(v ?? "").trim().toLowerCase().replace(/\s+/g, "");
 
+  /** 등급 표기 흔들림(Legendary/레전드/S등급 등)을 표준 등급명으로 정규화 */
+  const gradeNorm = (v: any) => {
+    const s = norm(v).replace(/[^a-z가-힣]/g, "");
+    if (!s) return "";
+    const table: [RegExp, string][] = [
+      [/legend|레전드|전설/, "legend"],
+      [/epic|에픽/, "epic"],
+      [/unique|유니크/, "unique"],
+      [/uncommon|언커먼/, "uncommon"],
+      [/rare|레어|희귀/, "rare"],
+      [/common|커먼|일반/, "common"],
+    ];
+    for (const [re, key] of table) if (re.test(s)) return key;
+    return s;
+  };
+
+
   const checks: FieldCheck[] = useMemo(() => {
     if (!expected) return [];
     const list: FieldCheck[] = [];
