@@ -172,14 +172,51 @@ export default function CardPhotoInspection() {
     return designImages?.list?.[selectedItemIdx] ?? designImages?.list?.[0];
   }, [expected, designImages, selectedItemIdx]);
 
+  // 주문 폴더에 업로드된 트윈코드 이미지(형태 비교 기준)
+  const { data: twincodeImages } = useQuery({
+    queryKey: ["card-photo-twincode", order?.externalOrderId],
+    enabled: !!order?.externalOrderId,
+    queryFn: async () => {
+      const folder = order!.externalOrderId;
+      const map: Record<string, string> = {};
+      const list: string[] = [];
+      const { data: files } = await supabase.storage.from("twincode-images").list(folder);
+      if (files) {
+        for (const f of files) {
+          const url = supabase.storage.from("twincode-images").getPublicUrl(`${folder}/${f.name}`).data.publicUrl;
+          const k = f.name.replace(/\.[^.]+$/, "");
+          map[k] = url;
+          map[k.toLowerCase()] = url;
+          list.push(url);
+        }
+      }
+      return { map, list };
+    },
+  });
+
+  /** 형태 비교에 사용할 등록 트윈코드 이미지 URL */
+  const expectedTwincodeUrl = useMemo(() => {
+    if (!expected) return undefined;
+    if (expected.twincode_url) return expected.twincode_url;
+    const map = twincodeImages?.map ?? {};
+    const keys = [expected.twincode, expected.design_qr, expected.card_serial, expected.dm_expected]
+      .filter(Boolean) as string[];
+    for (const k of keys) {
+      if (map[k]) return map[k];
+      if (map[k.toLowerCase()]) return map[k.toLowerCase()];
+    }
+    return twincodeImages?.list?.[selectedItemIdx] ?? twincodeImages?.list?.[0];
+  }, [expected, twincodeImages, selectedItemIdx]);
+
 
   // ── Auto-match by DM barcode ──────────────────────────────────────────
   const [dmInput, setDmInput] = useState("");
   const handleDmLookup = useCallback((raw: string) => {
     const code = raw.trim();
     if (!code) return;
+    const nz = (v: any) => String(v ?? "").trim().toLowerCase();
     for (const o of orders) {
-      const idx = o.items.findIndex(it => it.card_barcode === code);
+      const idx = o.items.findIndex(it => nz(it.dm_expected) === nz(code) || nz(it.card_barcode) === nz(code));
       if (idx >= 0) {
         setSelectedOrderId(o.id);
         setSelectedItemIdx(idx);
@@ -190,6 +227,7 @@ export default function CardPhotoInspection() {
     }
     toast.error(t("DM 바코드와 일치하는 카드가 없습니다", "未找到匹配DM条码的卡片"));
   }, [orders, isKo]);
+
 
   // ── Camera ─────────────────────────────────────────────────────────────
   const videoRef = useRef<HTMLVideoElement>(null);
