@@ -269,16 +269,40 @@ export default function CardPhotoInspection() {
   }, [orders, order, selectedItemIdx]);
 
 
+  /** DM(Data Matrix) 바코드를 실제로 디코딩해 "값" 기준으로 판정한다. */
+  const decodeDataMatrix = async (dataUrl: string): Promise<string> => {
+    try {
+      const { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat } = await import("@zxing/library");
+      const hints = new Map<any, any>();
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.DATA_MATRIX, BarcodeFormat.QR_CODE]);
+      hints.set(DecodeHintType.TRY_HARDER, true);
+      const reader = new BrowserMultiFormatReader(hints as any);
+      const res = await reader.decodeFromImageUrl(dataUrl);
+      return res?.getText?.()?.trim() ?? "";
+    } catch {
+      return "";
+    }
+  };
+
   const inspectImage = async (side: "front" | "back", dataUrl: string) => {
     setBusySide(side);
     try {
-      const { data, error } = await supabase.functions.invoke("card-photo-inspect", {
-        body: { side, image: dataUrl },
-      });
+      const referenceTwincode = side === "back" ? (expected?.twincode_url || undefined) : undefined;
+      const [{ data, error }, decodedDm] = await Promise.all([
+        supabase.functions.invoke("card-photo-inspect", {
+          body: { side, image: dataUrl, reference_twincode: referenceTwincode },
+        }),
+        side === "back" ? decodeDataMatrix(dataUrl) : Promise.resolve(""),
+      ]);
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       const ex = data?.extracted;
       if (!ex) throw new Error(t("추출 결과 없음", "无提取结果"));
+      if (side === "back") {
+        setDmDecoded(decodedDm);
+        if (decodedDm) ex.dm_barcode = decodedDm;
+      }
+
       if (side === "front") {
         setFrontResult(ex);
         // Match the order/card by CP score + EDITION number.
