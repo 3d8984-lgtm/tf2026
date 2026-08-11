@@ -291,6 +291,8 @@ export default function CardPhotoInspection() {
   const [twinCrop, setTwinCrop] = useState<string>("");
   /** 원본 트윈코드 vs 촬영 트윈코드 형태 유사도 (0~1) */
   const [twinScore, setTwinScore] = useState<number | null>(null);
+  /** 작업자가 수동으로 트윈코드 일치를 확정했는지 여부 */
+  const [twinManual, setTwinManual] = useState(false);
   /**
    * 트윈코드 가이드 영역(촬영 화면 기준 비율).
    * 카드를 매번 같은 위치에 두면 이 영역에서 트윈코드를 자동 추출한다.
@@ -869,14 +871,14 @@ export default function CardPhotoInspection() {
       return;
     }
     if (side === "front") { setFrontImg(url); setFrontResult(null); setFrontMatch("idle"); }
-    else { setBackImg(url); setBackResult(null); setDmDecoded(""); setTwinCrop(""); setTwinScore(null); }
+    else { setBackImg(url); setBackResult(null); setDmDecoded(""); setTwinCrop(""); setTwinScore(null); setTwinManual(false); }
     await inspectImage(side, url);
   };
 
   const reset = () => {
     setFrontImg(null); setBackImg(null);
     setFrontResult(null); setBackResult(null); setDmDecoded("");
-    setTwinCrop(""); setTwinScore(null);
+    setTwinCrop(""); setTwinScore(null); setTwinManual(false);
     setFrontMatch("idle");
   };
 
@@ -949,19 +951,21 @@ export default function CardPhotoInspection() {
         const aiShape = backResult.twincode_shape_match === true;
         const hasLocal = twinScore !== null;
         const localOk = hasLocal && (twinScore as number) >= TWIN_MATCH_MIN;
-        const shape = hasLocal ? localOk : aiShape;
+        const shape = twinManual ? true : (hasLocal ? localOk : aiShape);
         list.push({
           key: "twin",
           label: t("트윈코드 (형태 비교)", "TwinCode (形状比对)"),
           expected: expectedTwincodeUrl
             ? t("등록된 트윈코드 형태", "已登记TwinCode形状")
             : t("등록 이미지 없음", "无已登记图像"),
-          detected: !expectedTwincodeUrl
+          detected: twinManual
+            ? `${t("수동 확정 일치", "人工确认一致")}${hasLocal ? ` (${Math.round((twinScore as number) * 100)}%)` : ""}`
+            : !expectedTwincodeUrl
             ? t("비교 불가", "无法比对")
             : hasLocal
               ? `${shape ? t("형태 일치", "形状一致") : t("형태 불일치", "形状不一致")} (${Math.round((twinScore as number) * 100)}%)`
               : (shape ? t("형태 일치", "形状一致") : t("형태 불일치", "形状不一致")),
-          match: !!expectedTwincodeUrl && shape,
+          match: twinManual || (!!expectedTwincodeUrl && shape),
         });
       }
 
@@ -981,7 +985,7 @@ export default function CardPhotoInspection() {
 
     }
     return list;
-  }, [expected, frontResult, backResult, dmDecoded, expectedTwincodeUrl, isKo]);
+  }, [expected, frontResult, backResult, dmDecoded, expectedTwincodeUrl, twinScore, twinManual, isKo]);
 
   const failCount = checks.filter(c => !c.match).length;
   const allDone = !!frontResult && !!backResult;
@@ -1575,7 +1579,11 @@ export default function CardPhotoInspection() {
           <div className="rounded-lg border bg-card overflow-hidden">
             <div className="px-4 py-2 border-b bg-muted/30 text-sm font-semibold flex items-center justify-between gap-2">
               <span>{t("트윈코드 형태 비교", "TwinCode 形状比对")}</span>
-              {twinScore !== null && (
+              {twinManual ? (
+                <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]">
+                  {t("수동 확정 일치", "人工确认一致")}{twinScore !== null ? ` · ${Math.round(twinScore * 100)}%` : ""}
+                </span>
+              ) : twinScore !== null && (
                 <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
                   twinScore >= TWIN_MATCH_MIN
                     ? "bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]"
@@ -1584,6 +1592,7 @@ export default function CardPhotoInspection() {
                   {twinScore >= TWIN_MATCH_MIN ? t("형태 일치", "形状一致") : t("형태 불일치", "形状不一致")} · {Math.round(twinScore * 100)}%
                 </span>
               )}
+
             </div>
             <div className="grid grid-cols-2 gap-4 p-4">
               <div>
@@ -1604,9 +1613,38 @@ export default function CardPhotoInspection() {
                 </div>
               </div>
             </div>
+            <div className="px-4 pb-3 flex flex-wrap items-center gap-3">
+              <div className="flex items-baseline gap-2">
+                <span className="text-xs text-muted-foreground">{t("형태 유사도 점수", "形状相似度")}</span>
+                <span className={`text-2xl font-bold tabular-nums ${
+                  twinScore === null
+                    ? "text-muted-foreground"
+                    : twinScore >= TWIN_MATCH_MIN
+                      ? "text-[hsl(var(--success))]"
+                      : "text-destructive"
+                }`}>
+                  {twinScore === null ? "--" : `${(twinScore * 100).toFixed(1)}%`}
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  {t(`기준 ${Math.round(TWIN_MATCH_MIN * 100)}% 이상`, `标准 ${Math.round(TWIN_MATCH_MIN * 100)}% 以上`)}
+                </span>
+              </div>
+              <div className="ml-auto flex items-center gap-2">
+                {twinManual ? (
+                  <Button size="sm" variant="outline" onClick={() => { setTwinManual(false); toast.info(t("수동 확정이 해제되었습니다", "已取消人工确认")); }}>
+                    {t("수동 확정 해제", "取消人工确认")}
+                  </Button>
+                ) : (
+                  <Button size="sm" onClick={() => { setTwinManual(true); toast.success(t("트윈코드를 수동으로 일치 확정했습니다", "已人工确认TwinCode一致")); }}>
+                    {t("수동으로 일치 확정", "人工确认一致")}
+                  </Button>
+                )}
+              </div>
+            </div>
             <div className="px-4 pb-3 text-[11px] text-muted-foreground">
               {t("카드는 매번 같은 위치에 놓아야 합니다. 카메라 화면의 빨간 사각형에 트윈코드를 맞춘 뒤 촬영하세요. 사각형 위치는 슬라이더로 조정되며 저장됩니다.", "每次请将卡片放在相同位置。将TwinCode对准红色方框后拍摄。方框位置可用滑块调整并会保存。")}
             </div>
+
           </div>
         )}
 
