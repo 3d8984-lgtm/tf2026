@@ -49,6 +49,9 @@ type BackExtract = {
   twincode_shape_match?: boolean; twincode_shape_note?: string; notes?: string;
 };
 
+/** 트윈코드 형태 일치 판정 임계값 (허용오차 보정 점수 기준) */
+const TWIN_MATCH_MIN = 0.72;
+
 
 interface FieldCheck {
   /** VISUAL_FIELDS의 key와 1:1 매칭되는 식별자 (라벨 문구 변경과 무관하게 안정적) */
