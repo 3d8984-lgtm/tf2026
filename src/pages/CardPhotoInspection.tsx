@@ -560,19 +560,46 @@ export default function CardPhotoInspection() {
 
 
 
+  /** 외부(S3) 자산은 CORS로 직접 fetch가 막히므로 실패 시 백엔드 프록시로 받아온다. */
+  const fetchAssetBlob = async (url: string): Promise<Blob> => {
+    try {
+      const res = await fetch(url, { mode: "cors" });
+      if (!res.ok) throw new Error(`fetch ${res.status}`);
+      return await res.blob();
+    } catch {
+      const { data, error } = await supabase.functions.invoke("download-file", {
+        body: { url, filename: "asset" },
+      });
+      if (error) throw new Error(error.message || "proxy failed");
+      if (data instanceof Blob) return data;
+      if (data instanceof ArrayBuffer) return new Blob([data]);
+      if (typeof data === "string") return new Blob([data], { type: "image/svg+xml" });
+      throw new Error("proxy returned unexpected payload");
+    }
+  };
+
+  const blobToDataUrl = (blob: Blob) => new Promise<string>((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(String(fr.result));
+    fr.onerror = () => rej(new Error("read failed"));
+    fr.readAsDataURL(blob);
+  });
+
   // The AI model cannot read SVG URLs, so rasterize the registered TwinCode to PNG.
   const toRasterDataUrl = async (url: string): Promise<string | undefined> => {
     if (!url) return undefined;
-    if (!/\.svg($|\?)/i.test(url) && !url.startsWith("data:image/svg")) return url;
     try {
-      // SVG는 CORS 오염(tainted canvas)로 getImageData가 실패할 수 있으므로
-      // 원문을 직접 받아 data URL로 인라인한 뒤 래스터화한다.
+      // 원문을 직접(또는 프록시로) 받아 data URL로 인라인해야 캔버스 오염 없이 픽셀을 읽을 수 있다.
       let src = url;
       if (!url.startsWith("data:")) {
-        const res = await fetch(url, { mode: "cors" });
-        if (!res.ok) throw new Error(`fetch ${res.status}`);
-        const text = await res.text();
-        src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(text)}`;
+        const blob = await fetchAssetBlob(url);
+        const isSvg = (blob.type || "").includes("svg") || /\.svg($|\?)/i.test(url);
+        if (isSvg) {
+          const text = await blob.text();
+          src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(text)}`;
+        } else {
+          src = await blobToDataUrl(blob);
+        }
       }
       const img = new Image();
       await new Promise<void>((res, rej) => {
@@ -589,10 +616,12 @@ export default function CardPhotoInspection() {
       ctx.fillRect(0, 0, size, size);
       ctx.drawImage(img, 0, 0, size, size);
       return c.toDataURL("image/png");
-    } catch {
+    } catch (e) {
+      console.warn("[toRasterDataUrl] failed", url, e);
       return undefined;
     }
   };
+
 
 
   const loadImage = (src: string) => new Promise<HTMLImageElement>((res, rej) => {
