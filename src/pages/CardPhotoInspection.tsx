@@ -271,7 +271,7 @@ export default function CardPhotoInspection() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
     ctx.drawImage(v, 0, 0);
-    return canvas.toDataURL("image/jpeg", 0.85);
+    return canvas.toDataURL("image/jpeg", 0.95);
   };
 
   // ── Inspection state ──────────────────────────────────────────────────
