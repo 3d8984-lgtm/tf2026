@@ -297,7 +297,7 @@ function SetInspectDetail({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => { onChange({}); setVerdict(null); clearInputs(); toast.success(tr("검사 기록이 초기화되었습니다", "检验记录已复位")); }}
+          onClick={() => { onChange({}); setVerdict(null); setHalted(false); clearInputs(); toast.success(tr("검사 기록이 초기화되었습니다", "检验记录已复位")); }}
         >
           <RotateCcw className="w-4 h-4" /> {tr("초기화", "重置")}
         </Button>
