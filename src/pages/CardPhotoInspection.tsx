@@ -945,7 +945,7 @@ export default function CardPhotoInspection() {
         // 1순위: 가이드 영역 크롭 vs 등록 SVG의 로컬 형태 유사도, 2순위: AI 판정
         const aiShape = backResult.twincode_shape_match === true;
         const hasLocal = twinScore !== null;
-        const localOk = hasLocal && (twinScore as number) >= 0.62;
+        const localOk = hasLocal && (twinScore as number) >= TWIN_MATCH_MIN;
         const shape = hasLocal ? localOk : aiShape;
         list.push({
           key: "twin",
@@ -1574,11 +1574,11 @@ export default function CardPhotoInspection() {
               <span>{t("트윈코드 형태 비교", "TwinCode 形状比对")}</span>
               {twinScore !== null && (
                 <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                  twinScore >= 0.62
+                  twinScore >= TWIN_MATCH_MIN
                     ? "bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]"
                     : "bg-destructive/10 text-destructive"
                 }`}>
-                  {twinScore >= 0.62 ? t("형태 일치", "形状一致") : t("형태 불일치", "形状不一致")} · {Math.round(twinScore * 100)}%
+                  {twinScore >= TWIN_MATCH_MIN ? t("형태 일치", "形状一致") : t("형태 불일치", "形状不一致")} · {Math.round(twinScore * 100)}%
                 </span>
               )}
             </div>
@@ -1594,7 +1594,7 @@ export default function CardPhotoInspection() {
               <div>
                 <div className="text-xs text-muted-foreground mb-1">{t("촬영 추출 (가이드 영역)", "拍摄提取 (引导区域)")}</div>
                 <div className={`aspect-square rounded border flex items-center justify-center overflow-hidden ${
-                  twinScore === null ? "bg-muted/20" : twinScore >= 0.62 ? "border-[hsl(var(--success)/0.5)]" : "border-destructive/50"}`}>
+                  twinScore === null ? "bg-muted/20" : twinScore >= TWIN_MATCH_MIN ? "border-[hsl(var(--success)/0.5)]" : "border-destructive/50"}`}>
                   {twinCrop
                     ? <img src={twinCrop} alt={t("촬영 트윈코드", "拍摄TwinCode")} className="w-full h-full object-contain" />
                     : <span className="text-xs text-muted-foreground">{t("뒷면 촬영 후 표시됩니다", "拍摄背面后显示")}</span>}
