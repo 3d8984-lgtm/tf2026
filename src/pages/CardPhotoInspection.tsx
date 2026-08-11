@@ -232,6 +232,9 @@ export default function CardPhotoInspection() {
   const [busySide, setBusySide] = useState<"front" | "back" | null>(null);
   /** Result of matching the FRONT photo (CP + EDITION) against order data. */
   const [frontMatch, setFrontMatch] = useState<"idle" | "matched" | "failed">("idle");
+  /** 뒷면 사진에서 실제 디코딩된 DM 바코드 값 */
+  const [dmDecoded, setDmDecoded] = useState<string>("");
+
 
   const normKey = (v: any) => String(v ?? "").trim().toLowerCase().replace(/\s+/g, "");
   const digits = (v: any) => String(v ?? "").replace(/\D/g, "");
