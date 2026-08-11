@@ -392,9 +392,10 @@ export default function CardPhotoInspection() {
     [history, order]
   );
 
-  // ── Random sampling plan: 3 rounds × 3 consecutive cards ──────────────
-  const ROUNDS = 3;
+  // ── Random sampling plan: consecutive 3 cards, rounds by order size ────
+  // ≤5장 → 1회, ≤10장 → 2회, 그 외 → 3회
   const RUN = 3;
+  const roundsFor = (total: number) => (total <= 5 ? 1 : total <= 10 ? 2 : 3);
   const PLAN_KEY = "card-photo-sample-plans";
   const [plans, setPlans] = useState<Record<string, number[]>>(() => {
     try {
@@ -410,14 +411,16 @@ export default function CardPhotoInspection() {
     if (total <= 0) return [];
     if (total < RUN) return [0];
     const maxStart = total - RUN;
+    const want = Math.min(roundsFor(total), Math.floor(total / RUN));
     const starts: number[] = [];
     let guard = 0;
-    while (starts.length < Math.min(ROUNDS, Math.floor(total / RUN)) && guard++ < 500) {
+    while (starts.length < want && guard++ < 500) {
       const s = Math.floor(Math.random() * (maxStart + 1));
       if (starts.every(x => Math.abs(x - s) >= RUN)) starts.push(s);
     }
     return starts.sort((a, b) => a - b);
   }, []);
+
 
   // Ensure a plan exists for the opened order
   useEffect(() => {
