@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { scanSuccess, scanFail } from "@/lib/scan-sound";
 import {
   ChevronLeft, ScanLine, CheckCircle2, XCircle, RotateCcw, Loader2, AlertTriangle, CreditCard, Shirt,
 } from "lucide-react";
@@ -178,8 +179,16 @@ function SetInspectDetail({
   const [cardScan, setCardScan] = useState("");
   const [tshirtScan, setTshirtScan] = useState("");
   const [verdict, setVerdict] = useState<PairResult | null>(null);
+  const [halted, setHalted] = useState(false);
   const cardRef = useRef<HTMLInputElement>(null);
   const tshirtRef = useRef<HTMLInputElement>(null);
+
+  // 다음 검사 대상(미검사 또는 실패한 첫 항목)
+  const activePos = useMemo(() => {
+    const next = items.find((i) => !results[i.position]?.ok);
+    return next?.position ?? null;
+  }, [items, results]);
+  const activeItem = items.find((i) => i.position === activePos) ?? null;
 
   useEffect(() => { cardRef.current?.focus(); }, []);
 
@@ -202,6 +211,8 @@ function SetInspectDetail({
       reason = tr("카드와 티셔츠가 다른 상품입니다", "卡片与T恤为不同商品");
     } else if (!match) {
       reason = tr("이 주문에 없는 상품입니다", "该商品不属于此订单");
+    } else if (activeItem && match.position !== activeItem.position) {
+      reason = tr(`작업 순서가 다릅니다 (현재 ${activeItem.position}번)`, `作业顺序不符（当前第${activeItem.position}项）`);
     } else {
       ok = true;
       reason = tr("동일 상품 확인 — 통과", "同一商品确认 — 通过");
@@ -210,13 +221,65 @@ function SetInspectDetail({
     const result: PairResult = { ok, card: norm(card), tshirt: norm(tshirt), at: new Date().toISOString(), reason };
     setVerdict(result);
 
-    const position = match?.position ?? (Object.keys(results).length + 1) * -1;
+    const position = match?.position ?? activeItem?.position ?? (Object.keys(results).length + 1) * -1;
     onChange({ ...results, [position]: result });
 
-    if (ok) toast.success(reason);
-    else toast.error(reason);
+    if (ok) {
+      scanSuccess();
+      toast.success(`${tr("통과", "通过")} · #${position}`);
+      setHalted(false);
+    } else {
+      scanFail();
+      toast.error(reason);
+      setHalted(true);
+    }
     clearInputs();
   };
+
+  // 스캐너 자동 입력: 카드 포장 QR → 티셔츠 포장 QR 순차 입력 후 자동 검증
+  const bufferRef = useRef("");
+  const lastKeyRef = useRef(0);
+  const stateRef = useRef({ cardScan, halted, activePos, evaluate });
+  stateRef.current = { cardScan, halted, activePos, evaluate };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.isContentEditable || el.tagName === "TEXTAREA" ||
+        (el.tagName === "INPUT" && el !== cardRef.current && el !== tshirtRef.current))) return;
+      const { halted: isHalted, activePos: pos } = stateRef.current;
+      if (isHalted || pos == null) return;
+
+      const now = Date.now();
+      if (now - lastKeyRef.current > 1000) bufferRef.current = "";
+      lastKeyRef.current = now;
+
+      if (e.key === "Enter" || e.code === "Enter" || e.code === "NumpadEnter") {
+        e.preventDefault();
+        const value = bufferRef.current.trim();
+        bufferRef.current = "";
+        if (!value) return;
+        if (!stateRef.current.cardScan.trim()) {
+          setCardScan(value);
+          setTshirtScan("");
+          setTimeout(() => tshirtRef.current?.focus(), 20);
+        } else {
+          setTshirtScan(value);
+          stateRef.current.evaluate(stateRef.current.cardScan, value);
+        }
+        return;
+      }
+      if (e.key === "Backspace") {
+        bufferRef.current = bufferRef.current.slice(0, -1);
+        return;
+      }
+      if (e.key.length === 1) {
+        bufferRef.current += e.key;
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, []);
 
   const values = Object.values(results);
   const pass = values.filter((r) => r.ok).length;
@@ -234,7 +297,7 @@ function SetInspectDetail({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => { onChange({}); setVerdict(null); clearInputs(); toast.success(tr("검사 기록이 초기화되었습니다", "检验记录已复位")); }}
+          onClick={() => { onChange({}); setVerdict(null); setHalted(false); clearInputs(); toast.success(tr("검사 기록이 초기화되었습니다", "检验记录已复位")); }}
         >
           <RotateCcw className="w-4 h-4" /> {tr("초기화", "重置")}
         </Button>
@@ -253,18 +316,39 @@ function SetInspectDetail({
         >
           {verdict == null ? <ScanLine className="w-8 h-8 text-muted-foreground" />
             : verdict.ok ? <CheckCircle2 className="w-8 h-8 text-[hsl(var(--success))]" />
-              : <AlertTriangle className="w-8 h-8 text-destructive" />}
-          <div>
+              : <AlertTriangle className="w-8 h-8 text-destructive animate-pulse" />}
+          <div className="flex-1">
             <p className="text-lg font-semibold">
-              {verdict == null ? tr("스캔 대기", "等待扫描") : verdict.ok ? tr("통과 (O)", "通过 (O)") : tr("실패 (X)", "失败 (X)")}
+              {verdict == null ? tr("스캔 대기", "等待扫描") : verdict.ok ? tr("검증 통과 (O)", "验证通过 (O)") : tr("검증 실패 (X)", "验证失败 (X)")}
             </p>
             <p className="text-sm text-muted-foreground">{verdict?.reason ?? tr("카드 포장 QR → 티셔츠 포장 QR 순으로 스캔하세요", "请按 卡片包装QR → T恤包装QR 顺序扫描")}</p>
           </div>
+          {activeItem ? (
+            <div className="text-right">
+              <p className="text-xs text-muted-foreground">{tr("현재 작업건", "当前作业")}</p>
+              <p className="text-xl font-bold tabular-nums">#{activeItem.position}</p>
+              <p className="text-xs font-mono text-muted-foreground">{activeItem.base}</p>
+            </div>
+          ) : (
+            <Badge className="bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]">{tr("전체 완료", "全部完成")}</Badge>
+          )}
         </div>
+
+        {halted && (
+          <div className="rounded-lg border border-destructive bg-destructive/10 p-4 flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-destructive" />
+            <p className="text-sm flex-1">
+              {tr("검증 실패 — 작업이 중지되었습니다. 확인 후 계속을 누르세요.", "验证失败 — 作业已停止。确认后请点击继续。")}
+            </p>
+            <Button size="sm" variant="destructive" onClick={() => { setHalted(false); setVerdict(null); clearInputs(); }}>
+              {tr("확인 후 계속", "确认后继续")}
+            </Button>
+          </div>
+        )}
 
         {/* 스캔 입력 */}
         <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-lg border bg-card p-4 space-y-2">
+          <div className={`rounded-lg border bg-card p-4 space-y-2 ${!halted && !cardScan.trim() ? "ring-2 ring-primary" : ""}`}>
             <p className="text-sm font-medium flex items-center gap-2"><CreditCard className="w-4 h-4 text-primary" /> {tr("카드 포장 QR", "卡片包装QR")}</p>
             <Input
               ref={cardRef}
@@ -280,7 +364,7 @@ function SetInspectDetail({
               className="font-mono"
             />
           </div>
-          <div className="rounded-lg border bg-card p-4 space-y-2">
+          <div className={`rounded-lg border bg-card p-4 space-y-2 ${!halted && cardScan.trim() ? "ring-2 ring-primary" : ""}`}>
             <p className="text-sm font-medium flex items-center gap-2"><Shirt className="w-4 h-4 text-primary" /> {tr("티셔츠 포장 QR", "T恤包装QR")}</p>
             <Input
               ref={tshirtRef}
@@ -299,7 +383,7 @@ function SetInspectDetail({
         </div>
 
         <div className="flex items-center gap-2">
-          <Button onClick={() => evaluate(cardScan, tshirtScan)} disabled={!cardScan.trim() || !tshirtScan.trim()}>
+          <Button onClick={() => evaluate(cardScan, tshirtScan)} disabled={halted || !cardScan.trim() || !tshirtScan.trim()}>
             <ScanLine className="w-4 h-4" /> {tr("검사", "检验")}
           </Button>
           <Button variant="outline" onClick={clearInputs}>{tr("입력 지우기", "清除输入")}</Button>
@@ -307,6 +391,7 @@ function SetInspectDetail({
             {tr(`통과 ${pass} · 실패 ${fail} / 총 ${items.length}`, `通过 ${pass} · 失败 ${fail} / 共 ${items.length}`)}
           </span>
         </div>
+
 
         {/* 주문 상세 목록 */}
         <div className="rounded-lg border bg-card overflow-hidden">
@@ -328,7 +413,7 @@ function SetInspectDetail({
               {items.map((it) => {
                 const r = results[it.position];
                 return (
-                  <tr key={it.position} className={`border-t ${r ? (r.ok ? "" : "bg-destructive/5") : ""}`}>
+                  <tr key={it.position} className={`border-t ${it.position === activePos ? "bg-primary/10" : r ? (r.ok ? "" : "bg-destructive/5") : ""}`}>
                     <td className="px-4 py-2 tabular-nums text-muted-foreground">{it.position}</td>
                     <td className="px-4 py-2 font-mono text-xs">{it.cardCode}</td>
                     <td className="px-4 py-2 font-mono text-xs">{it.tshirtCode}</td>
