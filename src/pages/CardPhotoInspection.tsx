@@ -1246,7 +1246,7 @@ export default function CardPhotoInspection() {
         </div>
 
         {/* TwinCode 형태 비교 — 원본(SVG) vs 촬영 크롭 */}
-        {(expectedTwincodeUrl || twinCrop) && (
+        {frontMatch === "matched" && (expectedTwincodeUrl || twinCrop) && (
           <div className="rounded-lg border bg-card overflow-hidden">
             <div className="px-4 py-2 border-b bg-muted/30 text-sm font-semibold flex items-center justify-between gap-2">
               <span>{t("트윈코드 형태 비교", "TwinCode 形状比对")}</span>
