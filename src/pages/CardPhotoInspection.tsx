@@ -527,6 +527,7 @@ export default function CardPhotoInspection() {
     const list: FieldCheck[] = [];
     if (frontResult) {
       list.push({
+        key: "cp",
         label: t("CP 점수", "CP分数"),
         expected: String(expected.cp_score ?? ""),
         detected: frontResult.cp_score ?? "",
@@ -534,6 +535,7 @@ export default function CardPhotoInspection() {
           && !!norm(expected.cp_score),
       });
       list.push({
+        key: "edition",
         label: "EDITION",
         expected: String(expected.edition ?? ""),
         detected: frontResult.edition ?? "",
@@ -542,18 +544,21 @@ export default function CardPhotoInspection() {
     }
     if (backResult) {
       list.push({
+        key: "issued",
         label: "ISSUED No.",
         expected: expected.card_serial ?? "",
         detected: backResult.issued_no ?? "",
         match: !!expected.card_serial && norm(backResult.issued_no).includes(norm(expected.card_serial)),
       });
       list.push({
+        key: "minted",
         label: "Minted on",
         expected: String(expected.minted_on ?? ""),
         detected: backResult.minted_on ?? "",
         match: norm(expected.minted_on) === norm(backResult.minted_on) && !!norm(expected.minted_on),
       });
       list.push({
+        key: "grade",
         label: t("카드 등급", "卡片等级"),
         expected: expected.card_grade ?? "",
         detected: backResult.card_grade ?? "",
@@ -562,6 +567,7 @@ export default function CardPhotoInspection() {
       {
         const shape = backResult.twincode_shape_match === true;
         list.push({
+          key: "twin",
           label: t("트윈코드 (형태 비교)", "TwinCode (形状比对)"),
           expected: expectedTwincodeUrl
             ? t("등록된 트윈코드 형태", "已登记TwinCode形状")
@@ -577,6 +583,7 @@ export default function CardPhotoInspection() {
         const expDm = norm(expected.dm_expected);
         const gotDm = norm(dmDecoded || backResult.dm_barcode);
         list.push({
+          key: "dm",
           label: t("DM 바코드 (값 비교)", "DM条码 (值比对)"),
           expected: expected.dm_expected ?? "",
           detected: dmDecoded || backResult.dm_barcode || t("디코딩 실패", "解码失败"),
