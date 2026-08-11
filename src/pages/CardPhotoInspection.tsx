@@ -336,24 +336,26 @@ export default function CardPhotoInspection() {
   };
 
   /**
-   * DM 바코드 가이드 영역 (촬영 화면 기준 비율).
-   * DM 코드는 매우 작게 인쇄되므로 이 영역만 잘라 확대·이진화 후 디코딩한다.
+   * DM 바코드 가이드 영역 (실제 영상 영역 기준 비율).
+   * v1 키는 레터박스를 고려하지 않은 "컨테이너 기준" 좌표였기 때문에,
+   * 영상 영역(videoBox) 기준으로 바뀐 뒤에는 위치/크기가 어긋나 보였다.
+   * → v2 키로 분리하고 옛 v1 값은 폐기한다.
    */
+  const DM_ROI_KEY = "card-photo-dm-roi-v2";
   const DM_ROI_DEFAULT = { x: 0.6, y: 0.6, w: 0.14, h: 0.2 };
-  const [dmRoi, setDmRoi] = useState<{ x: number; y: number; w: number; h: number }>(() => {
+  const readDmRoi = () => {
     try {
-      const s = localStorage.getItem("card-photo-dm-roi-v1");
-      if (s) return JSON.parse(s);
-    } catch { /* ignore */ }
-    return DM_ROI_DEFAULT;
-  });
-  const [savedDmRoi, setSavedDmRoi] = useState<{ x: number; y: number; w: number; h: number } | null>(() => {
-    try {
-      const s = localStorage.getItem("card-photo-dm-roi-v1");
-      if (s) return JSON.parse(s);
+      localStorage.removeItem("card-photo-dm-roi-v1");
+      const s = localStorage.getItem(DM_ROI_KEY);
+      if (s) {
+        const p = JSON.parse(s);
+        if (["x", "y", "w", "h"].every(k => typeof p?.[k] === "number")) return p as typeof DM_ROI_DEFAULT;
+      }
     } catch { /* ignore */ }
     return null;
-  });
+  };
+  const [dmRoi, setDmRoi] = useState<{ x: number; y: number; w: number; h: number }>(() => readDmRoi() ?? DM_ROI_DEFAULT);
+  const [savedDmRoi, setSavedDmRoi] = useState<{ x: number; y: number; w: number; h: number } | null>(() => readDmRoi());
   const dmRoiDirty = !savedDmRoi || (["x", "y", "w", "h"] as const).some(k => Math.abs(savedDmRoi[k] - dmRoi[k]) > 0.001);
   const saveDmRoi = () => {
     const n = {
@@ -362,7 +364,7 @@ export default function CardPhotoInspection() {
       w: Math.max(0.02, Math.min(1 - dmRoi.x, dmRoi.w)),
       h: Math.max(0.02, Math.min(1 - dmRoi.y, dmRoi.h)),
     };
-    try { localStorage.setItem("card-photo-dm-roi-v1", JSON.stringify(n)); } catch { /* ignore */ }
+    try { localStorage.setItem(DM_ROI_KEY, JSON.stringify(n)); } catch { /* ignore */ }
     setDmRoi(n);
     setSavedDmRoi(n);
     toast.success(t("DM 바코드 영역이 저장되었습니다", "DM条码区域已保存"));
@@ -370,9 +372,10 @@ export default function CardPhotoInspection() {
   const resetDmRoi = () => {
     setDmRoi(DM_ROI_DEFAULT);
     setSavedDmRoi(null);
-    try { localStorage.removeItem("card-photo-dm-roi-v1"); } catch { /* ignore */ }
+    try { localStorage.removeItem(DM_ROI_KEY); } catch { /* ignore */ }
     toast.info(t("DM 바코드 영역이 초기화되었습니다", "DM条码区域已重置"));
   };
+
 
   /** 실제 카메라 프레임의 종횡비 (object-contain 레터박스 계산용) */
   const [videoAr, setVideoAr] = useState(16 / 9);
