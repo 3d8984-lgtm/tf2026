@@ -892,14 +892,7 @@ export default function CardPhotoInspection() {
       return;
     }
     if (side === "front") { setFrontImg(url); setFrontResult(null); setFrontMatch("idle"); }
-    else { setBackImg(url); setBackResult(null); setDmDecoded(""); setTwinCrop(""); setTwinScore(null); setTwinManual(false); }
-    await inspectImage(side, url);
-  };
-
-  const reset = () => {
-    setFrontImg(null); setBackImg(null);
-    setFrontResult(null); setBackResult(null); setDmDecoded("");
-    setTwinCrop(""); setTwinScore(null); setTwinManual(false);
+    else { setBackImg(url); setBackResult(null); setDmDecoded(""); setTwinCrop(""); setTwinScore(null); setTwinScoreNote(""); setTwinManual(false); }
     setFrontMatch("idle");
   };
 
