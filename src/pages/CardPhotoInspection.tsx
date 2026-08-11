@@ -328,6 +328,45 @@ export default function CardPhotoInspection() {
     toast.info(t("트윈코드 영역이 초기화되었습니다", "TwinCode 区域已重置"));
   };
 
+  /**
+   * DM 바코드 가이드 영역 (촬영 화면 기준 비율).
+   * DM 코드는 매우 작게 인쇄되므로 이 영역만 잘라 확대·이진화 후 디코딩한다.
+   */
+  const DM_ROI_DEFAULT = { x: 0.6, y: 0.6, w: 0.14, h: 0.2 };
+  const [dmRoi, setDmRoi] = useState<{ x: number; y: number; w: number; h: number }>(() => {
+    try {
+      const s = localStorage.getItem("card-photo-dm-roi-v1");
+      if (s) return JSON.parse(s);
+    } catch { /* ignore */ }
+    return DM_ROI_DEFAULT;
+  });
+  const [savedDmRoi, setSavedDmRoi] = useState<{ x: number; y: number; w: number; h: number } | null>(() => {
+    try {
+      const s = localStorage.getItem("card-photo-dm-roi-v1");
+      if (s) return JSON.parse(s);
+    } catch { /* ignore */ }
+    return null;
+  });
+  const dmRoiDirty = !savedDmRoi || (["x", "y", "w", "h"] as const).some(k => Math.abs(savedDmRoi[k] - dmRoi[k]) > 0.001);
+  const saveDmRoi = () => {
+    const n = {
+      x: Math.max(0, Math.min(1, dmRoi.x)),
+      y: Math.max(0, Math.min(1, dmRoi.y)),
+      w: Math.max(0.02, Math.min(1 - dmRoi.x, dmRoi.w)),
+      h: Math.max(0.02, Math.min(1 - dmRoi.y, dmRoi.h)),
+    };
+    try { localStorage.setItem("card-photo-dm-roi-v1", JSON.stringify(n)); } catch { /* ignore */ }
+    setDmRoi(n);
+    setSavedDmRoi(n);
+    toast.success(t("DM 바코드 영역이 저장되었습니다", "DM条码区域已保存"));
+  };
+  const resetDmRoi = () => {
+    setDmRoi(DM_ROI_DEFAULT);
+    setSavedDmRoi(null);
+    try { localStorage.removeItem("card-photo-dm-roi-v1"); } catch { /* ignore */ }
+    toast.info(t("DM 바코드 영역이 초기화되었습니다", "DM条码区域已重置"));
+  };
+
   /** 실제 카메라 프레임의 종횡비 (object-contain 레터박스 계산용) */
   const [videoAr, setVideoAr] = useState(16 / 9);
   /** 컨테이너(16:9) 안에서 실제 영상이 차지하는 영역 (0~1 비율) */
@@ -391,8 +430,15 @@ export default function CardPhotoInspection() {
 
 
 
-  /** DM(Data Matrix) 바코드를 실제로 디코딩해 "값" 기준으로 판정한다. */
-  const decodeDataMatrix = async (dataUrl: string): Promise<string> => {
+  /**
+   * DM(Data Matrix) 바코드를 실제로 디코딩해 "값" 기준으로 판정한다.
+   * 1) 지정한 DM 가이드 영역을 확대·대비강화·이진화하여 우선 시도
+   * 2) 실패 시 원본 전체 → 타일 분할 확대 순으로 재시도
+   */
+  const decodeDataMatrix = async (
+    dataUrl: string,
+    roi?: { x: number; y: number; w: number; h: number } | null,
+  ): Promise<string> => {
     try {
       const { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat } = await import("@zxing/library");
       const hints = new Map<any, any>();
@@ -407,11 +453,6 @@ export default function CardPhotoInspection() {
         } catch { return ""; }
       };
 
-      // 1) 원본 그대로
-      const direct = await tryUrl(dataUrl);
-      if (direct) return direct;
-
-      // 2) 카드에서 DM 코드는 작게 인쇄되므로 영역을 나눠 확대 후 재시도
       const img = new Image();
       img.crossOrigin = "anonymous";
       await new Promise<void>((res, rej) => {
@@ -419,38 +460,97 @@ export default function CardPhotoInspection() {
         img.onerror = () => rej(new Error("load failed"));
         img.src = dataUrl;
       });
-      const tiles: [number, number, number, number][] = [];
-      const cols = 3, rows = 3;
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          // 25% 겹치도록 타일 구성
-          const w = img.width / cols, h = img.height / rows;
-          tiles.push([
-            Math.max(0, c * w - w * 0.25),
-            Math.max(0, r * h - h * 0.25),
-            Math.min(img.width, w * 1.5),
-            Math.min(img.height, h * 1.5),
-          ]);
-        }
-      }
+
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
       if (!ctx) return "";
-      for (const [sx, sy, sw, sh] of tiles) {
-        const scale = Math.min(3, 900 / Math.max(sw, sh));
-        canvas.width = Math.round(sw * scale);
-        canvas.height = Math.round(sh * scale);
+
+      /** 영역을 큰 배율로 그린 뒤 여러 전처리 변형(원본/이진화/반전/회전)으로 시도 */
+      const tryRegion = async (sx: number, sy: number, sw: number, sh: number, target = 1400) => {
+        if (sw < 8 || sh < 8) return "";
+        const scale = Math.min(8, target / Math.max(sw, sh));
+        const dw = Math.max(1, Math.round(sw * scale));
+        const dh = Math.max(1, Math.round(sh * scale));
+        // 여백(quiet zone) 확보를 위해 흰 테두리를 둔다
+        const pad = Math.round(Math.max(dw, dh) * 0.08);
+        canvas.width = dw + pad * 2;
+        canvas.height = dh + pad * 2;
         ctx.imageSmoothingEnabled = true;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-        const hit = await tryUrl(canvas.toDataURL("image/png"));
-        if (hit) return hit;
+        ctx.imageSmoothingQuality = "high";
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, sx, sy, sw, sh, pad, pad, dw, dh);
+
+        const base = canvas.toDataURL("image/png");
+        const hit0 = await tryUrl(base);
+        if (hit0) return hit0;
+
+        // Otsu 이진화 + 반전본
+        const id = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const px = id.data;
+        const hist = new Array(256).fill(0);
+        const gray = new Uint8Array(px.length / 4);
+        for (let i = 0, j = 0; i < px.length; i += 4, j++) {
+          const g = (px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114) | 0;
+          gray[j] = g; hist[g]++;
+        }
+        const total = gray.length;
+        let sum = 0; for (let i = 0; i < 256; i++) sum += i * hist[i];
+        let sumB = 0, wB = 0, best = 0, thr = 128;
+        for (let i = 0; i < 256; i++) {
+          wB += hist[i]; if (!wB) continue;
+          const wF = total - wB; if (!wF) break;
+          sumB += i * hist[i];
+          const mB = sumB / wB, mF = (sum - sumB) / wF;
+          const between = wB * wF * (mB - mF) * (mB - mF);
+          if (between > best) { best = between; thr = i; }
+        }
+        for (const invert of [false, true]) {
+          for (let i = 0, j = 0; i < px.length; i += 4, j++) {
+            let v = gray[j] > thr ? 255 : 0;
+            if (invert) v = 255 - v;
+            px[i] = px[i + 1] = px[i + 2] = v; px[i + 3] = 255;
+          }
+          ctx.putImageData(id, 0, 0);
+          const hit = await tryUrl(canvas.toDataURL("image/png"));
+          if (hit) return hit;
+        }
+        return "";
+      };
+
+      // 1) 지정된 DM 가이드 영역 (여유 마진 포함)
+      if (roi) {
+        for (const m of [0.15, 0.4]) {
+          const sx = Math.max(0, (roi.x - roi.w * m) * img.width);
+          const sy = Math.max(0, (roi.y - roi.h * m) * img.height);
+          const sw = Math.min(img.width - sx, roi.w * (1 + m * 2) * img.width);
+          const sh = Math.min(img.height - sy, roi.h * (1 + m * 2) * img.height);
+          const hit = await tryRegion(sx, sy, sw, sh);
+          if (hit) return hit;
+        }
+      }
+
+      // 2) 원본 전체
+      const direct = await tryUrl(dataUrl);
+      if (direct) return direct;
+
+      // 3) 타일 분할 확대 (25% 겹침)
+      const cols = 3, rows = 3;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const w = img.width / cols, h = img.height / rows;
+          const sx = Math.max(0, c * w - w * 0.25);
+          const sy = Math.max(0, r * h - h * 0.25);
+          const hit = await tryRegion(sx, sy, Math.min(img.width - sx, w * 1.5), Math.min(img.height - sy, h * 1.5), 1200);
+          if (hit) return hit;
+        }
       }
       return "";
     } catch {
       return "";
     }
   };
+
 
 
   // The AI model cannot read SVG URLs, so rasterize the registered TwinCode to PNG.
@@ -655,7 +755,7 @@ export default function CardPhotoInspection() {
         supabase.functions.invoke("card-photo-inspect", {
           body: { side, image: dataUrl, reference_twincode: referenceTwincode },
         }),
-        side === "back" ? decodeDataMatrix(dataUrl) : Promise.resolve(""),
+        side === "back" ? decodeDataMatrix(dataUrl, savedDmRoi ?? dmRoi) : Promise.resolve(""),
       ]);
 
       if (error) throw error;
@@ -1228,6 +1328,21 @@ export default function CardPhotoInspection() {
                   {t("트윈코드 영역", "TwinCode 区域")}
                 </span>
               </div>
+              {/* DM 바코드 가이드 영역 */}
+              <div
+                className="absolute border-2 border-primary pointer-events-none"
+                style={{
+                  left: `${(videoBox.left + dmRoi.x * videoBox.width) * 100}%`,
+                  top: `${(videoBox.top + dmRoi.y * videoBox.height) * 100}%`,
+                  width: `${dmRoi.w * videoBox.width * 100}%`,
+                  height: `${dmRoi.h * videoBox.height * 100}%`,
+                }}
+              >
+                <span className="absolute -top-5 left-0 text-[10px] font-semibold text-primary bg-background/80 px-1 rounded">
+                  {t("DM 바코드 영역", "DM条码区域")}
+                </span>
+              </div>
+
             </div>
 
             {/* 촬영 버튼 — 카메라 화면 오른쪽 */}
@@ -1274,6 +1389,38 @@ export default function CardPhotoInspection() {
                 : t("저장됨 · 다음 촬영에도 같은 위치가 적용됩니다", "已保存 · 下次拍摄沿用相同位置")}
             </span>
           </div>
+
+          {/* DM 바코드 영역 조정 */}
+          <div className="mt-3 grid grid-cols-4 gap-2">
+            {([
+              ["x", t("좌", "左")], ["y", t("상", "上")], ["w", t("폭", "宽")], ["h", t("높이", "高")],
+            ] as const).map(([k, label]) => (
+              <label key={`dm-${k}`} className="text-[10px] text-muted-foreground">
+                DM {label}
+                <input
+                  type="range" min={2} max={98} step={1}
+                  value={Math.round((dmRoi as any)[k] * 100)}
+                  onChange={e => setDmRoi(r => ({ ...r, [k]: Number(e.target.value) / 100 }))}
+                  className="w-full accent-[hsl(var(--primary))]"
+                />
+              </label>
+            ))}
+          </div>
+
+          <div className="mt-2 flex items-center gap-2">
+            <Button size="sm" variant={dmRoiDirty ? "default" : "outline"} onClick={saveDmRoi}>
+              {t("DM 바코드 영역 저장", "保存 DM条码区域")}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={resetDmRoi}>
+              {t("초기화", "重置")}
+            </Button>
+            <span className="text-[10px] text-muted-foreground">
+              {dmRoiDirty
+                ? t("변경사항이 저장되지 않았습니다", "更改尚未保存")
+                : t("저장됨 · 이 영역만 확대·이진화하여 DM 값을 디코딩합니다", "已保存 · 仅放大二值化该区域解码DM值")}
+            </span>
+          </div>
+
 
           <div className="text-xs text-muted-foreground mt-3 mb-2">
             {t("① 앞면을 먼저 촬영하면 CP 점수와 EDITION으로 주문 카드가 자동 매칭됩니다. ② 그 다음 카드의 트윈코드가 빨간 사각형 안에 오도록 놓고 뒷면을 촬영하세요.", "① 先拍摄正面，通过CP分数与EDITION自动匹配订单卡片。② 然后将TwinCode对准红色方框拍摄背面。")}
