@@ -441,10 +441,13 @@ export default function CardPhotoInspection() {
       } else {
         setBackResult(ex);
         // Auto-match order by detected DM barcode
-        const dm = String(ex.dm_barcode ?? "").trim();
+        const dm = String(ex.dm_barcode ?? "").trim().toLowerCase();
         if (dm && !selectedOrderId) {
           for (const o of orders) {
-            const idx = o.items.findIndex(it => it.card_barcode === dm);
+            const idx = o.items.findIndex(it =>
+              String(it.dm_expected ?? "").trim().toLowerCase() === dm ||
+              String(it.card_barcode ?? "").trim().toLowerCase() === dm);
+
             if (idx >= 0) {
               setSelectedOrderId(o.id);
               setSelectedItemIdx(idx);
