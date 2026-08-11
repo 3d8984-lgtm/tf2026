@@ -571,18 +571,42 @@ export default function CardPhotoInspection() {
             <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-contain" />
           </div>
           <div className="text-xs text-muted-foreground mt-3 mb-2">
-            {t("① 뒷면을 먼저 촬영하면 DM 바코드로 주문이 자동 매칭됩니다. ② 그 다음 앞면을 촬영하세요.", "① 先拍摄背面，通过DM条码自动匹配订单。② 然后拍摄正面。")}
+            {t("① 앞면을 먼저 촬영하면 CP 점수와 EDITION으로 주문 카드가 자동 매칭됩니다. ② 그 다음 뒷면을 촬영하세요.", "① 先拍摄正面，通过CP分数与EDITION自动匹配订单卡片。② 然后拍摄背面。")}
           </div>
+
+          {/* Front match status (requirement: green when matched, red when not) */}
+          {frontMatch !== "idle" && (
+            <div className={`mb-3 rounded-lg border p-3 flex items-center gap-3 ${
+              frontMatch === "matched"
+                ? "bg-[hsl(var(--success)/0.1)] border-[hsl(var(--success)/0.4)] text-[hsl(var(--success))]"
+                : "bg-destructive/10 border-destructive/40 text-destructive"
+            }`}>
+              {frontMatch === "matched" ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+              <div className="text-sm">
+                <div className="font-semibold">
+                  {frontMatch === "matched"
+                    ? t("주문 매칭 통과 (CP · EDITION)", "订单匹配通过 (CP · EDITION)")
+                    : t("주문 매칭 실패 (CP · EDITION)", "订单匹配失败 (CP · EDITION)")}
+                </div>
+                <div className="opacity-90 font-mono text-xs">
+                  CP {frontResult?.cp_score || "-"} · EDITION {frontResult?.edition || "-"}
+                  {frontMatch === "matched" && order ? ` → ${order.externalOrderId} #${selectedItemIdx + 1}` : ""}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
-            <Button onClick={() => captureSide("back")} disabled={!stream || busySide !== null}>
-              {busySide === "back" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
-              {t("① 뒷면 촬영 & 분석", "① 拍摄并分析背面")}
-            </Button>
-            <Button onClick={() => captureSide("front")} disabled={!stream || busySide !== null} variant="secondary">
+            <Button onClick={() => captureSide("front")} disabled={!stream || busySide !== null}>
               {busySide === "front" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
-              {t("② 앞면 촬영 & 분석", "② 拍摄并分析正面")}
+              {t("① 앞면 촬영 & 분석", "① 拍摄并分析正面")}
+            </Button>
+            <Button onClick={() => captureSide("back")} disabled={!stream || busySide !== null} variant="secondary">
+              {busySide === "back" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+              {t("② 뒷면 촬영 & 분석", "② 拍摄并分析背面")}
             </Button>
           </div>
+
         </div>
 
         {/* Result banner */}
