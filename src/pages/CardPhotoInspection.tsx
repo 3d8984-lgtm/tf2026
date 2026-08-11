@@ -1390,6 +1390,38 @@ export default function CardPhotoInspection() {
             </span>
           </div>
 
+          {/* DM 바코드 영역 조정 */}
+          <div className="mt-3 grid grid-cols-4 gap-2">
+            {([
+              ["x", t("좌", "左")], ["y", t("상", "上")], ["w", t("폭", "宽")], ["h", t("높이", "高")],
+            ] as const).map(([k, label]) => (
+              <label key={`dm-${k}`} className="text-[10px] text-muted-foreground">
+                DM {label}
+                <input
+                  type="range" min={2} max={98} step={1}
+                  value={Math.round((dmRoi as any)[k] * 100)}
+                  onChange={e => setDmRoi(r => ({ ...r, [k]: Number(e.target.value) / 100 }))}
+                  className="w-full accent-[hsl(var(--primary))]"
+                />
+              </label>
+            ))}
+          </div>
+
+          <div className="mt-2 flex items-center gap-2">
+            <Button size="sm" variant={dmRoiDirty ? "default" : "outline"} onClick={saveDmRoi}>
+              {t("DM 바코드 영역 저장", "保存 DM条码区域")}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={resetDmRoi}>
+              {t("초기화", "重置")}
+            </Button>
+            <span className="text-[10px] text-muted-foreground">
+              {dmRoiDirty
+                ? t("변경사항이 저장되지 않았습니다", "更改尚未保存")
+                : t("저장됨 · 이 영역만 확대·이진화하여 DM 값을 디코딩합니다", "已保存 · 仅放大二值化该区域解码DM值")}
+            </span>
+          </div>
+
+
           <div className="text-xs text-muted-foreground mt-3 mb-2">
             {t("① 앞면을 먼저 촬영하면 CP 점수와 EDITION으로 주문 카드가 자동 매칭됩니다. ② 그 다음 카드의 트윈코드가 빨간 사각형 안에 오도록 놓고 뒷면을 촬영하세요.", "① 先拍摄正面，通过CP分数与EDITION自动匹配订单卡片。② 然后将TwinCode对准红色方框拍摄背面。")}
           </div>
