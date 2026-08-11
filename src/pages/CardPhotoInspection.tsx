@@ -458,7 +458,7 @@ export default function CardPhotoInspection() {
         img.onerror = () => rej(new Error("load failed"));
         img.src = url;
       });
-      const size = 512;
+      const size = 1024;
       const c = document.createElement("canvas");
       c.width = size; c.height = size;
       const ctx = c.getContext("2d");
