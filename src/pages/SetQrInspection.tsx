@@ -316,18 +316,39 @@ function SetInspectDetail({
         >
           {verdict == null ? <ScanLine className="w-8 h-8 text-muted-foreground" />
             : verdict.ok ? <CheckCircle2 className="w-8 h-8 text-[hsl(var(--success))]" />
-              : <AlertTriangle className="w-8 h-8 text-destructive" />}
-          <div>
+              : <AlertTriangle className="w-8 h-8 text-destructive animate-pulse" />}
+          <div className="flex-1">
             <p className="text-lg font-semibold">
-              {verdict == null ? tr("스캔 대기", "等待扫描") : verdict.ok ? tr("통과 (O)", "通过 (O)") : tr("실패 (X)", "失败 (X)")}
+              {verdict == null ? tr("스캔 대기", "等待扫描") : verdict.ok ? tr("검증 통과 (O)", "验证通过 (O)") : tr("검증 실패 (X)", "验证失败 (X)")}
             </p>
             <p className="text-sm text-muted-foreground">{verdict?.reason ?? tr("카드 포장 QR → 티셔츠 포장 QR 순으로 스캔하세요", "请按 卡片包装QR → T恤包装QR 顺序扫描")}</p>
           </div>
+          {activeItem ? (
+            <div className="text-right">
+              <p className="text-xs text-muted-foreground">{tr("현재 작업건", "当前作业")}</p>
+              <p className="text-xl font-bold tabular-nums">#{activeItem.position}</p>
+              <p className="text-xs font-mono text-muted-foreground">{activeItem.base}</p>
+            </div>
+          ) : (
+            <Badge className="bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]">{tr("전체 완료", "全部完成")}</Badge>
+          )}
         </div>
+
+        {halted && (
+          <div className="rounded-lg border border-destructive bg-destructive/10 p-4 flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-destructive" />
+            <p className="text-sm flex-1">
+              {tr("검증 실패 — 작업이 중지되었습니다. 확인 후 계속을 누르세요.", "验证失败 — 作业已停止。确认后请点击继续。")}
+            </p>
+            <Button size="sm" variant="destructive" onClick={() => { setHalted(false); setVerdict(null); clearInputs(); }}>
+              {tr("확인 후 계속", "确认后继续")}
+            </Button>
+          </div>
+        )}
 
         {/* 스캔 입력 */}
         <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-lg border bg-card p-4 space-y-2">
+          <div className={`rounded-lg border bg-card p-4 space-y-2 ${!halted && !cardScan.trim() ? "ring-2 ring-primary" : ""}`}>
             <p className="text-sm font-medium flex items-center gap-2"><CreditCard className="w-4 h-4 text-primary" /> {tr("카드 포장 QR", "卡片包装QR")}</p>
             <Input
               ref={cardRef}
@@ -343,7 +364,7 @@ function SetInspectDetail({
               className="font-mono"
             />
           </div>
-          <div className="rounded-lg border bg-card p-4 space-y-2">
+          <div className={`rounded-lg border bg-card p-4 space-y-2 ${!halted && cardScan.trim() ? "ring-2 ring-primary" : ""}`}>
             <p className="text-sm font-medium flex items-center gap-2"><Shirt className="w-4 h-4 text-primary" /> {tr("티셔츠 포장 QR", "T恤包装QR")}</p>
             <Input
               ref={tshirtRef}
@@ -362,7 +383,7 @@ function SetInspectDetail({
         </div>
 
         <div className="flex items-center gap-2">
-          <Button onClick={() => evaluate(cardScan, tshirtScan)} disabled={!cardScan.trim() || !tshirtScan.trim()}>
+          <Button onClick={() => evaluate(cardScan, tshirtScan)} disabled={halted || !cardScan.trim() || !tshirtScan.trim()}>
             <ScanLine className="w-4 h-4" /> {tr("검사", "检验")}
           </Button>
           <Button variant="outline" onClick={clearInputs}>{tr("입력 지우기", "清除输入")}</Button>
@@ -370,6 +391,7 @@ function SetInspectDetail({
             {tr(`통과 ${pass} · 실패 ${fail} / 총 ${items.length}`, `通过 ${pass} · 失败 ${fail} / 共 ${items.length}`)}
           </span>
         </div>
+
 
         {/* 주문 상세 목록 */}
         <div className="rounded-lg border bg-card overflow-hidden">
