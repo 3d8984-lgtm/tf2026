@@ -660,7 +660,7 @@ export default function CardPhotoInspection() {
             <div>
               <div className="font-semibold">
                 {finalPass
-                  ? t("최종 통과 — 표본 3회(연속 3장) 검사 완료", "最终通过 — 3轮抽检(连续3张)已完成")
+                  ? t(`최종 통과 — 표본 ${sampleRounds.length}회(연속 3장) 검사 완료`, `最终通过 — ${sampleRounds.length} 轮抽检(连续3张)已完成`)
                   : t(`최종 불합격 — 표본 중 ${sampleFail.length}장 불일치`, `最终不合格 — 抽检中 ${sampleFail.length} 张不一致`)}
               </div>
               <div className="text-sm opacity-90">
