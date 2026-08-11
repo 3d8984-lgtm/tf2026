@@ -1245,6 +1245,48 @@ export default function CardPhotoInspection() {
           </div>
         </div>
 
+        {/* TwinCode 형태 비교 — 원본(SVG) vs 촬영 크롭 */}
+        {(expectedTwincodeUrl || twinCrop) && (
+          <div className="rounded-lg border bg-card overflow-hidden">
+            <div className="px-4 py-2 border-b bg-muted/30 text-sm font-semibold flex items-center justify-between gap-2">
+              <span>{t("트윈코드 형태 비교", "TwinCode 形状比对")}</span>
+              {twinScore !== null && (
+                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                  twinScore >= 0.62
+                    ? "bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]"
+                    : "bg-destructive/10 text-destructive"
+                }`}>
+                  {twinScore >= 0.62 ? t("형태 일치", "形状一致") : t("형태 불일치", "形状不一致")} · {Math.round(twinScore * 100)}%
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-4 p-4">
+              <div>
+                <div className="text-xs text-muted-foreground mb-1">{t("원본 (주문데이터 트윈코드 SVG)", "原始 (订单TwinCode SVG)")}</div>
+                <div className="aspect-square rounded border bg-background flex items-center justify-center overflow-hidden">
+                  {expectedTwincodeUrl
+                    ? <img src={expectedTwincodeUrl} alt={t("원본 트윈코드", "原始TwinCode")} className="w-full h-full object-contain" />
+                    : <span className="text-xs text-muted-foreground">{t("등록 이미지 없음", "无已登记图像")}</span>}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground mb-1">{t("촬영 추출 (가이드 영역)", "拍摄提取 (引导区域)")}</div>
+                <div className={`aspect-square rounded border flex items-center justify-center overflow-hidden ${
+                  twinScore === null ? "bg-muted/20" : twinScore >= 0.62 ? "border-[hsl(var(--success)/0.5)]" : "border-destructive/50"}`}>
+                  {twinCrop
+                    ? <img src={twinCrop} alt={t("촬영 트윈코드", "拍摄TwinCode")} className="w-full h-full object-contain" />
+                    : <span className="text-xs text-muted-foreground">{t("뒷면 촬영 후 표시됩니다", "拍摄背面后显示")}</span>}
+                </div>
+              </div>
+            </div>
+            <div className="px-4 pb-3 text-[11px] text-muted-foreground">
+              {t("카드는 매번 같은 위치에 놓아야 합니다. 카메라 화면의 빨간 사각형에 트윈코드를 맞춘 뒤 촬영하세요. 사각형 위치는 슬라이더로 조정되며 저장됩니다.", "每次请将卡片放在相同位置。将TwinCode对准红色方框后拍摄。方框位置可用滑块调整并会保存。")}
+            </div>
+          </div>
+        )}
+
+
+
         {/* Field comparison — visual cards */}
         {expected && (
           <div className="rounded-lg border bg-card overflow-hidden">
