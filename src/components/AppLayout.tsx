@@ -435,7 +435,6 @@ export default function AppLayout() {
         <Outlet />
       </main>
 
-      {/* AI Chatbot */}
 
       {/* Menu customization dialog */}
       <Dialog open={customizeOpen} onOpenChange={setCustomizeOpen}>
