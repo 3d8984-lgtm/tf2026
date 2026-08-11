@@ -1145,7 +1145,7 @@ export default function CardPhotoInspection() {
   // ── Inspection history (persisted in localStorage) ────────────────────
   type HistoryField = { label: string; expected: string; detected: string; match: boolean };
   type HistoryEntry = {
-    key: string;             // orderId + itemIdx
+    key: string;             // `${orderId}::${itemIdx}`
     orderId: string;
     externalOrderId: string;
     itemIdx: number;
@@ -1154,6 +1154,9 @@ export default function CardPhotoInspection() {
     pass: boolean;
     failCount: number;
     fields?: HistoryField[];
+    /** 촬영 사진(용량 절감을 위해 축소 저장) */
+    frontPhoto?: string;
+    backPhoto?: string;
     at: number;              // epoch ms
   };
   const HISTORY_KEY = "card-photo-inspect-history";
@@ -1164,8 +1167,38 @@ export default function CardPhotoInspection() {
     } catch { return []; }
   });
   useEffect(() => {
-    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch {}
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch {
+      // 용량 초과 시 사진을 제외하고 다시 저장
+      try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(
+          history.map(({ frontPhoto, backPhoto, ...rest }) => rest)
+        ));
+      } catch { /* ignore */ }
+    }
   }, [history]);
+
+  /** 기록 보관용 축소 이미지(JPEG) 생성 */
+  const shrinkPhoto = useCallback((src: string | null, max = 900): Promise<string | undefined> => {
+    if (!src) return Promise.resolve(undefined);
+    return new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const scale = Math.min(1, max / Math.max(img.width, img.height));
+          const c = document.createElement("canvas");
+          c.width = Math.max(1, Math.round(img.width * scale));
+          c.height = Math.max(1, Math.round(img.height * scale));
+          c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+          resolve(c.toDataURL("image/jpeg", 0.7));
+        } catch { resolve(undefined); }
+      };
+      img.onerror = () => resolve(undefined);
+      img.src = src;
+    });
+  }, []);
+
+  /** 크게 보기용 뷰어 */
+  const [photoViewer, setPhotoViewer] = useState<HistoryEntry | null>(null);
 
   const recordedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
@@ -1173,20 +1206,29 @@ export default function CardPhotoInspection() {
     const key = `${order.id}::${selectedItemIdx}`;
     if (recordedRef.current.has(key)) return;
     recordedRef.current.add(key);
-    const entry: HistoryEntry = {
-      key,
-      orderId: order.id,
-      externalOrderId: order.externalOrderId,
-      itemIdx: selectedItemIdx,
-      cardSerial: expected.card_serial ?? "",
-      dmBarcode: expected.dm_expected ?? "",
-      pass: failCount === 0,
-      failCount,
-      fields: checks.map(c => ({ label: c.label, expected: c.expected, detected: c.detected, match: c.match })),
-      at: Date.now(),
-    };
-    setHistory(prev => [entry, ...prev.filter(h => h.key !== key)]);
-  }, [allDone, order, expected, selectedItemIdx, failCount, checks]);
+    let cancelled = false;
+    (async () => {
+      const [fp, bp] = await Promise.all([shrinkPhoto(frontImg), shrinkPhoto(backImg)]);
+      if (cancelled) return;
+      const entry: HistoryEntry = {
+        key,
+        orderId: order.id,
+        externalOrderId: order.externalOrderId,
+        itemIdx: selectedItemIdx,
+        cardSerial: expected.card_serial ?? "",
+        dmBarcode: expected.dm_expected ?? "",
+        pass: failCount === 0,
+        failCount,
+        fields: checks.map(c => ({ label: c.label, expected: c.expected, detected: c.detected, match: c.match })),
+        frontPhoto: fp,
+        backPhoto: bp,
+        at: Date.now(),
+      };
+      setHistory(prev => [entry, ...prev.filter(h => h.key !== key)]);
+    })();
+    return () => { cancelled = true; };
+  }, [allDone, order, expected, selectedItemIdx, failCount, checks, frontImg, backImg, shrinkPhoto]);
+
 
 
   const orderHistory = useMemo(
