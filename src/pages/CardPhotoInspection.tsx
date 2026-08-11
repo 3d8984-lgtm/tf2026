@@ -500,22 +500,25 @@ export default function CardPhotoInspection() {
                   <th className="text-left px-4 py-2 font-medium">{t("트윈커", "Twinker")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("상품", "商品")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("카드 수량", "卡片数量")}</th>
-                  <th className="text-left px-4 py-2 font-medium">{t("검사 진행", "检验进度")}</th>
+                  <th className="text-left px-4 py-2 font-medium">{t("표본 검사 (3회 × 3장)", "抽检 (3轮 × 3张)")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("납기", "交期")}</th>
                   <th className="px-4 py-2"></th>
                 </tr>
               </thead>
               <tbody>
                 {orders.map(o => {
-                  const oh = history.filter(h => h.orderId === o.id);
+                  const total = o.items.length;
+                  const starts = plans[o.id] ?? [];
+                  const idxs = starts.flatMap(s => Array.from({ length: Math.min(3, total - s) }, (_, k) => s + k));
+                  const target = idxs.length || Math.min(9, total);
+                  const oh = history.filter(h => h.orderId === o.id && idxs.includes(h.itemIdx));
                   const pass = oh.filter(h => h.pass).length;
                   const fail = oh.filter(h => !h.pass).length;
-                  const total = o.items.length;
                   const done = oh.length;
-                  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                  const pct = target > 0 ? Math.round((done / target) * 100) : 0;
                   return (
                     <tr key={o.id} className="border-t hover:bg-muted/20 cursor-pointer"
-                      onClick={() => { setSelectedOrderId(o.id); setSelectedItemIdx(0); }}>
+                      onClick={() => { setSelectedOrderId(o.id); setSelectedItemIdx((plans[o.id] ?? [0])[0] ?? 0); }}>
                       <td className="px-4 py-3 font-medium text-primary hover:underline">{o.externalOrderId}</td>
                       <td className="px-4 py-3">{o.twinker}</td>
                       <td className="px-4 py-3">{o.product}</td>
@@ -525,7 +528,8 @@ export default function CardPhotoInspection() {
                           <div className="w-24 h-1.5 rounded-full bg-muted overflow-hidden">
                             <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
                           </div>
-                          <span className="text-xs tabular-nums text-muted-foreground">{done}/{total}</span>
+                          <span className="text-xs tabular-nums text-muted-foreground">{done}/{target}</span>
+
                           {pass > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]">✓{pass}</span>}
                           {fail > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[hsl(var(--warning)/0.15)] text-[hsl(var(--warning))]">!{fail}</span>}
                         </div>
