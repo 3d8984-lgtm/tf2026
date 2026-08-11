@@ -51,11 +51,14 @@ type BackExtract = {
 
 
 interface FieldCheck {
+  /** VISUAL_FIELDS의 key와 1:1 매칭되는 식별자 (라벨 문구 변경과 무관하게 안정적) */
+  key?: string;
   label: string;
   expected: string;
   detected: string;
   match: boolean;
 }
+
 
 type Tfn = (ko: string, zh: string) => string;
 const VISUAL_FIELDS: {
@@ -524,6 +527,7 @@ export default function CardPhotoInspection() {
     const list: FieldCheck[] = [];
     if (frontResult) {
       list.push({
+        key: "cp",
         label: t("CP 점수", "CP分数"),
         expected: String(expected.cp_score ?? ""),
         detected: frontResult.cp_score ?? "",
@@ -531,6 +535,7 @@ export default function CardPhotoInspection() {
           && !!norm(expected.cp_score),
       });
       list.push({
+        key: "edition",
         label: "EDITION",
         expected: String(expected.edition ?? ""),
         detected: frontResult.edition ?? "",
@@ -539,18 +544,21 @@ export default function CardPhotoInspection() {
     }
     if (backResult) {
       list.push({
+        key: "issued",
         label: "ISSUED No.",
         expected: expected.card_serial ?? "",
         detected: backResult.issued_no ?? "",
         match: !!expected.card_serial && norm(backResult.issued_no).includes(norm(expected.card_serial)),
       });
       list.push({
+        key: "minted",
         label: "Minted on",
         expected: String(expected.minted_on ?? ""),
         detected: backResult.minted_on ?? "",
         match: norm(expected.minted_on) === norm(backResult.minted_on) && !!norm(expected.minted_on),
       });
       list.push({
+        key: "grade",
         label: t("카드 등급", "卡片等级"),
         expected: expected.card_grade ?? "",
         detected: backResult.card_grade ?? "",
@@ -559,6 +567,7 @@ export default function CardPhotoInspection() {
       {
         const shape = backResult.twincode_shape_match === true;
         list.push({
+          key: "twin",
           label: t("트윈코드 (형태 비교)", "TwinCode (形状比对)"),
           expected: expectedTwincodeUrl
             ? t("등록된 트윈코드 형태", "已登记TwinCode形状")
@@ -574,6 +583,7 @@ export default function CardPhotoInspection() {
         const expDm = norm(expected.dm_expected);
         const gotDm = norm(dmDecoded || backResult.dm_barcode);
         list.push({
+          key: "dm",
           label: t("DM 바코드 (값 비교)", "DM条码 (值比对)"),
           expected: expected.dm_expected ?? "",
           detected: dmDecoded || backResult.dm_barcode || t("디코딩 실패", "解码失败"),
@@ -1076,12 +1086,14 @@ export default function CardPhotoInspection() {
               {VISUAL_FIELDS.map(f => {
                 const side = f.side;
                 const ready = side === "front" ? !!frontResult : !!backResult;
-                const check = checks.find(c => c.label === f.label(t));
+                // 라벨 문구가 아니라 key로 매칭한다 (라벨이 바뀌어도 판정이 유실되지 않도록)
+                const check = checks.find(c => c.key === f.key) ?? checks.find(c => c.label === f.label(t));
                 const status: "pending" | "match" | "fail" = !ready ? "pending" : check?.match ? "match" : "fail";
-                const expectedVal = f.getExpected(expected);
+                const expectedVal = check?.expected ?? f.getExpected(expected);
                 const detectedVal = ready
-                  ? (side === "front" ? f.getDetected(frontResult!) : f.getDetected(backResult!))
+                  ? (check?.detected ?? (side === "front" ? f.getDetected(frontResult!) : f.getDetected(backResult!)))
                   : "";
+
                 const styles = {
                   pending: "border-border bg-muted/20",
                   match: "border-[hsl(var(--success)/0.4)] bg-[hsl(var(--success)/0.08)]",
