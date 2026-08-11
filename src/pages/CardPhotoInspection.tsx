@@ -406,7 +406,7 @@ export default function CardPhotoInspection() {
   const inspectImage = async (side: "front" | "back", dataUrl: string) => {
     setBusySide(side);
     try {
-      const referenceTwincode = side === "back" ? await toRasterDataUrl(expected?.twincode_url || "") : undefined;
+      const referenceTwincode = side === "back" ? await toRasterDataUrl(expectedTwincodeUrl || "") : undefined;
 
       const [{ data, error }, decodedDm] = await Promise.all([
         supabase.functions.invoke("card-photo-inspect", {
