@@ -293,12 +293,12 @@ export default function CardPhotoInspection() {
   const [twinScore, setTwinScore] = useState<number | null>(null);
   /** 작업자가 수동으로 트윈코드 일치를 확정했는지 여부 */
   const [twinManual, setTwinManual] = useState(false);
+  /** 유사도 점수가 계산되지 않은 경우의 사유 */
+  const [twinScoreNote, setTwinScoreNote] = useState("");
   /**
    * 트윈코드 가이드 영역(촬영 화면 기준 비율).
    * 카드를 매번 같은 위치에 두면 이 영역에서 트윈코드를 자동 추출한다.
    */
-  const [twinScoreNote, setTwinScoreNote] = useState("");
-
   const [twinRoi, setTwinRoi] = useState<{ x: number; y: number; w: number; h: number }>(() => {
     try {
       const s = localStorage.getItem("card-photo-twin-roi-v2");
