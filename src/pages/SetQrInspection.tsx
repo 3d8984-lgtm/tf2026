@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { scanSuccess, scanFail } from "@/lib/scan-sound";
 import {
   ChevronLeft, ScanLine, CheckCircle2, XCircle, RotateCcw, Loader2, AlertTriangle, CreditCard, Shirt,
 } from "lucide-react";
