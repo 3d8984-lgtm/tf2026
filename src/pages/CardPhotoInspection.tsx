@@ -82,23 +82,27 @@ export default function CardPhotoInspection() {
     if (!dbOrders) return [];
     return dbOrders.map((o: any) => {
       const sd: any = o.source_data ?? {};
-      const items: CardItem[] = (sd.items ?? []).map((it: any) => ({
+      const items: CardItem[] = (sd.items ?? []).map((it: any, idx: number) => ({
         card_barcode: it.card_barcode ?? "",
-        card_serial: it.card_serial ?? "",
-        card_grade: it.card_grade ?? "",
+        card_serial: it.card_serial ?? it.issued_no ?? sd.issued_no ?? "",
+        card_grade: it.card_grade ?? it.grade ?? sd.grade ?? "",
         design_qr: it.design_qr ?? "",
         hologram_qr: it.hologram_qr ?? "",
         twinker: it.twinker ?? o.recipient_name ?? "",
-        cp_score: it.cp_score,
-        edition: it.edition,
-        minted_on: it.minted_on,
+        // 엑셀 업로드 데이터는 cp_value(예: "CP 230") 키를 사용한다.
+        cp_score:
+          it.cp_score ?? it.cp_value ?? it.cp ?? it.cpValue ?? it.CP ?? it.cp_no ?? it.cpNo ??
+          sd.cp_score ?? sd.cp_value ?? sd.cp ?? sd.cpValue ?? sd.CP ?? "",
+        edition: it.edition ?? it.edition_no ?? it.editionNo ?? sd.edition_no ?? String(idx + 1),
+        minted_on: it.minted_on ?? sd.minted_on,
         sign: it.sign,
-        twincode: it.twincode ?? it.design_qr ?? "",
+        twincode: it.twincode ?? it.twin_code ?? it.design_qr ?? "",
         gft_url:
           it.gft_original_image_url ?? sd.gft_original_image_url ??
           it.card_front_url ?? sd.card_front_url ??
           it.gft_image_url ?? it.design_image_url ?? o.logo_url ?? "",
       }));
+
 
       return {
         id: o.id,
