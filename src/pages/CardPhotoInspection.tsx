@@ -323,12 +323,59 @@ export default function CardPhotoInspection() {
       hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.DATA_MATRIX, BarcodeFormat.QR_CODE]);
       hints.set(DecodeHintType.TRY_HARDER, true);
       const reader = new BrowserMultiFormatReader(hints as any);
-      const res = await reader.decodeFromImageUrl(dataUrl);
-      return res?.getText?.()?.trim() ?? "";
+
+      const tryUrl = async (u: string) => {
+        try {
+          const r = await reader.decodeFromImageUrl(u);
+          return r?.getText?.()?.trim() ?? "";
+        } catch { return ""; }
+      };
+
+      // 1) 원본 그대로
+      const direct = await tryUrl(dataUrl);
+      if (direct) return direct;
+
+      // 2) 카드에서 DM 코드는 작게 인쇄되므로 영역을 나눠 확대 후 재시도
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      await new Promise<void>((res, rej) => {
+        img.onload = () => res();
+        img.onerror = () => rej(new Error("load failed"));
+        img.src = dataUrl;
+      });
+      const tiles: [number, number, number, number][] = [];
+      const cols = 3, rows = 3;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          // 25% 겹치도록 타일 구성
+          const w = img.width / cols, h = img.height / rows;
+          tiles.push([
+            Math.max(0, c * w - w * 0.25),
+            Math.max(0, r * h - h * 0.25),
+            Math.min(img.width, w * 1.5),
+            Math.min(img.height, h * 1.5),
+          ]);
+        }
+      }
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return "";
+      for (const [sx, sy, sw, sh] of tiles) {
+        const scale = Math.min(3, 900 / Math.max(sw, sh));
+        canvas.width = Math.round(sw * scale);
+        canvas.height = Math.round(sh * scale);
+        ctx.imageSmoothingEnabled = true;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+        const hit = await tryUrl(canvas.toDataURL("image/png"));
+        if (hit) return hit;
+      }
+      return "";
     } catch {
       return "";
     }
   };
+
 
   // The AI model cannot read SVG URLs, so rasterize the registered TwinCode to PNG.
   const toRasterDataUrl = async (url: string): Promise<string | undefined> => {
