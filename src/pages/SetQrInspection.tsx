@@ -195,8 +195,11 @@ function SetInspectDetail({
   const clearInputs = () => {
     setCardScan("");
     setTshirtScan("");
+    pendingCardRef.current = "";
+    bufferRef.current = "";
     setTimeout(() => cardRef.current?.focus(), 30);
   };
+
 
   const evaluate = (card: string, tshirt: string) => {
     const cardBase = baseOf(card);
@@ -239,14 +242,16 @@ function SetInspectDetail({
   // 스캐너 자동 입력: 카드 포장 QR → 티셔츠 포장 QR 순차 입력 후 자동 검증
   const bufferRef = useRef("");
   const lastKeyRef = useRef(0);
+  const pendingCardRef = useRef("");
   const stateRef = useRef({ cardScan, halted, activePos, evaluate });
   stateRef.current = { cardScan, halted, activePos, evaluate };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
-      if (el && (el.isContentEditable || el.tagName === "TEXTAREA" ||
-        (el.tagName === "INPUT" && el !== cardRef.current && el !== tshirtRef.current))) return;
+      // 두 스캔 입력창 또는 다른 입력 요소에 포커스가 있으면 해당 입력창의 자체 로직에 맡김
+      if (el && (el.isContentEditable || el.tagName === "TEXTAREA" || el.tagName === "INPUT")) return;
+
       const { halted: isHalted, activePos: pos } = stateRef.current;
       if (isHalted || pos == null) return;
 
@@ -256,30 +261,39 @@ function SetInspectDetail({
 
       if (e.key === "Enter" || e.code === "Enter" || e.code === "NumpadEnter") {
         e.preventDefault();
+        e.stopPropagation();
         const value = bufferRef.current.trim();
         bufferRef.current = "";
         if (!value) return;
-        if (!stateRef.current.cardScan.trim()) {
+        if (!pendingCardRef.current) {
+          // 1차 스캔 = 카드 포장 QR (검증하지 않고 대기)
+          pendingCardRef.current = value;
           setCardScan(value);
           setTshirtScan("");
           setTimeout(() => tshirtRef.current?.focus(), 20);
         } else {
+          // 2차 스캔 = 티셔츠 포장 QR → 두 값이 모두 있을 때만 검증
+          const card = pendingCardRef.current;
+          pendingCardRef.current = "";
           setTshirtScan(value);
-          stateRef.current.evaluate(stateRef.current.cardScan, value);
+          stateRef.current.evaluate(card, value);
         }
         return;
       }
       if (e.key === "Backspace") {
+        e.preventDefault();
         bufferRef.current = bufferRef.current.slice(0, -1);
         return;
       }
-      if (e.key.length === 1) {
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
         bufferRef.current += e.key;
       }
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, []);
+
 
   const values = Object.values(results);
   const pass = values.filter((r) => r.ok).length;
