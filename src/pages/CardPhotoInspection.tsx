@@ -563,12 +563,20 @@ export default function CardPhotoInspection() {
     if (!url) return undefined;
     if (!/\.svg($|\?)/i.test(url) && !url.startsWith("data:image/svg")) return url;
     try {
+      // SVG는 CORS 오염(tainted canvas)로 getImageData가 실패할 수 있으므로
+      // 원문을 직접 받아 data URL로 인라인한 뒤 래스터화한다.
+      let src = url;
+      if (!url.startsWith("data:")) {
+        const res = await fetch(url, { mode: "cors" });
+        if (!res.ok) throw new Error(`fetch ${res.status}`);
+        const text = await res.text();
+        src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(text)}`;
+      }
       const img = new Image();
-      img.crossOrigin = "anonymous";
       await new Promise<void>((res, rej) => {
         img.onload = () => res();
         img.onerror = () => rej(new Error("load failed"));
-        img.src = url;
+        img.src = src;
       });
       const size = 1024;
       const c = document.createElement("canvas");
@@ -583,6 +591,7 @@ export default function CardPhotoInspection() {
       return undefined;
     }
   };
+
 
   const loadImage = (src: string) => new Promise<HTMLImageElement>((res, rej) => {
     const img = new Image();
