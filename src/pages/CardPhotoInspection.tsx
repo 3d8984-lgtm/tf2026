@@ -1100,15 +1100,25 @@ export default function CardPhotoInspection() {
             </div>
           </div>
           <div className="relative aspect-video bg-black rounded overflow-hidden flex items-center justify-center">
-            <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-contain" />
-            {/* 트윈코드 가이드 영역 — 카드를 이 사각형에 맞춰 놓으면 자동 추출됩니다 */}
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-contain"
+              onLoadedMetadata={e => {
+                const v = e.currentTarget;
+                if (v.videoWidth && v.videoHeight) setVideoAr(v.videoWidth / v.videoHeight);
+              }}
+            />
+            {/* 트윈코드 가이드 영역 — 실제 영상 표시 영역(레터박스 제외) 기준으로 그린다 */}
             <div
               className="absolute border-2 border-destructive pointer-events-none"
               style={{
-                left: `${twinRoi.x * 100}%`,
-                top: `${twinRoi.y * 100}%`,
-                width: `${twinRoi.w * 100}%`,
-                height: `${twinRoi.h * 100}%`,
+                left: `${(videoBox.left + twinRoi.x * videoBox.width) * 100}%`,
+                top: `${(videoBox.top + twinRoi.y * videoBox.height) * 100}%`,
+                width: `${twinRoi.w * videoBox.width * 100}%`,
+                height: `${twinRoi.h * videoBox.height * 100}%`,
                 boxShadow: "0 0 0 9999px hsl(var(--background) / 0.25)",
               }}
             >
