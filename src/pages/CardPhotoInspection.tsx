@@ -51,11 +51,14 @@ type BackExtract = {
 
 
 interface FieldCheck {
+  /** VISUAL_FIELDS의 key와 1:1 매칭되는 식별자 (라벨 문구 변경과 무관하게 안정적) */
+  key?: string;
   label: string;
   expected: string;
   detected: string;
   match: boolean;
 }
+
 
 type Tfn = (ko: string, zh: string) => string;
 const VISUAL_FIELDS: {
