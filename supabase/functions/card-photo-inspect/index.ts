@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
         : `Image 1 is the BACK of the card. Extract 'ISSUED No.', 'Minted on', the card GRADE word (Common/Rare/Epic/Legend/...), and any TwinCode text.${hasRef ? " Image 2 is the reference TwinCode graphic registered for this card: judge whether the TwinCode graphic printed on the card back has the SAME SHAPE/PATTERN as the reference, and set twincode_shape_match accordingly." : " No reference TwinCode image is provided, so set twincode_shape_match to false."}` },
       { type: "image_url", image_url: { url: image } },
     ];
-    if (hasRef) userContent.push({ type: "image_url", image_url: { url: reference_twincode } });
+    if (refUrl) userContent.push({ type: "image_url", image_url: { url: refUrl } });
 
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: "AI credits exhausted. Please add credits in Lovable workspace." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
-      return new Response(JSON.stringify({ error: "AI gateway error" }),
+      return new Response(JSON.stringify({ error: `AI gateway error (${aiRes.status}): ${t.slice(0, 300)}` }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
