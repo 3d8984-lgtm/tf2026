@@ -1099,12 +1099,46 @@ export default function CardPhotoInspection() {
               )}
             </div>
           </div>
-          <div className="aspect-video bg-black rounded overflow-hidden flex items-center justify-center">
+          <div className="relative aspect-video bg-black rounded overflow-hidden flex items-center justify-center">
             <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-contain" />
+            {/* 트윈코드 가이드 영역 — 카드를 이 사각형에 맞춰 놓으면 자동 추출됩니다 */}
+            <div
+              className="absolute border-2 border-destructive pointer-events-none"
+              style={{
+                left: `${twinRoi.x * 100}%`,
+                top: `${twinRoi.y * 100}%`,
+                width: `${twinRoi.w * 100}%`,
+                height: `${twinRoi.h * 100}%`,
+                boxShadow: "0 0 0 9999px hsl(var(--background) / 0.25)",
+              }}
+            >
+              <span className="absolute -top-5 left-0 text-[10px] font-semibold text-destructive bg-background/80 px-1 rounded">
+                {t("트윈코드 영역", "TwinCode 区域")}
+              </span>
+            </div>
           </div>
+
+          {/* 가이드 영역 조정 */}
+          <div className="mt-2 grid grid-cols-4 gap-2">
+            {([
+              ["x", t("좌", "左")], ["y", t("상", "上")], ["w", t("폭", "宽")], ["h", t("높이", "高")],
+            ] as const).map(([k, label]) => (
+              <label key={k} className="text-[10px] text-muted-foreground">
+                {label}
+                <input
+                  type="range" min={2} max={98} step={1}
+                  value={Math.round((twinRoi as any)[k] * 100)}
+                  onChange={e => setTwinRoi(r => ({ ...r, [k]: Number(e.target.value) / 100 }))}
+                  className="w-full accent-[hsl(var(--destructive))]"
+                />
+              </label>
+            ))}
+          </div>
+
           <div className="text-xs text-muted-foreground mt-3 mb-2">
-            {t("① 앞면을 먼저 촬영하면 CP 점수와 EDITION으로 주문 카드가 자동 매칭됩니다. ② 그 다음 뒷면을 촬영하세요.", "① 先拍摄正面，通过CP分数与EDITION自动匹配订单卡片。② 然后拍摄背面。")}
+            {t("① 앞면을 먼저 촬영하면 CP 점수와 EDITION으로 주문 카드가 자동 매칭됩니다. ② 그 다음 카드의 트윈코드가 빨간 사각형 안에 오도록 놓고 뒷면을 촬영하세요.", "① 先拍摄正面，通过CP分数与EDITION自动匹配订单卡片。② 然后将TwinCode对准红色方框拍摄背面。")}
           </div>
+
 
           {/* Front match status (requirement: green when matched, red when not) */}
           {frontMatch !== "idle" && (
