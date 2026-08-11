@@ -316,7 +316,7 @@ export default function CardPhotoInspection() {
         label: "EDITION",
         expected: String(expected.edition ?? ""),
         detected: frontResult.edition ?? "",
-        match: norm(expected.edition) === norm(frontResult.edition) && !!norm(expected.edition),
+        match: !!edNum(expected.edition) && edNum(expected.edition) === edNum(frontResult.edition),
       });
     }
     if (backResult) {
