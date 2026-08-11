@@ -24,6 +24,9 @@ interface CardItem {
   minted_on?: string | number;
   sign?: string;
   twincode?: string;
+  /** GFT 원본 이미지 URL (주문 데이터에 직접 저장된 값) */
+  gft_url?: string;
+
 }
 
 interface OrderRow {
