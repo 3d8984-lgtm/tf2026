@@ -193,6 +193,26 @@ export default function CardPhotoInspection() {
   const [frontResult, setFrontResult] = useState<FrontExtract | null>(null);
   const [backResult, setBackResult] = useState<BackExtract | null>(null);
   const [busySide, setBusySide] = useState<"front" | "back" | null>(null);
+  /** Result of matching the FRONT photo (CP + EDITION) against order data. */
+  const [frontMatch, setFrontMatch] = useState<"idle" | "matched" | "failed">("idle");
+
+  const normKey = (v: any) => String(v ?? "").trim().toLowerCase().replace(/\s+/g, "");
+  const digits = (v: any) => String(v ?? "").replace(/\D/g, "");
+
+  /** Find a card whose CP score AND edition both match the detected front values. */
+  const findByFront = useCallback((cp: string, ed: string) => {
+    const cpD = digits(cp);
+    const edN = normKey(ed);
+    if (!cpD && !edN) return null;
+    const pool = order ? [order] : orders;
+    for (const o of pool) {
+      const idx = o.items.findIndex(it =>
+        (!!cpD && digits(it.cp_score) === cpD) &&
+        (!!edN && normKey(it.edition) === edN));
+      if (idx >= 0) return { o, idx };
+    }
+    return null;
+  }, [orders, order]);
 
   const inspectImage = async (side: "front" | "back", dataUrl: string) => {
     setBusySide(side);
@@ -204,8 +224,22 @@ export default function CardPhotoInspection() {
       if (data?.error) throw new Error(data.error);
       const ex = data?.extracted;
       if (!ex) throw new Error(t("추출 결과 없음", "无提取结果"));
-      if (side === "front") setFrontResult(ex);
-      else {
+      if (side === "front") {
+        setFrontResult(ex);
+        // Match the order/card by CP score + EDITION number.
+        const hit = findByFront(ex.cp_score, ex.edition);
+        if (hit) {
+          setSelectedOrderId(hit.o.id);
+          setSelectedItemIdx(hit.idx);
+          setFrontMatch("matched");
+          toast.success(t(
+            `주문 ${hit.o.externalOrderId} 카드 ${hit.idx + 1} 매칭 (CP ${ex.cp_score} · EDITION ${ex.edition})`,
+            `订单 ${hit.o.externalOrderId} 卡片 ${hit.idx + 1} 已匹配 (CP ${ex.cp_score} · EDITION ${ex.edition})`));
+        } else {
+          setFrontMatch("failed");
+          toast.error(t("CP/EDITION과 일치하는 주문 카드가 없습니다", "未找到与CP/EDITION一致的订单卡片"));
+        }
+      } else {
         setBackResult(ex);
         // Auto-match order by detected DM barcode
         const dm = String(ex.dm_barcode ?? "").trim();
@@ -234,7 +268,7 @@ export default function CardPhotoInspection() {
       toast.error(t("카메라가 준비되지 않았습니다", "摄像头未准备好"));
       return;
     }
-    if (side === "front") { setFrontImg(url); setFrontResult(null); }
+    if (side === "front") { setFrontImg(url); setFrontResult(null); setFrontMatch("idle"); }
     else { setBackImg(url); setBackResult(null); }
     await inspectImage(side, url);
   };
@@ -242,7 +276,9 @@ export default function CardPhotoInspection() {
   const reset = () => {
     setFrontImg(null); setBackImg(null);
     setFrontResult(null); setBackResult(null);
+    setFrontMatch("idle");
   };
+
 
   // ── Comparison (text fields only) ─────────────────────────────────────
   const norm = (v: any) => String(v ?? "").trim().toLowerCase().replace(/\s+/g, "");
