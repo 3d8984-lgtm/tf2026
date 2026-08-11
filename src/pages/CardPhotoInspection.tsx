@@ -241,100 +241,29 @@ export default function CardPhotoInspection() {
   const twinGuideRef = useRef<HTMLDivElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
-  /** 마지막으로 사용한 카메라는 브라우저에 저장해 다음 방문에도 그대로 사용한다. */
-  const CAM_KEY = "card-photo-camera-v1";
-  const [deviceId, setDeviceId] = useState<string>(() => {
-    try { return JSON.parse(localStorage.getItem(CAM_KEY) || "{}").deviceId || ""; } catch { return ""; }
-  });
-  const autoStartedRef = useRef(false);
-
-  const rememberCamera = (id: string, label?: string) => {
-    try { localStorage.setItem(CAM_KEY, JSON.stringify({ deviceId: id, label: label ?? "" })); } catch { /* ignore */ }
-  };
-
-  const [camError, setCamError] = useState<string>("");
+  const [deviceId, setDeviceId] = useState<string>("");
 
   const startCamera = useCallback(async (id?: string) => {
     try {
-      setCamError("");
-      if (!navigator.mediaDevices?.getUserMedia) {
-        setCamError(t("이 브라우저/환경에서는 카메라를 사용할 수 없습니다(HTTPS 필요).", "此环境无法使用摄像头(需 HTTPS)。"));
-        return;
-      }
       if (stream) stream.getTracks().forEach(t => t.stop());
       // 트윈코드 형태 비교 정확도를 위해 최대한 높은 해상도를 요청한다.
       const hiRes = { width: { ideal: 3840 }, height: { ideal: 2160 }, frameRate: { ideal: 30 } };
-      let saved: { deviceId?: string; label?: string } = {};
-      try { saved = JSON.parse(localStorage.getItem(CAM_KEY) || "{}"); } catch { /* ignore */ }
-      const wanted = id || deviceId || saved.deviceId || "";
-      // 우선순위: 지정 기기(고해상도) → 지정 기기(제약 없음) → 아무 카메라
-      const attempts: MediaStreamConstraints[] = [];
-      if (wanted) {
-        attempts.push({ video: { deviceId: { exact: wanted }, ...hiRes }, audio: false });
-        attempts.push({ video: { deviceId: { exact: wanted } }, audio: false });
-      }
-      attempts.push({ video: hiRes, audio: false });
-      attempts.push({ video: true, audio: false });
-
-      let s: MediaStream | null = null;
-      let lastErr: any = null;
-      for (const c of attempts) {
-        try { s = await navigator.mediaDevices.getUserMedia(c); break; } catch (e) { lastErr = e; }
-      }
-      if (!s) throw lastErr || new Error("no camera");
-
+      const s = await navigator.mediaDevices.getUserMedia({
+        video: id ? { deviceId: { exact: id }, ...hiRes } : { facingMode: "environment", ...hiRes },
+        audio: false,
+      });
       setStream(s);
+      if (videoRef.current) videoRef.current.srcObject = s;
       const list = await navigator.mediaDevices.enumerateDevices();
       const cams = list.filter(d => d.kind === "videoinput");
       setDevices(cams);
-
-      // 실제 사용 중인 트랙 기준으로 선택 상태와 저장값을 동기화한다.
-      const active = s.getVideoTracks()[0]?.getSettings().deviceId || "";
-      // 기기 재연결로 deviceId가 바뀐 경우 라벨로 재매칭
-      const byLabel = saved.label ? cams.find(c => c.label === saved.label) : undefined;
-      const finalId = active || byLabel?.deviceId || cams[0]?.deviceId || "";
-      if (finalId) {
-        setDeviceId(finalId);
-        rememberCamera(finalId, cams.find(c => c.deviceId === finalId)?.label);
-      }
+      if (!deviceId && cams[0]) setDeviceId(cams[0].deviceId);
     } catch (e: any) {
-      const name = e?.name || "";
-      const msg = name === "NotReadableError"
-        ? t("카메라가 다른 프로그램에서 사용 중입니다. 해당 프로그램을 종료 후 다시 시도하세요.", "摄像头被其他程序占用，请关闭后重试。")
-        : name === "NotAllowedError"
-          ? t("브라우저에서 카메라 권한이 차단되었습니다. 주소창의 카메라 아이콘에서 허용하세요.", "浏览器摄像头权限被拒绝，请在地址栏允许。")
-          : t("카메라 접근 실패: " + (e?.message ?? ""), "无法访问摄像头: " + (e?.message ?? ""));
-      setCamError(msg);
-      toast.error(msg);
+      toast.error(t("카메라 접근 실패: " + (e?.message ?? ""), "无法访问摄像头: " + (e?.message ?? "")));
     }
   }, [stream, deviceId, isKo]);
 
   useEffect(() => () => { stream?.getTracks().forEach(t => t.stop()); }, [stream]);
-
-  /** stream 이 준비되면 video 에 연결하고 재생을 강제한다. */
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    if (!stream) { v.srcObject = null; return; }
-    if (v.srcObject !== stream) v.srcObject = stream;
-    v.muted = true;
-    v.play().catch(() => {
-      setCamError(t("영상 재생이 차단되었습니다. 화면을 클릭한 뒤 '카메라 시작'을 다시 눌러주세요.", "视频播放被阻止，请点击页面后重新启动摄像头。"));
-    });
-  }, [stream]);
-
-  /** 저장된 카메라가 있으면 페이지 진입 시 자동으로 시작한다. */
-  useEffect(() => {
-    if (autoStartedRef.current) return;
-    let saved = "";
-    try { saved = JSON.parse(localStorage.getItem(CAM_KEY) || "{}").deviceId || ""; } catch { /* ignore */ }
-    if (!saved) return;
-    autoStartedRef.current = true;
-    startCamera(saved);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-
 
   const captureDataUrl = (): string | null => {
     const v = videoRef.current;
@@ -1521,12 +1450,7 @@ export default function CardPhotoInspection() {
                 <select
                   className="text-xs rounded border bg-background px-2 py-1"
                   value={deviceId}
-                  onChange={e => {
-                    const id = e.target.value;
-                    setDeviceId(id);
-                    rememberCamera(id, devices.find(d => d.deviceId === id)?.label);
-                    startCamera(id);
-                  }}
+                  onChange={e => { setDeviceId(e.target.value); startCamera(e.target.value); }}
                 >
                   {devices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || d.deviceId.slice(0, 8)}</option>)}
                 </select>
@@ -1553,14 +1477,6 @@ export default function CardPhotoInspection() {
                   if (v.videoWidth && v.videoHeight) setVideoAr(v.videoWidth / v.videoHeight);
                 }}
               />
-              {(!stream || camError) && (
-                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-black/70 p-4 text-center">
-                  <p className="text-sm text-destructive-foreground">
-                    {camError || t("카메라가 실행되지 않았습니다.", "摄像头未启动。")}
-                  </p>
-                  <Button size="sm" onClick={() => startCamera()}>{t("카메라 다시 시작", "重新启动摄像头")}</Button>
-                </div>
-              )}
               {/* 트윈코드 가이드 영역 — 실제 영상 표시 영역(레터박스 제외) 기준으로 그린다 */}
               <div
                 ref={twinGuideRef}
