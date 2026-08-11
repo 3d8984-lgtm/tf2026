@@ -291,6 +291,8 @@ export default function CardPhotoInspection() {
   const [twinCrop, setTwinCrop] = useState<string>("");
   /** 원본 트윈코드 vs 촬영 트윈코드 형태 유사도 (0~1) */
   const [twinScore, setTwinScore] = useState<number | null>(null);
+  /** 작업자가 수동으로 트윈코드 일치를 확정했는지 여부 */
+  const [twinManual, setTwinManual] = useState(false);
   /**
    * 트윈코드 가이드 영역(촬영 화면 기준 비율).
    * 카드를 매번 같은 위치에 두면 이 영역에서 트윈코드를 자동 추출한다.
@@ -869,14 +871,14 @@ export default function CardPhotoInspection() {
       return;
     }
     if (side === "front") { setFrontImg(url); setFrontResult(null); setFrontMatch("idle"); }
-    else { setBackImg(url); setBackResult(null); setDmDecoded(""); setTwinCrop(""); setTwinScore(null); }
+    else { setBackImg(url); setBackResult(null); setDmDecoded(""); setTwinCrop(""); setTwinScore(null); setTwinManual(false); }
     await inspectImage(side, url);
   };
 
   const reset = () => {
     setFrontImg(null); setBackImg(null);
     setFrontResult(null); setBackResult(null); setDmDecoded("");
-    setTwinCrop(""); setTwinScore(null);
+    setTwinCrop(""); setTwinScore(null); setTwinManual(false);
     setFrontMatch("idle");
   };
 
@@ -949,19 +951,21 @@ export default function CardPhotoInspection() {
         const aiShape = backResult.twincode_shape_match === true;
         const hasLocal = twinScore !== null;
         const localOk = hasLocal && (twinScore as number) >= TWIN_MATCH_MIN;
-        const shape = hasLocal ? localOk : aiShape;
+        const shape = twinManual ? true : (hasLocal ? localOk : aiShape);
         list.push({
           key: "twin",
           label: t("트윈코드 (형태 비교)", "TwinCode (形状比对)"),
           expected: expectedTwincodeUrl
             ? t("등록된 트윈코드 형태", "已登记TwinCode形状")
             : t("등록 이미지 없음", "无已登记图像"),
-          detected: !expectedTwincodeUrl
+          detected: twinManual
+            ? `${t("수동 확정 일치", "人工确认一致")}${hasLocal ? ` (${Math.round((twinScore as number) * 100)}%)` : ""}`
+            : !expectedTwincodeUrl
             ? t("비교 불가", "无法比对")
             : hasLocal
               ? `${shape ? t("형태 일치", "形状一致") : t("형태 불일치", "形状不一致")} (${Math.round((twinScore as number) * 100)}%)`
               : (shape ? t("형태 일치", "形状一致") : t("형태 불일치", "形状不一致")),
-          match: !!expectedTwincodeUrl && shape,
+          match: twinManual || (!!expectedTwincodeUrl && shape),
         });
       }
 
@@ -981,7 +985,7 @@ export default function CardPhotoInspection() {
 
     }
     return list;
-  }, [expected, frontResult, backResult, dmDecoded, expectedTwincodeUrl, isKo]);
+  }, [expected, frontResult, backResult, dmDecoded, expectedTwincodeUrl, twinScore, twinManual, isKo]);
 
   const failCount = checks.filter(c => !c.match).length;
   const allDone = !!frontResult && !!backResult;
