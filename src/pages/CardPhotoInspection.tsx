@@ -1613,9 +1613,38 @@ export default function CardPhotoInspection() {
                 </div>
               </div>
             </div>
+            <div className="px-4 pb-3 flex flex-wrap items-center gap-3">
+              <div className="flex items-baseline gap-2">
+                <span className="text-xs text-muted-foreground">{t("형태 유사도 점수", "形状相似度")}</span>
+                <span className={`text-2xl font-bold tabular-nums ${
+                  twinScore === null
+                    ? "text-muted-foreground"
+                    : twinScore >= TWIN_MATCH_MIN
+                      ? "text-[hsl(var(--success))]"
+                      : "text-destructive"
+                }`}>
+                  {twinScore === null ? "--" : `${(twinScore * 100).toFixed(1)}%`}
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  {t(`기준 ${Math.round(TWIN_MATCH_MIN * 100)}% 이상`, `标准 ${Math.round(TWIN_MATCH_MIN * 100)}% 以上`)}
+                </span>
+              </div>
+              <div className="ml-auto flex items-center gap-2">
+                {twinManual ? (
+                  <Button size="sm" variant="outline" onClick={() => { setTwinManual(false); toast.info(t("수동 확정이 해제되었습니다", "已取消人工确认")); }}>
+                    {t("수동 확정 해제", "取消人工确认")}
+                  </Button>
+                ) : (
+                  <Button size="sm" onClick={() => { setTwinManual(true); toast.success(t("트윈코드를 수동으로 일치 확정했습니다", "已人工确认TwinCode一致")); }}>
+                    {t("수동으로 일치 확정", "人工确认一致")}
+                  </Button>
+                )}
+              </div>
+            </div>
             <div className="px-4 pb-3 text-[11px] text-muted-foreground">
               {t("카드는 매번 같은 위치에 놓아야 합니다. 카메라 화면의 빨간 사각형에 트윈코드를 맞춘 뒤 촬영하세요. 사각형 위치는 슬라이더로 조정되며 저장됩니다.", "每次请将卡片放在相同位置。将TwinCode对准红色方框后拍摄。方框位置可用滑块调整并会保存。")}
             </div>
+
           </div>
         )}
 
