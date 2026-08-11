@@ -78,7 +78,7 @@ const VISUAL_FIELDS: {
   { key: "twin", side: "back", label: t => t("트윈코드", "TwinCode"),
     getExpected: e => e.twincode || e.design_qr || "", getDetected: r => r.twincode ?? "" },
   { key: "dm", side: "back", label: t => t("DM 바코드", "DM条码"),
-    getExpected: e => e.card_barcode ?? "", getDetected: r => r.dm_barcode ?? "" },
+    getExpected: e => e.dm_expected ?? "", getDetected: r => r.dm_barcode ?? "" },
 ];
 
 export default function CardPhotoInspection() {
