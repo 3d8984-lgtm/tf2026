@@ -430,8 +430,15 @@ export default function CardPhotoInspection() {
 
 
 
-  /** DM(Data Matrix) 바코드를 실제로 디코딩해 "값" 기준으로 판정한다. */
-  const decodeDataMatrix = async (dataUrl: string): Promise<string> => {
+  /**
+   * DM(Data Matrix) 바코드를 실제로 디코딩해 "값" 기준으로 판정한다.
+   * 1) 지정한 DM 가이드 영역을 확대·대비강화·이진화하여 우선 시도
+   * 2) 실패 시 원본 전체 → 타일 분할 확대 순으로 재시도
+   */
+  const decodeDataMatrix = async (
+    dataUrl: string,
+    roi?: { x: number; y: number; w: number; h: number } | null,
+  ): Promise<string> => {
     try {
       const { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat } = await import("@zxing/library");
       const hints = new Map<any, any>();
@@ -446,11 +453,6 @@ export default function CardPhotoInspection() {
         } catch { return ""; }
       };
 
-      // 1) 원본 그대로
-      const direct = await tryUrl(dataUrl);
-      if (direct) return direct;
-
-      // 2) 카드에서 DM 코드는 작게 인쇄되므로 영역을 나눠 확대 후 재시도
       const img = new Image();
       img.crossOrigin = "anonymous";
       await new Promise<void>((res, rej) => {
@@ -458,38 +460,97 @@ export default function CardPhotoInspection() {
         img.onerror = () => rej(new Error("load failed"));
         img.src = dataUrl;
       });
-      const tiles: [number, number, number, number][] = [];
-      const cols = 3, rows = 3;
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          // 25% 겹치도록 타일 구성
-          const w = img.width / cols, h = img.height / rows;
-          tiles.push([
-            Math.max(0, c * w - w * 0.25),
-            Math.max(0, r * h - h * 0.25),
-            Math.min(img.width, w * 1.5),
-            Math.min(img.height, h * 1.5),
-          ]);
-        }
-      }
+
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
       if (!ctx) return "";
-      for (const [sx, sy, sw, sh] of tiles) {
-        const scale = Math.min(3, 900 / Math.max(sw, sh));
-        canvas.width = Math.round(sw * scale);
-        canvas.height = Math.round(sh * scale);
+
+      /** 영역을 큰 배율로 그린 뒤 여러 전처리 변형(원본/이진화/반전/회전)으로 시도 */
+      const tryRegion = async (sx: number, sy: number, sw: number, sh: number, target = 1400) => {
+        if (sw < 8 || sh < 8) return "";
+        const scale = Math.min(8, target / Math.max(sw, sh));
+        const dw = Math.max(1, Math.round(sw * scale));
+        const dh = Math.max(1, Math.round(sh * scale));
+        // 여백(quiet zone) 확보를 위해 흰 테두리를 둔다
+        const pad = Math.round(Math.max(dw, dh) * 0.08);
+        canvas.width = dw + pad * 2;
+        canvas.height = dh + pad * 2;
         ctx.imageSmoothingEnabled = true;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-        const hit = await tryUrl(canvas.toDataURL("image/png"));
-        if (hit) return hit;
+        ctx.imageSmoothingQuality = "high";
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, sx, sy, sw, sh, pad, pad, dw, dh);
+
+        const base = canvas.toDataURL("image/png");
+        const hit0 = await tryUrl(base);
+        if (hit0) return hit0;
+
+        // Otsu 이진화 + 반전본
+        const id = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const px = id.data;
+        const hist = new Array(256).fill(0);
+        const gray = new Uint8Array(px.length / 4);
+        for (let i = 0, j = 0; i < px.length; i += 4, j++) {
+          const g = (px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114) | 0;
+          gray[j] = g; hist[g]++;
+        }
+        const total = gray.length;
+        let sum = 0; for (let i = 0; i < 256; i++) sum += i * hist[i];
+        let sumB = 0, wB = 0, best = 0, thr = 128;
+        for (let i = 0; i < 256; i++) {
+          wB += hist[i]; if (!wB) continue;
+          const wF = total - wB; if (!wF) break;
+          sumB += i * hist[i];
+          const mB = sumB / wB, mF = (sum - sumB) / wF;
+          const between = wB * wF * (mB - mF) * (mB - mF);
+          if (between > best) { best = between; thr = i; }
+        }
+        for (const invert of [false, true]) {
+          for (let i = 0, j = 0; i < px.length; i += 4, j++) {
+            let v = gray[j] > thr ? 255 : 0;
+            if (invert) v = 255 - v;
+            px[i] = px[i + 1] = px[i + 2] = v; px[i + 3] = 255;
+          }
+          ctx.putImageData(id, 0, 0);
+          const hit = await tryUrl(canvas.toDataURL("image/png"));
+          if (hit) return hit;
+        }
+        return "";
+      };
+
+      // 1) 지정된 DM 가이드 영역 (여유 마진 포함)
+      if (roi) {
+        for (const m of [0.15, 0.4]) {
+          const sx = Math.max(0, (roi.x - roi.w * m) * img.width);
+          const sy = Math.max(0, (roi.y - roi.h * m) * img.height);
+          const sw = Math.min(img.width - sx, roi.w * (1 + m * 2) * img.width);
+          const sh = Math.min(img.height - sy, roi.h * (1 + m * 2) * img.height);
+          const hit = await tryRegion(sx, sy, sw, sh);
+          if (hit) return hit;
+        }
+      }
+
+      // 2) 원본 전체
+      const direct = await tryUrl(dataUrl);
+      if (direct) return direct;
+
+      // 3) 타일 분할 확대 (25% 겹침)
+      const cols = 3, rows = 3;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const w = img.width / cols, h = img.height / rows;
+          const sx = Math.max(0, c * w - w * 0.25);
+          const sy = Math.max(0, r * h - h * 0.25);
+          const hit = await tryRegion(sx, sy, Math.min(img.width - sx, w * 1.5), Math.min(img.height - sy, h * 1.5), 1200);
+          if (hit) return hit;
+        }
       }
       return "";
     } catch {
       return "";
     }
   };
+
 
 
   // The AI model cannot read SVG URLs, so rasterize the registered TwinCode to PNG.
