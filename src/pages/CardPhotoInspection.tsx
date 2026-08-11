@@ -288,12 +288,16 @@ export default function CardPhotoInspection() {
     return m ? String(parseInt(m[0], 10)) : "";
   };
 
+  /** 현재 주문의 랜덤 표본 대상 카드 index 목록 (아래에서 계산되어 ref로 주입) */
+  const sampleIdxsRef = useRef<number[]>([]);
+
   /** Find a card whose CP score AND edition both match the detected front values. */
   const findByFront = useCallback((cp: string, ed: string) => {
     const cpD = digits(cp);
     const edN = edNum(ed);
     if (!cpD && !edN) return null;
     const pool = order ? [order] : orders;
+    const allowed = sampleIdxsRef.current;
     // 1) CP + EDITION both match  2) EDITION only  3) CP only (single candidate)
     const matchers: ((it: CardItem) => boolean)[] = [
       it => !!cpD && !!edN && digits(it.cp_score) === cpD && edNum(it.edition) === edN,
@@ -302,17 +306,24 @@ export default function CardPhotoInspection() {
     ];
     for (const fn of matchers) {
       for (const o of pool) {
-        const hits = o.items.map((it, i) => (fn(it) ? i : -1)).filter(i => i >= 0);
-        if (hits.length === 1) return { o, idx: hits[0] };
+        let hits = o.items.map((it, i) => (fn(it) ? i : -1)).filter(i => i >= 0);
+        // 표본 검사 계획이 있으면 계획에 포함된 카드만 후보로 인정한다.
+        if (o.id === order?.id && allowed.length) {
+          const inPlan = hits.filter(i => allowed.includes(i));
+          if (hits.length && !inPlan.length) return { o, idx: hits[0], outOfPlan: true };
+          hits = inPlan;
+        }
+        if (hits.length === 1) return { o, idx: hits[0], outOfPlan: false };
         // 여러 장이 같은 값이면 현재 선택된 카드가 후보에 있으면 그것을 사용
         if (hits.length > 1) {
-          if (o.id === order?.id && hits.includes(selectedItemIdx)) return { o, idx: selectedItemIdx };
-          return { o, idx: hits[0] };
+          if (o.id === order?.id && hits.includes(selectedItemIdx)) return { o, idx: selectedItemIdx, outOfPlan: false };
+          return { o, idx: hits[0], outOfPlan: false };
         }
       }
     }
     return null;
   }, [orders, order, selectedItemIdx]);
+
 
 
   /** DM(Data Matrix) 바코드를 실제로 디코딩해 "값" 기준으로 판정한다. */
@@ -427,7 +438,12 @@ export default function CardPhotoInspection() {
         setFrontResult(ex);
         // Match the order/card by CP score + EDITION number.
         const hit = findByFront(ex.cp_score, ex.edition);
-        if (hit) {
+        if (hit && hit.outOfPlan) {
+          setFrontMatch("failed");
+          toast.error(t(
+            `표본 대상이 아닌 카드입니다 (#${hit.idx + 1}). 검사 대상: ${sampleIdxsRef.current.map(i => `#${i + 1}`).join(", ")}`,
+            `该卡片不在抽检样本内 (#${hit.idx + 1})。抽检对象: ${sampleIdxsRef.current.map(i => `#${i + 1}`).join(", ")}`));
+        } else if (hit) {
           setSelectedOrderId(hit.o.id);
           setSelectedItemIdx(hit.idx);
           setFrontMatch("matched");
@@ -438,6 +454,7 @@ export default function CardPhotoInspection() {
           setFrontMatch("failed");
           toast.error(t("CP/EDITION과 일치하는 주문 카드가 없습니다", "未找到与CP/EDITION一致的订单卡片"));
         }
+
       } else {
         setBackResult(ex);
         // Auto-match order by detected DM barcode
@@ -668,6 +685,9 @@ export default function CardPhotoInspection() {
     [planStarts, order]
   );
   const sampleIdxs = useMemo(() => sampleRounds.flat(), [sampleRounds]);
+  // 앞면 매칭 시 "표본 대상 카드"만 인정하도록 ref로 주입
+  sampleIdxsRef.current = sampleIdxs;
+
   const sampleDone = sampleIdxs.filter(i => orderHistory.some(h => h.itemIdx === i));
   const samplePass = sampleIdxs.filter(i => orderHistory.some(h => h.itemIdx === i && h.pass));
   const sampleFail = sampleIdxs.filter(i => orderHistory.some(h => h.itemIdx === i && !h.pass));
