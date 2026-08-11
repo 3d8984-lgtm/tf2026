@@ -503,8 +503,6 @@ export default function CardPhotoInspection() {
       ctx.drawImage(img, sx, sy, sw, sh, 0, 0, dw, dh);
       return c.toDataURL("image/png");
     } catch { return ""; }
-
-    } catch { return ""; }
   };
 
   /** 표시된 빨간 가이드의 실제 DOM 위치를 영상 프레임 비율로 변환한다. */
