@@ -195,8 +195,11 @@ function SetInspectDetail({
   const clearInputs = () => {
     setCardScan("");
     setTshirtScan("");
+    pendingCardRef.current = "";
+    bufferRef.current = "";
     setTimeout(() => cardRef.current?.focus(), 30);
   };
+
 
   const evaluate = (card: string, tshirt: string) => {
     const cardBase = baseOf(card);
