@@ -1579,7 +1579,11 @@ export default function CardPhotoInspection() {
           <div className="rounded-lg border bg-card overflow-hidden">
             <div className="px-4 py-2 border-b bg-muted/30 text-sm font-semibold flex items-center justify-between gap-2">
               <span>{t("트윈코드 형태 비교", "TwinCode 形状比对")}</span>
-              {twinScore !== null && (
+              {twinManual ? (
+                <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]">
+                  {t("수동 확정 일치", "人工确认一致")}{twinScore !== null ? ` · ${Math.round(twinScore * 100)}%` : ""}
+                </span>
+              ) : twinScore !== null && (
                 <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
                   twinScore >= TWIN_MATCH_MIN
                     ? "bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]"
@@ -1588,6 +1592,7 @@ export default function CardPhotoInspection() {
                   {twinScore >= TWIN_MATCH_MIN ? t("형태 일치", "形状一致") : t("형태 불일치", "形状不一致")} · {Math.round(twinScore * 100)}%
                 </span>
               )}
+
             </div>
             <div className="grid grid-cols-2 gap-4 p-4">
               <div>
