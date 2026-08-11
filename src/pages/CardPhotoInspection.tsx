@@ -503,7 +503,7 @@ export default function CardPhotoInspection() {
                   <th className="text-left px-4 py-2 font-medium">{t("트윈커", "Twinker")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("상품", "商品")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("카드 수량", "卡片数量")}</th>
-                  <th className="text-left px-4 py-2 font-medium">{t("표본 검사 (3회 × 3장)", "抽检 (3轮 × 3张)")}</th>
+                  <th className="text-left px-4 py-2 font-medium">{t("표본 검사 (연속 3장 단위)", "抽检 (每轮连续3张)")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("납기", "交期")}</th>
                   <th className="px-4 py-2"></th>
                 </tr>
