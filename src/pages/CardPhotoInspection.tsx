@@ -753,6 +753,7 @@ export default function CardPhotoInspection() {
                   <th className="text-left px-4 py-2 font-medium">#</th>
                   <th className="text-left px-4 py-2 font-medium">{t("카드 순번", "卡片序号")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("DM 바코드", "DM条码")}</th>
+                  <th className="text-left px-4 py-2 font-medium">{t("검사 항목", "检验项目")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("결과", "结果")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("시각", "时间")}</th>
                   <th className="px-4 py-2"></th>
@@ -760,21 +761,43 @@ export default function CardPhotoInspection() {
               </thead>
               <tbody>
                 {orderHistory.map(h => (
-                  <tr key={h.key} className="border-t hover:bg-muted/20">
+                  <tr key={h.key} className="border-t hover:bg-muted/20 align-top">
                     <td className="px-4 py-2 tabular-nums">{h.itemIdx + 1}</td>
                     <td className="px-4 py-2 font-mono text-xs">{h.cardSerial || "-"}</td>
                     <td className="px-4 py-2 font-mono text-xs">{h.dmBarcode || "-"}</td>
+                    <td className="px-4 py-2">
+                      {h.fields?.length ? (
+                        <div className="flex flex-wrap gap-1">
+                          {h.fields.map((f, i) => (
+                            <span
+                              key={i}
+                              title={`${t("기준", "标准")}: ${f.expected || "-"} / ${t("추출", "提取")}: ${f.detected || "-"}`}
+                              className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border ${
+                                f.match
+                                  ? "border-[hsl(var(--success)/0.4)] bg-[hsl(var(--success)/0.12)] text-[hsl(var(--success))]"
+                                  : "border-destructive/40 bg-destructive/10 text-destructive"
+                              }`}
+                            >
+                              {f.match ? "O" : "X"} {f.label}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
+                    </td>
                     <td className="px-4 py-2">
                       {h.pass ? (
                         <span className="inline-flex items-center gap-1 text-[hsl(var(--success))] text-xs font-semibold">
                           <CheckCircle2 className="w-3.5 h-3.5" /> {t("합격", "合格")}
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-[hsl(var(--warning))] text-xs font-semibold">
-                          <AlertTriangle className="w-3.5 h-3.5" /> {t(`불일치 ${h.failCount}`, `不一致 ${h.failCount}`)}
+                        <span className="inline-flex items-center gap-1 text-destructive text-xs font-semibold">
+                          <XCircle className="w-3.5 h-3.5" /> {t(`불일치 ${h.failCount}`, `不一致 ${h.failCount}`)}
                         </span>
                       )}
                     </td>
+
                     <td className="px-4 py-2 text-xs text-muted-foreground">
                       {new Date(h.at).toLocaleString(isKo ? "ko-KR" : "zh-CN")}
                     </td>
