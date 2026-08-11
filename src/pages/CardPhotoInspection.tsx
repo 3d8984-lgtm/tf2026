@@ -543,25 +543,27 @@ export default function CardPhotoInspection() {
         const shape = backResult.twincode_shape_match === true;
         list.push({
           label: t("트윈코드 (형태 비교)", "TwinCode (形状比对)"),
-          expected: expected.twincode_url
+          expected: expectedTwincodeUrl
             ? t("등록된 트윈코드 형태", "已登记TwinCode形状")
             : t("등록 이미지 없음", "无已登记图像"),
-          detected: expected.twincode_url
+          detected: expectedTwincodeUrl
             ? (shape ? t("형태 일치", "形状一致") : t("형태 불일치", "形状不一致"))
             : t("비교 불가", "无法比对"),
-          match: !!expected.twincode_url && shape,
+          match: !!expectedTwincodeUrl && shape,
         });
       }
       {
-        const expDm = norm(expected.card_barcode);
+        // 기준값은 개별 주문번호 + "-4"
+        const expDm = norm(expected.dm_expected);
         const gotDm = norm(dmDecoded || backResult.dm_barcode);
         list.push({
           label: t("DM 바코드 (값 비교)", "DM条码 (值比对)"),
-          expected: expected.card_barcode ?? "",
+          expected: expected.dm_expected ?? "",
           detected: dmDecoded || backResult.dm_barcode || t("디코딩 실패", "解码失败"),
           match: !!expDm && !!gotDm && expDm === gotDm,
         });
       }
+
 
     }
     return list;
