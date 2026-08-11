@@ -297,9 +297,28 @@ export default function CardPhotoInspection() {
     } catch { /* ignore */ }
     return { x: 0.26, y: 0.24, w: 0.13, h: 0.22 };
   });
-  useEffect(() => {
+  /** 저장된 트윈코드 영역 (저장 시에만 갱신, 촬영 추출 기준으로 사용) */
+  const [savedRoi, setSavedRoi] = useState<{ x: number; y: number; w: number; h: number } | null>(() => {
+    try {
+      const s = localStorage.getItem("card-photo-twin-roi-v2");
+      if (s) return JSON.parse(s);
+    } catch { /* ignore */ }
+    return null;
+  });
+  const roiDirty = !savedRoi || (["x", "y", "w", "h"] as const).some(k => Math.abs(savedRoi[k] - twinRoi[k]) > 0.001);
+  const saveTwinRoi = () => {
     try { localStorage.setItem("card-photo-twin-roi-v2", JSON.stringify(twinRoi)); } catch { /* ignore */ }
-  }, [twinRoi]);
+    setSavedRoi(twinRoi);
+    toast.success(t("트윈코드 영역이 저장되었습니다", "TwinCode 区域已保存"));
+  };
+  const resetTwinRoi = () => {
+    const d = { x: 0.26, y: 0.24, w: 0.13, h: 0.22 };
+    setTwinRoi(d);
+    setSavedRoi(null);
+    try { localStorage.removeItem("card-photo-twin-roi-v2"); } catch { /* ignore */ }
+    toast.info(t("트윈코드 영역이 초기화되었습니다", "TwinCode 区域已重置"));
+  };
+
   /** 실제 카메라 프레임의 종횡비 (object-contain 레터박스 계산용) */
   const [videoAr, setVideoAr] = useState(16 / 9);
   /** 컨테이너(16:9) 안에서 실제 영상이 차지하는 영역 (0~1 비율) */
@@ -1179,6 +1198,20 @@ export default function CardPhotoInspection() {
                 />
               </label>
             ))}
+          </div>
+
+          <div className="mt-2 flex items-center gap-2">
+            <Button size="sm" variant={roiDirty ? "default" : "outline"} onClick={saveTwinRoi}>
+              {t("트윈코드 영역 저장", "保存 TwinCode 区域")}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={resetTwinRoi}>
+              {t("초기화", "重置")}
+            </Button>
+            <span className="text-[10px] text-muted-foreground">
+              {roiDirty
+                ? t("변경사항이 저장되지 않았습니다", "更改尚未保存")
+                : t("저장됨 · 다음 촬영에도 같은 위치가 적용됩니다", "已保存 · 下次拍摄沿用相同位置")}
+            </span>
           </div>
 
           <div className="text-xs text-muted-foreground mt-3 mb-2">
