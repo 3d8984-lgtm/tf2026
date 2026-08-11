@@ -178,8 +178,16 @@ function SetInspectDetail({
   const [cardScan, setCardScan] = useState("");
   const [tshirtScan, setTshirtScan] = useState("");
   const [verdict, setVerdict] = useState<PairResult | null>(null);
+  const [halted, setHalted] = useState(false);
   const cardRef = useRef<HTMLInputElement>(null);
   const tshirtRef = useRef<HTMLInputElement>(null);
+
+  // 다음 검사 대상(미검사 또는 실패한 첫 항목)
+  const activePos = useMemo(() => {
+    const next = items.find((i) => !results[i.position]?.ok);
+    return next?.position ?? null;
+  }, [items, results]);
+  const activeItem = items.find((i) => i.position === activePos) ?? null;
 
   useEffect(() => { cardRef.current?.focus(); }, []);
 
@@ -202,6 +210,8 @@ function SetInspectDetail({
       reason = tr("카드와 티셔츠가 다른 상품입니다", "卡片与T恤为不同商品");
     } else if (!match) {
       reason = tr("이 주문에 없는 상품입니다", "该商品不属于此订单");
+    } else if (activeItem && match.position !== activeItem.position) {
+      reason = tr(`작업 순서가 다릅니다 (현재 ${activeItem.position}번)`, `作业顺序不符（当前第${activeItem.position}项）`);
     } else {
       ok = true;
       reason = tr("동일 상품 확인 — 통과", "同一商品确认 — 通过");
@@ -210,13 +220,65 @@ function SetInspectDetail({
     const result: PairResult = { ok, card: norm(card), tshirt: norm(tshirt), at: new Date().toISOString(), reason };
     setVerdict(result);
 
-    const position = match?.position ?? (Object.keys(results).length + 1) * -1;
+    const position = match?.position ?? activeItem?.position ?? (Object.keys(results).length + 1) * -1;
     onChange({ ...results, [position]: result });
 
-    if (ok) toast.success(reason);
-    else toast.error(reason);
+    if (ok) {
+      scanSuccess();
+      toast.success(`${tr("통과", "通过")} · #${position}`);
+      setHalted(false);
+    } else {
+      scanFail();
+      toast.error(reason);
+      setHalted(true);
+    }
     clearInputs();
   };
+
+  // 스캐너 자동 입력: 카드 포장 QR → 티셔츠 포장 QR 순차 입력 후 자동 검증
+  const bufferRef = useRef("");
+  const lastKeyRef = useRef(0);
+  const stateRef = useRef({ cardScan, halted, activePos, evaluate });
+  stateRef.current = { cardScan, halted, activePos, evaluate };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.isContentEditable || el.tagName === "TEXTAREA" ||
+        (el.tagName === "INPUT" && el !== cardRef.current && el !== tshirtRef.current))) return;
+      const { halted: isHalted, activePos: pos } = stateRef.current;
+      if (isHalted || pos == null) return;
+
+      const now = Date.now();
+      if (now - lastKeyRef.current > 1000) bufferRef.current = "";
+      lastKeyRef.current = now;
+
+      if (e.key === "Enter" || e.code === "Enter" || e.code === "NumpadEnter") {
+        e.preventDefault();
+        const value = bufferRef.current.trim();
+        bufferRef.current = "";
+        if (!value) return;
+        if (!stateRef.current.cardScan.trim()) {
+          setCardScan(value);
+          setTshirtScan("");
+          setTimeout(() => tshirtRef.current?.focus(), 20);
+        } else {
+          setTshirtScan(value);
+          stateRef.current.evaluate(stateRef.current.cardScan, value);
+        }
+        return;
+      }
+      if (e.key === "Backspace") {
+        bufferRef.current = bufferRef.current.slice(0, -1);
+        return;
+      }
+      if (e.key.length === 1) {
+        bufferRef.current += e.key;
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, []);
 
   const values = Object.values(results);
   const pass = values.filter((r) => r.ok).length;
