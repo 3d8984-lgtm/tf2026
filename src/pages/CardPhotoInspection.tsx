@@ -632,17 +632,23 @@ export default function CardPhotoInspection() {
 
         {/* Visual reference (image + signature) for human judgement */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="rounded-lg border bg-card overflow-hidden">
+          <div className={`rounded-lg border bg-card overflow-hidden ${frontMatch === "matched" ? "border-[hsl(var(--success)/0.5)] ring-1 ring-[hsl(var(--success)/0.3)]" : ""}`}>
             <div className="px-4 py-2 border-b bg-muted/30 text-sm font-semibold flex items-center gap-2">
-              <ImageIcon className="w-4 h-4" /> {t("등록된 이미지 (작업자 비교용)", "已登记图像 (供操作员对比)")}
+              <ImageIcon className="w-4 h-4" /> {t("등록된 GFT 이미지 (작업자 비교용)", "已登记GFT图像 (供操作员对比)")}
+              {frontMatch === "matched" && (
+                <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]">
+                  {t(`매칭 #${selectedItemIdx + 1}`, `匹配 #${selectedItemIdx + 1}`)}
+                </span>
+              )}
             </div>
             <div className="aspect-[3/4] bg-muted/20 flex items-center justify-center">
               {expectedDesignUrl ? (
-                <img src={expectedDesignUrl} alt="registered design" className="w-full h-full object-contain" />
+                <img src={expectedDesignUrl} alt={t("등록된 GFT 이미지", "已登记GFT图像")} className="w-full h-full object-contain" />
               ) : (
                 <div className="text-muted-foreground text-sm">{t("등록 이미지 없음", "无已登记图像")}</div>
               )}
             </div>
+
             {expected?.sign && (
               <div className="px-4 py-3 border-t">
                 <div className="text-xs text-muted-foreground mb-1">{t("등록된 서명", "已登记签名")}</div>
