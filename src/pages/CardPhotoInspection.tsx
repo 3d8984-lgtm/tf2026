@@ -489,7 +489,8 @@ export default function CardPhotoInspection() {
       const sw = Math.min(img.width - sx, roi.w * img.width);
       const sh = Math.min(img.height - sy, roi.h * img.height);
       if (sw <= 2 || sh <= 2) return "";
-      const scale = Math.min(4, 512 / Math.max(sw, sh));
+      // 저해상도 크롭은 형태 비교 정확도를 떨어뜨리므로 1024px 기준으로 업스케일한다.
+      const scale = Math.min(6, 1024 / Math.max(sw, sh));
       const dw = Math.round(sw * scale);
       const dh = Math.round(sh * scale);
       const c = document.createElement("canvas");
@@ -498,6 +499,8 @@ export default function CardPhotoInspection() {
       c.height = dw;
       const ctx = c.getContext("2d");
       if (!ctx) return "";
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, c.width, c.height);
       ctx.translate(0, c.height);
