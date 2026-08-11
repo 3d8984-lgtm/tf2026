@@ -1959,6 +1959,8 @@ export default function CardPhotoInspection() {
                   <th className="text-left px-4 py-2 font-medium">#</th>
                   <th className="text-left px-4 py-2 font-medium">{t("카드 순번", "卡片序号")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("DM 바코드", "DM条码")}</th>
+                  <th className="text-left px-4 py-2 font-medium">{t("사진", "照片")}</th>
+
                   <th className="text-left px-4 py-2 font-medium">{t("검사 항목", "检验项目")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("결과", "结果")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("시각", "时间")}</th>
