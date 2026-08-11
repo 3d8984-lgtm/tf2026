@@ -478,7 +478,7 @@ export default function CardPhotoInspection() {
     img.src = src;
   });
 
-  /** 촬영 이미지에서 가이드 영역(트윈코드)만 잘라 확대한다. */
+  /** 촬영 이미지에서 가이드 영역(트윈코드)만 잘라 확대하고 좌회전 90도 적용한다. */
   const cropRoi = async (dataUrl: string, roi: { x: number; y: number; w: number; h: number }) => {
     try {
       const img = await loadImage(dataUrl);
@@ -488,14 +488,19 @@ export default function CardPhotoInspection() {
       const sh = Math.min(img.height - sy, roi.h * img.height);
       if (sw <= 2 || sh <= 2) return "";
       const scale = Math.min(4, 512 / Math.max(sw, sh));
+      const dw = Math.round(sw * scale);
+      const dh = Math.round(sh * scale);
       const c = document.createElement("canvas");
-      c.width = Math.round(sw * scale);
-      c.height = Math.round(sh * scale);
+      // 좌회전 90도 → 가로/세로가 서로 바뀐다
+      c.width = dh;
+      c.height = dw;
       const ctx = c.getContext("2d");
       if (!ctx) return "";
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, c.width, c.height);
-      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+      ctx.translate(0, c.height);
+      ctx.rotate(-Math.PI / 2);
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, dw, dh);
       return c.toDataURL("image/png");
     } catch { return ""; }
   };
