@@ -820,12 +820,17 @@ export default function CardPhotoInspection() {
               )}
             </div>
             <div className="aspect-[3/4] bg-muted/20 flex items-center justify-center">
-              {expectedDesignUrl ? (
+              {frontMatch !== "matched" ? (
+                <div className="text-muted-foreground text-sm text-center px-4">
+                  {t("앞면 촬영 & 분석 후 표시됩니다", "拍摄并分析正面后显示")}
+                </div>
+              ) : expectedDesignUrl ? (
                 <img src={expectedDesignUrl} alt={t("등록된 GFT 이미지", "已登记GFT图像")} className="w-full h-full object-contain" />
               ) : (
                 <div className="text-muted-foreground text-sm">{t("등록 이미지 없음", "无已登记图像")}</div>
               )}
             </div>
+
 
             {expected?.sign && (
               <div className="px-4 py-3 border-t">
