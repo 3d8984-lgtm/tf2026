@@ -81,7 +81,8 @@ export default function CardPhotoInspection() {
   const orders = useMemo<OrderRow[]>(() => {
     if (!dbOrders) return [];
     return dbOrders.map((o: any) => {
-      const items: CardItem[] = ((o.source_data as any)?.items ?? []).map((it: any) => ({
+      const sd: any = o.source_data ?? {};
+      const items: CardItem[] = (sd.items ?? []).map((it: any) => ({
         card_barcode: it.card_barcode ?? "",
         card_serial: it.card_serial ?? "",
         card_grade: it.card_grade ?? "",
@@ -93,7 +94,12 @@ export default function CardPhotoInspection() {
         minted_on: it.minted_on,
         sign: it.sign,
         twincode: it.twincode ?? it.design_qr ?? "",
+        gft_url:
+          it.gft_original_image_url ?? sd.gft_original_image_url ??
+          it.card_front_url ?? sd.card_front_url ??
+          it.gft_image_url ?? it.design_image_url ?? o.logo_url ?? "",
       }));
+
       return {
         id: o.id,
         externalOrderId: o.external_order_id,
