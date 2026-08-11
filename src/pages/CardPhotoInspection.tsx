@@ -1270,6 +1270,35 @@ export default function CardPhotoInspection() {
     setHistory(prev => prev.filter(h => h.key !== key));
   };
 
+  /** 이 주문건에 기록된 모든 검사 데이터(기록·표본계획·현재 촬영)를 초기화한다. */
+  const resetOrderData = () => {
+    if (!order) return;
+    const ok = window.confirm(
+      t(
+        "이 주문건에 기록된 모든 검사 데이터(검사 기록, 표본 계획, 현재 촬영)를 삭제합니다. 계속할까요?",
+        "将删除该订单的所有检验数据（检验记录、抽样计划、当前拍摄）。是否继续？"
+      )
+    );
+    if (!ok) return;
+
+    // 검사 기록 삭제
+    setHistory(prev => prev.filter(h => h.orderId !== order.id));
+    for (const k of Array.from(recordedRef.current)) {
+      if (k.startsWith(`${order.id}::`)) recordedRef.current.delete(k);
+    }
+
+    // 표본 계획 재추첨
+    const p = buildPlan(order.items.length);
+    setPlans(prev => ({ ...prev, [order.id]: p }));
+    setSelectedItemIdx(p[0] ?? 0);
+
+    // 현재 촬영/판정 상태 초기화
+    reset();
+    toast.success(t("주문 검사 데이터를 초기화했습니다", "已重置该订单的检验数据"));
+  };
+
+
+
 
   // ── Order selection view ──────────────────────────────────────────────
   if (!order) {
@@ -1370,7 +1399,7 @@ export default function CardPhotoInspection() {
         <Button variant="outline" size="sm" onClick={() => { setSelectedOrderId(null); reset(); }}>
           <ChevronLeft className="w-4 h-4" /> {t("주문 목록", "订单列表")}
         </Button>
-        <Button variant="outline" size="sm" onClick={reset}>
+        <Button variant="outline" size="sm" onClick={resetOrderData}>
           <RotateCcw className="w-4 h-4" /> {t("초기화", "重置")}
         </Button>
       </PageHeader>
