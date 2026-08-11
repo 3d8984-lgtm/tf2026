@@ -309,8 +309,15 @@ export default function CardPhotoInspection() {
   });
   const roiDirty = !savedRoi || (["x", "y", "w", "h"] as const).some(k => Math.abs(savedRoi[k] - twinRoi[k]) > 0.001);
   const saveTwinRoi = () => {
-    try { localStorage.setItem("card-photo-twin-roi-v2", JSON.stringify(twinRoi)); } catch { /* ignore */ }
-    setSavedRoi(twinRoi);
+    const normalizedRoi = {
+      x: Math.max(0, Math.min(1, twinRoi.x)),
+      y: Math.max(0, Math.min(1, twinRoi.y)),
+      w: Math.max(0.02, Math.min(1 - twinRoi.x, twinRoi.w)),
+      h: Math.max(0.02, Math.min(1 - twinRoi.y, twinRoi.h)),
+    };
+    try { localStorage.setItem("card-photo-twin-roi-v2", JSON.stringify(normalizedRoi)); } catch { /* ignore */ }
+    setTwinRoi(normalizedRoi);
+    setSavedRoi(normalizedRoi);
     toast.success(t("트윈코드 영역이 저장되었습니다", "TwinCode 区域已保存"));
   };
   const resetTwinRoi = () => {
@@ -634,7 +641,8 @@ export default function CardPhotoInspection() {
       const referenceTwincode = side === "back" ? await toRasterDataUrl(expectedTwincodeUrl || "") : undefined;
 
       if (side === "back") {
-        const crop = await cropRoi(dataUrl, getDisplayedGuideRoi());
+        // 저장 후 슬라이더가 다시 움직였더라도 실제 검사는 마지막으로 확정 저장한 영역만 사용한다.
+        const crop = await cropRoi(dataUrl, savedRoi ?? getDisplayedGuideRoi());
         setTwinCrop(crop);
         if (crop && referenceTwincode) {
           setTwinScore(await compareTwinShape(referenceTwincode, crop));
