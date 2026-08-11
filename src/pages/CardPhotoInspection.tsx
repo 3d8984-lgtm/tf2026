@@ -803,12 +803,22 @@ export default function CardPhotoInspection() {
         // 저장 후 슬라이더가 다시 움직였더라도 실제 검사는 마지막으로 확정 저장한 영역만 사용한다.
         const crop = await cropRoi(dataUrl, savedRoi ?? getDisplayedGuideRoi());
         setTwinCrop(crop);
-        if (crop && referenceTwincode) {
-          setTwinScore(await compareTwinShape(referenceTwincode, crop));
-        } else {
+        if (!expectedTwincodeUrl) {
           setTwinScore(null);
+          setTwinScoreNote(t("주문에 등록된 원본 트윈코드가 없습니다", "订单未登记原始TwinCode"));
+        } else if (!referenceTwincode) {
+          setTwinScore(null);
+          setTwinScoreNote(t("원본 트윈코드 이미지를 불러오지 못했습니다", "无法加载原始TwinCode图像"));
+        } else if (!crop) {
+          setTwinScore(null);
+          setTwinScoreNote(t("가이드 영역 추출에 실패했습니다", "引导区域提取失败"));
+        } else {
+          const s = await compareTwinShape(referenceTwincode, crop);
+          setTwinScore(s);
+          setTwinScoreNote(s === null ? t("이미지에서 형태를 인식하지 못했습니다 (초점/대비 확인)", "无法识别形状（请检查对焦/对比度）") : "");
         }
       }
+
 
       const [{ data, error }, decodedDm] = await Promise.all([
         supabase.functions.invoke("card-photo-inspect", {
