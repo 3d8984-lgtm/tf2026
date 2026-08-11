@@ -1489,7 +1489,12 @@ export default function CardPhotoInspection() {
                 <select
                   className="text-xs rounded border bg-background px-2 py-1"
                   value={deviceId}
-                  onChange={e => { setDeviceId(e.target.value); startCamera(e.target.value); }}
+                  onChange={e => {
+                    const id = e.target.value;
+                    setDeviceId(id);
+                    rememberCamera(id, devices.find(d => d.deviceId === id)?.label);
+                    startCamera(id);
+                  }}
                 >
                   {devices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || d.deviceId.slice(0, 8)}</option>)}
                 </select>
