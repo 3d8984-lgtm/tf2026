@@ -513,7 +513,7 @@ export default function CardPhotoInspection() {
                   const total = o.items.length;
                   const starts = plans[o.id] ?? [];
                   const idxs = starts.flatMap(s => Array.from({ length: Math.min(3, total - s) }, (_, k) => s + k));
-                  const target = idxs.length || Math.min(9, total);
+                  const target = idxs.length || Math.min(roundsFor(total) * 3, total);
                   const oh = history.filter(h => h.orderId === o.id && idxs.includes(h.itemIdx));
                   const pass = oh.filter(h => h.pass).length;
                   const fail = oh.filter(h => !h.pass).length;
