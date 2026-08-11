@@ -392,9 +392,10 @@ export default function CardPhotoInspection() {
     [history, order]
   );
 
-  // ── Random sampling plan: 3 rounds × 3 consecutive cards ──────────────
-  const ROUNDS = 3;
+  // ── Random sampling plan: consecutive 3 cards, rounds by order size ────
+  // ≤5장 → 1회, ≤10장 → 2회, 그 외 → 3회
   const RUN = 3;
+  const roundsFor = (total: number) => (total <= 5 ? 1 : total <= 10 ? 2 : 3);
   const PLAN_KEY = "card-photo-sample-plans";
   const [plans, setPlans] = useState<Record<string, number[]>>(() => {
     try {
@@ -410,14 +411,16 @@ export default function CardPhotoInspection() {
     if (total <= 0) return [];
     if (total < RUN) return [0];
     const maxStart = total - RUN;
+    const want = Math.min(roundsFor(total), Math.floor(total / RUN));
     const starts: number[] = [];
     let guard = 0;
-    while (starts.length < Math.min(ROUNDS, Math.floor(total / RUN)) && guard++ < 500) {
+    while (starts.length < want && guard++ < 500) {
       const s = Math.floor(Math.random() * (maxStart + 1));
       if (starts.every(x => Math.abs(x - s) >= RUN)) starts.push(s);
     }
     return starts.sort((a, b) => a - b);
   }, []);
+
 
   // Ensure a plan exists for the opened order
   useEffect(() => {
@@ -454,7 +457,7 @@ export default function CardPhotoInspection() {
       i !== selectedItemIdx && !orderHistory.some(h => h.itemIdx === i));
     reset();
     if (nextPending !== undefined) setSelectedItemIdx(nextPending);
-    else toast.success(t("표본 검사 3회(9장)가 모두 완료되었습니다", "3轮抽检(9张)已全部完成"));
+    else toast.success(t(`표본 검사 ${sampleRounds.length}회(${sampleIdxs.length}장)가 모두 완료되었습니다`, `${sampleRounds.length} 轮抽检(${sampleIdxs.length} 张)已全部完成`));
   };
 
   const removeHistory = (key: string) => {
@@ -500,7 +503,7 @@ export default function CardPhotoInspection() {
                   <th className="text-left px-4 py-2 font-medium">{t("트윈커", "Twinker")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("상품", "商品")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("카드 수량", "卡片数量")}</th>
-                  <th className="text-left px-4 py-2 font-medium">{t("표본 검사 (3회 × 3장)", "抽检 (3轮 × 3张)")}</th>
+                  <th className="text-left px-4 py-2 font-medium">{t("표본 검사 (연속 3장 단위)", "抽检 (每轮连续3张)")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("납기", "交期")}</th>
                   <th className="px-4 py-2"></th>
                 </tr>
@@ -510,7 +513,7 @@ export default function CardPhotoInspection() {
                   const total = o.items.length;
                   const starts = plans[o.id] ?? [];
                   const idxs = starts.flatMap(s => Array.from({ length: Math.min(3, total - s) }, (_, k) => s + k));
-                  const target = idxs.length || Math.min(9, total);
+                  const target = idxs.length || Math.min(roundsFor(total) * 3, total);
                   const oh = history.filter(h => h.orderId === o.id && idxs.includes(h.itemIdx));
                   const pass = oh.filter(h => h.pass).length;
                   const fail = oh.filter(h => !h.pass).length;
@@ -572,7 +575,7 @@ export default function CardPhotoInspection() {
         <div className="rounded-lg border bg-card overflow-hidden">
           <div className="px-4 py-2 border-b bg-muted/30 text-sm font-semibold flex items-center justify-between gap-2 flex-wrap">
             <span>
-              {t("랜덤 표본 검사 (연속 3장 × 3회)", "随机抽检 (连续3张 × 3轮)")}
+              {t(`랜덤 표본 검사 (연속 3장 × ${sampleRounds.length}회)`, `随机抽检 (连续3张 × ${sampleRounds.length}轮)`)}
               <span className="ml-2 text-xs font-normal text-muted-foreground">
                 {t(`전체 ${order.items.length}장 중 ${sampleIdxs.length}장 검사`, `共 ${order.items.length} 张中抽检 ${sampleIdxs.length} 张`)}
               </span>
@@ -657,7 +660,7 @@ export default function CardPhotoInspection() {
             <div>
               <div className="font-semibold">
                 {finalPass
-                  ? t("최종 통과 — 표본 3회(연속 3장) 검사 완료", "最终通过 — 3轮抽检(连续3张)已完成")
+                  ? t(`최종 통과 — 표본 ${sampleRounds.length}회(연속 3장) 검사 완료`, `最终通过 — ${sampleRounds.length} 轮抽检(连续3张)已完成`)
                   : t(`최종 불합격 — 표본 중 ${sampleFail.length}장 불일치`, `最终不合格 — 抽检中 ${sampleFail.length} 张不一致`)}
               </div>
               <div className="text-sm opacity-90">
