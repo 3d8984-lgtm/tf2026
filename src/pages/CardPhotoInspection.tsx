@@ -1214,8 +1214,6 @@ export default function CardPhotoInspection() {
             </span>
           </div>
 
-          </div>
-
           <div className="text-xs text-muted-foreground mt-3 mb-2">
             {t("① 앞면을 먼저 촬영하면 CP 점수와 EDITION으로 주문 카드가 자동 매칭됩니다. ② 그 다음 카드의 트윈코드가 빨간 사각형 안에 오도록 놓고 뒷면을 촬영하세요.", "① 先拍摄正面，通过CP分数与EDITION自动匹配订单卡片。② 然后将TwinCode对准红色方框拍摄背面。")}
           </div>
