@@ -243,8 +243,10 @@ export default function CardPhotoInspection() {
   const startCamera = useCallback(async (id?: string) => {
     try {
       if (stream) stream.getTracks().forEach(t => t.stop());
+      // 트윈코드 형태 비교 정확도를 위해 최대한 높은 해상도를 요청한다.
+      const hiRes = { width: { ideal: 3840 }, height: { ideal: 2160 }, frameRate: { ideal: 30 } };
       const s = await navigator.mediaDevices.getUserMedia({
-        video: id ? { deviceId: { exact: id } } : { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
+        video: id ? { deviceId: { exact: id }, ...hiRes } : { facingMode: "environment", ...hiRes },
         audio: false,
       });
       setStream(s);
