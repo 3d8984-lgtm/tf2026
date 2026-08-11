@@ -1246,16 +1246,6 @@ export default function CardPhotoInspection() {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <Button onClick={() => captureSide("front")} disabled={!stream || busySide !== null}>
-              {busySide === "front" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
-              {t("① 앞면 촬영 & 분석", "① 拍摄并分析正面")}
-            </Button>
-            <Button onClick={() => captureSide("back")} disabled={!stream || busySide !== null} variant="secondary">
-              {busySide === "back" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
-              {t("② 뒷면 촬영 & 분석", "② 拍摄并分析背面")}
-            </Button>
-          </div>
 
         </div>
 
