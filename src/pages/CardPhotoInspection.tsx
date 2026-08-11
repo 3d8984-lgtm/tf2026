@@ -103,6 +103,8 @@ export default function CardPhotoInspection() {
         minted_on: it.minted_on ?? sd.minted_on,
         sign: it.sign,
         twincode: it.twincode ?? it.twin_code ?? it.design_qr ?? "",
+        twincode_url: it.twincode_svg_url ?? it.twincode_url ?? it.twin_code_url ?? sd.twincode_svg_url ?? "",
+
         gft_url:
           it.gft_original_image_url ?? sd.gft_original_image_url ??
           it.card_front_url ?? sd.card_front_url ??
