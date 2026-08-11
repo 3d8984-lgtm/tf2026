@@ -695,19 +695,26 @@ export default function CardPhotoInspection() {
         match: !!gradeNorm(expected.card_grade) && gradeNorm(expected.card_grade) === gradeNorm(backResult.card_grade),
       });
       {
-        const shape = backResult.twincode_shape_match === true;
+        // 1순위: 가이드 영역 크롭 vs 등록 SVG의 로컬 형태 유사도, 2순위: AI 판정
+        const aiShape = backResult.twincode_shape_match === true;
+        const hasLocal = twinScore !== null;
+        const localOk = hasLocal && (twinScore as number) >= 0.62;
+        const shape = hasLocal ? localOk : aiShape;
         list.push({
           key: "twin",
           label: t("트윈코드 (형태 비교)", "TwinCode (形状比对)"),
           expected: expectedTwincodeUrl
             ? t("등록된 트윈코드 형태", "已登记TwinCode形状")
             : t("등록 이미지 없음", "无已登记图像"),
-          detected: expectedTwincodeUrl
-            ? (shape ? t("형태 일치", "形状一致") : t("형태 불일치", "形状不一致"))
-            : t("비교 불가", "无法比对"),
+          detected: !expectedTwincodeUrl
+            ? t("비교 불가", "无法比对")
+            : hasLocal
+              ? `${shape ? t("형태 일치", "形状一致") : t("형태 불일치", "形状不一致")} (${Math.round((twinScore as number) * 100)}%)`
+              : (shape ? t("형태 일치", "形状一致") : t("형태 불일치", "形状不一致")),
           match: !!expectedTwincodeUrl && shape,
         });
       }
+
       {
         // 기준값은 개별 주문번호 + "-4"
         const expDm = norm(expected.dm_expected);
