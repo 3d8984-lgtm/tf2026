@@ -1974,6 +1974,34 @@ export default function CardPhotoInspection() {
                     <td className="px-4 py-2 font-mono text-xs">{h.cardSerial || "-"}</td>
                     <td className="px-4 py-2 font-mono text-xs">{h.dmBarcode || "-"}</td>
                     <td className="px-4 py-2">
+                      {h.frontPhoto || h.backPhoto ? (
+                        <button
+                          type="button"
+                          onClick={() => setPhotoViewer(h)}
+                          className="flex items-center gap-1 group"
+                          title={t("클릭하면 크게 보기", "点击查看大图")}
+                        >
+                          {[h.frontPhoto, h.backPhoto].map((src, i) =>
+                            src ? (
+                              <img
+                                key={i}
+                                src={src}
+                                alt={i === 0 ? t("앞면", "正面") : t("뒷면", "背面")}
+                                className="w-12 h-8 object-cover rounded border group-hover:ring-2 ring-primary/60 transition"
+                              />
+                            ) : (
+                              <span key={i} className="w-12 h-8 rounded border grid place-items-center text-[9px] text-muted-foreground">
+                                {i === 0 ? t("앞", "正") : t("뒤", "背")}
+                              </span>
+                            )
+                          )}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
+                    </td>
+
+                    <td className="px-4 py-2">
                       {h.fields?.length ? (
                         <div className="flex flex-wrap gap-1">
                           {h.fields.map((f, i) => (
