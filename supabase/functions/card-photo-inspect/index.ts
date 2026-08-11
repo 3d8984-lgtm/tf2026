@@ -12,7 +12,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { side, image } = await req.json();
+    const { side, image, reference_twincode } = await req.json();
     if (!image || !side) {
       return new Response(JSON.stringify({ error: "side and image required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -23,6 +23,7 @@ Deno.serve(async (req) => {
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY missing");
 
     const isFront = side === "front";
+    const hasRef = !isFront && typeof reference_twincode === "string" && /^https?:|^data:/.test(reference_twincode);
 
     const tool = isFront ? {
       type: "function",
@@ -44,22 +45,40 @@ Deno.serve(async (req) => {
       type: "function",
       function: {
         name: "extract_card_back",
-        description: "Extract text fields visible on the BACK of a collectible card.",
+        description: "Extract fields visible on the BACK of a collectible card and compare the TwinCode graphic shape.",
         parameters: {
           type: "object",
           properties: {
-            issued_no: { type: "string", description: "ISSUED No. value e.g. 'TM-CARD-A0731' or '#014'. Empty if not visible." },
-            minted_on: { type: "string", description: "Minted on date e.g. '2026-04-22'. Empty if not visible." },
-            card_grade: { type: "string", description: "Card grade letter e.g. 'S','A','B'. Empty if not visible." },
-            twincode: { type: "string", description: "TwinCode value e.g. 'TWN-007-A'. Empty if not visible." },
-            dm_barcode: { type: "string", description: "DM barcode text e.g. 'DM-2026-0501-00731'. Empty if not visible." },
+            issued_no: { type: "string", description: "ISSUED No. value e.g. 'P7' or '#014'. Empty if not visible." },
+            minted_on: { type: "string", description: "Minted on value e.g. 'S1' or '2026-04-22'. Empty if not visible." },
+            card_grade: {
+              type: "string",
+              description: "Card grade word printed on the back. Usually one of: Common, Uncommon, Rare, Epic, Unique, Legend, Legendary. It may be printed in small caps near the grade/edition block or shown as a coloured label. Return it exactly as printed (e.g. 'Common'). Empty only if truly not visible.",
+            },
+            twincode: { type: "string", description: "TwinCode text printed under/next to the TwinCode graphic, if any. Empty if none." },
+            twincode_shape_match: {
+              type: "boolean",
+              description: hasRef
+                ? "TRUE if the TwinCode graphic pattern on the card back is visually the SAME SHAPE as the reference TwinCode image (compare module/segment pattern, orientation and outline, ignore colour, print quality and scale). FALSE otherwise."
+                : "Always false when no reference image is provided.",
+            },
+            twincode_shape_note: { type: "string", description: "Short reason for the shape judgement." },
+            dm_barcode: { type: "string", description: "Human readable text of the DM (Data Matrix) barcode if printed as text. Empty if only the graphic is present." },
             notes: { type: "string", description: "One short sentence about extraction confidence/issues." },
           },
-          required: ["issued_no", "minted_on", "card_grade", "twincode", "dm_barcode", "notes"],
+          required: ["issued_no", "minted_on", "card_grade", "twincode", "twincode_shape_match", "twincode_shape_note", "dm_barcode", "notes"],
           additionalProperties: false,
         },
       },
     };
+
+    const userContent: any[] = [
+      { type: "text", text: isFront
+        ? "Extract the printed text fields from the FRONT of this card. Look for the CP score badge and the EDITION value (e.g. '12 / 50' or '014/1000')."
+        : `Image 1 is the BACK of the card. Extract 'ISSUED No.', 'Minted on', the card GRADE word (Common/Rare/Epic/Legend/...), and any TwinCode text.${hasRef ? " Image 2 is the reference TwinCode graphic registered for this card: judge whether the TwinCode graphic printed on the card back has the SAME SHAPE/PATTERN as the reference, and set twincode_shape_match accordingly." : " No reference TwinCode image is provided, so set twincode_shape_match to false."}` },
+      { type: "image_url", image_url: { url: image } },
+    ];
+    if (hasRef) userContent.push({ type: "image_url", image_url: { url: reference_twincode } });
 
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -70,21 +89,14 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
-          { role: "system", content: "You are a precise OCR assistant for collectible cards. Read text exactly as printed. If a field is unreadable, return an empty string for it." },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: isFront
-                ? "Extract the printed text fields from the FRONT of this card. Look for the CP score badge and the EDITION value (e.g. '12 / 50' or '014/1000')."
-                : "Extract the printed text fields from the BACK of this card. Look for 'ISSUED No.', 'Minted on' date, card grade letter, TwinCode, and DM barcode text." },
-              { type: "image_url", image_url: { url: image } },
-            ],
-          },
+          { role: "system", content: "You are a precise OCR and visual-comparison assistant for collectible cards. Read text exactly as printed. If a field is unreadable, return an empty string for it." },
+          { role: "user", content: userContent },
         ],
         tools: [tool],
         tool_choice: { type: "function", function: { name: tool.function.name } },
       }),
     });
+
 
     if (!aiRes.ok) {
       const t = await aiRes.text();

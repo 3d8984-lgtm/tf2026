@@ -24,6 +24,8 @@ interface CardItem {
   minted_on?: string | number;
   sign?: string;
   twincode?: string;
+  /** 등록된 트윈코드 이미지(SVG) URL — 형태 비교용 */
+  twincode_url?: string;
   /** GFT 원본 이미지 URL (주문 데이터에 직접 저장된 값) */
   gft_url?: string;
 
@@ -39,7 +41,11 @@ interface OrderRow {
 }
 
 type FrontExtract = { cp_score: string; edition: string; notes?: string };
-type BackExtract = { issued_no: string; minted_on: string; card_grade: string; twincode: string; dm_barcode: string; notes?: string };
+type BackExtract = {
+  issued_no: string; minted_on: string; card_grade: string; twincode: string; dm_barcode: string;
+  twincode_shape_match?: boolean; twincode_shape_note?: string; notes?: string;
+};
+
 
 interface FieldCheck {
   label: string;
@@ -83,7 +89,7 @@ export default function CardPhotoInspection() {
     return dbOrders.map((o: any) => {
       const sd: any = o.source_data ?? {};
       const items: CardItem[] = (sd.items ?? []).map((it: any, idx: number) => ({
-        card_barcode: it.card_barcode ?? "",
+        card_barcode: it.card_barcode ?? it.dm_barcode ?? it.dm_code ?? it.nfc_ndef_data ?? "",
         card_serial: it.card_serial ?? it.issued_no ?? sd.issued_no ?? "",
         card_grade: it.card_grade ?? it.grade ?? sd.grade ?? "",
         design_qr: it.design_qr ?? "",
@@ -97,6 +103,8 @@ export default function CardPhotoInspection() {
         minted_on: it.minted_on ?? sd.minted_on,
         sign: it.sign,
         twincode: it.twincode ?? it.twin_code ?? it.design_qr ?? "",
+        twincode_url: it.twincode_svg_url ?? it.twincode_url ?? it.twin_code_url ?? sd.twincode_svg_url ?? "",
+
         gft_url:
           it.gft_original_image_url ?? sd.gft_original_image_url ??
           it.card_front_url ?? sd.card_front_url ??
@@ -224,6 +232,9 @@ export default function CardPhotoInspection() {
   const [busySide, setBusySide] = useState<"front" | "back" | null>(null);
   /** Result of matching the FRONT photo (CP + EDITION) against order data. */
   const [frontMatch, setFrontMatch] = useState<"idle" | "matched" | "failed">("idle");
+  /** 뒷면 사진에서 실제 디코딩된 DM 바코드 값 */
+  const [dmDecoded, setDmDecoded] = useState<string>("");
+
 
   const normKey = (v: any) => String(v ?? "").trim().toLowerCase().replace(/\s+/g, "");
   const digits = (v: any) => String(v ?? "").replace(/\D/g, "");
@@ -261,16 +272,40 @@ export default function CardPhotoInspection() {
   }, [orders, order, selectedItemIdx]);
 
 
+  /** DM(Data Matrix) 바코드를 실제로 디코딩해 "값" 기준으로 판정한다. */
+  const decodeDataMatrix = async (dataUrl: string): Promise<string> => {
+    try {
+      const { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat } = await import("@zxing/library");
+      const hints = new Map<any, any>();
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.DATA_MATRIX, BarcodeFormat.QR_CODE]);
+      hints.set(DecodeHintType.TRY_HARDER, true);
+      const reader = new BrowserMultiFormatReader(hints as any);
+      const res = await reader.decodeFromImageUrl(dataUrl);
+      return res?.getText?.()?.trim() ?? "";
+    } catch {
+      return "";
+    }
+  };
+
   const inspectImage = async (side: "front" | "back", dataUrl: string) => {
     setBusySide(side);
     try {
-      const { data, error } = await supabase.functions.invoke("card-photo-inspect", {
-        body: { side, image: dataUrl },
-      });
+      const referenceTwincode = side === "back" ? (expected?.twincode_url || undefined) : undefined;
+      const [{ data, error }, decodedDm] = await Promise.all([
+        supabase.functions.invoke("card-photo-inspect", {
+          body: { side, image: dataUrl, reference_twincode: referenceTwincode },
+        }),
+        side === "back" ? decodeDataMatrix(dataUrl) : Promise.resolve(""),
+      ]);
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       const ex = data?.extracted;
       if (!ex) throw new Error(t("추출 결과 없음", "无提取结果"));
+      if (side === "back") {
+        setDmDecoded(decodedDm);
+        if (decodedDm) ex.dm_barcode = decodedDm;
+      }
+
       if (side === "front") {
         setFrontResult(ex);
         // Match the order/card by CP score + EDITION number.
@@ -316,19 +351,36 @@ export default function CardPhotoInspection() {
       return;
     }
     if (side === "front") { setFrontImg(url); setFrontResult(null); setFrontMatch("idle"); }
-    else { setBackImg(url); setBackResult(null); }
+    else { setBackImg(url); setBackResult(null); setDmDecoded(""); }
     await inspectImage(side, url);
   };
 
   const reset = () => {
     setFrontImg(null); setBackImg(null);
-    setFrontResult(null); setBackResult(null);
+    setFrontResult(null); setBackResult(null); setDmDecoded("");
     setFrontMatch("idle");
   };
 
 
   // ── Comparison (text fields only) ─────────────────────────────────────
   const norm = (v: any) => String(v ?? "").trim().toLowerCase().replace(/\s+/g, "");
+
+  /** 등급 표기 흔들림(Legendary/레전드/S등급 등)을 표준 등급명으로 정규화 */
+  const gradeNorm = (v: any) => {
+    const s = norm(v).replace(/[^a-z가-힣]/g, "");
+    if (!s) return "";
+    const table: [RegExp, string][] = [
+      [/legend|레전드|전설/, "legend"],
+      [/epic|에픽/, "epic"],
+      [/unique|유니크/, "unique"],
+      [/uncommon|언커먼/, "uncommon"],
+      [/rare|레어|희귀/, "rare"],
+      [/common|커먼|일반/, "common"],
+    ];
+    for (const [re, key] of table) if (re.test(s)) return key;
+    return s;
+  };
+
 
   const checks: FieldCheck[] = useMemo(() => {
     if (!expected) return [];
@@ -365,24 +417,35 @@ export default function CardPhotoInspection() {
         label: t("카드 등급", "卡片等级"),
         expected: expected.card_grade ?? "",
         detected: backResult.card_grade ?? "",
-        match: norm(expected.card_grade) === norm(backResult.card_grade) && !!norm(expected.card_grade),
+        match: !!gradeNorm(expected.card_grade) && gradeNorm(expected.card_grade) === gradeNorm(backResult.card_grade),
       });
-      list.push({
-        label: t("트윈코드", "TwinCode"),
-        expected: expected.twincode || expected.design_qr || "",
-        detected: backResult.twincode ?? "",
-        match: norm(expected.twincode || expected.design_qr) === norm(backResult.twincode)
-          && !!norm(expected.twincode || expected.design_qr),
-      });
-      list.push({
-        label: t("DM 바코드", "DM条码"),
-        expected: expected.card_barcode ?? "",
-        detected: backResult.dm_barcode ?? "",
-        match: norm(expected.card_barcode) === norm(backResult.dm_barcode) && !!norm(expected.card_barcode),
-      });
+      {
+        const shape = backResult.twincode_shape_match === true;
+        list.push({
+          label: t("트윈코드 (형태 비교)", "TwinCode (形状比对)"),
+          expected: expected.twincode_url
+            ? t("등록된 트윈코드 형태", "已登记TwinCode形状")
+            : t("등록 이미지 없음", "无已登记图像"),
+          detected: expected.twincode_url
+            ? (shape ? t("형태 일치", "形状一致") : t("형태 불일치", "形状不一致"))
+            : t("비교 불가", "无法比对"),
+          match: !!expected.twincode_url && shape,
+        });
+      }
+      {
+        const expDm = norm(expected.card_barcode);
+        const gotDm = norm(dmDecoded || backResult.dm_barcode);
+        list.push({
+          label: t("DM 바코드 (값 비교)", "DM条码 (值比对)"),
+          expected: expected.card_barcode ?? "",
+          detected: dmDecoded || backResult.dm_barcode || t("디코딩 실패", "解码失败"),
+          match: !!expDm && !!gotDm && expDm === gotDm,
+        });
+      }
+
     }
     return list;
-  }, [expected, frontResult, backResult, isKo]);
+  }, [expected, frontResult, backResult, dmDecoded, isKo]);
 
   const failCount = checks.filter(c => !c.match).length;
   const allDone = !!frontResult && !!backResult;
