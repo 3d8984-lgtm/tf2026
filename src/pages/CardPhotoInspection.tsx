@@ -1158,35 +1158,50 @@ export default function CardPhotoInspection() {
               )}
             </div>
           </div>
-          <div ref={videoStageRef} className="relative aspect-video bg-black rounded overflow-hidden flex items-center justify-center">
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="w-full h-full object-contain"
-              onLoadedMetadata={e => {
-                const v = e.currentTarget;
-                if (v.videoWidth && v.videoHeight) setVideoAr(v.videoWidth / v.videoHeight);
-              }}
-            />
-            {/* 트윈코드 가이드 영역 — 실제 영상 표시 영역(레터박스 제외) 기준으로 그린다 */}
-            <div
-              ref={twinGuideRef}
-              className="absolute border-2 border-destructive pointer-events-none"
-              style={{
-                left: `${(videoBox.left + twinRoi.x * videoBox.width) * 100}%`,
-                top: `${(videoBox.top + twinRoi.y * videoBox.height) * 100}%`,
-                width: `${twinRoi.w * videoBox.width * 100}%`,
-                height: `${twinRoi.h * videoBox.height * 100}%`,
-                boxShadow: "0 0 0 9999px hsl(var(--background) / 0.25)",
-              }}
-            >
-              <span className="absolute -top-5 left-0 text-[10px] font-semibold text-destructive bg-background/80 px-1 rounded">
-                {t("트윈코드 영역", "TwinCode 区域")}
-              </span>
+          <div className="flex flex-col md:flex-row gap-3">
+            <div ref={videoStageRef} className="relative flex-1 aspect-video bg-black rounded overflow-hidden flex items-center justify-center">
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-contain"
+                onLoadedMetadata={e => {
+                  const v = e.currentTarget;
+                  if (v.videoWidth && v.videoHeight) setVideoAr(v.videoWidth / v.videoHeight);
+                }}
+              />
+              {/* 트윈코드 가이드 영역 — 실제 영상 표시 영역(레터박스 제외) 기준으로 그린다 */}
+              <div
+                ref={twinGuideRef}
+                className="absolute border-2 border-destructive pointer-events-none"
+                style={{
+                  left: `${(videoBox.left + twinRoi.x * videoBox.width) * 100}%`,
+                  top: `${(videoBox.top + twinRoi.y * videoBox.height) * 100}%`,
+                  width: `${twinRoi.w * videoBox.width * 100}%`,
+                  height: `${twinRoi.h * videoBox.height * 100}%`,
+                  boxShadow: "0 0 0 9999px hsl(var(--background) / 0.25)",
+                }}
+              >
+                <span className="absolute -top-5 left-0 text-[10px] font-semibold text-destructive bg-background/80 px-1 rounded">
+                  {t("트윈코드 영역", "TwinCode 区域")}
+                </span>
+              </div>
+            </div>
+
+            {/* 촬영 버튼 — 카메라 화면 오른쪽 */}
+            <div className="flex md:flex-col gap-3 md:w-56 shrink-0">
+              <Button className="flex-1 md:flex-none md:h-24" onClick={() => captureSide("front")} disabled={!stream || busySide !== null}>
+                {busySide === "front" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+                {t("① 앞면 촬영 & 분석", "① 拍摄并分析正面")}
+              </Button>
+              <Button className="flex-1 md:flex-none md:h-24" onClick={() => captureSide("back")} disabled={!stream || busySide !== null} variant="secondary">
+                {busySide === "back" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+                {t("② 뒷면 촬영 & 분석", "② 拍摄并分析背面")}
+              </Button>
             </div>
           </div>
+
 
           {/* 가이드 영역 조정 */}
           <div className="mt-2 grid grid-cols-4 gap-2">
@@ -1246,16 +1261,6 @@ export default function CardPhotoInspection() {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <Button onClick={() => captureSide("front")} disabled={!stream || busySide !== null}>
-              {busySide === "front" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
-              {t("① 앞면 촬영 & 분석", "① 拍摄并分析正面")}
-            </Button>
-            <Button onClick={() => captureSide("back")} disabled={!stream || busySide !== null} variant="secondary">
-              {busySide === "back" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
-              {t("② 뒷면 촬영 & 분석", "② 拍摄并分析背面")}
-            </Button>
-          </div>
 
         </div>
 
