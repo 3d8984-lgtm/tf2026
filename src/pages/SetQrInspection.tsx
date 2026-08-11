@@ -249,8 +249,9 @@ function SetInspectDetail({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
-      if (el && (el.isContentEditable || el.tagName === "TEXTAREA" ||
-        (el.tagName === "INPUT" && el !== cardRef.current && el !== tshirtRef.current))) return;
+      // 두 스캔 입력창 또는 다른 입력 요소에 포커스가 있으면 해당 입력창의 자체 로직에 맡김
+      if (el && (el.isContentEditable || el.tagName === "TEXTAREA" || el.tagName === "INPUT")) return;
+
       const { halted: isHalted, activePos: pos } = stateRef.current;
       if (isHalted || pos == null) return;
 
