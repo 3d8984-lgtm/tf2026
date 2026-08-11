@@ -287,10 +287,37 @@ export default function CardPhotoInspection() {
     }
   };
 
+  // The AI model cannot read SVG URLs, so rasterize the registered TwinCode to PNG.
+  const toRasterDataUrl = async (url: string): Promise<string | undefined> => {
+    if (!url) return undefined;
+    if (!/\.svg($|\?)/i.test(url) && !url.startsWith("data:image/svg")) return url;
+    try {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      await new Promise<void>((res, rej) => {
+        img.onload = () => res();
+        img.onerror = () => rej(new Error("load failed"));
+        img.src = url;
+      });
+      const size = 512;
+      const c = document.createElement("canvas");
+      c.width = size; c.height = size;
+      const ctx = c.getContext("2d");
+      if (!ctx) return undefined;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, size, size);
+      ctx.drawImage(img, 0, 0, size, size);
+      return c.toDataURL("image/png");
+    } catch {
+      return undefined;
+    }
+  };
+
   const inspectImage = async (side: "front" | "back", dataUrl: string) => {
     setBusySide(side);
     try {
-      const referenceTwincode = side === "back" ? (expected?.twincode_url || undefined) : undefined;
+      const referenceTwincode = side === "back" ? await toRasterDataUrl(expected?.twincode_url || "") : undefined;
+
       const [{ data, error }, decodedDm] = await Promise.all([
         supabase.functions.invoke("card-photo-inspect", {
           body: { side, image: dataUrl, reference_twincode: referenceTwincode },
