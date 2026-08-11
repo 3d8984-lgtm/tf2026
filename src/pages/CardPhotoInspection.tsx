@@ -241,29 +241,68 @@ export default function CardPhotoInspection() {
   const twinGuideRef = useRef<HTMLDivElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
-  const [deviceId, setDeviceId] = useState<string>("");
+  /** 마지막으로 사용한 카메라는 브라우저에 저장해 다음 방문에도 그대로 사용한다. */
+  const CAM_KEY = "card-photo-camera-v1";
+  const [deviceId, setDeviceId] = useState<string>(() => {
+    try { return JSON.parse(localStorage.getItem(CAM_KEY) || "{}").deviceId || ""; } catch { return ""; }
+  });
+  const autoStartedRef = useRef(false);
+
+  const rememberCamera = (id: string, label?: string) => {
+    try { localStorage.setItem(CAM_KEY, JSON.stringify({ deviceId: id, label: label ?? "" })); } catch { /* ignore */ }
+  };
 
   const startCamera = useCallback(async (id?: string) => {
     try {
       if (stream) stream.getTracks().forEach(t => t.stop());
       // 트윈코드 형태 비교 정확도를 위해 최대한 높은 해상도를 요청한다.
       const hiRes = { width: { ideal: 3840 }, height: { ideal: 2160 }, frameRate: { ideal: 30 } };
-      const s = await navigator.mediaDevices.getUserMedia({
-        video: id ? { deviceId: { exact: id }, ...hiRes } : { facingMode: "environment", ...hiRes },
-        audio: false,
-      });
+      let saved: { deviceId?: string; label?: string } = {};
+      try { saved = JSON.parse(localStorage.getItem(CAM_KEY) || "{}"); } catch { /* ignore */ }
+      const wanted = id || deviceId || saved.deviceId || "";
+      let s: MediaStream;
+      try {
+        s = await navigator.mediaDevices.getUserMedia({
+          video: wanted ? { deviceId: { exact: wanted }, ...hiRes } : { facingMode: "environment", ...hiRes },
+          audio: false,
+        });
+      } catch {
+        // 저장된 카메라가 연결 해제된 경우 기본 카메라로 폴백
+        s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", ...hiRes }, audio: false });
+      }
       setStream(s);
       if (videoRef.current) videoRef.current.srcObject = s;
       const list = await navigator.mediaDevices.enumerateDevices();
       const cams = list.filter(d => d.kind === "videoinput");
       setDevices(cams);
-      if (!deviceId && cams[0]) setDeviceId(cams[0].deviceId);
+
+      // 실제 사용 중인 트랙 기준으로 선택 상태와 저장값을 동기화한다.
+      const active = s.getVideoTracks()[0]?.getSettings().deviceId || "";
+      // 기기 재연결로 deviceId가 바뀐 경우 라벨로 재매칭
+      const byLabel = saved.label ? cams.find(c => c.label === saved.label) : undefined;
+      const finalId = active || byLabel?.deviceId || cams[0]?.deviceId || "";
+      if (finalId) {
+        setDeviceId(finalId);
+        rememberCamera(finalId, cams.find(c => c.deviceId === finalId)?.label);
+      }
     } catch (e: any) {
       toast.error(t("카메라 접근 실패: " + (e?.message ?? ""), "无法访问摄像头: " + (e?.message ?? "")));
     }
   }, [stream, deviceId, isKo]);
 
   useEffect(() => () => { stream?.getTracks().forEach(t => t.stop()); }, [stream]);
+
+  /** 저장된 카메라가 있으면 페이지 진입 시 자동으로 시작한다. */
+  useEffect(() => {
+    if (autoStartedRef.current) return;
+    let saved = "";
+    try { saved = JSON.parse(localStorage.getItem(CAM_KEY) || "{}").deviceId || ""; } catch { /* ignore */ }
+    if (!saved) return;
+    autoStartedRef.current = true;
+    startCamera(saved);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   const captureDataUrl = (): string | null => {
     const v = videoRef.current;
