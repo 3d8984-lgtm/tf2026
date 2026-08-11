@@ -83,7 +83,7 @@ export default function SetQrInspection() {
     <div className="flex flex-col h-full">
       <PageHeader
         title={tr("세트포장 큐알코드 검사", "套装包装QR码检验")}
-        description={tr("주문을 선택한 후 카드 QR과 티셔츠 QR을 스캔해 동일 상품 여부를 검증합니다", "选择订单后扫描卡片QR与T恤QR，验证是否为同一商品")}
+        description={tr("주문을 선택한 후 카드 포장 QR과 티셔츠 포장 QR을 스캔해 동일 상품 여부를 검증합니다", "选择订单后扫描卡片包装QR与T恤包装QR，验证是否为同一商品")}
       />
       <div className="flex-1 overflow-auto p-4 md:p-6">
         {loading ? (
@@ -258,14 +258,14 @@ function SetInspectDetail({
             <p className="text-lg font-semibold">
               {verdict == null ? tr("스캔 대기", "等待扫描") : verdict.ok ? tr("통과 (O)", "通过 (O)") : tr("실패 (X)", "失败 (X)")}
             </p>
-            <p className="text-sm text-muted-foreground">{verdict?.reason ?? tr("카드 QR → 티셔츠 QR 순으로 스캔하세요", "请按 卡片QR → T恤QR 顺序扫描")}</p>
+            <p className="text-sm text-muted-foreground">{verdict?.reason ?? tr("카드 포장 QR → 티셔츠 포장 QR 순으로 스캔하세요", "请按 卡片包装QR → T恤包装QR 顺序扫描")}</p>
           </div>
         </div>
 
         {/* 스캔 입력 */}
         <div className="grid gap-4 md:grid-cols-2">
           <div className="rounded-lg border bg-card p-4 space-y-2">
-            <p className="text-sm font-medium flex items-center gap-2"><CreditCard className="w-4 h-4 text-primary" /> {tr("카드 QR", "卡片QR")}</p>
+            <p className="text-sm font-medium flex items-center gap-2"><CreditCard className="w-4 h-4 text-primary" /> {tr("카드 포장 QR", "卡片包装QR")}</p>
             <Input
               ref={cardRef}
               value={cardScan}
@@ -276,12 +276,12 @@ function SetInspectDetail({
                   if (cardScan.trim()) tshirtRef.current?.focus();
                 }
               }}
-              placeholder={tr("카드 QR 스캔", "扫描卡片QR")}
+              placeholder={tr("카드 포장 QR 스캔", "扫描卡片包装QR")}
               className="font-mono"
             />
           </div>
           <div className="rounded-lg border bg-card p-4 space-y-2">
-            <p className="text-sm font-medium flex items-center gap-2"><Shirt className="w-4 h-4 text-primary" /> {tr("티셔츠 QR", "T恤QR")}</p>
+            <p className="text-sm font-medium flex items-center gap-2"><Shirt className="w-4 h-4 text-primary" /> {tr("티셔츠 포장 QR", "T恤包装QR")}</p>
             <Input
               ref={tshirtRef}
               value={tshirtScan}
@@ -292,7 +292,7 @@ function SetInspectDetail({
                   if (cardScan.trim() && tshirtScan.trim()) evaluate(cardScan, tshirtScan);
                 }
               }}
-              placeholder={tr("티셔츠 QR 스캔", "扫描T恤QR")}
+              placeholder={tr("티셔츠 포장 QR 스캔", "扫描T恤包装QR")}
               className="font-mono"
             />
           </div>
@@ -317,8 +317,8 @@ function SetInspectDetail({
             <thead className="bg-muted/20 text-muted-foreground">
               <tr>
                 <th className="text-left px-4 py-2 font-medium">#</th>
-                <th className="text-left px-4 py-2 font-medium">{tr("카드 QR", "卡片QR")}</th>
-                <th className="text-left px-4 py-2 font-medium">{tr("티셔츠 QR", "T恤QR")}</th>
+                <th className="text-left px-4 py-2 font-medium">{tr("카드 포장 QR", "卡片包装QR")}</th>
+                <th className="text-left px-4 py-2 font-medium">{tr("티셔츠 포장 QR", "T恤包装QR")}</th>
                 <th className="text-left px-4 py-2 font-medium">{tr("색상/사이즈", "颜色/尺码")}</th>
                 <th className="text-left px-4 py-2 font-medium">{tr("결과", "结果")}</th>
                 <th className="text-left px-4 py-2 font-medium">{tr("검사 시각", "检验时间")}</th>
