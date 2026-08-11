@@ -280,6 +280,25 @@ export default function CardPhotoInspection() {
   const [frontMatch, setFrontMatch] = useState<"idle" | "matched" | "failed">("idle");
   /** 뒷면 사진에서 실제 디코딩된 DM 바코드 값 */
   const [dmDecoded, setDmDecoded] = useState<string>("");
+  /** 뒷면 사진에서 트윈코드 영역만 잘라낸 이미지 (형태 비교용) */
+  const [twinCrop, setTwinCrop] = useState<string>("");
+  /** 원본 트윈코드 vs 촬영 트윈코드 형태 유사도 (0~1) */
+  const [twinScore, setTwinScore] = useState<number | null>(null);
+  /**
+   * 트윈코드 가이드 영역(촬영 화면 기준 비율).
+   * 카드를 매번 같은 위치에 두면 이 영역에서 트윈코드를 자동 추출한다.
+   */
+  const [twinRoi, setTwinRoi] = useState<{ x: number; y: number; w: number; h: number }>(() => {
+    try {
+      const s = localStorage.getItem("card-photo-twin-roi");
+      if (s) return JSON.parse(s);
+    } catch { /* ignore */ }
+    return { x: 0.26, y: 0.24, w: 0.13, h: 0.22 };
+  });
+  useEffect(() => {
+    try { localStorage.setItem("card-photo-twin-roi", JSON.stringify(twinRoi)); } catch { /* ignore */ }
+  }, [twinRoi]);
+
 
 
   const normKey = (v: any) => String(v ?? "").trim().toLowerCase().replace(/\s+/g, "");
@@ -417,10 +436,120 @@ export default function CardPhotoInspection() {
     }
   };
 
+  const loadImage = (src: string) => new Promise<HTMLImageElement>((res, rej) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => res(img);
+    img.onerror = () => rej(new Error("load failed"));
+    img.src = src;
+  });
+
+  /** 촬영 이미지에서 가이드 영역(트윈코드)만 잘라 확대한다. */
+  const cropRoi = async (dataUrl: string, roi: { x: number; y: number; w: number; h: number }) => {
+    try {
+      const img = await loadImage(dataUrl);
+      const sx = Math.max(0, roi.x * img.width);
+      const sy = Math.max(0, roi.y * img.height);
+      const sw = Math.min(img.width - sx, roi.w * img.width);
+      const sh = Math.min(img.height - sy, roi.h * img.height);
+      if (sw <= 2 || sh <= 2) return "";
+      const scale = Math.min(4, 512 / Math.max(sw, sh));
+      const c = document.createElement("canvas");
+      c.width = Math.round(sw * scale);
+      c.height = Math.round(sh * scale);
+      const ctx = c.getContext("2d");
+      if (!ctx) return "";
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+      return c.toDataURL("image/png");
+    } catch { return ""; }
+  };
+
+  /** 이미지를 N×N 이진 마스크(잉크=1)로 변환. 여백은 잘라내 정규화한다. */
+  const toMask = async (src: string, N = 96): Promise<Uint8Array | null> => {
+    try {
+      const img = await loadImage(src);
+      const c = document.createElement("canvas");
+      const w = 256, h = 256;
+      c.width = w; c.height = h;
+      const ctx = c.getContext("2d");
+      if (!ctx) return null;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      const d = ctx.getImageData(0, 0, w, h).data;
+      const gray = new Float32Array(w * h);
+      let sum = 0;
+      for (let i = 0; i < w * h; i++) {
+        const g = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+        gray[i] = g; sum += g;
+      }
+      const thr = sum / (w * h) * 0.85;
+      // bounding box of ink
+      let x0 = w, y0 = h, x1 = -1, y1 = -1;
+      const bin = new Uint8Array(w * h);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        if (gray[y * w + x] < thr) {
+          bin[y * w + x] = 1;
+          if (x < x0) x0 = x; if (x > x1) x1 = x;
+          if (y < y0) y0 = y; if (y > y1) y1 = y;
+        }
+      }
+      if (x1 < 0) return null;
+      const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+      const out = new Uint8Array(N * N);
+      for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+        const sxp = x0 + Math.floor((x / N) * bw);
+        const syp = y0 + Math.floor((y / N) * bh);
+        out[y * N + x] = bin[syp * w + sxp];
+      }
+      return out;
+    } catch { return null; }
+  };
+
+  const rotateMask = (m: Uint8Array, N: number) => {
+    const r = new Uint8Array(N * N);
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) r[x * N + (N - 1 - y)] = m[y * N + x];
+    return r;
+  };
+
+  const iou = (a: Uint8Array, b: Uint8Array) => {
+    let inter = 0, uni = 0;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] || b[i]) uni++;
+      if (a[i] && b[i]) inter++;
+    }
+    return uni ? inter / uni : 0;
+  };
+
+  /** 원본 트윈코드와 촬영 크롭의 형태 유사도(0~1). 회전 4방향 중 최대값. */
+  const compareTwinShape = async (refSrc: string, cropSrc: string): Promise<number | null> => {
+    const N = 96;
+    const [a, b0] = await Promise.all([toMask(refSrc, N), toMask(cropSrc, N)]);
+    if (!a || !b0) return null;
+    let best = 0, b = b0;
+    for (let i = 0; i < 4; i++) {
+      best = Math.max(best, iou(a, b));
+      b = rotateMask(b, N);
+    }
+    return best;
+  };
+
   const inspectImage = async (side: "front" | "back", dataUrl: string) => {
     setBusySide(side);
     try {
       const referenceTwincode = side === "back" ? await toRasterDataUrl(expectedTwincodeUrl || "") : undefined;
+
+      if (side === "back") {
+        const crop = await cropRoi(dataUrl, twinRoi);
+        setTwinCrop(crop);
+        if (crop && referenceTwincode) {
+          setTwinScore(await compareTwinShape(referenceTwincode, crop));
+        } else {
+          setTwinScore(null);
+        }
+      }
 
       const [{ data, error }, decodedDm] = await Promise.all([
         supabase.functions.invoke("card-photo-inspect", {
@@ -428,6 +557,7 @@ export default function CardPhotoInspection() {
         }),
         side === "back" ? decodeDataMatrix(dataUrl) : Promise.resolve(""),
       ]);
+
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       const ex = data?.extracted;
@@ -491,15 +621,17 @@ export default function CardPhotoInspection() {
       return;
     }
     if (side === "front") { setFrontImg(url); setFrontResult(null); setFrontMatch("idle"); }
-    else { setBackImg(url); setBackResult(null); setDmDecoded(""); }
+    else { setBackImg(url); setBackResult(null); setDmDecoded(""); setTwinCrop(""); setTwinScore(null); }
     await inspectImage(side, url);
   };
 
   const reset = () => {
     setFrontImg(null); setBackImg(null);
     setFrontResult(null); setBackResult(null); setDmDecoded("");
+    setTwinCrop(""); setTwinScore(null);
     setFrontMatch("idle");
   };
+
 
 
   // ── Comparison (text fields only) ─────────────────────────────────────
@@ -565,19 +697,26 @@ export default function CardPhotoInspection() {
         match: !!gradeNorm(expected.card_grade) && gradeNorm(expected.card_grade) === gradeNorm(backResult.card_grade),
       });
       {
-        const shape = backResult.twincode_shape_match === true;
+        // 1순위: 가이드 영역 크롭 vs 등록 SVG의 로컬 형태 유사도, 2순위: AI 판정
+        const aiShape = backResult.twincode_shape_match === true;
+        const hasLocal = twinScore !== null;
+        const localOk = hasLocal && (twinScore as number) >= 0.62;
+        const shape = hasLocal ? localOk : aiShape;
         list.push({
           key: "twin",
           label: t("트윈코드 (형태 비교)", "TwinCode (形状比对)"),
           expected: expectedTwincodeUrl
             ? t("등록된 트윈코드 형태", "已登记TwinCode形状")
             : t("등록 이미지 없음", "无已登记图像"),
-          detected: expectedTwincodeUrl
-            ? (shape ? t("형태 일치", "形状一致") : t("형태 불일치", "形状不一致"))
-            : t("비교 불가", "无法比对"),
+          detected: !expectedTwincodeUrl
+            ? t("비교 불가", "无法比对")
+            : hasLocal
+              ? `${shape ? t("형태 일치", "形状一致") : t("형태 불일치", "形状不一致")} (${Math.round((twinScore as number) * 100)}%)`
+              : (shape ? t("형태 일치", "形状一致") : t("형태 불일치", "形状不一致")),
           match: !!expectedTwincodeUrl && shape,
         });
       }
+
       {
         // 기준값은 개별 주문번호 + "-4"
         const expDm = norm(expected.dm_expected);
@@ -960,12 +1099,46 @@ export default function CardPhotoInspection() {
               )}
             </div>
           </div>
-          <div className="aspect-video bg-black rounded overflow-hidden flex items-center justify-center">
+          <div className="relative aspect-video bg-black rounded overflow-hidden flex items-center justify-center">
             <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-contain" />
+            {/* 트윈코드 가이드 영역 — 카드를 이 사각형에 맞춰 놓으면 자동 추출됩니다 */}
+            <div
+              className="absolute border-2 border-destructive pointer-events-none"
+              style={{
+                left: `${twinRoi.x * 100}%`,
+                top: `${twinRoi.y * 100}%`,
+                width: `${twinRoi.w * 100}%`,
+                height: `${twinRoi.h * 100}%`,
+                boxShadow: "0 0 0 9999px hsl(var(--background) / 0.25)",
+              }}
+            >
+              <span className="absolute -top-5 left-0 text-[10px] font-semibold text-destructive bg-background/80 px-1 rounded">
+                {t("트윈코드 영역", "TwinCode 区域")}
+              </span>
+            </div>
           </div>
+
+          {/* 가이드 영역 조정 */}
+          <div className="mt-2 grid grid-cols-4 gap-2">
+            {([
+              ["x", t("좌", "左")], ["y", t("상", "上")], ["w", t("폭", "宽")], ["h", t("높이", "高")],
+            ] as const).map(([k, label]) => (
+              <label key={k} className="text-[10px] text-muted-foreground">
+                {label}
+                <input
+                  type="range" min={2} max={98} step={1}
+                  value={Math.round((twinRoi as any)[k] * 100)}
+                  onChange={e => setTwinRoi(r => ({ ...r, [k]: Number(e.target.value) / 100 }))}
+                  className="w-full accent-[hsl(var(--destructive))]"
+                />
+              </label>
+            ))}
+          </div>
+
           <div className="text-xs text-muted-foreground mt-3 mb-2">
-            {t("① 앞면을 먼저 촬영하면 CP 점수와 EDITION으로 주문 카드가 자동 매칭됩니다. ② 그 다음 뒷면을 촬영하세요.", "① 先拍摄正面，通过CP分数与EDITION自动匹配订单卡片。② 然后拍摄背面。")}
+            {t("① 앞면을 먼저 촬영하면 CP 점수와 EDITION으로 주문 카드가 자동 매칭됩니다. ② 그 다음 카드의 트윈코드가 빨간 사각형 안에 오도록 놓고 뒷면을 촬영하세요.", "① 先拍摄正面，通过CP分数与EDITION自动匹配订单卡片。② 然后将TwinCode对准红色方框拍摄背面。")}
           </div>
+
 
           {/* Front match status (requirement: green when matched, red when not) */}
           {frontMatch !== "idle" && (
@@ -1071,6 +1244,48 @@ export default function CardPhotoInspection() {
             />
           </div>
         </div>
+
+        {/* TwinCode 형태 비교 — 원본(SVG) vs 촬영 크롭 */}
+        {(expectedTwincodeUrl || twinCrop) && (
+          <div className="rounded-lg border bg-card overflow-hidden">
+            <div className="px-4 py-2 border-b bg-muted/30 text-sm font-semibold flex items-center justify-between gap-2">
+              <span>{t("트윈코드 형태 비교", "TwinCode 形状比对")}</span>
+              {twinScore !== null && (
+                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                  twinScore >= 0.62
+                    ? "bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]"
+                    : "bg-destructive/10 text-destructive"
+                }`}>
+                  {twinScore >= 0.62 ? t("형태 일치", "形状一致") : t("형태 불일치", "形状不一致")} · {Math.round(twinScore * 100)}%
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-4 p-4">
+              <div>
+                <div className="text-xs text-muted-foreground mb-1">{t("원본 (주문데이터 트윈코드 SVG)", "原始 (订单TwinCode SVG)")}</div>
+                <div className="aspect-square rounded border bg-background flex items-center justify-center overflow-hidden">
+                  {expectedTwincodeUrl
+                    ? <img src={expectedTwincodeUrl} alt={t("원본 트윈코드", "原始TwinCode")} className="w-full h-full object-contain" />
+                    : <span className="text-xs text-muted-foreground">{t("등록 이미지 없음", "无已登记图像")}</span>}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground mb-1">{t("촬영 추출 (가이드 영역)", "拍摄提取 (引导区域)")}</div>
+                <div className={`aspect-square rounded border flex items-center justify-center overflow-hidden ${
+                  twinScore === null ? "bg-muted/20" : twinScore >= 0.62 ? "border-[hsl(var(--success)/0.5)]" : "border-destructive/50"}`}>
+                  {twinCrop
+                    ? <img src={twinCrop} alt={t("촬영 트윈코드", "拍摄TwinCode")} className="w-full h-full object-contain" />
+                    : <span className="text-xs text-muted-foreground">{t("뒷면 촬영 후 표시됩니다", "拍摄背面后显示")}</span>}
+                </div>
+              </div>
+            </div>
+            <div className="px-4 pb-3 text-[11px] text-muted-foreground">
+              {t("카드는 매번 같은 위치에 놓아야 합니다. 카메라 화면의 빨간 사각형에 트윈코드를 맞춘 뒤 촬영하세요. 사각형 위치는 슬라이더로 조정되며 저장됩니다.", "每次请将卡片放在相同位置。将TwinCode对准红色方框后拍摄。方框位置可用滑块调整并会保存。")}
+            </div>
+          </div>
+        )}
+
+
 
         {/* Field comparison — visual cards */}
         {expected && (
