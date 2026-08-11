@@ -24,6 +24,9 @@ interface CardItem {
   minted_on?: string | number;
   sign?: string;
   twincode?: string;
+  /** GFT 원본 이미지 URL (주문 데이터에 직접 저장된 값) */
+  gft_url?: string;
+
 }
 
 interface OrderRow {
@@ -78,7 +81,8 @@ export default function CardPhotoInspection() {
   const orders = useMemo<OrderRow[]>(() => {
     if (!dbOrders) return [];
     return dbOrders.map((o: any) => {
-      const items: CardItem[] = ((o.source_data as any)?.items ?? []).map((it: any) => ({
+      const sd: any = o.source_data ?? {};
+      const items: CardItem[] = (sd.items ?? []).map((it: any) => ({
         card_barcode: it.card_barcode ?? "",
         card_serial: it.card_serial ?? "",
         card_grade: it.card_grade ?? "",
@@ -90,7 +94,12 @@ export default function CardPhotoInspection() {
         minted_on: it.minted_on,
         sign: it.sign,
         twincode: it.twincode ?? it.design_qr ?? "",
+        gft_url:
+          it.gft_original_image_url ?? sd.gft_original_image_url ??
+          it.card_front_url ?? sd.card_front_url ??
+          it.gft_image_url ?? it.design_image_url ?? o.logo_url ?? "",
       }));
+
       return {
         id: o.id,
         externalOrderId: o.external_order_id,
@@ -116,20 +125,36 @@ export default function CardPhotoInspection() {
     queryFn: async () => {
       const folder = order!.externalOrderId;
       const map: Record<string, string> = {};
+      const list: string[] = [];
       const { data: files } = await supabase.storage.from("design-images").list(folder);
       if (files) {
         for (const f of files) {
+          const url = supabase.storage.from("design-images").getPublicUrl(`${folder}/${f.name}`).data.publicUrl;
           const k = f.name.replace(/\.[^.]+$/, "");
-          map[k] = supabase.storage.from("design-images").getPublicUrl(`${folder}/${f.name}`).data.publicUrl;
+          map[k] = url;
+          map[k.toLowerCase()] = url;
+          list.push(url);
         }
       }
-      return map;
+      return { map, list };
     },
   });
 
-  const expectedDesignUrl = expected
-    ? (designImages?.[expected.design_qr] || designImages?.[expected.twincode || ""])
-    : undefined;
+  const expectedDesignUrl = useMemo(() => {
+    if (!expected) return undefined;
+    // 1) 주문 데이터에 저장된 GFT 원본 URL 우선
+    if (expected.gft_url) return expected.gft_url;
+    const map = designImages?.map ?? {};
+    const keys = [expected.design_qr, expected.twincode, expected.card_serial, expected.card_barcode]
+      .filter(Boolean) as string[];
+    for (const k of keys) {
+      if (map[k]) return map[k];
+      if (map[k.toLowerCase()]) return map[k.toLowerCase()];
+    }
+    // 2) 파일명 매칭 실패 시 카드 순번으로 폴백
+    return designImages?.list?.[selectedItemIdx] ?? designImages?.list?.[0];
+  }, [expected, designImages, selectedItemIdx]);
+
 
   // ── Auto-match by DM barcode ──────────────────────────────────────────
   const [dmInput, setDmInput] = useState("");
