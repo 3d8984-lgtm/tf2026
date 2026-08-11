@@ -722,18 +722,63 @@ export default function CardPhotoInspection() {
     return uni ? inter / uni : 0;
   };
 
-  /** 원본 트윈코드와 촬영 크롭의 형태 유사도(0~1). 회전 4방향 중 최대값. */
+  /** 1픽셀 팽창(dilation) — 인쇄/촬영 오차에 대한 허용치를 준다. */
+  const dilate = (m: Uint8Array, N: number, r = 1) => {
+    const o = new Uint8Array(N * N);
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      if (!m[y * N + x]) continue;
+      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+        const ny = y + dy, nx = x + dx;
+        if (ny >= 0 && ny < N && nx >= 0 && nx < N) o[ny * N + nx] = 1;
+      }
+    }
+    return o;
+  };
+
+  const shift = (m: Uint8Array, N: number, dx: number, dy: number) => {
+    if (!dx && !dy) return m;
+    const o = new Uint8Array(N * N);
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const sy = y - dy, sx = x - dx;
+      if (sy >= 0 && sy < N && sx >= 0 && sx < N) o[y * N + x] = m[sy * N + sx];
+    }
+    return o;
+  };
+
+  /**
+   * 허용 오차를 반영한 형태 유사도.
+   * 촬영본은 미세한 위치·굵기·해상도 차이가 있으므로
+   * 팽창(dilation) 마스크 기준의 양방향 커버리지로 비교한다.
+   */
+  const tolerantScore = (a: Uint8Array, b: Uint8Array, N: number) => {
+    const ad = dilate(a, N), bd = dilate(b, N);
+    let aIn = 0, aTot = 0, bIn = 0, bTot = 0;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i]) { aTot++; if (bd[i]) aIn++; }
+      if (b[i]) { bTot++; if (ad[i]) bIn++; }
+    }
+    if (!aTot || !bTot) return 0;
+    const ca = aIn / aTot, cb = bIn / bTot;
+    return (2 * ca * cb) / (ca + cb); // 조화평균
+  };
+
+  /** 원본 트윈코드와 촬영 크롭의 형태 유사도(0~1). 회전 4방향 + 미세 이동 보정 중 최대값. */
   const compareTwinShape = async (refSrc: string, cropSrc: string): Promise<number | null> => {
     const N = 96;
     const [a, b0] = await Promise.all([toMask(refSrc, N), toMask(cropSrc, N)]);
     if (!a || !b0) return null;
     let best = 0, b = b0;
     for (let i = 0; i < 4; i++) {
-      best = Math.max(best, iou(a, b));
+      for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
+        const bs = shift(b, N, dx, dy);
+        const s = Math.max(iou(a, bs), tolerantScore(a, bs, N));
+        if (s > best) best = s;
+      }
       b = rotateMask(b, N);
     }
     return best;
   };
+
 
   const inspectImage = async (side: "front" | "back", dataUrl: string) => {
     setBusySide(side);
