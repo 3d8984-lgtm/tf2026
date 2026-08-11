@@ -234,6 +234,8 @@ export default function CardPhotoInspection() {
 
   // ── Camera ─────────────────────────────────────────────────────────────
   const videoRef = useRef<HTMLVideoElement>(null);
+  const videoStageRef = useRef<HTMLDivElement>(null);
+  const twinGuideRef = useRef<HTMLDivElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [deviceId, setDeviceId] = useState<string>("");
@@ -290,13 +292,13 @@ export default function CardPhotoInspection() {
    */
   const [twinRoi, setTwinRoi] = useState<{ x: number; y: number; w: number; h: number }>(() => {
     try {
-      const s = localStorage.getItem("card-photo-twin-roi");
+      const s = localStorage.getItem("card-photo-twin-roi-v2");
       if (s) return JSON.parse(s);
     } catch { /* ignore */ }
     return { x: 0.26, y: 0.24, w: 0.13, h: 0.22 };
   });
   useEffect(() => {
-    try { localStorage.setItem("card-photo-twin-roi", JSON.stringify(twinRoi)); } catch { /* ignore */ }
+    try { localStorage.setItem("card-photo-twin-roi-v2", JSON.stringify(twinRoi)); } catch { /* ignore */ }
   }, [twinRoi]);
   /** 실제 카메라 프레임의 종횡비 (object-contain 레터박스 계산용) */
   const [videoAr, setVideoAr] = useState(16 / 9);
@@ -479,6 +481,26 @@ export default function CardPhotoInspection() {
     } catch { return ""; }
   };
 
+  /** 표시된 빨간 가이드의 실제 DOM 위치를 영상 프레임 비율로 변환한다. */
+  const getDisplayedGuideRoi = () => {
+    const stage = videoStageRef.current;
+    const guide = twinGuideRef.current;
+    if (!stage || !guide) return twinRoi;
+    const stageRect = stage.getBoundingClientRect();
+    const guideRect = guide.getBoundingClientRect();
+    const frameLeft = stageRect.left + videoBox.left * stageRect.width;
+    const frameTop = stageRect.top + videoBox.top * stageRect.height;
+    const frameWidth = videoBox.width * stageRect.width;
+    const frameHeight = videoBox.height * stageRect.height;
+    if (frameWidth <= 0 || frameHeight <= 0) return twinRoi;
+    return {
+      x: Math.max(0, Math.min(1, (guideRect.left - frameLeft) / frameWidth)),
+      y: Math.max(0, Math.min(1, (guideRect.top - frameTop) / frameHeight)),
+      w: Math.max(0, Math.min(1, guideRect.width / frameWidth)),
+      h: Math.max(0, Math.min(1, guideRect.height / frameHeight)),
+    };
+  };
+
   /** 이미지를 N×N 이진 마스크(잉크=1)로 변환. 여백은 잘라내 정규화한다. */
   const toMask = async (src: string, N = 96): Promise<Uint8Array | null> => {
     try {
@@ -555,7 +577,7 @@ export default function CardPhotoInspection() {
       const referenceTwincode = side === "back" ? await toRasterDataUrl(expectedTwincodeUrl || "") : undefined;
 
       if (side === "back") {
-        const crop = await cropRoi(dataUrl, twinRoi);
+        const crop = await cropRoi(dataUrl, getDisplayedGuideRoi());
         setTwinCrop(crop);
         if (crop && referenceTwincode) {
           setTwinScore(await compareTwinShape(referenceTwincode, crop));
@@ -1112,7 +1134,7 @@ export default function CardPhotoInspection() {
               )}
             </div>
           </div>
-          <div className="relative aspect-video bg-black rounded overflow-hidden flex items-center justify-center">
+          <div ref={videoStageRef} className="relative aspect-video bg-black rounded overflow-hidden flex items-center justify-center">
             <video
               ref={videoRef}
               autoPlay
@@ -1126,6 +1148,7 @@ export default function CardPhotoInspection() {
             />
             {/* 트윈코드 가이드 영역 — 실제 영상 표시 영역(레터박스 제외) 기준으로 그린다 */}
             <div
+              ref={twinGuideRef}
               className="absolute border-2 border-destructive pointer-events-none"
               style={{
                 left: `${(videoBox.left + twinRoi.x * videoBox.width) * 100}%`,
