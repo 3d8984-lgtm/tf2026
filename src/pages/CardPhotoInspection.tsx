@@ -125,20 +125,36 @@ export default function CardPhotoInspection() {
     queryFn: async () => {
       const folder = order!.externalOrderId;
       const map: Record<string, string> = {};
+      const list: string[] = [];
       const { data: files } = await supabase.storage.from("design-images").list(folder);
       if (files) {
         for (const f of files) {
+          const url = supabase.storage.from("design-images").getPublicUrl(`${folder}/${f.name}`).data.publicUrl;
           const k = f.name.replace(/\.[^.]+$/, "");
-          map[k] = supabase.storage.from("design-images").getPublicUrl(`${folder}/${f.name}`).data.publicUrl;
+          map[k] = url;
+          map[k.toLowerCase()] = url;
+          list.push(url);
         }
       }
-      return map;
+      return { map, list };
     },
   });
 
-  const expectedDesignUrl = expected
-    ? (designImages?.[expected.design_qr] || designImages?.[expected.twincode || ""])
-    : undefined;
+  const expectedDesignUrl = useMemo(() => {
+    if (!expected) return undefined;
+    // 1) 주문 데이터에 저장된 GFT 원본 URL 우선
+    if (expected.gft_url) return expected.gft_url;
+    const map = designImages?.map ?? {};
+    const keys = [expected.design_qr, expected.twincode, expected.card_serial, expected.card_barcode]
+      .filter(Boolean) as string[];
+    for (const k of keys) {
+      if (map[k]) return map[k];
+      if (map[k.toLowerCase()]) return map[k.toLowerCase()];
+    }
+    // 2) 파일명 매칭 실패 시 카드 순번으로 폴백
+    return designImages?.list?.[selectedItemIdx] ?? designImages?.list?.[0];
+  }, [expected, designImages, selectedItemIdx]);
+
 
   // ── Auto-match by DM barcode ──────────────────────────────────────────
   const [dmInput, setDmInput] = useState("");
