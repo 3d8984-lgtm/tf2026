@@ -93,6 +93,8 @@ export default function CardPhotoInspection() {
       const sd: any = o.source_data ?? {};
       const items: CardItem[] = (sd.items ?? []).map((it: any, idx: number) => ({
         card_barcode: it.card_barcode ?? it.dm_barcode ?? it.dm_code ?? it.nfc_ndef_data ?? "",
+        // DM 바코드 기준값 = 개별 주문번호 + "-4" (카드 바코드 인쇄 작업과 동일 규칙)
+        dm_expected: `${String(it.order_id ?? it.sequence_no ?? `${o.external_order_id}-${idx + 1}`)}-4`,
         card_serial: it.card_serial ?? it.issued_no ?? sd.issued_no ?? "",
         card_grade: it.card_grade ?? it.grade ?? sd.grade ?? "",
         design_qr: it.design_qr ?? "",
