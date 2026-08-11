@@ -1553,6 +1553,14 @@ export default function CardPhotoInspection() {
                   if (v.videoWidth && v.videoHeight) setVideoAr(v.videoWidth / v.videoHeight);
                 }}
               />
+              {(!stream || camError) && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-black/70 p-4 text-center">
+                  <p className="text-sm text-destructive-foreground">
+                    {camError || t("카메라가 실행되지 않았습니다.", "摄像头未启动。")}
+                  </p>
+                  <Button size="sm" onClick={() => startCamera()}>{t("카메라 다시 시작", "重新启动摄像头")}</Button>
+                </div>
+              )}
               {/* 트윈코드 가이드 영역 — 실제 영상 표시 영역(레터박스 제외) 기준으로 그린다 */}
               <div
                 ref={twinGuideRef}
