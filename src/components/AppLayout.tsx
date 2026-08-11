@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect } from "react";
-import AiChatbot from "@/components/AiChatbot";
 import { NavLink, Link, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Upload, Database,
@@ -437,7 +436,6 @@ export default function AppLayout() {
       </main>
 
       {/* AI Chatbot */}
-      <AiChatbot />
 
       {/* Menu customization dialog */}
       <Dialog open={customizeOpen} onOpenChange={setCustomizeOpen}>
