@@ -685,6 +685,9 @@ export default function CardPhotoInspection() {
     [planStarts, order]
   );
   const sampleIdxs = useMemo(() => sampleRounds.flat(), [sampleRounds]);
+  // 앞면 매칭 시 "표본 대상 카드"만 인정하도록 ref로 주입
+  sampleIdxsRef.current = sampleIdxs;
+
   const sampleDone = sampleIdxs.filter(i => orderHistory.some(h => h.itemIdx === i));
   const samplePass = sampleIdxs.filter(i => orderHistory.some(h => h.itemIdx === i && h.pass));
   const sampleFail = sampleIdxs.filter(i => orderHistory.some(h => h.itemIdx === i && !h.pass));
