@@ -1649,6 +1649,10 @@ export default function CardPhotoInspection() {
                 <span className="text-[11px] text-muted-foreground">
                   {t(`기준 ${Math.round(TWIN_MATCH_MIN * 100)}% 이상`, `标准 ${Math.round(TWIN_MATCH_MIN * 100)}% 以上`)}
                 </span>
+                {twinScore === null && twinScoreNote && (
+                  <span className="text-[11px] text-destructive">· {twinScoreNote}</span>
+                )}
+
               </div>
               <div className="ml-auto flex items-center gap-2">
                 {twinManual ? (
