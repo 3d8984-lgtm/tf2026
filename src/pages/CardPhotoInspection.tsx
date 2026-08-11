@@ -298,6 +298,19 @@ export default function CardPhotoInspection() {
   useEffect(() => {
     try { localStorage.setItem("card-photo-twin-roi", JSON.stringify(twinRoi)); } catch { /* ignore */ }
   }, [twinRoi]);
+  /** 실제 카메라 프레임의 종횡비 (object-contain 레터박스 계산용) */
+  const [videoAr, setVideoAr] = useState(16 / 9);
+  /** 컨테이너(16:9) 안에서 실제 영상이 차지하는 영역 (0~1 비율) */
+  const videoBox = (() => {
+    const box = 16 / 9;
+    if (!videoAr || videoAr === box) return { left: 0, top: 0, width: 1, height: 1 };
+    if (videoAr > box) {
+      const h = box / videoAr;
+      return { left: 0, top: (1 - h) / 2, width: 1, height: h };
+    }
+    const w = videoAr / box;
+    return { left: (1 - w) / 2, top: 0, width: w, height: 1 };
+  })();
 
 
 
