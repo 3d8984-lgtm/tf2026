@@ -778,22 +778,114 @@ export default function CardPhotoInspection() {
     return (2 * ca * cb) / (ca + cb); // 조화평균
   };
 
-  /** 원본 트윈코드와 촬영 크롭의 형태 유사도(0~1). 회전 4방향 + 미세 이동 보정 중 최대값. */
+  // ── 형태(Shape) 기반 기술자 ────────────────────────────────────────────
+  /**
+   * Hu 불변 모멘트 (이동·크기·회전 불변).
+   * 픽셀 위치가 아니라 "형태의 분포 구조"를 수치화한다.
+   */
+  const huMoments = (m: Uint8Array, N: number): number[] | null => {
+    let m00 = 0, m10 = 0, m01 = 0;
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      if (!m[y * N + x]) continue;
+      m00++; m10 += x; m01 += y;
+    }
+    if (m00 < 5) return null;
+    const cx = m10 / m00, cy = m01 / m00;
+    const mu: Record<string, number> = { "20": 0, "02": 0, "11": 0, "30": 0, "03": 0, "21": 0, "12": 0 };
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      if (!m[y * N + x]) continue;
+      const dx = x - cx, dy = y - cy;
+      mu["20"] += dx * dx; mu["02"] += dy * dy; mu["11"] += dx * dy;
+      mu["30"] += dx * dx * dx; mu["03"] += dy * dy * dy;
+      mu["21"] += dx * dx * dy; mu["12"] += dx * dy * dy;
+    }
+    const n = (p: number, q: number, v: number) => v / Math.pow(m00, 1 + (p + q) / 2);
+    const n20 = n(2, 0, mu["20"]), n02 = n(0, 2, mu["02"]), n11 = n(1, 1, mu["11"]);
+    const n30 = n(3, 0, mu["30"]), n03 = n(0, 3, mu["03"]), n21 = n(2, 1, mu["21"]), n12 = n(1, 2, mu["12"]);
+    const h1 = n20 + n02;
+    const h2 = (n20 - n02) ** 2 + 4 * n11 ** 2;
+    const h3 = (n30 - 3 * n12) ** 2 + (3 * n21 - n03) ** 2;
+    const h4 = (n30 + n12) ** 2 + (n21 + n03) ** 2;
+    const h5 = (n30 - 3 * n12) * (n30 + n12) * ((n30 + n12) ** 2 - 3 * (n21 + n03) ** 2)
+      + (3 * n21 - n03) * (n21 + n03) * (3 * (n30 + n12) ** 2 - (n21 + n03) ** 2);
+    const h6 = (n20 - n02) * ((n30 + n12) ** 2 - (n21 + n03) ** 2) + 4 * n11 * (n30 + n12) * (n21 + n03);
+    const h7 = (3 * n21 - n03) * (n30 + n12) * ((n30 + n12) ** 2 - 3 * (n21 + n03) ** 2)
+      - (n30 - 3 * n12) * (n21 + n03) * (3 * (n30 + n12) ** 2 - (n21 + n03) ** 2);
+    // log 스케일로 압축 (부호 유지)
+    return [h1, h2, h3, h4, h5, h6, h7].map((v) => Math.sign(v) * Math.log10(1 + Math.abs(v) * 1e6));
+  };
+
+  /** 무게중심 기준 극좌표 형태 시그니처 (각도별 평균 반경). 회전은 순환 정렬로 흡수한다. */
+  const polarSignature = (m: Uint8Array, N: number, bins = 72): number[] | null => {
+    let cnt = 0, sx = 0, sy = 0;
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (m[y * N + x]) { cnt++; sx += x; sy += y; }
+    if (cnt < 5) return null;
+    const cx = sx / cnt, cy = sy / cnt;
+    const sum = new Float64Array(bins), num = new Float64Array(bins);
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      if (!m[y * N + x]) continue;
+      const dx = x - cx, dy = y - cy;
+      const ang = (Math.atan2(dy, dx) + Math.PI * 2) % (Math.PI * 2);
+      const b = Math.min(bins - 1, Math.floor((ang / (Math.PI * 2)) * bins));
+      sum[b] += Math.hypot(dx, dy); num[b]++;
+    }
+    const sig = Array.from({ length: bins }, (_, i) => (num[i] ? sum[i] / num[i] : 0));
+    const max = Math.max(...sig);
+    return max > 0 ? sig.map((v) => v / max) : null; // 크기 정규화
+  };
+
+  /** 두 시그니처의 순환 상관 유사도(회전 불변). */
+  const signatureSimilarity = (a: number[], b: number[]) => {
+    const n = a.length;
+    let best = 0;
+    for (let s = 0; s < n; s++) {
+      let diff = 0;
+      for (let i = 0; i < n; i++) diff += Math.abs(a[i] - b[(i + s) % n]);
+      const sim = 1 - diff / n;
+      if (sim > best) best = sim;
+    }
+    return Math.max(0, best);
+  };
+
+  /** Hu 모멘트 거리 → 0~1 유사도 */
+  const huSimilarity = (a: number[], b: number[]) => {
+    let d = 0;
+    for (let i = 0; i < a.length; i++) d += Math.abs(a[i] - b[i]);
+    return Math.max(0, 1 - d / 12);
+  };
+
+  /**
+   * 원본 트윈코드와 촬영 크롭의 **형태 유사도**(0~1).
+   * 픽셀 겹침이 아니라 형태 기술자(Hu 불변 모멘트 + 극좌표 형태 시그니처)를 주 지표로 사용하고,
+   * 구조적 배치 확인용으로 정합 후 커버리지를 보조 지표로 가중 합산한다.
+   */
   const compareTwinShape = async (refSrc: string, cropSrc: string): Promise<number | null> => {
     const N = 96;
     const [a, b0] = await Promise.all([toMask(refSrc, N), toMask(cropSrc, N)]);
     if (!a || !b0) return null;
-    let best = 0, b = b0;
+
+    // 1) 형태 기술자 (이동·크기·회전 불변) — 주 지표
+    const huA = huMoments(a, N), sigA = polarSignature(a, N);
+    const huB = huMoments(b0, N), sigB = polarSignature(b0, N);
+    const huS = huA && huB ? huSimilarity(huA, huB) : 0;
+    const sigS = sigA && sigB ? signatureSimilarity(sigA, sigB) : 0;
+    const descriptor = huA && huB && sigA && sigB ? 0.45 * huS + 0.55 * sigS : Math.max(huS, sigS);
+
+    // 2) 구조 정합 (회전 4방향 + 미세 이동 보정) — 보조 지표
+    let overlap = 0, b = b0;
     for (let i = 0; i < 4; i++) {
       for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
         const bs = shift(b, N, dx, dy);
-        const s = Math.max(iou(a, bs), tolerantScore(a, bs, N));
-        if (s > best) best = s;
+        const s = tolerantScore(a, bs, N);
+        if (s > overlap) overlap = s;
       }
       b = rotateMask(b, N);
     }
-    return best;
+
+    // 형태 기술자 중심(70%) + 구조 정합(30%)
+    return Math.min(1, 0.7 * descriptor + 0.3 * overlap);
   };
+
 
 
   const inspectImage = async (side: "front" | "back", dataUrl: string) => {
