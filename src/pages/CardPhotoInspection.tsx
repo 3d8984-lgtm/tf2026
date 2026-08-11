@@ -341,6 +341,7 @@ export default function CardPhotoInspection() {
   const allDone = !!frontResult && !!backResult;
 
   // ── Inspection history (persisted in localStorage) ────────────────────
+  type HistoryField = { label: string; expected: string; detected: string; match: boolean };
   type HistoryEntry = {
     key: string;             // orderId + itemIdx
     orderId: string;
@@ -350,6 +351,7 @@ export default function CardPhotoInspection() {
     dmBarcode: string;
     pass: boolean;
     failCount: number;
+    fields?: HistoryField[];
     at: number;              // epoch ms
   };
   const HISTORY_KEY = "card-photo-inspect-history";
@@ -378,10 +380,12 @@ export default function CardPhotoInspection() {
       dmBarcode: expected.card_barcode ?? "",
       pass: failCount === 0,
       failCount,
+      fields: checks.map(c => ({ label: c.label, expected: c.expected, detected: c.detected, match: c.match })),
       at: Date.now(),
     };
     setHistory(prev => [entry, ...prev.filter(h => h.key !== key)]);
-  }, [allDone, order, expected, selectedItemIdx, failCount]);
+  }, [allDone, order, expected, selectedItemIdx, failCount, checks]);
+
 
   const orderHistory = useMemo(
     () => history.filter(h => order && h.orderId === order.id),
