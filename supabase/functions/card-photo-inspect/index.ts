@@ -23,7 +23,39 @@ Deno.serve(async (req) => {
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY missing");
 
     const isFront = side === "front";
-    const hasRef = !isFront && typeof reference_twincode === "string" && /^https?:|^data:/.test(reference_twincode);
+
+    // Resolve the reference TwinCode image. The AI provider can only fetch raster
+    // images (png/jpeg/webp/gif). SVG URLs make the upstream return 400
+    // ("URL did not return an image"), so we inline raster bytes and drop SVGs.
+    let refUrl: string | null = null;
+    if (!isFront && typeof reference_twincode === "string" && reference_twincode) {
+      if (reference_twincode.startsWith("data:image/svg")) {
+        console.log("Reference twincode is an SVG data URL - skipping");
+      } else if (reference_twincode.startsWith("data:image/")) {
+        refUrl = reference_twincode;
+      } else if (/^https?:/.test(reference_twincode)) {
+        try {
+          const r = await fetch(reference_twincode);
+          const ct = (r.headers.get("content-type") || "").toLowerCase();
+          if (!r.ok) {
+            console.log("Reference twincode fetch failed:", r.status, reference_twincode);
+          } else if (ct.includes("svg") || reference_twincode.toLowerCase().endsWith(".svg")) {
+            console.log("Reference twincode is SVG - skipping (not supported by the model)");
+          } else if (ct.startsWith("image/")) {
+            const buf = new Uint8Array(await r.arrayBuffer());
+            let bin = "";
+            for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+            refUrl = `data:${ct.split(";")[0]};base64,${btoa(bin)}`;
+          } else {
+            console.log("Reference twincode is not an image:", ct);
+          }
+        } catch (e) {
+          console.log("Reference twincode fetch error", e);
+        }
+      }
+    }
+    const hasRef = !!refUrl;
+
 
     const tool = isFront ? {
       type: "function",
