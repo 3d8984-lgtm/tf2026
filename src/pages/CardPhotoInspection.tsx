@@ -357,7 +357,7 @@ export default function CardPhotoInspection() {
 
   const reset = () => {
     setFrontImg(null); setBackImg(null);
-    setFrontResult(null); setBackResult(null);
+    setFrontResult(null); setBackResult(null); setDmDecoded("");
     setFrontMatch("idle");
   };
 
