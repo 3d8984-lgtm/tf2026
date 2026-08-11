@@ -445,7 +445,7 @@ export default function CardPhotoInspection() {
 
     }
     return list;
-  }, [expected, frontResult, backResult, isKo]);
+  }, [expected, frontResult, backResult, dmDecoded, isKo]);
 
   const failCount = checks.filter(c => !c.match).length;
   const allDone = !!frontResult && !!backResult;
