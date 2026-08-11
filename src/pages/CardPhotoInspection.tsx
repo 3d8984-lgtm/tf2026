@@ -438,7 +438,12 @@ export default function CardPhotoInspection() {
         setFrontResult(ex);
         // Match the order/card by CP score + EDITION number.
         const hit = findByFront(ex.cp_score, ex.edition);
-        if (hit) {
+        if (hit && hit.outOfPlan) {
+          setFrontMatch("failed");
+          toast.error(t(
+            `표본 대상이 아닌 카드입니다 (#${hit.idx + 1}). 검사 대상: ${sampleIdxsRef.current.map(i => `#${i + 1}`).join(", ")}`,
+            `该卡片不在抽检样本内 (#${hit.idx + 1})。抽检对象: ${sampleIdxsRef.current.map(i => `#${i + 1}`).join(", ")}`));
+        } else if (hit) {
           setSelectedOrderId(hit.o.id);
           setSelectedItemIdx(hit.idx);
           setFrontMatch("matched");
@@ -449,6 +454,7 @@ export default function CardPhotoInspection() {
           setFrontMatch("failed");
           toast.error(t("CP/EDITION과 일치하는 주문 카드가 없습니다", "未找到与CP/EDITION一致的订单卡片"));
         }
+
       } else {
         setBackResult(ex);
         // Auto-match order by detected DM barcode
