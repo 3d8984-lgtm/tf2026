@@ -1328,6 +1328,21 @@ export default function CardPhotoInspection() {
                   {t("트윈코드 영역", "TwinCode 区域")}
                 </span>
               </div>
+              {/* DM 바코드 가이드 영역 */}
+              <div
+                className="absolute border-2 border-primary pointer-events-none"
+                style={{
+                  left: `${(videoBox.left + dmRoi.x * videoBox.width) * 100}%`,
+                  top: `${(videoBox.top + dmRoi.y * videoBox.height) * 100}%`,
+                  width: `${dmRoi.w * videoBox.width * 100}%`,
+                  height: `${dmRoi.h * videoBox.height * 100}%`,
+                }}
+              >
+                <span className="absolute -top-5 left-0 text-[10px] font-semibold text-primary bg-background/80 px-1 rounded">
+                  {t("DM 바코드 영역", "DM条码区域")}
+                </span>
+              </div>
+
             </div>
 
             {/* 촬영 버튼 — 카메라 화면 오른쪽 */}
