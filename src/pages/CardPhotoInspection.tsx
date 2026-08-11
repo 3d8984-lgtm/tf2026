@@ -897,7 +897,7 @@ export default function CardPhotoInspection() {
   };
 
   const reset = () => {
-    setFrontImg(""); setBackImg("");
+    setFrontImg(null); setBackImg(null);
     setFrontResult(null); setBackResult(null);
     setFrontMatch("idle"); setDmDecoded("");
     setTwinCrop(""); setTwinScore(null); setTwinScoreNote(""); setTwinManual(false);
