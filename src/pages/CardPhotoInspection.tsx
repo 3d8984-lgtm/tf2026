@@ -1086,12 +1086,14 @@ export default function CardPhotoInspection() {
               {VISUAL_FIELDS.map(f => {
                 const side = f.side;
                 const ready = side === "front" ? !!frontResult : !!backResult;
-                const check = checks.find(c => c.label === f.label(t));
+                // 라벨 문구가 아니라 key로 매칭한다 (라벨이 바뀌어도 판정이 유실되지 않도록)
+                const check = checks.find(c => c.key === f.key) ?? checks.find(c => c.label === f.label(t));
                 const status: "pending" | "match" | "fail" = !ready ? "pending" : check?.match ? "match" : "fail";
-                const expectedVal = f.getExpected(expected);
+                const expectedVal = check?.expected ?? f.getExpected(expected);
                 const detectedVal = ready
-                  ? (side === "front" ? f.getDetected(frontResult!) : f.getDetected(backResult!))
+                  ? (check?.detected ?? (side === "front" ? f.getDetected(frontResult!) : f.getDetected(backResult!)))
                   : "";
+
                 const styles = {
                   pending: "border-border bg-muted/20",
                   match: "border-[hsl(var(--success)/0.4)] bg-[hsl(var(--success)/0.08)]",
