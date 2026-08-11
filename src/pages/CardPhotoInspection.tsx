@@ -575,7 +575,7 @@ export default function CardPhotoInspection() {
         <div className="rounded-lg border bg-card overflow-hidden">
           <div className="px-4 py-2 border-b bg-muted/30 text-sm font-semibold flex items-center justify-between gap-2 flex-wrap">
             <span>
-              {t("랜덤 표본 검사 (연속 3장 × 3회)", "随机抽检 (连续3张 × 3轮)")}
+              {t(`랜덤 표본 검사 (연속 3장 × ${sampleRounds.length}회)`, `随机抽检 (连续3张 × ${sampleRounds.length}轮)`)}
               <span className="ml-2 text-xs font-normal text-muted-foreground">
                 {t(`전체 ${order.items.length}장 중 ${sampleIdxs.length}장 검사`, `共 ${order.items.length} 张中抽检 ${sampleIdxs.length} 张`)}
               </span>
