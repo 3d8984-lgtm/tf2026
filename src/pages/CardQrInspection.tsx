@@ -197,7 +197,7 @@ export default function CardQrInspection() {
     return (
       <div className="flex flex-col h-full">
         <PageHeader
-          title={t("카드 QR코드 검사", "卡片QR码检验")}
+          title={t("카드 DM코드 검사", "卡片DM码检验")}
           description={t("주문을 선택한 후 카드 DM 바코드 3개를 연속 스캔하여 연속 카드 여부를 검증합니다", "选择订单后连续扫描3个卡片DM条码以验证连续性")}
         />
         <div className="flex-1 overflow-auto p-6">
@@ -270,7 +270,7 @@ export default function CardQrInspection() {
   // ─── Scan view ──────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full">
-      <PageHeader title={t("카드 QR코드 검사", "卡片QR码检验")} description={`${order.externalOrderId} · ${order.twinker}`}>
+      <PageHeader title={t("카드 DM코드 검사", "卡片DM码检验")} description={`${order.externalOrderId} · ${order.twinker}`}>
         <Button variant="outline" size="sm" onClick={() => setSelectedOrderId(null)}>
           <ChevronLeft className="w-4 h-4" /> {t("주문 목록", "订单列表")}
         </Button>
