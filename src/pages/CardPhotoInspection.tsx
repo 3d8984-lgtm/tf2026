@@ -1399,7 +1399,7 @@ export default function CardPhotoInspection() {
         <Button variant="outline" size="sm" onClick={() => { setSelectedOrderId(null); reset(); }}>
           <ChevronLeft className="w-4 h-4" /> {t("주문 목록", "订单列表")}
         </Button>
-        <Button variant="outline" size="sm" onClick={reset}>
+        <Button variant="outline" size="sm" onClick={resetOrderData}>
           <RotateCcw className="w-4 h-4" /> {t("초기화", "重置")}
         </Button>
       </PageHeader>
