@@ -24,6 +24,8 @@ interface CardItem {
   minted_on?: string | number;
   sign?: string;
   twincode?: string;
+  /** 등록된 트윈코드 이미지(SVG) URL — 형태 비교용 */
+  twincode_url?: string;
   /** GFT 원본 이미지 URL (주문 데이터에 직접 저장된 값) */
   gft_url?: string;
 
@@ -39,7 +41,11 @@ interface OrderRow {
 }
 
 type FrontExtract = { cp_score: string; edition: string; notes?: string };
-type BackExtract = { issued_no: string; minted_on: string; card_grade: string; twincode: string; dm_barcode: string; notes?: string };
+type BackExtract = {
+  issued_no: string; minted_on: string; card_grade: string; twincode: string; dm_barcode: string;
+  twincode_shape_match?: boolean; twincode_shape_note?: string; notes?: string;
+};
+
 
 interface FieldCheck {
   label: string;
