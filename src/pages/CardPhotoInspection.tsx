@@ -243,8 +243,10 @@ export default function CardPhotoInspection() {
   const startCamera = useCallback(async (id?: string) => {
     try {
       if (stream) stream.getTracks().forEach(t => t.stop());
+      // 트윈코드 형태 비교 정확도를 위해 최대한 높은 해상도를 요청한다.
+      const hiRes = { width: { ideal: 3840 }, height: { ideal: 2160 }, frameRate: { ideal: 30 } };
       const s = await navigator.mediaDevices.getUserMedia({
-        video: id ? { deviceId: { exact: id } } : { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
+        video: id ? { deviceId: { exact: id }, ...hiRes } : { facingMode: "environment", ...hiRes },
         audio: false,
       });
       setStream(s);
@@ -269,7 +271,7 @@ export default function CardPhotoInspection() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
     ctx.drawImage(v, 0, 0);
-    return canvas.toDataURL("image/jpeg", 0.85);
+    return canvas.toDataURL("image/jpeg", 0.95);
   };
 
   // ── Inspection state ──────────────────────────────────────────────────
@@ -456,7 +458,7 @@ export default function CardPhotoInspection() {
         img.onerror = () => rej(new Error("load failed"));
         img.src = url;
       });
-      const size = 512;
+      const size = 1024;
       const c = document.createElement("canvas");
       c.width = size; c.height = size;
       const ctx = c.getContext("2d");
@@ -487,7 +489,8 @@ export default function CardPhotoInspection() {
       const sw = Math.min(img.width - sx, roi.w * img.width);
       const sh = Math.min(img.height - sy, roi.h * img.height);
       if (sw <= 2 || sh <= 2) return "";
-      const scale = Math.min(4, 512 / Math.max(sw, sh));
+      // 저해상도 크롭은 형태 비교 정확도를 떨어뜨리므로 1024px 기준으로 업스케일한다.
+      const scale = Math.min(6, 1024 / Math.max(sw, sh));
       const dw = Math.round(sw * scale);
       const dh = Math.round(sh * scale);
       const c = document.createElement("canvas");
@@ -496,6 +499,8 @@ export default function CardPhotoInspection() {
       c.height = dw;
       const ctx = c.getContext("2d");
       if (!ctx) return "";
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, c.width, c.height);
       ctx.translate(0, c.height);
@@ -525,26 +530,46 @@ export default function CardPhotoInspection() {
     };
   };
 
-  /** 이미지를 N×N 이진 마스크(잉크=1)로 변환. 여백은 잘라내 정규화한다. */
+  /**
+   * 이미지를 N×N 이진 마스크(잉크=1)로 변환. 여백은 잘라내 정규화한다.
+   * 촬영본은 조명/그림자 영향이 크므로 Otsu 자동 임계값 + 박스 평균 다운샘플을 사용한다.
+   */
   const toMask = async (src: string, N = 96): Promise<Uint8Array | null> => {
     try {
       const img = await loadImage(src);
       const c = document.createElement("canvas");
-      const w = 256, h = 256;
+      const w = 512, h = 512;
       c.width = w; c.height = h;
       const ctx = c.getContext("2d");
       if (!ctx) return null;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, w, h);
       ctx.drawImage(img, 0, 0, w, h);
       const d = ctx.getImageData(0, 0, w, h).data;
       const gray = new Float32Array(w * h);
-      let sum = 0;
+      const hist = new Float64Array(256);
       for (let i = 0; i < w * h; i++) {
         const g = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
-        gray[i] = g; sum += g;
+        gray[i] = g;
+        hist[Math.min(255, Math.max(0, Math.round(g)))]++;
       }
-      const thr = sum / (w * h) * 0.85;
+      // Otsu 임계값
+      const total = w * h;
+      let sumAll = 0;
+      for (let i = 0; i < 256; i++) sumAll += i * hist[i];
+      let sumB = 0, wB = 0, best = -1, thr = 128;
+      for (let i = 0; i < 256; i++) {
+        wB += hist[i];
+        if (!wB) continue;
+        const wF = total - wB;
+        if (!wF) break;
+        sumB += i * hist[i];
+        const mB = sumB / wB, mF = (sumAll - sumB) / wF;
+        const between = wB * wF * (mB - mF) * (mB - mF);
+        if (between > best) { best = between; thr = i; }
+      }
       // bounding box of ink
       let x0 = w, y0 = h, x1 = -1, y1 = -1;
       const bin = new Uint8Array(w * h);
@@ -558,14 +583,22 @@ export default function CardPhotoInspection() {
       if (x1 < 0) return null;
       const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
       const out = new Uint8Array(N * N);
+      // 셀 단위 평균(50% 이상 잉크면 1) → 노이즈에 강하다
       for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-        const sxp = x0 + Math.floor((x / N) * bw);
-        const syp = y0 + Math.floor((y / N) * bh);
-        out[y * N + x] = bin[syp * w + sxp];
+        const xa = x0 + Math.floor((x / N) * bw);
+        const xb = Math.max(xa + 1, x0 + Math.floor(((x + 1) / N) * bw));
+        const ya = y0 + Math.floor((y / N) * bh);
+        const yb = Math.max(ya + 1, y0 + Math.floor(((y + 1) / N) * bh));
+        let ink = 0, cnt = 0;
+        for (let yy = ya; yy < yb && yy < h; yy++) for (let xx = xa; xx < xb && xx < w; xx++) {
+          ink += bin[yy * w + xx]; cnt++;
+        }
+        out[y * N + x] = cnt && ink / cnt >= 0.5 ? 1 : 0;
       }
       return out;
     } catch { return null; }
   };
+
 
   const rotateMask = (m: Uint8Array, N: number) => {
     const r = new Uint8Array(N * N);
