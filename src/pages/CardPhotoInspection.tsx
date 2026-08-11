@@ -983,9 +983,12 @@ export default function CardPhotoInspection() {
       toast.error(t("카메라가 준비되지 않았습니다", "摄像头未准备好"));
       return;
     }
-    if (side === "front") { setFrontImg(url); setFrontResult(null); setFrontMatch("idle"); }
-    else { setBackImg(url); setBackResult(null); setDmDecoded(""); setTwinCrop(""); setTwinScore(null); setTwinScoreNote(""); setTwinManual(false); }
-    setFrontMatch("idle");
+    if (side === "front") {
+      setFrontImg(url); setFrontResult(null); setFrontMatch("idle");
+    } else {
+      setBackImg(url); setBackResult(null); setDmDecoded(""); setTwinCrop(""); setTwinScore(null); setTwinScoreNote(""); setTwinManual(false);
+    }
+    await inspectImage(side, url);
   };
 
   const reset = () => {
