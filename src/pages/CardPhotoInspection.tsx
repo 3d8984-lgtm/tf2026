@@ -609,7 +609,7 @@ export default function CardPhotoInspection() {
       externalOrderId: order.externalOrderId,
       itemIdx: selectedItemIdx,
       cardSerial: expected.card_serial ?? "",
-      dmBarcode: expected.card_barcode ?? "",
+      dmBarcode: expected.dm_expected ?? "",
       pass: failCount === 0,
       failCount,
       fields: checks.map(c => ({ label: c.label, expected: c.expected, detected: c.detected, match: c.match })),
