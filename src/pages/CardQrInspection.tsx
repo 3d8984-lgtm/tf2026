@@ -1,25 +1,16 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import PageHeader from "@/components/PageHeader";
 import { useOrders } from "@/hooks/useDbData";
-import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScanLine, CheckCircle2, XCircle, RotateCcw, ChevronLeft, Package, Image as ImageIcon } from "lucide-react";
+import { ScanLine, CheckCircle2, XCircle, RotateCcw, ChevronLeft, Shuffle, Circle } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 
 interface CardItem {
   card_barcode: string;
   card_serial: string;
-  card_grade: string;
-  design_qr: string;
   hologram_qr: string;
-  twinker: string;
-  cp_score?: string | number;
-  edition?: string | number;
-  minted_on?: string | number;
-  sign?: string;
-  twincode?: string;
+  design_qr: string;
 }
 
 interface OrderRow {
@@ -31,25 +22,62 @@ interface OrderRow {
   items: CardItem[];
 }
 
-interface ScanResult {
-  scannedAt: number;
-  barcode: string;
-  card?: CardItem;
-  designImageUrl?: string;
-  found: boolean;
+/** 한 회차 = 연속 3장 (수량이 3 미만이면 수량만큼) */
+interface Round {
+  start: number; // 0-based index of first card in the round
+  size: number;
 }
 
-interface HistoryEntry {
-  id: string;
+interface Plan {
   orderId: string;
+  total: number;
+  rounds: Round[];
+}
+
+interface RoundResult {
+  round: number;
   at: number;
-  barcodes: string[];
-  serials: string[];
+  expected: string[];
+  scanned: string[];
   ok: boolean;
   reason: string;
 }
 
-const QR_HISTORY_KEY = "card-qr-inspect-history";
+interface HistoryEntry extends RoundResult {
+  id: string;
+  orderId: string;
+}
+
+const PLAN_KEY = "card-dm-order-plan-v1";
+const HISTORY_KEY = "card-dm-order-history-v1";
+
+/** 수량별 검사 회차: 5개 이하 1회, 10개 이하 2회, 그 외 3회 */
+export function roundsFor(total: number) {
+  if (total <= 0) return 0;
+  if (total <= 5) return 1;
+  if (total <= 10) return 2;
+  return 3;
+}
+
+function buildPlan(orderId: string, total: number): Plan {
+  const count = roundsFor(total);
+  const size = Math.min(3, total);
+  const maxStart = Math.max(0, total - size);
+  const starts: number[] = [];
+  let guard = 0;
+  while (starts.length < count && guard++ < 500) {
+    const s = Math.floor(Math.random() * (maxStart + 1));
+    // 회차끼리 겹치지 않도록 (가능한 경우에만)
+    const overlaps = starts.some(x => Math.abs(x - s) < size);
+    if (overlaps && maxStart + 1 > count * size) continue;
+    if (starts.includes(s)) continue;
+    starts.push(s);
+  }
+  starts.sort((a, b) => a - b);
+  return { orderId, total, rounds: starts.map(start => ({ start, size })) };
+}
+
+const norm = (v: string) => (v || "").trim().toUpperCase();
 
 export default function CardQrInspection() {
   const { lang } = useLang();
@@ -64,15 +92,8 @@ export default function CardQrInspection() {
       const items: CardItem[] = ((o.source_data as any)?.items ?? []).map((it: any) => ({
         card_barcode: it.card_barcode ?? "",
         card_serial: it.card_serial ?? "",
-        card_grade: it.card_grade ?? "",
-        design_qr: it.design_qr ?? "",
         hologram_qr: it.hologram_qr ?? "",
-        twinker: it.twinker ?? o.recipient_name ?? "",
-        cp_score: it.cp_score,
-        edition: it.edition,
-        minted_on: it.minted_on,
-        sign: it.sign,
-        twincode: it.twincode ?? it.design_qr ?? "",
+        design_qr: it.design_qr ?? "",
       }));
       return {
         id: o.id,
@@ -90,115 +111,117 @@ export default function CardQrInspection() {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const order = orders.find(o => o.id === selectedOrderId) ?? null;
 
-  // Image storage for selected order's design folder
-  const { data: designImages } = useQuery({
-    queryKey: ["card-inspect-design", order?.externalOrderId],
-    enabled: !!order?.externalOrderId,
-    queryFn: async () => {
-      const folder = order!.externalOrderId;
-      const map: Record<string, string> = {};
-      const { data: files } = await supabase.storage.from("design-images").list(folder);
-      if (files) {
-        for (const f of files) {
-          const k = f.name.replace(/\.[^.]+$/, "");
-          map[k] = supabase.storage.from("design-images").getPublicUrl(`${folder}/${f.name}`).data.publicUrl;
-        }
-      }
-      return map;
-    },
+  // ── 표본 계획 (주문별 localStorage) ────────────────────────────────
+  const [plans, setPlans] = useState<Record<string, Plan>>(() => {
+    try { return JSON.parse(localStorage.getItem(PLAN_KEY) || "{}"); } catch { return {}; }
   });
+  useEffect(() => {
+    try { localStorage.setItem(PLAN_KEY, JSON.stringify(plans)); } catch {}
+  }, [plans]);
 
-  const [scans, setScans] = useState<ScanResult[]>([]);
+  const [history, setHistory] = useState<HistoryEntry[]>(() => {
+    try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); } catch { return []; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch {}
+  }, [history]);
+
+  const plan = order ? plans[order.id] : undefined;
+
+  // 주문 선택 시 계획 없으면 자동 생성
+  useEffect(() => {
+    if (!order) return;
+    const p = plans[order.id];
+    if (!p || p.total !== order.items.length) {
+      setPlans(prev => ({ ...prev, [order.id]: buildPlan(order.id, order.items.length) }));
+    }
+  }, [order, plans]);
+
+  const orderHistory = useMemo(
+    () => (order ? history.filter(h => h.orderId === order.id) : []),
+    [history, order]
+  );
+
+  // 완료된 회차 = 이력에 남은 회차 번호 집합
+  const doneRounds = useMemo(() => {
+    const m = new Map<number, HistoryEntry>();
+    for (let i = orderHistory.length - 1; i >= 0; i--) m.set(orderHistory[i].round, orderHistory[i]);
+    return m;
+  }, [orderHistory]);
+
+  const currentRound = useMemo(() => {
+    if (!plan) return -1;
+    for (let i = 0; i < plan.rounds.length; i++) if (!doneRounds.has(i)) return i;
+    return -1;
+  }, [plan, doneRounds]);
+
+  const [scans, setScans] = useState<string[]>([]);
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (order) inputRef.current?.focus();
-  }, [order, scans.length]);
+  useEffect(() => { inputRef.current?.focus(); }, [order, scans.length, currentRound]);
+  useEffect(() => { setScans([]); setInput(""); }, [selectedOrderId]);
 
-  const [history, setHistory] = useState<HistoryEntry[]>(() => {
-    try {
-      const raw = localStorage.getItem(QR_HISTORY_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch { return []; }
-  });
-  useEffect(() => {
-    try { localStorage.setItem(QR_HISTORY_KEY, JSON.stringify(history)); } catch {}
-  }, [history]);
+  const expectedItems = useMemo(() => {
+    if (!order || !plan || currentRound < 0) return [] as CardItem[];
+    const r = plan.rounds[currentRound];
+    return order.items.slice(r.start, r.start + r.size);
+  }, [order, plan, currentRound]);
 
-  const reset = useCallback(() => {
+  const keysOf = (it: CardItem) =>
+    [it.card_barcode, `${it.card_barcode}-4`, it.hologram_qr, it.card_serial, it.design_qr]
+      .filter(Boolean).map(norm);
+
+  const finishRound = useCallback((codes: string[]) => {
+    if (!order || !plan || currentRound < 0) return;
+    const r = plan.rounds[currentRound];
+    const items = order.items.slice(r.start, r.start + r.size);
+    let ok = true;
+    let reason = t("스캔 순서 일치", "扫描顺序一致");
+    for (let i = 0; i < items.length; i++) {
+      if (!keysOf(items[i]).includes(norm(codes[i] || ""))) {
+        ok = false;
+        reason = t(`${i + 1}번째 스캔이 기대 순서와 다릅니다`, `第 ${i + 1} 次扫描与预期顺序不符`);
+        break;
+      }
+    }
+    setHistory(prev => [{
+      id: `${order.id}-${currentRound}-${Date.now()}`,
+      orderId: order.id,
+      round: currentRound,
+      at: Date.now(),
+      expected: items.map(it => it.card_barcode || it.card_serial),
+      scanned: codes,
+      ok,
+      reason,
+    }, ...prev].slice(0, 300));
     setScans([]);
-    setInput("");
-    setTimeout(() => inputRef.current?.focus(), 50);
-  }, []);
-
-  // When switching orders, reset scans only (keep persistent history)
-  useEffect(() => { reset(); }, [selectedOrderId, reset]);
+  }, [order, plan, currentRound, isKo]);
 
   const handleScan = (raw: string) => {
     const code = raw.trim();
-    if (!code || !order) return;
-    const card = order.items.find(it => it.card_barcode === code);
-    const result: ScanResult = {
-      scannedAt: Date.now(),
-      barcode: code,
-      card,
-      designImageUrl: card ? (designImages?.[card.design_qr] || designImages?.[card.twincode || ""]) : undefined,
-      found: !!card,
-    };
-    setScans(prev => {
-      const next = prev.length >= 3 ? [result] : [...prev, result];
-      return next;
-    });
     setInput("");
+    if (!code || !order || currentRound < 0) return;
+    const next = [...scans, code];
+    if (next.length >= expectedItems.length) finishRound(next);
+    else setScans(next);
   };
 
-  // Verify 3 cards are consecutive (by card_serial trailing digits)
-  const verification = useMemo(() => {
-    if (scans.length < 3) return null;
-    if (scans.some(s => !s.found)) return { ok: false, reason: t("주문에 없는 카드가 포함됨", "包含订单外的卡片") };
-    const serials = scans.map(s => s.card!.card_serial);
-    const nums = serials.map(s => {
-      const m = s.match(/(\d+)$/);
-      return m ? parseInt(m[1], 10) : NaN;
-    });
-    if (nums.some(n => isNaN(n))) return { ok: false, reason: t("카드 시리얼 형식 오류", "卡片序列号格式错误") };
-    const prefixes = serials.map(s => s.replace(/\d+$/, ""));
-    if (!prefixes.every(p => p === prefixes[0])) return { ok: false, reason: t("시리얼 접두사가 일치하지 않음", "序列号前缀不一致") };
-    const sorted = [...nums].sort((a, b) => a - b);
-    const consecutive = sorted[1] === sorted[0] + 1 && sorted[2] === sorted[1] + 1;
-    return consecutive
-      ? { ok: true, reason: t("3장 연속 카드 확인됨", "已确认3张连续卡片") }
-      : { ok: false, reason: t("카드가 연속되지 않음", "卡片不连续") };
-  }, [scans, isKo]);
+  const regenerate = () => {
+    if (!order) return;
+    if (!confirm(t("표본을 다시 추첨하고 이 주문의 검사 이력을 초기화할까요?", "重新抽取样本并清除该订单的检验记录？"))) return;
+    setPlans(prev => ({ ...prev, [order.id]: buildPlan(order.id, order.items.length) }));
+    setHistory(prev => prev.filter(h => h.orderId !== order.id));
+    setScans([]);
+  };
 
-  // Append to history when 3 scans + verification ready
-  const lastLoggedRef = useRef<string>("");
-  useEffect(() => {
-    if (scans.length === 3 && verification && order) {
-      const key = scans.map(s => s.scannedAt).join("-");
-      if (lastLoggedRef.current === key) return;
-      lastLoggedRef.current = key;
-      setHistory(prev => [{
-        id: key,
-        orderId: order.id,
-        at: Date.now(),
-        barcodes: scans.map(s => s.barcode),
-        serials: scans.map(s => s.card?.card_serial ?? "-"),
-        ok: verification.ok,
-        reason: verification.reason,
-      }, ...prev].slice(0, 200));
-    }
-  }, [scans, verification, order]);
-
-
-  // ─── Order list view ──────────────────────────────────────────────────
+  // ─── 주문 목록 ────────────────────────────────────────────────────
   if (!order) {
     return (
       <div className="flex flex-col h-full">
         <PageHeader
           title={t("카드 DM코드 검사", "卡片DM码检验")}
-          description={t("주문을 선택한 후 카드 DM 바코드 3개를 연속 스캔하여 연속 카드 여부를 검증합니다", "选择订单后连续扫描3个卡片DM条码以验证连续性")}
+          description={t("무작위 지점에서 연속 3장씩 스캔해 DM 바코드 순서가 맞는지 확인합니다 (5개 이하 1회 · 10개 이하 2회 · 그 외 3회)", "在随机位置连续扫描3张，确认DM条码顺序 (≤5张1轮 · ≤10张2轮 · 其他3轮)")}
         />
         <div className="flex-1 overflow-auto p-6">
           <div className="rounded-lg border bg-card overflow-hidden">
@@ -216,23 +239,13 @@ export default function CardQrInspection() {
               </thead>
               <tbody>
                 {orders.map(o => {
-                  // Status per barcode for this order based on persisted history
-                  const oh = history.filter(h => h.orderId === o.id);
-                  const statusByBarcode = new Map<string, boolean>();
-                  // Walk oldest → newest so latest wins
-                  for (let i = oh.length - 1; i >= 0; i--) {
-                    const h = oh[i];
-                    h.barcodes.forEach(b => statusByBarcode.set(b, h.ok));
-                  }
-                  let pass = 0, fail = 0;
-                  o.items.forEach(it => {
-                    const v = statusByBarcode.get(it.card_barcode);
-                    if (v === true) pass++;
-                    else if (v === false) fail++;
-                  });
-                  const done = pass + fail;
                   const total = o.items.length;
-                  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                  const need = roundsFor(total);
+                  const hs = history.filter(h => h.orderId === o.id);
+                  const seen = new Map<number, boolean>();
+                  for (let i = hs.length - 1; i >= 0; i--) seen.set(hs[i].round, hs[i].ok);
+                  const done = seen.size;
+                  const failed = [...seen.values()].filter(v => !v).length;
                   return (
                     <tr key={o.id} className="border-t hover:bg-muted/20 cursor-pointer" onClick={() => setSelectedOrderId(o.id)}>
                       <td className="px-4 py-3 font-medium text-primary hover:underline">{o.externalOrderId}</td>
@@ -241,12 +254,15 @@ export default function CardQrInspection() {
                       <td className="px-4 py-3 tabular-nums">{total}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <div className="w-24 h-1.5 rounded-full bg-muted overflow-hidden">
-                            <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
-                          </div>
-                          <span className="text-xs tabular-nums text-muted-foreground">{done}/{total}</span>
-                          {pass > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]">✓{pass}</span>}
-                          {fail > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/15 text-destructive">!{fail}</span>}
+                          <span className="text-xs tabular-nums text-muted-foreground">
+                            {t(`${done}/${need} 회차`, `${done}/${need} 轮`)}
+                          </span>
+                          {done >= need && need > 0 && failed === 0 && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]">{t("최종 통과", "最终通过")}</span>
+                          )}
+                          {failed > 0 && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/15 text-destructive">{t(`실패 ${failed}`, `失败 ${failed}`)}</span>
+                          )}
                         </div>
                       </td>
                       <td className="px-4 py-3">{o.dueDate}</td>
@@ -267,215 +283,152 @@ export default function CardQrInspection() {
     );
   }
 
-  // ─── Scan view ──────────────────────────────────────────────────────────
+  const need = plan?.rounds.length ?? 0;
+  const doneCount = doneRounds.size;
+  const failedCount = [...doneRounds.values()].filter(h => !h.ok).length;
+  const finished = need > 0 && doneCount >= need;
+
+  // ─── 검사 화면 ────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full">
-      <PageHeader title={t("카드 DM코드 검사", "卡片DM码检验")} description={`${order.externalOrderId} · ${order.twinker}`}>
+      <PageHeader title={t("카드 DM코드 검사", "卡片DM码检验")} description={`${order.externalOrderId} · ${order.twinker} · ${t(`총 ${order.items.length}장`, `共 ${order.items.length} 张`)}`}>
         <Button variant="outline" size="sm" onClick={() => setSelectedOrderId(null)}>
           <ChevronLeft className="w-4 h-4" /> {t("주문 목록", "订单列表")}
         </Button>
-        <Button variant="outline" size="sm" onClick={() => {
-          const demo: ScanResult = {
-            scannedAt: Date.now(),
-            barcode: "DM-2026-0501-00731",
-            found: true,
-            card: {
-              card_barcode: "DM-2026-0501-00731",
-              card_serial: "TM-CARD-A0731",
-              card_grade: "S",
-              design_qr: "DSGN-TWIN-007",
-              hologram_qr: "HOLO-2026-A731",
-              twinker: "Sasha Kim",
-              cp_score: 8420,
-              edition: "12 / 50",
-              minted_on: "2026-04-22",
-              sign: "S.Kim ✦",
-              twincode: "TWN-007-A",
-            },
-            designImageUrl: undefined,
-          };
-          setScans(prev => (prev.length >= 3 ? [demo] : [...prev, demo]));
-        }}>
-          <ScanLine className="w-4 h-4" /> {t("데모 스캔", "演示扫描")}
+        <Button variant="outline" size="sm" onClick={() => setScans([])}>
+          <RotateCcw className="w-4 h-4" /> {t("현재 회차 초기화", "重置当前轮")}
         </Button>
-        <Button variant="outline" size="sm" onClick={reset}>
-          <RotateCcw className="w-4 h-4" /> {t("초기화", "重置")}
+        <Button variant="outline" size="sm" onClick={regenerate}>
+          <Shuffle className="w-4 h-4" /> {t("표본 재추첨", "重新抽样")}
         </Button>
       </PageHeader>
 
       <div className="flex-1 overflow-auto p-6 space-y-4">
-        {/* Card grid — per-card status from history */}
-        {(() => {
-          const oh = history.filter(h => h.orderId === order.id);
-          const statusByBarcode = new Map<string, boolean>();
-          for (let i = oh.length - 1; i >= 0; i--) {
-            oh[i].barcodes.forEach(b => statusByBarcode.set(b, oh[i].ok));
-          }
-          const passCount = order.items.filter(it => statusByBarcode.get(it.card_barcode) === true).length;
-          const failCount = order.items.filter(it => statusByBarcode.get(it.card_barcode) === false).length;
-          return (
-            <div className="rounded-lg border bg-card overflow-hidden">
-              <div className="px-4 py-2 border-b bg-muted/30 text-sm font-semibold flex items-center justify-between">
-                <span>{t("카드 목록", "卡片列表")}</span>
-                <span className="text-xs text-muted-foreground">
-                  {t(`합격 ${passCount} · 불일치 ${failCount} · 대기 ${order.items.length - passCount - failCount} / 총 ${order.items.length}`,
-                     `合格 ${passCount} · 不一致 ${failCount} · 等待 ${order.items.length - passCount - failCount} / 共 ${order.items.length}`)}
-                </span>
-              </div>
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 p-3">
-                {order.items.map((it, idx) => {
-                  const v = statusByBarcode.get(it.card_barcode);
-                  const status: "pending" | "pass" | "fail" = v === undefined ? "pending" : v ? "pass" : "fail";
-                  const styles = {
-                    pending: "border-border bg-muted/20 text-muted-foreground",
-                    pass: "border-[hsl(var(--success)/0.5)] bg-[hsl(var(--success)/0.1)] text-[hsl(var(--success))]",
-                    fail: "border-destructive/50 bg-destructive/10 text-destructive",
-                  }[status];
-                  return (
-                    <div key={idx} className={`rounded-lg border p-2 ${styles}`} title={it.card_barcode}>
-                      <div className="text-[10px] font-semibold opacity-70">#{idx + 1}</div>
-                      <div className="text-xs font-mono truncate">{it.card_serial || "-"}</div>
-                      <div className="text-[10px] opacity-70">
-                        {status === "pending" ? t("대기", "等待") : status === "pass" ? t("합격", "合格") : t("불일치", "不一致")}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Scan input */}
-        <div className="rounded-lg border bg-card p-4">
-          <div className="flex items-center gap-3">
-            <ScanLine className="w-5 h-5 text-primary" />
-            <Input
-              ref={inputRef}
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleScan(input); } }}
-              placeholder={t(`DM 바코드를 스캔하세요 (${scans.length}/3)`, `请扫描DM条码 (${scans.length}/3)`)}
-              className="text-base"
-              autoFocus
-            />
-            <span className="text-sm text-muted-foreground tabular-nums whitespace-nowrap">{scans.length}/3</span>
+        {/* 표본 계획 */}
+        <div className="rounded-lg border bg-card overflow-hidden">
+          <div className="px-4 py-2 border-b bg-muted/30 text-sm font-semibold flex items-center justify-between">
+            <span>{t("표본 계획 (무작위 연속 구간)", "抽样计划（随机连续区间）")}</span>
+            <span className="text-xs text-muted-foreground">{t(`${doneCount}/${need} 회차 완료`, `已完成 ${doneCount}/${need} 轮`)}</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3">
+            {(plan?.rounds ?? []).map((r, idx) => {
+              const res = doneRounds.get(idx);
+              const active = idx === currentRound;
+              const cls = res
+                ? res.ok
+                  ? "border-[hsl(var(--success)/0.5)] bg-[hsl(var(--success)/0.08)]"
+                  : "border-destructive/50 bg-destructive/10"
+                : active
+                  ? "border-primary bg-primary/5"
+                  : "border-dashed";
+              return (
+                <div key={idx} className={`rounded-lg border p-3 ${cls}`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-semibold">{t(`${idx + 1}회차`, `第 ${idx + 1} 轮`)}</span>
+                    {res
+                      ? res.ok
+                        ? <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success))]" />
+                        : <XCircle className="w-4 h-4 text-destructive" />
+                      : <Circle className={`w-4 h-4 ${active ? "text-primary" : "text-muted-foreground opacity-40"}`} />}
+                  </div>
+                  <div className="text-sm">
+                    {t("카드 #", "卡片 #")}
+                    {Array.from({ length: r.size }, (_, i) => r.start + i + 1).join(", ")}
+                  </div>
+                  {res && <div className="text-[11px] mt-1 text-muted-foreground">{res.reason}</div>}
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* Result banner */}
-        {verification && (
+        {/* 스캔 */}
+        {finished ? (
           <div className={`rounded-lg border p-4 flex items-center gap-3 ${
-            verification.ok
+            failedCount === 0
               ? "bg-[hsl(var(--success)/0.1)] border-[hsl(var(--success)/0.3)] text-[hsl(var(--success))]"
               : "bg-destructive/10 border-destructive/30 text-destructive"
           }`}>
-            {verification.ok ? <CheckCircle2 className="w-6 h-6" /> : <XCircle className="w-6 h-6" />}
+            {failedCount === 0 ? <CheckCircle2 className="w-6 h-6" /> : <XCircle className="w-6 h-6" />}
             <div>
-              <div className="font-semibold">{verification.ok ? t("검증 통과", "验证通过") : t("검증 실패", "验证失败")}</div>
-              <div className="text-sm opacity-90">{verification.reason}</div>
+              <div className="font-semibold">
+                {failedCount === 0 ? t("최종 통과 · 순서 이상 없음", "最终通过 · 顺序无异常") : t("최종 실패 · 순서 오류 발생", "最终失败 · 存在顺序错误")}
+              </div>
+              <div className="text-sm opacity-90">{t(`${need}회차 검사 완료 · 실패 ${failedCount}회`, `已完成 ${need} 轮 · 失败 ${failedCount} 轮`)}</div>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-lg border bg-card p-4 space-y-3">
+            <div className="flex items-center gap-3">
+              <ScanLine className="w-5 h-5 text-primary" />
+              <Input
+                ref={inputRef}
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleScan(input); } }}
+                placeholder={t(
+                  `${currentRound + 1}회차 · 카드 #${(plan?.rounds[currentRound]?.start ?? 0) + scans.length + 1} DM 바코드를 스캔하세요`,
+                  `第 ${currentRound + 1} 轮 · 请扫描卡片 #${(plan?.rounds[currentRound]?.start ?? 0) + scans.length + 1} 的DM条码`
+                )}
+                className="text-base"
+                autoFocus
+              />
+              <span className="text-sm text-muted-foreground tabular-nums whitespace-nowrap">
+                {scans.length}/{expectedItems.length}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {expectedItems.map((it, i) => {
+                const scanned = scans[i];
+                const state = scanned ? (keysOf(it).includes(norm(scanned)) ? "ok" : "bad") : "wait";
+                const cls = state === "ok"
+                  ? "border-[hsl(var(--success)/0.5)] bg-[hsl(var(--success)/0.08)]"
+                  : state === "bad" ? "border-destructive/50 bg-destructive/10" : "border-dashed";
+                return (
+                  <div key={i} className={`rounded-lg border p-3 text-xs ${cls}`}>
+                    <div className="font-semibold mb-1">
+                      {t(`${i + 1}번째 · 카드 #${(plan?.rounds[currentRound]?.start ?? 0) + i + 1}`, `第 ${i + 1} 个 · 卡片 #${(plan?.rounds[currentRound]?.start ?? 0) + i + 1}`)}
+                    </div>
+                    <div className="text-muted-foreground">{t("기대", "预期")}: <span className="font-mono break-all">{it.card_barcode || it.card_serial || "-"}</span></div>
+                    <div className="text-muted-foreground">{t("스캔", "扫描")}: <span className="font-mono break-all">{scanned ?? "-"}</span></div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
 
-        {/* Card details grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[0, 1, 2].map(i => {
-            const s = scans[i];
-            return (
-              <div key={i} className={`rounded-lg border bg-card overflow-hidden ${
-                !s ? "border-dashed" : s.found ? "" : "border-destructive/40"
-              }`}>
-                <div className="px-4 py-2 border-b bg-muted/30 flex items-center justify-between">
-                  <span className="text-xs font-medium text-muted-foreground">{t(`카드 ${i + 1}`, `卡片 ${i + 1}`)}</span>
-                  {s && (s.found
-                    ? <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success))]" />
-                    : <XCircle className="w-4 h-4 text-destructive" />
-                  )}
-                </div>
-
-                {!s ? (
-                  <div className="aspect-[3/4] flex flex-col items-center justify-center text-muted-foreground">
-                    <Package className="w-8 h-8 mb-2 opacity-40" />
-                    <span className="text-xs">{t("스캔 대기", "等待扫描")}</span>
-                  </div>
-                ) : !s.found ? (
-                  <div className="p-4 text-sm">
-                    <div className="font-medium text-destructive mb-1">{t("주문에 없는 카드", "订单中无此卡片")}</div>
-                    <div className="text-xs text-muted-foreground break-all">DM: {s.barcode}</div>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="h-52 bg-muted/20 flex items-center justify-center overflow-hidden">
-                      {s.designImageUrl ? (
-                        <img src={s.designImageUrl} alt="card" className="w-full h-full object-contain" />
-                      ) : (
-                        <div className="flex flex-col items-center text-muted-foreground">
-                          <ImageIcon className="w-8 h-8 mb-1 opacity-40" />
-                          <span className="text-xs">{t("이미지 없음", "无图")}</span>
-                        </div>
-                      )}
-                    </div>
-                    <dl className="p-4 text-base space-y-2.5">
-                      <Row label={t("카드 고유번호", "卡片编号")} value={s.card!.card_serial} />
-                      <Row label={t("CP 점수", "CP分数")} value={s.card!.cp_score ?? "-"} />
-                      <Row label={t("트윈커", "Twinker")} value={s.card!.twinker} />
-                      <Row label="EDITION" value={s.card!.edition ?? "-"} />
-                      <Row label="Minted on" value={s.card!.minted_on ?? "-"} />
-                      <Row label={t("싸인", "签名")} value={s.card!.sign ?? "-"} />
-                      <Row label={t("등급", "等级")} value={s.card!.card_grade} />
-                      <Row label={t("트윈코드", "TwinCode")} value={s.card!.twincode || s.card!.design_qr} />
-                      <Row label={t("DM 바코드", "DM条码")} value={s.card!.card_barcode} />
-                    </dl>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Scan history */}
+        {/* 검사 이력 */}
         <div className="rounded-lg border bg-card overflow-hidden">
-          <div className="px-4 py-3 border-b bg-muted/30 flex items-center justify-between">
-            <div className="text-sm font-semibold">{t("스캔 검사 이력", "扫描检验历史")}</div>
-            <div className="text-xs text-muted-foreground tabular-nums">
-              {t(`총 ${history.length}건`, `共 ${history.length} 条`)}
-            </div>
-          </div>
-          {history.length === 0 ? (
-            <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-              {t("이력이 없습니다", "暂无历史")}
-            </div>
+          <div className="px-4 py-3 border-b bg-muted/30 text-sm font-semibold">{t("이 주문 검사 이력", "该订单检验记录")}</div>
+          {orderHistory.length === 0 ? (
+            <div className="px-4 py-8 text-center text-sm text-muted-foreground">{t("이력이 없습니다", "暂无记录")}</div>
           ) : (
             <table className="w-full text-sm">
               <thead className="bg-muted/20 text-muted-foreground text-xs">
                 <tr>
-                  <th className="text-left px-4 py-2 font-medium w-40">{t("시각", "时间")}</th>
+                  <th className="text-left px-4 py-2 font-medium w-32">{t("시각", "时间")}</th>
+                  <th className="text-left px-4 py-2 font-medium w-20">{t("회차", "轮次")}</th>
                   <th className="text-left px-4 py-2 font-medium w-24">{t("결과", "结果")}</th>
-                  <th className="text-left px-4 py-2 font-medium">{t("카드 시리얼", "卡片序列号")}</th>
-                  <th className="text-left px-4 py-2 font-medium">{t("DM 바코드", "DM条码")}</th>
+                  <th className="text-left px-4 py-2 font-medium">{t("기대 순서", "预期顺序")}</th>
+                  <th className="text-left px-4 py-2 font-medium">{t("스캔 순서", "扫描顺序")}</th>
                   <th className="text-left px-4 py-2 font-medium">{t("사유", "原因")}</th>
                 </tr>
               </thead>
               <tbody>
-                {history.map(h => (
+                {orderHistory.map(h => (
                   <tr key={h.id} className="border-t">
-                    <td className="px-4 py-2 tabular-nums text-muted-foreground">
-                      {new Date(h.at).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN")}
-                    </td>
+                    <td className="px-4 py-2 tabular-nums text-muted-foreground">{new Date(h.at).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN")}</td>
+                    <td className="px-4 py-2">{t(`${h.round + 1}회차`, `第 ${h.round + 1} 轮`)}</td>
                     <td className="px-4 py-2">
                       {h.ok ? (
-                        <span className="inline-flex items-center gap-1 text-[hsl(var(--success))]">
-                          <CheckCircle2 className="w-4 h-4" /> {t("통과", "通过")}
-                        </span>
+                        <span className="inline-flex items-center gap-1 text-[hsl(var(--success))]"><CheckCircle2 className="w-4 h-4" /> {t("통과", "通过")}</span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-destructive">
-                          <XCircle className="w-4 h-4" /> {t("실패", "失败")}
-                        </span>
+                        <span className="inline-flex items-center gap-1 text-destructive"><XCircle className="w-4 h-4" /> {t("실패", "失败")}</span>
                       )}
                     </td>
-                    <td className="px-4 py-2 font-mono text-xs">{h.serials.join(", ")}</td>
-                    <td className="px-4 py-2 font-mono text-xs break-all">{h.barcodes.join(", ")}</td>
+                    <td className="px-4 py-2 font-mono text-xs break-all">{h.expected.join(" → ")}</td>
+                    <td className="px-4 py-2 font-mono text-xs break-all">{h.scanned.join(" → ")}</td>
                     <td className="px-4 py-2 text-xs text-muted-foreground">{h.reason}</td>
                   </tr>
                 ))}
@@ -484,15 +437,6 @@ export default function CardQrInspection() {
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="flex justify-between gap-2">
-      <dt className="text-muted-foreground shrink-0">{label}</dt>
-      <dd className="font-medium text-right break-all">{value}</dd>
     </div>
   );
 }
