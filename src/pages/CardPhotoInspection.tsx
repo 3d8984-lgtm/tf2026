@@ -896,6 +896,13 @@ export default function CardPhotoInspection() {
     setFrontMatch("idle");
   };
 
+  const reset = () => {
+    setFrontImg(""); setBackImg("");
+    setFrontResult(null); setBackResult(null);
+    setFrontMatch("idle"); setDmDecoded("");
+    setTwinCrop(""); setTwinScore(null); setTwinScoreNote(""); setTwinManual(false);
+  };
+
 
 
   // ── Comparison (text fields only) ─────────────────────────────────────
