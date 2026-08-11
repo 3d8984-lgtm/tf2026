@@ -413,7 +413,7 @@ function SetInspectDetail({
               {items.map((it) => {
                 const r = results[it.position];
                 return (
-                  <tr key={it.position} className={`border-t ${r ? (r.ok ? "" : "bg-destructive/5") : ""}`}>
+                  <tr key={it.position} className={`border-t ${it.position === activePos ? "bg-primary/10" : r ? (r.ok ? "" : "bg-destructive/5") : ""}`}>
                     <td className="px-4 py-2 tabular-nums text-muted-foreground">{it.position}</td>
                     <td className="px-4 py-2 font-mono text-xs">{it.cardCode}</td>
                     <td className="px-4 py-2 font-mono text-xs">{it.tshirtCode}</td>
