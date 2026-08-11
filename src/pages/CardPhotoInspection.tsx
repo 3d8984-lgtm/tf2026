@@ -14,6 +14,8 @@ import { toast } from "sonner";
 
 interface CardItem {
   card_barcode: string;
+  /** DM 바코드 기준값 = 개별 주문번호 + "-4" */
+  dm_expected: string;
   card_serial: string;
   card_grade: string;
   design_qr: string;
@@ -30,6 +32,7 @@ interface CardItem {
   gft_url?: string;
 
 }
+
 
 interface OrderRow {
   id: string;
