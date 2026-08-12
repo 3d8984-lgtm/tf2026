@@ -384,6 +384,61 @@ export default function CardPhotoInspection() {
     toast.info(t("DM 바코드 영역이 초기화되었습니다", "DM条码区域已重置"));
   };
 
+  /**
+   * 카드 위치 영역 (실제 영상 영역 기준 비율).
+   * 촬영 시 이 사각형 안쪽만 잘라서 저장/분석한다.
+   */
+  const CARD_ROI_KEY = "card-photo-card-roi-v1";
+  const CARD_ROI_DEFAULT = { x: 0.2, y: 0.06, w: 0.6, h: 0.88 };
+  const readCardRoi = () => {
+    try {
+      const s = localStorage.getItem(CARD_ROI_KEY);
+      if (s) {
+        const p = JSON.parse(s);
+        if (["x", "y", "w", "h"].every(k => typeof p?.[k] === "number")) return p as typeof CARD_ROI_DEFAULT;
+      }
+    } catch { /* ignore */ }
+    return null;
+  };
+  const [cardRoi, setCardRoi] = useState<{ x: number; y: number; w: number; h: number }>(() => readCardRoi() ?? CARD_ROI_DEFAULT);
+  const [savedCardRoi, setSavedCardRoi] = useState<{ x: number; y: number; w: number; h: number } | null>(() => readCardRoi());
+  const cardRoiDirty = !savedCardRoi || (["x", "y", "w", "h"] as const).some(k => Math.abs(savedCardRoi[k] - cardRoi[k]) > 0.001);
+  const saveCardRoi = () => {
+    const n = {
+      x: Math.max(0, Math.min(1, cardRoi.x)),
+      y: Math.max(0, Math.min(1, cardRoi.y)),
+      w: Math.max(0.05, Math.min(1 - cardRoi.x, cardRoi.w)),
+      h: Math.max(0.05, Math.min(1 - cardRoi.y, cardRoi.h)),
+    };
+    try { localStorage.setItem(CARD_ROI_KEY, JSON.stringify(n)); } catch { /* ignore */ }
+    setCardRoi(n);
+    setSavedCardRoi(n);
+    toast.success(t("카드 영역이 저장되었습니다", "卡片区域已保存"));
+  };
+  const resetCardRoi = () => {
+    setCardRoi(CARD_ROI_DEFAULT);
+    setSavedCardRoi(null);
+    try { localStorage.removeItem(CARD_ROI_KEY); } catch { /* ignore */ }
+    toast.info(t("카드 영역이 초기화되었습니다", "卡片区域已重置"));
+  };
+  /** 전체 프레임 기준 ROI를 "카드 영역만 잘라낸 이미지" 기준으로 변환한다. */
+  const toCardSpace = (
+    roi: { x: number; y: number; w: number; h: number },
+    frame: { x: number; y: number; w: number; h: number } | null,
+  ) => {
+    if (!frame || frame.w <= 0 || frame.h <= 0) return roi;
+    const x = (roi.x - frame.x) / frame.w;
+    const y = (roi.y - frame.y) / frame.h;
+    return {
+      x: Math.max(0, Math.min(1, x)),
+      y: Math.max(0, Math.min(1, y)),
+      w: Math.max(0.01, Math.min(1 - Math.max(0, x), roi.w / frame.w)),
+      h: Math.max(0.01, Math.min(1 - Math.max(0, y), roi.h / frame.h)),
+    };
+  };
+
+
+
 
   /** 실제 카메라 프레임의 종횡비 (object-contain 레터박스 계산용) */
   const [videoAr, setVideoAr] = useState(16 / 9);
