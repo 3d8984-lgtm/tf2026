@@ -172,7 +172,7 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
                     <button
                       type="button"
                       onClick={() => onStageClick?.(order.id, s.key)}
-                      className="w-full h-full rounded-lg p-2.5 transition-all duration-200 text-left hover:ring-1 hover:ring-primary/40 cursor-pointer"
+                      className="w-full h-full flex flex-col items-stretch justify-start rounded-lg p-2.5 transition-all duration-200 text-left hover:ring-1 hover:ring-primary/40 cursor-pointer"
                       style={{
                         background: isFuture ? "hsl(var(--surface-sunken))" : stageBgColors[s.key],
                         opacity: isFuture ? 0.5 : 1,
