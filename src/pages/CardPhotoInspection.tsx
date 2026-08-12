@@ -304,6 +304,35 @@ export default function CardPhotoInspection() {
   /** 유사도 점수가 계산되지 않은 경우의 사유 */
   const [twinScoreNote, setTwinScoreNote] = useState("");
   /**
+   * 영역(ROI) 설정은 백엔드 공용 테이블(inspection_roi_settings)에 저장한다.
+   * → 브라우저/화면/PC가 바뀌어도 저장된 위치·크기가 동일하게 적용된다.
+   * localStorage는 오프라인 캐시 용도로만 함께 유지한다.
+   */
+  type Roi = { x: number; y: number; w: number; h: number };
+  const ROI_DB_KEY = (name: "card" | "twin" | "dm") => `card-photo-${name}-roi`;
+  const isRoi = (p: any): p is Roi =>
+    !!p && (["x", "y", "w", "h"] as const).every(k => typeof p[k] === "number");
+  const pushRoiSetting = async (name: "card" | "twin" | "dm", value: Roi) => {
+    try {
+      const { error } = await supabase
+        .from("inspection_roi_settings")
+        .upsert({ setting_key: ROI_DB_KEY(name), setting_value: value }, { onConflict: "setting_key" });
+      if (error) throw error;
+      return true;
+    } catch (e) {
+      console.warn("[roi] save to backend failed", e);
+      return false;
+    }
+  };
+  const clearRoiSetting = async (name: "card" | "twin" | "dm") => {
+    try {
+      await supabase.from("inspection_roi_settings").delete().eq("setting_key", ROI_DB_KEY(name));
+    } catch (e) {
+      console.warn("[roi] delete from backend failed", e);
+    }
+  };
+
+
    * 트윈코드 가이드 영역(촬영 화면 기준 비율).
    * 카드를 매번 같은 위치에 두면 이 영역에서 트윈코드를 자동 추출한다.
    */
