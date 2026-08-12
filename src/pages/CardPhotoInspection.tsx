@@ -267,17 +267,23 @@ export default function CardPhotoInspection() {
 
   useEffect(() => () => { stream?.getTracks().forEach(t => t.stop()); }, [stream]);
 
-  const captureDataUrl = (): string | null => {
+  const captureDataUrl = (crop?: { x: number; y: number; w: number; h: number } | null): string | null => {
     const v = videoRef.current;
     if (!v || !v.videoWidth) return null;
+    const sx = crop ? Math.max(0, Math.round(crop.x * v.videoWidth)) : 0;
+    const sy = crop ? Math.max(0, Math.round(crop.y * v.videoHeight)) : 0;
+    const sw = crop ? Math.min(v.videoWidth - sx, Math.round(crop.w * v.videoWidth)) : v.videoWidth;
+    const sh = crop ? Math.min(v.videoHeight - sy, Math.round(crop.h * v.videoHeight)) : v.videoHeight;
+    if (sw < 8 || sh < 8) return null;
     const canvas = document.createElement("canvas");
-    canvas.width = v.videoWidth;
-    canvas.height = v.videoHeight;
+    canvas.width = sw;
+    canvas.height = sh;
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
-    ctx.drawImage(v, 0, 0);
+    ctx.drawImage(v, sx, sy, sw, sh, 0, 0, sw, sh);
     return canvas.toDataURL("image/jpeg", 0.95);
   };
+
 
   // ── Inspection state ──────────────────────────────────────────────────
   const [frontImg, setFrontImg] = useState<string | null>(null);
