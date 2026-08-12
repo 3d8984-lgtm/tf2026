@@ -442,7 +442,7 @@ export default function CardPhotoInspection() {
   const [cardRoi, setCardRoi] = useState<{ x: number; y: number; w: number; h: number }>(() => readCardRoi() ?? CARD_ROI_DEFAULT);
   const [savedCardRoi, setSavedCardRoi] = useState<{ x: number; y: number; w: number; h: number } | null>(() => readCardRoi());
   const cardRoiDirty = !savedCardRoi || (["x", "y", "w", "h"] as const).some(k => Math.abs(savedCardRoi[k] - cardRoi[k]) > 0.001);
-  const saveCardRoi = () => {
+  const saveCardRoi = async () => {
     const n = {
       x: Math.max(0, Math.min(1, cardRoi.x)),
       y: Math.max(0, Math.min(1, cardRoi.y)),
@@ -452,14 +452,48 @@ export default function CardPhotoInspection() {
     try { localStorage.setItem(CARD_ROI_KEY, JSON.stringify(n)); } catch { /* ignore */ }
     setCardRoi(n);
     setSavedCardRoi(n);
-    toast.success(t("카드 영역이 저장되었습니다", "卡片区域已保存"));
+    const ok = await pushRoiSetting("card", n);
+    toast.success(ok
+      ? t("카드 영역이 저장되었습니다 (모든 PC 공통)", "卡片区域已保存（所有电脑共用）")
+      : t("카드 영역이 이 PC에만 저장되었습니다", "卡片区域仅保存在本机"));
   };
-  const resetCardRoi = () => {
+  const resetCardRoi = async () => {
     setCardRoi(CARD_ROI_DEFAULT);
     setSavedCardRoi(null);
     try { localStorage.removeItem(CARD_ROI_KEY); } catch { /* ignore */ }
+    await clearRoiSetting("card");
     toast.info(t("카드 영역이 초기화되었습니다", "卡片区域已重置"));
   };
+
+  /** 최초 진입 시 백엔드에 저장된 영역 설정을 불러와 적용한다 (다른 PC와 동일 적용). */
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const { data, error } = await supabase
+        .from("inspection_roi_settings")
+        .select("setting_key, setting_value");
+      if (!alive || error || !data) return;
+      const apply = (
+        name: "card" | "twin" | "dm",
+        setRoi: (r: Roi) => void,
+        setSaved: (r: Roi) => void,
+        lsKey: string,
+      ) => {
+        const row = data.find(r => r.setting_key === ROI_DB_KEY(name));
+        if (!row || !isRoi(row.setting_value)) return;
+        const v = row.setting_value as Roi;
+        setRoi(v);
+        setSaved(v);
+        try { localStorage.setItem(lsKey, JSON.stringify(v)); } catch { /* ignore */ }
+      };
+      apply("card", setCardRoi, setSavedCardRoi, CARD_ROI_KEY);
+      apply("twin", setTwinRoi, setSavedRoi, "card-photo-twin-roi-v2");
+      apply("dm", setDmRoi, setSavedDmRoi, DM_ROI_KEY);
+    })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /** 전체 프레임 기준 ROI를 "카드 영역만 잘라낸 이미지" 기준으로 변환한다. */
   const toCardSpace = (
     roi: { x: number; y: number; w: number; h: number },
