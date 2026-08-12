@@ -1896,16 +1896,23 @@ export default function CardPhotoInspection() {
               ["x", t("좌", "左")], ["y", t("상", "上")], ["w", t("폭", "宽")], ["h", t("높이", "高")],
             ] as const).map(([k, label]) => (
               <label key={`dm-${k}`} className="text-[10px] text-muted-foreground">
-                DM {label}
+                DM {label} <span className="tabular-nums">{((dmRoi as any)[k] * 100).toFixed(1)}%</span>
                 <input
-                  type="range" min={2} max={98} step={1}
-                  value={Math.round((dmRoi as any)[k] * 100)}
+                  type="range" min={0.5} max={99.5} step={0.1}
+                  value={(dmRoi as any)[k] * 100}
                   onChange={e => setDmRoi(r => ({ ...r, [k]: Number(e.target.value) / 100 }))}
                   className="w-full accent-[hsl(var(--primary))]"
                 />
+                <div className="flex gap-1 mt-0.5">
+                  <button type="button" className="flex-1 rounded border px-1 py-0.5 hover:bg-muted"
+                    onClick={() => setDmRoi(r => ({ ...r, [k]: Math.max(0.005, Number((((r as any)[k] * 100 - 0.1) / 100).toFixed(5))) }))}>-</button>
+                  <button type="button" className="flex-1 rounded border px-1 py-0.5 hover:bg-muted"
+                    onClick={() => setDmRoi(r => ({ ...r, [k]: Math.min(0.995, Number((((r as any)[k] * 100 + 0.1) / 100).toFixed(5))) }))}>+</button>
+                </div>
               </label>
             ))}
           </div>
+
 
           <div className="mt-2 flex items-center gap-2">
             <Button size="sm" variant={dmRoiDirty ? "default" : "outline"} onClick={saveDmRoi}>
