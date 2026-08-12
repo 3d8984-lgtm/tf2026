@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, Camera, CameraOff, CheckCircle2, AlertTriangle, ScanLine, Truck, Send, Printer, RefreshCw, Usb, TestTube2 } from "lucide-react";
+import { ArrowLeft, Camera, CameraOff, CheckCircle2, AlertTriangle, ScanLine, Truck, Send, Printer, RefreshCw, RotateCcw, Usb, TestTube2 } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { useShipmentScan } from "@/hooks/useShipmentScan";
 import { useHologramSerials } from "@/hooks/useHologramSerials";
@@ -84,6 +84,8 @@ export default function ShippingScan() {
   const [testVariant, setTestVariant] = useState<"sandbox" | "live_cancel">("sandbox");
   const [issuing, setIssuing] = useState(false);
   const [labelDialog, setLabelDialog] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
   // Sandbox label PDF returned by the carrier during a test issuance.
   const [testLabelUrl, setTestLabelUrl] = useState<string | null>(null);
 
@@ -406,6 +408,43 @@ export default function ShippingScan() {
     qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
   }
 
+  // 완료된 스캔/송장 상태를 모두 되돌린다 (재작업용).
+  async function resetScanWork() {
+    if (!shipment) return;
+    setResetting(true);
+    const { error: e1 } = await supabase
+      .from("shipment_scan_items")
+      .update({ qr_value: null, is_scanned: false, scanned_at: null, scanned_by: null })
+      .eq("shipment_id", shipment.id);
+    const { error: e2 } = await supabase
+      .from("shipments")
+      .update({
+        scanned_count: 0,
+        scan_status: "pending",
+        status: "pending",
+        tracking_number: null,
+        tracking_issued_at: null,
+        shipped_at: null,
+        reported_at: null,
+        design_confirmed: false,
+      })
+      .eq("id", shipment.id);
+    setResetting(false);
+    if (e1 || e2) {
+      toast({ variant: "destructive", title: tr("초기화 실패", "重置失败"), description: (e1 ?? e2)?.message });
+      return;
+    }
+    await logAction("reset", { shipment_id: shipment.id });
+    setResetOpen(false);
+    setLabelDialog(false);
+    setFeedback({ kind: "idle", msg: "" });
+    setScanInput("");
+    toast({ title: tr("초기화되었습니다", "已重置") });
+    qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
+    qc.invalidateQueries({ queryKey: ["shipping_queue"] });
+    qc.invalidateQueries({ queryKey: ["shipping_queue_kpis"] });
+  }
+
   // Label geometry per carrier. 4PX ships 100×150mm (10×15cm) labels.
   function labelSizeFor(code?: string | null) {
     const c = (code ?? "").toLowerCase();
@@ -598,8 +637,29 @@ export default function ShippingScan() {
             </Select>
           )}
           <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="w-4 h-4 mr-1"/>{tr("새로고침", "刷新")}</Button>
+          <Button variant="destructive" size="sm" onClick={() => setResetOpen(true)}>
+            <RotateCcw className="w-4 h-4 mr-1"/>{tr("초기화", "重置")}
+          </Button>
         </div>
       </div>
+
+      <Dialog open={resetOpen} onOpenChange={setResetOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{tr("스캔 작업 초기화", "重置扫码作业")}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {tr("이 주문의 완료된 스캔 기록과 송장 발급/발송 상태가 모두 초기화되어 처음부터 다시 작업할 수 있습니다.",
+                "该订单已完成的扫码记录及运单/发货状态将全部重置，可重新作业。")}
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetOpen(false)}>{tr("취소", "取消")}</Button>
+            <Button variant="destructive" disabled={resetting} onClick={resetScanWork}>
+              {resetting ? tr("초기화 중...", "重置中...") : tr("초기화", "重置")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <PageHeader title={`QR ${tr("스캔 작업", "扫码作业")}`} description={`Job No · ${order?.external_order_id}`} />
 
