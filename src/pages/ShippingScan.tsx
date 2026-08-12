@@ -660,8 +660,6 @@ export default function ShippingScan() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-        </div>
-      </div>
 
       <PageHeader title={`QR ${tr("스캔 작업", "扫码作业")}`} description={`Job No · ${order?.external_order_id}`} />
 
