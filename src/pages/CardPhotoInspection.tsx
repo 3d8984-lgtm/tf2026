@@ -1721,7 +1721,38 @@ export default function CardPhotoInspection() {
           </div>
 
 
+          {/* 카드 영역 조정 */}
+          <div className="mt-2 grid grid-cols-4 gap-2">
+            {([
+              ["x", t("좌", "左")], ["y", t("상", "上")], ["w", t("폭", "宽")], ["h", t("높이", "高")],
+            ] as const).map(([k, label]) => (
+              <label key={`card-${k}`} className="text-[10px] text-muted-foreground">
+                {t("카드", "卡片")} {label}
+                <input
+                  type="range" min={1} max={100} step={0.5}
+                  value={(cardRoi as any)[k] * 100}
+                  onChange={e => setCardRoi(r => ({ ...r, [k]: Number(e.target.value) / 100 }))}
+                  className="w-full"
+                />
+              </label>
+            ))}
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <Button size="sm" variant={cardRoiDirty ? "default" : "outline"} onClick={saveCardRoi}>
+              {t("카드 영역 저장", "保存卡片区域")}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={resetCardRoi}>
+              {t("초기화", "重置")}
+            </Button>
+            <span className="text-[10px] text-muted-foreground">
+              {cardRoiDirty
+                ? t("변경사항이 저장되지 않았습니다", "更改尚未保存")
+                : t("저장됨 · 촬영 시 이 영역 안쪽만 이미지로 저장됩니다", "已保存 · 拍摄时仅保存该区域内的图像")}
+            </span>
+          </div>
+
           {/* 가이드 영역 조정 */}
+
           <div className="mt-2 grid grid-cols-4 gap-2">
             {([
               ["x", t("좌", "左")], ["y", t("상", "上")], ["w", t("폭", "宽")], ["h", t("높이", "高")],
