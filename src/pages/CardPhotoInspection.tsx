@@ -983,14 +983,20 @@ export default function CardPhotoInspection() {
 
 
 
-  const inspectImage = async (side: "front" | "back", dataUrl: string) => {
+  const inspectImage = async (
+    side: "front" | "back",
+    dataUrl: string,
+    frame?: { x: number; y: number; w: number; h: number } | null,
+  ) => {
     setBusySide(side);
     try {
       const referenceTwincode = side === "back" ? await toRasterDataUrl(expectedTwincodeUrl || "") : undefined;
 
       if (side === "back") {
         // 저장 후 슬라이더가 다시 움직였더라도 실제 검사는 마지막으로 확정 저장한 영역만 사용한다.
-        const crop = await cropRoi(dataUrl, savedRoi ?? getDisplayedGuideRoi());
+        // 사진은 카드 영역만 잘려 있으므로 ROI 좌표도 카드 영역 기준으로 변환한다.
+        const crop = await cropRoi(dataUrl, toCardSpace(savedRoi ?? getDisplayedGuideRoi(), frame ?? null));
+
         setTwinCrop(crop);
         if (!expectedTwincodeUrl) {
           setTwinScore(null);
