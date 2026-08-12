@@ -399,7 +399,7 @@ export default function CardPhotoInspection() {
   const [dmRoi, setDmRoi] = useState<{ x: number; y: number; w: number; h: number }>(() => readDmRoi() ?? DM_ROI_DEFAULT);
   const [savedDmRoi, setSavedDmRoi] = useState<{ x: number; y: number; w: number; h: number } | null>(() => readDmRoi());
   const dmRoiDirty = !savedDmRoi || (["x", "y", "w", "h"] as const).some(k => Math.abs(savedDmRoi[k] - dmRoi[k]) > 0.001);
-  const saveDmRoi = () => {
+  const saveDmRoi = async () => {
     const n = {
       x: Math.max(0, Math.min(1, dmRoi.x)),
       y: Math.max(0, Math.min(1, dmRoi.y)),
@@ -409,14 +409,19 @@ export default function CardPhotoInspection() {
     try { localStorage.setItem(DM_ROI_KEY, JSON.stringify(n)); } catch { /* ignore */ }
     setDmRoi(n);
     setSavedDmRoi(n);
-    toast.success(t("DM 바코드 영역이 저장되었습니다", "DM条码区域已保存"));
+    const ok = await pushRoiSetting("dm", n);
+    toast.success(ok
+      ? t("DM 바코드 영역이 저장되었습니다 (모든 PC 공통)", "DM条码区域已保存（所有电脑共用）")
+      : t("DM 바코드 영역이 이 PC에만 저장되었습니다", "DM条码区域仅保存在本机"));
   };
-  const resetDmRoi = () => {
+  const resetDmRoi = async () => {
     setDmRoi(DM_ROI_DEFAULT);
     setSavedDmRoi(null);
     try { localStorage.removeItem(DM_ROI_KEY); } catch { /* ignore */ }
+    await clearRoiSetting("dm");
     toast.info(t("DM 바코드 영역이 초기화되었습니다", "DM条码区域已重置"));
   };
+
 
   /**
    * 카드 위치 영역 (실제 영상 영역 기준 비율).
