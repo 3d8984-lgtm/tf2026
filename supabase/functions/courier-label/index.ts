@@ -103,10 +103,18 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any): Promise<
   }
 
   const d = created.data ?? {};
-  const fpxNo = d["4px_tracking_no"] ?? d.fpx_tracking_no ?? null;
-  const tracking = d.logistics_channel_no || fpxNo;
+  const fpxNo = d["4px_tracking_no"] ?? d.fpx_tracking_no ?? d.tracking_no ?? null;
+  const tracking =
+    d.logistics_channel_no || d.channel_tracking_no || d.tracking_number || fpxNo;
   if (!tracking) {
-    return { tracking_number: null, label_url: null, raw: created.raw, error: "4PX did not return a tracking number" };
+    return {
+      tracking_number: null,
+      label_url: null,
+      raw: created.raw,
+      error: `4PX order.create returned no tracking number (code=${created.code ?? "-"}, msg=${
+        created.message ?? "-"
+      }, data=${JSON.stringify(d).slice(0, 500)})`,
+    };
   }
 
   // Label: always use the carrier-issued waybill (4PX ds.xms.label.get, 100x150mm).
