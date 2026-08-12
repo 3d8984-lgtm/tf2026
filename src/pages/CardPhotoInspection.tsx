@@ -331,9 +331,9 @@ export default function CardPhotoInspection() {
       console.warn("[roi] delete from backend failed", e);
     }
   };
-
-
+  /**
    * 트윈코드 가이드 영역(촬영 화면 기준 비율).
+
    * 카드를 매번 같은 위치에 두면 이 영역에서 트윈코드를 자동 추출한다.
    */
   const [twinRoi, setTwinRoi] = useState<{ x: number; y: number; w: number; h: number }>(() => {
