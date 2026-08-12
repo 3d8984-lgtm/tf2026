@@ -1,10 +1,11 @@
-import { Shirt, CreditCard, Package, Mail, Truck, CheckCircle2 } from "lucide-react";
+import { Shirt, CreditCard, Package, Mail, Truck, CheckCircle2, Camera } from "lucide-react";
 import { useOrders } from "@/hooks/useDbData";
 import { useLang } from "@/contexts/LangContext";
 import { useStageProgress, STAGE_SOURCE, type StageStat, type StageProgressKey } from "@/hooks/useStageProgress";
 
 
 const stages = [
+  { key: "inspect", label_ko: "카드 검수", label_zh: "卡片检验", icon: Camera },
   { key: "tshirt", label_ko: "티셔츠 제작", label_zh: "T恤制作", icon: Shirt },
   { key: "card", label_ko: "카드 포장", label_zh: "卡片包装", icon: CreditCard },
   { key: "set", label_ko: "세트 포장", label_zh: "套装包装", icon: Package },
@@ -15,11 +16,11 @@ const stages = [
 type StageKey = (typeof stages)[number]["key"];
 
 const stageColors: Record<StageKey, string> = {
-  tshirt: "hsl(205 75% 42%)", card: "hsl(152 60% 42%)", set: "hsl(38 92% 50%)",
+  inspect: "hsl(190 70% 45%)", tshirt: "hsl(205 75% 42%)", card: "hsl(152 60% 42%)", set: "hsl(38 92% 50%)",
   courier: "hsl(280 55% 52%)", done: "hsl(152 60% 36%)",
 };
 const stageBgColors: Record<StageKey, string> = {
-  tshirt: "hsl(205 75% 42% / 0.1)", card: "hsl(152 60% 42% / 0.1)", set: "hsl(38 92% 50% / 0.1)",
+  inspect: "hsl(190 70% 45% / 0.1)", tshirt: "hsl(205 75% 42% / 0.1)", card: "hsl(152 60% 42% / 0.1)", set: "hsl(38 92% 50% / 0.1)",
   courier: "hsl(280 55% 52% / 0.1)", done: "hsl(152 60% 36% / 0.1)",
 };
 
@@ -51,7 +52,11 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
   // 각 단계 실적은 실제 작업 메뉴 데이터에서 집계 (PLC 미사용)
   const pipelineOrders = (orders ?? []).map(order => {
     const sp = stageProgress?.[order.id];
+    // 카드 사진 검수는 표본 검사 — 표본이 모두 통과하면 전량 통과로 간주
+    const inspectStat = sp?.inspect;
+    const inspectPassed = !!inspectStat && inspectStat.total > 0 && inspectStat.failed === 0;
     const stageCounts: Record<StageKey, number> = {
+      inspect: inspectPassed ? order.quantity : 0,
       tshirt: sp?.tshirt.done ?? 0,
       card: sp?.card.done ?? 0,
       set: sp?.set.done ?? 0,
@@ -60,8 +65,8 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
     };
 
 
-    const stageKeys: StageKey[] = ["tshirt", "card", "set", "courier", "done"];
-    let currentStage: StageKey = "tshirt";
+    const stageKeys: StageKey[] = ["inspect", "tshirt", "card", "set", "courier", "done"];
+    let currentStage: StageKey = "inspect";
     for (let i = stageKeys.length - 1; i >= 0; i--) {
       if (stageCounts[stageKeys[i]] > 0) {
         currentStage = stageKeys[i];
@@ -112,7 +117,7 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
 
       {/* Order rows */}
       {pipelineOrders.map((order, oi) => {
-        const stageKeys: StageKey[] = ["tshirt", "card", "set", "courier", "done"];
+        const stageKeys: StageKey[] = ["inspect", "tshirt", "card", "set", "courier", "done"];
         
         const overallDone = order.stageCounts.done;
         const overallPct = pct(overallDone, order.qty);

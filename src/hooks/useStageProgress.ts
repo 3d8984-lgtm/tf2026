@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
  *  - courier : 택배 포장 작업 (shipment_scan_items)
  *  - done    : 위 4단계가 모두 완료된 수량 (최솟값)
  */
-export type StageProgressKey = "tshirt" | "card" | "set" | "courier";
+export type StageProgressKey = "inspect" | "tshirt" | "card" | "set" | "courier";
 
 export type StageStat = {
   total: number;
@@ -34,6 +34,7 @@ const emptyStat = (): StageStat => ({
 });
 
 const emptyOrder = (): OrderStageProgress => ({
+  inspect: emptyStat(),
   tshirt: emptyStat(),
   card: emptyStat(),
   set: emptyStat(),
@@ -42,6 +43,7 @@ const emptyOrder = (): OrderStageProgress => ({
 });
 
 export const STAGE_SOURCE: Record<string, { nameKo: string; nameZh: string }> = {
+  inspect: { nameKo: "카드 사진 검수", nameZh: "卡片照片检验" },
   tshirt: { nameKo: "티셔츠 부착 작업", nameZh: "T恤贴附作业" },
   card: { nameKo: "카드 바코드 인쇄 작업", nameZh: "卡片条码打印作业" },
   set: { nameKo: "티셔츠 바코드 인쇄 작업", nameZh: "T恤条码打印作业" },
@@ -71,6 +73,7 @@ export function useStageProgress() {
       if (scanRes.error) throw scanRes.error;
 
       const map: StageProgressMap = {};
+
       const get = (orderId: string) => (map[orderId] ??= emptyOrder());
       const touch = (s: StageStat, at: string | null) => {
         if (at && (!s.lastAt || at > s.lastAt)) s.lastAt = at;
@@ -105,10 +108,24 @@ export function useStageProgress() {
 
       }
 
+      // 카드 사진 검수 결과 (표본 검사 · 로컬 기록)
+      try {
+        const raw = localStorage.getItem("card-photo-inspect-history");
+        const rows = raw ? (JSON.parse(raw) as any[]) : [];
+        for (const row of rows) {
+          if (!row?.orderId) continue;
+          const s = get(row.orderId).inspect;
+          s.total += 1;
+          if (row.pass) s.done += 1;
+          else s.failed += 1;
+          touch(s, row.at ? new Date(row.at).toISOString() : null);
+        }
+      } catch { /* ignore */ }
+
       const now = Date.now();
       for (const orderId of Object.keys(map)) {
         const o = map[orderId];
-        for (const key of ["tshirt", "card", "set", "courier"] as StageProgressKey[]) {
+        for (const key of ["inspect", "tshirt", "card", "set", "courier"] as StageProgressKey[]) {
           const s = o[key];
           s.active = !!s.lastAt && now - new Date(s.lastAt).getTime() < ACTIVE_MS;
         }

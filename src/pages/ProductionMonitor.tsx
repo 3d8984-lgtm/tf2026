@@ -8,13 +8,14 @@ import PlcMonitor from "@/components/PlcMonitor";
 import DmScannerMonitor from "@/components/DmScannerMonitor";
 import BarcodeStageDetail from "@/components/BarcodeStageDetail";
 import { useStageProgress, type StageProgressKey } from "@/hooks/useStageProgress";
-import { Gauge, ScanLine, Package, Printer, Activity, Shirt, CreditCard, Mail, Truck, CheckCircle2 } from "lucide-react";
+import { Gauge, ScanLine, Package, Printer, Activity, Shirt, CreditCard, Mail, Truck, CheckCircle2, Camera } from "lucide-react";
 import { useOrders, useProductionTracking, useShipments } from "@/hooks/useDbData";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-type StageKey = "tshirt" | "card" | "set" | "courier" | "invoice" | "done";
+type StageKey = "inspect" | "tshirt" | "card" | "set" | "courier" | "invoice" | "done";
 
 const stageMeta: Record<StageKey, { ko: string; zh: string; Icon: typeof Shirt }> = {
+  inspect: { ko: "카드 검수", zh: "卡片检验", Icon: Camera },
   tshirt: { ko: "티셔츠 제작", zh: "T恤制作", Icon: Shirt },
   card: { ko: "카드 포장", zh: "卡片包装", Icon: CreditCard },
   set: { ko: "세트 포장", zh: "套装包装", Icon: Package },
@@ -65,7 +66,7 @@ export default function ProductionMonitor() {
   const orderQty = detailOrder?.quantity ?? 0;
   const spOrder = stageDetail ? stageProgress?.[stageDetail.orderId] : undefined;
   const stageStat =
-    stageDetail && spOrder && ["tshirt", "card", "set", "courier"].includes(stageDetail.stage)
+    stageDetail && spOrder && ["inspect", "tshirt", "card", "set", "courier"].includes(stageDetail.stage)
       ? spOrder[stageDetail.stage as StageProgressKey]
       : undefined;
   const stageDone = stageDetail?.stage === "done"
