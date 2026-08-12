@@ -2126,7 +2126,7 @@ export default function CardPhotoInspection() {
                    `共 ${VISUAL_FIELDS.length} · 一致 ${checks.filter(c=>c.match).length} · 不一致 ${checks.filter(c=>!c.match).length} · 等待 ${VISUAL_FIELDS.length - checks.length}`)}
               </span>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 p-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 p-2">
               {VISUAL_FIELDS.map(f => {
                 const side = f.side;
                 const ready = side === "front" ? !!frontResult : !!backResult;
@@ -2144,30 +2144,27 @@ export default function CardPhotoInspection() {
                   fail: "border-[hsl(var(--warning)/0.4)] bg-[hsl(var(--warning)/0.08)]",
                 }[status];
                 return (
-                  <div key={f.key} className={`rounded-lg border p-3 ${styles}`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        {side === "front" ? t("앞면", "正面") : t("뒷면", "背面")}
-                      </span>
-                      {status === "pending" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{t("대기", "等待")}</span>}
-                      {status === "match" && <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))] text-sm font-bold">O</span>}
-                      {status === "fail" && <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[hsl(var(--warning)/0.15)] text-[hsl(var(--warning))] text-sm font-bold">X</span>}
+                  <div key={f.key} className={`rounded-md border px-2 py-1.5 ${styles}`}>
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[10px] font-semibold truncate" title={f.label(t)}>{f.label(t)}</span>
+                      {status === "pending" && <span className="text-[9px] px-1 rounded bg-muted text-muted-foreground shrink-0">{t("대기", "等待")}</span>}
+                      {status === "match" && <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))] text-[10px] font-bold shrink-0">O</span>}
+                      {status === "fail" && <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[hsl(var(--warning)/0.15)] text-[hsl(var(--warning))] text-[10px] font-bold shrink-0">X</span>}
                     </div>
-                    <div className="text-sm font-semibold mb-2">{f.label(t)}</div>
-                    <div className="space-y-1 text-xs">
-                      <div>
-                        <div className="text-muted-foreground text-[10px] uppercase">{t("기준", "标准")}</div>
-                        <div className="font-mono break-all">{expectedVal || "-"}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground text-[10px] uppercase">{t("추출", "提取")}</div>
-                        <div className="font-mono break-all">{ready ? (detectedVal || "-") : "…"}</div>
-                      </div>
+                    <div className="text-[9px] text-muted-foreground">
+                      {side === "front" ? t("앞면", "正面") : t("뒷면", "背面")}
+                    </div>
+                    <div className="mt-1 text-[10px] leading-tight font-mono truncate" title={String(expectedVal || "-")}>
+                      <span className="text-muted-foreground">{t("기준", "标准")} </span>{expectedVal || "-"}
+                    </div>
+                    <div className="text-[10px] leading-tight font-mono truncate" title={String(ready ? detectedVal : "")}>
+                      <span className="text-muted-foreground">{t("추출", "提取")} </span>{ready ? (detectedVal || "-") : "…"}
                     </div>
                   </div>
                 );
               })}
             </div>
+
           </div>
         )}
 
