@@ -284,6 +284,31 @@ export default function CardPhotoInspection() {
     return canvas.toDataURL("image/jpeg", 0.95);
   };
 
+  /** 저장/표시용 이미지를 좌회전 90도로 변환한다 (분석은 원본 좌표계를 그대로 사용). */
+  const rotateLeft90 = (dataUrl: string): Promise<string> =>
+    new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const c = document.createElement("canvas");
+          c.width = img.naturalHeight;
+          c.height = img.naturalWidth;
+          const ctx = c.getContext("2d");
+          if (!ctx) return resolve(dataUrl);
+          ctx.translate(0, c.height);
+          ctx.rotate(-Math.PI / 2);
+          ctx.drawImage(img, 0, 0);
+          resolve(c.toDataURL("image/jpeg", 0.95));
+        } catch {
+          resolve(dataUrl);
+        }
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+
+
+
 
   // ── Inspection state ──────────────────────────────────────────────────
   const [frontImg, setFrontImg] = useState<string | null>(null);
