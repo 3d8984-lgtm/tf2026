@@ -637,6 +637,29 @@ export default function ShippingScan() {
             </Select>
           )}
           <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="w-4 h-4 mr-1"/>{tr("새로고침", "刷新")}</Button>
+          <Button variant="destructive" size="sm" onClick={() => setResetOpen(true)}>
+            <RotateCcw className="w-4 h-4 mr-1"/>{tr("초기화", "重置")}
+          </Button>
+        </div>
+      </div>
+
+      <Dialog open={resetOpen} onOpenChange={setResetOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{tr("스캔 작업 초기화", "重置扫码作业")}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {tr("이 주문의 완료된 스캔 기록과 송장 발급/발송 상태가 모두 초기화되어 처음부터 다시 작업할 수 있습니다.",
+                "该订单已完成的扫码记录及运单/发货状态将全部重置，可重新作业。")}
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetOpen(false)}>{tr("취소", "取消")}</Button>
+            <Button variant="destructive" disabled={resetting} onClick={resetScanWork}>
+              {resetting ? tr("초기화 중...", "重置中...") : tr("초기화", "重置")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
         </div>
       </div>
 
