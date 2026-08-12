@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import WorkCamRecorder from "@/components/WorkCamRecorder";
 import { toast } from "@/hooks/use-toast";
+import { useSignedOrderLogos } from "@/components/OrderLogoImage";
 
 
 

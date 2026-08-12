@@ -16,6 +16,7 @@ import { toast } from "@/hooks/use-toast";
 import type { Json } from "@/integrations/supabase/types";
 import * as XLSX from "xlsx";
 import { downloadEmbeddedTemplate } from "@/lib/file-upload-template";
+import { OrderLogoImage } from "@/components/OrderLogoImage";
 
 interface ImageFileEntry { file: File; orderFolder?: string; }
 
