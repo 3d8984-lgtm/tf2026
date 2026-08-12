@@ -84,6 +84,8 @@ export default function ShippingScan() {
   const [testVariant, setTestVariant] = useState<"sandbox" | "live_cancel">("sandbox");
   const [issuing, setIssuing] = useState(false);
   const [labelDialog, setLabelDialog] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
   // Sandbox label PDF returned by the carrier during a test issuance.
   const [testLabelUrl, setTestLabelUrl] = useState<string | null>(null);
 
