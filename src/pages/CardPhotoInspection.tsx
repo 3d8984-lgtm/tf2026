@@ -323,7 +323,7 @@ export default function CardPhotoInspection() {
     return null;
   });
   const roiDirty = !savedRoi || (["x", "y", "w", "h"] as const).some(k => Math.abs(savedRoi[k] - twinRoi[k]) > 0.001);
-  const saveTwinRoi = () => {
+  const saveTwinRoi = async () => {
     const normalizedRoi = {
       x: Math.max(0, Math.min(1, twinRoi.x)),
       y: Math.max(0, Math.min(1, twinRoi.y)),
@@ -333,15 +333,20 @@ export default function CardPhotoInspection() {
     try { localStorage.setItem("card-photo-twin-roi-v2", JSON.stringify(normalizedRoi)); } catch { /* ignore */ }
     setTwinRoi(normalizedRoi);
     setSavedRoi(normalizedRoi);
-    toast.success(t("트윈코드 영역이 저장되었습니다", "TwinCode 区域已保存"));
+    const ok = await pushRoiSetting("twin", normalizedRoi);
+    toast.success(ok
+      ? t("트윈코드 영역이 저장되었습니다 (모든 PC 공통)", "TwinCode 区域已保存（所有电脑共用）")
+      : t("트윈코드 영역이 이 PC에만 저장되었습니다", "TwinCode 区域仅保存在本机"));
   };
-  const resetTwinRoi = () => {
+  const resetTwinRoi = async () => {
     const d = { x: 0.26, y: 0.24, w: 0.13, h: 0.22 };
     setTwinRoi(d);
     setSavedRoi(null);
     try { localStorage.removeItem("card-photo-twin-roi-v2"); } catch { /* ignore */ }
+    await clearRoiSetting("twin");
     toast.info(t("트윈코드 영역이 초기화되었습니다", "TwinCode 区域已重置"));
   };
+
 
   /**
    * DM 바코드 가이드 영역 (실제 영상 영역 기준 비율).
