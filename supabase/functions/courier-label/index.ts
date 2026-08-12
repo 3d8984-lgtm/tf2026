@@ -334,7 +334,15 @@ Deno.serve(async (req) => {
         order_id: shipment.order_id,
         action_type: "carrier_api_test",
         worker_id: user.id,
-        details: { carrier, mode: variant, auth_ok: authOk, message, tracking_number: tracking, cancel: cancelInfo },
+        details: {
+          carrier,
+          mode: variant,
+          auth_ok: authOk,
+          message,
+          tracking_number: tracking,
+          cancel: cancelInfo,
+          raw: typeof raw === "string" ? raw.slice(0, 2000) : raw,
+        },
       });
 
       if (!authOk) return json({ error: message, raw }, 502);
