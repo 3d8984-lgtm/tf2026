@@ -88,10 +88,14 @@ export function buildFpxLabelHtml(d: FpxLabelData, opts: { print?: boolean } = {
   return `<!doctype html><html><head><meta charset="utf-8"/><title>Waybill ${esc(d.trackingNumber)}</title>
 <style>
   @page { size: ${LW}mm ${LH}mm; margin: 0; }
-  html, body { margin: 0; padding: 0; background: #fff; }
+  html, body { margin: 0; padding: 0; background: #fff; width: ${LW}mm; height: ${LH}mm; overflow: hidden; }
   * { box-sizing: border-box; }
   body { font-family: Arial, "Helvetica Neue", sans-serif; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .label { width: ${LW}mm; height: ${LH}mm; padding: 3mm; display: flex; flex-direction: column; position: relative; }
+  .label { width: ${LW}mm; height: ${LH}mm; padding: 2mm; display: flex; flex-direction: column; position: relative; overflow: hidden; page-break-after: avoid; }
+  @media print {
+    html, body { width: ${LW}mm !important; height: ${LH}mm !important; }
+    .label { width: ${LW}mm !important; height: ${LH}mm !important; page-break-inside: avoid; }
+  }
   .box { border: 0.4mm solid #000; display: flex; flex-direction: column; flex: 1; }
   .hd { display: flex; align-items: center; justify-content: space-between; padding: 2mm 3mm; }
   .hd .brand { font-size: 17pt; font-weight: 800; letter-spacing: -0.4px; }

@@ -556,7 +556,10 @@ export default function ShippingScan() {
     w.document.close();
     toast({
       title: tr("테스트 송장 출력", "测试运单打印"),
-      description: tr(`프린터 대화창이 열렸습니다 (${size.w}×${size.h}mm)`, `已打开打印对话框 (${size.w}×${size.h}mm)`),
+      description: tr(
+        `프린터 대화창이 열렸습니다 (${size.w}×${size.h}mm) — 용지 ${size.w}×${size.h}mm, 배율 100%(맞춤 인쇄 해제), 여백 없음으로 설정하세요.`,
+        `已打开打印对话框 (${size.w}×${size.h}mm) — 请设置纸张 ${size.w}×${size.h}mm、缩放 100%（关闭适应页面）、无边距。`,
+      ),
     });
   }
 
