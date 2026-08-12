@@ -284,6 +284,31 @@ export default function CardPhotoInspection() {
     return canvas.toDataURL("image/jpeg", 0.95);
   };
 
+  /** 저장/표시용 이미지를 좌회전 90도로 변환한다 (분석은 원본 좌표계를 그대로 사용). */
+  const rotateLeft90 = (dataUrl: string): Promise<string> =>
+    new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const c = document.createElement("canvas");
+          c.width = img.naturalHeight;
+          c.height = img.naturalWidth;
+          const ctx = c.getContext("2d");
+          if (!ctx) return resolve(dataUrl);
+          ctx.translate(0, c.height);
+          ctx.rotate(-Math.PI / 2);
+          ctx.drawImage(img, 0, 0);
+          resolve(c.toDataURL("image/jpeg", 0.95));
+        } catch {
+          resolve(dataUrl);
+        }
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+
+
+
 
   // ── Inspection state ──────────────────────────────────────────────────
   const [frontImg, setFrontImg] = useState<string | null>(null);
@@ -1159,14 +1184,17 @@ export default function CardPhotoInspection() {
       toast.error(t("카메라가 준비되지 않았습니다", "摄像头未准备好"));
       return;
     }
+    // 저장·표시용은 좌회전 90도(세로) 이미지로 통일한다.
+    const shown = await rotateLeft90(url);
     if (side === "front") {
       // 앞면 촬영 = 새 카드 검사 시작 → 이전 카드의 뒷면 결과가 남지 않도록 모두 초기화한다.
-      setFrontImg(url); setFrontResult(null); setFrontMatch("idle");
+      setFrontImg(shown); setFrontResult(null); setFrontMatch("idle");
       setBackImg(null); setBackResult(null); setDmDecoded("");
       setTwinCrop(""); setTwinScore(null); setTwinScoreNote(""); setTwinManual(false);
     } else {
-      setBackImg(url); setBackResult(null); setDmDecoded(""); setTwinCrop(""); setTwinScore(null); setTwinScoreNote(""); setTwinManual(false);
+      setBackImg(shown); setBackResult(null); setDmDecoded(""); setTwinCrop(""); setTwinScore(null); setTwinScoreNote(""); setTwinManual(false);
     }
+
 
     await inspectImage(side, url, frame);
 
@@ -1800,16 +1828,23 @@ export default function CardPhotoInspection() {
               ["x", t("좌", "左")], ["y", t("상", "上")], ["w", t("폭", "宽")], ["h", t("높이", "高")],
             ] as const).map(([k, label]) => (
               <label key={`card-${k}`} className="text-[10px] text-muted-foreground">
-                {t("카드", "卡片")} {label}
+                {t("카드", "卡片")} {label} <span className="tabular-nums">{((cardRoi as any)[k] * 100).toFixed(1)}%</span>
                 <input
-                  type="range" min={1} max={100} step={0.5}
+                  type="range" min={0.5} max={100} step={0.1}
                   value={(cardRoi as any)[k] * 100}
                   onChange={e => setCardRoi(r => ({ ...r, [k]: Number(e.target.value) / 100 }))}
                   className="w-full"
                 />
+                <div className="flex gap-1 mt-0.5">
+                  <button type="button" className="flex-1 rounded border px-1 py-0.5 hover:bg-muted"
+                    onClick={() => setCardRoi(r => ({ ...r, [k]: Math.max(0.005, Number((((r as any)[k] * 100 - 0.1) / 100).toFixed(5))) }))}>-</button>
+                  <button type="button" className="flex-1 rounded border px-1 py-0.5 hover:bg-muted"
+                    onClick={() => setCardRoi(r => ({ ...r, [k]: Math.min(1, Number((((r as any)[k] * 100 + 0.1) / 100).toFixed(5))) }))}>+</button>
+                </div>
               </label>
             ))}
           </div>
+
           <div className="mt-2 flex items-center gap-2">
             <Button size="sm" variant={cardRoiDirty ? "default" : "outline"} onClick={saveCardRoi}>
               {t("카드 영역 저장", "保存卡片区域")}
@@ -1868,16 +1903,23 @@ export default function CardPhotoInspection() {
               ["x", t("좌", "左")], ["y", t("상", "上")], ["w", t("폭", "宽")], ["h", t("높이", "高")],
             ] as const).map(([k, label]) => (
               <label key={`dm-${k}`} className="text-[10px] text-muted-foreground">
-                DM {label}
+                DM {label} <span className="tabular-nums">{((dmRoi as any)[k] * 100).toFixed(1)}%</span>
                 <input
-                  type="range" min={2} max={98} step={1}
-                  value={Math.round((dmRoi as any)[k] * 100)}
+                  type="range" min={0.5} max={99.5} step={0.1}
+                  value={(dmRoi as any)[k] * 100}
                   onChange={e => setDmRoi(r => ({ ...r, [k]: Number(e.target.value) / 100 }))}
                   className="w-full accent-[hsl(var(--primary))]"
                 />
+                <div className="flex gap-1 mt-0.5">
+                  <button type="button" className="flex-1 rounded border px-1 py-0.5 hover:bg-muted"
+                    onClick={() => setDmRoi(r => ({ ...r, [k]: Math.max(0.005, Number((((r as any)[k] * 100 - 0.1) / 100).toFixed(5))) }))}>-</button>
+                  <button type="button" className="flex-1 rounded border px-1 py-0.5 hover:bg-muted"
+                    onClick={() => setDmRoi(r => ({ ...r, [k]: Math.min(0.995, Number((((r as any)[k] * 100 + 0.1) / 100).toFixed(5))) }))}>+</button>
+                </div>
               </label>
             ))}
           </div>
+
 
           <div className="mt-2 flex items-center gap-2">
             <Button size="sm" variant={dmRoiDirty ? "default" : "outline"} onClick={saveDmRoi}>
