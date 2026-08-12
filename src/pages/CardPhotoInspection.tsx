@@ -1019,7 +1019,7 @@ export default function CardPhotoInspection() {
         supabase.functions.invoke("card-photo-inspect", {
           body: { side, image: dataUrl, reference_twincode: referenceTwincode },
         }),
-        side === "back" ? decodeDataMatrix(dataUrl, savedDmRoi ?? dmRoi) : Promise.resolve(""),
+        side === "back" ? decodeDataMatrix(dataUrl, toCardSpace(savedDmRoi ?? dmRoi, frame ?? null)) : Promise.resolve(""),
       ]);
 
       if (error) throw error;
