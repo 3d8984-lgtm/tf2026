@@ -1079,7 +1079,9 @@ export default function CardPhotoInspection() {
   };
 
   const captureSide = async (side: "front" | "back") => {
-    const url = captureDataUrl();
+    // 카드 영역(노란 사각형) 안쪽만 잘라서 저장·분석한다.
+    const frame = savedCardRoi ?? cardRoi;
+    const url = captureDataUrl(frame);
     if (!url) {
       toast.error(t("카메라가 준비되지 않았습니다", "摄像头未准备好"));
       return;
@@ -1093,7 +1095,8 @@ export default function CardPhotoInspection() {
       setBackImg(url); setBackResult(null); setDmDecoded(""); setTwinCrop(""); setTwinScore(null); setTwinScoreNote(""); setTwinManual(false);
     }
 
-    await inspectImage(side, url);
+    await inspectImage(side, url, frame);
+
   };
 
   const reset = () => {
