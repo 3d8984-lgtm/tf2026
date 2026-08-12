@@ -1659,7 +1659,22 @@ export default function CardPhotoInspection() {
                   if (v.videoWidth && v.videoHeight) setVideoAr(v.videoWidth / v.videoHeight);
                 }}
               />
+              {/* 카드 위치 영역 — 촬영 시 이 안쪽만 저장된다 */}
+              <div
+                className="absolute border-2 border-dashed border-[hsl(var(--warning,45_100%_51%))] pointer-events-none"
+                style={{
+                  left: `${(videoBox.left + cardRoi.x * videoBox.width) * 100}%`,
+                  top: `${(videoBox.top + cardRoi.y * videoBox.height) * 100}%`,
+                  width: `${cardRoi.w * videoBox.width * 100}%`,
+                  height: `${cardRoi.h * videoBox.height * 100}%`,
+                }}
+              >
+                <span className="absolute -top-5 left-0 text-[10px] font-semibold bg-background/80 px-1 rounded">
+                  {t("카드 영역", "卡片区域")}
+                </span>
+              </div>
               {/* 트윈코드 가이드 영역 — 실제 영상 표시 영역(레터박스 제외) 기준으로 그린다 */}
+
               <div
                 ref={twinGuideRef}
                 className="absolute border-2 border-destructive pointer-events-none"
