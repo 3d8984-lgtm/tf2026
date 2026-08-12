@@ -247,13 +247,6 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
                         </div>
                       )}
                     </button>
-
-
-                    {si < stages.length - 1 && (
-                      <div className="flex flex-col items-center justify-center px-0.5 shrink-0">
-                        <div className="w-3 h-px" style={{ background: isPast || isActive ? stageColors[s.key] : "hsl(var(--border))", opacity: isPast || isActive ? 0.5 : 0.3 }} />
-                      </div>
-                    )}
                   </div>
                 );
               })}
