@@ -233,18 +233,15 @@ export default function TshirtWork() {
     },
   });
 
-  // Map upload_history_id → logo public URL
-  const logoUrlMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    if (uploadHistoryData) {
-      for (const h of uploadHistoryData) {
-        if (h.logo_path) {
-          map[h.id] = supabase.storage.from("order-logos").getPublicUrl(h.logo_path).data.publicUrl;
-        }
-      }
-    }
-    return map;
-  }, [uploadHistoryData]);
+  // Map upload_history_id → signed logo URL (private bucket)
+  const logoEntries = useMemo(
+    () =>
+      (uploadHistoryData ?? [])
+        .filter((h) => !!h.logo_path)
+        .map((h) => ({ key: h.id as string, path: h.logo_path as string })),
+    [uploadHistoryData],
+  );
+  const logoUrlMap = useSignedOrderLogos(logoEntries);
 
   // Convert DB orders to local OrderData format
   const dbOrderData = useMemo<OrderData[]>(() => {

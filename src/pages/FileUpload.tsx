@@ -1273,22 +1273,11 @@ export default function FileUpload() {
                             </td>
                             <td className="py-2.5 text-muted-foreground" title={twinkers.join(", ")}>{twinkerLabel}</td>
                             <td className="py-2.5 text-center">
-                              {(() => {
-                                const logoSrc = h.logo_path
-                                  ? supabase.storage.from("order-logos").getPublicUrl(h.logo_path).data.publicUrl
-                                  : (h as any).excelLogoUrl || null;
-                                return logoSrc ? (
-                                  <div className="flex items-center justify-center">
-                                    <img
-                                      src={logoSrc}
-                                      alt="logo"
-                                      className="w-8 h-8 rounded object-contain border border-border"
-                                    />
-                                  </div>
-                                ) : (
-                                  <span className="text-xs text-muted-foreground">—</span>
-                                );
-                              })()}
+                              <OrderLogoImage
+                                path={h.logo_path}
+                                fallbackUrl={(h as any).excelLogoUrl || null}
+                                className="w-8 h-8 rounded object-contain border border-border"
+                              />
                             </td>
 
                             <td className="py-2.5 text-right tabular-nums">{h.row_count.toLocaleString()}</td>
@@ -2101,22 +2090,11 @@ export default function FileUpload() {
                           </td>
                           <td className="py-2.5 text-muted-foreground" title={twinkers.join(", ")}>{twinkerLabel}</td>
                           <td className="py-2.5 text-center">
-                            {(() => {
-                              const logoSrc = (h as any).logo_path
-                                ? supabase.storage.from("order-logos").getPublicUrl((h as any).logo_path).data.publicUrl
-                                : (h as any).excelLogoUrl || null;
-                              return logoSrc ? (
-                                <div className="flex items-center justify-center">
-                                  <img
-                                    src={logoSrc}
-                                    alt="logo"
-                                    className="w-8 h-8 rounded object-contain border border-border"
-                                  />
-                                </div>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">—</span>
-                              );
-                            })()}
+                            <OrderLogoImage
+                              path={(h as any).logo_path}
+                              fallbackUrl={(h as any).excelLogoUrl || null}
+                              className="w-8 h-8 rounded object-contain border border-border"
+                            />
                           </td>
 
                           <td className="py-2.5 text-right tabular-nums">{h.row_count.toLocaleString()}</td>
