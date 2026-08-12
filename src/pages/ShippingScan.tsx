@@ -406,6 +406,43 @@ export default function ShippingScan() {
     qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
   }
 
+  // 완료된 스캔/송장 상태를 모두 되돌린다 (재작업용).
+  async function resetScanWork() {
+    if (!shipment) return;
+    setResetting(true);
+    const { error: e1 } = await supabase
+      .from("shipment_scan_items")
+      .update({ qr_value: null, is_scanned: false, scanned_at: null, scanned_by: null })
+      .eq("shipment_id", shipment.id);
+    const { error: e2 } = await supabase
+      .from("shipments")
+      .update({
+        scanned_count: 0,
+        scan_status: "pending",
+        status: "pending",
+        tracking_number: null,
+        tracking_issued_at: null,
+        shipped_at: null,
+        reported_at: null,
+        design_confirmed: false,
+      })
+      .eq("id", shipment.id);
+    setResetting(false);
+    if (e1 || e2) {
+      toast({ variant: "destructive", title: tr("초기화 실패", "重置失败"), description: (e1 ?? e2)?.message });
+      return;
+    }
+    await logAction("reset", { shipment_id: shipment.id });
+    setResetOpen(false);
+    setLabelDialog(false);
+    setFeedback({ kind: "idle", msg: "" });
+    setScanInput("");
+    toast({ title: tr("초기화되었습니다", "已重置") });
+    qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
+    qc.invalidateQueries({ queryKey: ["shipping_queue"] });
+    qc.invalidateQueries({ queryKey: ["shipping_queue_kpis"] });
+  }
+
   // Label geometry per carrier. 4PX ships 100×150mm (10×15cm) labels.
   function labelSizeFor(code?: string | null) {
     const c = (code ?? "").toLowerCase();
