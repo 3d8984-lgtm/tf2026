@@ -151,7 +151,7 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
               <div className="h-full rounded-full transition-all duration-700" style={{ width: `${overallPct}%`, background: isDone ? "hsl(var(--success))" : "hsl(var(--primary))" }} />
             </div>
 
-            <div className="flex items-stretch gap-0">
+            <div className="grid grid-cols-6 gap-3 items-stretch">
               {stages.map((s, si) => {
                 const count = order.stageCounts[s.key];
                 const stagePct = pct(count, order.qty);
@@ -168,11 +168,11 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
 
 
                 return (
-                  <div key={s.key} className="flex items-center flex-1 min-w-0">
+                  <div key={s.key} className="min-w-0 h-full">
                     <button
                       type="button"
                       onClick={() => onStageClick?.(order.id, s.key)}
-                      className="flex-1 rounded-lg p-2.5 transition-all duration-200 text-left hover:ring-1 hover:ring-primary/40 cursor-pointer"
+                      className="w-full h-full rounded-lg p-2.5 transition-all duration-200 text-left hover:ring-1 hover:ring-primary/40 cursor-pointer"
                       style={{
                         background: isFuture ? "hsl(var(--surface-sunken))" : stageBgColors[s.key],
                         opacity: isFuture ? 0.5 : 1,
@@ -247,13 +247,6 @@ export default function OrderPipeline({ onStageClick, onOrderClick }: OrderPipel
                         </div>
                       )}
                     </button>
-
-
-                    {si < stages.length - 1 && (
-                      <div className="flex flex-col items-center justify-center px-0.5 shrink-0">
-                        <div className="w-3 h-px" style={{ background: isPast || isActive ? stageColors[s.key] : "hsl(var(--border))", opacity: isPast || isActive ? 0.5 : 0.3 }} />
-                      </div>
-                    )}
                   </div>
                 );
               })}
