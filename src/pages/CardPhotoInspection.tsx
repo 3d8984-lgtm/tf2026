@@ -304,7 +304,36 @@ export default function CardPhotoInspection() {
   /** 유사도 점수가 계산되지 않은 경우의 사유 */
   const [twinScoreNote, setTwinScoreNote] = useState("");
   /**
+   * 영역(ROI) 설정은 백엔드 공용 테이블(inspection_roi_settings)에 저장한다.
+   * → 브라우저/화면/PC가 바뀌어도 저장된 위치·크기가 동일하게 적용된다.
+   * localStorage는 오프라인 캐시 용도로만 함께 유지한다.
+   */
+  type Roi = { x: number; y: number; w: number; h: number };
+  const ROI_DB_KEY = (name: "card" | "twin" | "dm") => `card-photo-${name}-roi`;
+  const isRoi = (p: any): p is Roi =>
+    !!p && (["x", "y", "w", "h"] as const).every(k => typeof p[k] === "number");
+  const pushRoiSetting = async (name: "card" | "twin" | "dm", value: Roi) => {
+    try {
+      const { error } = await supabase
+        .from("inspection_roi_settings")
+        .upsert({ setting_key: ROI_DB_KEY(name), setting_value: value }, { onConflict: "setting_key" });
+      if (error) throw error;
+      return true;
+    } catch (e) {
+      console.warn("[roi] save to backend failed", e);
+      return false;
+    }
+  };
+  const clearRoiSetting = async (name: "card" | "twin" | "dm") => {
+    try {
+      await supabase.from("inspection_roi_settings").delete().eq("setting_key", ROI_DB_KEY(name));
+    } catch (e) {
+      console.warn("[roi] delete from backend failed", e);
+    }
+  };
+  /**
    * 트윈코드 가이드 영역(촬영 화면 기준 비율).
+
    * 카드를 매번 같은 위치에 두면 이 영역에서 트윈코드를 자동 추출한다.
    */
   const [twinRoi, setTwinRoi] = useState<{ x: number; y: number; w: number; h: number }>(() => {
@@ -323,7 +352,7 @@ export default function CardPhotoInspection() {
     return null;
   });
   const roiDirty = !savedRoi || (["x", "y", "w", "h"] as const).some(k => Math.abs(savedRoi[k] - twinRoi[k]) > 0.001);
-  const saveTwinRoi = () => {
+  const saveTwinRoi = async () => {
     const normalizedRoi = {
       x: Math.max(0, Math.min(1, twinRoi.x)),
       y: Math.max(0, Math.min(1, twinRoi.y)),
@@ -333,15 +362,20 @@ export default function CardPhotoInspection() {
     try { localStorage.setItem("card-photo-twin-roi-v2", JSON.stringify(normalizedRoi)); } catch { /* ignore */ }
     setTwinRoi(normalizedRoi);
     setSavedRoi(normalizedRoi);
-    toast.success(t("트윈코드 영역이 저장되었습니다", "TwinCode 区域已保存"));
+    const ok = await pushRoiSetting("twin", normalizedRoi);
+    toast.success(ok
+      ? t("트윈코드 영역이 저장되었습니다 (모든 PC 공통)", "TwinCode 区域已保存（所有电脑共用）")
+      : t("트윈코드 영역이 이 PC에만 저장되었습니다", "TwinCode 区域仅保存在本机"));
   };
-  const resetTwinRoi = () => {
+  const resetTwinRoi = async () => {
     const d = { x: 0.26, y: 0.24, w: 0.13, h: 0.22 };
     setTwinRoi(d);
     setSavedRoi(null);
     try { localStorage.removeItem("card-photo-twin-roi-v2"); } catch { /* ignore */ }
+    await clearRoiSetting("twin");
     toast.info(t("트윈코드 영역이 초기화되었습니다", "TwinCode 区域已重置"));
   };
+
 
   /**
    * DM 바코드 가이드 영역 (실제 영상 영역 기준 비율).
@@ -365,7 +399,7 @@ export default function CardPhotoInspection() {
   const [dmRoi, setDmRoi] = useState<{ x: number; y: number; w: number; h: number }>(() => readDmRoi() ?? DM_ROI_DEFAULT);
   const [savedDmRoi, setSavedDmRoi] = useState<{ x: number; y: number; w: number; h: number } | null>(() => readDmRoi());
   const dmRoiDirty = !savedDmRoi || (["x", "y", "w", "h"] as const).some(k => Math.abs(savedDmRoi[k] - dmRoi[k]) > 0.001);
-  const saveDmRoi = () => {
+  const saveDmRoi = async () => {
     const n = {
       x: Math.max(0, Math.min(1, dmRoi.x)),
       y: Math.max(0, Math.min(1, dmRoi.y)),
@@ -375,14 +409,19 @@ export default function CardPhotoInspection() {
     try { localStorage.setItem(DM_ROI_KEY, JSON.stringify(n)); } catch { /* ignore */ }
     setDmRoi(n);
     setSavedDmRoi(n);
-    toast.success(t("DM 바코드 영역이 저장되었습니다", "DM条码区域已保存"));
+    const ok = await pushRoiSetting("dm", n);
+    toast.success(ok
+      ? t("DM 바코드 영역이 저장되었습니다 (모든 PC 공통)", "DM条码区域已保存（所有电脑共用）")
+      : t("DM 바코드 영역이 이 PC에만 저장되었습니다", "DM条码区域仅保存在本机"));
   };
-  const resetDmRoi = () => {
+  const resetDmRoi = async () => {
     setDmRoi(DM_ROI_DEFAULT);
     setSavedDmRoi(null);
     try { localStorage.removeItem(DM_ROI_KEY); } catch { /* ignore */ }
+    await clearRoiSetting("dm");
     toast.info(t("DM 바코드 영역이 초기화되었습니다", "DM条码区域已重置"));
   };
+
 
   /**
    * 카드 위치 영역 (실제 영상 영역 기준 비율).
@@ -403,7 +442,7 @@ export default function CardPhotoInspection() {
   const [cardRoi, setCardRoi] = useState<{ x: number; y: number; w: number; h: number }>(() => readCardRoi() ?? CARD_ROI_DEFAULT);
   const [savedCardRoi, setSavedCardRoi] = useState<{ x: number; y: number; w: number; h: number } | null>(() => readCardRoi());
   const cardRoiDirty = !savedCardRoi || (["x", "y", "w", "h"] as const).some(k => Math.abs(savedCardRoi[k] - cardRoi[k]) > 0.001);
-  const saveCardRoi = () => {
+  const saveCardRoi = async () => {
     const n = {
       x: Math.max(0, Math.min(1, cardRoi.x)),
       y: Math.max(0, Math.min(1, cardRoi.y)),
@@ -413,14 +452,48 @@ export default function CardPhotoInspection() {
     try { localStorage.setItem(CARD_ROI_KEY, JSON.stringify(n)); } catch { /* ignore */ }
     setCardRoi(n);
     setSavedCardRoi(n);
-    toast.success(t("카드 영역이 저장되었습니다", "卡片区域已保存"));
+    const ok = await pushRoiSetting("card", n);
+    toast.success(ok
+      ? t("카드 영역이 저장되었습니다 (모든 PC 공통)", "卡片区域已保存（所有电脑共用）")
+      : t("카드 영역이 이 PC에만 저장되었습니다", "卡片区域仅保存在本机"));
   };
-  const resetCardRoi = () => {
+  const resetCardRoi = async () => {
     setCardRoi(CARD_ROI_DEFAULT);
     setSavedCardRoi(null);
     try { localStorage.removeItem(CARD_ROI_KEY); } catch { /* ignore */ }
+    await clearRoiSetting("card");
     toast.info(t("카드 영역이 초기화되었습니다", "卡片区域已重置"));
   };
+
+  /** 최초 진입 시 백엔드에 저장된 영역 설정을 불러와 적용한다 (다른 PC와 동일 적용). */
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const { data, error } = await supabase
+        .from("inspection_roi_settings")
+        .select("setting_key, setting_value");
+      if (!alive || error || !data) return;
+      const apply = (
+        name: "card" | "twin" | "dm",
+        setRoi: (r: Roi) => void,
+        setSaved: (r: Roi) => void,
+        lsKey: string,
+      ) => {
+        const row = data.find(r => r.setting_key === ROI_DB_KEY(name));
+        if (!row || !isRoi(row.setting_value)) return;
+        const v = row.setting_value as Roi;
+        setRoi(v);
+        setSaved(v);
+        try { localStorage.setItem(lsKey, JSON.stringify(v)); } catch { /* ignore */ }
+      };
+      apply("card", setCardRoi, setSavedCardRoi, CARD_ROI_KEY);
+      apply("twin", setTwinRoi, setSavedRoi, "card-photo-twin-roi-v2");
+      apply("dm", setDmRoi, setSavedDmRoi, DM_ROI_KEY);
+    })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /** 전체 프레임 기준 ROI를 "카드 영역만 잘라낸 이미지" 기준으로 변환한다. */
   const toCardSpace = (
     roi: { x: number; y: number; w: number; h: number },
