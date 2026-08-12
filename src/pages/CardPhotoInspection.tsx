@@ -1184,14 +1184,17 @@ export default function CardPhotoInspection() {
       toast.error(t("카메라가 준비되지 않았습니다", "摄像头未准备好"));
       return;
     }
+    // 저장·표시용은 좌회전 90도(세로) 이미지로 통일한다.
+    const shown = await rotateLeft90(url);
     if (side === "front") {
       // 앞면 촬영 = 새 카드 검사 시작 → 이전 카드의 뒷면 결과가 남지 않도록 모두 초기화한다.
-      setFrontImg(url); setFrontResult(null); setFrontMatch("idle");
+      setFrontImg(shown); setFrontResult(null); setFrontMatch("idle");
       setBackImg(null); setBackResult(null); setDmDecoded("");
       setTwinCrop(""); setTwinScore(null); setTwinScoreNote(""); setTwinManual(false);
     } else {
-      setBackImg(url); setBackResult(null); setDmDecoded(""); setTwinCrop(""); setTwinScore(null); setTwinScoreNote(""); setTwinManual(false);
+      setBackImg(shown); setBackResult(null); setDmDecoded(""); setTwinCrop(""); setTwinScore(null); setTwinScoreNote(""); setTwinManual(false);
     }
+
 
     await inspectImage(side, url, frame);
 
