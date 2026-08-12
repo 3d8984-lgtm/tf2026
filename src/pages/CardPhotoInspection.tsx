@@ -267,17 +267,23 @@ export default function CardPhotoInspection() {
 
   useEffect(() => () => { stream?.getTracks().forEach(t => t.stop()); }, [stream]);
 
-  const captureDataUrl = (): string | null => {
+  const captureDataUrl = (crop?: { x: number; y: number; w: number; h: number } | null): string | null => {
     const v = videoRef.current;
     if (!v || !v.videoWidth) return null;
+    const sx = crop ? Math.max(0, Math.round(crop.x * v.videoWidth)) : 0;
+    const sy = crop ? Math.max(0, Math.round(crop.y * v.videoHeight)) : 0;
+    const sw = crop ? Math.min(v.videoWidth - sx, Math.round(crop.w * v.videoWidth)) : v.videoWidth;
+    const sh = crop ? Math.min(v.videoHeight - sy, Math.round(crop.h * v.videoHeight)) : v.videoHeight;
+    if (sw < 8 || sh < 8) return null;
     const canvas = document.createElement("canvas");
-    canvas.width = v.videoWidth;
-    canvas.height = v.videoHeight;
+    canvas.width = sw;
+    canvas.height = sh;
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
-    ctx.drawImage(v, 0, 0);
+    ctx.drawImage(v, sx, sy, sw, sh, 0, 0, sw, sh);
     return canvas.toDataURL("image/jpeg", 0.95);
   };
+
 
   // ── Inspection state ──────────────────────────────────────────────────
   const [frontImg, setFrontImg] = useState<string | null>(null);
@@ -377,6 +383,61 @@ export default function CardPhotoInspection() {
     try { localStorage.removeItem(DM_ROI_KEY); } catch { /* ignore */ }
     toast.info(t("DM 바코드 영역이 초기화되었습니다", "DM条码区域已重置"));
   };
+
+  /**
+   * 카드 위치 영역 (실제 영상 영역 기준 비율).
+   * 촬영 시 이 사각형 안쪽만 잘라서 저장/분석한다.
+   */
+  const CARD_ROI_KEY = "card-photo-card-roi-v1";
+  const CARD_ROI_DEFAULT = { x: 0.2, y: 0.06, w: 0.6, h: 0.88 };
+  const readCardRoi = () => {
+    try {
+      const s = localStorage.getItem(CARD_ROI_KEY);
+      if (s) {
+        const p = JSON.parse(s);
+        if (["x", "y", "w", "h"].every(k => typeof p?.[k] === "number")) return p as typeof CARD_ROI_DEFAULT;
+      }
+    } catch { /* ignore */ }
+    return null;
+  };
+  const [cardRoi, setCardRoi] = useState<{ x: number; y: number; w: number; h: number }>(() => readCardRoi() ?? CARD_ROI_DEFAULT);
+  const [savedCardRoi, setSavedCardRoi] = useState<{ x: number; y: number; w: number; h: number } | null>(() => readCardRoi());
+  const cardRoiDirty = !savedCardRoi || (["x", "y", "w", "h"] as const).some(k => Math.abs(savedCardRoi[k] - cardRoi[k]) > 0.001);
+  const saveCardRoi = () => {
+    const n = {
+      x: Math.max(0, Math.min(1, cardRoi.x)),
+      y: Math.max(0, Math.min(1, cardRoi.y)),
+      w: Math.max(0.05, Math.min(1 - cardRoi.x, cardRoi.w)),
+      h: Math.max(0.05, Math.min(1 - cardRoi.y, cardRoi.h)),
+    };
+    try { localStorage.setItem(CARD_ROI_KEY, JSON.stringify(n)); } catch { /* ignore */ }
+    setCardRoi(n);
+    setSavedCardRoi(n);
+    toast.success(t("카드 영역이 저장되었습니다", "卡片区域已保存"));
+  };
+  const resetCardRoi = () => {
+    setCardRoi(CARD_ROI_DEFAULT);
+    setSavedCardRoi(null);
+    try { localStorage.removeItem(CARD_ROI_KEY); } catch { /* ignore */ }
+    toast.info(t("카드 영역이 초기화되었습니다", "卡片区域已重置"));
+  };
+  /** 전체 프레임 기준 ROI를 "카드 영역만 잘라낸 이미지" 기준으로 변환한다. */
+  const toCardSpace = (
+    roi: { x: number; y: number; w: number; h: number },
+    frame: { x: number; y: number; w: number; h: number } | null,
+  ) => {
+    if (!frame || frame.w <= 0 || frame.h <= 0) return roi;
+    const x = (roi.x - frame.x) / frame.w;
+    const y = (roi.y - frame.y) / frame.h;
+    return {
+      x: Math.max(0, Math.min(1, x)),
+      y: Math.max(0, Math.min(1, y)),
+      w: Math.max(0.01, Math.min(1 - Math.max(0, x), roi.w / frame.w)),
+      h: Math.max(0.01, Math.min(1 - Math.max(0, y), roi.h / frame.h)),
+    };
+  };
+
+
 
 
   /** 실제 카메라 프레임의 종횡비 (object-contain 레터박스 계산용) */
@@ -922,14 +983,20 @@ export default function CardPhotoInspection() {
 
 
 
-  const inspectImage = async (side: "front" | "back", dataUrl: string) => {
+  const inspectImage = async (
+    side: "front" | "back",
+    dataUrl: string,
+    frame?: { x: number; y: number; w: number; h: number } | null,
+  ) => {
     setBusySide(side);
     try {
       const referenceTwincode = side === "back" ? await toRasterDataUrl(expectedTwincodeUrl || "") : undefined;
 
       if (side === "back") {
         // 저장 후 슬라이더가 다시 움직였더라도 실제 검사는 마지막으로 확정 저장한 영역만 사용한다.
-        const crop = await cropRoi(dataUrl, savedRoi ?? getDisplayedGuideRoi());
+        // 사진은 카드 영역만 잘려 있으므로 ROI 좌표도 카드 영역 기준으로 변환한다.
+        const crop = await cropRoi(dataUrl, toCardSpace(savedRoi ?? getDisplayedGuideRoi(), frame ?? null));
+
         setTwinCrop(crop);
         if (!expectedTwincodeUrl) {
           setTwinScore(null);
@@ -952,7 +1019,7 @@ export default function CardPhotoInspection() {
         supabase.functions.invoke("card-photo-inspect", {
           body: { side, image: dataUrl, reference_twincode: referenceTwincode },
         }),
-        side === "back" ? decodeDataMatrix(dataUrl, savedDmRoi ?? dmRoi) : Promise.resolve(""),
+        side === "back" ? decodeDataMatrix(dataUrl, toCardSpace(savedDmRoi ?? dmRoi, frame ?? null)) : Promise.resolve(""),
       ]);
 
       if (error) throw error;
@@ -1012,7 +1079,9 @@ export default function CardPhotoInspection() {
   };
 
   const captureSide = async (side: "front" | "back") => {
-    const url = captureDataUrl();
+    // 카드 영역(노란 사각형) 안쪽만 잘라서 저장·분석한다.
+    const frame = savedCardRoi ?? cardRoi;
+    const url = captureDataUrl(frame);
     if (!url) {
       toast.error(t("카메라가 준비되지 않았습니다", "摄像头未准备好"));
       return;
@@ -1026,7 +1095,8 @@ export default function CardPhotoInspection() {
       setBackImg(url); setBackResult(null); setDmDecoded(""); setTwinCrop(""); setTwinScore(null); setTwinScoreNote(""); setTwinManual(false);
     }
 
-    await inspectImage(side, url);
+    await inspectImage(side, url, frame);
+
   };
 
   const reset = () => {
@@ -1589,7 +1659,22 @@ export default function CardPhotoInspection() {
                   if (v.videoWidth && v.videoHeight) setVideoAr(v.videoWidth / v.videoHeight);
                 }}
               />
+              {/* 카드 위치 영역 — 촬영 시 이 안쪽만 저장된다 */}
+              <div
+                className="absolute border-2 border-dashed border-[hsl(var(--warning,45_100%_51%))] pointer-events-none"
+                style={{
+                  left: `${(videoBox.left + cardRoi.x * videoBox.width) * 100}%`,
+                  top: `${(videoBox.top + cardRoi.y * videoBox.height) * 100}%`,
+                  width: `${cardRoi.w * videoBox.width * 100}%`,
+                  height: `${cardRoi.h * videoBox.height * 100}%`,
+                }}
+              >
+                <span className="absolute -top-5 left-0 text-[10px] font-semibold bg-background/80 px-1 rounded">
+                  {t("카드 영역", "卡片区域")}
+                </span>
+              </div>
               {/* 트윈코드 가이드 영역 — 실제 영상 표시 영역(레터박스 제외) 기준으로 그린다 */}
+
               <div
                 ref={twinGuideRef}
                 className="absolute border-2 border-destructive pointer-events-none"
@@ -1636,7 +1721,38 @@ export default function CardPhotoInspection() {
           </div>
 
 
+          {/* 카드 영역 조정 */}
+          <div className="mt-2 grid grid-cols-4 gap-2">
+            {([
+              ["x", t("좌", "左")], ["y", t("상", "上")], ["w", t("폭", "宽")], ["h", t("높이", "高")],
+            ] as const).map(([k, label]) => (
+              <label key={`card-${k}`} className="text-[10px] text-muted-foreground">
+                {t("카드", "卡片")} {label}
+                <input
+                  type="range" min={1} max={100} step={0.5}
+                  value={(cardRoi as any)[k] * 100}
+                  onChange={e => setCardRoi(r => ({ ...r, [k]: Number(e.target.value) / 100 }))}
+                  className="w-full"
+                />
+              </label>
+            ))}
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <Button size="sm" variant={cardRoiDirty ? "default" : "outline"} onClick={saveCardRoi}>
+              {t("카드 영역 저장", "保存卡片区域")}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={resetCardRoi}>
+              {t("초기화", "重置")}
+            </Button>
+            <span className="text-[10px] text-muted-foreground">
+              {cardRoiDirty
+                ? t("변경사항이 저장되지 않았습니다", "更改尚未保存")
+                : t("저장됨 · 촬영 시 이 영역 안쪽만 이미지로 저장됩니다", "已保存 · 拍摄时仅保存该区域内的图像")}
+            </span>
+          </div>
+
           {/* 가이드 영역 조정 */}
+
           <div className="mt-2 grid grid-cols-4 gap-2">
             {([
               ["x", t("좌", "左")], ["y", t("상", "上")], ["w", t("폭", "宽")], ["h", t("높이", "高")],
