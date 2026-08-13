@@ -588,7 +588,10 @@ function OrderDetail({
   const lampBad = halted;
 
   // 프린터 장비 상태 (게이트웨이 인쇄 대기열 기준)
-  const printedJobs = jobs.filter((j) => j.status === "done").length;
+  const doneJobs = jobs.filter((j) => j.status === "done");
+  const waitingJobs = jobs.filter((j) => j.status !== "done");
+  const printedJobs = doneJobs.length;
+
   const failedJobs = jobs.filter((j) => j.status === "failed").length;
   const lastJob = jobs[0] ?? null;
   const printerOk = !printerOffline && failedJobs === 0;
