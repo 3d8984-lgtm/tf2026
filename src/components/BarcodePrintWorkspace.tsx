@@ -506,7 +506,7 @@ function OrderDetail({
       .eq("kind", kind).eq("order_id", order.id).gte("position", position);
     setHalted(false);
     setLastVerdict(null);
-    lastKeyRef.current = "";
+    lastCodeRef.current = "";
     lastCodeRef.current = "";
     await loadSaved();
     toast.success(tr(`${position}번부터 다시 작업합니다`, `从第 ${position} 项重新作业`));
