@@ -192,6 +192,7 @@ function OrderDetail({
   const [printerTesting, setPrinterTesting] = useState(false);
   const seenRef = useRef<Set<string>>(new Set());
   const lastKeyRef = useRef<string>("");
+  const lastCodeRef = useRef<string>("");
   const autoPrintRef = useRef(true);
   useEffect(() => { autoPrintRef.current = autoPrint; }, [autoPrint]);
 
