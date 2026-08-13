@@ -319,13 +319,19 @@ function OrderDetail({
   /**
    * 게이트웨이 프린터 전송.
    * 게이트웨이에는 큐 투입 API가 없고(큐는 스캔 이벤트로만 채워짐),
-   * 진단/직접 인쇄용 `POST /api/v1/print/test` 만 제공된다.
+   * 직접 인쇄용 `POST /api/v1/print/test` 만 제공된다.
+   * 갭 센서 라벨 프린터는 문자열만으로는 출력되지 않으므로,
+   * SIZE/GAP/PRINT가 포함된 라벨 명령(TSPL)으로 변환해서 전송한다.
    */
   const sendToPrinter = useCallback(async (code: string): Promise<{ ok: boolean; error?: string }> => {
+    const payload = buildLabelCommand(code, labelOptsRef.current);
+    if (payload.length > 200) {
+      return { ok: false, error: `label command too long (${payload.length}/200) — 라벨 설정을 줄이세요` };
+    }
     try {
       const res = await proxyFetch("/api/v1/print/test", {
         method: "POST",
-        body: JSON.stringify({ text: code.slice(0, 200) }),
+        body: JSON.stringify({ text: payload }),
       });
       const j: any = await res.json().catch(() => ({}));
       if (res.ok && j?.accepted) return { ok: true };
