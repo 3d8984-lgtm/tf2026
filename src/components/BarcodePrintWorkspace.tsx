@@ -402,7 +402,10 @@ function OrderDetail({
     await proxyFetch("/api/v1/scan/reset", { method: "POST", body: "{}" }).catch(() => null);
     await supabase.from("barcode_print_items").delete().eq("kind", kind).eq("order_id", order.id);
     const now = new Date().toISOString();
-    localStorage.setItem(cutoffKey, now);
+    await supabase
+      .from("barcode_print_resets")
+      .upsert({ kind, order_id: order.id, cutoff_at: now }, { onConflict: "kind,order_id" });
+
     setCutoff(now);
     setJobs([]);
     setHistory([]);
