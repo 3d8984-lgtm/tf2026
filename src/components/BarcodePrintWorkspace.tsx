@@ -481,15 +481,17 @@ function OrderDetail({
     cutoffRef.current = serverCut;
     setJobs([]);
     setHistory([]);
+    setQueue([]);
     setPendingCount(0);
     seenRef.current = new Set();
     setCursor(0);
     setLog([]);
     setLastVerdict(null);
     setHalted(false);
-    // 마지막 스캔 이벤트가 초기화 직후 다시 검증/로그되지 않도록 현재 키를 소비 처리
-    lastKeyRef.current = `${status?.last_seen ?? ""}|${status?.last_barcode ?? ""}|${status?.count ?? ""}`;
-    lastCodeRef.current = norm(status?.last_barcode ?? "");
+    // 초기화 직후 기존 게이트웨이 이력이 다시 검증되지 않도록 프라이밍을 다시 수행
+    primedRef.current = false;
+    processedRef.current = new Set();
+    lastCodeRef.current = "";
     await loadSaved();
     toast.success(tr("작업이 초기화되었습니다", "作业已复位"));
   };
