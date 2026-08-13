@@ -29,6 +29,11 @@ function proxyFetch(path: string, init?: RequestInit) {
 }
 
 const norm = (v: string) => (v || "").trim().toUpperCase();
+/** 게이트웨이/DB 타임스탬프 포맷이 달라도 안전하게 비교하기 위해 epoch(ms)로 변환 */
+const ts = (v?: string | null) => {
+  const t = v ? Date.parse(v) : NaN;
+  return Number.isNaN(t) ? 0 : t;
+};
 
 type ScanStatus = {
   count: number;
