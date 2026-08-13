@@ -323,8 +323,8 @@ function OrderDetail({
    * 갭 센서 라벨 프린터는 문자열만으로는 출력되지 않으므로,
    * SIZE/GAP/PRINT가 포함된 라벨 명령(TSPL)으로 변환해서 전송한다.
    */
-  const sendToPrinter = useCallback(async (code: string): Promise<{ ok: boolean; error?: string }> => {
-    const payload = buildLabelCommand(code, labelOptsRef.current);
+  const sendToPrinter = useCallback(async (code: string, override?: Partial<LabelOptions>): Promise<{ ok: boolean; error?: string }> => {
+    const payload = buildLabelCommand(code, { ...labelOptsRef.current, ...(override || {}) });
     if (payload.length > 200) {
       return { ok: false, error: `label command too long (${payload.length}/200) — 라벨 설정을 줄이세요` };
     }
