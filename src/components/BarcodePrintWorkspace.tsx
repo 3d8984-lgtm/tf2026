@@ -183,6 +183,11 @@ function OrderDetail({
   const [saved, setSaved] = useState<Record<number, SavedItem>>({});
   const [ready, setReady] = useState(false);
   const [history, setHistory] = useState<ScanEvent[]>([]);
+  // 게이트웨이는 대기열/이력 삭제 API가 없어서, 초기화 시점 이후 데이터만 화면에 표시한다
+  const cutoffKey = `bcprint-reset-cutoff-${kind}-${order.id}`;
+  const [cutoff, setCutoff] = useState<string | null>(() => localStorage.getItem(cutoffKey));
+  const cutoffRef = useRef<string | null>(cutoff);
+  useEffect(() => { cutoffRef.current = cutoff; }, [cutoff]);
   const [printerTestText, setPrinterTestText] = useState("TEST123");
   const [printerTesting, setPrinterTesting] = useState(false);
   const seenRef = useRef<Set<string>>(new Set());
@@ -297,17 +302,25 @@ function OrderDetail({
         if (!alive) return;
         if (!sRes.ok || "upstream_status" in s) { setOffline(true); }
         else { setOffline(false); setStatus(s as ScanStatus); }
+        const cut = cutoffRef.current;
         if (pRes.ok) {
           const p: any = await pRes.json();
           setPrinterOffline("upstream_status" in p);
-          if (Array.isArray(p?.jobs)) { setJobs(p.jobs.slice(-50).reverse()); setPendingCount(p.pending_count ?? 0); }
+          if (Array.isArray(p?.jobs)) {
+            const fresh = (p.jobs as PrintJob[]).filter((j) => !cut || (j.printed_at ?? j.enqueued_at) > cut);
+            setJobs(fresh.slice(-50).reverse());
+            setPendingCount(cut ? fresh.filter((j) => j.status === "pending").length : (p.pending_count ?? 0));
+          }
         } else {
           setPrinterOffline(true);
         }
         if (hRes.ok) {
           const h: any = await hRes.json();
-          if (Array.isArray(h?.events)) setHistory((h.events as ScanEvent[]).slice(-100).reverse());
+          if (Array.isArray(h?.events)) {
+            setHistory((h.events as ScanEvent[]).filter((e) => !cut || e.scanned_at > cut).slice(-100).reverse());
+          }
         }
+
 
       } catch {
         if (alive) { setOffline(true); setPrinterOffline(true); }
@@ -362,19 +375,27 @@ function OrderDetail({
     ].slice(0, 100));
   }, [status, expected, cursor, testMode, ready, markDone, sendToPrinter]);
 
-  // 전체 초기화 — 서버 기록 삭제
+  // 전체 초기화 — 서버 기록 삭제 + 게이트웨이 대기열/이력 표시 컷오프 갱신
   const resetAll = async () => {
     await proxyFetch("/api/v1/scan/reset", { method: "POST", body: "{}" }).catch(() => null);
     await supabase.from("barcode_print_items").delete().eq("kind", kind).eq("order_id", order.id);
+    const now = new Date().toISOString();
+    localStorage.setItem(cutoffKey, now);
+    setCutoff(now);
+    setJobs([]);
+    setHistory([]);
+    setPendingCount(0);
     seenRef.current = new Set();
     setCursor(0);
     setLog([]);
     setLastVerdict(null);
     setHalted(false);
-    lastKeyRef.current = "";
+    // 마지막 스캔 이벤트가 초기화 직후 다시 검증/로그되지 않도록 현재 키를 소비 처리
+    lastKeyRef.current = `${status?.last_seen ?? ""}|${status?.last_barcode ?? ""}|${status?.count ?? ""}`;
     await loadSaved();
     toast.success(tr("작업이 초기화되었습니다", "作业已复位"));
   };
+
 
   // 중간부터 다시 작업 — 해당 순번부터 미완료 처리
   const resumeFrom = async (position: number) => {
