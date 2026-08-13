@@ -567,6 +567,24 @@ function OrderDetail({
     );
   };
 
+  /**
+   * 프로토콜 자동 진단 — 지원 명령 형식을 순서대로 하나씩 전송한다.
+   * 실제로 출력된 라벨의 번호(P1~P6)를 보고 프린터가 이해하는 형식을 고르면 된다.
+   */
+  const probeProtocols = async () => {
+    setPrinterTesting(true);
+    for (let i = 0; i < PROBE_MODES.length; i++) {
+      const mode = PROBE_MODES[i];
+      const r = await sendToPrinter(`P${i + 1}-${(printerTestText || "TEST123").slice(0, 20)}`, { mode });
+      toast[r.ok ? "info" : "error"](
+        `P${i + 1} · ${isKo ? LABEL_MODE_LABELS[mode].ko : LABEL_MODE_LABELS[mode].zh}${r.ok ? "" : ` — ${r.error ?? ""}`}`,
+      );
+      await new Promise((res) => setTimeout(res, 1500));
+    }
+    setPrinterTesting(false);
+    toast.success(tr("진단 전송 완료 — 출력된 라벨 번호(P1~P6)의 형식을 선택하세요", "诊断发送完成 — 请选择实际打印出的标签编号(P1~P6)对应的格式"));
+  };
+
 
   const total = expected.length;
   const doneCount = Object.values(saved).filter((s) => s.status === "done").length;
