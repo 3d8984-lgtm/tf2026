@@ -189,27 +189,32 @@ function OrderDetail({
   const [ready, setReady] = useState(false);
   const [history, setHistory] = useState<ScanEvent[]>([]);
   // 게이트웨이는 대기열/이력 삭제 API가 없어서, 초기화 시점 이후 데이터만 화면에 표시한다.
-  // 컷오프는 서버에 저장해 모든 기기(패드)에서 동일하게 적용된다.
-  const [cutoff, setCutoff] = useState<string | null>(null);
-  const cutoffRef = useRef<string | null>(null);
-  useEffect(() => { cutoffRef.current = cutoff; }, [cutoff]);
+  // 컷오프는 서버에 저장해 모든 기기(패드)에서 동일하게 적용하고,
+  // 서버 조회가 실패(권한/네트워크)해도 화면이 옛 기록을 보여주지 않도록 로컬에도 캐시한다.
+  const cutoffKey = `barcode-print-cutoff:${kind}:${order.id}`;
+  const [cutoff, setCutoff] = useState<string | null>(() => {
+    try { return localStorage.getItem(cutoffKey); } catch { return null; }
+  });
+  const cutoffRef = useRef<string | null>(cutoff);
+  useEffect(() => {
+    cutoffRef.current = cutoff;
+    try { if (cutoff) localStorage.setItem(cutoffKey, cutoff); } catch { /* ignore */ }
+  }, [cutoff, cutoffKey]);
   useEffect(() => {
     let alive = true;
     const load = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("barcode_print_resets")
         .select("cutoff_at")
         .eq("kind", kind)
         .eq("order_id", order.id)
         .maybeSingle();
       if (!alive) return;
+      if (error) return; // 조회 실패 시 로컬 캐시 유지
       const v = (data as any)?.cutoff_at ?? null;
       const next = v ? new Date(v).toISOString() : null;
-      // 로컬에 더 최신 컷오프가 있으면 유지 (폴링이 초기화를 되돌리지 않도록)
-      const cur = cutoffRef.current;
-      if (next && (!cur || next > cur)) setCutoff(next);
-      else if (!next && !cur) setCutoff(null);
-
+      // 더 최신 컷오프만 반영 (폴링이 초기화를 되돌리지 않도록)
+      if (next && ts(next) > ts(cutoffRef.current)) setCutoff(next);
     };
     load();
     const iv = setInterval(load, 5000);
@@ -219,10 +224,14 @@ function OrderDetail({
   const [printerTestText, setPrinterTestText] = useState("TEST123");
   const [printerTesting, setPrinterTesting] = useState(false);
   const seenRef = useRef<Set<string>>(new Set());
-  const lastKeyRef = useRef<string>("");
   const lastCodeRef = useRef<string>("");
+  // 게이트웨이 스캔 이력 기반 처리: 이미 처리한 이벤트 id / 최초 프라이밍 여부
+  const processedRef = useRef<Set<string>>(new Set());
+  const primedRef = useRef(false);
+  const [queue, setQueue] = useState<ScanEvent[]>([]);
   const autoPrintRef = useRef(true);
   useEffect(() => { autoPrintRef.current = autoPrint; }, [autoPrint]);
+
 
 
 
