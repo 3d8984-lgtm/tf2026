@@ -215,6 +215,20 @@ function PlcCard({ plcId, label, name, profile }: { plcId: string; label: string
 export default function PlcMonitor() {
   const { lang } = useLang();
   const isKo = lang === "ko";
+  // GET /api/v1/plc — 등록된 PLC의 register_profile 조회 (기능 지원 범위 표시용)
+  const [profiles, setProfiles] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let alive = true;
+    proxyFetch("/api/v1/plc")
+      .then(r => (r.ok ? r.json() : null))
+      .then((list: any) => {
+        if (!alive || !Array.isArray(list)) return;
+        setProfiles(Object.fromEntries(list.map((p: any) => [p.id, p.register_profile])));
+      })
+      .catch(() => null);
+    return () => { alive = false; };
+  }, []);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -225,8 +239,9 @@ export default function PlcMonitor() {
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         {MACHINES.map(m => (
-          <PlcCard key={m.plcId} plcId={m.plcId} label={m.label} name={isKo ? m.nameKo : m.nameZh} />
+          <PlcCard key={m.plcId} plcId={m.plcId} label={m.label} name={isKo ? m.nameKo : m.nameZh} profile={profiles[m.plcId]} />
         ))}
+
       </div>
     </div>
   );
