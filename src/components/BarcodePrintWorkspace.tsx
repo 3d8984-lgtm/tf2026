@@ -796,7 +796,7 @@ function OrderDetail({
             </div>
             <Input
               value={printerTestText}
-              onChange={(e) => setPrinterTestText(e.target.value.slice(0, 200))}
+              onChange={(e) => setPrinterTestText(e.target.value.slice(0, 60))}
               placeholder="TEST123"
               className="w-48 font-mono"
             />
@@ -812,6 +812,59 @@ function OrderDetail({
             </span>
           </CardContent>
         </Card>
+
+        {/* 라벨 명령 설정 — 갭 센서 프린터는 SIZE/GAP/PRINT 명령이 있어야 실제 출력됨 */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Printer className="w-4 h-4" />{tr("라벨 인쇄 명령 설정", "标签打印命令设置")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0 space-y-3">
+            <p className="text-xs text-muted-foreground">
+              {tr("고유번호만 문자열로 보내면 갭 센서 프린터는 데이터만 받고 출력하지 않습니다. 라벨 크기·갭·PRINT 명령(TSPL)을 함께 보내야 센서가 라벨을 잡고 인쇄합니다.",
+                  "仅发送编号文本时，带间隙传感器的打印机只接收数据不会出纸。需同时发送标签尺寸·间隙·PRINT 命令（TSPL）才会实际打印。")}
+            </p>
+            <div className="flex flex-wrap items-end gap-3">
+              <div>
+                <Label className="text-xs">{tr("명령 형식", "命令格式")}</Label>
+                <select
+                  className="mt-1 h-9 rounded-md border bg-background px-2 text-sm"
+                  value={labelOpts.mode}
+                  onChange={(e) => setLabelOpts((o) => ({ ...o, mode: e.target.value as LabelOptions["mode"] }))}
+                >
+                  <option value="tspl-barcode">TSPL · {tr("바코드(Code128)", "条码(Code128)")}</option>
+                  <option value="tspl-qr">TSPL · QR</option>
+                  <option value="raw">{tr("원시 텍스트(진단용)", "原始文本(诊断用)")}</option>
+                </select>
+              </div>
+              {(["widthMm", "heightMm", "gapMm"] as const).map((k) => (
+                <div key={k}>
+                  <Label className="text-xs">
+                    {k === "widthMm" ? tr("라벨 폭(mm)", "标签宽(mm)")
+                      : k === "heightMm" ? tr("라벨 높이(mm)", "标签高(mm)")
+                      : tr("갭(mm)", "间隙(mm)")}
+                  </Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    step={0.5}
+                    className="mt-1 w-24"
+                    value={labelOpts[k]}
+                    onChange={(e) => setLabelOpts((o) => ({ ...o, [k]: Number(e.target.value) || 0 }))}
+                  />
+                </div>
+              ))}
+              <Button size="sm" variant="ghost" onClick={() => setLabelOpts(DEFAULT_LABEL_OPTIONS)}>
+                {tr("기본값", "默认值")}
+              </Button>
+            </div>
+            <pre className="rounded-md bg-muted/50 p-2 text-[11px] font-mono whitespace-pre-wrap break-all">
+              {buildLabelCommand(expected[Math.min(cursor, Math.max(total - 1, 0))]?.no ?? "SAMPLE-1", labelOpts)}
+            </pre>
+          </CardContent>
+        </Card>
+
 
 
         {halted && !testMode && (
