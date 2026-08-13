@@ -69,12 +69,15 @@ function BoolRow({ label, value, invert }: { label: string; value: boolean; inve
   );
 }
 
-function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: string }) {
+function PlcCard({ plcId, label, name, profile }: { plcId: string; label: string; name: string; profile?: string }) {
   const { lang } = useLang();
   const isKo = lang === "ko";
   const [status, setStatus] = useState<PlcStatus | null>(null);
   const [online, setOnline] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // API 문서 기준: belt_cutter 프로파일은 카운터 레지스터가 없어 total_count/포장길이가 항상 0.
+  const noCounter = profile === "belt_cutter";
+
 
   useEffect(() => {
     let alive = true;
@@ -154,12 +157,14 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
           <>
             <div className="grid grid-cols-3 gap-2">
               <div className="kpi-card text-center py-3">
-                <p className="text-xl font-semibold tabular-nums">{totalCount.toLocaleString()}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{isKo ? "누적 카운트" : "累计计数"}</p>
+                <p className="text-xl font-semibold tabular-nums">{noCounter ? "—" : totalCount.toLocaleString()}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {isKo ? "누적 카운트" : "累计计数"}{noCounter ? (isKo ? " (미지원)" : "（不支持）") : ""}
+                </p>
               </div>
               <div className="kpi-card text-center py-3">
                 <p className="text-xl font-semibold tabular-nums">
-                  {status.packaged_length_m != null ? `${status.packaged_length_m.toFixed(1)}m` : "—"}
+                  {noCounter || status.packaged_length_m == null ? "—" : `${status.packaged_length_m.toFixed(1)}m`}
                 </p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">{isKo ? "포장 길이" : "包装长度"}</p>
               </div>
@@ -171,8 +176,8 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
 
             <div className="rounded-lg border bg-muted/30 px-3 py-1">
               <BoolRow label={isKo ? "가동 여부" : "是否运行"} value={status.running} />
-              <BoolRow label={isKo ? "목표 수량 도달" : "达到目标数量"} value={status.target_count_reached} />
               <BoolRow label={isKo ? "비상정지" : "急停"} value={status.e_stop} invert />
+
               <div className="flex items-center justify-between text-xs py-1">
                 <span className="text-muted-foreground">{isKo ? "가동 시간(초)" : "运行秒数"}</span>
                 <span className="font-medium tabular-nums">{Number(status.operating_seconds ?? 0).toLocaleString()}</span>
@@ -210,6 +215,20 @@ function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: s
 export default function PlcMonitor() {
   const { lang } = useLang();
   const isKo = lang === "ko";
+  // GET /api/v1/plc — 등록된 PLC의 register_profile 조회 (기능 지원 범위 표시용)
+  const [profiles, setProfiles] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let alive = true;
+    proxyFetch("/api/v1/plc")
+      .then(r => (r.ok ? r.json() : null))
+      .then((list: any) => {
+        if (!alive || !Array.isArray(list)) return;
+        setProfiles(Object.fromEntries(list.map((p: any) => [p.id, p.register_profile])));
+      })
+      .catch(() => null);
+    return () => { alive = false; };
+  }, []);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -220,8 +239,9 @@ export default function PlcMonitor() {
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         {MACHINES.map(m => (
-          <PlcCard key={m.plcId} plcId={m.plcId} label={m.label} name={isKo ? m.nameKo : m.nameZh} />
+          <PlcCard key={m.plcId} plcId={m.plcId} label={m.label} name={isKo ? m.nameKo : m.nameZh} profile={profiles[m.plcId]} />
         ))}
+
       </div>
     </div>
   );
