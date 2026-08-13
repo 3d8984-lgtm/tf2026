@@ -183,11 +183,29 @@ function OrderDetail({
   const [saved, setSaved] = useState<Record<number, SavedItem>>({});
   const [ready, setReady] = useState(false);
   const [history, setHistory] = useState<ScanEvent[]>([]);
-  // 게이트웨이는 대기열/이력 삭제 API가 없어서, 초기화 시점 이후 데이터만 화면에 표시한다
-  const cutoffKey = `bcprint-reset-cutoff-${kind}-${order.id}`;
-  const [cutoff, setCutoff] = useState<string | null>(() => localStorage.getItem(cutoffKey));
-  const cutoffRef = useRef<string | null>(cutoff);
+  // 게이트웨이는 대기열/이력 삭제 API가 없어서, 초기화 시점 이후 데이터만 화면에 표시한다.
+  // 컷오프는 서버에 저장해 모든 기기(패드)에서 동일하게 적용된다.
+  const [cutoff, setCutoff] = useState<string | null>(null);
+  const cutoffRef = useRef<string | null>(null);
   useEffect(() => { cutoffRef.current = cutoff; }, [cutoff]);
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      const { data } = await supabase
+        .from("barcode_print_resets")
+        .select("cutoff_at")
+        .eq("kind", kind)
+        .eq("order_id", order.id)
+        .maybeSingle();
+      if (!alive) return;
+      const v = (data as any)?.cutoff_at ?? null;
+      setCutoff(v ? new Date(v).toISOString() : null);
+    };
+    load();
+    const iv = setInterval(load, 5000);
+    return () => { alive = false; clearInterval(iv); };
+  }, [kind, order.id]);
+
   const [printerTestText, setPrinterTestText] = useState("TEST123");
   const [printerTesting, setPrinterTesting] = useState(false);
   const seenRef = useRef<Set<string>>(new Set());
@@ -384,7 +402,10 @@ function OrderDetail({
     await proxyFetch("/api/v1/scan/reset", { method: "POST", body: "{}" }).catch(() => null);
     await supabase.from("barcode_print_items").delete().eq("kind", kind).eq("order_id", order.id);
     const now = new Date().toISOString();
-    localStorage.setItem(cutoffKey, now);
+    await supabase
+      .from("barcode_print_resets")
+      .upsert({ kind, order_id: order.id, cutoff_at: now }, { onConflict: "kind,order_id" });
+
     setCutoff(now);
     setJobs([]);
     setHistory([]);

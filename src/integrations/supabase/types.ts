@@ -73,6 +73,41 @@ export type Database = {
           },
         ]
       }
+      barcode_print_resets: {
+        Row: {
+          created_at: string
+          cutoff_at: string
+          id: string
+          kind: string
+          order_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          cutoff_at?: string
+          id?: string
+          kind: string
+          order_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          cutoff_at?: string
+          id?: string
+          kind?: string
+          order_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "barcode_print_resets_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       callback_settings: {
         Row: {
           auth_header: string
