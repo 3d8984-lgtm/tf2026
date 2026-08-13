@@ -17,7 +17,7 @@ import {
   ScanLine, Printer, RotateCcw, CheckCircle2, XCircle, Wifi, WifiOff,
   ChevronLeft, AlertTriangle, Loader2, Play, Pause, SkipForward, FlaskConical,
 } from "lucide-react";
-import { buildLabelCommand, DEFAULT_LABEL_OPTIONS, type LabelOptions } from "@/lib/label-command";
+import { buildLabelCommand, DEFAULT_LABEL_OPTIONS, LABEL_MODE_LABELS, PROBE_MODES, type LabelOptions, type Terminator } from "@/lib/label-command";
 
 const LABEL_OPTS_KEY = "barcode-printer-label-opts-v1";
 const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
