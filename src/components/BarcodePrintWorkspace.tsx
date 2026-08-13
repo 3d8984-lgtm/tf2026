@@ -919,11 +919,12 @@ function OrderDetail({
             </CardContent>
           </Card>
 
-          {/* 인쇄 대기열 */}
+          {/* 스캔 완료 (인쇄 대기) */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Printer className="w-4 h-4" />{tr("인쇄 대기열", "打印队列")}
+                <Printer className="w-4 h-4" />{tr("스캔 완료", "扫描完成")}
+                <span className="text-xs font-normal text-muted-foreground">({waitingJobs.length})</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -937,9 +938,9 @@ function OrderDetail({
                     </tr>
                   </thead>
                   <tbody>
-                    {jobs.length === 0 ? (
+                    {waitingJobs.length === 0 ? (
                       <tr><td colSpan={3} className="px-2 py-6 text-center text-muted-foreground">{tr("인쇄 작업이 없습니다", "暂无打印作业")}</td></tr>
-                    ) : jobs.map((j) => (
+                    ) : waitingJobs.map((j) => (
                       <tr key={j.id} className={`border-t ${j.status === "failed" ? "bg-destructive/5" : ""}`}>
                         <td className="px-2 py-1.5 font-mono break-all">{j.barcode}</td>
                         <td className={`px-2 py-1.5 font-medium ${jobMeta[j.status]?.cls ?? ""}`}>
@@ -956,6 +957,41 @@ function OrderDetail({
               </div>
             </CardContent>
           </Card>
+
+          {/* 인쇄 완료 */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" />{tr("인쇄 완료", "打印完成")}
+                <span className="text-xs font-normal text-muted-foreground">({doneJobs.length})</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="max-h-[420px] overflow-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-muted/40">
+                    <tr className="text-left">
+                      <th className="px-2 py-1.5">{tr("바코드", "条码")}</th>
+                      <th className="px-2 py-1.5">{tr("인쇄 시각", "打印时间")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {doneJobs.length === 0 ? (
+                      <tr><td colSpan={2} className="px-2 py-6 text-center text-muted-foreground">{tr("인쇄 완료 기록이 없습니다", "暂无打印完成记录")}</td></tr>
+                    ) : doneJobs.map((j) => (
+                      <tr key={j.id} className="border-t">
+                        <td className="px-2 py-1.5 font-mono break-all">{j.barcode}</td>
+                        <td className="px-2 py-1.5 tabular-nums text-muted-foreground">
+                          {new Date(j.printed_at ?? j.enqueued_at).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
         </div>
 
         {/* 스캔 검증 로그 */}
