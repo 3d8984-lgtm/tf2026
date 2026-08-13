@@ -199,7 +199,12 @@ function OrderDetail({
         .maybeSingle();
       if (!alive) return;
       const v = (data as any)?.cutoff_at ?? null;
-      setCutoff(v ? new Date(v).toISOString() : null);
+      const next = v ? new Date(v).toISOString() : null;
+      // 로컬에 더 최신 컷오프가 있으면 유지 (폴링이 초기화를 되돌리지 않도록)
+      const cur = cutoffRef.current;
+      if (next && (!cur || next > cur)) setCutoff(next);
+      else if (!next && !cur) setCutoff(null);
+
     };
     load();
     const iv = setInterval(load, 5000);
