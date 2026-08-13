@@ -591,6 +591,12 @@ function OrderDetail({
   const doneJobs = jobs.filter((j) => j.status === "done");
   const waitingJobs = jobs.filter((j) => j.status !== "done");
   const printedJobs = doneJobs.length;
+  // 인쇄 완료 목록 = 이 주문에서 실제 검증 후 인쇄 처리된 항목 (초기화 시 함께 지워짐)
+  const printedItems = expected
+    .map((e) => ({ e, s: saved[e.position] }))
+    .filter((r) => r.s?.status === "done" && r.s?.printed_at)
+    .sort((a, b) => ts(b.s!.printed_at) - ts(a.s!.printed_at));
+
 
   const failedJobs = jobs.filter((j) => j.status === "failed").length;
   const lastJob = jobs[0] ?? null;
