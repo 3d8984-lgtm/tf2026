@@ -199,7 +199,12 @@ function OrderDetail({
         .maybeSingle();
       if (!alive) return;
       const v = (data as any)?.cutoff_at ?? null;
-      setCutoff(v ? new Date(v).toISOString() : null);
+      const next = v ? new Date(v).toISOString() : null;
+      // 로컬에 더 최신 컷오프가 있으면 유지 (폴링이 초기화를 되돌리지 않도록)
+      const cur = cutoffRef.current;
+      if (next && (!cur || next > cur)) setCutoff(next);
+      else if (!next && !cur) setCutoff(null);
+
     };
     load();
     const iv = setInterval(load, 5000);
@@ -399,14 +404,46 @@ function OrderDetail({
 
   // 전체 초기화 — 서버 기록 삭제 + 게이트웨이 대기열/이력 표시 컷오프 갱신
   const resetAll = async () => {
-    await proxyFetch("/api/v1/scan/reset", { method: "POST", body: "{}" }).catch(() => null);
-    await supabase.from("barcode_print_items").delete().eq("kind", kind).eq("order_id", order.id);
     const now = new Date().toISOString();
-    await supabase
+
+    // 1) 게이트웨이 스캔 카운터 초기화 (대기열/이력 삭제 API는 게이트웨이에 없음)
+    await proxyFetch("/api/v1/scan/reset", { method: "POST", body: "{}" }).catch(() => null);
+
+    // 2) 서버(DB)에 저장된 이 주문의 작업 기록 삭제
+    const { error: delErr } = await supabase
+      .from("barcode_print_items")
+      .delete()
+      .eq("kind", kind)
+      .eq("order_id", order.id);
+    if (delErr) {
+      toast.error(tr(`초기화 실패: ${delErr.message}`, `复位失败: ${delErr.message}`));
+      return;
+    }
+
+    // 3) 공유 컷오프 저장 (모든 기기에서 이전 대기열/이력 숨김)
+    const { error: upErr } = await supabase
       .from("barcode_print_resets")
       .upsert({ kind, order_id: order.id, cutoff_at: now }, { onConflict: "kind,order_id" });
+    if (upErr) {
+      toast.error(tr(`초기화 기준 저장 실패: ${upErr.message}`, `复位基准保存失败: ${upErr.message}`));
+      return;
+    }
 
-    setCutoff(now);
+    // 4) 저장 확인 (RLS 등으로 조용히 실패하는 경우 방지)
+    const { data: check } = await supabase
+      .from("barcode_print_resets")
+      .select("cutoff_at")
+      .eq("kind", kind)
+      .eq("order_id", order.id)
+      .maybeSingle();
+    const serverCut = (check as any)?.cutoff_at ? new Date((check as any).cutoff_at).toISOString() : null;
+    if (!serverCut) {
+      toast.error(tr("초기화 기준이 서버에 저장되지 않았습니다", "复位基准未保存到服务器"));
+      return;
+    }
+
+    setCutoff(serverCut);
+    cutoffRef.current = serverCut;
     setJobs([]);
     setHistory([]);
     setPendingCount(0);
@@ -421,6 +458,7 @@ function OrderDetail({
     await loadSaved();
     toast.success(tr("작업이 초기화되었습니다", "作业已复位"));
   };
+
 
 
   // 중간부터 다시 작업 — 해당 순번부터 미완료 처리
