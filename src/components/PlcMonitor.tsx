@@ -69,12 +69,15 @@ function BoolRow({ label, value, invert }: { label: string; value: boolean; inve
   );
 }
 
-function PlcCard({ plcId, label, name }: { plcId: string; label: string; name: string }) {
+function PlcCard({ plcId, label, name, profile }: { plcId: string; label: string; name: string; profile?: string }) {
   const { lang } = useLang();
   const isKo = lang === "ko";
   const [status, setStatus] = useState<PlcStatus | null>(null);
   const [online, setOnline] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // API 문서 기준: belt_cutter 프로파일은 카운터 레지스터가 없어 total_count/포장길이가 항상 0.
+  const noCounter = profile === "belt_cutter";
+
 
   useEffect(() => {
     let alive = true;
