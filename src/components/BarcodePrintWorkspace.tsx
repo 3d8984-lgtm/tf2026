@@ -186,6 +186,8 @@ function OrderDetail({
   // 게이트웨이는 대기열/이력 삭제 API가 없어서, 초기화 시점 이후 데이터만 화면에 표시한다
   const cutoffKey = `bcprint-reset-cutoff-${kind}-${order.id}`;
   const [cutoff, setCutoff] = useState<string | null>(() => localStorage.getItem(cutoffKey));
+  const cutoffRef = useRef<string | null>(cutoff);
+  useEffect(() => { cutoffRef.current = cutoff; }, [cutoff]);
   const [printerTestText, setPrinterTestText] = useState("TEST123");
   const [printerTesting, setPrinterTesting] = useState(false);
   const seenRef = useRef<Set<string>>(new Set());
