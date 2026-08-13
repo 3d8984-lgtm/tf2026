@@ -340,6 +340,9 @@ function OrderDetail({
     lastKeyRef.current = key;
 
     const code = norm(status.last_barcode);
+    // 같은 값이 연속으로 이중 스캔된 경우 1건으로만 반영 (직전 값과 동일하면 무시)
+    if (code && code === lastCodeRef.current) return;
+    lastCodeRef.current = code;
     let verdict: Verdict = "mismatch";
     let position: number | null = null;
     const target = expected[cursor];
