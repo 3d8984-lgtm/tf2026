@@ -157,12 +157,14 @@ function PlcCard({ plcId, label, name, profile }: { plcId: string; label: string
           <>
             <div className="grid grid-cols-3 gap-2">
               <div className="kpi-card text-center py-3">
-                <p className="text-xl font-semibold tabular-nums">{totalCount.toLocaleString()}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{isKo ? "누적 카운트" : "累计计数"}</p>
+                <p className="text-xl font-semibold tabular-nums">{noCounter ? "—" : totalCount.toLocaleString()}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {isKo ? "누적 카운트" : "累计计数"}{noCounter ? (isKo ? " (미지원)" : "（不支持）") : ""}
+                </p>
               </div>
               <div className="kpi-card text-center py-3">
                 <p className="text-xl font-semibold tabular-nums">
-                  {status.packaged_length_m != null ? `${status.packaged_length_m.toFixed(1)}m` : "—"}
+                  {noCounter || status.packaged_length_m == null ? "—" : `${status.packaged_length_m.toFixed(1)}m`}
                 </p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">{isKo ? "포장 길이" : "包装长度"}</p>
               </div>
@@ -174,8 +176,8 @@ function PlcCard({ plcId, label, name, profile }: { plcId: string; label: string
 
             <div className="rounded-lg border bg-muted/30 px-3 py-1">
               <BoolRow label={isKo ? "가동 여부" : "是否运行"} value={status.running} />
-              <BoolRow label={isKo ? "목표 수량 도달" : "达到目标数量"} value={status.target_count_reached} />
               <BoolRow label={isKo ? "비상정지" : "急停"} value={status.e_stop} invert />
+
               <div className="flex items-center justify-between text-xs py-1">
                 <span className="text-muted-foreground">{isKo ? "가동 시간(초)" : "运行秒数"}</span>
                 <span className="font-medium tabular-nums">{Number(status.operating_seconds ?? 0).toLocaleString()}</span>
