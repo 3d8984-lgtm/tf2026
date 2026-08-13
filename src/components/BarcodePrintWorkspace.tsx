@@ -300,17 +300,25 @@ function OrderDetail({
         if (!alive) return;
         if (!sRes.ok || "upstream_status" in s) { setOffline(true); }
         else { setOffline(false); setStatus(s as ScanStatus); }
+        const cut = cutoffRef.current;
         if (pRes.ok) {
           const p: any = await pRes.json();
           setPrinterOffline("upstream_status" in p);
-          if (Array.isArray(p?.jobs)) { setJobs(p.jobs.slice(-50).reverse()); setPendingCount(p.pending_count ?? 0); }
+          if (Array.isArray(p?.jobs)) {
+            const fresh = (p.jobs as PrintJob[]).filter((j) => !cut || (j.printed_at ?? j.enqueued_at) > cut);
+            setJobs(fresh.slice(-50).reverse());
+            setPendingCount(cut ? fresh.filter((j) => j.status === "pending").length : (p.pending_count ?? 0));
+          }
         } else {
           setPrinterOffline(true);
         }
         if (hRes.ok) {
           const h: any = await hRes.json();
-          if (Array.isArray(h?.events)) setHistory((h.events as ScanEvent[]).slice(-100).reverse());
+          if (Array.isArray(h?.events)) {
+            setHistory((h.events as ScanEvent[]).filter((e) => !cut || e.scanned_at > cut).slice(-100).reverse());
+          }
         }
+
 
       } catch {
         if (alive) { setOffline(true); setPrinterOffline(true); }
