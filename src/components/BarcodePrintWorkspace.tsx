@@ -8,6 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import {
   ScanLine, Printer, RotateCcw, CheckCircle2, XCircle, Wifi, WifiOff,
@@ -454,9 +458,32 @@ function OrderDetail({
         title={`${tr(titleKo, titleZh)} · ${order.external_order_id}`}
         description={`${tr("상품", "商品")} ${order.product_code} · ${tr("수량", "数量")} ${order.quantity}`}
       >
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1">
+              <RotateCcw className="w-4 h-4" />{tr("초기화", "复位")}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{tr("작업을 초기화할까요?", "确定复位该作业吗？")}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {tr(
+                  "이 주문건의 스캔·인쇄 기록이 모두 삭제되고 처음부터 다시 작업할 수 있습니다.",
+                  "该订单的扫描与打印记录将全部删除，可从头重新作业。",
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{tr("취소", "取消")}</AlertDialogCancel>
+              <AlertDialogAction onClick={() => { void resetAll(); }}>{tr("초기화", "复位")}</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         <Button variant="outline" size="sm" className="gap-1" onClick={onBack}>
           <ChevronLeft className="w-4 h-4" />{tr("주문 목록", "订单列表")}
         </Button>
+
       </PageHeader>
 
       <div className="flex-1 overflow-auto p-4 md:p-6 space-y-4">
