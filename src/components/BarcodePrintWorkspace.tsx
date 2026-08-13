@@ -192,6 +192,7 @@ function OrderDetail({
   const [printerTesting, setPrinterTesting] = useState(false);
   const seenRef = useRef<Set<string>>(new Set());
   const lastKeyRef = useRef<string>("");
+  const lastCodeRef = useRef<string>("");
   const autoPrintRef = useRef(true);
   useEffect(() => { autoPrintRef.current = autoPrint; }, [autoPrint]);
 
@@ -340,6 +341,9 @@ function OrderDetail({
     lastKeyRef.current = key;
 
     const code = norm(status.last_barcode);
+    // 같은 값이 연속으로 이중 스캔된 경우 1건으로만 반영 (직전 값과 동일하면 무시)
+    if (code && code === lastCodeRef.current) return;
+    lastCodeRef.current = code;
     let verdict: Verdict = "mismatch";
     let position: number | null = null;
     const target = expected[cursor];
@@ -392,6 +396,7 @@ function OrderDetail({
     setHalted(false);
     // 마지막 스캔 이벤트가 초기화 직후 다시 검증/로그되지 않도록 현재 키를 소비 처리
     lastKeyRef.current = `${status?.last_seen ?? ""}|${status?.last_barcode ?? ""}|${status?.count ?? ""}`;
+    lastCodeRef.current = norm(status?.last_barcode ?? "");
     await loadSaved();
     toast.success(tr("작업이 초기화되었습니다", "作业已复位"));
   };
@@ -406,6 +411,7 @@ function OrderDetail({
     setHalted(false);
     setLastVerdict(null);
     lastKeyRef.current = "";
+    lastCodeRef.current = "";
     await loadSaved();
     toast.success(tr(`${position}번부터 다시 작업합니다`, `从第 ${position} 项重新作业`));
   };
