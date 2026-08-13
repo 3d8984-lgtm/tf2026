@@ -557,7 +557,7 @@ function OrderDetail({
 
   // 프린터 연결 진단 (임의 텍스트 즉시 전송)
   const runPrinterTest = async () => {
-    const text = (printerTestText || "TEST123").slice(0, 200);
+    const text = (printerTestText || "TEST123").slice(0, 60);
     setPrinterTesting(true);
     const r = await sendToPrinter(text);
     setPrinterTesting(false);
