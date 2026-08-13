@@ -340,12 +340,12 @@ function OrderDetail({
         if (!alive) return;
         if (!sRes.ok || "upstream_status" in s) { setOffline(true); }
         else { setOffline(false); setStatus(s as ScanStatus); }
-        const cut = cutoffRef.current;
+        const cut = ts(cutoffRef.current);
         if (pRes.ok) {
           const p: any = await pRes.json();
           setPrinterOffline("upstream_status" in p);
           if (Array.isArray(p?.jobs)) {
-            const fresh = (p.jobs as PrintJob[]).filter((j) => !cut || (j.printed_at ?? j.enqueued_at) > cut);
+            const fresh = (p.jobs as PrintJob[]).filter((j) => ts(j.printed_at ?? j.enqueued_at) > cut);
             setJobs(fresh.slice(-50).reverse());
             setPendingCount(cut ? fresh.filter((j) => j.status === "pending").length : (p.pending_count ?? 0));
           }
@@ -355,7 +355,16 @@ function OrderDetail({
         if (hRes.ok) {
           const h: any = await hRes.json();
           if (Array.isArray(h?.events)) {
-            setHistory((h.events as ScanEvent[]).filter((e) => !cut || e.scanned_at > cut).slice(-100).reverse());
+            const events = (h.events as ScanEvent[])
+              .filter((e) => ts(e.scanned_at) > cut)
+              .sort((a, b) => ts(a.scanned_at) - ts(b.scanned_at));
+            setHistory(events.slice(-100).slice().reverse());
+
+            // 게이트웨이 이력 기반 검증: 폴링 간격 안에 여러 건이 스캔돼도 모두 순서대로 처리한다.
+            const fresh = events.filter((e) => !processedRef.current.has(e.id));
+            for (const e of fresh) processedRef.current.add(e.id);
+            if (!primedRef.current) primedRef.current = true; // 최초 진입 시 기존 이력은 재처리하지 않음
+            else if (fresh.length > 0) setQueue((q) => [...q, ...fresh]);
           }
         }
 
@@ -369,52 +378,64 @@ function OrderDetail({
     return () => { alive = false; clearInterval(iv); };
   }, []);
 
-  // 새 스캔 감지 → 순서/정보 검증 (테스트 모드에서는 스캔 무시)
+  // 새 스캔 이벤트 큐 처리 → 순서/정보 검증 (테스트 모드에서는 스캔 무시)
   useEffect(() => {
-    if (!ready || testMode) return;
-    if (!status?.last_barcode) return;
-    const key = `${status.last_seen ?? ""}|${status.last_barcode}|${status.count}`;
-    if (key === lastKeyRef.current) return;
-    lastKeyRef.current = key;
+    if (queue.length === 0) return;
+    if (!ready || testMode) { setQueue([]); return; }
+    const events = queue;
+    setQueue([]);
 
-    const code = norm(status.last_barcode);
-    // 같은 값이 연속으로 이중 스캔된 경우 1건으로만 반영 (직전 값과 동일하면 무시)
-    if (code && code === lastCodeRef.current) return;
-    lastCodeRef.current = code;
-    let verdict: Verdict = "mismatch";
-    let position: number | null = null;
-    const target = expected[cursor];
+    let c = cursor;
+    let lastV: Verdict | null = null;
+    let halt = false;
+    const rows: LogRow[] = [];
 
-    if (seenRef.current.has(code)) {
-      verdict = "duplicate";
-      position = expected.findIndex((e) => e.keys.includes(code)) + 1 || null;
-    } else if (target && target.keys.includes(code)) {
-      verdict = "ok";
-      position = target.position;
-      seenRef.current.add(code);
-      setCursor((c) => c + 1);
-      void markDone(target.position, target.no, status.last_barcode as string, false);
-      // 검수 통과 시 QR 인쇄기로 자동 인쇄 명령 전송
-      if (autoPrintRef.current) {
-        void sendToPrinter(target.no).then((r) => {
-          if (!r.ok) {
-            toast.error(`${target.no} · ${r.error ?? "print failed"}`);
-            setHalted(true);
-          }
-        });
+    for (const ev of events) {
+      const code = norm(ev.barcode);
+      if (!code) continue;
+      // 같은 값이 연속으로 이중 스캔된 경우 1건으로만 반영 (직전 값과 동일하면 무시)
+      if (code === lastCodeRef.current) continue;
+      lastCodeRef.current = code;
+
+      let verdict: Verdict = "mismatch";
+      let position: number | null = null;
+      const target = expected[c];
+
+      if (seenRef.current.has(code)) {
+        verdict = "duplicate";
+        position = expected.findIndex((e) => e.keys.includes(code)) + 1 || null;
+      } else if (target && target.keys.includes(code)) {
+        verdict = "ok";
+        position = target.position;
+        seenRef.current.add(code);
+        c += 1;
+        void markDone(target.position, target.no, ev.barcode, false);
+        // 검수 통과 시 QR 인쇄기로 자동 인쇄 명령 전송
+        if (autoPrintRef.current) {
+          void sendToPrinter(target.no).then((r) => {
+            if (!r.ok) {
+              toast.error(`${target.no} · ${r.error ?? "print failed"}`);
+              setHalted(true);
+            }
+          });
+        }
+      } else {
+        const found = expected.findIndex((e) => e.keys.includes(code));
+        if (found >= 0) { verdict = "order"; position = found + 1; }
       }
-    } else {
-      const found = expected.findIndex((e) => e.keys.includes(code));
-      if (found >= 0) { verdict = "order"; position = found + 1; }
+
+      lastV = verdict;
+      if (verdict !== "ok") halt = true;
+      rows.push({ at: ev.scanned_at, barcode: ev.barcode, verdict, expected: target?.no ?? null, position });
     }
 
-    setLastVerdict(verdict);
-    if (verdict !== "ok") setHalted(true);
-    setLog((prev) => [
-      { at: status.last_seen ?? new Date().toISOString(), barcode: status.last_barcode as string, verdict, expected: target?.no ?? null, position },
-      ...prev,
-    ].slice(0, 100));
-  }, [status, expected, cursor, testMode, ready, markDone, sendToPrinter]);
+    if (rows.length === 0) return;
+    setCursor(c);
+    setLastVerdict(lastV);
+    if (halt) setHalted(true);
+    setLog((prev) => [...rows.slice().reverse(), ...prev].slice(0, 100));
+  }, [queue, expected, cursor, testMode, ready, markDone, sendToPrinter]);
+
 
   // 전체 초기화 — 서버 기록 삭제 + 게이트웨이 대기열/이력 표시 컷오프 갱신
   const resetAll = async () => {
