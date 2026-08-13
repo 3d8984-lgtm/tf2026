@@ -365,19 +365,27 @@ function OrderDetail({
     ].slice(0, 100));
   }, [status, expected, cursor, testMode, ready, markDone, sendToPrinter]);
 
-  // 전체 초기화 — 서버 기록 삭제
+  // 전체 초기화 — 서버 기록 삭제 + 게이트웨이 대기열/이력 표시 컷오프 갱신
   const resetAll = async () => {
     await proxyFetch("/api/v1/scan/reset", { method: "POST", body: "{}" }).catch(() => null);
     await supabase.from("barcode_print_items").delete().eq("kind", kind).eq("order_id", order.id);
+    const now = new Date().toISOString();
+    localStorage.setItem(cutoffKey, now);
+    setCutoff(now);
+    setJobs([]);
+    setHistory([]);
+    setPendingCount(0);
     seenRef.current = new Set();
     setCursor(0);
     setLog([]);
     setLastVerdict(null);
     setHalted(false);
-    lastKeyRef.current = "";
+    // 마지막 스캔 이벤트가 초기화 직후 다시 검증/로그되지 않도록 현재 키를 소비 처리
+    lastKeyRef.current = `${status?.last_seen ?? ""}|${status?.last_barcode ?? ""}|${status?.count ?? ""}`;
     await loadSaved();
     toast.success(tr("작업이 초기화되었습니다", "作业已复位"));
   };
+
 
   // 중간부터 다시 작업 — 해당 순번부터 미완료 처리
   const resumeFrom = async (position: number) => {
