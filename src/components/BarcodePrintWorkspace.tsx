@@ -507,7 +507,6 @@ function OrderDetail({
     setHalted(false);
     setLastVerdict(null);
     lastCodeRef.current = "";
-    lastCodeRef.current = "";
     await loadSaved();
     toast.success(tr(`${position}번부터 다시 작업합니다`, `从第 ${position} 项重新作业`));
   };
