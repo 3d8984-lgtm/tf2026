@@ -29,6 +29,11 @@ function proxyFetch(path: string, init?: RequestInit) {
 }
 
 const norm = (v: string) => (v || "").trim().toUpperCase();
+/** 게이트웨이/DB 타임스탬프 포맷이 달라도 안전하게 비교하기 위해 epoch(ms)로 변환 */
+const ts = (v?: string | null) => {
+  const t = v ? Date.parse(v) : NaN;
+  return Number.isNaN(t) ? 0 : t;
+};
 
 type ScanStatus = {
   count: number;
@@ -184,27 +189,32 @@ function OrderDetail({
   const [ready, setReady] = useState(false);
   const [history, setHistory] = useState<ScanEvent[]>([]);
   // 게이트웨이는 대기열/이력 삭제 API가 없어서, 초기화 시점 이후 데이터만 화면에 표시한다.
-  // 컷오프는 서버에 저장해 모든 기기(패드)에서 동일하게 적용된다.
-  const [cutoff, setCutoff] = useState<string | null>(null);
-  const cutoffRef = useRef<string | null>(null);
-  useEffect(() => { cutoffRef.current = cutoff; }, [cutoff]);
+  // 컷오프는 서버에 저장해 모든 기기(패드)에서 동일하게 적용하고,
+  // 서버 조회가 실패(권한/네트워크)해도 화면이 옛 기록을 보여주지 않도록 로컬에도 캐시한다.
+  const cutoffKey = `barcode-print-cutoff:${kind}:${order.id}`;
+  const [cutoff, setCutoff] = useState<string | null>(() => {
+    try { return localStorage.getItem(cutoffKey); } catch { return null; }
+  });
+  const cutoffRef = useRef<string | null>(cutoff);
+  useEffect(() => {
+    cutoffRef.current = cutoff;
+    try { if (cutoff) localStorage.setItem(cutoffKey, cutoff); } catch { /* ignore */ }
+  }, [cutoff, cutoffKey]);
   useEffect(() => {
     let alive = true;
     const load = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("barcode_print_resets")
         .select("cutoff_at")
         .eq("kind", kind)
         .eq("order_id", order.id)
         .maybeSingle();
       if (!alive) return;
+      if (error) return; // 조회 실패 시 로컬 캐시 유지
       const v = (data as any)?.cutoff_at ?? null;
       const next = v ? new Date(v).toISOString() : null;
-      // 로컬에 더 최신 컷오프가 있으면 유지 (폴링이 초기화를 되돌리지 않도록)
-      const cur = cutoffRef.current;
-      if (next && (!cur || next > cur)) setCutoff(next);
-      else if (!next && !cur) setCutoff(null);
-
+      // 더 최신 컷오프만 반영 (폴링이 초기화를 되돌리지 않도록)
+      if (next && ts(next) > ts(cutoffRef.current)) setCutoff(next);
     };
     load();
     const iv = setInterval(load, 5000);
@@ -214,10 +224,14 @@ function OrderDetail({
   const [printerTestText, setPrinterTestText] = useState("TEST123");
   const [printerTesting, setPrinterTesting] = useState(false);
   const seenRef = useRef<Set<string>>(new Set());
-  const lastKeyRef = useRef<string>("");
   const lastCodeRef = useRef<string>("");
+  // 게이트웨이 스캔 이력 기반 처리: 이미 처리한 이벤트 id / 최초 프라이밍 여부
+  const processedRef = useRef<Set<string>>(new Set());
+  const primedRef = useRef(false);
+  const [queue, setQueue] = useState<ScanEvent[]>([]);
   const autoPrintRef = useRef(true);
   useEffect(() => { autoPrintRef.current = autoPrint; }, [autoPrint]);
+
 
 
 
@@ -326,12 +340,12 @@ function OrderDetail({
         if (!alive) return;
         if (!sRes.ok || "upstream_status" in s) { setOffline(true); }
         else { setOffline(false); setStatus(s as ScanStatus); }
-        const cut = cutoffRef.current;
+        const cut = ts(cutoffRef.current);
         if (pRes.ok) {
           const p: any = await pRes.json();
           setPrinterOffline("upstream_status" in p);
           if (Array.isArray(p?.jobs)) {
-            const fresh = (p.jobs as PrintJob[]).filter((j) => !cut || (j.printed_at ?? j.enqueued_at) > cut);
+            const fresh = (p.jobs as PrintJob[]).filter((j) => ts(j.printed_at ?? j.enqueued_at) > cut);
             setJobs(fresh.slice(-50).reverse());
             setPendingCount(cut ? fresh.filter((j) => j.status === "pending").length : (p.pending_count ?? 0));
           }
@@ -341,7 +355,16 @@ function OrderDetail({
         if (hRes.ok) {
           const h: any = await hRes.json();
           if (Array.isArray(h?.events)) {
-            setHistory((h.events as ScanEvent[]).filter((e) => !cut || e.scanned_at > cut).slice(-100).reverse());
+            const events = (h.events as ScanEvent[])
+              .filter((e) => ts(e.scanned_at) > cut)
+              .sort((a, b) => ts(a.scanned_at) - ts(b.scanned_at));
+            setHistory(events.slice(-100).slice().reverse());
+
+            // 게이트웨이 이력 기반 검증: 폴링 간격 안에 여러 건이 스캔돼도 모두 순서대로 처리한다.
+            const fresh = events.filter((e) => !processedRef.current.has(e.id));
+            for (const e of fresh) processedRef.current.add(e.id);
+            if (!primedRef.current) primedRef.current = true; // 최초 진입 시 기존 이력은 재처리하지 않음
+            else if (fresh.length > 0) setQueue((q) => [...q, ...fresh]);
           }
         }
 
@@ -355,52 +378,64 @@ function OrderDetail({
     return () => { alive = false; clearInterval(iv); };
   }, []);
 
-  // 새 스캔 감지 → 순서/정보 검증 (테스트 모드에서는 스캔 무시)
+  // 새 스캔 이벤트 큐 처리 → 순서/정보 검증 (테스트 모드에서는 스캔 무시)
   useEffect(() => {
-    if (!ready || testMode) return;
-    if (!status?.last_barcode) return;
-    const key = `${status.last_seen ?? ""}|${status.last_barcode}|${status.count}`;
-    if (key === lastKeyRef.current) return;
-    lastKeyRef.current = key;
+    if (queue.length === 0) return;
+    if (!ready || testMode) { setQueue([]); return; }
+    const events = queue;
+    setQueue([]);
 
-    const code = norm(status.last_barcode);
-    // 같은 값이 연속으로 이중 스캔된 경우 1건으로만 반영 (직전 값과 동일하면 무시)
-    if (code && code === lastCodeRef.current) return;
-    lastCodeRef.current = code;
-    let verdict: Verdict = "mismatch";
-    let position: number | null = null;
-    const target = expected[cursor];
+    let c = cursor;
+    let lastV: Verdict | null = null;
+    let halt = false;
+    const rows: LogRow[] = [];
 
-    if (seenRef.current.has(code)) {
-      verdict = "duplicate";
-      position = expected.findIndex((e) => e.keys.includes(code)) + 1 || null;
-    } else if (target && target.keys.includes(code)) {
-      verdict = "ok";
-      position = target.position;
-      seenRef.current.add(code);
-      setCursor((c) => c + 1);
-      void markDone(target.position, target.no, status.last_barcode as string, false);
-      // 검수 통과 시 QR 인쇄기로 자동 인쇄 명령 전송
-      if (autoPrintRef.current) {
-        void sendToPrinter(target.no).then((r) => {
-          if (!r.ok) {
-            toast.error(`${target.no} · ${r.error ?? "print failed"}`);
-            setHalted(true);
-          }
-        });
+    for (const ev of events) {
+      const code = norm(ev.barcode);
+      if (!code) continue;
+      // 같은 값이 연속으로 이중 스캔된 경우 1건으로만 반영 (직전 값과 동일하면 무시)
+      if (code === lastCodeRef.current) continue;
+      lastCodeRef.current = code;
+
+      let verdict: Verdict = "mismatch";
+      let position: number | null = null;
+      const target = expected[c];
+
+      if (seenRef.current.has(code)) {
+        verdict = "duplicate";
+        position = expected.findIndex((e) => e.keys.includes(code)) + 1 || null;
+      } else if (target && target.keys.includes(code)) {
+        verdict = "ok";
+        position = target.position;
+        seenRef.current.add(code);
+        c += 1;
+        void markDone(target.position, target.no, ev.barcode, false);
+        // 검수 통과 시 QR 인쇄기로 자동 인쇄 명령 전송
+        if (autoPrintRef.current) {
+          void sendToPrinter(target.no).then((r) => {
+            if (!r.ok) {
+              toast.error(`${target.no} · ${r.error ?? "print failed"}`);
+              setHalted(true);
+            }
+          });
+        }
+      } else {
+        const found = expected.findIndex((e) => e.keys.includes(code));
+        if (found >= 0) { verdict = "order"; position = found + 1; }
       }
-    } else {
-      const found = expected.findIndex((e) => e.keys.includes(code));
-      if (found >= 0) { verdict = "order"; position = found + 1; }
+
+      lastV = verdict;
+      if (verdict !== "ok") halt = true;
+      rows.push({ at: ev.scanned_at, barcode: ev.barcode, verdict, expected: target?.no ?? null, position });
     }
 
-    setLastVerdict(verdict);
-    if (verdict !== "ok") setHalted(true);
-    setLog((prev) => [
-      { at: status.last_seen ?? new Date().toISOString(), barcode: status.last_barcode as string, verdict, expected: target?.no ?? null, position },
-      ...prev,
-    ].slice(0, 100));
-  }, [status, expected, cursor, testMode, ready, markDone, sendToPrinter]);
+    if (rows.length === 0) return;
+    setCursor(c);
+    setLastVerdict(lastV);
+    if (halt) setHalted(true);
+    setLog((prev) => [...rows.slice().reverse(), ...prev].slice(0, 100));
+  }, [queue, expected, cursor, testMode, ready, markDone, sendToPrinter]);
+
 
   // 전체 초기화 — 서버 기록 삭제 + 게이트웨이 대기열/이력 표시 컷오프 갱신
   const resetAll = async () => {
@@ -446,15 +481,17 @@ function OrderDetail({
     cutoffRef.current = serverCut;
     setJobs([]);
     setHistory([]);
+    setQueue([]);
     setPendingCount(0);
     seenRef.current = new Set();
     setCursor(0);
     setLog([]);
     setLastVerdict(null);
     setHalted(false);
-    // 마지막 스캔 이벤트가 초기화 직후 다시 검증/로그되지 않도록 현재 키를 소비 처리
-    lastKeyRef.current = `${status?.last_seen ?? ""}|${status?.last_barcode ?? ""}|${status?.count ?? ""}`;
-    lastCodeRef.current = norm(status?.last_barcode ?? "");
+    // 초기화 직후 기존 게이트웨이 이력이 다시 검증되지 않도록 프라이밍을 다시 수행
+    primedRef.current = false;
+    processedRef.current = new Set();
+    lastCodeRef.current = "";
     await loadSaved();
     toast.success(tr("작업이 초기화되었습니다", "作业已复位"));
   };
@@ -469,7 +506,6 @@ function OrderDetail({
       .eq("kind", kind).eq("order_id", order.id).gte("position", position);
     setHalted(false);
     setLastVerdict(null);
-    lastKeyRef.current = "";
     lastCodeRef.current = "";
     await loadSaved();
     toast.success(tr(`${position}번부터 다시 작업합니다`, `从第 ${position} 项重新作业`));
