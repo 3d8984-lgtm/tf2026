@@ -74,16 +74,16 @@ export interface FpxLabelData {
 
 /**
  * Full-page HTML for a 4PX-format waybill. Identical markup is used for preview and print.
- * `opts.scale` (percent, default 100) compensates for printer drivers that shrink the page:
- * the label is laid out at `size / k` and then scaled by `k`, so it always covers the
- * full physical sheet.
+ * `opts.scale` (percent, default 100) compensates for printer drivers that shrink the page.
+ * The declared print page and the original 100×150 layout are enlarged together. A driver
+ * that subsequently fits that larger virtual page onto 100×150 media cancels its own shrink.
  */
 export function buildFpxLabelHtml(d: FpxLabelData, opts: { print?: boolean; scale?: number } = {}) {
   const LW = d.width ?? 100;
   const LH = d.height ?? 150;
   const k = Math.min(3, Math.max(0.5, (opts.scale ?? 100) / 100));
-  const IW = +(LW / k).toFixed(3);
-  const IH = +(LH / k).toFixed(3);
+  const PW = +(LW * k).toFixed(3);
+  const PH = +(LH * k).toFixed(3);
   const r = d.recipient ?? {};
   const country = (r.country || "US").toUpperCase();
   const date = (d.createdAt ? new Date(d.createdAt) : new Date()).toISOString().slice(0, 16).replace("T", " ");
@@ -95,14 +95,14 @@ export function buildFpxLabelHtml(d: FpxLabelData, opts: { print?: boolean; scal
 
   return `<!doctype html><html><head><meta charset="utf-8"/><title>Waybill ${esc(d.trackingNumber)}</title>
 <style>
-  @page { size: ${LW}mm ${LH}mm; margin: 0; }
-  html, body { margin: 0; padding: 0; background: #fff; width: ${LW}mm; height: ${LH}mm; overflow: hidden; }
+  @page { size: ${PW}mm ${PH}mm; margin: 0; }
+  html, body { margin: 0; padding: 0; background: #fff; width: ${PW}mm; height: ${PH}mm; overflow: hidden; }
   * { box-sizing: border-box; }
   body { font-family: Arial, "Helvetica Neue", sans-serif; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .label { width: ${IW}mm; height: ${IH}mm; padding: 2mm; display: flex; flex-direction: column; position: relative; overflow: hidden; page-break-after: avoid; transform: scale(${k}); transform-origin: top left; }
+  .label { width: ${LW}mm; height: ${LH}mm; padding: 2mm; display: flex; flex-direction: column; position: relative; overflow: hidden; page-break-after: avoid; transform: scale(${k}); transform-origin: top left; }
   @media print {
-    html, body { width: ${LW}mm !important; height: ${LH}mm !important; }
-    .label { width: ${IW}mm !important; height: ${IH}mm !important; page-break-inside: avoid; }
+    html, body { width: ${PW}mm !important; height: ${PH}mm !important; }
+    .label { width: ${LW}mm !important; height: ${LH}mm !important; page-break-inside: avoid; }
   }
   .box { border: 0.4mm solid #000; display: flex; flex-direction: column; flex: 1; }
   .hd { display: flex; align-items: center; justify-content: space-between; padding: 2mm 3mm; }
@@ -124,7 +124,7 @@ export function buildFpxLabelHtml(d: FpxLabelData, opts: { print?: boolean; scal
   .info .ref { font-size: 9pt; }
   .info .ref b { font-size: 10pt; }
   .foot { margin-top: auto; display: flex; justify-content: space-between; font-size: 6pt; color: #333; padding: 1mm 3mm; }
-  .test { position: absolute; top: 45mm; left: 0; width: ${IW}mm; text-align: center; font-size: 32pt; font-weight: 900; color: rgba(0,0,0,.12); transform: rotate(-20deg); letter-spacing: 4px; }
+  .test { position: absolute; top: 45mm; left: 0; width: ${LW}mm; text-align: center; font-size: 32pt; font-weight: 900; color: rgba(0,0,0,.12); transform: rotate(-20deg); letter-spacing: 4px; }
 </style></head><body>
 <div class="label">
   ${d.test ? `<div class="test">TEST</div>` : ""}
