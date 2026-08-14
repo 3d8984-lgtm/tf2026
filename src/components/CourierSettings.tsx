@@ -37,6 +37,16 @@ const emptyCred = {
   sender_city: "",
   sender_street: "",
   sender_post_code: "",
+  // 반품지 주소
+  returner_name: "",
+  returner_company: "",
+  returner_phone: "",
+  returner_country: "",
+  returner_state: "",
+  returner_city: "",
+  returner_street: "",
+  returner_post_code: "",
+
   // 신고 정보
   hscode: "",
   unit_price: "",
