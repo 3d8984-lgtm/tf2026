@@ -114,16 +114,27 @@ export default function SystemSettings() {
   const cmd = useCrudState<Command>("commands", initCommands);
   const alm = useCrudState<Alarm>("alarms", initAlarms);
 
-  const confirmDelete = (name: string, onConfirm: () => void) => {
-    if (window.confirm(isKo ? `"${name}" 을(를) 삭제하시겠습니까?` : `确定删除 "${name}" 吗？`)) {
-      onConfirm();
-      toast({ title: isKo ? "삭제됨" : "已删除" });
+  const runPersist = async (op: () => void | Promise<void>, okTitle: string) => {
+    try {
+      await op();
+      toast({ title: okTitle, description: isKo ? "모든 계정·기기에 공유됩니다" : "已同步至所有账号与设备" });
+    } catch (e) {
+      toast({
+        title: isKo ? "저장 실패" : "保存失败",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
     }
   };
 
-  const handleSave = (saveFn: () => void) => {
-    saveFn();
-    toast({ title: isKo ? "저장됨" : "已保存" });
+  const confirmDelete = (name: string, onConfirm: () => void | Promise<void>) => {
+    if (window.confirm(isKo ? `"${name}" 을(를) 삭제하시겠습니까?` : `确定删除 "${name}" 吗？`)) {
+      void runPersist(onConfirm, isKo ? "삭제됨" : "已删除");
+    }
+  };
+
+  const handleSave = (saveFn: () => void | Promise<void>) => {
+    void runPersist(saveFn, isKo ? "저장됨" : "已保存");
   };
 
   const generalGroups = [
