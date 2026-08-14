@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { useGlobalSetting } from "@/hooks/useGlobalSetting";
 
 /* ── Types ── */
 interface Equipment { id: number; name: string; code: string; line: string; plcIp: string; protocol: string; connected: boolean }
@@ -107,11 +108,11 @@ export default function SystemSettings() {
   const isKo = lang === "ko";
   const { canAccessSettingsTab } = usePermissions();
 
-  const eq = useCrudState<Equipment>(initEquipment);
-  const plc = useCrudState<PlcTag>(initPlcTags);
-  const sen = useCrudState<Sensor>(initSensors);
-  const cmd = useCrudState<Command>(initCommands);
-  const alm = useCrudState<Alarm>(initAlarms);
+  const eq = useCrudState<Equipment>("equipment", initEquipment);
+  const plc = useCrudState<PlcTag>("plcTags", initPlcTags);
+  const sen = useCrudState<Sensor>("sensors", initSensors);
+  const cmd = useCrudState<Command>("commands", initCommands);
+  const alm = useCrudState<Alarm>("alarms", initAlarms);
 
   const confirmDelete = (name: string, onConfirm: () => void) => {
     if (window.confirm(isKo ? `"${name}" 을(를) 삭제하시겠습니까?` : `确定删除 "${name}" 吗？`)) {
