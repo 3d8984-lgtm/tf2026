@@ -124,7 +124,7 @@ export function buildFpxLabelHtml(d: FpxLabelData, opts: { print?: boolean; scal
   .info .ref { font-size: 9pt; }
   .info .ref b { font-size: 10pt; }
   .foot { margin-top: auto; display: flex; justify-content: space-between; font-size: 6pt; color: #333; padding: 1mm 3mm; }
-  .test { position: absolute; top: 45mm; left: 0; width: ${LW}mm; text-align: center; font-size: 32pt; font-weight: 900; color: rgba(0,0,0,.12); transform: rotate(-20deg); letter-spacing: 4px; }
+  .test { position: absolute; top: 45mm; left: 0; width: ${IW}mm; text-align: center; font-size: 32pt; font-weight: 900; color: rgba(0,0,0,.12); transform: rotate(-20deg); letter-spacing: 4px; }
 </style></head><body>
 <div class="label">
   ${d.test ? `<div class="test">TEST</div>` : ""}
