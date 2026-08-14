@@ -512,7 +512,7 @@ export default function ShippingScan() {
         width: size.w,
         height: size.h,
       },
-      { print: !opts.noPrint },
+      { print: !opts.noPrint, scale: opts.scale ?? (opts.noPrint ? 100 : labelScale) },
     );
   }
 
