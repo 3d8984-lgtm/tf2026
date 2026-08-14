@@ -594,6 +594,75 @@ export default function ShippingScan() {
     w.document.close();
   }
 
+  // ── Print calibration ──────────────────────────────────────────────
+  // Prints a ruler sheet at the CURRENT scale. The user measures the printed
+  // frame with a ruler; the real scale is derived from the difference, which
+  // cancels out any hidden driver shrink ("fit to page" / printable-area fit).
+  function printCalibrationSheet() {
+    const size = labelSizeFor(shipment?.carrier || carrier || "4PX");
+    const k = Math.min(3, Math.max(0.5, labelScale / 100));
+    const IW = +(size.w / k).toFixed(3);
+    const IH = +(size.h / k).toFixed(3);
+    const ticks = (len: number, horizontal: boolean) =>
+      Array.from({ length: Math.floor(len / 10) + 1 }, (_, i) => {
+        const mm = i * 10;
+        const long = mm % 50 === 0;
+        return horizontal
+          ? `<div style="position:absolute;left:${mm}mm;top:0;width:0.3mm;height:${long ? 8 : 4}mm;background:#000"></div>
+             ${long ? `<div style="position:absolute;left:${mm + 1}mm;top:8mm;font-size:7pt">${mm}</div>` : ""}`
+          : `<div style="position:absolute;top:${mm}mm;left:0;height:0.3mm;width:${long ? 8 : 4}mm;background:#000"></div>
+             ${long ? `<div style="position:absolute;top:${mm + 1}mm;left:8mm;font-size:7pt">${mm}</div>` : ""}`;
+      }).join("");
+
+    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>Calibration</title><style>
+      @page { size: ${size.w}mm ${size.h}mm; margin: 0; }
+      html,body{margin:0;padding:0;width:${size.w}mm;height:${size.h}mm;overflow:hidden;background:#fff;font-family:Arial,sans-serif;color:#000}
+      .sheet{width:${IW}mm;height:${IH}mm;transform:scale(${k});transform-origin:top left;position:relative;border:0.4mm solid #000}
+    </style></head><body>
+      <div class="sheet">
+        <div style="position:absolute;left:0;top:0;width:${IW}mm;height:14mm">${ticks(size.w, true)}</div>
+        <div style="position:absolute;left:0;top:0;height:${IH}mm;width:14mm">${ticks(size.h, false)}</div>
+        <div style="position:absolute;left:16mm;top:20mm;font-size:9pt;line-height:1.6">
+          <div><b>PRINT CALIBRATION</b></div>
+          <div>Target: ${size.w} × ${size.h} mm</div>
+          <div>App scale: ${labelScale}%</div>
+          <div style="margin-top:4mm">가로/세로 실제 인쇄 길이를<br/>자로 재서 앱에 입력하세요.</div>
+        </div>
+        <div style="position:absolute;left:16mm;top:${Math.round(IH / 2)}mm;width:${IW - 32}mm;height:0.4mm;background:#000"></div>
+        <div style="position:absolute;left:16mm;top:${Math.round(IH / 2) + 2}mm;font-size:8pt">↔ ${size.w - 32} mm</div>
+      </div>
+      <script>window.onload=()=>{setTimeout(()=>window.print(),300)};<\/script>
+    </body></html>`;
+
+    const w = window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
+    if (!w) return;
+    w.document.write(html);
+    w.document.close();
+  }
+
+  function applyCalibration() {
+    const size = labelSizeFor(shipment?.carrier || carrier || "4PX");
+    const mw = Number(measuredW);
+    const mh = Number(measuredH);
+    const ratios: number[] = [];
+    if (Number.isFinite(mw) && mw > 10) ratios.push(size.w / mw);
+    if (Number.isFinite(mh) && mh > 10) ratios.push(size.h / mh);
+    if (!ratios.length) {
+      toast({ variant: "destructive", title: tr("측정값을 입력하세요", "请输入测量值") });
+      return;
+    }
+    const ratio = ratios.reduce((a, b) => a + b, 0) / ratios.length;
+    const next = Math.min(300, Math.max(50, +(labelScale * ratio).toFixed(1)));
+    setLabelScale(next);
+    setCalibOpen(false);
+    toast({
+      title: tr("출력 배율 보정 완료", "打印比例校准完成"),
+      description: tr(`${labelScale}% → ${next}% 로 조정했습니다. 다시 테스트 출력해 확인하세요.`, `已从 ${labelScale}% 调整为 ${next}%，请再次测试打印确认。`),
+    });
+  }
+
+
+
 
   const feedbackBox = useMemo(() => {
     if (feedback.kind === "idle") return null;
