@@ -57,8 +57,9 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any): Promise<
     },
     return_info: {
       is_return_on_domestic: extra.is_return_on_domestic ?? "N",
-      is_return_on_oversea: extra.is_return_on_oversea ?? "N",
+      is_return_on_oversea: extra.is_return_on_oversea ?? (extra.returner_street ? "Y" : "N"),
     },
+
     parcel_list: [
       {
         weight,
