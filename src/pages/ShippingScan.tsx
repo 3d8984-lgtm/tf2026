@@ -535,8 +535,8 @@ export default function ShippingScan() {
   function buildRemoteLabelHtml(url: string, code?: string | null, noPrint = false) {
     const { w: LW, h: LH } = labelSizeFor(code);
     const k = noPrint ? 1 : Math.min(3, Math.max(0.5, labelScale / 100));
-    const IW = +(LW / k).toFixed(3);
-    const IH = +(LH / k).toFixed(3);
+    const PW = +(LW * k).toFixed(3);
+    const PH = +(LH * k).toFixed(3);
     const isImg = /^data:image\//i.test(url) || /\.(png|jpe?g)$/i.test(url);
     const isHtml = /^data:text\/html/i.test(url) || /\.html?$/i.test(url);
     const printScript = noPrint ? "" : `<script>window.onload=()=>{setTimeout(()=>window.print(),800)};<\/script>`;
@@ -547,9 +547,9 @@ export default function ShippingScan() {
         : `<embed src="${url}#toolbar=0" type="application/pdf"/>`;
     return `<!doctype html><html><head><meta charset="utf-8"/><title>Label</title>
       <style>
-        @page { size: ${LW}mm ${LH}mm; margin: 0; }
-        html, body { margin: 0; padding: 0; width: ${LW}mm; height: ${LH}mm; overflow: hidden; }
-        embed, img, iframe { width: ${IW}mm; height: ${IH}mm; object-fit: fill; display: block; border: 0; transform: scale(${k}); transform-origin: top left; }
+        @page { size: ${PW}mm ${PH}mm; margin: 0; }
+        html, body { margin: 0; padding: 0; width: ${PW}mm; height: ${PH}mm; overflow: hidden; }
+        embed, img, iframe { width: ${LW}mm; height: ${LH}mm; object-fit: fill; display: block; border: 0; transform: scale(${k}); transform-origin: top left; }
       </style></head><body>
       ${body}${printScript}
       </body></html>`;
@@ -601,8 +601,8 @@ export default function ShippingScan() {
   function printCalibrationSheet() {
     const size = labelSizeFor(shipment?.carrier || carrier || "4PX");
     const k = Math.min(3, Math.max(0.5, labelScale / 100));
-    const IW = +(size.w / k).toFixed(3);
-    const IH = +(size.h / k).toFixed(3);
+    const PW = +(size.w * k).toFixed(3);
+    const PH = +(size.h * k).toFixed(3);
     const ticks = (len: number, horizontal: boolean) =>
       Array.from({ length: Math.floor(len / 10) + 1 }, (_, i) => {
         const mm = i * 10;
@@ -615,21 +615,21 @@ export default function ShippingScan() {
       }).join("");
 
     const html = `<!doctype html><html><head><meta charset="utf-8"/><title>Calibration</title><style>
-      @page { size: ${size.w}mm ${size.h}mm; margin: 0; }
-      html,body{margin:0;padding:0;width:${size.w}mm;height:${size.h}mm;overflow:hidden;background:#fff;font-family:Arial,sans-serif;color:#000}
-      .sheet{width:${IW}mm;height:${IH}mm;transform:scale(${k});transform-origin:top left;position:relative;border:0.4mm solid #000}
+      @page { size: ${PW}mm ${PH}mm; margin: 0; }
+      html,body{margin:0;padding:0;width:${PW}mm;height:${PH}mm;overflow:hidden;background:#fff;font-family:Arial,sans-serif;color:#000}
+      .sheet{width:${size.w}mm;height:${size.h}mm;transform:scale(${k});transform-origin:top left;position:relative;border:0.4mm solid #000}
     </style></head><body>
       <div class="sheet">
-        <div style="position:absolute;left:0;top:0;width:${IW}mm;height:14mm">${ticks(size.w, true)}</div>
-        <div style="position:absolute;left:0;top:0;height:${IH}mm;width:14mm">${ticks(size.h, false)}</div>
+        <div style="position:absolute;left:0;top:0;width:${size.w}mm;height:14mm">${ticks(size.w, true)}</div>
+        <div style="position:absolute;left:0;top:0;height:${size.h}mm;width:14mm">${ticks(size.h, false)}</div>
         <div style="position:absolute;left:16mm;top:20mm;font-size:9pt;line-height:1.6">
           <div><b>PRINT CALIBRATION</b></div>
           <div>Target: ${size.w} × ${size.h} mm</div>
           <div>App scale: ${labelScale}%</div>
           <div style="margin-top:4mm">가로/세로 실제 인쇄 길이를<br/>자로 재서 앱에 입력하세요.</div>
         </div>
-        <div style="position:absolute;left:16mm;top:${Math.round(IH / 2)}mm;width:${IW - 32}mm;height:0.4mm;background:#000"></div>
-        <div style="position:absolute;left:16mm;top:${Math.round(IH / 2) + 2}mm;font-size:8pt">↔ ${size.w - 32} mm</div>
+        <div style="position:absolute;left:16mm;top:${Math.round(size.h / 2)}mm;width:${size.w - 32}mm;height:0.4mm;background:#000"></div>
+        <div style="position:absolute;left:16mm;top:${Math.round(size.h / 2) + 2}mm;font-size:8pt">↔ ${size.w - 32} mm</div>
       </div>
       <script>window.onload=()=>{setTimeout(()=>window.print(),300)};<\/script>
     </body></html>`;
@@ -932,8 +932,8 @@ export default function ShippingScan() {
               <TestTube2 className="w-4 h-4" />
               <AlertDescription className="text-xs">
                 {tr(
-                  `프린터 대화창에서 용지 ${previewSize.w}×${previewSize.h}mm, 배율 100%(‘페이지에 맞춤’ 해제), 여백 ‘없음’으로 설정하세요. 그래도 작게(예: 75×110mm) 나오면 프린터 드라이버가 강제 축소하는 것이므로 아래 ‘배율 보정’으로 실측 후 자동 계산하세요.`,
-                  `请在打印对话框中设置纸张 ${previewSize.w}×${previewSize.h}mm、缩放 100%（关闭「适应页面」）、边距「无」。若仍偏小（如 75×110mm），说明驱动强制缩放，请使用下方「比例校准」实测自动计算。`
+                  `사진처럼 전체 내용이 약 75%로 축소되면 4PX 원본 문제가 아니라 브라우저 또는 프린터 드라이버가 용지에 맞춰 다시 축소한 상태입니다. 용지 ${previewSize.w}×${previewSize.h}mm, 브라우저 배율 100%, 여백 없음, 프린터 환경설정의 실제 크기/배율 100%를 확인한 뒤 아래 보정을 사용하세요.`,
+                  `若像照片一样整体缩小至约 75%，并非 4PX 原稿问题，而是浏览器或打印机驱动再次进行了适应纸张缩放。请确认纸张 ${previewSize.w}×${previewSize.h}mm、浏览器比例 100%、无边距以及打印机首选项中的实际大小/比例 100%，然后使用下方校准。`
                 )}
               </AlertDescription>
             </Alert>
