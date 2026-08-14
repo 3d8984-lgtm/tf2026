@@ -81,11 +81,14 @@ export async function fpxCall(
   const message = [baseMsg, errText].filter(Boolean).join(" | ") || null;
   const data = raw?.data ?? raw?.result_data ?? null;
 
-  // 4PX returns result/code "0" (or "S"/true) on success.
-  const success = res.ok && (code === "0" || code === "S" || code === "true" || raw?.success === true);
+  // 4PX returns result/code "0" (or "S"/true) on success, but may still carry an errors[] payload.
+  const success =
+    res.ok && errList.length === 0 &&
+    (code === "0" || code === "S" || code === "true" || raw?.success === true);
   const authFailed = /认证参数非法|签名|sign\s*error|invalid\s*sign|app_key|token|unauthorized/i.test(
     `${code} ${message ?? ""} ${typeof raw === "string" ? raw : ""}`,
   );
+
 
   return { ok: success, httpStatus: res.status, code: code || null, message, data, raw, authFailed };
 }
