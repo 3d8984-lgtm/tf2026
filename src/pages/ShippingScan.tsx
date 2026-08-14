@@ -534,7 +534,7 @@ export default function ShippingScan() {
   // Accepts a URL, a base64 data-URL PDF, or an HTML label returned by the carrier.
   function buildRemoteLabelHtml(url: string, code?: string | null, noPrint = false) {
     const { w: LW, h: LH } = labelSizeFor(code);
-    const k = noPrint ? 1 : Math.min(2, Math.max(0.5, labelScale / 100));
+    const k = noPrint ? 1 : Math.min(3, Math.max(0.5, labelScale / 100));
     const IW = +(LW / k).toFixed(3);
     const IH = +(LH / k).toFixed(3);
     const isImg = /^data:image\//i.test(url) || /\.(png|jpe?g)$/i.test(url);
