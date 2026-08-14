@@ -860,13 +860,33 @@ export default function ShippingScan() {
                 )}
               </AlertDescription>
             </Alert>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" onClick={printTestLabel}>
                 <TestTube2 className="w-4 h-4 mr-1" />{tr("테스트 출력", "测试打印")}
               </Button>
               <Button variant="outline" disabled={!shipment.tracking_number} onClick={downloadLabelPdf}>
                 <Printer className="w-4 h-4 mr-1" />{tr("실제 송장 출력", "打印当前运单")}
               </Button>
+              <div className="flex items-center gap-1 rounded-md border px-2 py-1">
+                <span className="text-[11px] text-muted-foreground">{tr("출력 배율", "打印比例")}</span>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0"
+                  onClick={() => setLabelScale((v) => Math.max(50, +(v - 1).toFixed(1)))}>−</Button>
+                <Input
+                  type="number"
+                  min={50}
+                  max={200}
+                  step={0.5}
+                  value={labelScale}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v)) setLabelScale(Math.min(200, Math.max(50, v)));
+                  }}
+                  className="h-7 w-16 text-center font-mono text-xs"
+                />
+                <span className="text-[11px] text-muted-foreground">%</span>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0"
+                  onClick={() => setLabelScale((v) => Math.min(200, +(v + 1).toFixed(1)))}>+</Button>
+              </div>
             </div>
             <div className="text-[11px] text-muted-foreground space-y-1 pt-2 border-t">
               <div>• {tr("스캐너 상태:", "扫描状态：")} <span className={hidActive ? "text-emerald-400" : ""}>{hidActive ? tr("신호 수신됨", "已接收信号") : tr("대기 중", "等待中")}</span></div>
