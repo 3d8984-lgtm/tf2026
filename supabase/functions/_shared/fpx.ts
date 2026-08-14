@@ -3,7 +3,8 @@
 // Spec (4PX 商家接入 / API标准接口-对接指引):
 //   POST {api_url}?method=..&app_key=..&v=..&timestamp=..&format=json&sign=..
 //   Content-Type: application/json ; body = business JSON
-//   sign = md5(app_secret + concat(sorted "key"+"value" of common params) + app_secret)
+//   sign = md5(concat(sorted "key"+"value" of common params) + compact JSON body + app_secret)
+//   access_token and language are transmitted but excluded from the signature.
 import { md5 } from "./md5.ts";
 
 export const FPX_PROD_URL = "https://open.4px.com/router/api/service";
@@ -36,12 +37,12 @@ export function fpxEndpoint(apiUrl?: string | null, apiMode?: string | null) {
   return apiMode === "test" ? FPX_TEST_URL : FPX_PROD_URL;
 }
 
-export function fpxSign(params: Record<string, string>, secret: string) {
+export function fpxSign(params: Record<string, string>, body: string, secret: string) {
   const concat = Object.keys(params)
     .sort()
     .map((k) => `${k}${params[k]}`)
     .join("");
-  return md5(`${secret}${concat}${secret}`);
+  return md5(`${concat}${body}${secret}`);
 }
 
 export async function fpxCall(
@@ -61,18 +62,19 @@ export async function fpxCall(
     timestamp: Date.now().toString(),
   };
   const accessToken = (cred.extra as any)?.access_token;
-  if (accessToken) common.access_token = String(accessToken);
+  const body = JSON.stringify(bizData ?? {});
 
-  // 4PX documented algorithm: sign exactly the transmitted common parameters,
-  // excluding `language` and `sign`, and send one request. Signature guessing
-  // both hides configuration errors and multiplies latency.
+  // Official 4PX algorithm: sort the five base common parameters, append the
+  // exact compact JSON body and then App Secret. access_token, language and sign
+  // are not signed. Send one deterministic request; never guess variants.
   const secret = (cred.api_secret ?? "").trim();
-  const sign = fpxSign(common, secret);
-  const qs = new URLSearchParams({ ...common, language, sign });
+  const sign = fpxSign(common, body, secret);
+  const query = { ...common, ...(accessToken ? { access_token: String(accessToken).trim() } : {}), language, sign };
+  const qs = new URLSearchParams(query);
   const res = await fetch(`${endpoint}?${qs.toString()}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(bizData ?? {}),
+    body,
     signal: AbortSignal.timeout(timeoutMs),
   });
   const text = await res.text();
