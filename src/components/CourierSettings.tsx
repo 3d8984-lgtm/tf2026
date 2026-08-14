@@ -182,6 +182,15 @@ export default function CourierSettings() {
       put("sender_city", cred.sender_city);
       put("sender_street", cred.sender_street);
       put("sender_post_code", cred.sender_post_code);
+      put("returner_name", cred.returner_name);
+      put("returner_company", cred.returner_company);
+      put("returner_phone", cred.returner_phone);
+      put("returner_country", cred.returner_country);
+      put("returner_state", cred.returner_state);
+      put("returner_city", cred.returner_city);
+      put("returner_street", cred.returner_street);
+      put("returner_post_code", cred.returner_post_code);
+
       put("hscode", cred.hscode);
       put("item_name_en", cred.item_name_en);
       put("item_name_cn", cred.item_name_cn);
