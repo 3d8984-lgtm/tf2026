@@ -132,7 +132,20 @@ export default function CourierSettings() {
 
   const handleSaveCred = async () => {
     if (!credDialog) return;
+    // 브라우저 자동완성으로 이메일이 App Key에 들어가는 사고 방지
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cred.api_key.trim())) {
+      toast({
+        variant: "destructive",
+        title: tr("App Key 값이 올바르지 않습니다", "App Key 值不正确"),
+        description: tr(
+          "이메일 주소가 입력되어 있습니다. 브라우저 자동완성 값을 지우고 실제 App Key를 입력하세요.",
+          "当前填写的是邮箱地址。请清除浏览器自动填充内容并输入真实 App Key。",
+        ),
+      });
+      return;
+    }
     try {
+
       const base = (credExtra?.extra ?? {}) as Record<string, unknown>;
       const extra: Record<string, unknown> = { ...base };
       const put = (key: string, val: string) => {
