@@ -932,8 +932,8 @@ export default function ShippingScan() {
               <TestTube2 className="w-4 h-4" />
               <AlertDescription className="text-xs">
                 {tr(
-                  `프린터 대화창에서 용지 ${previewSize.w}×${previewSize.h}mm, 배율 100%(‘페이지에 맞춤’ 해제), 여백 ‘없음’으로 설정하세요. 그래도 작게 나오면 아래 ‘출력 배율’을 올려(예: 105%) 실제 라벨 크기에 맞추세요.`,
-                  `请在打印对话框中设置纸张 ${previewSize.w}×${previewSize.h}mm、缩放 100%（关闭「适应页面」）、边距「无」。若仍偏小，请调高下方「打印比例」（如 105%）。`
+                  `프린터 대화창에서 용지 ${previewSize.w}×${previewSize.h}mm, 배율 100%(‘페이지에 맞춤’ 해제), 여백 ‘없음’으로 설정하세요. 그래도 작게(예: 75×110mm) 나오면 프린터 드라이버가 강제 축소하는 것이므로 아래 ‘배율 보정’으로 실측 후 자동 계산하세요.`,
+                  `请在打印对话框中设置纸张 ${previewSize.w}×${previewSize.h}mm、缩放 100%（关闭「适应页面」）、边距「无」。若仍偏小（如 75×110mm），说明驱动强制缩放，请使用下方「比例校准」实测自动计算。`
                 )}
               </AlertDescription>
             </Alert>
@@ -944,6 +944,9 @@ export default function ShippingScan() {
               <Button variant="outline" disabled={!shipment.tracking_number} onClick={downloadLabelPdf}>
                 <Printer className="w-4 h-4 mr-1" />{tr("실제 송장 출력", "打印当前运单")}
               </Button>
+              <Button variant="secondary" onClick={() => setCalibOpen(true)}>
+                <RefreshCw className="w-4 h-4 mr-1" />{tr("배율 보정", "比例校准")}
+              </Button>
               <div className="flex items-center gap-1 rounded-md border px-2 py-1">
                 <span className="text-[11px] text-muted-foreground">{tr("출력 배율", "打印比例")}</span>
                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0"
@@ -951,20 +954,21 @@ export default function ShippingScan() {
                 <Input
                   type="number"
                   min={50}
-                  max={200}
+                  max={300}
                   step={0.5}
                   value={labelScale}
                   onChange={(e) => {
                     const v = Number(e.target.value);
-                    if (Number.isFinite(v)) setLabelScale(Math.min(200, Math.max(50, v)));
+                    if (Number.isFinite(v)) setLabelScale(Math.min(300, Math.max(50, v)));
                   }}
                   className="h-7 w-16 text-center font-mono text-xs"
                 />
                 <span className="text-[11px] text-muted-foreground">%</span>
                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0"
-                  onClick={() => setLabelScale((v) => Math.min(200, +(v + 1).toFixed(1)))}>+</Button>
+                  onClick={() => setLabelScale((v) => Math.min(300, +(v + 1).toFixed(1)))}>+</Button>
               </div>
             </div>
+
             <div className="text-[11px] text-muted-foreground space-y-1 pt-2 border-t">
               <div>• {tr("스캐너 상태:", "扫描状态：")} <span className={hidActive ? "text-emerald-400" : ""}>{hidActive ? tr("신호 수신됨", "已接收信号") : tr("대기 중", "等待中")}</span></div>
               <div>• {tr("기계 부착 HID 스캐너는 입력 필드 포커스 없이도 자동 인식됩니다.", "机器附带的 HID 扫描器无需聚焦输入框也能识别。")}</div>
