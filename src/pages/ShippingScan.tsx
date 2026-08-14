@@ -80,11 +80,16 @@ export default function ShippingScan() {
   // Print scale (%) — compensates printer drivers that shrink the page ("fit to page").
   const [labelScale, setLabelScale] = useState<number>(() => {
     const v = Number(localStorage.getItem("shipping-label-print-scale"));
-    return Number.isFinite(v) && v >= 50 && v <= 200 ? v : 100;
+    return Number.isFinite(v) && v >= 50 && v <= 300 ? v : 100;
   });
   useEffect(() => {
     localStorage.setItem("shipping-label-print-scale", String(labelScale));
   }, [labelScale]);
+  // Calibration: print a 100×150mm ruler sheet, measure it, auto-derive the scale.
+  const [calibOpen, setCalibOpen] = useState(false);
+  const [measuredW, setMeasuredW] = useState("");
+  const [measuredH, setMeasuredH] = useState("");
+
   const [cameraOn, setCameraOn] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: FeedbackKind; msg: string }>({ kind: "idle", msg: "" });
   const [testMode, setTestMode] = useState(true);
@@ -529,7 +534,7 @@ export default function ShippingScan() {
   // Accepts a URL, a base64 data-URL PDF, or an HTML label returned by the carrier.
   function buildRemoteLabelHtml(url: string, code?: string | null, noPrint = false) {
     const { w: LW, h: LH } = labelSizeFor(code);
-    const k = noPrint ? 1 : Math.min(2, Math.max(0.5, labelScale / 100));
+    const k = noPrint ? 1 : Math.min(3, Math.max(0.5, labelScale / 100));
     const IW = +(LW / k).toFixed(3);
     const IH = +(LH / k).toFixed(3);
     const isImg = /^data:image\//i.test(url) || /\.(png|jpe?g)$/i.test(url);
@@ -588,6 +593,75 @@ export default function ShippingScan() {
     w.document.write(buildLabelHtml({ testTracking: trackingNumber }));
     w.document.close();
   }
+
+  // ── Print calibration ──────────────────────────────────────────────
+  // Prints a ruler sheet at the CURRENT scale. The user measures the printed
+  // frame with a ruler; the real scale is derived from the difference, which
+  // cancels out any hidden driver shrink ("fit to page" / printable-area fit).
+  function printCalibrationSheet() {
+    const size = labelSizeFor(shipment?.carrier || carrier || "4PX");
+    const k = Math.min(3, Math.max(0.5, labelScale / 100));
+    const IW = +(size.w / k).toFixed(3);
+    const IH = +(size.h / k).toFixed(3);
+    const ticks = (len: number, horizontal: boolean) =>
+      Array.from({ length: Math.floor(len / 10) + 1 }, (_, i) => {
+        const mm = i * 10;
+        const long = mm % 50 === 0;
+        return horizontal
+          ? `<div style="position:absolute;left:${mm}mm;top:0;width:0.3mm;height:${long ? 8 : 4}mm;background:#000"></div>
+             ${long ? `<div style="position:absolute;left:${mm + 1}mm;top:8mm;font-size:7pt">${mm}</div>` : ""}`
+          : `<div style="position:absolute;top:${mm}mm;left:0;height:0.3mm;width:${long ? 8 : 4}mm;background:#000"></div>
+             ${long ? `<div style="position:absolute;top:${mm + 1}mm;left:8mm;font-size:7pt">${mm}</div>` : ""}`;
+      }).join("");
+
+    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>Calibration</title><style>
+      @page { size: ${size.w}mm ${size.h}mm; margin: 0; }
+      html,body{margin:0;padding:0;width:${size.w}mm;height:${size.h}mm;overflow:hidden;background:#fff;font-family:Arial,sans-serif;color:#000}
+      .sheet{width:${IW}mm;height:${IH}mm;transform:scale(${k});transform-origin:top left;position:relative;border:0.4mm solid #000}
+    </style></head><body>
+      <div class="sheet">
+        <div style="position:absolute;left:0;top:0;width:${IW}mm;height:14mm">${ticks(size.w, true)}</div>
+        <div style="position:absolute;left:0;top:0;height:${IH}mm;width:14mm">${ticks(size.h, false)}</div>
+        <div style="position:absolute;left:16mm;top:20mm;font-size:9pt;line-height:1.6">
+          <div><b>PRINT CALIBRATION</b></div>
+          <div>Target: ${size.w} × ${size.h} mm</div>
+          <div>App scale: ${labelScale}%</div>
+          <div style="margin-top:4mm">가로/세로 실제 인쇄 길이를<br/>자로 재서 앱에 입력하세요.</div>
+        </div>
+        <div style="position:absolute;left:16mm;top:${Math.round(IH / 2)}mm;width:${IW - 32}mm;height:0.4mm;background:#000"></div>
+        <div style="position:absolute;left:16mm;top:${Math.round(IH / 2) + 2}mm;font-size:8pt">↔ ${size.w - 32} mm</div>
+      </div>
+      <script>window.onload=()=>{setTimeout(()=>window.print(),300)};<\/script>
+    </body></html>`;
+
+    const w = window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
+    if (!w) return;
+    w.document.write(html);
+    w.document.close();
+  }
+
+  function applyCalibration() {
+    const size = labelSizeFor(shipment?.carrier || carrier || "4PX");
+    const mw = Number(measuredW);
+    const mh = Number(measuredH);
+    const ratios: number[] = [];
+    if (Number.isFinite(mw) && mw > 10) ratios.push(size.w / mw);
+    if (Number.isFinite(mh) && mh > 10) ratios.push(size.h / mh);
+    if (!ratios.length) {
+      toast({ variant: "destructive", title: tr("측정값을 입력하세요", "请输入测量值") });
+      return;
+    }
+    const ratio = ratios.reduce((a, b) => a + b, 0) / ratios.length;
+    const next = Math.min(300, Math.max(50, +(labelScale * ratio).toFixed(1)));
+    setLabelScale(next);
+    setCalibOpen(false);
+    toast({
+      title: tr("출력 배율 보정 완료", "打印比例校准完成"),
+      description: tr(`${labelScale}% → ${next}% 로 조정했습니다. 다시 테스트 출력해 확인하세요.`, `已从 ${labelScale}% 调整为 ${next}%，请再次测试打印确认。`),
+    });
+  }
+
+
 
 
   const feedbackBox = useMemo(() => {
@@ -858,8 +932,8 @@ export default function ShippingScan() {
               <TestTube2 className="w-4 h-4" />
               <AlertDescription className="text-xs">
                 {tr(
-                  `프린터 대화창에서 용지 ${previewSize.w}×${previewSize.h}mm, 배율 100%(‘페이지에 맞춤’ 해제), 여백 ‘없음’으로 설정하세요. 그래도 작게 나오면 아래 ‘출력 배율’을 올려(예: 105%) 실제 라벨 크기에 맞추세요.`,
-                  `请在打印对话框中设置纸张 ${previewSize.w}×${previewSize.h}mm、缩放 100%（关闭「适应页面」）、边距「无」。若仍偏小，请调高下方「打印比例」（如 105%）。`
+                  `프린터 대화창에서 용지 ${previewSize.w}×${previewSize.h}mm, 배율 100%(‘페이지에 맞춤’ 해제), 여백 ‘없음’으로 설정하세요. 그래도 작게(예: 75×110mm) 나오면 프린터 드라이버가 강제 축소하는 것이므로 아래 ‘배율 보정’으로 실측 후 자동 계산하세요.`,
+                  `请在打印对话框中设置纸张 ${previewSize.w}×${previewSize.h}mm、缩放 100%（关闭「适应页面」）、边距「无」。若仍偏小（如 75×110mm），说明驱动强制缩放，请使用下方「比例校准」实测自动计算。`
                 )}
               </AlertDescription>
             </Alert>
@@ -870,6 +944,9 @@ export default function ShippingScan() {
               <Button variant="outline" disabled={!shipment.tracking_number} onClick={downloadLabelPdf}>
                 <Printer className="w-4 h-4 mr-1" />{tr("실제 송장 출력", "打印当前运单")}
               </Button>
+              <Button variant="secondary" onClick={() => setCalibOpen(true)}>
+                <RefreshCw className="w-4 h-4 mr-1" />{tr("배율 보정", "比例校准")}
+              </Button>
               <div className="flex items-center gap-1 rounded-md border px-2 py-1">
                 <span className="text-[11px] text-muted-foreground">{tr("출력 배율", "打印比例")}</span>
                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0"
@@ -877,20 +954,21 @@ export default function ShippingScan() {
                 <Input
                   type="number"
                   min={50}
-                  max={200}
+                  max={300}
                   step={0.5}
                   value={labelScale}
                   onChange={(e) => {
                     const v = Number(e.target.value);
-                    if (Number.isFinite(v)) setLabelScale(Math.min(200, Math.max(50, v)));
+                    if (Number.isFinite(v)) setLabelScale(Math.min(300, Math.max(50, v)));
                   }}
                   className="h-7 w-16 text-center font-mono text-xs"
                 />
                 <span className="text-[11px] text-muted-foreground">%</span>
                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0"
-                  onClick={() => setLabelScale((v) => Math.min(200, +(v + 1).toFixed(1)))}>+</Button>
+                  onClick={() => setLabelScale((v) => Math.min(300, +(v + 1).toFixed(1)))}>+</Button>
               </div>
             </div>
+
             <div className="text-[11px] text-muted-foreground space-y-1 pt-2 border-t">
               <div>• {tr("스캐너 상태:", "扫描状态：")} <span className={hidActive ? "text-emerald-400" : ""}>{hidActive ? tr("신호 수신됨", "已接收信号") : tr("대기 중", "等待中")}</span></div>
               <div>• {tr("기계 부착 HID 스캐너는 입력 필드 포커스 없이도 자동 인식됩니다.", "机器附带的 HID 扫描器无需聚焦输入框也能识别。")}</div>
@@ -918,6 +996,39 @@ export default function ShippingScan() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Print-scale calibration */}
+      <Dialog open={calibOpen} onOpenChange={setCalibOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{tr("출력 배율 보정", "打印比例校准")}</DialogTitle></DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p className="text-muted-foreground text-xs">
+              {tr(
+                `1) 아래 ‘눈금자 시트 출력’을 눌러 인쇄합니다(현재 배율 ${labelScale}%).\n2) 인쇄된 테두리의 가로·세로 실제 길이를 자로 재서 입력합니다.\n3) 적용을 누르면 ${previewSize.w}×${previewSize.h}mm 로 나오도록 배율이 자동 계산됩니다.`,
+                `1) 点击下方「打印标尺页」（当前比例 ${labelScale}%）。\n2) 用尺子测量打印边框的实际长宽并输入。\n3) 点击应用后自动计算为 ${previewSize.w}×${previewSize.h}mm 的比例。`
+              )}
+            </p>
+            <Button variant="outline" size="sm" onClick={printCalibrationSheet}>
+              <Printer className="w-4 h-4 mr-1" />{tr("눈금자 시트 출력", "打印标尺页")}
+            </Button>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">{tr(`실측 가로 (mm) · 목표 ${previewSize.w}`, `实测宽度 (mm) · 目标 ${previewSize.w}`)}</Label>
+                <Input type="number" step={0.5} value={measuredW} onChange={(e) => setMeasuredW(e.target.value)} placeholder="75" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">{tr(`실측 세로 (mm) · 목표 ${previewSize.h}`, `实测高度 (mm) · 目标 ${previewSize.h}`)}</Label>
+                <Input type="number" step={0.5} value={measuredH} onChange={(e) => setMeasuredH(e.target.value)} placeholder="110" />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCalibOpen(false)}>{tr("취소", "取消")}</Button>
+            <Button onClick={applyCalibration}>{tr("적용", "应用")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
+
 }

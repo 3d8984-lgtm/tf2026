@@ -81,7 +81,7 @@ export interface FpxLabelData {
 export function buildFpxLabelHtml(d: FpxLabelData, opts: { print?: boolean; scale?: number } = {}) {
   const LW = d.width ?? 100;
   const LH = d.height ?? 150;
-  const k = Math.min(2, Math.max(0.5, (opts.scale ?? 100) / 100));
+  const k = Math.min(3, Math.max(0.5, (opts.scale ?? 100) / 100));
   const IW = +(LW / k).toFixed(3);
   const IH = +(LH / k).toFixed(3);
   const r = d.recipient ?? {};
