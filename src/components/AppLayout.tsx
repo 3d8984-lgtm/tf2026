@@ -15,6 +15,7 @@ import twinmetaLogo from "@/assets/twinmeta-logo.png";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 
 type MenuCustom = Record<string, { label?: string; order?: number }>;
 const MENU_CUSTOM_KEY = "twinmeta.menuCustomizations.v1";
