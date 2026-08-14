@@ -31,13 +31,12 @@ export function fpxEndpoint(apiUrl?: string | null, apiMode?: string | null) {
   return apiMode === "test" ? FPX_TEST_URL : FPX_PROD_URL;
 }
 
-export function fpxSign(params: Record<string, string>, secret: string, upper = true) {
+export function fpxSign(params: Record<string, string>, secret: string) {
   const concat = Object.keys(params)
     .sort()
     .map((k) => `${k}${params[k]}`)
     .join("");
-  const h = md5(`${secret}${concat}${secret}`);
-  return upper ? h.toUpperCase() : h;
+  return md5(`${secret}${concat}${secret}`);
 }
 
 export async function fpxCall(
@@ -59,38 +58,19 @@ export async function fpxCall(
   const accessToken = (cred.extra as any)?.access_token;
   if (accessToken) common.access_token = String(accessToken);
 
+  // 4PX documented algorithm: sign exactly the transmitted common parameters,
+  // excluding `language` and `sign`, and send one request. Signature guessing
+  // both hides configuration errors and multiplies latency.
   const secret = (cred.api_secret ?? "").trim();
-  const body = JSON.stringify(bizData ?? {});
-
-  // 4PX signing differs slightly between contracts (language included or not,
-  // upper/lower-case md5). Try the documented variant first and fall back on
-  // signature errors instead of failing outright.
-  const variants: Array<{ signed: Record<string, string>; upper: boolean }> = [
-    { signed: { ...common, language }, upper: true },
-    { signed: { ...common, language }, upper: false },
-    { signed: { ...common }, upper: true },
-    { signed: { ...common }, upper: false },
-  ];
-
-  let last!: { res: Response; text: string };
-  for (let i = 0; i < variants.length; i++) {
-    const v = variants[i];
-    const sign = fpxSign(v.signed, secret, v.upper);
-    const qs = new URLSearchParams({ ...common, language, sign });
-    const res = await fetch(`${endpoint}?${qs.toString()}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body,
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    const text = await res.text();
-    last = { res, text };
-    const signErr = /000012|签名|sign\s*error|invalid\s*sign/i.test(text);
-    if (!signErr) break;
-  }
-
-  const res = last.res;
-  const text = last.text;
+  const sign = fpxSign(common, secret);
+  const qs = new URLSearchParams({ ...common, language, sign });
+  const res = await fetch(`${endpoint}?${qs.toString()}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(bizData ?? {}),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  const text = await res.text();
   let raw: any = text;
   try { raw = JSON.parse(text); } catch { /* keep text */ }
 
