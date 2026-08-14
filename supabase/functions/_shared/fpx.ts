@@ -31,12 +31,13 @@ export function fpxEndpoint(apiUrl?: string | null, apiMode?: string | null) {
   return apiMode === "test" ? FPX_TEST_URL : FPX_PROD_URL;
 }
 
-export function fpxSign(params: Record<string, string>, secret: string) {
+export function fpxSign(params: Record<string, string>, secret: string, upper = true) {
   const concat = Object.keys(params)
     .sort()
     .map((k) => `${k}${params[k]}`)
     .join("");
-  return md5(`${secret}${concat}${secret}`);
+  const h = md5(`${secret}${concat}${secret}`);
+  return upper ? h.toUpperCase() : h;
 }
 
 export async function fpxCall(
@@ -50,7 +51,7 @@ export async function fpxCall(
 ): Promise<FpxResponse> {
   const common: Record<string, string> = {
     method,
-    app_key: cred.api_key ?? "",
+    app_key: (cred.api_key ?? "").trim(),
     v: version,
     format: "json",
     timestamp: Date.now().toString(),
@@ -58,21 +59,41 @@ export async function fpxCall(
   const accessToken = (cred.extra as any)?.access_token;
   if (accessToken) common.access_token = String(accessToken);
 
-  // 4PX spec: sign = md5(secret + sorted(key+value of common params) + secret)
-  const sign = fpxSign(common, cred.api_secret ?? "");
-  const qs = new URLSearchParams({ ...common, sign, language });
+  const secret = (cred.api_secret ?? "").trim();
+  const body = JSON.stringify(bizData ?? {});
 
+  // 4PX signing differs slightly between contracts (language included or not,
+  // upper/lower-case md5). Try the documented variant first and fall back on
+  // signature errors instead of failing outright.
+  const variants: Array<{ signed: Record<string, string>; upper: boolean }> = [
+    { signed: { ...common, language }, upper: true },
+    { signed: { ...common, language }, upper: false },
+    { signed: { ...common }, upper: true },
+    { signed: { ...common }, upper: false },
+  ];
 
+  let last!: { res: Response; text: string };
+  for (let i = 0; i < variants.length; i++) {
+    const v = variants[i];
+    const sign = fpxSign(v.signed, secret, v.upper);
+    const qs = new URLSearchParams({ ...common, language, sign });
+    const res = await fetch(`${endpoint}?${qs.toString()}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    const text = await res.text();
+    last = { res, text };
+    const signErr = /000012|签名|sign\s*error|invalid\s*sign/i.test(text);
+    if (!signErr) break;
+  }
 
-  const res = await fetch(`${endpoint}?${qs.toString()}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(bizData ?? {}),
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-  const text = await res.text();
+  const res = last.res;
+  const text = last.text;
   let raw: any = text;
   try { raw = JSON.parse(text); } catch { /* keep text */ }
+
 
   const code = String(raw?.result ?? raw?.code ?? raw?.error_code ?? raw?.errorCode ?? "");
   const errList = Array.isArray(raw?.errors) ? raw.errors : [];
