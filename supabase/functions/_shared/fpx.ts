@@ -51,7 +51,7 @@ export async function fpxCall(
 ): Promise<FpxResponse> {
   const common: Record<string, string> = {
     method,
-    app_key: cred.api_key ?? "",
+    app_key: (cred.api_key ?? "").trim(),
     v: version,
     format: "json",
     timestamp: Date.now().toString(),
