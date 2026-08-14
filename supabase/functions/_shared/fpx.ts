@@ -72,13 +72,23 @@ export async function fpxCall(
   try { raw = JSON.parse(text); } catch { /* keep text */ }
 
   const code = String(raw?.result ?? raw?.code ?? raw?.error_code ?? raw?.errorCode ?? "");
-  const message = raw?.msg ?? raw?.message ?? raw?.error_msg ?? raw?.errorMsg ?? null;
+  const errList = Array.isArray(raw?.errors) ? raw.errors : [];
+  const errText = errList
+    .map((e: any) => [e?.error_code, e?.error_msg ?? e?.errorMsg].filter(Boolean).join(" "))
+    .filter(Boolean)
+    .join("; ");
+  const baseMsg = raw?.msg ?? raw?.message ?? raw?.error_msg ?? raw?.errorMsg ?? null;
+  const message = [baseMsg, errText].filter(Boolean).join(" | ") || null;
   const data = raw?.data ?? raw?.result_data ?? null;
-  // 4PX returns result/code "0" (or "S"/true) on success.
-  const success = res.ok && (code === "0" || code === "S" || code === "true" || raw?.success === true);
+
+  // 4PX returns result/code "0" (or "S"/true) on success, but may still carry an errors[] payload.
+  const success =
+    res.ok && errList.length === 0 &&
+    (code === "0" || code === "S" || code === "true" || raw?.success === true);
   const authFailed = /认证参数非法|签名|sign\s*error|invalid\s*sign|app_key|token|unauthorized/i.test(
     `${code} ${message ?? ""} ${typeof raw === "string" ? raw : ""}`,
   );
+
 
   return { ok: success, httpStatus: res.status, code: code || null, message, data, raw, authFailed };
 }

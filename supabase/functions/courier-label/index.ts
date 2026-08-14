@@ -313,8 +313,15 @@ Deno.serve(async (req) => {
                 : " / CANCEL FAILED - cancel this order manually in the 4PX console";
             }
           } else if (!tracking) {
-            message = `${message} / ${useLive ? "live" : "sandbox"} order: ${r.error ?? "no tracking number"}`;
+            const err = r.error ?? "no tracking number";
+            const hint = /000012|签名|sign/i.test(err)
+              ? " → 주문생성(ds.xms.order.create)은 access_token 인증이 필요합니다. 택배사 설정에서 4PX access_token과 물류상품코드(logistics_product_code)를 입력해 주세요."
+              : /product|channel|物流|产品/i.test(err)
+              ? " → 물류상품코드(channel_code)가 유효한지 확인해 주세요."
+              : "";
+            message = `${message} / ${useLive ? "live" : "sandbox"} order: ${err}${hint}`;
           }
+
         } else {
           authOk = true;
           message = "test mode (no live auth check for this carrier)";

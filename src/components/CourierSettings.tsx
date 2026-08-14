@@ -27,6 +27,7 @@ const emptyCred = {
   api_secret: "",
   account_no: "",
   channel_code: "",
+  access_token: "",
   // 발송인 정보
   sender_name: "",
   sender_company: "",
@@ -112,6 +113,7 @@ export default function CourierSettings() {
       ...prev,
       account_no: credExtra.account_no ?? "",
       channel_code: s("channel_code") || s("logistics_product_code"),
+      access_token: s("access_token"),
       sender_name: s("sender_name"),
       sender_company: s("sender_company"),
       sender_phone: s("sender_phone"),
@@ -139,6 +141,7 @@ export default function CourierSettings() {
         else delete extra[key];
       };
       put("channel_code", cred.channel_code);
+      put("access_token", cred.access_token);
       put("sender_name", cred.sender_name);
       put("sender_company", cred.sender_company);
       put("sender_phone", cred.sender_phone);
@@ -345,6 +348,23 @@ export default function CourierSettings() {
               <Label>{tr("배송 채널 코드", "运输渠道代码")}</Label>
               <Input value={cred.channel_code} onChange={(e) => setCred((c) => ({ ...c, channel_code: e.target.value }))} placeholder={tr("예: US-EXP", "例：US-EXP")} />
             </div>
+            {credDialog?.code === "4px" && (
+              <div className="space-y-2">
+                <Label>Access Token</Label>
+                <Input
+                  value={cred.access_token}
+                  onChange={(e) => setCred((c) => ({ ...c, access_token: e.target.value }))}
+                  placeholder={tr("4PX 오픈플랫폼 授权 access_token", "4PX开放平台授权 access_token")}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {tr(
+                    "주문생성(ds.xms.order.create)은 access_token 인증이 필요합니다. 없으면 '签名验证错误(000012)'가 발생합니다.",
+                    "创建订单(ds.xms.order.create)需要access_token授权，否则会返回“签名验证错误(000012)”。"
+                  )}
+                </p>
+              </div>
+            )}
+
 
             <div className="pt-2 border-t space-y-3">
               <p className="text-sm font-medium">{tr("발송인 주소", "发件人地址")}</p>
