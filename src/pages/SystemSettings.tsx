@@ -76,8 +76,8 @@ const initAlarms: Alarm[] = [
 ];
 
 /* ── Generic CRUD Dialog helper ── */
-function useCrudState<T extends { id: number }>(initial: T[]) {
-  const [items, setItems] = useState<T[]>(initial);
+function useCrudState<T extends { id: number }>(settingKey: string, initial: T[]) {
+  const { value: items, persist, loading } = useGlobalSetting<T[]>(`system_settings.${settingKey}`, initial);
   const [editItem, setEditItem] = useState<T | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -85,14 +85,17 @@ function useCrudState<T extends { id: number }>(initial: T[]) {
   const openEdit = (item: T) => { setEditItem({ ...item }); setDialogOpen(true); };
   const save = () => {
     if (!editItem) return;
-    setItems(prev => prev.some(i => i.id === editItem.id) ? prev.map(i => i.id === editItem.id ? editItem : i) : [...prev, editItem]);
+    const next = items.some(i => i.id === editItem.id)
+      ? items.map(i => (i.id === editItem.id ? editItem : i))
+      : [...items, editItem];
     setDialogOpen(false);
     setEditItem(null);
+    return persist(next);
   };
-  const remove = (id: number) => setItems(prev => prev.filter(i => i.id !== id));
+  const remove = (id: number) => persist(items.filter(i => i.id !== id));
   const updateField = (field: keyof T, value: T[keyof T]) => setEditItem(prev => prev ? { ...prev, [field]: value } : null);
 
-  return { items, editItem, dialogOpen, setDialogOpen, openAdd, openEdit, save, remove, updateField };
+  return { items, loading, editItem, dialogOpen, setDialogOpen, openAdd, openEdit, save, remove, updateField };
 }
 
 export default function SystemSettings() {
