@@ -858,8 +858,8 @@ export default function ShippingScan() {
               <TestTube2 className="w-4 h-4" />
               <AlertDescription className="text-xs">
                 {tr(
-                  `프린터/스캐너 연동을 확인하려면 '테스트 출력'을 사용하세요. 브라우저 프린트 대화창에서 용지 크기 ${previewSize.w}×${previewSize.h}mm, 여백 '없음'으로 설정해야 라벨지에 정확히 출력됩니다.`,
-                  `请使用『测试打印』确认打印机/扫描器连接。在打印对话框中将纸张设为 ${previewSize.w}×${previewSize.h}mm、边距设为「无」即可精准打印。`
+                  `프린터 대화창에서 용지 ${previewSize.w}×${previewSize.h}mm, 배율 100%(‘페이지에 맞춤’ 해제), 여백 ‘없음’으로 설정하세요. 그래도 작게 나오면 아래 ‘출력 배율’을 올려(예: 105%) 실제 라벨 크기에 맞추세요.`,
+                  `请在打印对话框中设置纸张 ${previewSize.w}×${previewSize.h}mm、缩放 100%（关闭「适应页面」）、边距「无」。若仍偏小，请调高下方「打印比例」（如 105%）。`
                 )}
               </AlertDescription>
             </Alert>
