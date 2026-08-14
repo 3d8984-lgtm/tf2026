@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { useGlobalSetting } from "@/hooks/useGlobalSetting";
 
 /* ── Types ── */
 interface Equipment { id: number; name: string; code: string; line: string; plcIp: string; protocol: string; connected: boolean }
@@ -76,8 +77,8 @@ const initAlarms: Alarm[] = [
 ];
 
 /* ── Generic CRUD Dialog helper ── */
-function useCrudState<T extends { id: number }>(initial: T[]) {
-  const [items, setItems] = useState<T[]>(initial);
+function useCrudState<T extends { id: number }>(settingKey: string, initial: T[]) {
+  const { value: items, persist, loading } = useGlobalSetting<T[]>(`system_settings.${settingKey}`, initial);
   const [editItem, setEditItem] = useState<T | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -85,14 +86,17 @@ function useCrudState<T extends { id: number }>(initial: T[]) {
   const openEdit = (item: T) => { setEditItem({ ...item }); setDialogOpen(true); };
   const save = () => {
     if (!editItem) return;
-    setItems(prev => prev.some(i => i.id === editItem.id) ? prev.map(i => i.id === editItem.id ? editItem : i) : [...prev, editItem]);
+    const next = items.some(i => i.id === editItem.id)
+      ? items.map(i => (i.id === editItem.id ? editItem : i))
+      : [...items, editItem];
     setDialogOpen(false);
     setEditItem(null);
+    return persist(next);
   };
-  const remove = (id: number) => setItems(prev => prev.filter(i => i.id !== id));
+  const remove = (id: number) => persist(items.filter(i => i.id !== id));
   const updateField = (field: keyof T, value: T[keyof T]) => setEditItem(prev => prev ? { ...prev, [field]: value } : null);
 
-  return { items, editItem, dialogOpen, setDialogOpen, openAdd, openEdit, save, remove, updateField };
+  return { items, loading, editItem, dialogOpen, setDialogOpen, openAdd, openEdit, save, remove, updateField };
 }
 
 export default function SystemSettings() {
@@ -104,22 +108,33 @@ export default function SystemSettings() {
   const isKo = lang === "ko";
   const { canAccessSettingsTab } = usePermissions();
 
-  const eq = useCrudState<Equipment>(initEquipment);
-  const plc = useCrudState<PlcTag>(initPlcTags);
-  const sen = useCrudState<Sensor>(initSensors);
-  const cmd = useCrudState<Command>(initCommands);
-  const alm = useCrudState<Alarm>(initAlarms);
+  const eq = useCrudState<Equipment>("equipment", initEquipment);
+  const plc = useCrudState<PlcTag>("plcTags", initPlcTags);
+  const sen = useCrudState<Sensor>("sensors", initSensors);
+  const cmd = useCrudState<Command>("commands", initCommands);
+  const alm = useCrudState<Alarm>("alarms", initAlarms);
 
-  const confirmDelete = (name: string, onConfirm: () => void) => {
-    if (window.confirm(isKo ? `"${name}" 을(를) 삭제하시겠습니까?` : `确定删除 "${name}" 吗？`)) {
-      onConfirm();
-      toast({ title: isKo ? "삭제됨" : "已删除" });
+  const runPersist = async (op: () => void | Promise<void>, okTitle: string) => {
+    try {
+      await op();
+      toast({ title: okTitle, description: isKo ? "모든 계정·기기에 공유됩니다" : "已同步至所有账号与设备" });
+    } catch (e) {
+      toast({
+        title: isKo ? "저장 실패" : "保存失败",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
     }
   };
 
-  const handleSave = (saveFn: () => void) => {
-    saveFn();
-    toast({ title: isKo ? "저장됨" : "已保存" });
+  const confirmDelete = (name: string, onConfirm: () => void | Promise<void>) => {
+    if (window.confirm(isKo ? `"${name}" 을(를) 삭제하시겠습니까?` : `确定删除 "${name}" 吗？`)) {
+      void runPersist(onConfirm, isKo ? "삭제됨" : "已删除");
+    }
+  };
+
+  const handleSave = (saveFn: () => void | Promise<void>) => {
+    void runPersist(saveFn, isKo ? "저장됨" : "已保存");
   };
 
   const generalGroups = [
