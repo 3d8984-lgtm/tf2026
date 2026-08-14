@@ -182,19 +182,31 @@ export default function AppLayout() {
     if (!user) return;
     let cancelled = false;
     const pull = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("app_ui_settings")
         .select("setting_value")
         .eq("setting_key", MENU_SETTING_KEY)
         .maybeSingle();
-      if (cancelled || !data) return;
+      if (cancelled || error) return;
+      if (!data) {
+        // First run on a device that still has only local settings: publish them.
+        const local = loadCustom();
+        if (Object.keys(local).length > 0) {
+          await supabase
+            .from("app_ui_settings")
+            .upsert({ setting_key: MENU_SETTING_KEY, setting_value: local, updated_by: user.id }, { onConflict: "setting_key" });
+        }
+        return;
+      }
       const remote = (data.setting_value ?? {}) as MenuCustom;
       setCustom(remote);
       try { localStorage.setItem(MENU_CUSTOM_KEY, JSON.stringify(remote)); } catch { /* ignore */ }
     };
     void pull();
-    const timer = window.setInterval(pull, 60000);
-    return () => { cancelled = true; window.clearInterval(timer); };
+    const timer = window.setInterval(pull, 20000);
+    const onFocus = () => { void pull(); };
+    window.addEventListener("focus", onFocus);
+    return () => { cancelled = true; window.clearInterval(timer); window.removeEventListener("focus", onFocus); };
   }, [user]);
   const persistCustom = async (next: MenuCustom) => {
     try { localStorage.setItem(MENU_CUSTOM_KEY, JSON.stringify(next)); } catch { /* ignore */ }
@@ -205,9 +217,12 @@ export default function AppLayout() {
       .upsert({ setting_key: MENU_SETTING_KEY, setting_value: next, updated_by: user.id }, { onConflict: "setting_key" });
     if (error) {
       console.error("Failed to save menu customizations:", error);
-      toast.error("메뉴 설정 저장에 실패했습니다. 관리자 권한이 필요합니다.");
+      toast.error(`메뉴 설정 저장 실패: ${error.message}`);
+    } else {
+      toast.success("메뉴 설정이 모든 계정·기기에 저장되었습니다.");
     }
   };
+
 
   const getLabel = (item: MenuItem) => custom[item.path]?.label?.trim() || t(item.key);
   const sortWith = (items: MenuItem[], src: MenuCustom) => {
