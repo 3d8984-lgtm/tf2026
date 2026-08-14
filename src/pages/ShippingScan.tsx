@@ -996,6 +996,39 @@ export default function ShippingScan() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Print-scale calibration */}
+      <Dialog open={calibOpen} onOpenChange={setCalibOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{tr("출력 배율 보정", "打印比例校准")}</DialogTitle></DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p className="text-muted-foreground text-xs">
+              {tr(
+                `1) 아래 ‘눈금자 시트 출력’을 눌러 인쇄합니다(현재 배율 ${labelScale}%).\n2) 인쇄된 테두리의 가로·세로 실제 길이를 자로 재서 입력합니다.\n3) 적용을 누르면 ${previewSize.w}×${previewSize.h}mm 로 나오도록 배율이 자동 계산됩니다.`,
+                `1) 点击下方「打印标尺页」（当前比例 ${labelScale}%）。\n2) 用尺子测量打印边框的实际长宽并输入。\n3) 点击应用后自动计算为 ${previewSize.w}×${previewSize.h}mm 的比例。`
+              )}
+            </p>
+            <Button variant="outline" size="sm" onClick={printCalibrationSheet}>
+              <Printer className="w-4 h-4 mr-1" />{tr("눈금자 시트 출력", "打印标尺页")}
+            </Button>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">{tr(`실측 가로 (mm) · 목표 ${previewSize.w}`, `实测宽度 (mm) · 目标 ${previewSize.w}`)}</Label>
+                <Input type="number" step={0.5} value={measuredW} onChange={(e) => setMeasuredW(e.target.value)} placeholder="75" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">{tr(`실측 세로 (mm) · 목표 ${previewSize.h}`, `实测高度 (mm) · 目标 ${previewSize.h}`)}</Label>
+                <Input type="number" step={0.5} value={measuredH} onChange={(e) => setMeasuredH(e.target.value)} placeholder="110" />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCalibOpen(false)}>{tr("취소", "取消")}</Button>
+            <Button onClick={applyCalibration}>{tr("적용", "应用")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
+
 }
