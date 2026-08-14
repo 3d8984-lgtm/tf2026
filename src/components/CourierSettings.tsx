@@ -132,7 +132,20 @@ export default function CourierSettings() {
 
   const handleSaveCred = async () => {
     if (!credDialog) return;
+    // 브라우저 자동완성으로 이메일이 App Key에 들어가는 사고 방지
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cred.api_key.trim())) {
+      toast({
+        variant: "destructive",
+        title: tr("App Key 값이 올바르지 않습니다", "App Key 值不正确"),
+        description: tr(
+          "이메일 주소가 입력되어 있습니다. 브라우저 자동완성 값을 지우고 실제 App Key를 입력하세요.",
+          "当前填写的是邮箱地址。请清除浏览器自动填充内容并输入真实 App Key。",
+        ),
+      });
+      return;
+    }
     try {
+
       const base = (credExtra?.extra ?? {}) as Record<string, unknown>;
       const extra: Record<string, unknown> = { ...base };
       const put = (key: string, val: string) => {
@@ -326,6 +339,9 @@ export default function CourierSettings() {
             <DialogTitle>{credDialog?.name} — {tr("API 인증정보", "API 认证信息")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
+            {/* 브라우저 비밀번호 관리자 자동완성 방지용 디코이 필드 */}
+            <input type="text" name="username" autoComplete="username" tabIndex={-1} aria-hidden="true" className="hidden" />
+            <input type="password" name="password" autoComplete="current-password" tabIndex={-1} aria-hidden="true" className="hidden" />
             <p className="text-xs text-muted-foreground">
               {tr(
                 "인증정보는 서버에만 저장되며 화면에서 다시 조회할 수 없습니다. 변경할 항목만 입력하세요.",
@@ -334,28 +350,34 @@ export default function CourierSettings() {
             </p>
             <div className="space-y-2">
               <Label>{credDialog?.code === "yunexpress" ? "Customer ID (Account)" : "App Key"}</Label>
-              <Input value={cred.api_key} onChange={(e) => setCred((c) => ({ ...c, api_key: e.target.value }))} placeholder={credDialog?.has_credentials ? "••••••••" : ""} />
+              <Input name="courier-app-key" autoComplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" value={cred.api_key} onChange={(e) => setCred((c) => ({ ...c, api_key: e.target.value }))} placeholder={credDialog?.has_credentials ? "••••••••" : ""} />
             </div>
             <div className="space-y-2">
               <Label>{credDialog?.code === "yunexpress" ? "API Secret" : "App Secret"}</Label>
-              <Input type="password" value={cred.api_secret} onChange={(e) => setCred((c) => ({ ...c, api_secret: e.target.value }))} placeholder={credDialog?.has_credentials ? "••••••••" : ""} />
+              <Input type="password" name="courier-app-secret" autoComplete="new-password" data-1p-ignore data-lpignore="true" data-form-type="other" value={cred.api_secret} onChange={(e) => setCred((c) => ({ ...c, api_secret: e.target.value }))} placeholder={credDialog?.has_credentials ? "••••••••" : ""} />
             </div>
             <div className="space-y-2">
               <Label>{tr("거래처/계정 번호", "客户/账号编号")}</Label>
-              <Input value={cred.account_no} onChange={(e) => setCred((c) => ({ ...c, account_no: e.target.value }))} />
+              <Input name="courier-account-no" autoComplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" value={cred.account_no} onChange={(e) => setCred((c) => ({ ...c, account_no: e.target.value }))} />
             </div>
             <div className="space-y-2">
               <Label>{tr("배송 채널 코드", "运输渠道代码")}</Label>
-              <Input value={cred.channel_code} onChange={(e) => setCred((c) => ({ ...c, channel_code: e.target.value }))} placeholder={tr("예: US-EXP", "例：US-EXP")} />
+              <Input name="courier-channel-code" autoComplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" value={cred.channel_code} onChange={(e) => setCred((c) => ({ ...c, channel_code: e.target.value }))} placeholder={tr("예: US-EXP", "例：US-EXP")} />
             </div>
             {credDialog?.code === "4px" && (
               <div className="space-y-2">
                 <Label>Access Token</Label>
                 <Input
+                  name="courier-access-token"
+                  autoComplete="off"
+                  data-1p-ignore
+                  data-lpignore="true"
+                  data-form-type="other"
                   value={cred.access_token}
                   onChange={(e) => setCred((c) => ({ ...c, access_token: e.target.value }))}
                   placeholder={tr("4PX 오픈플랫폼 授权 access_token", "4PX开放平台授权 access_token")}
                 />
+
                 <p className="text-xs text-muted-foreground">
                   {tr(
                     "주문생성(ds.xms.order.create)은 access_token 인증이 필요합니다. 없으면 '签名验证错误(000012)'가 발생합니다.",
