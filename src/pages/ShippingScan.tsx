@@ -894,7 +894,7 @@ export default function ShippingScan() {
                   );
                 })}
                 {items.length === 0 && (
-                  <tr><td colSpan={11} className="text-center text-xs text-muted-foreground py-8">
+                  <tr><td colSpan={12} className="text-center text-xs text-muted-foreground py-8">
                     {tr("이 주문의 상세 항목이 없습니다.", "该订单暂无明细。")}
                   </td></tr>
                 )}
