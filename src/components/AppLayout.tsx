@@ -10,6 +10,7 @@ import {
 import { useLang, type Lang } from "@/contexts/LangContext";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
+import { supabase } from "@/integrations/supabase/client";
 import twinmetaLogo from "@/assets/twinmeta-logo.png";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -220,7 +221,7 @@ export default function AppLayout() {
 
   const sortItems = (items: MenuItem[]) => sortWith(items, custom);
   const openCustomize = () => {
-    setDraft(JSON.parse(JSON.stringify(loadCustom())));
+    setDraft(JSON.parse(JSON.stringify(custom)));
     setCustomizeOpen(true);
   };
   const moveDraft = (section: "hq" | "outsource", path: string, dir: -1 | 1) => {
