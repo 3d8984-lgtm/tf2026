@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { ArrowUpRight, ArrowDownLeft, TestTube, CheckCircle2, XCircle, Loader2, Copy, Check, Globe, Send, KeyRound, RefreshCw, Link2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useGlobalSetting } from "@/hooks/useGlobalSetting";
 import { supabase } from "@/integrations/supabase/client";
 
 interface CallbackConfig {
@@ -289,23 +290,25 @@ export default function SiteCallbackSettings() {
   );
 }
 
-const INBOUND_KEY_STORAGE = "twinmeta.inbound.api_key.v1";
-const INBOUND_ENABLED_STORAGE = "twinmeta.inbound.enabled.v1";
+const INBOUND_SETTING_KEY = "twinmeta.inbound.v1";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 
 function InboundReceiveSettings() {
   const { lang } = useLang();
   const isKo = lang === "ko";
   const { toast } = useToast();
+  const { value: inbound, persist: persistInbound } = useGlobalSetting<{ api_key: string; enabled: boolean }>(
+    INBOUND_SETTING_KEY,
+    { api_key: "", enabled: true },
+  );
   const [apiKey, setApiKey] = useState("");
   const [enabled, setEnabled] = useState(true);
   const [showKey, setShowKey] = useState(false);
 
   useEffect(() => {
-    setApiKey(localStorage.getItem(INBOUND_KEY_STORAGE) || "");
-    const e = localStorage.getItem(INBOUND_ENABLED_STORAGE);
-    setEnabled(e === null ? true : e === "1");
-  }, []);
+    setApiKey(inbound?.api_key ?? "");
+    setEnabled(inbound?.enabled ?? true);
+  }, [inbound]);
 
   const receiveUrl = `${SUPABASE_URL}/functions/v1/webhook-receive`;
 
@@ -323,10 +326,17 @@ function InboundReceiveSettings() {
     toast({ title: isKo ? "복사됨" : "已复制" });
   };
 
-  const save = () => {
-    localStorage.setItem(INBOUND_KEY_STORAGE, apiKey);
-    localStorage.setItem(INBOUND_ENABLED_STORAGE, enabled ? "1" : "0");
-    toast({ title: isKo ? "저장됨" : "已保存", description: isKo ? "TWINMETA 수신 API 설정이 저장되었습니다" : "TWINMETA接收API设置已保存" });
+  const save = async () => {
+    try {
+      await persistInbound({ api_key: apiKey, enabled });
+      toast({ title: isKo ? "저장됨" : "已保存", description: isKo ? "모든 계정·기기에 공유됩니다" : "已同步至所有账号与设备" });
+    } catch (e) {
+      toast({
+        title: isKo ? "저장 실패" : "保存失败",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+    }
   };
 
   const samplePayload = JSON.stringify({
