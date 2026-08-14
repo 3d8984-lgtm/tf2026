@@ -189,15 +189,20 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any): P
       ShippingMethodCode: cred?.extra?.channel_code ?? "",
       PackageCount: 1,
       Weight: ((shipment.weight_grams ?? shipment.expected_weight_grams ?? 0) / 1000) || 0.1,
-      Receiver: {
-        CountryCode: order.shipping_country ?? "US",
-        FirstName: order.recipient_name,
-        Street: order.shipping_address ?? "",
-        City: order.shipping_city ?? "",
-        State: order.shipping_state ?? "",
-        Zip: order.shipping_zip ?? "",
-        Phone: order.recipient_phone ?? "",
-      },
+      Receiver: (() => {
+        const r = normalizeRecipient(order);
+        return {
+          CountryCode: r.country,
+          FirstName: r.first_name,
+          LastName: r.last_name,
+          Street: r.street,
+          City: r.city,
+          State: r.state,
+          Zip: r.zip,
+          Phone: order.recipient_phone ?? "",
+        };
+      })(),
+
       Parcels: [
         {
           EName: cred?.extra?.item_name_en ?? "T-Shirt",
