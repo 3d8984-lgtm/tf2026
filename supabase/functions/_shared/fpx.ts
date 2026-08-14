@@ -56,10 +56,12 @@ export async function fpxCall(
     timestamp: Date.now().toString(),
   };
   const accessToken = (cred.extra as any)?.access_token;
-  if (accessToken) common.access_token = String(accessToken);
 
+  // 4PX signs only the base common params; access_token is sent but NOT signed.
   const sign = fpxSign(common, cred.api_secret ?? "");
+  if (accessToken) common.access_token = String(accessToken);
   const qs = new URLSearchParams({ ...common, sign, language });
+
 
   const res = await fetch(`${endpoint}?${qs.toString()}`, {
     method: "POST",
