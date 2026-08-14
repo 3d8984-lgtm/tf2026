@@ -176,33 +176,38 @@ export default function AppLayout() {
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
-  // Cross-device sync: the server copy is the source of truth.
+  // Cross-device sync: the shared server copy is the source of truth for everyone.
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
-    (async () => {
-      const { data, error } = await supabase
-        .from("user_ui_settings")
+    const pull = async () => {
+      const { data } = await supabase
+        .from("app_ui_settings")
         .select("setting_value")
-        .eq("user_id", user.id)
         .eq("setting_key", MENU_SETTING_KEY)
         .maybeSingle();
-      if (cancelled || error || !data) return;
+      if (cancelled || !data) return;
       const remote = (data.setting_value ?? {}) as MenuCustom;
       setCustom(remote);
       try { localStorage.setItem(MENU_CUSTOM_KEY, JSON.stringify(remote)); } catch { /* ignore */ }
-    })();
-    return () => { cancelled = true; };
+    };
+    void pull();
+    const timer = window.setInterval(pull, 60000);
+    return () => { cancelled = true; window.clearInterval(timer); };
   }, [user]);
   const persistCustom = async (next: MenuCustom) => {
     try { localStorage.setItem(MENU_CUSTOM_KEY, JSON.stringify(next)); } catch { /* ignore */ }
     setCustom(next);
     if (!user) return;
     const { error } = await supabase
-      .from("user_ui_settings")
-      .upsert({ user_id: user.id, setting_key: MENU_SETTING_KEY, setting_value: next }, { onConflict: "user_id,setting_key" });
-    if (error) console.error("Failed to save menu customizations:", error);
+      .from("app_ui_settings")
+      .upsert({ setting_key: MENU_SETTING_KEY, setting_value: next, updated_by: user.id }, { onConflict: "setting_key" });
+    if (error) {
+      console.error("Failed to save menu customizations:", error);
+      toast.error("메뉴 설정 저장에 실패했습니다. 관리자 권한이 필요합니다.");
+    }
   };
+
   const getLabel = (item: MenuItem) => custom[item.path]?.label?.trim() || t(item.key);
   const sortWith = (items: MenuItem[], src: MenuCustom) => {
     // Items without a stored order inherit the position of the closest preceding
