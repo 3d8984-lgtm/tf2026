@@ -130,6 +130,15 @@ Deno.serve(async (req) => {
       return json({ ok, message });
     }
 
+    if (action === "diag_4px") {
+      const { data: cfg } = await admin.from("courier_configs").select("*").eq("code", "4px").maybeSingle();
+      const { data: cred } = await admin.from("courier_credentials").select("*").eq("code", "4px").maybeSingle();
+      const ep = fpxEndpoint(cfg?.api_url, cfg?.api_mode);
+      const withTok = await fpxProbe(ep, cred as any);
+      const noTok = await fpxProbe(ep, { ...(cred as any), extra: {} });
+      return json({ ok: true, endpoint: ep, with_token: withTok.message, without_token: noTok.message });
+    }
+
 
     return json({ error: "unknown action" }, 400);
   } catch (e) {
