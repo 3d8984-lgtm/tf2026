@@ -27,6 +27,11 @@ export interface FpxResponse {
 }
 
 export function fpxEndpoint(apiUrl?: string | null, apiMode?: string | null) {
+  // Keep the mode selector authoritative for the two official 4PX hosts.
+  // A previously saved production URL must not silently override test mode.
+  if (apiUrl === FPX_PROD_URL || apiUrl === FPX_TEST_URL) {
+    return apiMode === "test" ? FPX_TEST_URL : FPX_PROD_URL;
+  }
   if (apiUrl && /^https?:\/\//i.test(apiUrl)) return apiUrl;
   return apiMode === "test" ? FPX_TEST_URL : FPX_PROD_URL;
 }
