@@ -845,10 +845,11 @@ export default function ShippingScan() {
                   <th className="text-left px-3 py-2">{tr("홀로그램 고유번호", "全息码")}</th>
                   <th className="text-left px-3 py-2">QR</th>
                   <th className="text-left px-3 py-2">{tr("제품/색상/사이즈", "产品/颜色/尺码")}</th>
-                  <th className="text-left px-3 py-2">{tr("Twinker (받는사람)", "Twinker (收件人)")}</th>
+                  <th className="text-left px-3 py-2">{tr("수취인명", "收件人")}</th>
                   <th className="text-left px-3 py-2">{tr("전화", "电话")}</th>
                   <th className="text-left px-3 py-2">{tr("주소", "地址")}</th>
-                  <th className="text-left px-3 py-2">{tr("도시/지역/국가", "城市/州/国家")}</th>
+                  <th className="text-left px-3 py-2">{tr("우편번호", "邮编")}</th>
+                  <th className="text-left px-3 py-2">{tr("국가", "国家")}</th>
                   <th className="text-center px-3 py-2">{tr("스캔", "扫码")}</th>
                   <th className="text-left px-3 py-2">{tr("택배사", "承运商")}</th>
                   <th className="text-left px-3 py-2">{tr("송장번호", "运单号")}</th>
@@ -858,20 +859,30 @@ export default function ShippingScan() {
                 {items.map((it: any) => {
                   const holo = it.qr_value ? holoSerials[it.qr_value] : undefined;
                   const holoNo = holoUniqueNos[(it.position ?? 1) - 1] || holo?.serial || "-";
+                  const src: any[] = Array.isArray(order?.source_data?.items) ? order.source_data.items : [];
+                  const si: any = src[(it.position ?? 1) - 1] || {};
+                  const productCode = it.product_code || si.tshirt_type || order?.product_code || "";
+                  const color = it.color || si.tshirt_color || "";
+                  const size = it.size || si.tshirt_size || "";
+                  const recipient = si.recipient_name || order?.recipient_name || "-";
+                  const phone = si.recipient_phone || order?.recipient_phone || "-";
+                  const address = si.shipping_address || order?.shipping_address || "";
+                  const zip = si.shipping_zip || order?.shipping_zip || "-";
+                  const country = si.country_code || order?.shipping_country || "-";
                   return (
                     <tr key={it.id} className="border-b hover:bg-accent/30 transition-colors">
                       <td className="px-3 py-2 text-center font-mono text-xs">{it.position}</td>
                       <td className="px-3 py-2 font-mono text-xs">{holoNo}</td>
                       <td className="px-3 py-2 font-mono text-xs max-w-[180px] truncate" title={it.qr_value ?? ""}>{it.qr_value ?? "-"}</td>
                       <td className="px-3 py-2 text-xs">
-                        {[it.product_code, it.color, it.size].filter(Boolean).join(" / ") || "-"}
+                        {[productCode, color, size].filter(Boolean).join(" / ") || "-"}
                       </td>
-                      <td className="px-3 py-2 font-medium">{order?.recipient_name ?? "-"}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{order?.recipient_phone ?? "-"}</td>
-                      <td className="px-3 py-2 text-xs max-w-[240px] truncate" title={order?.shipping_address ?? ""}>{order?.shipping_address ?? "-"}</td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground">
-                        {[order?.shipping_city, order?.shipping_state, order?.shipping_zip, order?.shipping_country].filter(Boolean).join(", ")}
-                      </td>
+                      <td className="px-3 py-2 font-medium">{recipient}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{phone}</td>
+                      <td className="px-3 py-2 text-xs max-w-[240px] truncate" title={address}>{address || "-"}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{zip}</td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">{country}</td>
+
                       <td className="px-3 py-2 text-center">
                         {it.is_scanned
                           ? <Badge variant="outline" className="text-[10px] bg-emerald-500/15 text-emerald-400 border-emerald-500/30">OK</Badge>
