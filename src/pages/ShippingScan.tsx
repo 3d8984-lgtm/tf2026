@@ -77,6 +77,14 @@ export default function ShippingScan() {
 
 
   const [scanInput, setScanInput] = useState("");
+  // Print scale (%) — compensates printer drivers that shrink the page ("fit to page").
+  const [labelScale, setLabelScale] = useState<number>(() => {
+    const v = Number(localStorage.getItem("shipping-label-print-scale"));
+    return Number.isFinite(v) && v >= 50 && v <= 200 ? v : 100;
+  });
+  useEffect(() => {
+    localStorage.setItem("shipping-label-print-scale", String(labelScale));
+  }, [labelScale]);
   const [cameraOn, setCameraOn] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: FeedbackKind; msg: string }>({ kind: "idle", msg: "" });
   const [testMode, setTestMode] = useState(true);
@@ -458,7 +466,7 @@ export default function ShippingScan() {
     return { w: 70, h: 130 };
   }
 
-  function buildLabelHtml(opts: { test?: boolean; testTracking?: string; noPrint?: boolean } = {}) {
+  function buildLabelHtml(opts: { test?: boolean; testTracking?: string; noPrint?: boolean; scale?: number } = {}) {
     // `test` = fixed dummy recipient (printer check).
     // `testTracking` = real order data, simulated tracking number (4PX test mode).
     const test = !!opts.test;
@@ -512,7 +520,7 @@ export default function ShippingScan() {
         width: size.w,
         height: size.h,
       },
-      { print: !opts.noPrint },
+      { print: !opts.noPrint, scale: opts.scale ?? (opts.noPrint ? 100 : labelScale) },
     );
   }
 
@@ -521,6 +529,9 @@ export default function ShippingScan() {
   // Accepts a URL, a base64 data-URL PDF, or an HTML label returned by the carrier.
   function buildRemoteLabelHtml(url: string, code?: string | null, noPrint = false) {
     const { w: LW, h: LH } = labelSizeFor(code);
+    const k = noPrint ? 1 : Math.min(2, Math.max(0.5, labelScale / 100));
+    const IW = +(LW / k).toFixed(3);
+    const IH = +(LH / k).toFixed(3);
     const isImg = /^data:image\//i.test(url) || /\.(png|jpe?g)$/i.test(url);
     const isHtml = /^data:text\/html/i.test(url) || /\.html?$/i.test(url);
     const printScript = noPrint ? "" : `<script>window.onload=()=>{setTimeout(()=>window.print(),800)};<\/script>`;
@@ -532,8 +543,8 @@ export default function ShippingScan() {
     return `<!doctype html><html><head><meta charset="utf-8"/><title>Label</title>
       <style>
         @page { size: ${LW}mm ${LH}mm; margin: 0; }
-        html, body { margin: 0; padding: 0; width: ${LW}mm; height: ${LH}mm; }
-        embed, img, iframe { width: ${LW}mm; height: ${LH}mm; object-fit: contain; display: block; border: 0; }
+        html, body { margin: 0; padding: 0; width: ${LW}mm; height: ${LH}mm; overflow: hidden; }
+        embed, img, iframe { width: ${IW}mm; height: ${IH}mm; object-fit: fill; display: block; border: 0; transform: scale(${k}); transform-origin: top left; }
       </style></head><body>
       ${body}${printScript}
       </body></html>`;
@@ -847,18 +858,38 @@ export default function ShippingScan() {
               <TestTube2 className="w-4 h-4" />
               <AlertDescription className="text-xs">
                 {tr(
-                  `프린터/스캐너 연동을 확인하려면 '테스트 출력'을 사용하세요. 브라우저 프린트 대화창에서 용지 크기 ${previewSize.w}×${previewSize.h}mm, 여백 '없음'으로 설정해야 라벨지에 정확히 출력됩니다.`,
-                  `请使用『测试打印』确认打印机/扫描器连接。在打印对话框中将纸张设为 ${previewSize.w}×${previewSize.h}mm、边距设为「无」即可精准打印。`
+                  `프린터 대화창에서 용지 ${previewSize.w}×${previewSize.h}mm, 배율 100%(‘페이지에 맞춤’ 해제), 여백 ‘없음’으로 설정하세요. 그래도 작게 나오면 아래 ‘출력 배율’을 올려(예: 105%) 실제 라벨 크기에 맞추세요.`,
+                  `请在打印对话框中设置纸张 ${previewSize.w}×${previewSize.h}mm、缩放 100%（关闭「适应页面」）、边距「无」。若仍偏小，请调高下方「打印比例」（如 105%）。`
                 )}
               </AlertDescription>
             </Alert>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" onClick={printTestLabel}>
                 <TestTube2 className="w-4 h-4 mr-1" />{tr("테스트 출력", "测试打印")}
               </Button>
               <Button variant="outline" disabled={!shipment.tracking_number} onClick={downloadLabelPdf}>
                 <Printer className="w-4 h-4 mr-1" />{tr("실제 송장 출력", "打印当前运单")}
               </Button>
+              <div className="flex items-center gap-1 rounded-md border px-2 py-1">
+                <span className="text-[11px] text-muted-foreground">{tr("출력 배율", "打印比例")}</span>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0"
+                  onClick={() => setLabelScale((v) => Math.max(50, +(v - 1).toFixed(1)))}>−</Button>
+                <Input
+                  type="number"
+                  min={50}
+                  max={200}
+                  step={0.5}
+                  value={labelScale}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v)) setLabelScale(Math.min(200, Math.max(50, v)));
+                  }}
+                  className="h-7 w-16 text-center font-mono text-xs"
+                />
+                <span className="text-[11px] text-muted-foreground">%</span>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0"
+                  onClick={() => setLabelScale((v) => Math.min(200, +(v + 1).toFixed(1)))}>+</Button>
+              </div>
             </div>
             <div className="text-[11px] text-muted-foreground space-y-1 pt-2 border-t">
               <div>• {tr("스캐너 상태:", "扫描状态：")} <span className={hidActive ? "text-emerald-400" : ""}>{hidActive ? tr("신호 수신됨", "已接收信号") : tr("대기 중", "等待中")}</span></div>

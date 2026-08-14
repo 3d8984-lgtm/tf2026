@@ -72,10 +72,18 @@ export interface FpxLabelData {
   height?: number;
 }
 
-/** Full-page HTML for a 4PX-format waybill. Identical markup is used for preview and print. */
-export function buildFpxLabelHtml(d: FpxLabelData, opts: { print?: boolean } = {}) {
+/**
+ * Full-page HTML for a 4PX-format waybill. Identical markup is used for preview and print.
+ * `opts.scale` (percent, default 100) compensates for printer drivers that shrink the page:
+ * the label is laid out at `size / k` and then scaled by `k`, so it always covers the
+ * full physical sheet.
+ */
+export function buildFpxLabelHtml(d: FpxLabelData, opts: { print?: boolean; scale?: number } = {}) {
   const LW = d.width ?? 100;
   const LH = d.height ?? 150;
+  const k = Math.min(2, Math.max(0.5, (opts.scale ?? 100) / 100));
+  const IW = +(LW / k).toFixed(3);
+  const IH = +(LH / k).toFixed(3);
   const r = d.recipient ?? {};
   const country = (r.country || "US").toUpperCase();
   const date = (d.createdAt ? new Date(d.createdAt) : new Date()).toISOString().slice(0, 16).replace("T", " ");
@@ -91,10 +99,10 @@ export function buildFpxLabelHtml(d: FpxLabelData, opts: { print?: boolean } = {
   html, body { margin: 0; padding: 0; background: #fff; width: ${LW}mm; height: ${LH}mm; overflow: hidden; }
   * { box-sizing: border-box; }
   body { font-family: Arial, "Helvetica Neue", sans-serif; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .label { width: ${LW}mm; height: ${LH}mm; padding: 2mm; display: flex; flex-direction: column; position: relative; overflow: hidden; page-break-after: avoid; }
+  .label { width: ${IW}mm; height: ${IH}mm; padding: 2mm; display: flex; flex-direction: column; position: relative; overflow: hidden; page-break-after: avoid; transform: scale(${k}); transform-origin: top left; }
   @media print {
     html, body { width: ${LW}mm !important; height: ${LH}mm !important; }
-    .label { width: ${LW}mm !important; height: ${LH}mm !important; page-break-inside: avoid; }
+    .label { width: ${IW}mm !important; height: ${IH}mm !important; page-break-inside: avoid; }
   }
   .box { border: 0.4mm solid #000; display: flex; flex-direction: column; flex: 1; }
   .hd { display: flex; align-items: center; justify-content: space-between; padding: 2mm 3mm; }
@@ -116,7 +124,7 @@ export function buildFpxLabelHtml(d: FpxLabelData, opts: { print?: boolean } = {
   .info .ref { font-size: 9pt; }
   .info .ref b { font-size: 10pt; }
   .foot { margin-top: auto; display: flex; justify-content: space-between; font-size: 6pt; color: #333; padding: 1mm 3mm; }
-  .test { position: absolute; top: 45mm; left: 0; width: ${LW}mm; text-align: center; font-size: 32pt; font-weight: 900; color: rgba(0,0,0,.12); transform: rotate(-20deg); letter-spacing: 4px; }
+  .test { position: absolute; top: 45mm; left: 0; width: ${IW}mm; text-align: center; font-size: 32pt; font-weight: 900; color: rgba(0,0,0,.12); transform: rotate(-20deg); letter-spacing: 4px; }
 </style></head><body>
 <div class="label">
   ${d.test ? `<div class="test">TEST</div>` : ""}
