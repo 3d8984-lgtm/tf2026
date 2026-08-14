@@ -35,6 +35,18 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any): Promise<
   const qty = Number(order.quantity ?? 1) || 1;
   const unitPrice = Number(extra.unit_price ?? 10);
   const weight = Math.max(1, Math.round(shipment.weight_grams ?? shipment.expected_weight_grams ?? 200));
+  // 4PX는 수취인 정보에 영문/기호만 허용하고 city/state가 필수입니다.
+  const rcp = normalizeRecipient(order);
+  if (rcp.missing.length) {
+    return {
+      tracking_number: null,
+      label_url: null,
+      raw: null,
+      error: `수취인 주소 정보가 부족합니다 (${rcp.missing.join(", ")}). 주문 데이터의 도시/주/우편번호를 확인해 주세요.`,
+    };
+  }
+
+
 
   const bizData = {
     ref_no: order.external_order_id,
