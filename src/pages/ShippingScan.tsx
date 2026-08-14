@@ -458,7 +458,7 @@ export default function ShippingScan() {
     return { w: 70, h: 130 };
   }
 
-  function buildLabelHtml(opts: { test?: boolean; testTracking?: string; noPrint?: boolean } = {}) {
+  function buildLabelHtml(opts: { test?: boolean; testTracking?: string; noPrint?: boolean; scale?: number } = {}) {
     // `test` = fixed dummy recipient (printer check).
     // `testTracking` = real order data, simulated tracking number (4PX test mode).
     const test = !!opts.test;
