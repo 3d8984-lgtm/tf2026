@@ -82,15 +82,17 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any): Promise<
       street: extra.sender_street ?? "-",
     },
     recipient_info: {
-      first_name: order.recipient_name,
-      phone: order.recipient_phone ?? "",
-      post_code: order.shipping_zip ?? "",
-      country: order.shipping_country ?? "US",
-      state: order.shipping_state ?? "",
-      city: order.shipping_city ?? "",
-      street: order.shipping_address ?? "",
+      first_name: rcp.first_name,
+      last_name: rcp.last_name,
+      phone: (order.recipient_phone ?? "").replace(/[^\d+\-() ]/g, "") || "0000000000",
+      post_code: rcp.zip,
+      country: rcp.country,
+      state: rcp.state,
+      city: rcp.city,
+      street: rcp.street,
       email: extra.recipient_email ?? "",
     },
+
     deliver_type_info: { deliver_type: String(extra.deliver_type ?? "3") },
   };
 
