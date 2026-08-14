@@ -80,11 +80,16 @@ export default function ShippingScan() {
   // Print scale (%) — compensates printer drivers that shrink the page ("fit to page").
   const [labelScale, setLabelScale] = useState<number>(() => {
     const v = Number(localStorage.getItem("shipping-label-print-scale"));
-    return Number.isFinite(v) && v >= 50 && v <= 200 ? v : 100;
+    return Number.isFinite(v) && v >= 50 && v <= 300 ? v : 100;
   });
   useEffect(() => {
     localStorage.setItem("shipping-label-print-scale", String(labelScale));
   }, [labelScale]);
+  // Calibration: print a 100×150mm ruler sheet, measure it, auto-derive the scale.
+  const [calibOpen, setCalibOpen] = useState(false);
+  const [measuredW, setMeasuredW] = useState("");
+  const [measuredH, setMeasuredH] = useState("");
+
   const [cameraOn, setCameraOn] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: FeedbackKind; msg: string }>({ kind: "idle", msg: "" });
   const [testMode, setTestMode] = useState(true);
