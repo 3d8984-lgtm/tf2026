@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 
 type MenuCustom = Record<string, { label?: string; order?: number }>;
 const MENU_CUSTOM_KEY = "twinmeta.menuCustomizations.v1";
+const MENU_SETTING_KEY = "menu_customizations";
 const loadCustom = (): MenuCustom => {
   try { return JSON.parse(localStorage.getItem(MENU_CUSTOM_KEY) || "{}"); } catch { return {}; }
 };
