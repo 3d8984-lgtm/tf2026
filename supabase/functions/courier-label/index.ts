@@ -1,5 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.58.0";
 import { fpxCall, fpxEndpoint, fpxProbe, fpxCancelOrder, FPX_TEST_URL } from "../_shared/fpx.ts";
+import { normalizeRecipient } from "../_shared/addr.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -33,6 +35,18 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any): Promise<
   const qty = Number(order.quantity ?? 1) || 1;
   const unitPrice = Number(extra.unit_price ?? 10);
   const weight = Math.max(1, Math.round(shipment.weight_grams ?? shipment.expected_weight_grams ?? 200));
+  // 4PX는 수취인 정보에 영문/기호만 허용하고 city/state가 필수입니다.
+  const rcp = normalizeRecipient(order);
+  if (rcp.missing.length) {
+    return {
+      tracking_number: null,
+      label_url: null,
+      raw: null,
+      error: `수취인 주소 정보가 부족합니다 (${rcp.missing.join(", ")}). 주문 데이터의 도시/주/우편번호를 확인해 주세요.`,
+    };
+  }
+
+
 
   const bizData = {
     ref_no: order.external_order_id,
@@ -80,15 +94,17 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any): Promise<
       street: extra.sender_street ?? "-",
     },
     recipient_info: {
-      first_name: order.recipient_name,
-      phone: order.recipient_phone ?? "",
-      post_code: order.shipping_zip ?? "",
-      country: order.shipping_country ?? "US",
-      state: order.shipping_state ?? "",
-      city: order.shipping_city ?? "",
-      street: order.shipping_address ?? "",
+      first_name: rcp.first_name,
+      last_name: rcp.last_name,
+      phone: (order.recipient_phone ?? "").replace(/[^\d+\-() ]/g, "") || "0000000000",
+      post_code: rcp.zip,
+      country: rcp.country,
+      state: rcp.state,
+      city: rcp.city,
+      street: rcp.street,
       email: extra.recipient_email ?? "",
     },
+
     deliver_type_info: { deliver_type: String(extra.deliver_type ?? "3") },
   };
 
@@ -173,15 +189,20 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any): P
       ShippingMethodCode: cred?.extra?.channel_code ?? "",
       PackageCount: 1,
       Weight: ((shipment.weight_grams ?? shipment.expected_weight_grams ?? 0) / 1000) || 0.1,
-      Receiver: {
-        CountryCode: order.shipping_country ?? "US",
-        FirstName: order.recipient_name,
-        Street: order.shipping_address ?? "",
-        City: order.shipping_city ?? "",
-        State: order.shipping_state ?? "",
-        Zip: order.shipping_zip ?? "",
-        Phone: order.recipient_phone ?? "",
-      },
+      Receiver: (() => {
+        const r = normalizeRecipient(order);
+        return {
+          CountryCode: r.country,
+          FirstName: r.first_name,
+          LastName: r.last_name,
+          Street: r.street,
+          City: r.city,
+          State: r.state,
+          Zip: r.zip,
+          Phone: order.recipient_phone ?? "",
+        };
+      })(),
+
       Parcels: [
         {
           EName: cred?.extra?.item_name_en ?? "T-Shirt",
