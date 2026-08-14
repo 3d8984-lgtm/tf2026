@@ -529,6 +529,9 @@ export default function ShippingScan() {
   // Accepts a URL, a base64 data-URL PDF, or an HTML label returned by the carrier.
   function buildRemoteLabelHtml(url: string, code?: string | null, noPrint = false) {
     const { w: LW, h: LH } = labelSizeFor(code);
+    const k = noPrint ? 1 : Math.min(2, Math.max(0.5, labelScale / 100));
+    const IW = +(LW / k).toFixed(3);
+    const IH = +(LH / k).toFixed(3);
     const isImg = /^data:image\//i.test(url) || /\.(png|jpe?g)$/i.test(url);
     const isHtml = /^data:text\/html/i.test(url) || /\.html?$/i.test(url);
     const printScript = noPrint ? "" : `<script>window.onload=()=>{setTimeout(()=>window.print(),800)};<\/script>`;
@@ -540,8 +543,8 @@ export default function ShippingScan() {
     return `<!doctype html><html><head><meta charset="utf-8"/><title>Label</title>
       <style>
         @page { size: ${LW}mm ${LH}mm; margin: 0; }
-        html, body { margin: 0; padding: 0; width: ${LW}mm; height: ${LH}mm; }
-        embed, img, iframe { width: ${LW}mm; height: ${LH}mm; object-fit: contain; display: block; border: 0; }
+        html, body { margin: 0; padding: 0; width: ${LW}mm; height: ${LH}mm; overflow: hidden; }
+        embed, img, iframe { width: ${IW}mm; height: ${IH}mm; object-fit: fill; display: block; border: 0; transform: scale(${k}); transform-origin: top left; }
       </style></head><body>
       ${body}${printScript}
       </body></html>`;
