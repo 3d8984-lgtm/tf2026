@@ -37,6 +37,16 @@ const emptyCred = {
   sender_city: "",
   sender_street: "",
   sender_post_code: "",
+  // 반품지 주소
+  returner_name: "",
+  returner_company: "",
+  returner_phone: "",
+  returner_country: "",
+  returner_state: "",
+  returner_city: "",
+  returner_street: "",
+  returner_post_code: "",
+
   // 신고 정보
   hscode: "",
   unit_price: "",
@@ -122,6 +132,15 @@ export default function CourierSettings() {
       sender_city: s("sender_city"),
       sender_street: s("sender_street"),
       sender_post_code: s("sender_post_code"),
+      returner_name: s("returner_name"),
+      returner_company: s("returner_company"),
+      returner_phone: s("returner_phone"),
+      returner_country: s("returner_country"),
+      returner_state: s("returner_state"),
+      returner_city: s("returner_city"),
+      returner_street: s("returner_street"),
+      returner_post_code: s("returner_post_code"),
+
       hscode: s("hscode"),
       unit_price: s("unit_price"),
       item_name_en: s("item_name_en"),
@@ -163,6 +182,15 @@ export default function CourierSettings() {
       put("sender_city", cred.sender_city);
       put("sender_street", cred.sender_street);
       put("sender_post_code", cred.sender_post_code);
+      put("returner_name", cred.returner_name);
+      put("returner_company", cred.returner_company);
+      put("returner_phone", cred.returner_phone);
+      put("returner_country", cred.returner_country);
+      put("returner_state", cred.returner_state);
+      put("returner_city", cred.returner_city);
+      put("returner_street", cred.returner_street);
+      put("returner_post_code", cred.returner_post_code);
+
       put("hscode", cred.hscode);
       put("item_name_en", cred.item_name_en);
       put("item_name_cn", cred.item_name_cn);
@@ -425,6 +453,52 @@ export default function CourierSettings() {
                 </div>
               </div>
             </div>
+
+            <div className="pt-2 border-t space-y-3">
+              <p className="text-sm font-medium">{tr("반품지 주소 (반송 수령지)", "退货地址")}</p>
+              <p className="text-xs text-muted-foreground">
+                {tr(
+                  "발송은 중국에서 하지만 반품/반송은 미국에서 수령할 경우 여기에 미국 주소를 입력하세요. 비워두면 발송인 주소로 반송됩니다.",
+                  "从中国发货但在美国接收退件时，请在此填写美国地址。留空则退回发件人地址。",
+                )}
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("수령인명", "收件人")}</Label>
+                  <Input value={cred.returner_name} onChange={(e) => setCred((c) => ({ ...c, returner_name: e.target.value }))} placeholder="TWINMETA US" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("회사명", "公司名")}</Label>
+                  <Input value={cred.returner_company} onChange={(e) => setCred((c) => ({ ...c, returner_company: e.target.value }))} placeholder="TWINMETA INC" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("전화번호", "电话")}</Label>
+                  <Input value={cred.returner_phone} onChange={(e) => setCred((c) => ({ ...c, returner_phone: e.target.value }))} placeholder="+1 305 555 0134" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("우편번호", "邮编")}</Label>
+                  <Input value={cred.returner_post_code} onChange={(e) => setCred((c) => ({ ...c, returner_post_code: e.target.value }))} placeholder="33131" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("국가코드", "国家代码")}</Label>
+                  <Input value={cred.returner_country} onChange={(e) => setCred((c) => ({ ...c, returner_country: e.target.value }))} placeholder="US" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("주(State)", "州")}</Label>
+                  <Input value={cred.returner_state} onChange={(e) => setCred((c) => ({ ...c, returner_state: e.target.value }))} placeholder="FL" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("도시", "城市")}</Label>
+                  <Input value={cred.returner_city} onChange={(e) => setCred((c) => ({ ...c, returner_city: e.target.value }))} placeholder="Miami" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("상세주소", "详细地址")}</Label>
+                  <Input value={cred.returner_street} onChange={(e) => setCred((c) => ({ ...c, returner_street: e.target.value }))} placeholder="1200 Brickell Ave Suite 1950" />
+                </div>
+              </div>
+            </div>
+
+
 
             <div className="pt-2 border-t space-y-3">
               <p className="text-sm font-medium">{tr("통관 신고 정보", "报关申报信息")}</p>
