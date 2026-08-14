@@ -27,6 +27,7 @@ const emptyCred = {
   api_secret: "",
   account_no: "",
   channel_code: "",
+  access_token: "",
   // 발송인 정보
   sender_name: "",
   sender_company: "",
@@ -112,6 +113,7 @@ export default function CourierSettings() {
       ...prev,
       account_no: credExtra.account_no ?? "",
       channel_code: s("channel_code") || s("logistics_product_code"),
+      access_token: s("access_token"),
       sender_name: s("sender_name"),
       sender_company: s("sender_company"),
       sender_phone: s("sender_phone"),
@@ -139,6 +141,7 @@ export default function CourierSettings() {
         else delete extra[key];
       };
       put("channel_code", cred.channel_code);
+      put("access_token", cred.access_token);
       put("sender_name", cred.sender_name);
       put("sender_company", cred.sender_company);
       put("sender_phone", cred.sender_phone);
