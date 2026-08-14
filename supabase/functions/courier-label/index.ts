@@ -94,6 +94,22 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any): Promise<
       city: extra.sender_city ?? "Shenzhen",
       street: extra.sender_street ?? "-",
     },
+    // 반품지(반송지) 주소 — 설정된 경우에만 전송 (미설정 시 4PX 기본값 = 발송인 주소)
+    ...(extra.returner_street || extra.returner_name
+      ? {
+          returner: {
+            first_name: extra.returner_name ?? extra.sender_name ?? "TWINMETA",
+            company: extra.returner_company ?? "",
+            phone: extra.returner_phone ?? "",
+            post_code: extra.returner_post_code ?? "",
+            country: extra.returner_country ?? "US",
+            state: extra.returner_state ?? "",
+            city: extra.returner_city ?? "",
+            street: extra.returner_street ?? "-",
+          },
+        }
+      : {}),
+
     recipient_info: {
       first_name: rcp.first_name,
       last_name: rcp.last_name,
