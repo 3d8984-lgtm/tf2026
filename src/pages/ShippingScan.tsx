@@ -77,6 +77,14 @@ export default function ShippingScan() {
 
 
   const [scanInput, setScanInput] = useState("");
+  // Print scale (%) — compensates printer drivers that shrink the page ("fit to page").
+  const [labelScale, setLabelScale] = useState<number>(() => {
+    const v = Number(localStorage.getItem("shipping-label-print-scale"));
+    return Number.isFinite(v) && v >= 50 && v <= 200 ? v : 100;
+  });
+  useEffect(() => {
+    localStorage.setItem("shipping-label-print-scale", String(labelScale));
+  }, [labelScale]);
   const [cameraOn, setCameraOn] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: FeedbackKind; msg: string }>({ kind: "idle", msg: "" });
   const [testMode, setTestMode] = useState(true);
