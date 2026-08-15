@@ -155,11 +155,14 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any): Promise<
   // 4PX may answer with a URL, or with the file itself as base64 (PDF) / raw HTML.
   let labelUrl: string | null = null;
   let labelRaw: unknown = null;
+  // 4PX ds.xms.label.get requires `request_no` (the 4PX tracking / consignment no).
+  const dsNo = d.ds_consignment_no ?? null;
   const attempts = [
-    { ref_no: order.external_order_id, "4px_tracking_no": fpxNo ?? undefined },
-    { "4px_tracking_no": fpxNo ?? undefined },
-    { ref_no: order.external_order_id },
+    { request_no: fpxNo ?? order.external_order_id },
+    { request_no: dsNo ?? fpxNo ?? order.external_order_id },
+    { request_no: order.external_order_id, ref_no: order.external_order_id },
   ];
+
   for (const key of attempts) {
     if (labelUrl) break;
     try {
