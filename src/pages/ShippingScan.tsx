@@ -358,6 +358,7 @@ export default function ShippingScan() {
       const v = scanInput;
       setScanInput("");
       if (v.trim()) {
+        perfStart();
         // Barcode scanners finish with Enter. Open the print target synchronously
         // while that user activation is still valid; opening it after API/database
         // awaits is blocked by Chrome and the carrier label never reaches print.
@@ -390,8 +391,15 @@ export default function ShippingScan() {
       return;
     }
     setIssuing(true);
+    const edgeStart = perfRef.current.t0 ? performance.now() - perfRef.current.t0 : 0;
+    perfMark("edge_call_start", edgeStart);
     try {
       const res = await requestCarrierLabel(shipment.id, carrier, testMode, testVariant, itemPosition ?? shipRecipientPos);
+      // Server-side phase marks are relative to the edge function start.
+      for (const t of ((res as any)?.timings ?? []) as { step: string; ms: number }[]) {
+        perfMark(t.step, edgeStart + t.ms);
+      }
+      perfMark("edge_response");
       if (testMode) {
         await logAction("issue_tracking_test", { trackingNumber: res.tracking_number, carrier, via: "api-test", variant: testVariant });
         const cancelled = (res as any)?.cancelled;
