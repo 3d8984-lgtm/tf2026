@@ -481,11 +481,14 @@ Deno.serve(async (req) => {
       .eq("id", shipment.id);
     if (uErr) return json({ error: uErr.message }, 400);
 
+    mark("edge_response");
     return json({
       ok: true,
       carrier,
       tracking_number: result.tracking_number,
       label_url: result.label_url,
+      timings,
+      total_ms: Date.now() - t0,
     });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : "unknown error" }, 500);
