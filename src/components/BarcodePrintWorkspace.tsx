@@ -610,10 +610,18 @@ function OrderDetail({
   const waitingJobs = jobs.filter((j) => j.status !== "done");
   const printedJobs = doneJobs.length;
   // 인쇄 완료 목록 = 이 주문에서 실제 검증 후 인쇄 처리된 항목 (초기화 시 함께 지워짐)
+  // 게이트웨이 인쇄 대기열에서 바코드별 최종 상태 조회용 맵
+  const jobByCode: Record<string, PrintJob> = {};
+  for (const j of jobs) {
+    const k = norm(j.barcode);
+    const prev = jobByCode[k];
+    if (!prev || ts(j.printed_at ?? j.enqueued_at) >= ts(prev.printed_at ?? prev.enqueued_at)) jobByCode[k] = j;
+  }
   const printedItems = expected
-    .map((e) => ({ e, s: saved[e.position] }))
+    .map((e) => ({ e, s: saved[e.position], job: jobByCode[norm(e.no)] ?? null }))
     .filter((r) => r.s?.status === "done" && r.s?.printed_at)
-    .sort((a, b) => ts(b.s!.printed_at) - ts(a.s!.printed_at));
+    .sort((a, b) => a.e.position - b.e.position);
+
 
 
   const failedJobs = jobs.filter((j) => j.status === "failed").length;
