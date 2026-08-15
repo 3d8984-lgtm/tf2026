@@ -962,7 +962,7 @@ export default function ShippingScan() {
               </AlertDescription>
             </Alert>
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" onClick={printTestLabel}>
+              <Button variant="outline" onClick={() => printTestLabel()}>
                 <TestTube2 className="w-4 h-4 mr-1" />{tr("테스트 출력", "测试打印")}
               </Button>
               <Button variant="outline" disabled={!shipment.tracking_number} onClick={downloadLabelPdf}>
