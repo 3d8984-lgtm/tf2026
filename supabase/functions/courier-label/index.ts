@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.58.0";
-import { fpxCall, fpxEndpoint, fpxCancelOrder, FPX_TEST_URL } from "../_shared/fpx.ts";
+import { fpxCall, fpxEndpoint, fpxCancelOrder } from "../_shared/fpx.ts";
 import { normalizeRecipient } from "../_shared/addr.ts";
 
 
@@ -280,9 +280,9 @@ Deno.serve(async (req) => {
     if (!approved) return json({ error: "forbidden" }, 403);
 
     const { shipment_id, carrier, test, test_variant } = await req.json();
-    // "sandbox"     -> open-test.4px.com with sandbox credentials
-    // "live_cancel" -> production endpoint + real credentials, order is cancelled right after
-    const variant: "sandbox" | "live_cancel" = test_variant === "live_cancel" ? "live_cancel" : "sandbox";
+    // Test mode now only supports the production endpoint with real credentials;
+    // the created waybill is cancelled immediately after the label is fetched.
+    const variant: "live_cancel" = test_variant === "live_cancel" ? "live_cancel" : "live_cancel";
     if (!shipment_id || !carrier) return json({ error: "shipment_id and carrier required" }, 400);
 
     const { data: shipment, error: sErr } = await admin
@@ -308,9 +308,8 @@ Deno.serve(async (req) => {
     }
 
     // ---- TEST MODE ----------------------------------------------------------
-    // sandbox     : open-test.4px.com with sandbox credentials.
-    // live_cancel : production endpoint with the real credentials; the test order is
-    //               cancelled immediately after the label is fetched.
+    // Always uses the production endpoint with real credentials; the test order is
+    // cancelled immediately after the label is fetched.
     if (test) {
       let authOk = false;
       let message = "";
@@ -321,22 +320,12 @@ Deno.serve(async (req) => {
 
       try {
         if (carrier === "4px") {
-          const extra = (cred.extra ?? {}) as Record<string, any>;
-          const useLive = variant === "live_cancel";
-          const endpoint = useLive ? fpxEndpoint(cfg.api_url, cfg.api_mode ?? "prod") : FPX_TEST_URL;
-          const useCred = useLive
-            ? cred
-            : {
-                api_key: extra.test_app_key ?? "eb190f3b-d464-4e3f-a6f1-036399670823",
-                api_secret: extra.test_app_secret ?? "79df01f8-63d5-47f3-a1e3-3e43ceecf726",
-                extra: { ...extra, channel_code: extra.test_channel_code ?? extra.channel_code ?? "PY" },
-              };
-
+          const endpoint = fpxEndpoint(cfg.api_url, cfg.api_mode ?? "prod");
           const refNo = `TEST-${order.external_order_id}-${Date.now()}`;
           const testOrder = { ...order, external_order_id: refNo };
           const r = await call4px(
-            { api_url: endpoint, api_mode: useLive ? (cfg.api_mode ?? "prod") : "test" },
-            useCred,
+            { api_url: endpoint, api_mode: cfg.api_mode ?? "prod" },
+            cred,
             testOrder,
             shipment,
           );
@@ -345,16 +334,14 @@ Deno.serve(async (req) => {
             authOk = true;
             tracking = r.tracking_number;
             labelUrl = r.label_url;
-            message = useLive ? "4PX live test waybill created" : "4PX sandbox test waybill created";
+            message = "4PX live test waybill created";
 
-            if (useLive) {
-              const c = await fpxCancelOrder(endpoint, useCred, refNo, r.fpx_tracking_no ?? null);
-              cancelInfo = c;
-              message += c.ok
-                ? ` / cancelled (${c.method})`
-                : " / CANCEL FAILED - cancel this order manually in the 4PX console";
-            }
-          } else if (!tracking) {
+            const c = await fpxCancelOrder(endpoint, cred, refNo, r.fpx_tracking_no ?? null);
+            cancelInfo = c;
+            message += c.ok
+              ? ` / cancelled (${c.method})`
+              : " / CANCEL FAILED - cancel this order manually in the 4PX console";
+          } else {
             authOk = false;
             const err = r.error ?? "no tracking number";
             const hint = /000012|签名|sign/i.test(err)
@@ -362,7 +349,7 @@ Deno.serve(async (req) => {
               : /product|channel|物流|产品/i.test(err)
               ? " → 물류상품코드(channel_code)가 유효한지 확인해 주세요."
               : "";
-            message = `${useLive ? "live" : "sandbox"} order: ${err}${hint}`;
+            message = `live order: ${err}${hint}`;
           }
 
         } else {
