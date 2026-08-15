@@ -28,6 +28,26 @@ interface LabelResult {
   fpx_tracking_no?: string | null;
 }
 
+/**
+ * 배송 수취인은 반드시 `source_data.items[]`(엑셀 Q~T열)의 값을 사용합니다.
+ * `orders.recipient_name`은 트윈커명(C열)이 우선 저장되어 있어 배송에 사용하지 않습니다.
+ */
+function shippingRecipient(order: any, position?: number) {
+  const items: any[] = Array.isArray(order?.source_data?.items) ? order.source_data.items : [];
+  const idx = Math.max(1, Number(position ?? 1)) - 1;
+  const it = items[idx] ?? items[0] ?? {};
+  const name = String(it.recipient_name ?? "").trim();
+  return {
+    recipient_name: name,
+    recipient_phone: String(it.recipient_phone ?? order?.recipient_phone ?? "").trim(),
+    shipping_address: String(it.shipping_address ?? order?.shipping_address ?? "").trim(),
+    shipping_city: it.shipping_city ?? order?.shipping_city ?? null,
+    shipping_state: it.shipping_state ?? order?.shipping_state ?? null,
+    shipping_zip: String(it.shipping_zip ?? order?.shipping_zip ?? "").trim(),
+    shipping_country: String(it.country_code ?? order?.shipping_country ?? "US").trim(),
+  };
+}
+
 // ---- 4PX: ds.xms.order.create (v1.1.0) + ds.xms.label.get (v1.1.0) ----------
 async function call4px(cfg: any, cred: any, order: any, shipment: any): Promise<LabelResult> {
   const endpoint = fpxEndpoint(cfg.api_url, cfg.api_mode);
