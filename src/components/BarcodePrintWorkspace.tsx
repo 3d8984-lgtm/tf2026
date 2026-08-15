@@ -64,6 +64,17 @@ type ScanEvent = {
   printed: boolean;
 };
 
+/** 프린터로 실제 전송한 원본 명령/응답 기록 (화면 로컬) */
+type PrinterSendLog = {
+  id: string;
+  at: string;
+  code: string;
+  payload: string;
+  ok: boolean;
+  error: string | null;
+};
+
+
 type Verdict = "ok" | "order" | "mismatch" | "duplicate";
 
 type LogRow = {
@@ -190,6 +201,9 @@ function OrderDetail({
   const [saved, setSaved] = useState<Record<number, SavedItem>>({});
   const [ready, setReady] = useState(false);
   const [history, setHistory] = useState<ScanEvent[]>([]);
+  const [printerLog, setPrinterLog] = useState<PrinterSendLog[]>([]);
+  const [rawTab, setRawTab] = useState<"scanner" | "printer">("scanner");
+
   // 게이트웨이는 대기열/이력 삭제 API가 없어서, 초기화 시점 이후 데이터만 화면에 표시한다.
   // 컷오프는 서버에 저장해 모든 기기(패드)에서 동일하게 적용하고,
   // 서버 조회가 실패(권한/네트워크)해도 화면이 옛 기록을 보여주지 않도록 로컬에도 캐시한다.
@@ -325,8 +339,16 @@ function OrderDetail({
    */
   const sendToPrinter = useCallback(async (code: string, override?: Partial<LabelOptions>): Promise<{ ok: boolean; error?: string }> => {
     const payload = buildLabelCommand(code, { ...labelOptsRef.current, ...(override || {}) });
+    const record = (ok: boolean, error: string | null) => {
+      setPrinterLog((prev) => [
+        { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, at: new Date().toISOString(), code, payload, ok, error },
+        ...prev,
+      ].slice(0, 100));
+    };
     if (payload.length > 200) {
-      return { ok: false, error: `label command too long (${payload.length}/200) — 라벨 설정을 줄이세요` };
+      const err = `label command too long (${payload.length}/200) — 라벨 설정을 줄이세요`;
+      record(false, err);
+      return { ok: false, error: err };
     }
     try {
       const res = await proxyFetch("/api/v1/print/test", {
@@ -334,16 +356,19 @@ function OrderDetail({
         body: JSON.stringify({ text: payload }),
       });
       const j: any = await res.json().catch(() => ({}));
-      if (res.ok && j?.accepted) return { ok: true };
+      if (res.ok && j?.accepted) { record(true, null); return { ok: true }; }
       const detail = j?.detail;
       const msg = typeof detail === "string"
         ? detail
         : Array.isArray(detail) ? detail.map((d: any) => d.msg).join(", ") : `HTTP ${res.status}`;
+      record(false, msg);
       return { ok: false, error: msg };
     } catch (e) {
+      record(false, String(e));
       return { ok: false, error: String(e) };
     }
   }, []);
+
 
 
   // 스캐너 상태 + 인쇄 대기열 폴링
@@ -1133,51 +1158,99 @@ function OrderDetail({
           </CardContent>
         </Card>
 
-        {/* 게이트웨이 원본 스캔 로그 (스캐너 이상 여부 진단용) */}
+        {/* 게이트웨이 원본 로그 (스캐너 / 프린터) */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center justify-between gap-2">
+            <CardTitle className="text-base flex items-center justify-between gap-2 flex-wrap">
               <span className="flex items-center gap-2">
-                <ScanLine className="w-4 h-4" />{tr("게이트웨이 스캔 로그 (원본)", "网关扫描日志（原始）")}
+                <ScanLine className="w-4 h-4" />{tr("게이트웨이 로그 (원본)", "网关日志（原始）")}
               </span>
               <span className="text-xs font-normal text-muted-foreground">
-                {tr("스캐너가 실제로 보낸 값 · 최근 100건", "扫描仪实际发送值 · 最近100条")}
+                {rawTab === "scanner"
+                  ? tr("스캐너가 실제로 보낸 값 · 최근 100건", "扫描仪实际发送值 · 最近100条")
+                  : tr("프린터로 실제 전송한 명령 · 최근 100건", "实际发送至打印机的指令 · 最近100条")}
               </span>
             </CardTitle>
+            <div className="flex gap-1 pt-2">
+              <Button size="sm" variant={rawTab === "scanner" ? "default" : "outline"} onClick={() => setRawTab("scanner")} className="gap-1">
+                <ScanLine className="w-3.5 h-3.5" />{tr("스캐너", "扫描仪")}
+              </Button>
+              <Button size="sm" variant={rawTab === "printer" ? "default" : "outline"} onClick={() => setRawTab("printer")} className="gap-1">
+                <Printer className="w-3.5 h-3.5" />{tr("프린터", "打印机")}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="max-h-[360px] overflow-auto">
-              <table className="w-full text-xs">
-                <thead className="bg-muted/40">
-                  <tr className="text-left">
-                    <th className="px-2 py-1.5">{tr("시간", "时间")}</th>
-                    <th className="px-2 py-1.5">{tr("스캔 값", "扫描值")}</th>
-                    <th className="px-2 py-1.5">{tr("간격", "间隔")}</th>
-                    <th className="px-2 py-1.5">{tr("인쇄 상태", "打印状态")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.length === 0 ? (
-                    <tr><td colSpan={4} className="px-2 py-6 text-center text-muted-foreground">{tr("게이트웨이 스캔 기록이 없습니다", "网关暂无扫描记录")}</td></tr>
-                  ) : history.map((h) => (
-                    <tr key={h.id} className={`border-t ${h.print_status === "failed" ? "bg-destructive/5" : ""}`}>
-                      <td className="px-2 py-1.5 tabular-nums text-muted-foreground">
-                        {new Date(h.scanned_at).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN")}
-                      </td>
-                      <td className="px-2 py-1.5 font-mono break-all">{h.barcode}</td>
-                      <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{h.duration != null ? `${h.duration}s` : "-"}</td>
-                      <td className={`px-2 py-1.5 font-medium ${jobMeta[h.print_status]?.cls ?? "text-muted-foreground"}`}>
-                        {jobMeta[h.print_status]
-                          ? (isKo ? jobMeta[h.print_status].ko : jobMeta[h.print_status].zh)
-                          : tr("알 수 없음", "未知")}
-                      </td>
+              {rawTab === "scanner" ? (
+                <table className="w-full text-xs">
+                  <thead className="bg-muted/40">
+                    <tr className="text-left">
+                      <th className="px-2 py-1.5">{tr("시간", "时间")}</th>
+                      <th className="px-2 py-1.5">{tr("스캔 값", "扫描值")}</th>
+                      <th className="px-2 py-1.5">{tr("간격", "间隔")}</th>
+                      <th className="px-2 py-1.5">{tr("인쇄 상태", "打印状态")}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {history.length === 0 ? (
+                      <tr><td colSpan={4} className="px-2 py-6 text-center text-muted-foreground">{tr("게이트웨이 스캔 기록이 없습니다", "网关暂无扫描记录")}</td></tr>
+                    ) : history.map((h) => (
+                      <tr key={h.id} className={`border-t ${h.print_status === "failed" ? "bg-destructive/5" : ""}`}>
+                        <td className="px-2 py-1.5 tabular-nums text-muted-foreground">
+                          {new Date(h.scanned_at).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN")}
+                        </td>
+                        <td className="px-2 py-1.5 font-mono break-all">{h.barcode}</td>
+                        <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{h.duration != null ? `${h.duration}s` : "-"}</td>
+                        <td className={`px-2 py-1.5 font-medium ${jobMeta[h.print_status]?.cls ?? "text-muted-foreground"}`}>
+                          {jobMeta[h.print_status]
+                            ? (isKo ? jobMeta[h.print_status].ko : jobMeta[h.print_status].zh)
+                            : tr("알 수 없음", "未知")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead className="bg-muted/40">
+                    <tr className="text-left">
+                      <th className="px-2 py-1.5 whitespace-nowrap">{tr("시간", "时间")}</th>
+                      <th className="px-2 py-1.5">{tr("바코드", "条码")}</th>
+                      <th className="px-2 py-1.5">{tr("전송 명령 (원본)", "发送指令（原始）")}</th>
+                      <th className="px-2 py-1.5 whitespace-nowrap">{tr("응답", "响应")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {printerLog.length === 0 ? (
+                      <tr><td colSpan={4} className="px-2 py-6 text-center text-muted-foreground">{tr("프린터 전송 기록이 없습니다 (이 화면에서 전송한 건만 표시)", "暂无打印发送记录（仅显示本页面发送的记录）")}</td></tr>
+                    ) : printerLog.map((p) => (
+                      <tr key={p.id} className={`border-t align-top ${p.ok ? "" : "bg-destructive/5"}`}>
+                        <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap">
+                          {new Date(p.at).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN")}
+                        </td>
+                        <td className="px-2 py-1.5 font-mono break-all">{p.code}</td>
+                        <td className="px-2 py-1.5">
+                          <pre className="font-mono text-[10px] whitespace-pre-wrap break-all max-h-24 overflow-auto bg-muted/40 rounded p-1.5">
+                            {p.payload.replace(/\r/g, "\\r\n").replace(/\n(?!$)/g, "\n")}
+                          </pre>
+                        </td>
+                        <td className="px-2 py-1.5 whitespace-nowrap">
+                          {p.ok ? (
+                            <span className="text-emerald-500">{tr("수신됨", "已接收")}</span>
+                          ) : (
+                            <span className="text-destructive break-all">{tr("실패", "失败")}: {p.error}</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </CardContent>
         </Card>
+
 
       </div>
     </div>
