@@ -358,17 +358,17 @@ export default function ShippingScan() {
           if (w) { w.document.write(buildRemoteLabelHtml(url, carrier || shipment?.carrier)); w.document.close(); }
         } else {
           const why = (res as any)?.message as string | undefined;
+          printWindow?.close();
           toast({
             variant: "destructive",
-            title: testVariant === "live_cancel"
-              ? tr("4PX 공식 송장(PDF)을 받지 못했습니다", "未获取到4PX官方面单(PDF)")
-              : tr("테스트(샌드박스) 모드라 공식 송장이 없습니다", "测试(沙箱)模式下无官方面单"),
-            description: testVariant === "live_cancel"
-              ? tr(`임시 미리보기를 출력합니다. ${why ?? "ds.xms.label.get 권한을 확인하세요."}`, `已输出临时预览。${why ?? "请确认 ds.xms.label.get 权限。"}`)
-              : tr(`실제 송장은 테스트 모드를 끄고 출력하세요. (${why ?? "sandbox"})`, `请关闭测试模式后再打印真实面单。(${why ?? "sandbox"})`),
+            title: tr("4PX 공식 송장(PDF)을 받지 못해 출력을 중단했습니다", "未获取到4PX官方面单(PDF)，已中止打印"),
+            description: tr(
+              `임의 출력은 하지 않습니다. ${why ?? "ds.xms.label.get 응답 없음"}`,
+              `不会输出任何模拟面单。${why ?? "ds.xms.label.get 无响应"}`,
+            ),
           });
-          printSimulatedLabel(res.tracking_number, printWindow);
         }
+
 
 
 
@@ -383,8 +383,14 @@ export default function ShippingScan() {
         const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
         if (w) { w.document.write(buildRemoteLabelHtml(liveUrl, carrier || shipment?.carrier)); w.document.close(); }
       } else {
-        setLabelDialog(true);
+        printWindow?.close();
+        toast({
+          variant: "destructive",
+          title: tr("공식 송장 파일이 없어 출력을 중단했습니다", "无官方面单文件，已中止打印"),
+          description: tr("택배사에서 송장(PDF)을 받지 못했습니다. 임의 출력은 하지 않습니다.", "未从承运商获取面单(PDF)，不会输出模拟面单。"),
+        });
       }
+
       qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
 
     } catch (e: any) {
