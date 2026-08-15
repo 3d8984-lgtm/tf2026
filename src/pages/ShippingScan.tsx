@@ -319,6 +319,7 @@ export default function ShippingScan() {
     // Immediate operator feedback — the DB writes below run in the background so
     // the waybill request starts without waiting for them.
     const newCount = scannedCount + 1;
+    perfMark("validation");
     scanSuccess();
     setFeedback({ kind: "success", msg: tr(`${slot.position}번 슬롯 스캔 완료 (${newCount}/${total})`, `第 ${slot.position} 槽完成 (${newCount}/${total})`) });
     setScanInput("");
