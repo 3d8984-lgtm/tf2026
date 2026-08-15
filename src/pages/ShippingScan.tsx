@@ -568,14 +568,17 @@ export default function ShippingScan() {
             if(printStarted)return;
             printStarted=true;
             window.focus();
-            setTimeout(()=>{
+            // Fire as soon as the label paints. With --kiosk-printing the sheet
+            // leaves the printer immediately; otherwise the dialog opens at once.
+            requestAnimationFrame(()=>setTimeout(()=>{
               window.print();
               window.onafterprint=()=>window.close();
-            },500);
+            },60));
           }
           window.addEventListener("afterprint",()=>window.close());
-          setTimeout(printCarrierLabel,10000);
+          setTimeout(printCarrierLabel,2500);
         <\/script>`;
+
     const body = isImg
       ? `<img src="${secureUrl}" ${noPrint ? "" : 'onload="printCarrierLabel()"'}/>`
       : isHtml
