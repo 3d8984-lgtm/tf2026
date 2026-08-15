@@ -52,13 +52,14 @@ type Mark = (step: string) => void;
 const noopMark: Mark = () => {};
 
 // ---- 4PX: ds.xms.order.create (v1.1.0) + ds.xms.label.get (v1.1.0) ----------
-async function call4px(cfg: any, cred: any, order: any, shipment: any, position?: number, mark: Mark = noopMark): Promise<LabelResult> {
+async function call4px(cfg: any, cred: any, order: any, shipment: any, position?: number, mark: Mark = noopMark, qtyOverride?: number): Promise<LabelResult> {
   const endpoint = fpxEndpoint(cfg.api_url, cfg.api_mode);
   const extra = (cred?.extra ?? {}) as Record<string, any>;
-  // 소포 1건 = 티셔츠 1개 (주소록 1행). 주문 전체 수량(order.quantity)을 쓰면 안 됩니다.
-  const qty = 1;
+  // 소포 1건 = 티셔츠 1개 (주소록 1행). 발송 그룹(동일 수취인 묶음)이면 그룹의 제품수량을 사용합니다.
+  const qty = Math.max(1, Number(qtyOverride ?? 1));
   const unitPrice = Number(extra.unit_price ?? 10);
-  const weight = Math.max(1, Math.round(shipment.weight_grams ?? shipment.expected_weight_grams ?? 200));
+  const baseWeight = Math.max(1, Math.round(shipment.weight_grams ?? shipment.expected_weight_grams ?? 200));
+  const weight = baseWeight * qty;
   // 4PX는 수취인 정보에 영문/기호만 허용하고 city/state가 필수입니다.
   const ship = shippingRecipient(order, position);
   if (!ship.recipient_name) {
@@ -241,7 +242,8 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
 
 
 
-async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, position?: number): Promise<LabelResult> {
+async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, position?: number, qtyOverride?: number): Promise<LabelResult> {
+  const qty = Math.max(1, Number(qtyOverride ?? 1));
   const base = (cfg.api_url ?? "").replace(/\/+$/, "");
   const url = `${base}/api/WayBill/CreateOrder`;
   const auth = btoa(`${cred?.account_no ?? ""}&${cred?.api_key ?? ""}`);
@@ -250,7 +252,7 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
       CustomerOrderNumber: order.external_order_id,
       ShippingMethodCode: cred?.extra?.channel_code ?? "",
       PackageCount: 1,
-      Weight: ((shipment.weight_grams ?? shipment.expected_weight_grams ?? 0) / 1000) || 0.1,
+      Weight: (((shipment.weight_grams ?? shipment.expected_weight_grams ?? 0) / 1000) || 0.1) * qty,
       Receiver: (() => {
         const r = normalizeRecipient(shippingRecipient(order, position));
         return {
@@ -269,7 +271,7 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
         {
           EName: cred?.extra?.item_name_en ?? "T-Shirt",
           CName: cred?.extra?.item_name_cn ?? "T恤",
-          Quantity: 1,
+          Quantity: qty,
           UnitPrice: Number(cred?.extra?.unit_price ?? 10),
           UnitWeight: 0.2,
           Currency: "USD",
