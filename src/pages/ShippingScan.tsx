@@ -660,6 +660,7 @@ export default function ShippingScan() {
       ? ""
       : `<script>
           let printStarted=false;
+          function report(step){try{if(window.opener)window.opener.postMessage({type:"label-timing",step:step},"*");}catch(e){}}
           function logSize(){
             try{
               var el=document.querySelector("img,iframe");
