@@ -741,16 +741,19 @@ export default function ShippingScan() {
     setResetting(true);
     const { error: e1 } = await supabase
       .from("shipment_scan_items")
-      .update({ qr_value: null, is_scanned: false, scanned_at: null, scanned_by: null, carrier: null, tracking_number: null, label_url: null, tracking_issued_at: null } as any)
+      // Packing reset clears the SCAN state only — pre-issued waybills are kept.
+      .update({ qr_value: null, is_scanned: false, scanned_at: null, scanned_by: null } as any)
       .eq("shipment_id", shipment.id);
+    const groupIds = groups.map((g) => g.id);
+    if (groupIds.length) {
+      await supabase.from("shipping_groups").update({ scanned_count: 0, scan_status: "pending", printed_at: null }).in("id", groupIds);
+    }
     const { error: e2 } = await supabase
       .from("shipments")
       .update({
         scanned_count: 0,
         scan_status: "pending",
         status: "pending",
-        tracking_number: null,
-        tracking_issued_at: null,
         shipped_at: null,
         reported_at: null,
         design_confirmed: false,
@@ -1094,7 +1097,7 @@ export default function ShippingScan() {
             <DialogTitle>{tr("스캔 작업 초기화", "重置扫码作业")}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            {tr("이 주문의 완료된 스캔 기록과 송장 발급/발송 상태가 모두 초기화되어 처음부터 다시 작업할 수 있습니다.",
+            {tr("스캔 기록과 진행 상태만 초기화됩니다. 이미 사전발급된 송장(운송장 번호·라벨)은 그대로 유지됩니다.",
                 "该订单已完成的扫码记录及运单/发货状态将全部重置，可重新作业。")}
           </p>
           <DialogFooter>
