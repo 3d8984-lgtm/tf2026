@@ -339,8 +339,16 @@ function OrderDetail({
    */
   const sendToPrinter = useCallback(async (code: string, override?: Partial<LabelOptions>): Promise<{ ok: boolean; error?: string }> => {
     const payload = buildLabelCommand(code, { ...labelOptsRef.current, ...(override || {}) });
+    const record = (ok: boolean, error: string | null) => {
+      setPrinterLog((prev) => [
+        { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, at: new Date().toISOString(), code, payload, ok, error },
+        ...prev,
+      ].slice(0, 100));
+    };
     if (payload.length > 200) {
-      return { ok: false, error: `label command too long (${payload.length}/200) — 라벨 설정을 줄이세요` };
+      const err = `label command too long (${payload.length}/200) — 라벨 설정을 줄이세요`;
+      record(false, err);
+      return { ok: false, error: err };
     }
     try {
       const res = await proxyFetch("/api/v1/print/test", {
@@ -348,16 +356,19 @@ function OrderDetail({
         body: JSON.stringify({ text: payload }),
       });
       const j: any = await res.json().catch(() => ({}));
-      if (res.ok && j?.accepted) return { ok: true };
+      if (res.ok && j?.accepted) { record(true, null); return { ok: true }; }
       const detail = j?.detail;
       const msg = typeof detail === "string"
         ? detail
         : Array.isArray(detail) ? detail.map((d: any) => d.msg).join(", ") : `HTTP ${res.status}`;
+      record(false, msg);
       return { ok: false, error: msg };
     } catch (e) {
+      record(false, String(e));
       return { ok: false, error: String(e) };
     }
   }, []);
+
 
 
   // 스캐너 상태 + 인쇄 대기열 폴링
