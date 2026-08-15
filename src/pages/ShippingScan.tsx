@@ -1282,6 +1282,100 @@ export default function ShippingScan() {
         </Card>
       </div>
 
+      {/* 발송건(그룹) 목록 — 전체 / 1건 주문 / 2개 이상 주문 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            {tr("주소록 · 발송건 목록", "地址簿 · 发货件列表")}
+            {buildingGroups && <span className="text-[11px] text-muted-foreground">{tr("그룹 계산 중…", "分组计算中…")}</span>}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Tabs value={groupTab} onValueChange={(v) => setGroupTab(v as any)}>
+            <TabsList>
+              <TabsTrigger value="all">{tr("전체", "全部")} <Badge variant="outline" className="ml-2 text-[10px]">{groups.length}</Badge></TabsTrigger>
+              <TabsTrigger value="single">{tr("1건 주문", "单件订单")} <Badge variant="outline" className="ml-2 text-[10px]">{singleGroups.length}</Badge></TabsTrigger>
+              <TabsTrigger value="multi">{tr("2개 이상 주문", "2件以上订单")} <Badge variant="outline" className="ml-2 text-[10px]">{multiGroups.length}</Badge></TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          <ScrollArea className="h-[420px] border rounded-md">
+            <div className="divide-y">
+              {(groupTab === "single" ? singleGroups : groupTab === "multi" ? multiGroups : groups).map((g) => {
+                const members = membersByGroup.get(g.id) ?? [];
+                const required = g.required_scan_count || g.item_count || 1;
+                const done = members.filter((m: any) => m.is_scanned).length;
+                const open = !!expandedGroups[g.id];
+                const statusBadge =
+                  g.label_status === "ready"
+                    ? <Badge variant="outline" className="text-[10px] bg-emerald-500/15 text-emerald-400 border-emerald-500/30">{tr("발급완료", "已发行")}</Badge>
+                    : g.label_status === "issuing"
+                    ? <Badge variant="outline" className="text-[10px] bg-blue-500/15 text-blue-400 border-blue-500/30">{tr("발급중", "发行中")}</Badge>
+                    : g.label_status === "failed"
+                    ? <Badge variant="outline" className="text-[10px] bg-destructive/15 text-destructive border-destructive/30">{tr("발급실패", "发行失败")}</Badge>
+                    : <Badge variant="outline" className="text-[10px]">{tr("미발급", "未发行")}</Badge>;
+                return (
+                  <div key={g.id} className="text-sm">
+                    <button
+                      type="button"
+                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-accent/30 text-left"
+                      onClick={() => setExpandedGroups((prev) => ({ ...prev, [g.id]: !open }))}
+                    >
+                      {open ? <ChevronDown className="w-4 h-4 shrink-0"/> : <ChevronRight className="w-4 h-4 shrink-0"/>}
+                      <div className="min-w-[160px]">
+                        <div className="font-medium">{g.recipient_name || "-"}</div>
+                        <div className="text-[11px] text-muted-foreground truncate max-w-[240px]" title={g.shipping_address}>
+                          {[g.shipping_city, g.shipping_state, g.shipping_zip].filter(Boolean).join(", ")}
+                        </div>
+                      </div>
+                      <div className="text-xs w-24">{tr("제품수량", "产品数")} <b>{g.item_count}</b></div>
+                      <div className="text-xs w-24">{tr("스캔", "扫码")} <b className={done >= required ? "text-emerald-400" : ""}>{done} / {required}</b></div>
+                      <div className="w-24">{statusBadge}</div>
+                      <div className="font-mono text-xs flex-1 truncate">{g.tracking_number ?? "-"}</div>
+                      {g.label_status === "failed" && (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          className="text-xs underline text-destructive"
+                          onClick={(e) => { e.stopPropagation(); void retryGroupLabel(g); }}
+                        >
+                          {tr("재시도", "重试")}
+                        </span>
+                      )}
+                    </button>
+                    {open && (
+                      <div className="px-10 pb-3 space-y-1">
+                        {g.label_error && <div className="text-[11px] text-destructive">{g.label_error}</div>}
+                        <div className="text-[11px] text-muted-foreground">
+                          {g.shipping_address} · {g.recipient_phone} · {g.shipping_country}
+                          {g.label_issued_at && ` · ${tr("발급", "发行")} ${new Date(g.label_issued_at).toLocaleString()}`}
+                        </div>
+                        {members.map((m: any) => (
+                          <div key={m.id} className="flex items-center gap-3 text-xs py-0.5">
+                            <span className="font-mono text-muted-foreground w-40 truncate">{m.orders?.external_order_id ?? "-"} #{m.position}</span>
+                            <span className="font-mono truncate max-w-[200px]">{m.qr_value ?? "-"}</span>
+                            {m.is_scanned
+                              ? <span className="text-emerald-400">✓ {tr("스캔완료", "已扫描")}</span>
+                              : <span className="text-muted-foreground">{tr("미스캔", "未扫描")}</span>}
+                          </div>
+                        ))}
+                        <div className="text-xs pt-1">{tr("진행상태", "进度")} <b>{done} / {required}</b></div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {groups.length === 0 && (
+                <div className="text-center text-xs text-muted-foreground py-10">
+                  {tr("발송건이 없습니다. 새로고침하거나 주문 데이터를 확인해 주세요.", "暂无发货件，请刷新或检查订单数据。")}
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+
       {/* Order detail list (items of the selected order) */}
       <Card>
         <CardHeader className="pb-3">
