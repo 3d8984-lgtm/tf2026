@@ -393,7 +393,22 @@ export default function ShippingScan() {
         return;
       }
       await logAction("issue_tracking", { trackingNumber: res.tracking_number, carrier, via: "api" });
+      // Store the waybill on the scanned parcel row so each item shows only its own tracking number.
+      const pos = itemPosition ?? shipRecipientPos;
+      if (res.tracking_number && pos) {
+        await supabase
+          .from("shipment_scan_items")
+          .update({
+            carrier,
+            tracking_number: res.tracking_number,
+            label_url: (res as any)?.label_url ?? null,
+            tracking_issued_at: new Date().toISOString(),
+          } as any)
+          .eq("shipment_id", shipment.id)
+          .eq("position", pos);
+      }
       toast({ title: tr("송장이 발급되었습니다", "已生成运单"), description: res.tracking_number });
+
       // Auto-print the carrier-issued waybill right after issuance.
       const liveUrl = (res as any)?.label_url as string | undefined;
       if (liveUrl) {
@@ -477,7 +492,7 @@ export default function ShippingScan() {
     setResetting(true);
     const { error: e1 } = await supabase
       .from("shipment_scan_items")
-      .update({ qr_value: null, is_scanned: false, scanned_at: null, scanned_by: null })
+      .update({ qr_value: null, is_scanned: false, scanned_at: null, scanned_by: null, carrier: null, tracking_number: null, label_url: null, tracking_issued_at: null } as any)
       .eq("shipment_id", shipment.id);
     const { error: e2 } = await supabase
       .from("shipments")
@@ -972,8 +987,9 @@ export default function ShippingScan() {
                           ? <Badge variant="outline" className="text-[10px] bg-emerald-500/15 text-emerald-400 border-emerald-500/30">OK</Badge>
                           : <Badge variant="outline" className="text-[10px]">{tr("대기", "待扫")}</Badge>}
                       </td>
-                      <td className="px-3 py-2 text-xs uppercase">{shipment.carrier ?? "-"}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{shipment.tracking_number ?? "-"}</td>
+                      <td className="px-3 py-2 text-xs uppercase">{(it.carrier ?? "-") as string}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{it.tracking_number ?? "-"}</td>
+
                     </tr>
                   );
                 })}

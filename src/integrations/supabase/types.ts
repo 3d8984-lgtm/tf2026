@@ -1081,11 +1081,13 @@ export type Database = {
       }
       shipment_scan_items: {
         Row: {
+          carrier: string | null
           color: string | null
           created_at: string
           design_image_url: string | null
           id: string
           is_scanned: boolean
+          label_url: string | null
           order_id: string
           position: number
           product_code: string | null
@@ -1094,14 +1096,18 @@ export type Database = {
           scanned_by: string | null
           shipment_id: string
           size: string | null
+          tracking_issued_at: string | null
+          tracking_number: string | null
           updated_at: string
         }
         Insert: {
+          carrier?: string | null
           color?: string | null
           created_at?: string
           design_image_url?: string | null
           id?: string
           is_scanned?: boolean
+          label_url?: string | null
           order_id: string
           position: number
           product_code?: string | null
@@ -1110,14 +1116,18 @@ export type Database = {
           scanned_by?: string | null
           shipment_id: string
           size?: string | null
+          tracking_issued_at?: string | null
+          tracking_number?: string | null
           updated_at?: string
         }
         Update: {
+          carrier?: string | null
           color?: string | null
           created_at?: string
           design_image_url?: string | null
           id?: string
           is_scanned?: boolean
+          label_url?: string | null
           order_id?: string
           position?: number
           product_code?: string | null
@@ -1126,6 +1136,8 @@ export type Database = {
           scanned_by?: string | null
           shipment_id?: string
           size?: string | null
+          tracking_issued_at?: string | null
+          tracking_number?: string | null
           updated_at?: string
         }
         Relationships: [
