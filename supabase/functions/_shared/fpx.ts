@@ -119,9 +119,10 @@ export async function fpxProbe(endpoint: string, cred: FpxCred) {
 
 /** Cancel an order created for testing on the production endpoint. */
 export async function fpxCancelOrder(endpoint: string, cred: FpxCred, refNo: string, fpxTrackingNo?: string | null) {
+  const reason = "Connectivity test order - cancelled automatically";
   const attempts: Array<{ method: string; v: string; biz: Record<string, unknown> }> = [
-    { method: "ds.xms.order.cancel", v: "1.0.0", biz: { request_no: fpxTrackingNo ?? refNo } },
-    { method: "ds.xms.order.cancel", v: "1.0.0", biz: { request_no: refNo } },
+    { method: "ds.xms.order.cancel", v: "1.0.0", biz: { request_no: fpxTrackingNo ?? refNo, cancel_reason: reason } },
+    { method: "ds.xms.order.cancel", v: "1.0.0", biz: { request_no: refNo, cancel_reason: reason } },
   ];
 
   const tried: unknown[] = [];
