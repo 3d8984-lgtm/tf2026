@@ -372,6 +372,7 @@ Deno.serve(async (req) => {
             testOrder,
             shipment,
             item_position,
+            mark,
           );
           raw = r.raw;
           if (r.tracking_number) {
@@ -423,12 +424,15 @@ Deno.serve(async (req) => {
           message,
           tracking_number: tracking,
           cancel: cancelInfo,
+          timings,
+          total_ms: Date.now() - t0,
           raw: typeof raw === "string" ? raw.slice(0, 2000) : raw,
         },
       });
 
-      if (!authOk) return json({ error: message, raw }, 502);
+      if (!authOk) return json({ error: message, raw, timings }, 502);
 
+      mark("edge_response");
       return json({
         ok: true,
         test: true,
@@ -438,6 +442,8 @@ Deno.serve(async (req) => {
         label_url: labelUrl,
         cancelled: (cancelInfo as any)?.ok ?? null,
         message,
+        timings,
+        total_ms: Date.now() - t0,
       });
     }
 
