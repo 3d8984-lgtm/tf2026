@@ -64,6 +64,17 @@ type ScanEvent = {
   printed: boolean;
 };
 
+/** 프린터로 실제 전송한 원본 명령/응답 기록 (화면 로컬) */
+type PrinterSendLog = {
+  id: string;
+  at: string;
+  code: string;
+  payload: string;
+  ok: boolean;
+  error: string | null;
+};
+
+
 type Verdict = "ok" | "order" | "mismatch" | "duplicate";
 
 type LogRow = {
