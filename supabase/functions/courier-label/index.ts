@@ -142,7 +142,7 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
     recipient_info: {
       first_name: rcp.first_name,
       last_name: rcp.last_name,
-      phone: (order.recipient_phone ?? "").replace(/[^\d+\-() ]/g, "") || "0000000000",
+      phone: (ship.recipient_phone ?? "").replace(/[^\d+\-() ]/g, "") || "0000000000",
       post_code: rcp.zip,
       country: rcp.country,
       state: rcp.state,
@@ -233,7 +233,7 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
 
 
 
-async function callYunExpress(cfg: any, cred: any, order: any, shipment: any): Promise<LabelResult> {
+async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, position?: number): Promise<LabelResult> {
   const base = (cfg.api_url ?? "").replace(/\/+$/, "");
   const url = `${base}/api/WayBill/CreateOrder`;
   const auth = btoa(`${cred?.account_no ?? ""}&${cred?.api_key ?? ""}`);
@@ -244,7 +244,7 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any): P
       PackageCount: 1,
       Weight: ((shipment.weight_grams ?? shipment.expected_weight_grams ?? 0) / 1000) || 0.1,
       Receiver: (() => {
-        const r = normalizeRecipient(order);
+        const r = normalizeRecipient(shippingRecipient(order, position));
         return {
           CountryCode: r.country,
           FirstName: r.first_name,
@@ -253,7 +253,7 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any): P
           City: r.city,
           State: r.state,
           Zip: r.zip,
-          Phone: order.recipient_phone ?? "",
+          Phone: shippingRecipient(order, position).recipient_phone,
         };
       })(),
 
@@ -308,7 +308,7 @@ Deno.serve(async (req) => {
     const { data: approved } = await admin.rpc("is_approved", { _user_id: user.id });
     if (!approved) return json({ error: "forbidden" }, 403);
 
-    const { shipment_id, carrier, test, test_variant } = await req.json();
+    const { shipment_id, carrier, test, test_variant, item_position } = await req.json();
     // Test mode now only supports the production endpoint with real credentials;
     // the created waybill is cancelled immediately after the label is fetched.
     const variant: "live_cancel" = test_variant === "live_cancel" ? "live_cancel" : "live_cancel";
@@ -357,6 +357,7 @@ Deno.serve(async (req) => {
             cred,
             testOrder,
             shipment,
+            item_position,
           );
           raw = r.raw;
           if (r.tracking_number) {
@@ -429,8 +430,8 @@ Deno.serve(async (req) => {
 
 
     let result: LabelResult;
-    if (carrier === "4px") result = await call4px(cfg, cred, order, shipment);
-    else if (carrier === "yunexpress") result = await callYunExpress(cfg, cred, order, shipment);
+    if (carrier === "4px") result = await call4px(cfg, cred, order, shipment, item_position);
+    else if (carrier === "yunexpress") result = await callYunExpress(cfg, cred, order, shipment, item_position);
     else return json({ error: `no API adapter for '${carrier}'` }, 400);
 
     await admin.from("shipping_logs").insert({
