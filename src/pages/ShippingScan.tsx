@@ -15,6 +15,13 @@ import { useLang } from "@/contexts/LangContext";
 import { useShipmentScan } from "@/hooks/useShipmentScan";
 import { useHologramSerials } from "@/hooks/useHologramSerials";
 import { useCouriers, requestCarrierLabel } from "@/hooks/useCouriers";
+import {
+  useShippingGroupsForOrder,
+  buildShippingGroups,
+  issueGroupLabels,
+  issueGroupLabel,
+  type ShippingGroupRow,
+} from "@/hooks/useShippingGroups";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -25,6 +32,9 @@ import { buildFpxLabelHtml } from "@/lib/label-4px";
 
 import { Html5Qrcode } from "html5-qrcode";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ChevronDown, ChevronRight, Layers } from "lucide-react";
 
 type FeedbackKind = "success" | "duplicate" | "mismatch" | "notfound" | "idle";
 
@@ -125,6 +135,78 @@ export default function ShippingScan() {
   const [carrier, setCarrier] = useState("");
   const [manualTracking, setManualTracking] = useState("");
   const { data: couriers = [] } = useCouriers(true);
+
+  // ---- Shipping groups (pre-issued waybills) --------------------------------
+  const { data: groupData, refetch: refetchGroups } = useShippingGroupsForOrder(orderId);
+  const groups = (groupData?.groups ?? []) as ShippingGroupRow[];
+  const groupMembers = (groupData?.members ?? []) as any[];
+  const groupById = useMemo(() => new Map(groups.map((g) => [g.id, g])), [groups]);
+  const membersByGroup = useMemo(() => {
+    const m = new Map<string, any[]>();
+    for (const it of groupMembers) {
+      if (!it.shipping_group_id) continue;
+      const arr = m.get(it.shipping_group_id) ?? [];
+      arr.push(it);
+      m.set(it.shipping_group_id, arr);
+    }
+    return m;
+  }, [groupMembers]);
+
+  const [groupTab, setGroupTab] = useState<"all" | "single" | "multi">("all");
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [buildingGroups, setBuildingGroups] = useState(false);
+  const [preIssueOpen, setPreIssueOpen] = useState(false);
+  const [preIssueRunning, setPreIssueRunning] = useState(false);
+  const [preIssueProgress, setPreIssueProgress] = useState({ done: 0, total: 0, success: 0, failed: 0 });
+  const [preIssueLog, setPreIssueLog] = useState<{ name: string; ok: boolean; message?: string }[]>([]);
+  // Pre-fetched label blobs so printing does not wait for a remote download.
+  const labelCacheRef = useRef<Map<string, string>>(new Map());
+
+  const singleGroups = useMemo(() => groups.filter((g) => (g.item_count ?? 0) <= 1), [groups]);
+  const multiGroups = useMemo(() => groups.filter((g) => (g.item_count ?? 0) > 1), [groups]);
+  const pendingGroups = useMemo(
+    () => groups.filter((g) => !(g.tracking_number && g.label_status === "ready")),
+    [groups],
+  );
+
+  // Build / refresh the groups when the packing page opens (idempotent, server side).
+  useEffect(() => {
+    if (!orderId) return;
+    let cancelled = false;
+    setBuildingGroups(true);
+    buildShippingGroups()
+      .then(() => { if (!cancelled) refetchGroups(); })
+      .catch(() => { /* keep the page usable even if grouping fails */ })
+      .finally(() => { if (!cancelled) setBuildingGroups(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderId]);
+
+  // Prefetch issued labels into blob URLs (bounded) for instant printing.
+  useEffect(() => {
+    const ready = groups.filter((g) => g.label_status === "ready" && g.label_url).slice(0, 40);
+    let cancelled = false;
+    (async () => {
+      for (const g of ready) {
+        if (cancelled) return;
+        if (labelCacheRef.current.has(g.id)) continue;
+        const url = g.label_url!;
+        if (url.startsWith("data:")) { labelCacheRef.current.set(g.id, url); continue; }
+        try {
+          const res = await fetch(url);
+          if (!res.ok) continue;
+          const blob = await res.blob();
+          labelCacheRef.current.set(g.id, URL.createObjectURL(blob));
+        } catch { /* fall back to the remote URL at print time */ }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [groups]);
+
+  useEffect(() => () => {
+    for (const u of labelCacheRef.current.values()) if (u.startsWith("blob:")) URL.revokeObjectURL(u);
+  }, []);
 
   useEffect(() => {
     if (carrier || couriers.length === 0) return;
