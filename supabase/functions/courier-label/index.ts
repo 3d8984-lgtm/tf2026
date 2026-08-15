@@ -182,7 +182,9 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any): Promise<
       const b64 =
         ld.label_content ?? ld.file_content ?? ld.content ?? ld.label_data ??
         first.label_content ?? first.content ?? null;
-      if (direct) labelUrl = String(direct);
+      if (direct) {
+        labelUrl = String(direct).replace(/^http:\/\/bss-fss\.4px\.com\//i, "https://bss-fss.4px.com/");
+      }
       else if (typeof b64 === "string" && b64.length > 100) {
         const clean = b64.replace(/\s/g, "");
         const isHtml = /^(PCFE|PGh0|PGRp|PHN2)/.test(clean) || /^\s*</.test(b64);
