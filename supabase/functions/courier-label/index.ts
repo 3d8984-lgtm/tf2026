@@ -49,14 +49,23 @@ function shippingRecipient(order: any, position?: number) {
 }
 
 // ---- 4PX: ds.xms.order.create (v1.1.0) + ds.xms.label.get (v1.1.0) ----------
-async function call4px(cfg: any, cred: any, order: any, shipment: any): Promise<LabelResult> {
+async function call4px(cfg: any, cred: any, order: any, shipment: any, position?: number): Promise<LabelResult> {
   const endpoint = fpxEndpoint(cfg.api_url, cfg.api_mode);
   const extra = (cred?.extra ?? {}) as Record<string, any>;
   const qty = Number(order.quantity ?? 1) || 1;
   const unitPrice = Number(extra.unit_price ?? 10);
   const weight = Math.max(1, Math.round(shipment.weight_grams ?? shipment.expected_weight_grams ?? 200));
   // 4PX는 수취인 정보에 영문/기호만 허용하고 city/state가 필수입니다.
-  const rcp = normalizeRecipient(order);
+  const ship = shippingRecipient(order, position);
+  if (!ship.recipient_name) {
+    return {
+      tracking_number: null,
+      label_url: null,
+      raw: null,
+      error: "배송 수취인명이 없습니다. 엑셀 Q열(수취인명)을 확인해 주세요. (트윈커명은 배송에 사용하지 않습니다)",
+    };
+  }
+  const rcp = normalizeRecipient(ship);
   if (rcp.missing.length) {
     return {
       tracking_number: null,
