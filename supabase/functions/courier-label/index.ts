@@ -92,7 +92,7 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any): Promise<
       country: extra.sender_country ?? "CN",
       state: extra.sender_state ?? "GuangDong",
       city: extra.sender_city ?? "Shenzhen",
-      street: extra.sender_street ?? "-",
+      street: String(extra.sender_street ?? "-").slice(0, 90),
     },
     // 반품지(반송지) 주소 — 설정된 경우에만 전송 (미설정 시 4PX 기본값 = 발송인 주소)
     ...(extra.returner_street || extra.returner_name
@@ -105,7 +105,7 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any): Promise<
             country: extra.returner_country ?? "US",
             state: extra.returner_state ?? "",
             city: extra.returner_city ?? "",
-            street: extra.returner_street ?? "-",
+            street: String(extra.returner_street ?? "-").slice(0, 90),
           },
         }
       : {}),
@@ -118,9 +118,10 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any): Promise<
       country: rcp.country,
       state: rcp.state,
       city: rcp.city,
-      street: rcp.street,
+      street: rcp.street.slice(0, 90),
       email: extra.recipient_email ?? "",
     },
+
 
     deliver_type_info: { deliver_type: String(extra.deliver_type ?? "3") },
   };
