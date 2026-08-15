@@ -383,8 +383,14 @@ export default function ShippingScan() {
         const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
         if (w) { w.document.write(buildRemoteLabelHtml(liveUrl, carrier || shipment?.carrier)); w.document.close(); }
       } else {
-        setLabelDialog(true);
+        printWindow?.close();
+        toast({
+          variant: "destructive",
+          title: tr("공식 송장 파일이 없어 출력을 중단했습니다", "无官方面单文件，已中止打印"),
+          description: tr("택배사에서 송장(PDF)을 받지 못했습니다. 임의 출력은 하지 않습니다.", "未从承运商获取面单(PDF)，不会输出模拟面单。"),
+        });
       }
+
       qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
 
     } catch (e: any) {
