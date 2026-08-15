@@ -52,7 +52,7 @@ export async function fpxCall(
   version: string,
   bizData: unknown,
   language = "en",
-  timeoutMs = 25_000,
+  timeoutMs = 55_000,
 ): Promise<FpxResponse> {
   const common: Record<string, string> = {
     method,
@@ -107,7 +107,7 @@ export async function fpxCall(
 
 /** Auth-only probe: lists logistics products. Valid credentials => success. */
 export async function fpxProbe(endpoint: string, cred: FpxCred) {
-  const r = await fpxCall(endpoint, cred, "ds.xms.logistics_product.getlist", "1.0.0", { transport_mode: "1" }, "en", 15_000);
+  const r = await fpxCall(endpoint, cred, "ds.xms.logistics_product.getlist", "1.0.0", { transport_mode: "1" }, "en", 45_000);
   return {
     ok: r.ok || (!r.authFailed && r.httpStatus === 200),
     message: r.ok
@@ -119,15 +119,16 @@ export async function fpxProbe(endpoint: string, cred: FpxCred) {
 
 /** Cancel an order created for testing on the production endpoint. */
 export async function fpxCancelOrder(endpoint: string, cred: FpxCred, refNo: string, fpxTrackingNo?: string | null) {
+  const reason = "Connectivity test order - cancelled automatically";
   const attempts: Array<{ method: string; v: string; biz: Record<string, unknown> }> = [
-    { method: "ds.xms.order.cancel", v: "1.0.0", biz: { request_no: fpxTrackingNo ?? refNo } },
-    { method: "ds.xms.order.cancel", v: "1.0.0", biz: { request_no: refNo } },
+    { method: "ds.xms.order.cancel", v: "1.0.0", biz: { request_no: fpxTrackingNo ?? refNo, cancel_reason: reason } },
+    { method: "ds.xms.order.cancel", v: "1.0.0", biz: { request_no: refNo, cancel_reason: reason } },
   ];
 
   const tried: unknown[] = [];
   for (const a of attempts) {
     try {
-      const r = await fpxCall(endpoint, cred, a.method, a.v, a.biz, "en", 15_000);
+      const r = await fpxCall(endpoint, cred, a.method, a.v, a.biz, "en", 45_000);
       tried.push({ method: a.method, ok: r.ok, message: r.message, code: r.code });
       if (r.ok) return { ok: true, method: a.method, raw: r.raw, tried };
     } catch (e) {
