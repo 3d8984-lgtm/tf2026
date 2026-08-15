@@ -559,17 +559,32 @@ export default function ShippingScan() {
     const secureUrl = url.replace(/^http:\/\/bss-fss\.4px\.com\//i, "https://bss-fss.4px.com/");
     const isImg = /^data:image\//i.test(secureUrl) || /\.(png|jpe?g)$/i.test(secureUrl);
     const isHtml = /^data:text\/html/i.test(secureUrl) || /\.html?$/i.test(secureUrl);
-    const printScript = noPrint ? "" : `<script>window.onload=()=>{setTimeout(()=>window.print(),800)};<\/script>`;
+    const printScript = noPrint
+      ? ""
+      : `<script>
+          let printStarted=false;
+          function printCarrierLabel(){
+            if(printStarted)return;
+            printStarted=true;
+            window.focus();
+            setTimeout(()=>{
+              window.print();
+              window.onafterprint=()=>window.close();
+            },1200);
+          }
+          window.addEventListener("afterprint",()=>window.close());
+          setTimeout(printCarrierLabel,10000);
+        <\/script>`;
     const body = isImg
-      ? `<img src="${secureUrl}"/>`
+      ? `<img src="${secureUrl}" ${noPrint ? "" : 'onload="printCarrierLabel()"'}/>`
       : isHtml
-        ? `<iframe src="${secureUrl}" frameborder="0"></iframe>`
-        : `<embed src="${secureUrl}#toolbar=0" type="application/pdf"/>`;
+        ? `<iframe src="${secureUrl}" frameborder="0" ${noPrint ? "" : 'onload="printCarrierLabel()"'}></iframe>`
+        : `<iframe src="${secureUrl}#toolbar=0&navpanes=0&scrollbar=0" frameborder="0" ${noPrint ? "" : 'onload="printCarrierLabel()"'}></iframe>`;
     return `<!doctype html><html><head><meta charset="utf-8"/><title>Label</title>
       <style>
         @page { size: ${PW}mm ${PH}mm; margin: 0; }
         html, body { margin: 0; padding: 0; width: ${PW}mm; height: ${PH}mm; overflow: hidden; }
-        embed, img, iframe { width: ${LW}mm; height: ${LH}mm; object-fit: fill; display: block; border: 0; transform: scale(${k}); transform-origin: top left; }
+        img, iframe { width: ${LW}mm; height: ${LH}mm; object-fit: fill; display: block; border: 0; transform: scale(${k}); transform-origin: top left; }
       </style></head><body>
       ${body}${printScript}
       </body></html>`;
