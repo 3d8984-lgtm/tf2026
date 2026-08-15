@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ArrowLeft, Camera, CameraOff, CheckCircle2, AlertTriangle, ScanLine, Truck, Send, Printer, RefreshCw, RotateCcw, Usb, TestTube2 } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
@@ -93,8 +93,8 @@ export default function ShippingScan() {
   const [cameraOn, setCameraOn] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: FeedbackKind; msg: string }>({ kind: "idle", msg: "" });
   const [testMode, setTestMode] = useState(true);
-  // "sandbox" = open-test.4px.com, "live_cancel" = production endpoint then cancel
-  const [testVariant, setTestVariant] = useState<"sandbox" | "live_cancel">("sandbox");
+  // Test mode now only uses the production endpoint and cancels the order immediately.
+  const testVariant: "live_cancel" = "live_cancel";
   const [issuing, setIssuing] = useState(false);
   const [labelDialog, setLabelDialog] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
@@ -342,12 +342,10 @@ export default function ShippingScan() {
         await logAction("issue_tracking_test", { trackingNumber: res.tracking_number, carrier, via: "api-test", variant: testVariant });
         const cancelled = (res as any)?.cancelled;
         toast({
-          title: testVariant === "live_cancel"
-            ? (cancelled === false
-                ? tr("운영 테스트 송장 생성됨 · 자동취소 실패", "生产测试运单已生成 · 自动取消失败")
-                : tr("운영 테스트 송장 생성 후 취소됨", "生产测试运单已生成并取消"))
-            : tr("테스트 송장 생성 (실제 발급 아님)", "测试运单已生成（非真实运单）"),
-          variant: testVariant === "live_cancel" && cancelled === false ? "destructive" : undefined,
+          title: cancelled === false
+            ? tr("운영 테스트 송장 생성됨 · 자동취소 실패", "生产测试运单已生成 · 自动取消失败")
+            : tr("운영 테스트 송장 생성 후 취소됨", "生产测试运单已生成并取消"),
+          variant: cancelled === false ? "destructive" : undefined,
           description: `${res.tracking_number}${(res as any)?.message ? ` · ${(res as any).message}` : ""}`,
         });
         const url = (res as any)?.label_url as string | undefined;
@@ -796,17 +794,6 @@ export default function ShippingScan() {
             {tr("테스트 모드", "测试模式")}
             <Switch checked={testMode} onCheckedChange={setTestMode} />
           </label>
-          {testMode && (
-            <Select value={testVariant} onValueChange={(v) => setTestVariant(v as "sandbox" | "live_cancel")}>
-              <SelectTrigger className="w-[230px] h-9 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="sandbox">{tr("샌드박스 (open-test)", "沙箱 (open-test)")}</SelectItem>
-                <SelectItem value="live_cancel">{tr("운영주소 테스트 (발급 후 취소)", "生产地址测试（出单后取消）")}</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
           <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="w-4 h-4 mr-1"/>{tr("새로고침", "刷新")}</Button>
           <Button variant="destructive" size="sm" onClick={() => setResetOpen(true)}>
             <RotateCcw className="w-4 h-4 mr-1"/>{tr("초기화", "重置")}
