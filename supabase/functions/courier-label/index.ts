@@ -159,7 +159,9 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
     deliver_type_info: { deliver_type: String(extra.deliver_type ?? "3") },
   };
 
+  mark("4PX_create_start");
   const created = await fpxCall(endpoint, cred, "ds.xms.order.create", "1.1.0", bizData);
+  mark("4PX_create_end");
   if (!created.ok) {
     return {
       tracking_number: null,
@@ -196,6 +198,7 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
     { request_no: order.external_order_id, ref_no: order.external_order_id },
   ];
 
+  mark("4PX_label_start");
   for (const key of attempts) {
     if (labelUrl) break;
     try {
