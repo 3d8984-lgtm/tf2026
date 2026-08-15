@@ -450,20 +450,21 @@ Deno.serve(async (req) => {
 
 
     let result: LabelResult;
-    if (carrier === "4px") result = await call4px(cfg, cred, order, shipment, item_position);
+    if (carrier === "4px") result = await call4px(cfg, cred, order, shipment, item_position, mark);
     else if (carrier === "yunexpress") result = await callYunExpress(cfg, cred, order, shipment, item_position);
     else return json({ error: `no API adapter for '${carrier}'` }, 400);
+    mark("carrier_api_end");
 
     await admin.from("shipping_logs").insert({
       shipment_id: shipment.id,
       order_id: shipment.order_id,
       action_type: result.tracking_number ? "carrier_api_success" : "carrier_api_fail",
       worker_id: user.id,
-      details: { carrier, mode: cfg.api_mode, error: result.error ?? null },
+      details: { carrier, mode: cfg.api_mode, error: result.error ?? null, timings, total_ms: Date.now() - t0 },
     });
 
     if (!result.tracking_number) {
-      return json({ error: result.error ?? "carrier did not return a tracking number", raw: result.raw }, 502);
+      return json({ error: result.error ?? "carrier did not return a tracking number", raw: result.raw, timings }, 502);
     }
 
     const { error: uErr } = await admin
