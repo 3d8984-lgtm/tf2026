@@ -393,7 +393,22 @@ export default function ShippingScan() {
         return;
       }
       await logAction("issue_tracking", { trackingNumber: res.tracking_number, carrier, via: "api" });
+      // Store the waybill on the scanned parcel row so each item shows only its own tracking number.
+      const pos = itemPosition ?? shipRecipientPos;
+      if (res.tracking_number && pos) {
+        await supabase
+          .from("shipment_scan_items")
+          .update({
+            carrier,
+            tracking_number: res.tracking_number,
+            label_url: (res as any)?.label_url ?? null,
+            tracking_issued_at: new Date().toISOString(),
+          } as any)
+          .eq("shipment_id", shipment.id)
+          .eq("position", pos);
+      }
       toast({ title: tr("송장이 발급되었습니다", "已生成运单"), description: res.tracking_number });
+
       // Auto-print the carrier-issued waybill right after issuance.
       const liveUrl = (res as any)?.label_url as string | undefined;
       if (liveUrl) {
