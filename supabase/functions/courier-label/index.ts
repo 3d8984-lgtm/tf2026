@@ -373,11 +373,9 @@ Deno.serve(async (req) => {
         message = e instanceof Error ? e.message : "network error";
       }
 
-      if (!tracking) {
-        const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-        const rnd = Math.random().toString(36).slice(2, 8).toUpperCase();
-        tracking = `TEST-${carrier.toUpperCase()}-${stamp}-${rnd}`;
-      }
+      // No fabricated tracking numbers: if 4PX did not return a waybill, stop.
+      if (!tracking) authOk = false;
+
 
       await admin.from("shipping_logs").insert({
         shipment_id: shipment.id,
