@@ -305,6 +305,11 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const t0 = Date.now();
+  const timings: { step: string; ms: number }[] = [];
+  const mark: Mark = (step) => timings.push({ step, ms: Date.now() - t0 });
+  mark("edge_function_start");
+
   try {
     const authHeader = req.headers.get("Authorization") ?? "";
     const userClient = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: authHeader } } });
