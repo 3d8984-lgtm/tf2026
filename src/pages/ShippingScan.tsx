@@ -677,9 +677,11 @@ export default function ShippingScan() {
           function printCarrierLabel(){
             if(printStarted)return;
             printStarted=true;
+            report("label_loaded");
             window.focus();
             logSize();
             requestAnimationFrame(()=>setTimeout(()=>{
+              report("print_called");
               window.print();
               window.onafterprint=()=>window.close();
             },60));
