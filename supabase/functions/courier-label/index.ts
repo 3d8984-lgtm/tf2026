@@ -514,22 +514,78 @@ Deno.serve(async (req) => {
 
 
 
+    const groupQty = group ? Math.max(1, Number(group.item_count ?? 1)) : 1;
     let result: LabelResult;
-    if (carrier === "4px") result = await call4px(cfg, cred, order, shipment, item_position, mark);
-    else if (carrier === "yunexpress") result = await callYunExpress(cfg, cred, order, shipment, item_position);
-    else return json({ error: `no API adapter for '${carrier}'` }, 400);
+    if (carrier === "4px") result = await call4px(cfg, cred, order, shipment, group ? 1 : item_position, mark, groupQty);
+    else if (carrier === "yunexpress") result = await callYunExpress(cfg, cred, order, shipment, group ? 1 : item_position, groupQty);
+    else {
+      if (group) await admin.from("shipping_groups").update({ label_status: "failed", label_error: `no API adapter for '${carrier}'` }).eq("id", group.id);
+      return json({ error: `no API adapter for '${carrier}'` }, 400);
+    }
     mark("carrier_api_end");
 
     await admin.from("shipping_logs").insert({
       shipment_id: shipment.id,
       order_id: shipment.order_id,
-      action_type: result.tracking_number ? "carrier_api_success" : "carrier_api_fail",
+      action_type: result.tracking_number ? "label_preissue_success" : "label_preissue_failed",
       worker_id: user.id,
-      details: { carrier, mode: cfg.api_mode, error: result.error ?? null, timings, total_ms: Date.now() - t0 },
+      details: {
+        carrier,
+        mode: cfg.api_mode,
+        shipping_group_id: group?.id ?? null,
+        quantity: groupQty,
+        tracking_number: result.tracking_number ?? null,
+        error: result.error ?? null,
+        timings,
+        elapsed_ms: Date.now() - t0,
+        total_ms: Date.now() - t0,
+      },
     });
 
     if (!result.tracking_number) {
+      if (group) {
+        await admin
+          .from("shipping_groups")
+          .update({ label_status: "failed", label_error: String(result.error ?? "no tracking number").slice(0, 500) })
+          .eq("id", group.id);
+      }
       return json({ error: result.error ?? "carrier did not return a tracking number", raw: result.raw, timings }, 502);
+    }
+
+    const issuedAt = new Date().toISOString();
+
+    if (group) {
+      const { error: gErr } = await admin
+        .from("shipping_groups")
+        .update({
+          carrier,
+          tracking_number: result.tracking_number,
+          label_url: result.label_url,
+          label_status: "ready",
+          label_error: null,
+          label_issued_at: issuedAt,
+        })
+        .eq("id", group.id);
+      if (gErr) {
+        await admin.from("shipping_groups").update({ label_status: "failed", label_error: gErr.message }).eq("id", group.id);
+        return json({ error: gErr.message }, 400);
+      }
+      // Mirror onto the linked rows so existing list UIs keep working.
+      await admin
+        .from("shipment_scan_items")
+        .update({ carrier, tracking_number: result.tracking_number, label_url: result.label_url, tracking_issued_at: issuedAt })
+        .eq("shipping_group_id", group.id);
+
+      mark("edge_response");
+      return json({
+        ok: true,
+        shipping_group_id: group.id,
+        carrier,
+        tracking_number: result.tracking_number,
+        label_url: result.label_url,
+        timings,
+        total_ms: Date.now() - t0,
+      });
     }
 
     const { error: uErr } = await admin
@@ -540,7 +596,7 @@ Deno.serve(async (req) => {
         label_url: result.label_url,
         status: "label_received",
         scan_status: "ready",
-        tracking_issued_at: new Date().toISOString(),
+        tracking_issued_at: issuedAt,
         carrier_response: result.raw && typeof result.raw === "object" ? result.raw : { raw: String(result.raw) },
       })
       .eq("id", shipment.id);
@@ -555,6 +611,7 @@ Deno.serve(async (req) => {
       timings,
       total_ms: Date.now() - t0,
     });
+
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : "unknown error" }, 500);
   }
