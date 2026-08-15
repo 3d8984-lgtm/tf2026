@@ -415,7 +415,7 @@ export default function ShippingScan() {
         if (url) {
           const size = labelSizeFor(carrier || shipment?.carrier);
           const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
-          if (w) { w.document.write(buildRemoteLabelHtml(url, carrier || shipment?.carrier)); w.document.close(); }
+          if (w) { w.document.write(buildRemoteLabelHtml(url, carrier || shipment?.carrier)); w.document.close(); perfMark("label_html_written"); }
         } else {
           const why = (res as any)?.message as string | undefined;
           printWindow?.close();
@@ -456,7 +456,7 @@ export default function ShippingScan() {
       if (liveUrl) {
         const size = labelSizeFor(carrier || shipment?.carrier);
         const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
-        if (w) { w.document.write(buildRemoteLabelHtml(liveUrl, carrier || shipment?.carrier)); w.document.close(); }
+        if (w) { w.document.write(buildRemoteLabelHtml(liveUrl, carrier || shipment?.carrier)); w.document.close(); perfMark("label_html_written"); }
       } else {
         printWindow?.close();
         toast({
