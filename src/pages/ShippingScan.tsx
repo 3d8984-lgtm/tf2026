@@ -150,7 +150,13 @@ export default function ShippingScan() {
         if (v.length >= 3) {
           setHidActive(true);
           setTimeout(() => setHidActive(false), 600);
-          handleScan(v);
+          const size = labelSizeFor(carrier || shipment?.carrier || "4PX");
+          const printWindow = window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
+          if (printWindow) {
+            printWindow.document.write(`<!doctype html><html><body style="font-family:sans-serif;padding:24px">${tr("송장을 생성하고 있습니다…", "正在生成运单…")}</body></html>`);
+            printWindow.document.close();
+          }
+          void handleScan(v, printWindow);
         }
         return;
       }
@@ -201,7 +207,7 @@ export default function ShippingScan() {
     });
   }
 
-  async function handleScan(rawValue: string) {
+  async function handleScan(rawValue: string, printWindow?: Window | null) {
     const qrValue = rawValue.trim();
     if (!qrValue) return;
 
@@ -215,7 +221,7 @@ export default function ShippingScan() {
       scanSuccess();
       setFeedback({ kind: "success", msg: tr("테스트 QR 인식 → 송장 출력", "测试二维码识别 → 打印运单") });
       setScanInput("");
-      printTestLabel();
+      printTestLabel(printWindow);
       return;
     }
 
@@ -287,7 +293,7 @@ export default function ShippingScan() {
     qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
 
     // Auto-issue + print the waybill for the scanned parcel.
-    if (!issuing) void issueTrackingViaApi();
+    if (!issuing) void issueTrackingViaApi(printWindow);
   }
 
 
@@ -296,7 +302,18 @@ export default function ShippingScan() {
       e.preventDefault();
       const v = scanInput;
       setScanInput("");
-      if (v.trim()) handleScan(v);
+      if (v.trim()) {
+        // Barcode scanners finish with Enter. Open the print target synchronously
+        // while that user activation is still valid; opening it after API/database
+        // awaits is blocked by Chrome and the carrier label never reaches print.
+        const size = labelSizeFor(carrier || shipment?.carrier || "4PX");
+        const printWindow = window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
+        if (printWindow) {
+          printWindow.document.write(`<!doctype html><html><body style="font-family:sans-serif;padding:24px">${tr("송장을 생성하고 있습니다…", "正在生成运单…")}</body></html>`);
+          printWindow.document.close();
+        }
+        void handleScan(v, printWindow);
+      }
     }
   }
 
@@ -310,9 +327,10 @@ export default function ShippingScan() {
   // Call the selected courier's API to create the label / tracking number.
   // In test mode the carrier credentials are verified (4PX signed call) but no real
   // waybill is created — a simulated tracking number is printed instead.
-  async function issueTrackingViaApi() {
-    if (!shipment) return;
+  async function issueTrackingViaApi(printWindow?: Window | null) {
+    if (!shipment) { printWindow?.close(); return; }
     if (!carrier) {
+      printWindow?.close();
       toast({ variant: "destructive", title: tr("택배사를 선택하세요", "请选择承运商") });
       return;
     }
@@ -335,7 +353,7 @@ export default function ShippingScan() {
         setTestLabelUrl(url ?? null);
         if (url) {
           const size = labelSizeFor(carrier || shipment?.carrier);
-          const w = window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
+          const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
           if (w) { w.document.write(buildRemoteLabelHtml(url, carrier || shipment?.carrier)); w.document.close(); }
         } else {
           const why = (res as any)?.message as string | undefined;
@@ -348,7 +366,7 @@ export default function ShippingScan() {
               ? tr(`임시 미리보기를 출력합니다. ${why ?? "ds.xms.label.get 권한을 확인하세요."}`, `已输出临时预览。${why ?? "请确认 ds.xms.label.get 权限。"}`)
               : tr(`실제 송장은 테스트 모드를 끄고 출력하세요. (${why ?? "sandbox"})`, `请关闭测试模式后再打印真实面单。(${why ?? "sandbox"})`),
           });
-          printSimulatedLabel(res.tracking_number);
+          printSimulatedLabel(res.tracking_number, printWindow);
         }
 
 
@@ -361,7 +379,7 @@ export default function ShippingScan() {
       const liveUrl = (res as any)?.label_url as string | undefined;
       if (liveUrl) {
         const size = labelSizeFor(carrier || shipment?.carrier);
-        const w = window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
+        const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
         if (w) { w.document.write(buildRemoteLabelHtml(liveUrl, carrier || shipment?.carrier)); w.document.close(); }
       } else {
         setLabelDialog(true);
@@ -369,6 +387,7 @@ export default function ShippingScan() {
       qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
 
     } catch (e: any) {
+      printWindow?.close();
       toast({
         variant: "destructive",
         title: testMode
@@ -537,14 +556,15 @@ export default function ShippingScan() {
     const k = noPrint ? 1 : Math.min(3, Math.max(0.5, labelScale / 100));
     const PW = +(LW * k).toFixed(3);
     const PH = +(LH * k).toFixed(3);
-    const isImg = /^data:image\//i.test(url) || /\.(png|jpe?g)$/i.test(url);
-    const isHtml = /^data:text\/html/i.test(url) || /\.html?$/i.test(url);
+    const secureUrl = url.replace(/^http:\/\/bss-fss\.4px\.com\//i, "https://bss-fss.4px.com/");
+    const isImg = /^data:image\//i.test(secureUrl) || /\.(png|jpe?g)$/i.test(secureUrl);
+    const isHtml = /^data:text\/html/i.test(secureUrl) || /\.html?$/i.test(secureUrl);
     const printScript = noPrint ? "" : `<script>window.onload=()=>{setTimeout(()=>window.print(),800)};<\/script>`;
     const body = isImg
-      ? `<img src="${url}"/>`
+      ? `<img src="${secureUrl}"/>`
       : isHtml
-        ? `<iframe src="${url}" frameborder="0"></iframe>`
-        : `<embed src="${url}#toolbar=0" type="application/pdf"/>`;
+        ? `<iframe src="${secureUrl}" frameborder="0"></iframe>`
+        : `<embed src="${secureUrl}#toolbar=0" type="application/pdf"/>`;
     return `<!doctype html><html><head><meta charset="utf-8"/><title>Label</title>
       <style>
         @page { size: ${PW}mm ${PH}mm; margin: 0; }
@@ -570,9 +590,9 @@ export default function ShippingScan() {
     w.document.close();
   }
 
-  function printTestLabel() {
+  function printTestLabel(printWindow?: Window | null) {
     const size = labelSizeFor(TEST_RECIPIENT.carrier);
-    const w = window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
+    const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
     if (!w) return;
     w.document.write(buildLabelHtml({ test: true }));
     w.document.close();
@@ -586,9 +606,9 @@ export default function ShippingScan() {
   }
 
   // Test-mode label: real order/address data, simulated (non-billable) tracking number.
-  function printSimulatedLabel(trackingNumber: string) {
+  function printSimulatedLabel(trackingNumber: string, printWindow?: Window | null) {
     const size = labelSizeFor(carrier || shipment?.carrier);
-    const w = window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
+    const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
     if (!w) return;
     w.document.write(buildLabelHtml({ testTracking: trackingNumber }));
     w.document.close();
@@ -949,7 +969,7 @@ export default function ShippingScan() {
               </AlertDescription>
             </Alert>
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" onClick={printTestLabel}>
+              <Button variant="outline" onClick={() => printTestLabel()}>
                 <TestTube2 className="w-4 h-4 mr-1" />{tr("테스트 출력", "测试打印")}
               </Button>
               <Button variant="outline" disabled={!shipment.tracking_number} onClick={downloadLabelPdf}>
