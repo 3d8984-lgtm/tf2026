@@ -510,6 +510,12 @@ export default function CourierSettings() {
                 <div className="space-y-1.5">
                   <Label className="text-xs">{tr("신고단가 (USD)", "申报单价 (USD)")}</Label>
                   <Input type="number" step="0.01" min="0" value={cred.unit_price} onChange={(e) => setCred((c) => ({ ...c, unit_price: e.target.value }))} placeholder="10" />
+                  <p className="text-[11px] text-amber-500 leading-tight">
+                    {tr(
+                      "미국 관세는 신고가액에 대해 27.5%가 추가 부과된다는 점에 유의하십시오.",
+                      "请注意，美国关税将对申报价值额外加征27.5%。"
+                    )}
+                  </p>
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">{tr("품명 (영문)", "品名 (英文)")}</Label>
