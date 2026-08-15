@@ -48,8 +48,11 @@ function shippingRecipient(order: any, position?: number) {
   };
 }
 
+type Mark = (step: string) => void;
+const noopMark: Mark = () => {};
+
 // ---- 4PX: ds.xms.order.create (v1.1.0) + ds.xms.label.get (v1.1.0) ----------
-async function call4px(cfg: any, cred: any, order: any, shipment: any, position?: number): Promise<LabelResult> {
+async function call4px(cfg: any, cred: any, order: any, shipment: any, position?: number, mark: Mark = noopMark): Promise<LabelResult> {
   const endpoint = fpxEndpoint(cfg.api_url, cfg.api_mode);
   const extra = (cred?.extra ?? {}) as Record<string, any>;
   // 소포 1건 = 티셔츠 1개 (주소록 1행). 주문 전체 수량(order.quantity)을 쓰면 안 됩니다.
