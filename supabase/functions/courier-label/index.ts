@@ -52,13 +52,14 @@ type Mark = (step: string) => void;
 const noopMark: Mark = () => {};
 
 // ---- 4PX: ds.xms.order.create (v1.1.0) + ds.xms.label.get (v1.1.0) ----------
-async function call4px(cfg: any, cred: any, order: any, shipment: any, position?: number, mark: Mark = noopMark): Promise<LabelResult> {
+async function call4px(cfg: any, cred: any, order: any, shipment: any, position?: number, mark: Mark = noopMark, qtyOverride?: number): Promise<LabelResult> {
   const endpoint = fpxEndpoint(cfg.api_url, cfg.api_mode);
   const extra = (cred?.extra ?? {}) as Record<string, any>;
-  // 소포 1건 = 티셔츠 1개 (주소록 1행). 주문 전체 수량(order.quantity)을 쓰면 안 됩니다.
-  const qty = 1;
+  // 소포 1건 = 티셔츠 1개 (주소록 1행). 발송 그룹(동일 수취인 묶음)이면 그룹의 제품수량을 사용합니다.
+  const qty = Math.max(1, Number(qtyOverride ?? 1));
   const unitPrice = Number(extra.unit_price ?? 10);
-  const weight = Math.max(1, Math.round(shipment.weight_grams ?? shipment.expected_weight_grams ?? 200));
+  const baseWeight = Math.max(1, Math.round(shipment.weight_grams ?? shipment.expected_weight_grams ?? 200));
+  const weight = baseWeight * qty;
   // 4PX는 수취인 정보에 영문/기호만 허용하고 city/state가 필수입니다.
   const ship = shippingRecipient(order, position);
   if (!ship.recipient_name) {
@@ -241,7 +242,8 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
 
 
 
-async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, position?: number): Promise<LabelResult> {
+async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, position?: number, qtyOverride?: number): Promise<LabelResult> {
+  const qty = Math.max(1, Number(qtyOverride ?? 1));
   const base = (cfg.api_url ?? "").replace(/\/+$/, "");
   const url = `${base}/api/WayBill/CreateOrder`;
   const auth = btoa(`${cred?.account_no ?? ""}&${cred?.api_key ?? ""}`);
@@ -250,7 +252,7 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
       CustomerOrderNumber: order.external_order_id,
       ShippingMethodCode: cred?.extra?.channel_code ?? "",
       PackageCount: 1,
-      Weight: ((shipment.weight_grams ?? shipment.expected_weight_grams ?? 0) / 1000) || 0.1,
+      Weight: (((shipment.weight_grams ?? shipment.expected_weight_grams ?? 0) / 1000) || 0.1) * qty,
       Receiver: (() => {
         const r = normalizeRecipient(shippingRecipient(order, position));
         return {
@@ -269,7 +271,7 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
         {
           EName: cred?.extra?.item_name_en ?? "T-Shirt",
           CName: cred?.extra?.item_name_cn ?? "T恤",
-          Quantity: 1,
+          Quantity: qty,
           UnitPrice: Number(cred?.extra?.unit_price ?? 10),
           UnitWeight: 0.2,
           Currency: "USD",
@@ -321,11 +323,50 @@ Deno.serve(async (req) => {
     const { data: approved } = await admin.rpc("is_approved", { _user_id: user.id });
     if (!approved) return json({ error: "forbidden" }, 403);
 
-    const { shipment_id, carrier, test, test_variant, item_position } = await req.json();
+    const body = await req.json();
+    const { carrier, test, test_variant, item_position, shipping_group_id } = body;
+    let { shipment_id } = body;
     // Test mode now only supports the production endpoint with real credentials;
     // the created waybill is cancelled immediately after the label is fetched.
     const variant: "live_cancel" = test_variant === "live_cancel" ? "live_cancel" : "live_cancel";
-    if (!shipment_id || !carrier) return json({ error: "shipment_id and carrier required" }, 400);
+    if (!carrier) return json({ error: "carrier required" }, 400);
+
+    // ---- SHIPPING GROUP (pre-issue) ----------------------------------------
+    // One shipping group (same recipient name/phone/address/zip) = exactly one
+    // waybill, whatever the number of orders it contains.
+    let group: any = null;
+    if (shipping_group_id) {
+      const { data: g } = await admin.from("shipping_groups").select("*").eq("id", shipping_group_id).maybeSingle();
+      if (!g) return json({ error: "shipping group not found" }, 404);
+      if (g.tracking_number && g.label_status === "ready") {
+        return json({ ok: true, already: true, tracking_number: g.tracking_number, label_url: g.label_url, carrier: g.carrier });
+      }
+      // Idempotent claim: only one caller may flip pending/failed -> issuing.
+      const { data: claimed } = await admin
+        .from("shipping_groups")
+        .update({ label_status: "issuing", label_error: null })
+        .eq("id", g.id)
+        .in("label_status", ["pending", "failed"])
+        .select("id")
+        .maybeSingle();
+      if (!claimed) return json({ ok: true, already: true, busy: true, tracking_number: g.tracking_number, label_url: g.label_url });
+      group = g;
+
+      const { data: firstItem } = await admin
+        .from("shipment_scan_items")
+        .select("shipment_id, order_id, position")
+        .eq("shipping_group_id", g.id)
+        .order("position", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (!firstItem) {
+        await admin.from("shipping_groups").update({ label_status: "failed", label_error: "no scan items linked" }).eq("id", g.id);
+        return json({ error: "shipping group has no linked items" }, 400);
+      }
+      shipment_id = firstItem.shipment_id;
+    }
+
+    if (!shipment_id) return json({ error: "shipment_id and carrier required" }, 400);
 
     const { data: shipment, error: sErr } = await admin
       .from("shipments")
@@ -333,12 +374,36 @@ Deno.serve(async (req) => {
       .eq("id", shipment_id)
       .maybeSingle();
     if (sErr || !shipment) return json({ error: "shipment not found" }, 404);
-    if (!test && shipment.tracking_number) {
+    if (!test && !group && shipment.tracking_number) {
       return json({ ok: true, already: true, tracking_number: shipment.tracking_number, carrier: shipment.carrier });
     }
 
-    const { data: order } = await admin.from("orders").select("*").eq("id", shipment.order_id).maybeSingle();
-    if (!order) return json({ error: "order not found" }, 404);
+    const { data: orderRow } = await admin.from("orders").select("*").eq("id", shipment.order_id).maybeSingle();
+    if (!orderRow) return json({ error: "order not found" }, 404);
+
+    // For a group we build a synthetic order whose single shipping item carries
+    // the group recipient, and a unique ref_no so 4PX never merges waybills.
+    const order = group
+      ? {
+          ...orderRow,
+          external_order_id: `${orderRow.external_order_id}-G${String(group.id).slice(0, 8)}`,
+          source_data: {
+            ...(orderRow.source_data ?? {}),
+            items: [
+              {
+                recipient_name: group.recipient_name,
+                recipient_phone: group.recipient_phone,
+                shipping_address: group.shipping_address,
+                shipping_city: group.shipping_city,
+                shipping_state: group.shipping_state,
+                shipping_zip: group.shipping_zip,
+                country_code: group.shipping_country,
+              },
+            ],
+          },
+        }
+      : orderRow;
+
 
     const { data: cfg } = await admin.from("courier_configs").select("*").eq("code", carrier).maybeSingle();
     if (!cfg) return json({ error: `courier '${carrier}' is not registered` }, 400);
@@ -449,22 +514,78 @@ Deno.serve(async (req) => {
 
 
 
+    const groupQty = group ? Math.max(1, Number(group.item_count ?? 1)) : 1;
     let result: LabelResult;
-    if (carrier === "4px") result = await call4px(cfg, cred, order, shipment, item_position, mark);
-    else if (carrier === "yunexpress") result = await callYunExpress(cfg, cred, order, shipment, item_position);
-    else return json({ error: `no API adapter for '${carrier}'` }, 400);
+    if (carrier === "4px") result = await call4px(cfg, cred, order, shipment, group ? 1 : item_position, mark, groupQty);
+    else if (carrier === "yunexpress") result = await callYunExpress(cfg, cred, order, shipment, group ? 1 : item_position, groupQty);
+    else {
+      if (group) await admin.from("shipping_groups").update({ label_status: "failed", label_error: `no API adapter for '${carrier}'` }).eq("id", group.id);
+      return json({ error: `no API adapter for '${carrier}'` }, 400);
+    }
     mark("carrier_api_end");
 
     await admin.from("shipping_logs").insert({
       shipment_id: shipment.id,
       order_id: shipment.order_id,
-      action_type: result.tracking_number ? "carrier_api_success" : "carrier_api_fail",
+      action_type: result.tracking_number ? "label_preissue_success" : "label_preissue_failed",
       worker_id: user.id,
-      details: { carrier, mode: cfg.api_mode, error: result.error ?? null, timings, total_ms: Date.now() - t0 },
+      details: {
+        carrier,
+        mode: cfg.api_mode,
+        shipping_group_id: group?.id ?? null,
+        quantity: groupQty,
+        tracking_number: result.tracking_number ?? null,
+        error: result.error ?? null,
+        timings,
+        elapsed_ms: Date.now() - t0,
+        total_ms: Date.now() - t0,
+      },
     });
 
     if (!result.tracking_number) {
+      if (group) {
+        await admin
+          .from("shipping_groups")
+          .update({ label_status: "failed", label_error: String(result.error ?? "no tracking number").slice(0, 500) })
+          .eq("id", group.id);
+      }
       return json({ error: result.error ?? "carrier did not return a tracking number", raw: result.raw, timings }, 502);
+    }
+
+    const issuedAt = new Date().toISOString();
+
+    if (group) {
+      const { error: gErr } = await admin
+        .from("shipping_groups")
+        .update({
+          carrier,
+          tracking_number: result.tracking_number,
+          label_url: result.label_url,
+          label_status: "ready",
+          label_error: null,
+          label_issued_at: issuedAt,
+        })
+        .eq("id", group.id);
+      if (gErr) {
+        await admin.from("shipping_groups").update({ label_status: "failed", label_error: gErr.message }).eq("id", group.id);
+        return json({ error: gErr.message }, 400);
+      }
+      // Mirror onto the linked rows so existing list UIs keep working.
+      await admin
+        .from("shipment_scan_items")
+        .update({ carrier, tracking_number: result.tracking_number, label_url: result.label_url, tracking_issued_at: issuedAt })
+        .eq("shipping_group_id", group.id);
+
+      mark("edge_response");
+      return json({
+        ok: true,
+        shipping_group_id: group.id,
+        carrier,
+        tracking_number: result.tracking_number,
+        label_url: result.label_url,
+        timings,
+        total_ms: Date.now() - t0,
+      });
     }
 
     const { error: uErr } = await admin
@@ -475,7 +596,7 @@ Deno.serve(async (req) => {
         label_url: result.label_url,
         status: "label_received",
         scan_status: "ready",
-        tracking_issued_at: new Date().toISOString(),
+        tracking_issued_at: issuedAt,
         carrier_response: result.raw && typeof result.raw === "object" ? result.raw : { raw: String(result.raw) },
       })
       .eq("id", shipment.id);
@@ -490,6 +611,7 @@ Deno.serve(async (req) => {
       timings,
       total_ms: Date.now() - t0,
     });
+
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : "unknown error" }, 500);
   }

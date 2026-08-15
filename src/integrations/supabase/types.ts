@@ -1095,6 +1095,7 @@ export type Database = {
           scanned_at: string | null
           scanned_by: string | null
           shipment_id: string
+          shipping_group_id: string | null
           size: string | null
           tracking_issued_at: string | null
           tracking_number: string | null
@@ -1115,6 +1116,7 @@ export type Database = {
           scanned_at?: string | null
           scanned_by?: string | null
           shipment_id: string
+          shipping_group_id?: string | null
           size?: string | null
           tracking_issued_at?: string | null
           tracking_number?: string | null
@@ -1135,6 +1137,7 @@ export type Database = {
           scanned_at?: string | null
           scanned_by?: string | null
           shipment_id?: string
+          shipping_group_id?: string | null
           size?: string | null
           tracking_issued_at?: string | null
           tracking_number?: string | null
@@ -1153,6 +1156,13 @@ export type Database = {
             columns: ["shipment_id"]
             isOneToOne: false
             referencedRelation: "shipments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shipment_scan_items_shipping_group_id_fkey"
+            columns: ["shipping_group_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_groups"
             referencedColumns: ["id"]
           },
         ]
@@ -1245,6 +1255,81 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      shipping_groups: {
+        Row: {
+          carrier: string | null
+          created_at: string
+          group_key: string
+          id: string
+          item_count: number
+          label_error: string | null
+          label_issued_at: string | null
+          label_status: string
+          label_url: string | null
+          printed_at: string | null
+          recipient_name: string
+          recipient_phone: string
+          required_scan_count: number
+          scan_status: string
+          scanned_count: number
+          shipping_address: string
+          shipping_city: string | null
+          shipping_country: string
+          shipping_state: string | null
+          shipping_zip: string
+          tracking_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          carrier?: string | null
+          created_at?: string
+          group_key: string
+          id?: string
+          item_count?: number
+          label_error?: string | null
+          label_issued_at?: string | null
+          label_status?: string
+          label_url?: string | null
+          printed_at?: string | null
+          recipient_name?: string
+          recipient_phone?: string
+          required_scan_count?: number
+          scan_status?: string
+          scanned_count?: number
+          shipping_address?: string
+          shipping_city?: string | null
+          shipping_country?: string
+          shipping_state?: string | null
+          shipping_zip?: string
+          tracking_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          carrier?: string | null
+          created_at?: string
+          group_key?: string
+          id?: string
+          item_count?: number
+          label_error?: string | null
+          label_issued_at?: string | null
+          label_status?: string
+          label_url?: string | null
+          printed_at?: string | null
+          recipient_name?: string
+          recipient_phone?: string
+          required_scan_count?: number
+          scan_status?: string
+          scanned_count?: number
+          shipping_address?: string
+          shipping_city?: string | null
+          shipping_country?: string
+          shipping_state?: string | null
+          shipping_zip?: string
+          tracking_number?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       shipping_logs: {
         Row: {

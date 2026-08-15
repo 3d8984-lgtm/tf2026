@@ -15,6 +15,13 @@ import { useLang } from "@/contexts/LangContext";
 import { useShipmentScan } from "@/hooks/useShipmentScan";
 import { useHologramSerials } from "@/hooks/useHologramSerials";
 import { useCouriers, requestCarrierLabel } from "@/hooks/useCouriers";
+import {
+  useShippingGroupsForOrder,
+  buildShippingGroups,
+  issueGroupLabels,
+  issueGroupLabel,
+  type ShippingGroupRow,
+} from "@/hooks/useShippingGroups";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -25,6 +32,9 @@ import { buildFpxLabelHtml } from "@/lib/label-4px";
 
 import { Html5Qrcode } from "html5-qrcode";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ChevronDown, ChevronRight, Layers } from "lucide-react";
 
 type FeedbackKind = "success" | "duplicate" | "mismatch" | "notfound" | "idle";
 
@@ -125,6 +135,78 @@ export default function ShippingScan() {
   const [carrier, setCarrier] = useState("");
   const [manualTracking, setManualTracking] = useState("");
   const { data: couriers = [] } = useCouriers(true);
+
+  // ---- Shipping groups (pre-issued waybills) --------------------------------
+  const { data: groupData, refetch: refetchGroups } = useShippingGroupsForOrder(orderId);
+  const groups = (groupData?.groups ?? []) as ShippingGroupRow[];
+  const groupMembers = (groupData?.members ?? []) as any[];
+  const groupById = useMemo(() => new Map(groups.map((g) => [g.id, g])), [groups]);
+  const membersByGroup = useMemo(() => {
+    const m = new Map<string, any[]>();
+    for (const it of groupMembers) {
+      if (!it.shipping_group_id) continue;
+      const arr = m.get(it.shipping_group_id) ?? [];
+      arr.push(it);
+      m.set(it.shipping_group_id, arr);
+    }
+    return m;
+  }, [groupMembers]);
+
+  const [groupTab, setGroupTab] = useState<"all" | "single" | "multi">("all");
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [buildingGroups, setBuildingGroups] = useState(false);
+  const [preIssueOpen, setPreIssueOpen] = useState(false);
+  const [preIssueRunning, setPreIssueRunning] = useState(false);
+  const [preIssueProgress, setPreIssueProgress] = useState({ done: 0, total: 0, success: 0, failed: 0 });
+  const [preIssueLog, setPreIssueLog] = useState<{ name: string; ok: boolean; message?: string }[]>([]);
+  // Pre-fetched label blobs so printing does not wait for a remote download.
+  const labelCacheRef = useRef<Map<string, string>>(new Map());
+
+  const singleGroups = useMemo(() => groups.filter((g) => (g.item_count ?? 0) <= 1), [groups]);
+  const multiGroups = useMemo(() => groups.filter((g) => (g.item_count ?? 0) > 1), [groups]);
+  const pendingGroups = useMemo(
+    () => groups.filter((g) => !(g.tracking_number && g.label_status === "ready")),
+    [groups],
+  );
+
+  // Build / refresh the groups when the packing page opens (idempotent, server side).
+  useEffect(() => {
+    if (!orderId) return;
+    let cancelled = false;
+    setBuildingGroups(true);
+    buildShippingGroups()
+      .then(() => { if (!cancelled) refetchGroups(); })
+      .catch(() => { /* keep the page usable even if grouping fails */ })
+      .finally(() => { if (!cancelled) setBuildingGroups(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderId]);
+
+  // Prefetch issued labels into blob URLs (bounded) for instant printing.
+  useEffect(() => {
+    const ready = groups.filter((g) => g.label_status === "ready" && g.label_url).slice(0, 40);
+    let cancelled = false;
+    (async () => {
+      for (const g of ready) {
+        if (cancelled) return;
+        if (labelCacheRef.current.has(g.id)) continue;
+        const url = g.label_url!;
+        if (url.startsWith("data:")) { labelCacheRef.current.set(g.id, url); continue; }
+        try {
+          const res = await fetch(url);
+          if (!res.ok) continue;
+          const blob = await res.blob();
+          labelCacheRef.current.set(g.id, URL.createObjectURL(blob));
+        } catch { /* fall back to the remote URL at print time */ }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [groups]);
+
+  useEffect(() => () => {
+    for (const u of labelCacheRef.current.values()) if (u.startsWith("blob:")) URL.revokeObjectURL(u);
+  }, []);
 
   useEffect(() => {
     if (carrier || couriers.length === 0) return;
@@ -308,23 +390,40 @@ export default function ShippingScan() {
     }
 
 
+    // DB-level duplicate guard (not only the 1.5s debounce).
+    const { data: dupRow } = await supabase
+      .from("shipment_scan_items")
+      .select("id, position, shipping_group_id")
+      .eq("qr_value", qrValue)
+      .eq("is_scanned", true)
+      .maybeSingle();
+    if (dupRow) {
+      scanDuplicate();
+      setFeedback({ kind: "duplicate", msg: tr("중복 스캔 · 이미 확인된 제품입니다", "重复扫描 · 该产品已确认") });
+      printWindow?.close();
+      void logAction("scan_duplicate", { qrValue, position: dupRow.position });
+      return;
+    }
+
     // Fill next empty slot
     const slot = items.find((i) => !i.is_scanned);
     if (!slot) {
       scanDuplicate();
       setFeedback({ kind: "duplicate", msg: tr("모든 슬롯이 가득 찼습니다", "已全部扫描完成") });
+      printWindow?.close();
       return;
     }
 
-    // Immediate operator feedback — the DB writes below run in the background so
-    // the waybill request starts without waiting for them.
     const newCount = scannedCount + 1;
     perfMark("validation");
     scanSuccess();
-    setFeedback({ kind: "success", msg: tr(`${slot.position}번 슬롯 스캔 완료 (${newCount}/${total})`, `第 ${slot.position} 槽完成 (${newCount}/${total})`) });
     setScanInput("");
 
-    void Promise.all([
+    const group = slot.shipping_group_id ? groupById.get(slot.shipping_group_id) ?? null : null;
+    perfMark("GROUP_MATCHED");
+    if (group) setActiveGroupId(group.id);
+
+    await Promise.all([
       supabase
         .from("shipment_scan_items")
         .update({
@@ -341,13 +440,121 @@ export default function ShippingScan() {
           scan_status: newCount >= total ? (shipment.scan_status === "ready" || shipment.scan_status === "shipped" ? shipment.scan_status : "scanning") : "scanning",
         })
         .eq("id", shipment.id),
-      logAction("scan", { qrValue, position: slot.position }),
-    ]).then(() => {
-      qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
+      logAction("scan_success", { qrValue, position: slot.position, shipping_group_id: group?.id ?? null }),
+    ]);
+
+    qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
+
+    if (!group) {
+      setFeedback({ kind: "success", msg: tr(`${slot.position}번 슬롯 스캔 완료 (${newCount}/${total})`, `第 ${slot.position} 槽完成 (${newCount}/${total})`) });
+      printWindow?.close();
+      toast({
+        variant: "destructive",
+        title: tr("발송 그룹이 없습니다", "无发货分组"),
+        description: tr("송장 사전발행을 먼저 진행해 주세요.", "请先执行运单预发行。"),
+      });
+      return;
+    }
+
+    // Recount the group from the DB (multiple orders can belong to one group).
+    const { data: memberRows } = await supabase
+      .from("shipment_scan_items")
+      .select("id, is_scanned")
+      .eq("shipping_group_id", group.id);
+    const scannedInGroup = (memberRows ?? []).filter((m: any) => m.is_scanned).length;
+    const required = group.required_scan_count || group.item_count || 1;
+    void supabase.from("shipping_groups").update({
+      scanned_count: scannedInGroup,
+      scan_status: scannedInGroup >= required ? "ready" : "scanning",
+    }).eq("id", group.id);
+    void logAction("scan_group_progress", { shipping_group_id: group.id, qrValue, scanned: scannedInGroup, required });
+    void refetchGroups();
+
+    setFeedback({
+      kind: "success",
+      msg: `${group.recipient_name} · ${scannedInGroup}/${required}`,
     });
 
-    // Auto-issue + print the waybill for the scanned parcel.
-    if (!issuing) void issueTrackingViaApi(printWindow, slot.position);
+    if (scannedInGroup < required) {
+      printWindow?.close();
+      return;
+    }
+
+    // All products of this shipping group confirmed → print the pre-issued label.
+    void logAction("scan_group_completed", { shipping_group_id: group.id, required });
+    printPreIssuedLabel(group, printWindow);
+  }
+
+  // Prints the waybill that was issued BEFORE packing started. No carrier API here.
+  function printPreIssuedLabel(group: ShippingGroupRow, printWindow?: Window | null) {
+    if (group.label_status !== "ready" || !group.label_url) {
+      printWindow?.close();
+      scanFail();
+      setFeedback({ kind: "notfound", msg: tr("송장 미발급 · 먼저 송장 사전발행을 진행하세요", "运单未发行 · 请先执行运单预发行") });
+      toast({
+        variant: "destructive",
+        title: tr("송장 미발급", "运单未发行"),
+        description: tr("이 발송건은 아직 송장이 준비되지 않았습니다. 먼저 송장 사전발행을 진행해주세요.",
+                        "该发货件尚未准备运单，请先执行运单预发行。"),
+      });
+      void logAction("label_print_failed", { shipping_group_id: group.id, reason: "label_not_ready" });
+      return;
+    }
+    const url = labelCacheRef.current.get(group.id) ?? group.label_url;
+    perfMark("LABEL_READY");
+    void logAction("label_print_requested", { shipping_group_id: group.id, tracking_number: group.tracking_number });
+    const size = labelSizeFor(group.carrier || carrier || shipment?.carrier);
+    const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
+    if (!w) {
+      toast({ variant: "destructive", title: tr("팝업이 차단되었습니다", "弹窗被拦截") });
+      void logAction("label_print_failed", { shipping_group_id: group.id, reason: "popup_blocked" });
+      return;
+    }
+    w.document.write(buildRemoteLabelHtml(url, group.carrier || carrier || shipment?.carrier));
+    w.document.close();
+    perfMark("label_html_written");
+    void supabase.from("shipping_groups").update({ printed_at: new Date().toISOString() }).eq("id", group.id);
+    void logAction("label_print_success", { shipping_group_id: group.id, tracking_number: group.tracking_number });
+  }
+
+  // ---- Pre-issue (before packing starts) ------------------------------------
+  async function runPreIssue() {
+    if (!carrier) {
+      toast({ variant: "destructive", title: tr("택배사를 선택하세요", "请选择承运商") });
+      return;
+    }
+    const targets = pendingGroups.map((g) => ({ id: g.id, recipient_name: g.recipient_name }));
+    if (!targets.length) {
+      toast({ title: tr("이미 모든 발송건의 송장이 발급되었습니다", "所有发货件的运单均已发行") });
+      setPreIssueOpen(false);
+      return;
+    }
+    setPreIssueRunning(true);
+    setPreIssueLog([]);
+    setPreIssueProgress({ done: 0, total: targets.length, success: 0, failed: 0 });
+    await logAction("label_preissue_started", { count: targets.length, carrier });
+    const startedAt = performance.now();
+    await issueGroupLabels(targets, carrier, {
+      concurrency: 6,
+      onProgress: (p) => {
+        setPreIssueProgress({ done: p.done, total: p.total, success: p.success, failed: p.failed });
+        if (p.last) setPreIssueLog((prev) => [{ name: p.last!.name, ok: p.last!.ok, message: p.last!.message }, ...prev].slice(0, 200));
+      },
+    });
+    setPreIssueRunning(false);
+    await refetchGroups();
+    await logAction("label_preissue_finished", { count: targets.length, elapsed_ms: Math.round(performance.now() - startedAt) });
+  }
+
+  async function retryGroupLabel(group: ShippingGroupRow) {
+    if (!carrier) return;
+    try {
+      await issueGroupLabel(group.id, carrier);
+      toast({ title: tr("송장이 발급되었습니다", "已生成运单"), description: group.recipient_name });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: tr("발급 실패", "生成失败"), description: e?.message });
+    }
+    refetchGroups();
   }
 
 
@@ -534,16 +741,19 @@ export default function ShippingScan() {
     setResetting(true);
     const { error: e1 } = await supabase
       .from("shipment_scan_items")
-      .update({ qr_value: null, is_scanned: false, scanned_at: null, scanned_by: null, carrier: null, tracking_number: null, label_url: null, tracking_issued_at: null } as any)
+      // Packing reset clears the SCAN state only — pre-issued waybills are kept.
+      .update({ qr_value: null, is_scanned: false, scanned_at: null, scanned_by: null } as any)
       .eq("shipment_id", shipment.id);
+    const groupIds = groups.map((g) => g.id);
+    if (groupIds.length) {
+      await supabase.from("shipping_groups").update({ scanned_count: 0, scan_status: "pending", printed_at: null }).in("id", groupIds);
+    }
     const { error: e2 } = await supabase
       .from("shipments")
       .update({
         scanned_count: 0,
         scan_status: "pending",
         status: "pending",
-        tracking_number: null,
-        tracking_issued_at: null,
         shipped_at: null,
         reported_at: null,
         design_confirmed: false,
@@ -874,12 +1084,116 @@ export default function ShippingScan() {
             {tr("테스트 모드", "测试模式")}
             <Switch checked={testMode} onCheckedChange={setTestMode} />
           </label>
-          <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="w-4 h-4 mr-1"/>{tr("새로고침", "刷新")}</Button>
+          <Button size="sm" onClick={() => setPreIssueOpen(true)} disabled={buildingGroups}>
+            <Truck className="w-4 h-4 mr-1"/>{tr("송장 사전발행", "运单预发行")}
+            {pendingGroups.length > 0 && (
+              <Badge variant="outline" className="ml-2 text-[10px]">{pendingGroups.length}</Badge>
+            )}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => { refetch(); refetchGroups(); }}><RefreshCw className="w-4 h-4 mr-1"/>{tr("새로고침", "刷新")}</Button>
           <Button variant="destructive" size="sm" onClick={() => setResetOpen(true)}>
             <RotateCcw className="w-4 h-4 mr-1"/>{tr("초기화", "重置")}
           </Button>
         </div>
       </div>
+
+      {/* 송장 사전발행 — 확인 / 진행상태 */}
+      <Dialog open={preIssueOpen} onOpenChange={(o) => { if (!preIssueRunning) setPreIssueOpen(o); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{tr("송장을 사전발행하시겠습니까?", "是否预发行运单？")}</DialogTitle>
+          </DialogHeader>
+          {!preIssueRunning && preIssueProgress.total === 0 ? (
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">{tr("전체 제품(주문 항목)", "全部产品(订单项)")}</span><b>{groupMembers.length}</b></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">{tr("실제 발송건", "实际发货件")}</span><b>{groups.length}</b></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">{tr("1개 발송", "单件发货")}</span><b>{singleGroups.length}</b></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">{tr("2개 이상 묶음발송", "2件以上合并发货")}</span><b>{multiGroups.length}</b></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">{tr("이미 발급완료", "已发行")}</span><b>{groups.length - pendingGroups.length}</b></div>
+              <div className="flex justify-between text-primary"><span>{tr("이번에 새로 발급", "本次新发行")}</span><b>{pendingGroups.length}</b></div>
+              <p className="text-[11px] text-muted-foreground pt-2">
+                {tr("이미 발급된 송장은 다시 생성되지 않습니다 (중복 발급 방지).", "已发行的运单不会重复生成（防止重复出单）。")}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <Progress value={preIssueProgress.total ? (preIssueProgress.done / preIssueProgress.total) * 100 : 0} />
+              <div className="flex items-center justify-between text-sm">
+                <span>{preIssueProgress.done} / {preIssueProgress.total} {tr("완료", "完成")}</span>
+                <span className="text-xs">
+                  <span className="text-emerald-400">{tr("성공", "成功")} {preIssueProgress.success}</span>
+                  {" · "}
+                  <span className="text-destructive">{tr("실패", "失败")} {preIssueProgress.failed}</span>
+                </span>
+              </div>
+              <ScrollArea className="h-40 border rounded-md p-2">
+                {preIssueLog.map((l, i) => (
+                  <div key={i} className="text-xs py-0.5 flex items-center gap-2">
+                    {l.ok
+                      ? <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0"/>
+                      : <AlertTriangle className="w-3 h-3 text-destructive shrink-0"/>}
+                    <span className="truncate">{l.name}</span>
+                    {l.message && <span className="text-muted-foreground truncate">· {l.message}</span>}
+                  </div>
+                ))}
+              </ScrollArea>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" disabled={preIssueRunning} onClick={() => { setPreIssueOpen(false); setPreIssueProgress({ done: 0, total: 0, success: 0, failed: 0 }); }}>
+              {tr("닫기", "关闭")}
+            </Button>
+            <Button disabled={preIssueRunning || pendingGroups.length === 0} onClick={runPreIssue}>
+              {preIssueRunning ? tr("발행 중...", "发行中...") : tr("송장 사전발행", "运单预发行")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 현재 작업 중인 발송 그룹 */}
+      {(() => {
+        const g = activeGroupId ? groupById.get(activeGroupId) : undefined;
+        if (!g) return null;
+        const required = g.required_scan_count || g.item_count || 1;
+        const done = Math.min(g.scanned_count ?? 0, required);
+        const complete = done >= required;
+        return (
+          <Card className={complete ? "border-emerald-500/50 bg-emerald-500/5" : "border-primary/40"}>
+            <CardContent className="p-4 flex flex-wrap items-center gap-6">
+              <div>
+                <div className="text-xs text-muted-foreground">{tr("현재 작업", "当前作业")}</div>
+                <div className="text-xl font-semibold">{g.recipient_name}</div>
+                <div className="text-xs text-muted-foreground">{[g.shipping_city, g.shipping_state].filter(Boolean).join(", ")}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">{tr("총 제품수량", "总产品数")}</div>
+                <div className="text-xl font-semibold">{g.item_count}{tr("개", "件")}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">{tr("스캔", "扫码")}</div>
+                <div className="text-3xl font-bold tabular-nums">{done} / {required}</div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {Array.from({ length: required }).map((_, i) => (
+                  <span key={i} className={`w-4 h-4 rounded-full border ${i < done ? "bg-emerald-500 border-emerald-500" : "border-muted-foreground/40"}`} />
+                ))}
+              </div>
+              <div className="ml-auto text-right">
+                {complete ? (
+                  <div className="text-emerald-400 font-semibold flex items-center gap-1">
+                    <CheckCircle2 className="w-4 h-4"/>{tr("모든 제품 확인 완료 · 송장 출력", "全部产品确认完成 · 打印运单")}
+                  </div>
+                ) : (
+                  <div className="text-amber-400 font-medium">
+                    {tr(`${required - done}개 더 스캔하세요`, `还需扫描 ${required - done} 件`)}
+                  </div>
+                )}
+                <div className="text-xs font-mono text-muted-foreground">{g.tracking_number ?? tr("송장 미발급", "运单未发行")}</div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       <Dialog open={resetOpen} onOpenChange={setResetOpen}>
         <DialogContent>
@@ -887,7 +1201,7 @@ export default function ShippingScan() {
             <DialogTitle>{tr("스캔 작업 초기화", "重置扫码作业")}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            {tr("이 주문의 완료된 스캔 기록과 송장 발급/발송 상태가 모두 초기화되어 처음부터 다시 작업할 수 있습니다.",
+            {tr("스캔 기록과 진행 상태만 초기화됩니다. 이미 사전발급된 송장(운송장 번호·라벨)은 그대로 유지됩니다.",
                 "该订单已完成的扫码记录及运单/发货状态将全部重置，可重新作业。")}
           </p>
           <DialogFooter>
@@ -967,6 +1281,100 @@ export default function ShippingScan() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 발송건(그룹) 목록 — 전체 / 1건 주문 / 2개 이상 주문 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            {tr("주소록 · 발송건 목록", "地址簿 · 发货件列表")}
+            {buildingGroups && <span className="text-[11px] text-muted-foreground">{tr("그룹 계산 중…", "分组计算中…")}</span>}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Tabs value={groupTab} onValueChange={(v) => setGroupTab(v as any)}>
+            <TabsList>
+              <TabsTrigger value="all">{tr("전체", "全部")} <Badge variant="outline" className="ml-2 text-[10px]">{groups.length}</Badge></TabsTrigger>
+              <TabsTrigger value="single">{tr("1건 주문", "单件订单")} <Badge variant="outline" className="ml-2 text-[10px]">{singleGroups.length}</Badge></TabsTrigger>
+              <TabsTrigger value="multi">{tr("2개 이상 주문", "2件以上订单")} <Badge variant="outline" className="ml-2 text-[10px]">{multiGroups.length}</Badge></TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          <ScrollArea className="h-[420px] border rounded-md">
+            <div className="divide-y">
+              {(groupTab === "single" ? singleGroups : groupTab === "multi" ? multiGroups : groups).map((g) => {
+                const members = membersByGroup.get(g.id) ?? [];
+                const required = g.required_scan_count || g.item_count || 1;
+                const done = members.filter((m: any) => m.is_scanned).length;
+                const open = !!expandedGroups[g.id];
+                const statusBadge =
+                  g.label_status === "ready"
+                    ? <Badge variant="outline" className="text-[10px] bg-emerald-500/15 text-emerald-400 border-emerald-500/30">{tr("발급완료", "已发行")}</Badge>
+                    : g.label_status === "issuing"
+                    ? <Badge variant="outline" className="text-[10px] bg-blue-500/15 text-blue-400 border-blue-500/30">{tr("발급중", "发行中")}</Badge>
+                    : g.label_status === "failed"
+                    ? <Badge variant="outline" className="text-[10px] bg-destructive/15 text-destructive border-destructive/30">{tr("발급실패", "发行失败")}</Badge>
+                    : <Badge variant="outline" className="text-[10px]">{tr("미발급", "未发行")}</Badge>;
+                return (
+                  <div key={g.id} className="text-sm">
+                    <button
+                      type="button"
+                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-accent/30 text-left"
+                      onClick={() => setExpandedGroups((prev) => ({ ...prev, [g.id]: !open }))}
+                    >
+                      {open ? <ChevronDown className="w-4 h-4 shrink-0"/> : <ChevronRight className="w-4 h-4 shrink-0"/>}
+                      <div className="min-w-[160px]">
+                        <div className="font-medium">{g.recipient_name || "-"}</div>
+                        <div className="text-[11px] text-muted-foreground truncate max-w-[240px]" title={g.shipping_address}>
+                          {[g.shipping_city, g.shipping_state, g.shipping_zip].filter(Boolean).join(", ")}
+                        </div>
+                      </div>
+                      <div className="text-xs w-24">{tr("제품수량", "产品数")} <b>{g.item_count}</b></div>
+                      <div className="text-xs w-24">{tr("스캔", "扫码")} <b className={done >= required ? "text-emerald-400" : ""}>{done} / {required}</b></div>
+                      <div className="w-24">{statusBadge}</div>
+                      <div className="font-mono text-xs flex-1 truncate">{g.tracking_number ?? "-"}</div>
+                      {g.label_status === "failed" && (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          className="text-xs underline text-destructive"
+                          onClick={(e) => { e.stopPropagation(); void retryGroupLabel(g); }}
+                        >
+                          {tr("재시도", "重试")}
+                        </span>
+                      )}
+                    </button>
+                    {open && (
+                      <div className="px-10 pb-3 space-y-1">
+                        {g.label_error && <div className="text-[11px] text-destructive">{g.label_error}</div>}
+                        <div className="text-[11px] text-muted-foreground">
+                          {g.shipping_address} · {g.recipient_phone} · {g.shipping_country}
+                          {g.label_issued_at && ` · ${tr("발급", "发行")} ${new Date(g.label_issued_at).toLocaleString()}`}
+                        </div>
+                        {members.map((m: any) => (
+                          <div key={m.id} className="flex items-center gap-3 text-xs py-0.5">
+                            <span className="font-mono text-muted-foreground w-40 truncate">{m.orders?.external_order_id ?? "-"} #{m.position}</span>
+                            <span className="font-mono truncate max-w-[200px]">{m.qr_value ?? "-"}</span>
+                            {m.is_scanned
+                              ? <span className="text-emerald-400">✓ {tr("스캔완료", "已扫描")}</span>
+                              : <span className="text-muted-foreground">{tr("미스캔", "未扫描")}</span>}
+                          </div>
+                        ))}
+                        <div className="text-xs pt-1">{tr("진행상태", "进度")} <b>{done} / {required}</b></div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {groups.length === 0 && (
+                <div className="text-center text-xs text-muted-foreground py-10">
+                  {tr("발송건이 없습니다. 새로고침하거나 주문 데이터를 확인해 주세요.", "暂无发货件，请刷新或检查订单数据。")}
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </CardContent>
+      </Card>
 
       {/* Order detail list (items of the selected order) */}
       <Card>
