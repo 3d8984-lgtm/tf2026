@@ -987,8 +987,9 @@ export default function ShippingScan() {
                           ? <Badge variant="outline" className="text-[10px] bg-emerald-500/15 text-emerald-400 border-emerald-500/30">OK</Badge>
                           : <Badge variant="outline" className="text-[10px]">{tr("대기", "待扫")}</Badge>}
                       </td>
-                      <td className="px-3 py-2 text-xs uppercase">{shipment.carrier ?? "-"}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{shipment.tracking_number ?? "-"}</td>
+                      <td className="px-3 py-2 text-xs uppercase">{(it.carrier ?? "-") as string}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{it.tracking_number ?? "-"}</td>
+
                     </tr>
                   );
                 })}
