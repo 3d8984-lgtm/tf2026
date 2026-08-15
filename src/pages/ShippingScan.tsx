@@ -293,7 +293,7 @@ export default function ShippingScan() {
     });
 
     // Auto-issue + print the waybill for the scanned parcel.
-    if (!issuing) void issueTrackingViaApi(printWindow);
+    if (!issuing) void issueTrackingViaApi(printWindow, slot.position);
   }
 
 
@@ -328,7 +328,7 @@ export default function ShippingScan() {
   // Call the selected courier's API to create the label / tracking number.
   // In test mode the carrier credentials are verified (4PX signed call) but no real
   // waybill is created — a simulated tracking number is printed instead.
-  async function issueTrackingViaApi(printWindow?: Window | null) {
+  async function issueTrackingViaApi(printWindow?: Window | null, itemPosition?: number) {
     if (!shipment) { printWindow?.close(); return; }
     if (!carrier) {
       printWindow?.close();
@@ -337,7 +337,7 @@ export default function ShippingScan() {
     }
     setIssuing(true);
     try {
-      const res = await requestCarrierLabel(shipment.id, carrier, testMode, testVariant);
+      const res = await requestCarrierLabel(shipment.id, carrier, testMode, testVariant, itemPosition ?? shipRecipientPos);
       if (testMode) {
         await logAction("issue_tracking_test", { trackingNumber: res.tracking_number, carrier, via: "api-test", variant: testVariant });
         const cancelled = (res as any)?.cancelled;
@@ -527,13 +527,13 @@ export default function ShippingScan() {
               country: "KR",
             }
           : {
-              name: order?.recipient_name,
-              phone: order?.recipient_phone,
-              street: order?.shipping_address,
-              city: order?.shipping_city,
-              state: order?.shipping_state,
-              zip: order?.shipping_zip,
-              country: order?.shipping_country ?? "US",
+              name: shipRecipient.name,
+              phone: shipRecipient.phone,
+              street: shipRecipient.address,
+              city: shipRecipient.city,
+              state: shipRecipient.state,
+              zip: shipRecipient.zip,
+              country: shipRecipient.country,
             },
         sender: {
           company: "TWINMETA",
@@ -867,10 +867,10 @@ export default function ShippingScan() {
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex justify-between"><span className="text-muted-foreground">Job No</span><span className="font-mono">{order?.external_order_id}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Twinker</span><span>{order?.recipient_name}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">{tr("전화", "电话")}</span><span className="font-mono text-xs">{order?.recipient_phone ?? "-"}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">{tr("수취인", "收件人")}</span><span>{shipRecipient.name || "-"}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">{tr("전화", "电话")}</span><span className="font-mono text-xs">{shipRecipient.phone || "-"}</span></div>
             <div className="text-muted-foreground pt-1">{tr("주소", "地址")}</div>
-            <div className="text-xs">{order?.shipping_address}, {order?.shipping_city}, {order?.shipping_state} {order?.shipping_zip}</div>
+            <div className="text-xs">{[shipRecipient.address, shipRecipient.city, shipRecipient.state, shipRecipient.zip].filter(Boolean).join(", ")}</div>
             <div className="pt-2 border-t flex items-center justify-between">
               <span className="text-muted-foreground">{tr("진행률", "进度")}</span>
               <span className="font-mono">{scannedCount}/{total}</span>
@@ -928,8 +928,8 @@ export default function ShippingScan() {
                   const productCode = it.product_code || si.tshirt_type || order?.product_code || "";
                   const color = it.color || si.tshirt_color || "";
                   const size = it.size || si.tshirt_size || "";
-                  const recipient = si.recipient_name || order?.recipient_name || "-";
-                  const phone = si.recipient_phone || order?.recipient_phone || "-";
+                  const recipient = si.recipient_name || "-";
+                  const phone = si.recipient_phone || "-";
                   const address = si.shipping_address || order?.shipping_address || "";
                   const zip = si.shipping_zip || order?.shipping_zip || "-";
                   const country = si.country_code || order?.shipping_country || "-";
