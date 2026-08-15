@@ -140,6 +140,39 @@ export default function ShippingScan() {
   const lastScanRef = useRef<{ value: string; at: number }>({ value: "", at: 0 });
   const hidBufRef = useRef<{ buf: string; lastAt: number }>({ buf: "", lastAt: 0 });
 
+  // ---- Scan → print timing profiler (console.table) -------------------------
+  const perfRef = useRef<{ t0: number; rows: { step: string; ms: number }[] }>({ t0: 0, rows: [] });
+  function perfStart() {
+    perfRef.current = { t0: performance.now(), rows: [{ step: "SCAN", ms: 0 }] };
+  }
+  function perfMark(step: string, atMs?: number) {
+    if (!perfRef.current.t0) return;
+    perfRef.current.rows.push({ step, ms: Math.round(atMs ?? performance.now() - perfRef.current.t0) });
+  }
+  function perfDump() {
+    if (!perfRef.current.t0) return;
+    const rows = [...perfRef.current.rows].sort((a, b) => a.ms - b.ms);
+    // eslint-disable-next-line no-console
+    console.table(
+      rows.map((r, i) => ({
+        step: r.step,
+        "t (ms)": r.ms,
+        "구간 (ms)": i === 0 ? 0 : r.ms - rows[i - 1].ms,
+      })),
+    );
+  }
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      const d = e.data as any;
+      if (!d || d.type !== "label-timing") return;
+      perfMark(d.step);
+      if (d.step === "print_called") perfDump();
+    };
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   // Keep keyboard focus on USB-scanner input
   useEffect(() => {
@@ -286,6 +319,7 @@ export default function ShippingScan() {
     // Immediate operator feedback — the DB writes below run in the background so
     // the waybill request starts without waiting for them.
     const newCount = scannedCount + 1;
+    perfMark("validation");
     scanSuccess();
     setFeedback({ kind: "success", msg: tr(`${slot.position}번 슬롯 스캔 완료 (${newCount}/${total})`, `第 ${slot.position} 槽完成 (${newCount}/${total})`) });
     setScanInput("");
@@ -324,6 +358,7 @@ export default function ShippingScan() {
       const v = scanInput;
       setScanInput("");
       if (v.trim()) {
+        perfStart();
         // Barcode scanners finish with Enter. Open the print target synchronously
         // while that user activation is still valid; opening it after API/database
         // awaits is blocked by Chrome and the carrier label never reaches print.
@@ -356,8 +391,15 @@ export default function ShippingScan() {
       return;
     }
     setIssuing(true);
+    const edgeStart = perfRef.current.t0 ? performance.now() - perfRef.current.t0 : 0;
+    perfMark("edge_call_start", edgeStart);
     try {
       const res = await requestCarrierLabel(shipment.id, carrier, testMode, testVariant, itemPosition ?? shipRecipientPos);
+      // Server-side phase marks are relative to the edge function start.
+      for (const t of ((res as any)?.timings ?? []) as { step: string; ms: number }[]) {
+        perfMark(t.step, edgeStart + t.ms);
+      }
+      perfMark("edge_response");
       if (testMode) {
         await logAction("issue_tracking_test", { trackingNumber: res.tracking_number, carrier, via: "api-test", variant: testVariant });
         const cancelled = (res as any)?.cancelled;
@@ -373,7 +415,7 @@ export default function ShippingScan() {
         if (url) {
           const size = labelSizeFor(carrier || shipment?.carrier);
           const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
-          if (w) { w.document.write(buildRemoteLabelHtml(url, carrier || shipment?.carrier)); w.document.close(); }
+          if (w) { w.document.write(buildRemoteLabelHtml(url, carrier || shipment?.carrier)); w.document.close(); perfMark("label_html_written"); }
         } else {
           const why = (res as any)?.message as string | undefined;
           printWindow?.close();
@@ -414,7 +456,7 @@ export default function ShippingScan() {
       if (liveUrl) {
         const size = labelSizeFor(carrier || shipment?.carrier);
         const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
-        if (w) { w.document.write(buildRemoteLabelHtml(liveUrl, carrier || shipment?.carrier)); w.document.close(); }
+        if (w) { w.document.write(buildRemoteLabelHtml(liveUrl, carrier || shipment?.carrier)); w.document.close(); perfMark("label_html_written"); }
       } else {
         printWindow?.close();
         toast({
@@ -618,6 +660,7 @@ export default function ShippingScan() {
       ? ""
       : `<script>
           let printStarted=false;
+          function report(step){try{if(window.opener)window.opener.postMessage({type:"label-timing",step:step},"*");}catch(e){}}
           function logSize(){
             try{
               var el=document.querySelector("img,iframe");
@@ -634,9 +677,11 @@ export default function ShippingScan() {
           function printCarrierLabel(){
             if(printStarted)return;
             printStarted=true;
+            report("label_loaded");
             window.focus();
             logSize();
             requestAnimationFrame(()=>setTimeout(()=>{
+              report("print_called");
               window.print();
               window.onafterprint=()=>window.close();
             },60));

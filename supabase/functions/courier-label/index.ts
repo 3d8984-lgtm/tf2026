@@ -48,8 +48,11 @@ function shippingRecipient(order: any, position?: number) {
   };
 }
 
+type Mark = (step: string) => void;
+const noopMark: Mark = () => {};
+
 // ---- 4PX: ds.xms.order.create (v1.1.0) + ds.xms.label.get (v1.1.0) ----------
-async function call4px(cfg: any, cred: any, order: any, shipment: any, position?: number): Promise<LabelResult> {
+async function call4px(cfg: any, cred: any, order: any, shipment: any, position?: number, mark: Mark = noopMark): Promise<LabelResult> {
   const endpoint = fpxEndpoint(cfg.api_url, cfg.api_mode);
   const extra = (cred?.extra ?? {}) as Record<string, any>;
   // 소포 1건 = 티셔츠 1개 (주소록 1행). 주문 전체 수량(order.quantity)을 쓰면 안 됩니다.
@@ -156,7 +159,9 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
     deliver_type_info: { deliver_type: String(extra.deliver_type ?? "3") },
   };
 
+  mark("4PX_create_start");
   const created = await fpxCall(endpoint, cred, "ds.xms.order.create", "1.1.0", bizData);
+  mark("4PX_create_end");
   if (!created.ok) {
     return {
       tracking_number: null,
@@ -193,6 +198,7 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
     { request_no: order.external_order_id, ref_no: order.external_order_id },
   ];
 
+  mark("4PX_label_start");
   for (const key of attempts) {
     if (labelUrl) break;
     try {
@@ -222,6 +228,7 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
       }
     } catch { /* try the next parameter combination */ }
   }
+  mark("4PX_label_end");
 
   return {
     tracking_number: tracking,
@@ -298,6 +305,11 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const t0 = Date.now();
+  const timings: { step: string; ms: number }[] = [];
+  const mark: Mark = (step) => timings.push({ step, ms: Date.now() - t0 });
+  mark("edge_function_start");
+
   try {
     const authHeader = req.headers.get("Authorization") ?? "";
     const userClient = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: authHeader } } });
@@ -336,6 +348,7 @@ Deno.serve(async (req) => {
     if (!cred?.api_key && !cred?.api_secret) {
       return json({ error: `API credentials for '${cfg.name}' are not configured` }, 400);
     }
+    mark("DB_queries_end");
 
     // ---- TEST MODE ----------------------------------------------------------
     // Always uses the production endpoint with real credentials; the test order is
@@ -359,6 +372,7 @@ Deno.serve(async (req) => {
             testOrder,
             shipment,
             item_position,
+            mark,
           );
           raw = r.raw;
           if (r.tracking_number) {
@@ -410,12 +424,15 @@ Deno.serve(async (req) => {
           message,
           tracking_number: tracking,
           cancel: cancelInfo,
+          timings,
+          total_ms: Date.now() - t0,
           raw: typeof raw === "string" ? raw.slice(0, 2000) : raw,
         },
       });
 
-      if (!authOk) return json({ error: message, raw }, 502);
+      if (!authOk) return json({ error: message, raw, timings }, 502);
 
+      mark("edge_response");
       return json({
         ok: true,
         test: true,
@@ -425,26 +442,29 @@ Deno.serve(async (req) => {
         label_url: labelUrl,
         cancelled: (cancelInfo as any)?.ok ?? null,
         message,
+        timings,
+        total_ms: Date.now() - t0,
       });
     }
 
 
 
     let result: LabelResult;
-    if (carrier === "4px") result = await call4px(cfg, cred, order, shipment, item_position);
+    if (carrier === "4px") result = await call4px(cfg, cred, order, shipment, item_position, mark);
     else if (carrier === "yunexpress") result = await callYunExpress(cfg, cred, order, shipment, item_position);
     else return json({ error: `no API adapter for '${carrier}'` }, 400);
+    mark("carrier_api_end");
 
     await admin.from("shipping_logs").insert({
       shipment_id: shipment.id,
       order_id: shipment.order_id,
       action_type: result.tracking_number ? "carrier_api_success" : "carrier_api_fail",
       worker_id: user.id,
-      details: { carrier, mode: cfg.api_mode, error: result.error ?? null },
+      details: { carrier, mode: cfg.api_mode, error: result.error ?? null, timings, total_ms: Date.now() - t0 },
     });
 
     if (!result.tracking_number) {
-      return json({ error: result.error ?? "carrier did not return a tracking number", raw: result.raw }, 502);
+      return json({ error: result.error ?? "carrier did not return a tracking number", raw: result.raw, timings }, 502);
     }
 
     const { error: uErr } = await admin
@@ -461,11 +481,14 @@ Deno.serve(async (req) => {
       .eq("id", shipment.id);
     if (uErr) return json({ error: uErr.message }, 400);
 
+    mark("edge_response");
     return json({
       ok: true,
       carrier,
       tracking_number: result.tracking_number,
       label_url: result.label_url,
+      timings,
+      total_ms: Date.now() - t0,
     });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : "unknown error" }, 500);
