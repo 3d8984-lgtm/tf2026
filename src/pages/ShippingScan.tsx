@@ -492,7 +492,7 @@ export default function ShippingScan() {
     setResetting(true);
     const { error: e1 } = await supabase
       .from("shipment_scan_items")
-      .update({ qr_value: null, is_scanned: false, scanned_at: null, scanned_by: null })
+      .update({ qr_value: null, is_scanned: false, scanned_at: null, scanned_by: null, carrier: null, tracking_number: null, label_url: null, tracking_issued_at: null } as any)
       .eq("shipment_id", shipment.id);
     const { error: e2 } = await supabase
       .from("shipments")
