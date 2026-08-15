@@ -116,9 +116,10 @@ export async function requestCarrierLabel(
   carrier: string,
   test = false,
   testVariant: "sandbox" | "live_cancel" = "sandbox",
+  itemPosition?: number,
 ) {
   const { data, error } = await supabase.functions.invoke("courier-label", {
-    body: { shipment_id: shipmentId, carrier, test, test_variant: testVariant },
+    body: { shipment_id: shipmentId, carrier, test, test_variant: testVariant, item_position: itemPosition },
   });
   if (error) {
     const ctx = (error as any)?.context;

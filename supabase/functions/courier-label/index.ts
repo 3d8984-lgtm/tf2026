@@ -28,15 +28,44 @@ interface LabelResult {
   fpx_tracking_no?: string | null;
 }
 
+/**
+ * 배송 수취인은 반드시 `source_data.items[]`(엑셀 Q~T열)의 값을 사용합니다.
+ * `orders.recipient_name`은 트윈커명(C열)이 우선 저장되어 있어 배송에 사용하지 않습니다.
+ */
+function shippingRecipient(order: any, position?: number) {
+  const items: any[] = Array.isArray(order?.source_data?.items) ? order.source_data.items : [];
+  const idx = Math.max(1, Number(position ?? 1)) - 1;
+  const it = items[idx] ?? items[0] ?? {};
+  const name = String(it.recipient_name ?? "").trim();
+  return {
+    recipient_name: name,
+    recipient_phone: String(it.recipient_phone ?? order?.recipient_phone ?? "").trim(),
+    shipping_address: String(it.shipping_address ?? order?.shipping_address ?? "").trim(),
+    shipping_city: it.shipping_city ?? order?.shipping_city ?? null,
+    shipping_state: it.shipping_state ?? order?.shipping_state ?? null,
+    shipping_zip: String(it.shipping_zip ?? order?.shipping_zip ?? "").trim(),
+    shipping_country: String(it.country_code ?? order?.shipping_country ?? "US").trim(),
+  };
+}
+
 // ---- 4PX: ds.xms.order.create (v1.1.0) + ds.xms.label.get (v1.1.0) ----------
-async function call4px(cfg: any, cred: any, order: any, shipment: any): Promise<LabelResult> {
+async function call4px(cfg: any, cred: any, order: any, shipment: any, position?: number): Promise<LabelResult> {
   const endpoint = fpxEndpoint(cfg.api_url, cfg.api_mode);
   const extra = (cred?.extra ?? {}) as Record<string, any>;
   const qty = Number(order.quantity ?? 1) || 1;
   const unitPrice = Number(extra.unit_price ?? 10);
   const weight = Math.max(1, Math.round(shipment.weight_grams ?? shipment.expected_weight_grams ?? 200));
   // 4PX는 수취인 정보에 영문/기호만 허용하고 city/state가 필수입니다.
-  const rcp = normalizeRecipient(order);
+  const ship = shippingRecipient(order, position);
+  if (!ship.recipient_name) {
+    return {
+      tracking_number: null,
+      label_url: null,
+      raw: null,
+      error: "배송 수취인명이 없습니다. 엑셀 Q열(수취인명)을 확인해 주세요. (트윈커명은 배송에 사용하지 않습니다)",
+    };
+  }
+  const rcp = normalizeRecipient(ship);
   if (rcp.missing.length) {
     return {
       tracking_number: null,
@@ -113,7 +142,7 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any): Promise<
     recipient_info: {
       first_name: rcp.first_name,
       last_name: rcp.last_name,
-      phone: (order.recipient_phone ?? "").replace(/[^\d+\-() ]/g, "") || "0000000000",
+      phone: (ship.recipient_phone ?? "").replace(/[^\d+\-() ]/g, "") || "0000000000",
       post_code: rcp.zip,
       country: rcp.country,
       state: rcp.state,
@@ -204,7 +233,7 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any): Promise<
 
 
 
-async function callYunExpress(cfg: any, cred: any, order: any, shipment: any): Promise<LabelResult> {
+async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, position?: number): Promise<LabelResult> {
   const base = (cfg.api_url ?? "").replace(/\/+$/, "");
   const url = `${base}/api/WayBill/CreateOrder`;
   const auth = btoa(`${cred?.account_no ?? ""}&${cred?.api_key ?? ""}`);
@@ -215,7 +244,7 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any): P
       PackageCount: 1,
       Weight: ((shipment.weight_grams ?? shipment.expected_weight_grams ?? 0) / 1000) || 0.1,
       Receiver: (() => {
-        const r = normalizeRecipient(order);
+        const r = normalizeRecipient(shippingRecipient(order, position));
         return {
           CountryCode: r.country,
           FirstName: r.first_name,
@@ -224,7 +253,7 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any): P
           City: r.city,
           State: r.state,
           Zip: r.zip,
-          Phone: order.recipient_phone ?? "",
+          Phone: shippingRecipient(order, position).recipient_phone,
         };
       })(),
 
@@ -279,7 +308,7 @@ Deno.serve(async (req) => {
     const { data: approved } = await admin.rpc("is_approved", { _user_id: user.id });
     if (!approved) return json({ error: "forbidden" }, 403);
 
-    const { shipment_id, carrier, test, test_variant } = await req.json();
+    const { shipment_id, carrier, test, test_variant, item_position } = await req.json();
     // Test mode now only supports the production endpoint with real credentials;
     // the created waybill is cancelled immediately after the label is fetched.
     const variant: "live_cancel" = test_variant === "live_cancel" ? "live_cancel" : "live_cancel";
@@ -328,6 +357,7 @@ Deno.serve(async (req) => {
             cred,
             testOrder,
             shipment,
+            item_position,
           );
           raw = r.raw;
           if (r.tracking_number) {
@@ -400,8 +430,8 @@ Deno.serve(async (req) => {
 
 
     let result: LabelResult;
-    if (carrier === "4px") result = await call4px(cfg, cred, order, shipment);
-    else if (carrier === "yunexpress") result = await callYunExpress(cfg, cred, order, shipment);
+    if (carrier === "4px") result = await call4px(cfg, cred, order, shipment, item_position);
+    else if (carrier === "yunexpress") result = await callYunExpress(cfg, cred, order, shipment, item_position);
     else return json({ error: `no API adapter for '${carrier}'` }, 400);
 
     await admin.from("shipping_logs").insert({
