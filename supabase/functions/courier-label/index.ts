@@ -175,7 +175,9 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any): Promise<
       labelRaw = label.raw;
       const ld = label.data ?? {};
       const first = Array.isArray(ld.label_list) ? ld.label_list[0] ?? {} : {};
+      const info = ld.label_url_info ?? first.label_url_info ?? {};
       const direct =
+        info.logistics_label ?? info.label_url ?? info.url ??
         ld.label_url ?? ld.url ?? ld.file_url ?? first.label_url ?? first.url ?? null;
       const b64 =
         ld.label_content ?? ld.file_content ?? ld.content ?? ld.label_data ??
