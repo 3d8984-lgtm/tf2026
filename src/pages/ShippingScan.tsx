@@ -1084,12 +1084,116 @@ export default function ShippingScan() {
             {tr("테스트 모드", "测试模式")}
             <Switch checked={testMode} onCheckedChange={setTestMode} />
           </label>
-          <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="w-4 h-4 mr-1"/>{tr("새로고침", "刷新")}</Button>
+          <Button size="sm" onClick={() => setPreIssueOpen(true)} disabled={buildingGroups}>
+            <Truck className="w-4 h-4 mr-1"/>{tr("송장 사전발행", "运单预发行")}
+            {pendingGroups.length > 0 && (
+              <Badge variant="outline" className="ml-2 text-[10px]">{pendingGroups.length}</Badge>
+            )}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => { refetch(); refetchGroups(); }}><RefreshCw className="w-4 h-4 mr-1"/>{tr("새로고침", "刷新")}</Button>
           <Button variant="destructive" size="sm" onClick={() => setResetOpen(true)}>
             <RotateCcw className="w-4 h-4 mr-1"/>{tr("초기화", "重置")}
           </Button>
         </div>
       </div>
+
+      {/* 송장 사전발행 — 확인 / 진행상태 */}
+      <Dialog open={preIssueOpen} onOpenChange={(o) => { if (!preIssueRunning) setPreIssueOpen(o); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{tr("송장을 사전발행하시겠습니까?", "是否预发行运单？")}</DialogTitle>
+          </DialogHeader>
+          {!preIssueRunning && preIssueProgress.total === 0 ? (
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">{tr("전체 제품(주문 항목)", "全部产品(订单项)")}</span><b>{groupMembers.length}</b></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">{tr("실제 발송건", "实际发货件")}</span><b>{groups.length}</b></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">{tr("1개 발송", "单件发货")}</span><b>{singleGroups.length}</b></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">{tr("2개 이상 묶음발송", "2件以上合并发货")}</span><b>{multiGroups.length}</b></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">{tr("이미 발급완료", "已发行")}</span><b>{groups.length - pendingGroups.length}</b></div>
+              <div className="flex justify-between text-primary"><span>{tr("이번에 새로 발급", "本次新发行")}</span><b>{pendingGroups.length}</b></div>
+              <p className="text-[11px] text-muted-foreground pt-2">
+                {tr("이미 발급된 송장은 다시 생성되지 않습니다 (중복 발급 방지).", "已发行的运单不会重复生成（防止重复出单）。")}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <Progress value={preIssueProgress.total ? (preIssueProgress.done / preIssueProgress.total) * 100 : 0} />
+              <div className="flex items-center justify-between text-sm">
+                <span>{preIssueProgress.done} / {preIssueProgress.total} {tr("완료", "完成")}</span>
+                <span className="text-xs">
+                  <span className="text-emerald-400">{tr("성공", "成功")} {preIssueProgress.success}</span>
+                  {" · "}
+                  <span className="text-destructive">{tr("실패", "失败")} {preIssueProgress.failed}</span>
+                </span>
+              </div>
+              <ScrollArea className="h-40 border rounded-md p-2">
+                {preIssueLog.map((l, i) => (
+                  <div key={i} className="text-xs py-0.5 flex items-center gap-2">
+                    {l.ok
+                      ? <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0"/>
+                      : <AlertTriangle className="w-3 h-3 text-destructive shrink-0"/>}
+                    <span className="truncate">{l.name}</span>
+                    {l.message && <span className="text-muted-foreground truncate">· {l.message}</span>}
+                  </div>
+                ))}
+              </ScrollArea>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" disabled={preIssueRunning} onClick={() => { setPreIssueOpen(false); setPreIssueProgress({ done: 0, total: 0, success: 0, failed: 0 }); }}>
+              {tr("닫기", "关闭")}
+            </Button>
+            <Button disabled={preIssueRunning || pendingGroups.length === 0} onClick={runPreIssue}>
+              {preIssueRunning ? tr("발행 중...", "发行中...") : tr("송장 사전발행", "运单预发行")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 현재 작업 중인 발송 그룹 */}
+      {(() => {
+        const g = activeGroupId ? groupById.get(activeGroupId) : undefined;
+        if (!g) return null;
+        const required = g.required_scan_count || g.item_count || 1;
+        const done = Math.min(g.scanned_count ?? 0, required);
+        const complete = done >= required;
+        return (
+          <Card className={complete ? "border-emerald-500/50 bg-emerald-500/5" : "border-primary/40"}>
+            <CardContent className="p-4 flex flex-wrap items-center gap-6">
+              <div>
+                <div className="text-xs text-muted-foreground">{tr("현재 작업", "当前作业")}</div>
+                <div className="text-xl font-semibold">{g.recipient_name}</div>
+                <div className="text-xs text-muted-foreground">{[g.shipping_city, g.shipping_state].filter(Boolean).join(", ")}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">{tr("총 제품수량", "总产品数")}</div>
+                <div className="text-xl font-semibold">{g.item_count}{tr("개", "件")}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">{tr("스캔", "扫码")}</div>
+                <div className="text-3xl font-bold tabular-nums">{done} / {required}</div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {Array.from({ length: required }).map((_, i) => (
+                  <span key={i} className={`w-4 h-4 rounded-full border ${i < done ? "bg-emerald-500 border-emerald-500" : "border-muted-foreground/40"}`} />
+                ))}
+              </div>
+              <div className="ml-auto text-right">
+                {complete ? (
+                  <div className="text-emerald-400 font-semibold flex items-center gap-1">
+                    <CheckCircle2 className="w-4 h-4"/>{tr("모든 제품 확인 완료 · 송장 출력", "全部产品确认完成 · 打印运单")}
+                  </div>
+                ) : (
+                  <div className="text-amber-400 font-medium">
+                    {tr(`${required - done}개 더 스캔하세요`, `还需扫描 ${required - done} 件`)}
+                  </div>
+                )}
+                <div className="text-xs font-mono text-muted-foreground">{g.tracking_number ?? tr("송장 미발급", "运单未发行")}</div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       <Dialog open={resetOpen} onOpenChange={setResetOpen}>
         <DialogContent>
