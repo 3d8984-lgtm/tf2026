@@ -235,21 +235,23 @@ export default function ShippingScan() {
       return;
     }
 
-    // Look up in hologram master — the QR on the hologram sticker identifies the parcel.
-    const { data: master } = await supabase
-      .from("qr_hologram_master")
-      .select("qr_value, serial_number, hologram_type")
-      .eq("qr_value", qrValue)
-      .maybeSingle();
-
-    // Also accept the hologram unique numbers shown in the detail list (`{주문번호}-3`).
+    // Fast path: the QR is already known locally (detail list / existing slots),
+    // so skip the hologram master round-trip entirely.
     const knownHere = holoUniqueNos.includes(qrValue) || items.some((i) => i.qr_value === qrValue);
 
-    if (!master && !knownHere) {
-      scanFail();
-      setFeedback({ kind: "notfound", msg: tr("등록되지 않은 홀로그램 QR입니다", "未注册的全息二维码") });
-      await logAction("notfound", { qrValue });
-      return;
+    if (!knownHere) {
+      // Look up in hologram master — the QR on the hologram sticker identifies the parcel.
+      const { data: master } = await supabase
+        .from("qr_hologram_master")
+        .select("qr_value")
+        .eq("qr_value", qrValue)
+        .maybeSingle();
+      if (!master) {
+        scanFail();
+        setFeedback({ kind: "notfound", msg: tr("등록되지 않은 홀로그램 QR입니다", "未注册的全息二维码") });
+        void logAction("notfound", { qrValue });
+        return;
+      }
     }
 
 
@@ -261,24 +263,23 @@ export default function ShippingScan() {
       return;
     }
 
-    const { error: upErr } = await supabase
-      .from("shipment_scan_items")
-      .update({
-        qr_value: qrValue,
-        is_scanned: true,
-        scanned_at: new Date().toISOString(),
-        scanned_by: user?.id,
-      })
-      .eq("id", slot.id);
-
-    if (upErr) {
-      scanFail();
-      setFeedback({ kind: "notfound", msg: upErr.message });
-      return;
-    }
-
+    // Immediate operator feedback — the DB writes below run in the background so
+    // the waybill request starts without waiting for them.
     const newCount = scannedCount + 1;
-    await Promise.all([
+    scanSuccess();
+    setFeedback({ kind: "success", msg: tr(`${slot.position}번 슬롯 스캔 완료 (${newCount}/${total})`, `第 ${slot.position} 槽完成 (${newCount}/${total})`) });
+    setScanInput("");
+
+    void Promise.all([
+      supabase
+        .from("shipment_scan_items")
+        .update({
+          qr_value: qrValue,
+          is_scanned: true,
+          scanned_at: new Date().toISOString(),
+          scanned_by: user?.id,
+        })
+        .eq("id", slot.id),
       supabase
         .from("shipments")
         .update({
@@ -287,15 +288,14 @@ export default function ShippingScan() {
         })
         .eq("id", shipment.id),
       logAction("scan", { qrValue, position: slot.position }),
-    ]);
-    scanSuccess();
-    setFeedback({ kind: "success", msg: tr(`${slot.position}번 슬롯 스캔 완료 (${newCount}/${total})`, `第 ${slot.position} 槽完成 (${newCount}/${total})`) });
-    setScanInput("");
-    qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
+    ]).then(() => {
+      qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
+    });
 
     // Auto-issue + print the waybill for the scanned parcel.
     if (!issuing) void issueTrackingViaApi(printWindow);
   }
+
 
 
   function onInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -568,14 +568,17 @@ export default function ShippingScan() {
             if(printStarted)return;
             printStarted=true;
             window.focus();
-            setTimeout(()=>{
+            // Fire as soon as the label paints. With --kiosk-printing the sheet
+            // leaves the printer immediately; otherwise the dialog opens at once.
+            requestAnimationFrame(()=>setTimeout(()=>{
               window.print();
               window.onafterprint=()=>window.close();
-            },500);
+            },60));
           }
           window.addEventListener("afterprint",()=>window.close());
-          setTimeout(printCarrierLabel,10000);
+          setTimeout(printCarrierLabel,2500);
         <\/script>`;
+
     const body = isImg
       ? `<img src="${secureUrl}" ${noPrint ? "" : 'onload="printCarrierLabel()"'}/>`
       : isHtml
