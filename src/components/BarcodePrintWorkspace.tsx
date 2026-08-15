@@ -1061,11 +1061,11 @@ function OrderDetail({
                         <td className="px-2 py-1.5 text-emerald-500">{tr("전송됨", "已发送")}</td>
                         <td className="px-2 py-1.5">
                           {job?.status === "done" ? (
-                            <span className="text-emerald-500">{tr("성공", "成功")}</span>
+                            <span className="text-emerald-500">{tr("전달됨", "已送达")}</span>
                           ) : job?.status === "failed" ? (
                             <span className="text-destructive">{tr("실패", "失败")}</span>
                           ) : job ? (
-                            <span className="text-primary">{tr("인쇄 중", "打印中")}</span>
+                            <span className="text-primary">{tr("전달 중", "送达中")}</span>
                           ) : (
                             <span className="text-muted-foreground">{tr("확인 불가", "无法确认")}</span>
                           )}
@@ -1073,6 +1073,7 @@ function OrderDetail({
                         <td className="px-2 py-1.5 tabular-nums text-muted-foreground">
                           {new Date(s!.printed_at as string).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN")}
                         </td>
+
                       </tr>
                     ))}
 
