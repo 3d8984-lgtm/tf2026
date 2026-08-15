@@ -323,11 +323,50 @@ Deno.serve(async (req) => {
     const { data: approved } = await admin.rpc("is_approved", { _user_id: user.id });
     if (!approved) return json({ error: "forbidden" }, 403);
 
-    const { shipment_id, carrier, test, test_variant, item_position } = await req.json();
+    const body = await req.json();
+    const { carrier, test, test_variant, item_position, shipping_group_id } = body;
+    let { shipment_id } = body;
     // Test mode now only supports the production endpoint with real credentials;
     // the created waybill is cancelled immediately after the label is fetched.
     const variant: "live_cancel" = test_variant === "live_cancel" ? "live_cancel" : "live_cancel";
-    if (!shipment_id || !carrier) return json({ error: "shipment_id and carrier required" }, 400);
+    if (!carrier) return json({ error: "carrier required" }, 400);
+
+    // ---- SHIPPING GROUP (pre-issue) ----------------------------------------
+    // One shipping group (same recipient name/phone/address/zip) = exactly one
+    // waybill, whatever the number of orders it contains.
+    let group: any = null;
+    if (shipping_group_id) {
+      const { data: g } = await admin.from("shipping_groups").select("*").eq("id", shipping_group_id).maybeSingle();
+      if (!g) return json({ error: "shipping group not found" }, 404);
+      if (g.tracking_number && g.label_status === "ready") {
+        return json({ ok: true, already: true, tracking_number: g.tracking_number, label_url: g.label_url, carrier: g.carrier });
+      }
+      // Idempotent claim: only one caller may flip pending/failed -> issuing.
+      const { data: claimed } = await admin
+        .from("shipping_groups")
+        .update({ label_status: "issuing", label_error: null })
+        .eq("id", g.id)
+        .in("label_status", ["pending", "failed"])
+        .select("id")
+        .maybeSingle();
+      if (!claimed) return json({ ok: true, already: true, busy: true, tracking_number: g.tracking_number, label_url: g.label_url });
+      group = g;
+
+      const { data: firstItem } = await admin
+        .from("shipment_scan_items")
+        .select("shipment_id, order_id, position")
+        .eq("shipping_group_id", g.id)
+        .order("position", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (!firstItem) {
+        await admin.from("shipping_groups").update({ label_status: "failed", label_error: "no scan items linked" }).eq("id", g.id);
+        return json({ error: "shipping group has no linked items" }, 400);
+      }
+      shipment_id = firstItem.shipment_id;
+    }
+
+    if (!shipment_id) return json({ error: "shipment_id and carrier required" }, 400);
 
     const { data: shipment, error: sErr } = await admin
       .from("shipments")
@@ -335,12 +374,36 @@ Deno.serve(async (req) => {
       .eq("id", shipment_id)
       .maybeSingle();
     if (sErr || !shipment) return json({ error: "shipment not found" }, 404);
-    if (!test && shipment.tracking_number) {
+    if (!test && !group && shipment.tracking_number) {
       return json({ ok: true, already: true, tracking_number: shipment.tracking_number, carrier: shipment.carrier });
     }
 
-    const { data: order } = await admin.from("orders").select("*").eq("id", shipment.order_id).maybeSingle();
-    if (!order) return json({ error: "order not found" }, 404);
+    const { data: orderRow } = await admin.from("orders").select("*").eq("id", shipment.order_id).maybeSingle();
+    if (!orderRow) return json({ error: "order not found" }, 404);
+
+    // For a group we build a synthetic order whose single shipping item carries
+    // the group recipient, and a unique ref_no so 4PX never merges waybills.
+    const order = group
+      ? {
+          ...orderRow,
+          external_order_id: `${orderRow.external_order_id}-G${String(group.id).slice(0, 8)}`,
+          source_data: {
+            ...(orderRow.source_data ?? {}),
+            items: [
+              {
+                recipient_name: group.recipient_name,
+                recipient_phone: group.recipient_phone,
+                shipping_address: group.shipping_address,
+                shipping_city: group.shipping_city,
+                shipping_state: group.shipping_state,
+                shipping_zip: group.shipping_zip,
+                country_code: group.shipping_country,
+              },
+            ],
+          },
+        }
+      : orderRow;
+
 
     const { data: cfg } = await admin.from("courier_configs").select("*").eq("code", carrier).maybeSingle();
     if (!cfg) return json({ error: `courier '${carrier}' is not registered` }, 400);
