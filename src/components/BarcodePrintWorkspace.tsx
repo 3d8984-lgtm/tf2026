@@ -1042,8 +1042,9 @@ function OrderDetail({
                     <tr className="text-left">
                       <th className="px-2 py-1.5">{tr("순번", "序号")}</th>
                       <th className="px-2 py-1.5">{tr("바코드", "条码")}</th>
-                      <th className="px-2 py-1.5">{tr("전송 완료", "发送完成")}</th>
-                      <th className="px-2 py-1.5">{tr("인쇄 성공", "打印成功")}</th>
+                      <th className="px-2 py-1.5">{tr("게이트웨이 전송", "网关发送")}</th>
+                      <th className="px-2 py-1.5">{tr("프린터 전달", "送达打印机")}</th>
+
                       <th className="px-2 py-1.5">{tr("인쇄 시각", "打印时间")}</th>
                     </tr>
                   </thead>
