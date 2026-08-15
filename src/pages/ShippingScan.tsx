@@ -150,7 +150,13 @@ export default function ShippingScan() {
         if (v.length >= 3) {
           setHidActive(true);
           setTimeout(() => setHidActive(false), 600);
-          handleScan(v);
+          const size = labelSizeFor(carrier || shipment?.carrier || "4PX");
+          const printWindow = window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
+          if (printWindow) {
+            printWindow.document.write(`<!doctype html><html><body style="font-family:sans-serif;padding:24px">${tr("송장을 생성하고 있습니다…", "正在生成运单…")}</body></html>`);
+            printWindow.document.close();
+          }
+          void handleScan(v, printWindow);
         }
         return;
       }
@@ -550,14 +556,15 @@ export default function ShippingScan() {
     const k = noPrint ? 1 : Math.min(3, Math.max(0.5, labelScale / 100));
     const PW = +(LW * k).toFixed(3);
     const PH = +(LH * k).toFixed(3);
-    const isImg = /^data:image\//i.test(url) || /\.(png|jpe?g)$/i.test(url);
-    const isHtml = /^data:text\/html/i.test(url) || /\.html?$/i.test(url);
+    const secureUrl = url.replace(/^http:\/\/bss-fss\.4px\.com\//i, "https://bss-fss.4px.com/");
+    const isImg = /^data:image\//i.test(secureUrl) || /\.(png|jpe?g)$/i.test(secureUrl);
+    const isHtml = /^data:text\/html/i.test(secureUrl) || /\.html?$/i.test(secureUrl);
     const printScript = noPrint ? "" : `<script>window.onload=()=>{setTimeout(()=>window.print(),800)};<\/script>`;
     const body = isImg
-      ? `<img src="${url}"/>`
+      ? `<img src="${secureUrl}"/>`
       : isHtml
-        ? `<iframe src="${url}" frameborder="0"></iframe>`
-        : `<embed src="${url}#toolbar=0" type="application/pdf"/>`;
+        ? `<iframe src="${secureUrl}" frameborder="0"></iframe>`
+        : `<embed src="${secureUrl}#toolbar=0" type="application/pdf"/>`;
     return `<!doctype html><html><head><meta charset="utf-8"/><title>Label</title>
       <style>
         @page { size: ${PW}mm ${PH}mm; margin: 0; }
