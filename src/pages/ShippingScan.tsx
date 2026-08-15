@@ -75,6 +75,26 @@ export default function ShippingScan() {
   const scannedCount = items.filter((i) => i.is_scanned).length;
   const allScanned = total > 0 && scannedCount === total;
 
+  // 배송 수취인은 source_data.items[](엑셀 Q~T열) 기준입니다.
+  // orders.recipient_name 은 트윈커명(C열)이라 택배 발송에는 사용하지 않습니다.
+  const shipRecipientPos = (items.find((i) => !i.is_scanned)?.position
+    ?? items.filter((i) => i.is_scanned).slice(-1)[0]?.position
+    ?? 1) as number;
+  const shipRecipient = (() => {
+    const src: any[] = Array.isArray(order?.source_data?.items) ? order.source_data.items : [];
+    const si: any = src[shipRecipientPos - 1] ?? src[0] ?? {};
+    return {
+      name: si.recipient_name ?? "",
+      phone: si.recipient_phone ?? order?.recipient_phone ?? "",
+      address: si.shipping_address ?? order?.shipping_address ?? "",
+      city: si.shipping_city ?? order?.shipping_city ?? "",
+      state: si.shipping_state ?? order?.shipping_state ?? "",
+      zip: si.shipping_zip ?? order?.shipping_zip ?? "",
+      country: si.country_code ?? order?.shipping_country ?? "US",
+    };
+  })();
+
+
 
   const [scanInput, setScanInput] = useState("");
   // Print scale (%) — compensates printer drivers that shrink the page ("fit to page").
