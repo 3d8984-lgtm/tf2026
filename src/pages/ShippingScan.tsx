@@ -390,23 +390,40 @@ export default function ShippingScan() {
     }
 
 
+    // DB-level duplicate guard (not only the 1.5s debounce).
+    const { data: dupRow } = await supabase
+      .from("shipment_scan_items")
+      .select("id, position, shipping_group_id")
+      .eq("qr_value", qrValue)
+      .eq("is_scanned", true)
+      .maybeSingle();
+    if (dupRow) {
+      scanDuplicate();
+      setFeedback({ kind: "duplicate", msg: tr("중복 스캔 · 이미 확인된 제품입니다", "重复扫描 · 该产品已确认") });
+      printWindow?.close();
+      void logAction("scan_duplicate", { qrValue, position: dupRow.position });
+      return;
+    }
+
     // Fill next empty slot
     const slot = items.find((i) => !i.is_scanned);
     if (!slot) {
       scanDuplicate();
       setFeedback({ kind: "duplicate", msg: tr("모든 슬롯이 가득 찼습니다", "已全部扫描完成") });
+      printWindow?.close();
       return;
     }
 
-    // Immediate operator feedback — the DB writes below run in the background so
-    // the waybill request starts without waiting for them.
     const newCount = scannedCount + 1;
     perfMark("validation");
     scanSuccess();
-    setFeedback({ kind: "success", msg: tr(`${slot.position}번 슬롯 스캔 완료 (${newCount}/${total})`, `第 ${slot.position} 槽完成 (${newCount}/${total})`) });
     setScanInput("");
 
-    void Promise.all([
+    const group = slot.shipping_group_id ? groupById.get(slot.shipping_group_id) ?? null : null;
+    perfMark("GROUP_MATCHED");
+    if (group) setActiveGroupId(group.id);
+
+    await Promise.all([
       supabase
         .from("shipment_scan_items")
         .update({
@@ -423,13 +440,121 @@ export default function ShippingScan() {
           scan_status: newCount >= total ? (shipment.scan_status === "ready" || shipment.scan_status === "shipped" ? shipment.scan_status : "scanning") : "scanning",
         })
         .eq("id", shipment.id),
-      logAction("scan", { qrValue, position: slot.position }),
-    ]).then(() => {
-      qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
+      logAction("scan_success", { qrValue, position: slot.position, shipping_group_id: group?.id ?? null }),
+    ]);
+
+    qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
+
+    if (!group) {
+      setFeedback({ kind: "success", msg: tr(`${slot.position}번 슬롯 스캔 완료 (${newCount}/${total})`, `第 ${slot.position} 槽完成 (${newCount}/${total})`) });
+      printWindow?.close();
+      toast({
+        variant: "destructive",
+        title: tr("발송 그룹이 없습니다", "无发货分组"),
+        description: tr("송장 사전발행을 먼저 진행해 주세요.", "请先执行运单预发行。"),
+      });
+      return;
+    }
+
+    // Recount the group from the DB (multiple orders can belong to one group).
+    const { data: memberRows } = await supabase
+      .from("shipment_scan_items")
+      .select("id, is_scanned")
+      .eq("shipping_group_id", group.id);
+    const scannedInGroup = (memberRows ?? []).filter((m: any) => m.is_scanned).length;
+    const required = group.required_scan_count || group.item_count || 1;
+    void supabase.from("shipping_groups").update({
+      scanned_count: scannedInGroup,
+      scan_status: scannedInGroup >= required ? "ready" : "scanning",
+    }).eq("id", group.id);
+    void logAction("scan_group_progress", { shipping_group_id: group.id, qrValue, scanned: scannedInGroup, required });
+    void refetchGroups();
+
+    setFeedback({
+      kind: "success",
+      msg: `${group.recipient_name} · ${scannedInGroup}/${required}`,
     });
 
-    // Auto-issue + print the waybill for the scanned parcel.
-    if (!issuing) void issueTrackingViaApi(printWindow, slot.position);
+    if (scannedInGroup < required) {
+      printWindow?.close();
+      return;
+    }
+
+    // All products of this shipping group confirmed → print the pre-issued label.
+    void logAction("scan_group_completed", { shipping_group_id: group.id, required });
+    printPreIssuedLabel(group, printWindow);
+  }
+
+  // Prints the waybill that was issued BEFORE packing started. No carrier API here.
+  function printPreIssuedLabel(group: ShippingGroupRow, printWindow?: Window | null) {
+    if (group.label_status !== "ready" || !group.label_url) {
+      printWindow?.close();
+      scanFail();
+      setFeedback({ kind: "notfound", msg: tr("송장 미발급 · 먼저 송장 사전발행을 진행하세요", "运单未发行 · 请先执行运单预发行") });
+      toast({
+        variant: "destructive",
+        title: tr("송장 미발급", "运单未发行"),
+        description: tr("이 발송건은 아직 송장이 준비되지 않았습니다. 먼저 송장 사전발행을 진행해주세요.",
+                        "该发货件尚未准备运单，请先执行运单预发行。"),
+      });
+      void logAction("label_print_failed", { shipping_group_id: group.id, reason: "label_not_ready" });
+      return;
+    }
+    const url = labelCacheRef.current.get(group.id) ?? group.label_url;
+    perfMark("LABEL_READY");
+    void logAction("label_print_requested", { shipping_group_id: group.id, tracking_number: group.tracking_number });
+    const size = labelSizeFor(group.carrier || carrier || shipment?.carrier);
+    const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
+    if (!w) {
+      toast({ variant: "destructive", title: tr("팝업이 차단되었습니다", "弹窗被拦截") });
+      void logAction("label_print_failed", { shipping_group_id: group.id, reason: "popup_blocked" });
+      return;
+    }
+    w.document.write(buildRemoteLabelHtml(url, group.carrier || carrier || shipment?.carrier));
+    w.document.close();
+    perfMark("label_html_written");
+    void supabase.from("shipping_groups").update({ printed_at: new Date().toISOString() }).eq("id", group.id);
+    void logAction("label_print_success", { shipping_group_id: group.id, tracking_number: group.tracking_number });
+  }
+
+  // ---- Pre-issue (before packing starts) ------------------------------------
+  async function runPreIssue() {
+    if (!carrier) {
+      toast({ variant: "destructive", title: tr("택배사를 선택하세요", "请选择承运商") });
+      return;
+    }
+    const targets = pendingGroups.map((g) => ({ id: g.id, recipient_name: g.recipient_name }));
+    if (!targets.length) {
+      toast({ title: tr("이미 모든 발송건의 송장이 발급되었습니다", "所有发货件的运单均已发行") });
+      setPreIssueOpen(false);
+      return;
+    }
+    setPreIssueRunning(true);
+    setPreIssueLog([]);
+    setPreIssueProgress({ done: 0, total: targets.length, success: 0, failed: 0 });
+    await logAction("label_preissue_started", { count: targets.length, carrier });
+    const startedAt = performance.now();
+    await issueGroupLabels(targets, carrier, {
+      concurrency: 6,
+      onProgress: (p) => {
+        setPreIssueProgress({ done: p.done, total: p.total, success: p.success, failed: p.failed });
+        if (p.last) setPreIssueLog((prev) => [{ name: p.last!.name, ok: p.last!.ok, message: p.last!.message }, ...prev].slice(0, 200));
+      },
+    });
+    setPreIssueRunning(false);
+    await refetchGroups();
+    await logAction("label_preissue_finished", { count: targets.length, elapsed_ms: Math.round(performance.now() - startedAt) });
+  }
+
+  async function retryGroupLabel(group: ShippingGroupRow) {
+    if (!carrier) return;
+    try {
+      await issueGroupLabel(group.id, carrier);
+      toast({ title: tr("송장이 발급되었습니다", "已生成运单"), description: group.recipient_name });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: tr("발급 실패", "生成失败"), description: e?.message });
+    }
+    refetchGroups();
   }
 
 
