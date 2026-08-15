@@ -1042,8 +1042,9 @@ function OrderDetail({
                     <tr className="text-left">
                       <th className="px-2 py-1.5">{tr("순번", "序号")}</th>
                       <th className="px-2 py-1.5">{tr("바코드", "条码")}</th>
-                      <th className="px-2 py-1.5">{tr("전송 완료", "发送完成")}</th>
-                      <th className="px-2 py-1.5">{tr("인쇄 성공", "打印成功")}</th>
+                      <th className="px-2 py-1.5">{tr("게이트웨이 전송", "网关发送")}</th>
+                      <th className="px-2 py-1.5">{tr("프린터 전달", "送达打印机")}</th>
+
                       <th className="px-2 py-1.5">{tr("인쇄 시각", "打印时间")}</th>
                     </tr>
                   </thead>
@@ -1060,11 +1061,11 @@ function OrderDetail({
                         <td className="px-2 py-1.5 text-emerald-500">{tr("전송됨", "已发送")}</td>
                         <td className="px-2 py-1.5">
                           {job?.status === "done" ? (
-                            <span className="text-emerald-500">{tr("성공", "成功")}</span>
+                            <span className="text-emerald-500">{tr("전달됨", "已送达")}</span>
                           ) : job?.status === "failed" ? (
                             <span className="text-destructive">{tr("실패", "失败")}</span>
                           ) : job ? (
-                            <span className="text-primary">{tr("인쇄 중", "打印中")}</span>
+                            <span className="text-primary">{tr("전달 중", "送达中")}</span>
                           ) : (
                             <span className="text-muted-foreground">{tr("확인 불가", "无法确认")}</span>
                           )}
@@ -1072,13 +1073,21 @@ function OrderDetail({
                         <td className="px-2 py-1.5 tabular-nums text-muted-foreground">
                           {new Date(s!.printed_at as string).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN")}
                         </td>
+
                       </tr>
                     ))}
 
                   </tbody>
                 </table>
               </div>
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                {tr(
+                  "※ '전달됨'은 게이트웨이가 프린터로 명령 전송을 마쳤다는 뜻입니다. 프린터에 실제 출력 완료 신호를 되돌려주는 기능이 없어, 용지 없음·라벨 걸림 등 물리적 실패는 화면에서 확인할 수 없습니다.",
+                  "※ '已送达' 表示网关已将指令发送至打印机。打印机不会返回实际打印完成信号，因此缺纸、卡标签等物理故障无法在界面上确认。"
+                )}
+              </p>
             </CardContent>
+
 
           </Card>
 
