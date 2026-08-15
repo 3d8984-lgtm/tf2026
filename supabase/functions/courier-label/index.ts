@@ -374,7 +374,10 @@ Deno.serve(async (req) => {
       }
 
       // No fabricated tracking numbers: if 4PX did not return a waybill, stop.
-      if (!tracking) authOk = false;
+      if (!tracking) {
+        authOk = false;
+        message = message || "4PX did not return a tracking number - aborted (no simulated label)";
+      }
 
 
       await admin.from("shipping_logs").insert({
