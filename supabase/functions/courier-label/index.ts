@@ -228,6 +228,7 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
       }
     } catch { /* try the next parameter combination */ }
   }
+  mark("4PX_label_end");
 
   return {
     tracking_number: tracking,
