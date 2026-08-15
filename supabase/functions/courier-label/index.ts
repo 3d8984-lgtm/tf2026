@@ -348,6 +348,7 @@ Deno.serve(async (req) => {
     if (!cred?.api_key && !cred?.api_secret) {
       return json({ error: `API credentials for '${cfg.name}' are not configured` }, 400);
     }
+    mark("DB_queries_end");
 
     // ---- TEST MODE ----------------------------------------------------------
     // Always uses the production endpoint with real credentials; the test order is
