@@ -610,10 +610,18 @@ function OrderDetail({
   const waitingJobs = jobs.filter((j) => j.status !== "done");
   const printedJobs = doneJobs.length;
   // 인쇄 완료 목록 = 이 주문에서 실제 검증 후 인쇄 처리된 항목 (초기화 시 함께 지워짐)
+  // 게이트웨이 인쇄 대기열에서 바코드별 최종 상태 조회용 맵
+  const jobByCode: Record<string, PrintJob> = {};
+  for (const j of jobs) {
+    const k = norm(j.barcode);
+    const prev = jobByCode[k];
+    if (!prev || ts(j.printed_at ?? j.enqueued_at) >= ts(prev.printed_at ?? prev.enqueued_at)) jobByCode[k] = j;
+  }
   const printedItems = expected
-    .map((e) => ({ e, s: saved[e.position] }))
+    .map((e) => ({ e, s: saved[e.position], job: jobByCode[norm(e.no)] ?? null }))
     .filter((r) => r.s?.status === "done" && r.s?.printed_at)
-    .sort((a, b) => ts(b.s!.printed_at) - ts(a.s!.printed_at));
+    .sort((a, b) => a.e.position - b.e.position);
+
 
 
   const failedJobs = jobs.filter((j) => j.status === "failed").length;
@@ -1034,24 +1042,39 @@ function OrderDetail({
                     <tr className="text-left">
                       <th className="px-2 py-1.5">{tr("순번", "序号")}</th>
                       <th className="px-2 py-1.5">{tr("바코드", "条码")}</th>
+                      <th className="px-2 py-1.5">{tr("전송 완료", "发送完成")}</th>
+                      <th className="px-2 py-1.5">{tr("인쇄 성공", "打印成功")}</th>
                       <th className="px-2 py-1.5">{tr("인쇄 시각", "打印时间")}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {printedItems.length === 0 ? (
-                      <tr><td colSpan={3} className="px-2 py-6 text-center text-muted-foreground">{tr("인쇄 완료 기록이 없습니다", "暂无打印完成记录")}</td></tr>
-                    ) : printedItems.map(({ e, s }) => (
+                      <tr><td colSpan={5} className="px-2 py-6 text-center text-muted-foreground">{tr("인쇄 완료 기록이 없습니다", "暂无打印完成记录")}</td></tr>
+                    ) : printedItems.map(({ e, s, job }) => (
                       <tr key={e.position} className="border-t">
                         <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{e.position}</td>
                         <td className="px-2 py-1.5 font-mono break-all">
                           {e.no}
                           {s?.test_mode && <span className="ml-1 text-[10px] text-amber-500">TEST</span>}
                         </td>
+                        <td className="px-2 py-1.5 text-emerald-500">{tr("전송됨", "已发送")}</td>
+                        <td className="px-2 py-1.5">
+                          {job?.status === "done" ? (
+                            <span className="text-emerald-500">{tr("성공", "成功")}</span>
+                          ) : job?.status === "failed" ? (
+                            <span className="text-destructive">{tr("실패", "失败")}</span>
+                          ) : job ? (
+                            <span className="text-primary">{tr("인쇄 중", "打印中")}</span>
+                          ) : (
+                            <span className="text-muted-foreground">{tr("확인 불가", "无法确认")}</span>
+                          )}
+                        </td>
                         <td className="px-2 py-1.5 tabular-nums text-muted-foreground">
                           {new Date(s!.printed_at as string).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN")}
                         </td>
                       </tr>
                     ))}
+
                   </tbody>
                 </table>
               </div>
