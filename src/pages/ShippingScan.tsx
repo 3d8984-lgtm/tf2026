@@ -556,26 +556,53 @@ export default function ShippingScan() {
   }
 
 
-  // Carrier-issued waybill (4PX ds.xms.label.get), forced to the carrier's paper size.
-  // Accepts a URL, a base64 data-URL PDF, or an HTML label returned by the carrier.
+  // Carrier-issued waybill (4PX ds.xms.label.get), printed at 100 % actual size.
+  // The 4PX file is a vector PDF: it is embedded as-is (no PNG/JPG/canvas conversion,
+  // no CSS scale/zoom/fit) so the printer receives the original resolution.
   function buildRemoteLabelHtml(url: string, code?: string | null, noPrint = false) {
     const { w: LW, h: LH } = labelSizeFor(code);
-    const k = noPrint ? 1 : Math.min(3, Math.max(0.5, labelScale / 100));
-    const PW = +(LW * k).toFixed(3);
-    const PH = +(LH * k).toFixed(3);
     const secureUrl = url.replace(/^http:\/\/bss-fss\.4px\.com\//i, "https://bss-fss.4px.com/");
     const isImg = /^data:image\//i.test(secureUrl) || /\.(png|jpe?g)$/i.test(secureUrl);
     const isHtml = /^data:text\/html/i.test(secureUrl) || /\.html?$/i.test(secureUrl);
+    const isPdf = !isImg && !isHtml;
+    // PDF keeps its native geometry (scale = 1). Only raster/HTML labels may use the
+    // driver-compensation scale, since those have no embedded page size of their own.
+    const k = noPrint || isPdf ? 1 : Math.min(3, Math.max(0.5, labelScale / 100));
+    const PW = +(LW * k).toFixed(3);
+    const PH = +(LH * k).toFixed(3);
+
+    // eslint-disable-next-line no-console
+    console.log("[label] source", {
+      kind: isPdf ? "pdf" : isImg ? "image" : "html",
+      page_mm: `${PW}x${PH}`,
+      media_mm: `${LW}x${LH}`,
+      css_scale: k,
+      bytes: /^data:/.test(secureUrl) ? Math.round(((secureUrl.split(",")[1] ?? "").length * 3) / 4) : null,
+      url: /^data:/.test(secureUrl) ? `${secureUrl.slice(0, 40)}...` : secureUrl,
+    });
+
     const printScript = noPrint
       ? ""
       : `<script>
           let printStarted=false;
+          function logSize(){
+            try{
+              var el=document.querySelector("img,iframe");
+              console.log("[label] before print",{
+                media_mm:"${LW}x${LH}",
+                page_mm:"${PW}x${PH}",
+                css_scale:${k},
+                element_px:el?el.getBoundingClientRect().width.toFixed(1)+"x"+el.getBoundingClientRect().height.toFixed(1):null,
+                natural_px:(el&&el.naturalWidth)?el.naturalWidth+"x"+el.naturalHeight:"vector/pdf",
+                dpr:window.devicePixelRatio
+              });
+            }catch(e){}
+          }
           function printCarrierLabel(){
             if(printStarted)return;
             printStarted=true;
             window.focus();
-            // Fire as soon as the label paints. With --kiosk-printing the sheet
-            // leaves the printer immediately; otherwise the dialog opens at once.
+            logSize();
             requestAnimationFrame(()=>setTimeout(()=>{
               window.print();
               window.onafterprint=()=>window.close();
@@ -589,16 +616,21 @@ export default function ShippingScan() {
       ? `<img src="${secureUrl}" ${noPrint ? "" : 'onload="printCarrierLabel()"'}/>`
       : isHtml
         ? `<iframe src="${secureUrl}" frameborder="0" ${noPrint ? "" : 'onload="printCarrierLabel()"'}></iframe>`
-        : `<iframe src="${secureUrl}#toolbar=0&navpanes=0&scrollbar=0" frameborder="0" ${noPrint ? "" : 'onload="printCarrierLabel()"'}></iframe>`;
+        : `<iframe src="${secureUrl}#toolbar=0&navpanes=0&scrollbar=0&view=Fit&zoom=100" type="application/pdf" frameborder="0" ${noPrint ? "" : 'onload="printCarrierLabel()"'}></iframe>`;
+    // PDF: exact 100×150 mm media, no transform / zoom / object-fit (100 % actual size).
+    const media = isPdf
+      ? `img, iframe { width: ${LW}mm; height: ${LH}mm; display: block; border: 0; }`
+      : `img, iframe { width: ${LW}mm; height: ${LH}mm; object-fit: contain; display: block; border: 0; transform: scale(${k}); transform-origin: top left; }`;
     return `<!doctype html><html><head><meta charset="utf-8"/><title>Label</title>
       <style>
         @page { size: ${PW}mm ${PH}mm; margin: 0; }
         html, body { margin: 0; padding: 0; width: ${PW}mm; height: ${PH}mm; overflow: hidden; }
-        img, iframe { width: ${LW}mm; height: ${LH}mm; object-fit: fill; display: block; border: 0; transform: scale(${k}); transform-origin: top left; }
+        ${media}
       </style></head><body>
       ${body}${printScript}
       </body></html>`;
   }
+
 
 
   function downloadLabelPdf() {
