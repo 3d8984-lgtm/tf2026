@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.58.0";
-import { fpxCall, fpxEndpoint, fpxProbe, fpxCancelOrder, FPX_TEST_URL } from "../_shared/fpx.ts";
+import { fpxCall, fpxEndpoint, fpxCancelOrder, FPX_TEST_URL } from "../_shared/fpx.ts";
 import { normalizeRecipient } from "../_shared/addr.ts";
 
 
@@ -332,10 +332,6 @@ Deno.serve(async (req) => {
                 extra: { ...extra, channel_code: extra.test_channel_code ?? extra.channel_code ?? "PY" },
               };
 
-          const probe = await fpxProbe(endpoint, useCred);
-          authOk = probe.ok;
-          message = probe.message;
-
           const refNo = `TEST-${order.external_order_id}-${Date.now()}`;
           const testOrder = { ...order, external_order_id: refNo };
           const r = await call4px(
@@ -359,13 +355,14 @@ Deno.serve(async (req) => {
                 : " / CANCEL FAILED - cancel this order manually in the 4PX console";
             }
           } else if (!tracking) {
+            authOk = false;
             const err = r.error ?? "no tracking number";
             const hint = /000012|签名|sign/i.test(err)
               ? " → 주문생성(ds.xms.order.create)은 access_token 인증이 필요합니다. 택배사 설정에서 4PX access_token과 물류상품코드(logistics_product_code)를 입력해 주세요."
               : /product|channel|物流|产品/i.test(err)
               ? " → 물류상품코드(channel_code)가 유효한지 확인해 주세요."
               : "";
-            message = `${message} / ${useLive ? "live" : "sandbox"} order: ${err}${hint}`;
+            message = `${useLive ? "live" : "sandbox"} order: ${err}${hint}`;
           }
 
         } else {

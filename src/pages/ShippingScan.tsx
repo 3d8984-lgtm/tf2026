@@ -278,15 +278,16 @@ export default function ShippingScan() {
     }
 
     const newCount = scannedCount + 1;
-    await supabase
-      .from("shipments")
-      .update({
-        scanned_count: newCount,
-        scan_status: newCount >= total ? (shipment.scan_status === "ready" || shipment.scan_status === "shipped" ? shipment.scan_status : "scanning") : "scanning",
-      })
-      .eq("id", shipment.id);
-
-    await logAction("scan", { qrValue, position: slot.position });
+    await Promise.all([
+      supabase
+        .from("shipments")
+        .update({
+          scanned_count: newCount,
+          scan_status: newCount >= total ? (shipment.scan_status === "ready" || shipment.scan_status === "shipped" ? shipment.scan_status : "scanning") : "scanning",
+        })
+        .eq("id", shipment.id),
+      logAction("scan", { qrValue, position: slot.position }),
+    ]);
     scanSuccess();
     setFeedback({ kind: "success", msg: tr(`${slot.position}번 슬롯 스캔 완료 (${newCount}/${total})`, `第 ${slot.position} 槽完成 (${newCount}/${total})`) });
     setScanInput("");
@@ -570,7 +571,7 @@ export default function ShippingScan() {
             setTimeout(()=>{
               window.print();
               window.onafterprint=()=>window.close();
-            },1200);
+            },500);
           }
           window.addEventListener("afterprint",()=>window.close());
           setTimeout(printCarrierLabel,10000);
