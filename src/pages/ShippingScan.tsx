@@ -140,6 +140,39 @@ export default function ShippingScan() {
   const lastScanRef = useRef<{ value: string; at: number }>({ value: "", at: 0 });
   const hidBufRef = useRef<{ buf: string; lastAt: number }>({ buf: "", lastAt: 0 });
 
+  // ---- Scan → print timing profiler (console.table) -------------------------
+  const perfRef = useRef<{ t0: number; rows: { step: string; ms: number }[] }>({ t0: 0, rows: [] });
+  function perfStart() {
+    perfRef.current = { t0: performance.now(), rows: [{ step: "SCAN", ms: 0 }] };
+  }
+  function perfMark(step: string, atMs?: number) {
+    if (!perfRef.current.t0) return;
+    perfRef.current.rows.push({ step, ms: Math.round(atMs ?? performance.now() - perfRef.current.t0) });
+  }
+  function perfDump() {
+    if (!perfRef.current.t0) return;
+    const rows = [...perfRef.current.rows].sort((a, b) => a.ms - b.ms);
+    // eslint-disable-next-line no-console
+    console.table(
+      rows.map((r, i) => ({
+        step: r.step,
+        "t (ms)": r.ms,
+        "구간 (ms)": i === 0 ? 0 : r.ms - rows[i - 1].ms,
+      })),
+    );
+  }
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      const d = e.data as any;
+      if (!d || d.type !== "label-timing") return;
+      perfMark(d.step);
+      if (d.step === "print_called") perfDump();
+    };
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   // Keep keyboard focus on USB-scanner input
   useEffect(() => {
