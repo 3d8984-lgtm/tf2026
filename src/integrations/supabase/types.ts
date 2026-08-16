@@ -1915,6 +1915,18 @@ export type Database = {
       generate_tshirt_po_number: { Args: never; Returns: string }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_approved: { Args: { _user_id: string }; Returns: boolean }
+      list_couriers_safe: {
+        Args: never
+        Returns: {
+          code: string
+          enabled: boolean
+          has_credentials: boolean
+          id: string
+          is_default: boolean
+          name: string
+          sort_order: number
+        }[]
+      }
     }
     Enums: {
       inspect_result: "pending" | "pass" | "mismatch" | "weight_fail"

@@ -5,29 +5,45 @@ export interface CourierConfigRow {
   id: string;
   code: string;
   name: string;
-  api_url: string;
-  api_mode: string;
+  api_url?: string;
+  api_mode?: string;
   enabled: boolean;
   is_default: boolean;
   has_credentials: boolean;
-  last_test_at: string | null;
-  last_test_ok: boolean | null;
-  last_test_message: string | null;
+  last_test_at?: string | null;
+  last_test_ok?: boolean | null;
+  last_test_message?: string | null;
   sort_order: number;
 }
 
+/** Safe list for any approved worker: no API URLs / modes / test metadata. */
 export function useCouriers(onlyEnabled = false) {
   return useQuery({
-    queryKey: ["courier_configs", onlyEnabled],
+    queryKey: ["courier_configs_safe", onlyEnabled],
     queryFn: async () => {
-      let q = supabase.from("courier_configs").select("*").order("sort_order", { ascending: true });
-      if (onlyEnabled) q = q.eq("enabled", true);
-      const { data, error } = await q;
+      const { data, error } = await supabase.rpc("list_couriers_safe");
+      if (error) throw error;
+      const rows = (data ?? []) as unknown as CourierConfigRow[];
+      return onlyEnabled ? rows.filter((r) => r.enabled) : rows;
+    },
+  });
+}
+
+/** Full configuration incl. API endpoints — admin only (RLS enforced). */
+export function useAdminCouriers() {
+  return useQuery({
+    queryKey: ["courier_configs"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("courier_configs")
+        .select("*")
+        .order("sort_order", { ascending: true });
       if (error) throw error;
       return (data ?? []) as unknown as CourierConfigRow[];
     },
   });
 }
+
 
 export function useSaveCourier() {
   const qc = useQueryClient();
@@ -47,7 +63,7 @@ export function useSaveCourier() {
         : await supabase.from("courier_configs").insert(payload);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["courier_configs"] }),
+    onSuccess: () => qc.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith("courier_config") }),
   });
 }
 
@@ -58,7 +74,7 @@ export function useDeleteCourier() {
       const { error } = await supabase.from("courier_configs").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["courier_configs"] }),
+    onSuccess: () => qc.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith("courier_config") }),
   });
 }
 
@@ -79,7 +95,7 @@ export function useSaveCourierCredentials() {
       account_no?: string;
       extra?: Record<string, unknown>;
     }) => courierConfigFn({ action: "save_credentials", ...body }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["courier_configs"] }),
+    onSuccess: () => qc.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith("courier_config") }),
   });
 }
 
@@ -99,7 +115,7 @@ export function useClearCourierCredentials() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (code: string) => courierConfigFn({ action: "clear_credentials", code }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["courier_configs"] }),
+    onSuccess: () => qc.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith("courier_config") }),
   });
 }
 
@@ -107,7 +123,7 @@ export function useTestCourier() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (code: string) => courierConfigFn({ action: "test_connection", code }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["courier_configs"] }),
+    onSuccess: () => qc.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith("courier_config") }),
   });
 }
 
