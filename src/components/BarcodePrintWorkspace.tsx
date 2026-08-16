@@ -366,13 +366,11 @@ function OrderDetail({
 
 
   /**
-   * 게이트웨이 프린터 전송.
-   * 게이트웨이에는 큐 투입 API가 없고(큐는 스캔 이벤트로만 채워짐),
-   * 직접 인쇄용 `POST /api/v1/print/test` 만 제공된다.
-   * 갭 센서 라벨 프린터는 문자열만으로는 출력되지 않으므로,
-   * SIZE/GAP/PRINT가 포함된 라벨 명령(TSPL)으로 변환해서 전송한다.
+   * 수동 전송(재인쇄·테스트)용 경로.
+   * 정상 작업 흐름에서는 백엔드(게이트웨이)가 스캔 값을 프린터 큐에 자동 투입하므로
+   * 프론트엔드에서 라벨 명령 템플릿을 만들지 않고, 값 그대로만 전송한다.
    */
-  /** 프린터로 실제 전송할 값 — 기본은 카드 고유번호 */
+  /** 프린터로 실제 전송할 값 — 카드 고유번호가 있으면 그것을 사용 */
   const printValueRef = useRef<(no: string) => string>((v) => v);
   useEffect(() => {
     const map = new Map<string, string>();
@@ -382,22 +380,16 @@ function OrderDetail({
         map.set(norm(e.base), e.cardNo);
       }
     }
-    printValueRef.current = (v: string) =>
-      labelOpts.valueSource === "card" ? (map.get(norm(v)) ?? v) : v;
-  }, [expected, labelOpts.valueSource]);
-  const sendToPrinter = useCallback(async (code: string, override?: Partial<LabelOptions>): Promise<{ ok: boolean; error?: string }> => {
-    const payload = buildLabelCommand(code, { ...labelOptsRef.current, ...(override || {}) });
+    printValueRef.current = (v: string) => map.get(norm(v)) ?? v;
+  }, [expected]);
+  const sendToPrinter = useCallback(async (code: string): Promise<{ ok: boolean; error?: string }> => {
+    const payload = String(code ?? "").slice(0, 200);
     const record = (ok: boolean, error: string | null) => {
       setPrinterLog((prev) => [
         { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, at: new Date().toISOString(), code, payload, ok, error },
         ...prev,
       ].slice(0, 100));
     };
-    if (payload.length > 200) {
-      const err = `label command too long (${payload.length}/200) — 라벨 설정을 줄이세요`;
-      record(false, err);
-      return { ok: false, error: err };
-    }
     try {
       const res = await proxyFetch("/api/v1/print/test", {
         method: "POST",
@@ -416,6 +408,7 @@ function OrderDetail({
       return { ok: false, error: String(e) };
     }
   }, []);
+
 
 
 
