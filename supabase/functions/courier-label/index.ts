@@ -88,9 +88,15 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
     .replace(/[^\x20-\x7E]/g, "")
     .replace(/[^A-Za-z0-9 ._-]/g, " ")
     .replace(/\s+/g, " ")
-    .trim()
+    .trim();
+  // 4PX hard limit: customer's order number (ref_no) must be <= 32 chars.
+  const orderRef = String(order.external_order_id ?? "").slice(0, 32);
+  const room = 32 - orderRef.length - (orderRef && refLabel ? 1 : 0);
+  const refNo = [room > 0 ? refLabel.slice(0, room).trim() : "", orderRef]
+    .filter(Boolean)
+    .join(" ")
     .slice(0, 32);
-  const refNo = [refLabel, order.external_order_id].filter(Boolean).join(" ").slice(0, 50);
+
 
   const bizData = {
     ref_no: refNo,
