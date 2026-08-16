@@ -367,26 +367,18 @@ function OrderDetail({
    * 정상 작업 흐름에서는 백엔드(게이트웨이)가 스캔 값을 프린터 큐에 자동 투입하므로
    * 프론트엔드에서 라벨 명령 템플릿을 만들지 않고, 값 그대로만 전송한다.
    */
-  /** 프린터로 실제 전송할 값 — 카드 고유번호가 있으면 그것을 사용 */
+  /** 프린터로 실제 전송할 값 — 카드 고유번호(개별 주문번호 + suffix) 그대로 */
   const printValueRef = useRef<(no: string) => string>((v) => v);
   useEffect(() => {
     const map = new Map<string, string>();
     for (const e of expected) {
-      if (e.cardNo) {
-        map.set(norm(e.no), e.cardNo);
-        map.set(norm(e.base), e.cardNo);
-      }
+      map.set(norm(e.no), e.no);
+      map.set(norm(e.base), e.no);
+      if (e.cardNo) map.set(norm(e.cardNo), e.no);
     }
-    printValueRef.current = (v: string) => {
-      const mapped = map.get(norm(v)) ?? String(v ?? "");
-      // 어떤 경로로든 NDEF 원문(slug|nfcId|cp)이 넘어오면 카드 고유번호만 남긴다
-      const m = mapped.match(/NFC-[A-Za-z0-9]+-[A-Za-z0-9]+/i);
-      if (m) return m[0];
-      if (mapped.includes("|")) return (mapped.split("|")[1] ?? mapped).trim();
-      return mapped;
-    };
-
+    printValueRef.current = (v: string) => map.get(norm(v)) ?? String(v ?? "").trim();
   }, [expected]);
+
   const sendToPrinter = useCallback(async (code: string): Promise<{ ok: boolean; error?: string }> => {
     const payload = String(code ?? "").slice(0, 200);
     const record = (ok: boolean, error: string | null) => {
