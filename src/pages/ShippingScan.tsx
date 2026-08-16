@@ -887,7 +887,7 @@ export default function ShippingScan() {
         shipped_at: null,
         reported_at: null,
         design_confirmed: false,
-        carrier: null,
+        // carrier is NOT NULL on shipments — keep the existing carrier code.
         tracking_number: null,
         label_url: null,
         tracking_issued_at: null,
