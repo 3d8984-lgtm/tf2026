@@ -310,18 +310,46 @@ function OrderDetail({
     for (const m of missing) map[m.position] = { position: m.position, code: m.code, status: "pending", test_mode: false, printed_at: null };
     setSaved(map);
 
-    // 진행 위치 복원 = 완료되지 않은 첫 항목
+    // 진행 위치 복원 = 스캔 검증이 끝난(인쇄 대기 포함) 마지막 항목
     let c = 0;
     seenRef.current = new Set();
     for (const e of expected) {
-      if (map[e.position]?.status === "done") { c = e.position; seenRef.current.add(norm(e.no)); }
+      const st = map[e.position]?.status;
+      if (st === "done" || st === "queued" || st === "error") { c = e.position; seenRef.current.add(norm(e.no)); }
       else break;
     }
     setCursor(c);
+    // 인쇄 실패로 남아있는 항목이 있으면 작업을 중단 상태로 복원
+    setHalted(Object.values(map).some((s) => s.status === "error"));
     setReady(true);
   }, [expected, kind, order.id]);
 
   useEffect(() => { setReady(false); loadSaved(); }, [loadSaved]);
+
+  /** 스캔 검증 통과 → 인쇄 대기열(FIFO)에 적재. 실제 인쇄는 소비자 루프가 담당한다. */
+  const markQueued = useCallback(async (position: number, code: string, scannedValue: string | null) => {
+    const now = new Date().toISOString();
+    await supabase.from("barcode_print_items").upsert(
+      {
+        kind, order_id: order.id, position, code,
+        status: "queued", verdict: "ok", scanned_value: scannedValue,
+        scanned_at: now, printed_at: null, test_mode: false,
+      },
+      { onConflict: "kind,order_id,position" },
+    );
+    setSaved((prev) => ({ ...prev, [position]: { position, code, status: "queued", test_mode: false, printed_at: null } }));
+  }, [kind, order.id]);
+
+  /** 인쇄 실패 → 대기열 선두에서 멈춤 (다음 항목으로 넘어가지 않음) */
+  const markPrintError = useCallback(async (position: number, code: string, message: string) => {
+    await supabase.from("barcode_print_items").upsert(
+      { kind, order_id: order.id, position, code, status: "error", verdict: "print_failed", printed_at: null },
+      { onConflict: "kind,order_id,position" },
+    );
+    setSaved((prev) => ({ ...prev, [position]: { position, code, status: "error", test_mode: false, printed_at: null } }));
+    setHalted(true);
+    toast.error(`${code} · ${message}`);
+  }, [kind, order.id]);
 
   const markDone = useCallback(async (position: number, code: string, scannedValue: string | null, isTest: boolean) => {
     const now = new Date().toISOString();
@@ -335,6 +363,7 @@ function OrderDetail({
     );
     setSaved((prev) => ({ ...prev, [position]: { position, code, status: "done", test_mode: isTest, printed_at: now } }));
   }, [kind, order.id]);
+
 
   /**
    * 게이트웨이 프린터 전송.
