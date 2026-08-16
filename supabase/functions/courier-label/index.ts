@@ -102,6 +102,16 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
     .replace(/^-/, "")
     .slice(0, 32);
 
+  // SKU 칸에는 고유 접미사 없이 "브랜드 품명"만 인쇄한다 (4PX가 라벨에 SKU를 표시).
+  const skuText = String(
+    extra.sku ?? extra.ref_label ?? [extra.brand, extra.item_name_en].filter(Boolean).join(" "),
+  )
+    .replace(/[^\x20-\x7E]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 40) || "TWINMETA";
+
+
 
 
   const bizData = {
