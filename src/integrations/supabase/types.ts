@@ -501,13 +501,6 @@ export type Database = {
             referencedRelation: "courier_configs"
             referencedColumns: ["code"]
           },
-          {
-            foreignKeyName: "courier_credentials_code_fkey"
-            columns: ["code"]
-            isOneToOne: true
-            referencedRelation: "courier_configs_safe"
-            referencedColumns: ["code"]
-          },
         ]
       }
       defect_logs: {
@@ -1916,41 +1909,24 @@ export type Database = {
       }
     }
     Views: {
-      courier_configs_safe: {
-        Row: {
-          code: string | null
-          enabled: boolean | null
-          has_credentials: boolean | null
-          id: string | null
-          is_default: boolean | null
-          name: string | null
-          sort_order: number | null
-        }
-        Insert: {
-          code?: string | null
-          enabled?: boolean | null
-          has_credentials?: boolean | null
-          id?: string | null
-          is_default?: boolean | null
-          name?: string | null
-          sort_order?: number | null
-        }
-        Update: {
-          code?: string | null
-          enabled?: boolean | null
-          has_credentials?: boolean | null
-          id?: string | null
-          is_default?: boolean | null
-          name?: string | null
-          sort_order?: number | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       generate_tshirt_po_number: { Args: never; Returns: string }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_approved: { Args: { _user_id: string }; Returns: boolean }
+      list_couriers_safe: {
+        Args: never
+        Returns: {
+          code: string
+          enabled: boolean
+          has_credentials: boolean
+          id: string
+          is_default: boolean
+          name: string
+          sort_order: number
+        }[]
+      }
     }
     Enums: {
       inspect_result: "pending" | "pass" | "mismatch" | "weight_fail"
