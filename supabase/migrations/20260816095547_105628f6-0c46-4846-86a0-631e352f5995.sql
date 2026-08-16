@@ -1,0 +1,1 @@
+ALTER TABLE public.shipping_groups ADD COLUMN IF NOT EXISTS ref_no text;

@@ -1270,6 +1270,7 @@ export type Database = {
           printed_at: string | null
           recipient_name: string
           recipient_phone: string
+          ref_no: string | null
           required_scan_count: number
           scan_status: string
           scanned_count: number
@@ -1294,6 +1295,7 @@ export type Database = {
           printed_at?: string | null
           recipient_name?: string
           recipient_phone?: string
+          ref_no?: string | null
           required_scan_count?: number
           scan_status?: string
           scanned_count?: number
@@ -1318,6 +1320,7 @@ export type Database = {
           printed_at?: string | null
           recipient_name?: string
           recipient_phone?: string
+          ref_no?: string | null
           required_scan_count?: number
           scan_status?: string
           scanned_count?: number
