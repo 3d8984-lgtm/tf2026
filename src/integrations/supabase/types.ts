@@ -501,6 +501,13 @@ export type Database = {
             referencedRelation: "courier_configs"
             referencedColumns: ["code"]
           },
+          {
+            foreignKeyName: "courier_credentials_code_fkey"
+            columns: ["code"]
+            isOneToOne: true
+            referencedRelation: "courier_configs_safe"
+            referencedColumns: ["code"]
+          },
         ]
       }
       defect_logs: {
@@ -1909,7 +1916,36 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      courier_configs_safe: {
+        Row: {
+          code: string | null
+          enabled: boolean | null
+          has_credentials: boolean | null
+          id: string | null
+          is_default: boolean | null
+          name: string | null
+          sort_order: number | null
+        }
+        Insert: {
+          code?: string | null
+          enabled?: boolean | null
+          has_credentials?: boolean | null
+          id?: string | null
+          is_default?: boolean | null
+          name?: string | null
+          sort_order?: number | null
+        }
+        Update: {
+          code?: string | null
+          enabled?: boolean | null
+          has_credentials?: boolean | null
+          id?: string | null
+          is_default?: boolean | null
+          name?: string | null
+          sort_order?: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       generate_tshirt_po_number: { Args: never; Returns: string }
