@@ -961,102 +961,17 @@ function OrderDetail({
           </CardContent>
         </Card>
 
-        {/* 라벨 명령 설정 — 갭 센서 프린터는 SIZE/GAP/PRINT 명령이 있어야 실제 출력됨 */}
+        {/* 인쇄 처리 안내 — 명령 생성은 백엔드(게이트웨이)가 담당 */}
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Printer className="w-4 h-4" />{tr("라벨 인쇄 명령 설정", "标签打印命令设置")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0 space-y-3">
+          <CardContent className="p-4 flex items-start gap-3">
+            <Printer className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
             <p className="text-xs text-muted-foreground">
-              {tr("프린터는 게이트웨이가 시리얼 포트로 보낸 문자열을 그대로 해석합니다. 형식이 맞지 않으면 출력이 아예 안 되거나, 프린터에 저장된 기본 템플릿(QR)이 그대로 찍힙니다. 아래에서 형식을 맞추고 '프로토콜 자동 진단'으로 확인하세요.",
-                  "打印机会直接解析网关通过串口发送的字符串。格式不匹配时将不出纸，或直接打印机内置模板(二维码)。请在下方设置格式并用\u201c协议自动诊断\u201d确认。")}
-            </p>
-            <div className="flex flex-wrap items-end gap-3">
-              <div>
-                <Label className="text-xs">{tr("명령 형식", "命令格式")}</Label>
-                <select
-                  className="mt-1 h-9 rounded-md border bg-background px-2 text-sm"
-                  value={labelOpts.mode}
-                  onChange={(e) => setLabelOpts((o) => ({ ...o, mode: e.target.value as LabelOptions["mode"] }))}
-                >
-                  {PROBE_MODES.map((m) => (
-                    <option key={m} value={m}>{isKo ? LABEL_MODE_LABELS[m].ko : LABEL_MODE_LABELS[m].zh}</option>
-                  ))}
-                </select>
-              </div>
-              {labelOpts.mode !== "raw" && (["widthMm", "heightMm", "gapMm"] as const).map((k) => (
-                <div key={k}>
-                  <Label className="text-xs">
-                    {k === "widthMm" ? tr("라벨 폭(mm)", "标签宽(mm)")
-                      : k === "heightMm" ? tr("라벨 높이(mm)", "标签高(mm)")
-                      : tr("갭(mm)", "间隙(mm)")}
-                  </Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    step={0.5}
-                    className="mt-1 w-24"
-                    value={labelOpts[k]}
-                    onChange={(e) => setLabelOpts((o) => ({ ...o, [k]: Number(e.target.value) || 0 }))}
-                  />
-                </div>
-              ))}
-              {labelOpts.mode === "raw" && (
-                <>
-                  <div>
-                    <Label className="text-xs">{tr("종결 문자", "结束符")}</Label>
-                    <select
-                      className="mt-1 h-9 rounded-md border bg-background px-2 text-sm"
-                      value={labelOpts.terminator}
-                      onChange={(e) => setLabelOpts((o) => ({ ...o, terminator: e.target.value as Terminator }))}
-                    >
-                      <option value="crlf">CR+LF (\r\n)</option>
-                      <option value="cr">CR (\r)</option>
-                      <option value="lf">LF (\n)</option>
-                      <option value="none">{tr("없음", "无")}</option>
-                    </select>
-                  </div>
-                  <div>
-                    <Label className="text-xs">{tr("접두 문자", "前缀")}</Label>
-                    <Input className="mt-1 w-28 font-mono" value={labelOpts.prefix}
-                      onChange={(e) => setLabelOpts((o) => ({ ...o, prefix: e.target.value }))} />
-                  </div>
-                  <div>
-                    <Label className="text-xs">{tr("접미 문자", "后缀")}</Label>
-                    <Input className="mt-1 w-28 font-mono" value={labelOpts.suffix}
-                      onChange={(e) => setLabelOpts((o) => ({ ...o, suffix: e.target.value }))} />
-                  </div>
-                </>
-              )}
-              <div>
-                <Label className="text-xs">{tr("인쇄 값", "打印内容")}</Label>
-                <select
-                  className="mt-1 h-9 rounded-md border bg-background px-2 text-sm"
-                  value={labelOpts.valueSource}
-                  onChange={(e) => setLabelOpts((o) => ({ ...o, valueSource: e.target.value as LabelOptions["valueSource"] }))}
-                >
-                  <option value="card">{tr("카드 고유번호", "卡片唯一编号")}</option>
-                  <option value="item">{tr("주문 항목 고유번호", "订单项目编号")}</option>
-                </select>
-              </div>
-              <Button size="sm" variant="outline" onClick={probeProtocols} disabled={printerTesting}>
-                {tr("프로토콜 자동 진단", "协议自动诊断")}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setLabelOpts(DEFAULT_LABEL_OPTIONS)}>
-                {tr("기본값", "默认值")}
-              </Button>
-            </div>
-            <pre className="rounded-md bg-muted/50 p-2 text-[11px] font-mono whitespace-pre-wrap break-all">
-              {buildLabelCommand(printValueRef.current(expected[Math.min(cursor, Math.max(total - 1, 0))]?.no ?? "SAMPLE-1"), labelOpts)}
-            </pre>
-            <p className="text-[11px] text-muted-foreground">
-              {tr("※ 게이트웨이는 스캔 이벤트가 들어올 때마다 원본 바코드 값을 프린터로 자동 전송합니다(‘스캔 완료’ 대기열). 이 자동 전송은 검증을 거치지 않은 원시 값이라 프린터가 기본 템플릿을 찍는 원인이 될 수 있으며, 게이트웨이 설정에서만 끌 수 있습니다.",
-                  "※ 网关在每次扫描时会自动将原始条码值发送到打印机（\u201c扫描完成\u201d队列）。该自动发送为未经检验的原始值，可能导致打印机输出默认模板，只能在网关侧关闭。")}
+              {tr("스캐너에서 스캔된 값은 백엔드(게이트웨이)가 자동으로 프린터 큐에 넣어 출력합니다. 화면에서는 라벨 명령 템플릿을 만들지 않고, 스캔 순서 검증과 게이트웨이 인쇄 결과만 확인·기록합니다. 라벨 형식(SIZE/GAP/QR 등)은 게이트웨이·프린터 설정에서 관리하세요.",
+                  "扫描仪扫描到的值由后端（网关）自动进入打印队列并输出。本界面不再生成标签命令模板，仅进行扫描顺序检验并记录网关打印结果。标签格式（SIZE/GAP/二维码等）请在网关与打印机侧设置。")}
             </p>
           </CardContent>
         </Card>
+
 
 
 
