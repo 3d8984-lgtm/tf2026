@@ -521,26 +521,22 @@ function OrderDetail({
     setLog((prev) => [...rows.slice().reverse(), ...prev].slice(0, 100));
   }, [queue, expected, cursor, testMode, ready, markQueued]);
 
-  // ── 소비자(인쇄) 루프 ─────────────────────────────────────────────
-  // 대기열 선두(가장 낮은 순번의 queued)를 1건씩 프린터로 전송한다.
-  // 실패하면 error 로 표시하고 즉시 중단 — 다음 항목으로 넘어가지 않는다.
-  const printingRef = useRef(false);
+  // ── 소비자(인쇄) 결과 반영 ────────────────────────────────────────
+  // 실제 인쇄는 백엔드(게이트웨이)가 스캔 값을 프린터 큐에 자동 투입해 처리한다.
+  // 화면은 게이트웨이 인쇄 대기열 상태를 읽어 queued 항목의 완료/실패만 기록한다.
   useEffect(() => {
-    if (!ready || testMode || halted || !autoPrint) return;
-    if (printingRef.current) return;
-    const next = Object.values(saved)
-      .filter((s) => s.status === "queued")
-      .sort((a, b) => a.position - b.position)[0];
-    if (!next) return;
+    if (!ready || testMode) return;
+    const queued = Object.values(saved).filter((s) => s.status === "queued").sort((a, b) => a.position - b.position);
+    if (queued.length === 0) return;
+    for (const item of queued) {
+      const entry = expected.find((e) => e.position === item.position);
+      const job = jobs.find((j) => (entry ? entry.keys.includes(norm(j.barcode)) : norm(j.barcode) === norm(item.code)));
+      if (!job) continue;
+      if (job.status === "done") void markDone(item.position, item.code, job.barcode, false);
+      else if (job.status === "failed") void markPrintError(item.position, item.code, job.error ?? "printer job failed");
+    }
+  }, [jobs, saved, expected, ready, testMode, markDone, markPrintError]);
 
-    printingRef.current = true;
-    (async () => {
-      const r = await sendToPrinter(printValueRef.current(next.code));
-      if (r.ok) await markDone(next.position, next.code, null, false);
-      else await markPrintError(next.position, next.code, r.error ?? "print failed");
-      printingRef.current = false;
-    })();
-  }, [saved, ready, testMode, halted, autoPrint, sendToPrinter, markDone, markPrintError]);
 
   /** 실패한 항목을 다시 대기열로 되돌리고 인쇄 재개 */
   const retryFailed = async () => {
