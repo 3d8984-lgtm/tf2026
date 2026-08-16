@@ -39,6 +39,7 @@ import {
   type PrintAgentSettings,
 } from "@/lib/print-agent";
 import { htmlLabelToPdfBlob } from "@/lib/html-label-pdf";
+import { finishLabelPdf } from "@/lib/label-pdf-finish";
 
 import { Html5Qrcode } from "html5-qrcode";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -603,7 +604,7 @@ export default function ShippingScan() {
     void logAction("label_print_requested", { shipping_group_id: group.id, tracking_number: group.tracking_number });
 
     // 1) Local printer agent — silent, borderless, 100% actual size, original PDF.
-    if (await sendToPrintAgent({ url, carrierCode, trackingNumber: group.tracking_number })) {
+    if (await sendToPrintAgent({ url, carrierCode, trackingNumber: group.tracking_number, refNo: (group as any).ref_no })) {
       printWindow?.close();
       perfMark("print_called");
       void supabase.from("shipping_groups").update({ printed_at: new Date().toISOString() }).eq("id", group.id);
@@ -730,7 +731,7 @@ export default function ShippingScan() {
         const url = (res as any)?.label_url as string | undefined;
         setTestLabelUrl(url ?? null);
         if (url) {
-          const sentToAgent = await sendToPrintAgent({ url, carrierCode: carrier || shipment?.carrier, trackingNumber: res.tracking_number });
+          const sentToAgent = await sendToPrintAgent({ url, carrierCode: carrier || shipment?.carrier, trackingNumber: res.tracking_number, refNo: (res as any)?.ref_no });
           if (sentToAgent) { printWindow?.close(); perfMark("print_called"); }
           else {
             const size = labelSizeFor(carrier || shipment?.carrier);
@@ -775,7 +776,7 @@ export default function ShippingScan() {
       // Auto-print the carrier-issued waybill right after issuance.
       const liveUrl = (res as any)?.label_url as string | undefined;
       if (liveUrl) {
-        const sentToAgent = await sendToPrintAgent({ url: liveUrl, carrierCode: carrier || shipment?.carrier, trackingNumber: res.tracking_number });
+        const sentToAgent = await sendToPrintAgent({ url: liveUrl, carrierCode: carrier || shipment?.carrier, trackingNumber: res.tracking_number, refNo: (res as any)?.ref_no });
         if (sentToAgent) { printWindow?.close(); perfMark("print_called"); }
         else {
           const size = labelSizeFor(carrier || shipment?.carrier);
