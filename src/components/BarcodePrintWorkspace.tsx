@@ -272,11 +272,17 @@ function OrderDetail({
       const it = src[idx] || {};
       const base = String(it.order_id ?? it.sequence_no ?? `${order.external_order_id}-${idx + 1}`);
       const no = `${base}${suffix}`;
+      // 카드 고유번호 = nfc_ndef_data 두 번째 세그먼트(예: NFC-0141-000054)
+      const ndef = String(it.nfc_ndef_data ?? "");
+      const cardNo = String(
+        it.card_no ?? it.card_unique_no ?? it.unique_no ?? ndef.split("|")[1] ?? "",
+      ).trim();
       return {
         position: idx + 1,
         no,
         base,
-        keys: [no, base].filter(Boolean).map((v: string) => norm(v)),
+        cardNo: cardNo || null,
+        keys: [no, base, cardNo].filter(Boolean).map((v: string) => norm(v)),
       };
     });
   }, [order, suffix]);
@@ -337,6 +343,8 @@ function OrderDetail({
    * 갭 센서 라벨 프린터는 문자열만으로는 출력되지 않으므로,
    * SIZE/GAP/PRINT가 포함된 라벨 명령(TSPL)으로 변환해서 전송한다.
    */
+  /** 프린터로 실제 전송할 값 — 기본은 카드 고유번호 */
+  const printValueRef = useRef<(no: string) => string>((v) => v);
   const sendToPrinter = useCallback(async (code: string, override?: Partial<LabelOptions>): Promise<{ ok: boolean; error?: string }> => {
     const payload = buildLabelCommand(code, { ...labelOptsRef.current, ...(override || {}) });
     const record = (ok: boolean, error: string | null) => {
@@ -457,7 +465,7 @@ function OrderDetail({
         void markDone(target.position, target.no, ev.barcode, false);
         // 검수 통과 시 QR 인쇄기로 자동 인쇄 명령 전송
         if (autoPrintRef.current) {
-          void sendToPrinter(target.no).then((r) => {
+          void sendToPrinter(printValueRef.current(target.no)).then((r) => {
             if (!r.ok) {
               toast.error(`${target.no} · ${r.error ?? "print failed"}`);
               setHalted(true);
@@ -558,7 +566,7 @@ function OrderDetail({
 
   // 개별 재작업(스캔 없이 즉시 인쇄)
   const reprint = async (position: number, code: string) => {
-    const r = await sendToPrinter(code);
+    const r = await sendToPrinter(printValueRef.current(code));
     await markDone(position, code, null, testMode);
     toast[r.ok ? "success" : "error"](
       r.ok ? tr("인쇄 요청을 보냈습니다", "已发送打印请求")
@@ -570,7 +578,7 @@ function OrderDetail({
   const printNextTest = async () => {
     const target = expected[cursor];
     if (!target) return;
-    const r = await sendToPrinter(target.no);
+    const r = await sendToPrinter(printValueRef.current(target.no));
     await markDone(target.position, target.no, null, true);
     setCursor((c) => c + 1);
     seenRef.current.add(norm(target.no));
@@ -950,7 +958,7 @@ function OrderDetail({
               </Button>
             </div>
             <pre className="rounded-md bg-muted/50 p-2 text-[11px] font-mono whitespace-pre-wrap break-all">
-              {buildLabelCommand(expected[Math.min(cursor, Math.max(total - 1, 0))]?.no ?? "SAMPLE-1", labelOpts)}
+              {buildLabelCommand(printValueRef.current(expected[Math.min(cursor, Math.max(total - 1, 0))]?.no ?? "SAMPLE-1"), labelOpts)}
             </pre>
             <p className="text-[11px] text-muted-foreground">
               {tr("※ 게이트웨이는 스캔 이벤트가 들어올 때마다 원본 바코드 값을 프린터로 자동 전송합니다(‘스캔 완료’ 대기열). 이 자동 전송은 검증을 거치지 않은 원시 값이라 프린터가 기본 템플릿을 찍는 원인이 될 수 있으며, 게이트웨이 설정에서만 끌 수 있습니다.",
