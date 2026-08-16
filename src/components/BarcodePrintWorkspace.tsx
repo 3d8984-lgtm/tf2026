@@ -257,11 +257,23 @@ function OrderDetail({
       const it = src[idx] || {};
       const base = String(it.order_id ?? it.sequence_no ?? `${order.external_order_id}-${idx + 1}`);
       const no = `${base}${suffix}`;
-      // 카드 고유번호 = nfc_ndef_data 두 번째 세그먼트(예: NFC-0141-000054)
+      // 카드 고유번호 = NFC-0141-000054 형태만 추출 (NDEF 전체 문자열은 인쇄하지 않음)
       const ndef = String(it.nfc_ndef_data ?? "");
-      const cardNo = String(
-        it.card_no ?? it.card_unique_no ?? it.unique_no ?? ndef.split("|")[1] ?? "",
-      ).trim();
+      const pickCardNo = (raw: unknown): string => {
+        const s = String(raw ?? "").trim();
+        if (!s) return "";
+        const m = s.match(/NFC-[A-Za-z0-9]+-[A-Za-z0-9]+/i);
+        if (m) return m[0];
+        // 파이프가 있으면 NDEF 원문이므로 두 번째 세그먼트만 사용
+        if (s.includes("|")) return (s.split("|")[1] ?? "").trim();
+        return s;
+      };
+      const cardNo =
+        pickCardNo(it.card_no) ||
+        pickCardNo(it.card_unique_no) ||
+        pickCardNo(it.unique_no) ||
+        pickCardNo(ndef);
+
       return {
         position: idx + 1,
         no,
@@ -365,7 +377,15 @@ function OrderDetail({
         map.set(norm(e.base), e.cardNo);
       }
     }
-    printValueRef.current = (v: string) => map.get(norm(v)) ?? v;
+    printValueRef.current = (v: string) => {
+      const mapped = map.get(norm(v)) ?? String(v ?? "");
+      // 어떤 경로로든 NDEF 원문(slug|nfcId|cp)이 넘어오면 카드 고유번호만 남긴다
+      const m = mapped.match(/NFC-[A-Za-z0-9]+-[A-Za-z0-9]+/i);
+      if (m) return m[0];
+      if (mapped.includes("|")) return (mapped.split("|")[1] ?? mapped).trim();
+      return mapped;
+    };
+
   }, [expected]);
   const sendToPrinter = useCallback(async (code: string): Promise<{ ok: boolean; error?: string }> => {
     const payload = String(code ?? "").slice(0, 200);
@@ -948,7 +968,15 @@ function OrderDetail({
                   return (
                     <div key={i} className={`flex items-center gap-2 py-2.5 px-2 text-sm ${current ? "bg-primary/10 rounded" : ""}`}>
                       <span className="w-7 tabular-nums text-muted-foreground">{e.position}</span>
-                      <span className="flex-1 font-mono text-xs break-all">{e.no}</span>
+                      <span className="flex-1 font-mono text-xs break-all">
+                        {e.no}
+                        {e.cardNo && (
+                          <span className="ml-2 text-[10px] text-muted-foreground">
+                            {tr("인쇄값", "打印值")}: {e.cardNo}
+                          </span>
+                        )}
+                      </span>
+
                       {done ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                         : current ? <Badge variant="outline" className="shrink-0 text-[10px]">{tr("대기", "等待")}</Badge>
                         : <span className="w-4" />}
