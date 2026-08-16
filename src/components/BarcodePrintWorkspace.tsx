@@ -691,6 +691,8 @@ function OrderDetail({
 
   const total = expected.length;
   const doneCount = Object.values(saved).filter((s) => s.status === "done").length;
+  const queuedCount = Object.values(saved).filter((s) => s.status === "queued").length;
+  const errorCount = Object.values(saved).filter((s) => s.status === "error").length;
   const progress = total ? Math.min(100, (doneCount / total) * 100) : 0;
   const verdictMeta: Record<Verdict, { ko: string; zh: string; cls: string }> = {
     ok: { ko: "일치", zh: "匹配", cls: "text-emerald-500" },
