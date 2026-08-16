@@ -17,9 +17,7 @@ import {
   ScanLine, Printer, RotateCcw, CheckCircle2, XCircle, Wifi, WifiOff,
   ChevronLeft, AlertTriangle, Loader2, Play, Pause, SkipForward, FlaskConical,
 } from "lucide-react";
-import { buildLabelCommand, DEFAULT_LABEL_OPTIONS, LABEL_MODE_LABELS, PROBE_MODES, type LabelOptions, type Terminator } from "@/lib/label-command";
 
-const LABEL_OPTS_KEY = "barcode-printer-label-opts-v1";
 const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 
@@ -197,7 +195,6 @@ function OrderDetail({
   const [lastVerdict, setLastVerdict] = useState<Verdict | null>(null);
   const [halted, setHalted] = useState(false);
   const [testMode, setTestMode] = useState(false);
-  const [autoPrint, setAutoPrint] = useState(true);
   const [saved, setSaved] = useState<Record<number, SavedItem>>({});
   const [ready, setReady] = useState(false);
   const [history, setHistory] = useState<ScanEvent[]>([]);
@@ -239,26 +236,14 @@ function OrderDetail({
 
   const [printerTestText, setPrinterTestText] = useState("TEST123");
   const [printerTesting, setPrinterTesting] = useState(false);
-  // 라벨 프린터 명령 설정 (갭 센서 프린터는 SIZE/GAP/PRINT 명령이 있어야 실제로 출력된다)
-  const [labelOpts, setLabelOpts] = useState<LabelOptions>(() => {
-    try {
-      const raw = localStorage.getItem(LABEL_OPTS_KEY);
-      return raw ? { ...DEFAULT_LABEL_OPTIONS, ...JSON.parse(raw) } : DEFAULT_LABEL_OPTIONS;
-    } catch { return DEFAULT_LABEL_OPTIONS; }
-  });
-  const labelOptsRef = useRef(labelOpts);
-  useEffect(() => {
-    labelOptsRef.current = labelOpts;
-    try { localStorage.setItem(LABEL_OPTS_KEY, JSON.stringify(labelOpts)); } catch { /* ignore */ }
-  }, [labelOpts]);
+  // 라벨 명령 템플릿은 백엔드(게이트웨이)에서 관리하므로 화면 설정 없음
+
   const seenRef = useRef<Set<string>>(new Set());
   const lastCodeRef = useRef<string>("");
   // 게이트웨이 스캔 이력 기반 처리: 이미 처리한 이벤트 id / 최초 프라이밍 여부
   const processedRef = useRef<Set<string>>(new Set());
   const primedRef = useRef(false);
   const [queue, setQueue] = useState<ScanEvent[]>([]);
-  const autoPrintRef = useRef(true);
-  useEffect(() => { autoPrintRef.current = autoPrint; }, [autoPrint]);
 
 
 
@@ -366,13 +351,11 @@ function OrderDetail({
 
 
   /**
-   * 게이트웨이 프린터 전송.
-   * 게이트웨이에는 큐 투입 API가 없고(큐는 스캔 이벤트로만 채워짐),
-   * 직접 인쇄용 `POST /api/v1/print/test` 만 제공된다.
-   * 갭 센서 라벨 프린터는 문자열만으로는 출력되지 않으므로,
-   * SIZE/GAP/PRINT가 포함된 라벨 명령(TSPL)으로 변환해서 전송한다.
+   * 수동 전송(재인쇄·테스트)용 경로.
+   * 정상 작업 흐름에서는 백엔드(게이트웨이)가 스캔 값을 프린터 큐에 자동 투입하므로
+   * 프론트엔드에서 라벨 명령 템플릿을 만들지 않고, 값 그대로만 전송한다.
    */
-  /** 프린터로 실제 전송할 값 — 기본은 카드 고유번호 */
+  /** 프린터로 실제 전송할 값 — 카드 고유번호가 있으면 그것을 사용 */
   const printValueRef = useRef<(no: string) => string>((v) => v);
   useEffect(() => {
     const map = new Map<string, string>();
@@ -382,22 +365,16 @@ function OrderDetail({
         map.set(norm(e.base), e.cardNo);
       }
     }
-    printValueRef.current = (v: string) =>
-      labelOpts.valueSource === "card" ? (map.get(norm(v)) ?? v) : v;
-  }, [expected, labelOpts.valueSource]);
-  const sendToPrinter = useCallback(async (code: string, override?: Partial<LabelOptions>): Promise<{ ok: boolean; error?: string }> => {
-    const payload = buildLabelCommand(code, { ...labelOptsRef.current, ...(override || {}) });
+    printValueRef.current = (v: string) => map.get(norm(v)) ?? v;
+  }, [expected]);
+  const sendToPrinter = useCallback(async (code: string): Promise<{ ok: boolean; error?: string }> => {
+    const payload = String(code ?? "").slice(0, 200);
     const record = (ok: boolean, error: string | null) => {
       setPrinterLog((prev) => [
         { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, at: new Date().toISOString(), code, payload, ok, error },
         ...prev,
       ].slice(0, 100));
     };
-    if (payload.length > 200) {
-      const err = `label command too long (${payload.length}/200) — 라벨 설정을 줄이세요`;
-      record(false, err);
-      return { ok: false, error: err };
-    }
     try {
       const res = await proxyFetch("/api/v1/print/test", {
         method: "POST",
@@ -416,6 +393,7 @@ function OrderDetail({
       return { ok: false, error: String(e) };
     }
   }, []);
+
 
 
 
@@ -521,26 +499,22 @@ function OrderDetail({
     setLog((prev) => [...rows.slice().reverse(), ...prev].slice(0, 100));
   }, [queue, expected, cursor, testMode, ready, markQueued]);
 
-  // ── 소비자(인쇄) 루프 ─────────────────────────────────────────────
-  // 대기열 선두(가장 낮은 순번의 queued)를 1건씩 프린터로 전송한다.
-  // 실패하면 error 로 표시하고 즉시 중단 — 다음 항목으로 넘어가지 않는다.
-  const printingRef = useRef(false);
+  // ── 소비자(인쇄) 결과 반영 ────────────────────────────────────────
+  // 실제 인쇄는 백엔드(게이트웨이)가 스캔 값을 프린터 큐에 자동 투입해 처리한다.
+  // 화면은 게이트웨이 인쇄 대기열 상태를 읽어 queued 항목의 완료/실패만 기록한다.
   useEffect(() => {
-    if (!ready || testMode || halted || !autoPrint) return;
-    if (printingRef.current) return;
-    const next = Object.values(saved)
-      .filter((s) => s.status === "queued")
-      .sort((a, b) => a.position - b.position)[0];
-    if (!next) return;
+    if (!ready || testMode) return;
+    const queued = Object.values(saved).filter((s) => s.status === "queued").sort((a, b) => a.position - b.position);
+    if (queued.length === 0) return;
+    for (const item of queued) {
+      const entry = expected.find((e) => e.position === item.position);
+      const job = jobs.find((j) => (entry ? entry.keys.includes(norm(j.barcode)) : norm(j.barcode) === norm(item.code)));
+      if (!job) continue;
+      if (job.status === "done") void markDone(item.position, item.code, job.barcode, false);
+      else if (job.status === "failed") void markPrintError(item.position, item.code, job.error ?? "printer job failed");
+    }
+  }, [jobs, saved, expected, ready, testMode, markDone, markPrintError]);
 
-    printingRef.current = true;
-    (async () => {
-      const r = await sendToPrinter(printValueRef.current(next.code));
-      if (r.ok) await markDone(next.position, next.code, null, false);
-      else await markPrintError(next.position, next.code, r.error ?? "print failed");
-      printingRef.current = false;
-    })();
-  }, [saved, ready, testMode, halted, autoPrint, sendToPrinter, markDone, markPrintError]);
 
   /** 실패한 항목을 다시 대기열로 되돌리고 인쇄 재개 */
   const retryFailed = async () => {
@@ -670,23 +644,8 @@ function OrderDetail({
     );
   };
 
-  /**
-   * 프로토콜 자동 진단 — 지원 명령 형식을 순서대로 하나씩 전송한다.
-   * 실제로 출력된 라벨의 번호(P1~P6)를 보고 프린터가 이해하는 형식을 고르면 된다.
-   */
-  const probeProtocols = async () => {
-    setPrinterTesting(true);
-    for (let i = 0; i < PROBE_MODES.length; i++) {
-      const mode = PROBE_MODES[i];
-      const r = await sendToPrinter(`P${i + 1}-${(printerTestText || "TEST123").slice(0, 20)}`, { mode });
-      toast[r.ok ? "info" : "error"](
-        `P${i + 1} · ${isKo ? LABEL_MODE_LABELS[mode].ko : LABEL_MODE_LABELS[mode].zh}${r.ok ? "" : ` — ${r.error ?? ""}`}`,
-      );
-      await new Promise((res) => setTimeout(res, 1500));
-    }
-    setPrinterTesting(false);
-    toast.success(tr("진단 전송 완료 — 출력된 라벨 번호(P1~P6)의 형식을 선택하세요", "诊断发送完成 — 请选择实际打印出的标签编号(P1~P6)对应的格式"));
-  };
+
+
 
 
   const total = expected.length;
@@ -914,21 +873,8 @@ function OrderDetail({
           </CardContent>
         </Card>
 
-        {/* 검수 통과 시 자동 인쇄 */}
-        <Card>
-          <CardContent className="p-4 flex flex-wrap items-center gap-3">
-            <Switch id="bp-auto-print" checked={autoPrint} onCheckedChange={setAutoPrint} disabled={testMode} />
-            <Label htmlFor="bp-auto-print" className="cursor-pointer">
-              <span className="font-medium flex items-center gap-1.5">
-                <Printer className="w-4 h-4" />{tr("검수 통과 시 자동 인쇄", "检验通过自动打印")}
-              </span>
-              <span className="block text-xs text-muted-foreground">
-                {tr("스캔 판정이 일치일 때 해당 고유번호를 QR 인쇄기로 즉시 전송합니다 (오류·중복·순서 오류는 인쇄 차단)",
-                    "扫描判定匹配时立即将该唯一编号发送至二维码打印机（错误·重复·顺序错误将阻止打印）")}
-              </span>
-            </Label>
-          </CardContent>
-        </Card>
+        {/* 자동 인쇄는 백엔드(게이트웨이)가 처리 */}
+
 
         {/* 프린터 진단 (POST /api/v1/print/test) */}
         <Card>
@@ -961,102 +907,17 @@ function OrderDetail({
           </CardContent>
         </Card>
 
-        {/* 라벨 명령 설정 — 갭 센서 프린터는 SIZE/GAP/PRINT 명령이 있어야 실제 출력됨 */}
+        {/* 인쇄 처리 안내 — 명령 생성은 백엔드(게이트웨이)가 담당 */}
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Printer className="w-4 h-4" />{tr("라벨 인쇄 명령 설정", "标签打印命令设置")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0 space-y-3">
+          <CardContent className="p-4 flex items-start gap-3">
+            <Printer className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
             <p className="text-xs text-muted-foreground">
-              {tr("프린터는 게이트웨이가 시리얼 포트로 보낸 문자열을 그대로 해석합니다. 형식이 맞지 않으면 출력이 아예 안 되거나, 프린터에 저장된 기본 템플릿(QR)이 그대로 찍힙니다. 아래에서 형식을 맞추고 '프로토콜 자동 진단'으로 확인하세요.",
-                  "打印机会直接解析网关通过串口发送的字符串。格式不匹配时将不出纸，或直接打印机内置模板(二维码)。请在下方设置格式并用\u201c协议自动诊断\u201d确认。")}
-            </p>
-            <div className="flex flex-wrap items-end gap-3">
-              <div>
-                <Label className="text-xs">{tr("명령 형식", "命令格式")}</Label>
-                <select
-                  className="mt-1 h-9 rounded-md border bg-background px-2 text-sm"
-                  value={labelOpts.mode}
-                  onChange={(e) => setLabelOpts((o) => ({ ...o, mode: e.target.value as LabelOptions["mode"] }))}
-                >
-                  {PROBE_MODES.map((m) => (
-                    <option key={m} value={m}>{isKo ? LABEL_MODE_LABELS[m].ko : LABEL_MODE_LABELS[m].zh}</option>
-                  ))}
-                </select>
-              </div>
-              {labelOpts.mode !== "raw" && (["widthMm", "heightMm", "gapMm"] as const).map((k) => (
-                <div key={k}>
-                  <Label className="text-xs">
-                    {k === "widthMm" ? tr("라벨 폭(mm)", "标签宽(mm)")
-                      : k === "heightMm" ? tr("라벨 높이(mm)", "标签高(mm)")
-                      : tr("갭(mm)", "间隙(mm)")}
-                  </Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    step={0.5}
-                    className="mt-1 w-24"
-                    value={labelOpts[k]}
-                    onChange={(e) => setLabelOpts((o) => ({ ...o, [k]: Number(e.target.value) || 0 }))}
-                  />
-                </div>
-              ))}
-              {labelOpts.mode === "raw" && (
-                <>
-                  <div>
-                    <Label className="text-xs">{tr("종결 문자", "结束符")}</Label>
-                    <select
-                      className="mt-1 h-9 rounded-md border bg-background px-2 text-sm"
-                      value={labelOpts.terminator}
-                      onChange={(e) => setLabelOpts((o) => ({ ...o, terminator: e.target.value as Terminator }))}
-                    >
-                      <option value="crlf">CR+LF (\r\n)</option>
-                      <option value="cr">CR (\r)</option>
-                      <option value="lf">LF (\n)</option>
-                      <option value="none">{tr("없음", "无")}</option>
-                    </select>
-                  </div>
-                  <div>
-                    <Label className="text-xs">{tr("접두 문자", "前缀")}</Label>
-                    <Input className="mt-1 w-28 font-mono" value={labelOpts.prefix}
-                      onChange={(e) => setLabelOpts((o) => ({ ...o, prefix: e.target.value }))} />
-                  </div>
-                  <div>
-                    <Label className="text-xs">{tr("접미 문자", "后缀")}</Label>
-                    <Input className="mt-1 w-28 font-mono" value={labelOpts.suffix}
-                      onChange={(e) => setLabelOpts((o) => ({ ...o, suffix: e.target.value }))} />
-                  </div>
-                </>
-              )}
-              <div>
-                <Label className="text-xs">{tr("인쇄 값", "打印内容")}</Label>
-                <select
-                  className="mt-1 h-9 rounded-md border bg-background px-2 text-sm"
-                  value={labelOpts.valueSource}
-                  onChange={(e) => setLabelOpts((o) => ({ ...o, valueSource: e.target.value as LabelOptions["valueSource"] }))}
-                >
-                  <option value="card">{tr("카드 고유번호", "卡片唯一编号")}</option>
-                  <option value="item">{tr("주문 항목 고유번호", "订单项目编号")}</option>
-                </select>
-              </div>
-              <Button size="sm" variant="outline" onClick={probeProtocols} disabled={printerTesting}>
-                {tr("프로토콜 자동 진단", "协议自动诊断")}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setLabelOpts(DEFAULT_LABEL_OPTIONS)}>
-                {tr("기본값", "默认值")}
-              </Button>
-            </div>
-            <pre className="rounded-md bg-muted/50 p-2 text-[11px] font-mono whitespace-pre-wrap break-all">
-              {buildLabelCommand(printValueRef.current(expected[Math.min(cursor, Math.max(total - 1, 0))]?.no ?? "SAMPLE-1"), labelOpts)}
-            </pre>
-            <p className="text-[11px] text-muted-foreground">
-              {tr("※ 게이트웨이는 스캔 이벤트가 들어올 때마다 원본 바코드 값을 프린터로 자동 전송합니다(‘스캔 완료’ 대기열). 이 자동 전송은 검증을 거치지 않은 원시 값이라 프린터가 기본 템플릿을 찍는 원인이 될 수 있으며, 게이트웨이 설정에서만 끌 수 있습니다.",
-                  "※ 网关在每次扫描时会自动将原始条码值发送到打印机（\u201c扫描完成\u201d队列）。该自动发送为未经检验的原始值，可能导致打印机输出默认模板，只能在网关侧关闭。")}
+              {tr("스캐너에서 스캔된 값은 백엔드(게이트웨이)가 자동으로 프린터 큐에 넣어 출력합니다. 화면에서는 라벨 명령 템플릿을 만들지 않고, 스캔 순서 검증과 게이트웨이 인쇄 결과만 확인·기록합니다. 라벨 형식(SIZE/GAP/QR 등)은 게이트웨이·프린터 설정에서 관리하세요.",
+                  "扫描仪扫描到的值由后端（网关）自动进入打印队列并输出。本界面不再生成标签命令模板，仅进行扫描顺序检验并记录网关打印结果。标签格式（SIZE/GAP/二维码等）请在网关与打印机侧设置。")}
             </p>
           </CardContent>
         </Card>
+
 
 
 
