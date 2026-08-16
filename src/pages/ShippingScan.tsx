@@ -800,6 +800,8 @@ export default function ShippingScan() {
     qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
     qc.invalidateQueries({ queryKey: ["shipping_queue"] });
     qc.invalidateQueries({ queryKey: ["shipping_queue_kpis"] });
+    qc.invalidateQueries({ queryKey: ["shipping_groups"] });
+
   }
 
   // Label geometry per carrier. 4PX ships 100×150mm (10×15cm) labels.
