@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
-  useCouriers,
+  useAdminCouriers,
   useSaveCourier,
   useDeleteCourier,
   useSaveCourierCredentials,
@@ -61,7 +61,7 @@ export default function CourierSettings() {
   const isKo = lang === "ko";
   const { toast } = useToast();
 
-  const { data: couriers = [], isLoading } = useCouriers();
+  const { data: couriers = [], isLoading } = useAdminCouriers();
   const saveCourier = useSaveCourier();
   const deleteCourier = useDeleteCourier();
   const saveCreds = useSaveCourierCredentials();

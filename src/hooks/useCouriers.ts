@@ -5,14 +5,14 @@ export interface CourierConfigRow {
   id: string;
   code: string;
   name: string;
-  api_url: string;
-  api_mode: string;
+  api_url?: string;
+  api_mode?: string;
   enabled: boolean;
   is_default: boolean;
   has_credentials: boolean;
-  last_test_at: string | null;
-  last_test_ok: boolean | null;
-  last_test_message: string | null;
+  last_test_at?: string | null;
+  last_test_ok?: boolean | null;
+  last_test_message?: string | null;
   sort_order: number;
 }
 
@@ -63,7 +63,7 @@ export function useSaveCourier() {
         : await supabase.from("courier_configs").insert(payload);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["courier_configs"] }),
+    onSuccess: () => qc.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith("courier_config") }),
   });
 }
 
@@ -74,7 +74,7 @@ export function useDeleteCourier() {
       const { error } = await supabase.from("courier_configs").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["courier_configs"] }),
+    onSuccess: () => qc.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith("courier_config") }),
   });
 }
 
@@ -95,7 +95,7 @@ export function useSaveCourierCredentials() {
       account_no?: string;
       extra?: Record<string, unknown>;
     }) => courierConfigFn({ action: "save_credentials", ...body }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["courier_configs"] }),
+    onSuccess: () => qc.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith("courier_config") }),
   });
 }
 
@@ -115,7 +115,7 @@ export function useClearCourierCredentials() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (code: string) => courierConfigFn({ action: "clear_credentials", code }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["courier_configs"] }),
+    onSuccess: () => qc.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith("courier_config") }),
   });
 }
 
@@ -123,7 +123,7 @@ export function useTestCourier() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (code: string) => courierConfigFn({ action: "test_connection", code }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["courier_configs"] }),
+    onSuccess: () => qc.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith("courier_config") }),
   });
 }
 
