@@ -68,7 +68,7 @@ export async function finishLabelPdf(pdf: Blob, opts: FinishLabelOpts = {}): Pro
     }
 
     const bytes = await out.save();
-    return new Blob([bytes], { type: "application/pdf" });
+    return new Blob([bytes.slice().buffer as ArrayBuffer], { type: "application/pdf" });
   } catch {
     return pdf;
   }
