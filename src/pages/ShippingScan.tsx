@@ -172,6 +172,35 @@ export default function ShippingScan() {
     }
   }
 
+  /** Sends a locally built (HTML) label to the agent by converting it to a PDF first. */
+  async function sendHtmlLabelToAgent(opts: {
+    html: string;
+    size: { w: number; h: number };
+    carrierCode?: string | null;
+    trackingNumber?: string | null;
+  }) {
+    const cfg = agentCfgRef.current;
+    if (!cfg.enabled) return false;
+    try {
+      const pdf = await htmlLabelToPdfBlob(opts.html, opts.size.w, opts.size.h);
+      await printPdfViaAgent({
+        baseUrl: cfg.baseUrl,
+        printerName: cfg.printerName,
+        pdf,
+        courierCode: opts.carrierCode ?? undefined,
+        copies: 1,
+        trackingNumber: opts.trackingNumber ?? undefined,
+      });
+      setAgentOnline(true);
+      return true;
+    } catch (e) {
+      setAgentOnline(false);
+      // eslint-disable-next-line no-console
+      console.warn("[print-agent] html label failed, falling back to browser print:", (e as Error).message);
+      return false;
+    }
+  }
+
   // Calibration: print a 100×150mm ruler sheet, measure it, auto-derive the scale.
   const [calibOpen, setCalibOpen] = useState(false);
   const [measuredW, setMeasuredW] = useState("");
