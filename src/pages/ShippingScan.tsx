@@ -1077,11 +1077,26 @@ export default function ShippingScan() {
   }
 
 
-  function printTestLabel(printWindow?: Window | null) {
+  async function printTestLabel(printWindow?: Window | null) {
     const size = labelSizeFor(TEST_RECIPIENT.carrier);
+    const html = buildLabelHtml({ test: true });
+    const sent = await sendHtmlLabelToAgent({
+      html,
+      size,
+      carrierCode: TEST_RECIPIENT.carrier,
+      trackingNumber: "TEST-PREVIEW-0000",
+    });
+    if (sent) {
+      printWindow?.close();
+      toast({
+        title: tr("테스트 송장을 프린터 에이전트로 전송했습니다", "测试运单已发送至打印代理"),
+        description: `${size.w}×${size.h}mm · ${agentCfgRef.current.baseUrl}`,
+      });
+      return;
+    }
     const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
     if (!w) return;
-    w.document.write(buildLabelHtml({ test: true }));
+    w.document.write(html);
     w.document.close();
     toast({
       title: tr("테스트 송장 출력", "测试运单打印"),
@@ -1093,13 +1108,19 @@ export default function ShippingScan() {
   }
 
   // Test-mode label: real order/address data, simulated (non-billable) tracking number.
-  function printSimulatedLabel(trackingNumber: string, printWindow?: Window | null) {
+  async function printSimulatedLabel(trackingNumber: string, printWindow?: Window | null) {
     const size = labelSizeFor(carrier || shipment?.carrier);
+    const html = buildLabelHtml({ testTracking: trackingNumber });
+    if (await sendHtmlLabelToAgent({ html, size, carrierCode: carrier || shipment?.carrier, trackingNumber })) {
+      printWindow?.close();
+      return;
+    }
     const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
     if (!w) return;
-    w.document.write(buildLabelHtml({ testTracking: trackingNumber }));
+    w.document.write(html);
     w.document.close();
   }
+
 
   // ── Print calibration ──────────────────────────────────────────────
   // Prints a ruler sheet at the CURRENT scale. The user measures the printed
