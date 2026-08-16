@@ -17,9 +17,7 @@ import {
   ScanLine, Printer, RotateCcw, CheckCircle2, XCircle, Wifi, WifiOff,
   ChevronLeft, AlertTriangle, Loader2, Play, Pause, SkipForward, FlaskConical,
 } from "lucide-react";
-import { buildLabelCommand, DEFAULT_LABEL_OPTIONS, LABEL_MODE_LABELS, PROBE_MODES, type LabelOptions, type Terminator } from "@/lib/label-command";
 
-const LABEL_OPTS_KEY = "barcode-printer-label-opts-v1";
 const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 
@@ -197,7 +195,6 @@ function OrderDetail({
   const [lastVerdict, setLastVerdict] = useState<Verdict | null>(null);
   const [halted, setHalted] = useState(false);
   const [testMode, setTestMode] = useState(false);
-  const [autoPrint, setAutoPrint] = useState(true);
   const [saved, setSaved] = useState<Record<number, SavedItem>>({});
   const [ready, setReady] = useState(false);
   const [history, setHistory] = useState<ScanEvent[]>([]);
@@ -247,8 +244,6 @@ function OrderDetail({
   const processedRef = useRef<Set<string>>(new Set());
   const primedRef = useRef(false);
   const [queue, setQueue] = useState<ScanEvent[]>([]);
-  const autoPrintRef = useRef(true);
-  useEffect(() => { autoPrintRef.current = autoPrint; }, [autoPrint]);
 
 
 
