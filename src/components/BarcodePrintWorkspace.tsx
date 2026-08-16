@@ -873,8 +873,8 @@ function OrderDetail({
                   <RotateCcw className="w-3.5 h-3.5" />{tr("초기화", "复位")}
                 </Button>
                 {halted ? (
-                  <Button size="sm" className="flex-1 gap-1 h-9" onClick={() => setHalted(false)}>
-                    <Play className="w-3.5 h-3.5" />{tr("재개", "恢复")}
+                  <Button size="sm" className="flex-1 gap-1 h-9" onClick={() => { void (errorCount > 0 ? retryFailed() : Promise.resolve(setHalted(false))); }}>
+                    <Play className="w-3.5 h-3.5" />{errorCount > 0 ? tr("재인쇄 후 재개", "重印并恢复") : tr("재개", "恢复")}
                   </Button>
                 ) : (
                   <Button size="sm" variant="outline" className="flex-1 gap-1 h-9" onClick={() => setHalted(true)}>
