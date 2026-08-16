@@ -698,7 +698,6 @@ export default function ShippingScan() {
             if (w) { w.document.write(buildRemoteLabelHtml(url, carrier || shipment?.carrier)); w.document.close(); perfMark("label_html_written"); }
           }
         } else {
-        } else {
           const why = (res as any)?.message as string | undefined;
           printWindow?.close();
           toast({
