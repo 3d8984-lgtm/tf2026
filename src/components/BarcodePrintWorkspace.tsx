@@ -841,9 +841,13 @@ function OrderDetail({
               <p className="text-[11px] text-muted-foreground">{tr("작업 완료 (서버 저장)", "已完成（服务器保存）")}</p>
             </div>
             <div>
-              <p className="text-3xl font-semibold tabular-nums">{pendingCount}</p>
-              <p className="text-[11px] text-muted-foreground">{tr("인쇄 대기", "打印等待")}</p>
+              <p className="text-3xl font-semibold tabular-nums">{queuedCount}</p>
+              <p className="text-[11px] text-muted-foreground">
+                {tr("인쇄 대기열", "打印队列")}
+                {errorCount > 0 && <span className="text-destructive"> · {tr("실패", "失败")} {errorCount}</span>}
+              </p>
             </div>
+
             <div>
               <p className="text-sm font-mono break-all">{status?.last_barcode ?? "-"}</p>
               <p className="text-[11px] text-muted-foreground">{tr("최근 스캔 값", "最近扫描值")}</p>
