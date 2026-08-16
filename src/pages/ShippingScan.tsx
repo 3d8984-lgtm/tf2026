@@ -690,9 +690,14 @@ export default function ShippingScan() {
         const url = (res as any)?.label_url as string | undefined;
         setTestLabelUrl(url ?? null);
         if (url) {
-          const size = labelSizeFor(carrier || shipment?.carrier);
-          const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
-          if (w) { w.document.write(buildRemoteLabelHtml(url, carrier || shipment?.carrier)); w.document.close(); perfMark("label_html_written"); }
+          const sentToAgent = await sendToPrintAgent({ url, carrierCode: carrier || shipment?.carrier, trackingNumber: res.tracking_number });
+          if (sentToAgent) { printWindow?.close(); perfMark("print_called"); }
+          else {
+            const size = labelSizeFor(carrier || shipment?.carrier);
+            const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
+            if (w) { w.document.write(buildRemoteLabelHtml(url, carrier || shipment?.carrier)); w.document.close(); perfMark("label_html_written"); }
+          }
+        } else {
         } else {
           const why = (res as any)?.message as string | undefined;
           printWindow?.close();
