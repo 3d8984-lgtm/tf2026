@@ -1230,8 +1230,9 @@ export default function ShippingScan() {
             <DialogTitle>{tr("스캔 작업 초기화", "重置扫码作业")}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            {tr("스캔 기록과 진행 상태만 초기화됩니다. 이미 사전발급된 송장(운송장 번호·라벨)은 그대로 유지됩니다.",
-                "该订单已完成的扫码记录及运单/发货状态将全部重置，可重新作业。")}
+            {tr("스캔 기록과 진행 상태는 물론, 사전발급된 송장 정보(운송장 번호·라벨)까지 모두 초기화됩니다. 다시 작업하려면 송장을 재발행해야 합니다.",
+                "扫码记录、进度以及已预先发行的运单信息（运单号·面单）将全部重置，需要重新发行运单。")}
+
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setResetOpen(false)}>{tr("취소", "取消")}</Button>
