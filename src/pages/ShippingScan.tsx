@@ -741,12 +741,34 @@ export default function ShippingScan() {
     setResetting(true);
     const { error: e1 } = await supabase
       .from("shipment_scan_items")
-      // Packing reset clears the SCAN state only — pre-issued waybills are kept.
-      .update({ qr_value: null, is_scanned: false, scanned_at: null, scanned_by: null } as any)
+      // Full reset: scan state AND pre-issued waybill data.
+      .update({
+        qr_value: null,
+        is_scanned: false,
+        scanned_at: null,
+        scanned_by: null,
+        carrier: null,
+        tracking_number: null,
+        label_url: null,
+        tracking_issued_at: null,
+      } as any)
       .eq("shipment_id", shipment.id);
     const groupIds = groups.map((g) => g.id);
     if (groupIds.length) {
-      await supabase.from("shipping_groups").update({ scanned_count: 0, scan_status: "pending", printed_at: null }).in("id", groupIds);
+      await supabase
+        .from("shipping_groups")
+        .update({
+          scanned_count: 0,
+          scan_status: "pending",
+          printed_at: null,
+          carrier: null,
+          tracking_number: null,
+          label_url: null,
+          label_status: "pending",
+          label_error: null,
+          label_issued_at: null,
+        } as any)
+        .in("id", groupIds);
     }
     const { error: e2 } = await supabase
       .from("shipments")
@@ -757,8 +779,13 @@ export default function ShippingScan() {
         shipped_at: null,
         reported_at: null,
         design_confirmed: false,
-      })
+        carrier: null,
+        tracking_number: null,
+        label_url: null,
+        tracking_issued_at: null,
+      } as any)
       .eq("id", shipment.id);
+
     setResetting(false);
     if (e1 || e2) {
       toast({ variant: "destructive", title: tr("초기화 실패", "重置失败"), description: (e1 ?? e2)?.message });
