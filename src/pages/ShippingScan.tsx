@@ -29,6 +29,15 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { scanSuccess, scanFail, scanDuplicate } from "@/lib/scan-sound";
 import { buildFpxLabelHtml } from "@/lib/label-4px";
+import { useGlobalSetting } from "@/hooks/useGlobalSetting";
+import {
+  checkPrintAgent,
+  printPdfViaAgent,
+  fetchLabelPdf,
+  PRINT_AGENT_SETTING_KEY,
+  PRINT_AGENT_DEFAULTS,
+  type PrintAgentSettings,
+} from "@/lib/print-agent";
 
 import { Html5Qrcode } from "html5-qrcode";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -115,6 +124,54 @@ export default function ShippingScan() {
   useEffect(() => {
     localStorage.setItem("shipping-label-print-scale", String(labelScale));
   }, [labelScale]);
+
+  // ---- Local printer agent (http://127.0.0.1:9100) --------------------------
+  // Server-shared settings so every PC uses the same agent configuration.
+  const { value: agentCfgRaw, persist: persistAgentCfg } = useGlobalSetting<PrintAgentSettings>(
+    PRINT_AGENT_SETTING_KEY,
+    PRINT_AGENT_DEFAULTS,
+  );
+  const agentCfg = { ...PRINT_AGENT_DEFAULTS, ...(agentCfgRaw ?? {}) } as PrintAgentSettings;
+  const [agentOnline, setAgentOnline] = useState<boolean | null>(null);
+  const agentCfgRef = useRef(agentCfg);
+  useEffect(() => { agentCfgRef.current = agentCfg; });
+  useEffect(() => {
+    let cancelled = false;
+    const ping = async () => {
+      if (!agentCfg.enabled) { setAgentOnline(null); return; }
+      const ok = await checkPrintAgent(agentCfg.baseUrl);
+      if (!cancelled) setAgentOnline(ok);
+    };
+    void ping();
+    const t = setInterval(ping, 30_000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [agentCfg.enabled, agentCfg.baseUrl]);
+
+  /** Sends a label PDF to the local agent. Returns false when it must fall back. */
+  async function sendToPrintAgent(opts: { url: string; carrierCode?: string | null; trackingNumber?: string | null }) {
+    const cfg = agentCfgRef.current;
+    if (!cfg.enabled) return false;
+    try {
+      const pdf = await fetchLabelPdf(opts.url);
+      await printPdfViaAgent({
+        baseUrl: cfg.baseUrl,
+        printerName: cfg.printerName,
+        pdf,
+        pdfUrl: pdf ? null : opts.url,
+        courierCode: opts.carrierCode ?? undefined,
+        copies: 1,
+        trackingNumber: opts.trackingNumber ?? undefined,
+      });
+      setAgentOnline(true);
+      return true;
+    } catch (e) {
+      setAgentOnline(false);
+      // eslint-disable-next-line no-console
+      console.warn("[print-agent] failed, falling back to browser print:", (e as Error).message);
+      return false;
+    }
+  }
+
   // Calibration: print a 100×150mm ruler sheet, measure it, auto-derive the scale.
   const [calibOpen, setCalibOpen] = useState(false);
   const [measuredW, setMeasuredW] = useState("");
@@ -482,11 +539,11 @@ export default function ShippingScan() {
 
     // All products of this shipping group confirmed → print the pre-issued label.
     void logAction("scan_group_completed", { shipping_group_id: group.id, required });
-    printPreIssuedLabel(group, printWindow);
+    void printPreIssuedLabel(group, printWindow);
   }
 
   // Prints the waybill that was issued BEFORE packing started. No carrier API here.
-  function printPreIssuedLabel(group: ShippingGroupRow, printWindow?: Window | null) {
+  async function printPreIssuedLabel(group: ShippingGroupRow, printWindow?: Window | null) {
     if (group.label_status !== "ready" || !group.label_url) {
       printWindow?.close();
       scanFail();
@@ -501,21 +558,34 @@ export default function ShippingScan() {
       return;
     }
     const url = labelCacheRef.current.get(group.id) ?? group.label_url;
+    const carrierCode = group.carrier || carrier || shipment?.carrier;
     perfMark("LABEL_READY");
     void logAction("label_print_requested", { shipping_group_id: group.id, tracking_number: group.tracking_number });
-    const size = labelSizeFor(group.carrier || carrier || shipment?.carrier);
+
+    // 1) Local printer agent — silent, borderless, 100% actual size, original PDF.
+    if (await sendToPrintAgent({ url, carrierCode, trackingNumber: group.tracking_number })) {
+      printWindow?.close();
+      perfMark("print_called");
+      void supabase.from("shipping_groups").update({ printed_at: new Date().toISOString() }).eq("id", group.id);
+      void logAction("label_print_success", { shipping_group_id: group.id, tracking_number: group.tracking_number, via: "agent" });
+      return;
+    }
+
+    // 2) Fallback — browser print dialog.
+    const size = labelSizeFor(carrierCode);
     const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
     if (!w) {
       toast({ variant: "destructive", title: tr("팝업이 차단되었습니다", "弹窗被拦截") });
       void logAction("label_print_failed", { shipping_group_id: group.id, reason: "popup_blocked" });
       return;
     }
-    w.document.write(buildRemoteLabelHtml(url, group.carrier || carrier || shipment?.carrier));
+    w.document.write(buildRemoteLabelHtml(url, carrierCode));
     w.document.close();
     perfMark("label_html_written");
     void supabase.from("shipping_groups").update({ printed_at: new Date().toISOString() }).eq("id", group.id);
-    void logAction("label_print_success", { shipping_group_id: group.id, tracking_number: group.tracking_number });
+    void logAction("label_print_success", { shipping_group_id: group.id, tracking_number: group.tracking_number, via: "browser" });
   }
+
 
   // ---- Pre-issue (before packing starts) ------------------------------------
   async function runPreIssue() {
@@ -620,9 +690,13 @@ export default function ShippingScan() {
         const url = (res as any)?.label_url as string | undefined;
         setTestLabelUrl(url ?? null);
         if (url) {
-          const size = labelSizeFor(carrier || shipment?.carrier);
-          const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
-          if (w) { w.document.write(buildRemoteLabelHtml(url, carrier || shipment?.carrier)); w.document.close(); perfMark("label_html_written"); }
+          const sentToAgent = await sendToPrintAgent({ url, carrierCode: carrier || shipment?.carrier, trackingNumber: res.tracking_number });
+          if (sentToAgent) { printWindow?.close(); perfMark("print_called"); }
+          else {
+            const size = labelSizeFor(carrier || shipment?.carrier);
+            const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
+            if (w) { w.document.write(buildRemoteLabelHtml(url, carrier || shipment?.carrier)); w.document.close(); perfMark("label_html_written"); }
+          }
         } else {
           const why = (res as any)?.message as string | undefined;
           printWindow?.close();
@@ -661,9 +735,13 @@ export default function ShippingScan() {
       // Auto-print the carrier-issued waybill right after issuance.
       const liveUrl = (res as any)?.label_url as string | undefined;
       if (liveUrl) {
-        const size = labelSizeFor(carrier || shipment?.carrier);
-        const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
-        if (w) { w.document.write(buildRemoteLabelHtml(liveUrl, carrier || shipment?.carrier)); w.document.close(); perfMark("label_html_written"); }
+        const sentToAgent = await sendToPrintAgent({ url: liveUrl, carrierCode: carrier || shipment?.carrier, trackingNumber: res.tracking_number });
+        if (sentToAgent) { printWindow?.close(); perfMark("print_called"); }
+        else {
+          const size = labelSizeFor(carrier || shipment?.carrier);
+          const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
+          if (w) { w.document.write(buildRemoteLabelHtml(liveUrl, carrier || shipment?.carrier)); w.document.close(); perfMark("label_html_written"); }
+        }
       } else {
         printWindow?.close();
         toast({
@@ -950,12 +1028,16 @@ export default function ShippingScan() {
 
 
 
-  function downloadLabelPdf() {
+  async function downloadLabelPdf() {
     if (!shipment) return;
+    const labelUrl = (shipment as any).label_url as string | null | undefined;
+    if (labelUrl && await sendToPrintAgent({ url: labelUrl, carrierCode: shipment.carrier || carrier, trackingNumber: shipment.tracking_number })) {
+      toast({ title: tr("프린터 에이전트로 전송했습니다", "已发送至打印代理"), description: shipment.tracking_number ?? undefined });
+      return;
+    }
     const size = labelSizeFor(shipment.carrier || carrier);
     const w = window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
     if (!w) return;
-    const labelUrl = (shipment as any).label_url as string | null | undefined;
     w.document.write(
       labelUrl
         ? buildRemoteLabelHtml(labelUrl, shipment.carrier || carrier)
@@ -963,6 +1045,7 @@ export default function ShippingScan() {
     );
     w.document.close();
   }
+
 
   function printTestLabel(printWindow?: Window | null) {
     const size = labelSizeFor(TEST_RECIPIENT.carrier);
@@ -1531,6 +1614,73 @@ export default function ShippingScan() {
                 )}
               </AlertDescription>
             </Alert>
+
+            {/* Local printer agent (http://127.0.0.1:9100) */}
+            <div className="rounded-md border p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Printer className="w-4 h-4" />
+                  <span className="font-medium text-xs">{tr("프린터 에이전트 직접 출력", "打印代理直接输出")}</span>
+                  <Badge variant={agentOnline ? "default" : agentCfg.enabled ? "destructive" : "secondary"} className="text-[10px]">
+                    {!agentCfg.enabled
+                      ? tr("사용 안 함", "未启用")
+                      : agentOnline === null
+                        ? tr("확인 중", "检测中")
+                        : agentOnline
+                          ? tr("연결됨", "已连接")
+                          : tr("미설치/오프라인", "未安装/离线")}
+                  </Badge>
+                </div>
+                <Switch
+                  checked={agentCfg.enabled}
+                  onCheckedChange={(v) => void persistAgentCfg({ ...agentCfg, enabled: v })}
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-[11px] text-muted-foreground">{tr("에이전트 주소", "代理地址")}</Label>
+                  <Input
+                    className="h-8 text-xs font-mono"
+                    value={agentCfg.baseUrl}
+                    onChange={(e) => void persistAgentCfg({ ...agentCfg, baseUrl: e.target.value })}
+                    placeholder="http://127.0.0.1:9100"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px] text-muted-foreground">{tr("프린터 이름(선택)", "打印机名称（可选）")}</Label>
+                  <Input
+                    className="h-8 text-xs font-mono"
+                    value={agentCfg.printerName}
+                    onChange={(e) => void persistAgentCfg({ ...agentCfg, printerName: e.target.value })}
+                    placeholder="ALP203"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    const ok = await checkPrintAgent(agentCfg.baseUrl);
+                    setAgentOnline(ok);
+                    toast({
+                      variant: ok ? undefined : "destructive",
+                      title: ok ? tr("에이전트 연결 정상", "代理连接正常") : tr("에이전트에 연결할 수 없습니다", "无法连接打印代理"),
+                      description: ok
+                        ? agentCfg.baseUrl
+                        : tr("에이전트 실행 여부와 CORS 허용 설정을 확인하세요.", "请确认代理已运行且允许 CORS。"),
+                    });
+                  }}
+                >
+                  <RefreshCw className="w-4 h-4 mr-1" />{tr("연결 확인", "连接检测")}
+                </Button>
+                <span className="text-[11px] text-muted-foreground">
+                  {tr("스캔 시 원본 PDF를 에이전트로 직접 전송합니다(여백 0 · 100% · 세로). 실패하면 브라우저 인쇄로 자동 전환됩니다.",
+                      "扫描时将原始 PDF 直接发送至代理（无边距 · 100% · 纵向）。失败时自动切换为浏览器打印。")}
+                </span>
+              </div>
+            </div>
+
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" onClick={() => printTestLabel()}>
                 <TestTube2 className="w-4 h-4 mr-1" />{tr("테스트 출력", "测试打印")}
