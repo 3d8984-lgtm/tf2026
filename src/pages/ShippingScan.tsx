@@ -741,12 +741,34 @@ export default function ShippingScan() {
     setResetting(true);
     const { error: e1 } = await supabase
       .from("shipment_scan_items")
-      // Packing reset clears the SCAN state only — pre-issued waybills are kept.
-      .update({ qr_value: null, is_scanned: false, scanned_at: null, scanned_by: null } as any)
+      // Full reset: scan state AND pre-issued waybill data.
+      .update({
+        qr_value: null,
+        is_scanned: false,
+        scanned_at: null,
+        scanned_by: null,
+        carrier: null,
+        tracking_number: null,
+        label_url: null,
+        tracking_issued_at: null,
+      } as any)
       .eq("shipment_id", shipment.id);
     const groupIds = groups.map((g) => g.id);
     if (groupIds.length) {
-      await supabase.from("shipping_groups").update({ scanned_count: 0, scan_status: "pending", printed_at: null }).in("id", groupIds);
+      await supabase
+        .from("shipping_groups")
+        .update({
+          scanned_count: 0,
+          scan_status: "pending",
+          printed_at: null,
+          carrier: null,
+          tracking_number: null,
+          label_url: null,
+          label_status: "pending",
+          label_error: null,
+          label_issued_at: null,
+        } as any)
+        .in("id", groupIds);
     }
     const { error: e2 } = await supabase
       .from("shipments")
@@ -757,8 +779,13 @@ export default function ShippingScan() {
         shipped_at: null,
         reported_at: null,
         design_confirmed: false,
-      })
+        carrier: null,
+        tracking_number: null,
+        label_url: null,
+        tracking_issued_at: null,
+      } as any)
       .eq("id", shipment.id);
+
     setResetting(false);
     if (e1 || e2) {
       toast({ variant: "destructive", title: tr("초기화 실패", "重置失败"), description: (e1 ?? e2)?.message });
@@ -773,6 +800,8 @@ export default function ShippingScan() {
     qc.invalidateQueries({ queryKey: ["shipment_scan", orderId] });
     qc.invalidateQueries({ queryKey: ["shipping_queue"] });
     qc.invalidateQueries({ queryKey: ["shipping_queue_kpis"] });
+    qc.invalidateQueries({ queryKey: ["shipping_groups"] });
+
   }
 
   // Label geometry per carrier. 4PX ships 100×150mm (10×15cm) labels.
@@ -1201,8 +1230,9 @@ export default function ShippingScan() {
             <DialogTitle>{tr("스캔 작업 초기화", "重置扫码作业")}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            {tr("스캔 기록과 진행 상태만 초기화됩니다. 이미 사전발급된 송장(운송장 번호·라벨)은 그대로 유지됩니다.",
-                "该订单已完成的扫码记录及运单/发货状态将全部重置，可重新作业。")}
+            {tr("스캔 기록과 진행 상태는 물론, 사전발급된 송장 정보(운송장 번호·라벨)까지 모두 초기화됩니다. 다시 작업하려면 송장을 재발행해야 합니다.",
+                "扫码记录、进度以及已预先发行的运单信息（运单号·面单）将全部重置，需要重新发行运单。")}
+
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setResetOpen(false)}>{tr("취소", "取消")}</Button>
