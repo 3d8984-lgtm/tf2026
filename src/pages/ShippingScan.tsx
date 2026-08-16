@@ -38,6 +38,7 @@ import {
   PRINT_AGENT_DEFAULTS,
   type PrintAgentSettings,
 } from "@/lib/print-agent";
+import { htmlLabelToPdfBlob } from "@/lib/html-label-pdf";
 
 import { Html5Qrcode } from "html5-qrcode";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -168,6 +169,35 @@ export default function ShippingScan() {
       setAgentOnline(false);
       // eslint-disable-next-line no-console
       console.warn("[print-agent] failed, falling back to browser print:", (e as Error).message);
+      return false;
+    }
+  }
+
+  /** Sends a locally built (HTML) label to the agent by converting it to a PDF first. */
+  async function sendHtmlLabelToAgent(opts: {
+    html: string;
+    size: { w: number; h: number };
+    carrierCode?: string | null;
+    trackingNumber?: string | null;
+  }) {
+    const cfg = agentCfgRef.current;
+    if (!cfg.enabled) return false;
+    try {
+      const pdf = await htmlLabelToPdfBlob(opts.html, opts.size.w, opts.size.h);
+      await printPdfViaAgent({
+        baseUrl: cfg.baseUrl,
+        printerName: cfg.printerName,
+        pdf,
+        courierCode: opts.carrierCode ?? undefined,
+        copies: 1,
+        trackingNumber: opts.trackingNumber ?? undefined,
+      });
+      setAgentOnline(true);
+      return true;
+    } catch (e) {
+      setAgentOnline(false);
+      // eslint-disable-next-line no-console
+      console.warn("[print-agent] html label failed, falling back to browser print:", (e as Error).message);
       return false;
     }
   }
@@ -413,7 +443,7 @@ export default function ShippingScan() {
       scanSuccess();
       setFeedback({ kind: "success", msg: tr("테스트 QR 인식 → 송장 출력", "测试二维码识别 → 打印运单") });
       setScanInput("");
-      printTestLabel(printWindow);
+      void printTestLabel(printWindow);
       return;
     }
 
@@ -1047,11 +1077,26 @@ export default function ShippingScan() {
   }
 
 
-  function printTestLabel(printWindow?: Window | null) {
+  async function printTestLabel(printWindow?: Window | null) {
     const size = labelSizeFor(TEST_RECIPIENT.carrier);
+    const html = buildLabelHtml({ test: true });
+    const sent = await sendHtmlLabelToAgent({
+      html,
+      size,
+      carrierCode: TEST_RECIPIENT.carrier,
+      trackingNumber: "TEST-PREVIEW-0000",
+    });
+    if (sent) {
+      printWindow?.close();
+      toast({
+        title: tr("테스트 송장을 프린터 에이전트로 전송했습니다", "测试运单已发送至打印代理"),
+        description: `${size.w}×${size.h}mm · ${agentCfgRef.current.baseUrl}`,
+      });
+      return;
+    }
     const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
     if (!w) return;
-    w.document.write(buildLabelHtml({ test: true }));
+    w.document.write(html);
     w.document.close();
     toast({
       title: tr("테스트 송장 출력", "测试运单打印"),
@@ -1063,13 +1108,19 @@ export default function ShippingScan() {
   }
 
   // Test-mode label: real order/address data, simulated (non-billable) tracking number.
-  function printSimulatedLabel(trackingNumber: string, printWindow?: Window | null) {
+  async function printSimulatedLabel(trackingNumber: string, printWindow?: Window | null) {
     const size = labelSizeFor(carrier || shipment?.carrier);
+    const html = buildLabelHtml({ testTracking: trackingNumber });
+    if (await sendHtmlLabelToAgent({ html, size, carrierCode: carrier || shipment?.carrier, trackingNumber })) {
+      printWindow?.close();
+      return;
+    }
     const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
     if (!w) return;
-    w.document.write(buildLabelHtml({ testTracking: trackingNumber }));
+    w.document.write(html);
     w.document.close();
   }
+
 
   // ── Print calibration ──────────────────────────────────────────────
   // Prints a ruler sheet at the CURRENT scale. The user measures the printed
@@ -1682,7 +1733,7 @@ export default function ShippingScan() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" onClick={() => printTestLabel()}>
+              <Button variant="outline" onClick={() => void printTestLabel()}>
                 <TestTube2 className="w-4 h-4 mr-1" />{tr("테스트 출력", "测试打印")}
               </Button>
               <Button variant="outline" disabled={!shipment.tracking_number} onClick={downloadLabelPdf}>
