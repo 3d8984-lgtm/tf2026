@@ -81,20 +81,14 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
   }
 
   // 4PX 라벨의 "Ref No" 칸에는 ref_no 값이 그대로 인쇄됩니다.
-  // 수취인이 물품 내용/발송처를 알 수 있도록 브랜드+영문 품명을 접두로 붙입니다.
-  const refLabel = String(
+  // 수취인이 물품 내용/발송처를 알 수 있도록 브랜드+영문 품명만 사용합니다.
+  const refNo = String(
     extra.ref_label ?? [extra.brand, extra.item_name_en].filter(Boolean).join(" "),
   )
     .replace(/[^\x20-\x7E]/g, "")
     .replace(/[^A-Za-z0-9 ._-]/g, " ")
     .replace(/\s+/g, " ")
-    .trim();
-  // 4PX hard limit: customer's order number (ref_no) must be <= 32 chars.
-  const orderRef = String(order.external_order_id ?? "").slice(0, 32);
-  const room = 32 - orderRef.length - (orderRef && refLabel ? 1 : 0);
-  const refNo = [room > 0 ? refLabel.slice(0, room).trim() : "", orderRef]
-    .filter(Boolean)
-    .join(" ")
+    .trim()
     .slice(0, 32);
 
 
