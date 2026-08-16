@@ -539,11 +539,11 @@ export default function ShippingScan() {
 
     // All products of this shipping group confirmed → print the pre-issued label.
     void logAction("scan_group_completed", { shipping_group_id: group.id, required });
-    printPreIssuedLabel(group, printWindow);
+    void printPreIssuedLabel(group, printWindow);
   }
 
   // Prints the waybill that was issued BEFORE packing started. No carrier API here.
-  function printPreIssuedLabel(group: ShippingGroupRow, printWindow?: Window | null) {
+  async function printPreIssuedLabel(group: ShippingGroupRow, printWindow?: Window | null) {
     if (group.label_status !== "ready" || !group.label_url) {
       printWindow?.close();
       scanFail();
@@ -558,21 +558,34 @@ export default function ShippingScan() {
       return;
     }
     const url = labelCacheRef.current.get(group.id) ?? group.label_url;
+    const carrierCode = group.carrier || carrier || shipment?.carrier;
     perfMark("LABEL_READY");
     void logAction("label_print_requested", { shipping_group_id: group.id, tracking_number: group.tracking_number });
-    const size = labelSizeFor(group.carrier || carrier || shipment?.carrier);
+
+    // 1) Local printer agent — silent, borderless, 100% actual size, original PDF.
+    if (await sendToPrintAgent({ url, carrierCode, trackingNumber: group.tracking_number })) {
+      printWindow?.close();
+      perfMark("print_called");
+      void supabase.from("shipping_groups").update({ printed_at: new Date().toISOString() }).eq("id", group.id);
+      void logAction("label_print_success", { shipping_group_id: group.id, tracking_number: group.tracking_number, via: "agent" });
+      return;
+    }
+
+    // 2) Fallback — browser print dialog.
+    const size = labelSizeFor(carrierCode);
     const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
     if (!w) {
       toast({ variant: "destructive", title: tr("팝업이 차단되었습니다", "弹窗被拦截") });
       void logAction("label_print_failed", { shipping_group_id: group.id, reason: "popup_blocked" });
       return;
     }
-    w.document.write(buildRemoteLabelHtml(url, group.carrier || carrier || shipment?.carrier));
+    w.document.write(buildRemoteLabelHtml(url, carrierCode));
     w.document.close();
     perfMark("label_html_written");
     void supabase.from("shipping_groups").update({ printed_at: new Date().toISOString() }).eq("id", group.id);
-    void logAction("label_print_success", { shipping_group_id: group.id, tracking_number: group.tracking_number });
+    void logAction("label_print_success", { shipping_group_id: group.id, tracking_number: group.tracking_number, via: "browser" });
   }
+
 
   // ---- Pre-issue (before packing starts) ------------------------------------
   async function runPreIssue() {
