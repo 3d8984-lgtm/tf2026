@@ -26,6 +26,7 @@ interface LabelResult {
   raw: unknown;
   error?: string;
   fpx_tracking_no?: string | null;
+  ref_no?: string | null;
 }
 
 /**
@@ -258,6 +259,7 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
     tracking_number: tracking,
     label_url: labelUrl,
     fpx_tracking_no: fpxNo,
+    ref_no: refNo,
     error: labelUrl ? undefined : "4PX label (ds.xms.label.get) was not returned",
     raw: { create: created.raw, label: labelRaw },
   };
@@ -584,6 +586,7 @@ Deno.serve(async (req) => {
           carrier,
           tracking_number: result.tracking_number,
           label_url: result.label_url,
+          ref_no: result.ref_no ?? null,
           label_status: "ready",
           label_error: null,
           label_issued_at: issuedAt,
@@ -606,6 +609,7 @@ Deno.serve(async (req) => {
         carrier,
         tracking_number: result.tracking_number,
         label_url: result.label_url,
+        ref_no: result.ref_no ?? null,
         timings,
         total_ms: Date.now() - t0,
       });

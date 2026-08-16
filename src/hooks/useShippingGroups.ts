@@ -19,6 +19,7 @@ export interface ShippingGroupRow {
   carrier: string | null;
   tracking_number: string | null;
   label_url: string | null;
+  ref_no: string | null;
   label_status: LabelStatus;
   label_error: string | null;
   label_issued_at: string | null;
