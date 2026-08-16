@@ -1614,6 +1614,73 @@ export default function ShippingScan() {
                 )}
               </AlertDescription>
             </Alert>
+
+            {/* Local printer agent (http://127.0.0.1:9100) */}
+            <div className="rounded-md border p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Printer className="w-4 h-4" />
+                  <span className="font-medium text-xs">{tr("프린터 에이전트 직접 출력", "打印代理直接输出")}</span>
+                  <Badge variant={agentOnline ? "default" : agentCfg.enabled ? "destructive" : "secondary"} className="text-[10px]">
+                    {!agentCfg.enabled
+                      ? tr("사용 안 함", "未启用")
+                      : agentOnline === null
+                        ? tr("확인 중", "检测中")
+                        : agentOnline
+                          ? tr("연결됨", "已连接")
+                          : tr("미설치/오프라인", "未安装/离线")}
+                  </Badge>
+                </div>
+                <Switch
+                  checked={agentCfg.enabled}
+                  onCheckedChange={(v) => void persistAgentCfg({ ...agentCfg, enabled: v })}
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-[11px] text-muted-foreground">{tr("에이전트 주소", "代理地址")}</Label>
+                  <Input
+                    className="h-8 text-xs font-mono"
+                    value={agentCfg.baseUrl}
+                    onChange={(e) => void persistAgentCfg({ ...agentCfg, baseUrl: e.target.value })}
+                    placeholder="http://127.0.0.1:9100"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px] text-muted-foreground">{tr("프린터 이름(선택)", "打印机名称（可选）")}</Label>
+                  <Input
+                    className="h-8 text-xs font-mono"
+                    value={agentCfg.printerName}
+                    onChange={(e) => void persistAgentCfg({ ...agentCfg, printerName: e.target.value })}
+                    placeholder="ALP203"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    const ok = await checkPrintAgent(agentCfg.baseUrl);
+                    setAgentOnline(ok);
+                    toast({
+                      variant: ok ? undefined : "destructive",
+                      title: ok ? tr("에이전트 연결 정상", "代理连接正常") : tr("에이전트에 연결할 수 없습니다", "无法连接打印代理"),
+                      description: ok
+                        ? agentCfg.baseUrl
+                        : tr("에이전트 실행 여부와 CORS 허용 설정을 확인하세요.", "请确认代理已运行且允许 CORS。"),
+                    });
+                  }}
+                >
+                  <RefreshCw className="w-4 h-4 mr-1" />{tr("연결 확인", "连接检测")}
+                </Button>
+                <span className="text-[11px] text-muted-foreground">
+                  {tr("스캔 시 원본 PDF를 에이전트로 직접 전송합니다(여백 0 · 100% · 세로). 실패하면 브라우저 인쇄로 자동 전환됩니다.",
+                      "扫描时将原始 PDF 直接发送至代理（无边距 · 100% · 纵向）。失败时自动切换为浏览器打印。")}
+                </span>
+              </div>
+            </div>
+
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" onClick={() => printTestLabel()}>
                 <TestTube2 className="w-4 h-4 mr-1" />{tr("테스트 출력", "测试打印")}
