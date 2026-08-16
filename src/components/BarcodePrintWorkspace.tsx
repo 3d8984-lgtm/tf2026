@@ -377,7 +377,15 @@ function OrderDetail({
         map.set(norm(e.base), e.cardNo);
       }
     }
-    printValueRef.current = (v: string) => map.get(norm(v)) ?? v;
+    printValueRef.current = (v: string) => {
+      const mapped = map.get(norm(v)) ?? String(v ?? "");
+      // 어떤 경로로든 NDEF 원문(slug|nfcId|cp)이 넘어오면 카드 고유번호만 남긴다
+      const m = mapped.match(/NFC-[A-Za-z0-9]+-[A-Za-z0-9]+/i);
+      if (m) return m[0];
+      if (mapped.includes("|")) return (mapped.split("|")[1] ?? mapped).trim();
+      return mapped;
+    };
+
   }, [expected]);
   const sendToPrinter = useCallback(async (code: string): Promise<{ ok: boolean; error?: string }> => {
     const payload = String(code ?? "").slice(0, 200);
