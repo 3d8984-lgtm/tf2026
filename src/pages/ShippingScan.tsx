@@ -38,6 +38,7 @@ import {
   PRINT_AGENT_DEFAULTS,
   type PrintAgentSettings,
 } from "@/lib/print-agent";
+import { htmlLabelToPdfBlob } from "@/lib/html-label-pdf";
 
 import { Html5Qrcode } from "html5-qrcode";
 import { ScrollArea } from "@/components/ui/scroll-area";
