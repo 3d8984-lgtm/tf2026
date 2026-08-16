@@ -502,16 +502,8 @@ function OrderDetail({
         position = target.position;
         seenRef.current.add(code);
         c += 1;
-        void markDone(target.position, target.no, ev.barcode, false);
-        // 검수 통과 시 QR 인쇄기로 자동 인쇄 명령 전송
-        if (autoPrintRef.current) {
-          void sendToPrinter(printValueRef.current(target.no)).then((r) => {
-            if (!r.ok) {
-              toast.error(`${target.no} · ${r.error ?? "print failed"}`);
-              setHalted(true);
-            }
-          });
-        }
+        // 생산자(스캔)는 검증 후 인쇄 대기열에 적재만 한다 — 실제 인쇄는 소비자 루프가 순서대로 처리
+        void markQueued(target.position, target.no, ev.barcode);
       } else {
         const found = expected.findIndex((e) => e.keys.includes(code));
         if (found >= 0) { verdict = "order"; position = found + 1; }
@@ -527,7 +519,45 @@ function OrderDetail({
     setLastVerdict(lastV);
     if (halt) setHalted(true);
     setLog((prev) => [...rows.slice().reverse(), ...prev].slice(0, 100));
-  }, [queue, expected, cursor, testMode, ready, markDone, sendToPrinter]);
+  }, [queue, expected, cursor, testMode, ready, markQueued]);
+
+  // ── 소비자(인쇄) 루프 ─────────────────────────────────────────────
+  // 대기열 선두(가장 낮은 순번의 queued)를 1건씩 프린터로 전송한다.
+  // 실패하면 error 로 표시하고 즉시 중단 — 다음 항목으로 넘어가지 않는다.
+  const printingRef = useRef(false);
+  useEffect(() => {
+    if (!ready || testMode || halted || !autoPrint) return;
+    if (printingRef.current) return;
+    const next = Object.values(saved)
+      .filter((s) => s.status === "queued")
+      .sort((a, b) => a.position - b.position)[0];
+    if (!next) return;
+
+    printingRef.current = true;
+    (async () => {
+      const r = await sendToPrinter(printValueRef.current(next.code));
+      if (r.ok) await markDone(next.position, next.code, null, false);
+      else await markPrintError(next.position, next.code, r.error ?? "print failed");
+      printingRef.current = false;
+    })();
+  }, [saved, ready, testMode, halted, autoPrint, sendToPrinter, markDone, markPrintError]);
+
+  /** 실패한 항목을 다시 대기열로 되돌리고 인쇄 재개 */
+  const retryFailed = async () => {
+    const bad = Object.values(saved).filter((s) => s.status === "error");
+    for (const b of bad) {
+      await supabase.from("barcode_print_items")
+        .update({ status: "queued", verdict: "ok" })
+        .eq("kind", kind).eq("order_id", order.id).eq("position", b.position);
+    }
+    setSaved((prev) => {
+      const next = { ...prev };
+      for (const b of bad) next[b.position] = { ...b, status: "queued" };
+      return next;
+    });
+    setHalted(false);
+  };
+
 
 
   // 전체 초기화 — 서버 기록 삭제 + 게이트웨이 대기열/이력 표시 컷오프 갱신
