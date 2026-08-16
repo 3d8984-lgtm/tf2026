@@ -149,11 +149,21 @@ export default function ShippingScan() {
   }, [agentCfg.enabled, agentCfg.baseUrl]);
 
   /** Sends a label PDF to the local agent. Returns false when it must fall back. */
-  async function sendToPrintAgent(opts: { url: string; carrierCode?: string | null; trackingNumber?: string | null }) {
+  async function sendToPrintAgent(opts: {
+    url: string;
+    carrierCode?: string | null;
+    trackingNumber?: string | null;
+    refNo?: string | null;
+  }) {
     const cfg = agentCfgRef.current;
     if (!cfg.enabled) return false;
     try {
-      const pdf = await fetchLabelPdf(opts.url);
+      const raw = await fetchLabelPdf(opts.url);
+      // Normalise the carrier page to the real media size and stamp the Ref No box.
+      const size = labelSizeFor(opts.carrierCode);
+      const pdf = raw
+        ? await finishLabelPdf(raw, { widthMm: size.w, heightMm: size.h, refNo: opts.refNo })
+        : null;
       await printPdfViaAgent({
         baseUrl: cfg.baseUrl,
         printerName: cfg.printerName,
