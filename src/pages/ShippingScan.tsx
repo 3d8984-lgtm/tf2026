@@ -1028,12 +1028,16 @@ export default function ShippingScan() {
 
 
 
-  function downloadLabelPdf() {
+  async function downloadLabelPdf() {
     if (!shipment) return;
+    const labelUrl = (shipment as any).label_url as string | null | undefined;
+    if (labelUrl && await sendToPrintAgent({ url: labelUrl, carrierCode: shipment.carrier || carrier, trackingNumber: shipment.tracking_number })) {
+      toast({ title: tr("프린터 에이전트로 전송했습니다", "已发送至打印代理"), description: shipment.tracking_number ?? undefined });
+      return;
+    }
     const size = labelSizeFor(shipment.carrier || carrier);
     const w = window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
     if (!w) return;
-    const labelUrl = (shipment as any).label_url as string | null | undefined;
     w.document.write(
       labelUrl
         ? buildRemoteLabelHtml(labelUrl, shipment.carrier || carrier)
@@ -1041,6 +1045,7 @@ export default function ShippingScan() {
     );
     w.document.close();
   }
+
 
   function printTestLabel(printWindow?: Window | null) {
     const size = labelSizeFor(TEST_RECIPIENT.carrier);
