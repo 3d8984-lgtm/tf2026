@@ -29,6 +29,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { scanSuccess, scanFail, scanDuplicate } from "@/lib/scan-sound";
 import { buildFpxLabelHtml } from "@/lib/label-4px";
+import { useGlobalSetting } from "@/hooks/useGlobalSetting";
+import {
+  DEFAULT_PRINT_AGENT, PRINT_AGENT_SETTING_KEY, agentPrint, isAgentReady,
+  type PrintAgentConfig,
+} from "@/lib/print-agent";
 
 import { Html5Qrcode } from "html5-qrcode";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -107,6 +112,10 @@ export default function ShippingScan() {
 
 
   const [scanInput, setScanInput] = useState("");
+  // 로컬 프린트 에이전트 설정 (서버 공유). 켜져 있으면 원본 PDF를 프린터로 직접 보냅니다.
+  const { value: agentValue } = useGlobalSetting<PrintAgentConfig>(PRINT_AGENT_SETTING_KEY, DEFAULT_PRINT_AGENT);
+  const agentCfg = { ...DEFAULT_PRINT_AGENT, ...(agentValue ?? {}) };
+
   // Print scale (%) — compensates printer drivers that shrink the page ("fit to page").
   const [labelScale, setLabelScale] = useState<number>(() => {
     const v = Number(localStorage.getItem("shipping-label-print-scale"));
@@ -503,16 +512,7 @@ export default function ShippingScan() {
     const url = labelCacheRef.current.get(group.id) ?? group.label_url;
     perfMark("LABEL_READY");
     void logAction("label_print_requested", { shipping_group_id: group.id, tracking_number: group.tracking_number });
-    const size = labelSizeFor(group.carrier || carrier || shipment?.carrier);
-    const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
-    if (!w) {
-      toast({ variant: "destructive", title: tr("팝업이 차단되었습니다", "弹窗被拦截") });
-      void logAction("label_print_failed", { shipping_group_id: group.id, reason: "popup_blocked" });
-      return;
-    }
-    w.document.write(buildRemoteLabelHtml(url, group.carrier || carrier || shipment?.carrier));
-    w.document.close();
-    perfMark("label_html_written");
+    void printCarrierLabel(url, group.carrier || carrier || shipment?.carrier, printWindow, `grp-${group.id}`);
     void supabase.from("shipping_groups").update({ printed_at: new Date().toISOString() }).eq("id", group.id);
     void logAction("label_print_success", { shipping_group_id: group.id, tracking_number: group.tracking_number });
   }
@@ -620,9 +620,7 @@ export default function ShippingScan() {
         const url = (res as any)?.label_url as string | undefined;
         setTestLabelUrl(url ?? null);
         if (url) {
-          const size = labelSizeFor(carrier || shipment?.carrier);
-          const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
-          if (w) { w.document.write(buildRemoteLabelHtml(url, carrier || shipment?.carrier)); w.document.close(); perfMark("label_html_written"); }
+          await printCarrierLabel(url, carrier || shipment?.carrier, printWindow);
         } else {
           const why = (res as any)?.message as string | undefined;
           printWindow?.close();
@@ -661,9 +659,7 @@ export default function ShippingScan() {
       // Auto-print the carrier-issued waybill right after issuance.
       const liveUrl = (res as any)?.label_url as string | undefined;
       if (liveUrl) {
-        const size = labelSizeFor(carrier || shipment?.carrier);
-        const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
-        if (w) { w.document.write(buildRemoteLabelHtml(liveUrl, carrier || shipment?.carrier)); w.document.close(); perfMark("label_html_written"); }
+        await printCarrierLabel(liveUrl, carrier || shipment?.carrier, printWindow);
       } else {
         printWindow?.close();
         toast({
@@ -844,6 +840,39 @@ export default function ShippingScan() {
   // Carrier-issued waybill (4PX ds.xms.label.get), printed at 100 % actual size.
   // The 4PX file is a vector PDF: it is embedded as-is (no PNG/JPG/canvas conversion,
   // no CSS scale/zoom/fit) so the printer receives the original resolution.
+  /**
+   * 캐리어 원본 송장 출력.
+   * 1순위: 로컬 프린트 에이전트(브라우저 래스터화 없이 프린터로 원본 PDF 전달)
+   * 2순위: 기존 브라우저 인쇄 창 (에이전트 미설치/실패 시 자동 폴백)
+   */
+  async function printCarrierLabel(url: string, code?: string | null, printWindow?: Window | null, jobId?: string) {
+    if (isAgentReady(agentCfg)) {
+      const r = await agentPrint(agentCfg, { url, jobId });
+      perfMark("print_agent_done");
+      if (r.ok) {
+        printWindow?.close();
+        void logAction("label_print_agent", { job_id: r.job_id, printer: r.printer, ms: r.ms });
+        return true;
+      }
+      toast({
+        variant: "destructive",
+        title: tr("프린트 에이전트 인쇄 실패 · 브라우저 인쇄로 전환합니다", "打印代理失败 · 已切换为浏览器打印"),
+        description: r.error,
+      });
+      void logAction("label_print_agent_failed", { error: r.error });
+    }
+    const size = labelSizeFor(code);
+    const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
+    if (!w) {
+      toast({ variant: "destructive", title: tr("팝업이 차단되었습니다", "弹窗被拦截") });
+      return false;
+    }
+    w.document.write(buildRemoteLabelHtml(url, code));
+    w.document.close();
+    perfMark("label_html_written");
+    return true;
+  }
+
   function buildRemoteLabelHtml(url: string, code?: string | null, noPrint = false) {
     const { w: LW, h: LH } = labelSizeFor(code);
     const secureUrl = url.replace(/^http:\/\/bss-fss\.4px\.com\//i, "https://bss-fss.4px.com/");

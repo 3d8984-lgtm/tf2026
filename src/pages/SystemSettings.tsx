@@ -7,6 +7,7 @@ import InspectionStandards from "@/components/InspectionStandards";
 import UserManagement from "@/components/UserManagement";
 import WebhookSettings from "@/components/WebhookSettings";
 import CourierSettings from "@/components/CourierSettings";
+import PrintAgentSettings from "@/components/PrintAgentSettings";
 import SiteCallbackSettings from "@/components/SiteCallbackSettings";
 import CameraSettings from "@/components/CameraSettings";
 import WorkVideoRetentionSettings from "@/components/WorkVideoRetentionSettings";
@@ -537,7 +538,7 @@ export default function SystemSettings() {
           <TabsContent value="camera"><CameraSettings /></TabsContent>
           <TabsContent value="inspection"><InspectionStandards /></TabsContent>
           <TabsContent value="webhook"><WebhookSettings /></TabsContent>
-          <TabsContent value="courier"><CourierSettings /></TabsContent>
+          <TabsContent value="courier"><div className="space-y-6"><CourierSettings /><PrintAgentSettings /></div></TabsContent>
           <TabsContent value="callback"><SiteCallbackSettings /></TabsContent>
           <TabsContent value="workVideo"><WorkVideoRetentionSettings /></TabsContent>
         </Tabs>
