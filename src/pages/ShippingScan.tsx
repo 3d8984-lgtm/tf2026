@@ -1291,15 +1291,47 @@ export default function ShippingScan() {
               </div>
               <ScrollArea className="h-40 border rounded-md p-2">
                 {preIssueLog.map((l, i) => (
-                  <div key={i} className="text-xs py-0.5 flex items-center gap-2">
+                  <div key={i} className="text-xs py-0.5 flex items-start gap-2">
                     {l.ok
-                      ? <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0"/>
-                      : <AlertTriangle className="w-3 h-3 text-destructive shrink-0"/>}
-                    <span className="truncate">{l.name}</span>
-                    {l.message && <span className="text-muted-foreground truncate">· {l.message}</span>}
+                      ? <CheckCircle2 className="w-3 h-3 mt-0.5 text-emerald-400 shrink-0"/>
+                      : <AlertTriangle className="w-3 h-3 mt-0.5 text-destructive shrink-0"/>}
+                    <span className="shrink-0">{l.name}</span>
+                    {l.message && (
+                      <span className={`break-all ${l.ok ? "text-muted-foreground" : "text-destructive"}`}>· {l.message}</span>
+                    )}
                   </div>
                 ))}
               </ScrollArea>
+              {preIssueLog.some((l) => !l.ok) && (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-destructive">
+                      {tr("실패 상세", "失败详情")} ({preIssueLog.filter((l) => !l.ok).length})
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[11px]"
+                      onClick={() => {
+                        const text = preIssueLog.filter((l) => !l.ok).map((l) => `${l.name}\t${l.message ?? ""}`).join("\n");
+                        void navigator.clipboard.writeText(text);
+                        toast({ title: tr("실패 내용을 복사했습니다", "已复制失败内容") });
+                      }}
+                    >
+                      {tr("복사", "复制")}
+                    </Button>
+                  </div>
+                  <ScrollArea className="h-28 border border-destructive/40 rounded-md p-2 bg-destructive/5">
+                    {preIssueLog.filter((l) => !l.ok).map((l, i) => (
+                      <div key={i} className="text-[11px] py-1 border-b border-border/40 last:border-0">
+                        <div className="font-medium">{l.name}</div>
+                        <div className="text-destructive break-all whitespace-pre-wrap">{l.message ?? tr("알 수 없는 오류", "未知错误")}</div>
+                      </div>
+                    ))}
+                  </ScrollArea>
+                </div>
+              )}
+
             </div>
           )}
           <DialogFooter>
