@@ -968,7 +968,15 @@ function OrderDetail({
                   return (
                     <div key={i} className={`flex items-center gap-2 py-2.5 px-2 text-sm ${current ? "bg-primary/10 rounded" : ""}`}>
                       <span className="w-7 tabular-nums text-muted-foreground">{e.position}</span>
-                      <span className="flex-1 font-mono text-xs break-all">{e.no}</span>
+                      <span className="flex-1 font-mono text-xs break-all">
+                        {e.no}
+                        {e.cardNo && (
+                          <span className="ml-2 text-[10px] text-muted-foreground">
+                            {tr("인쇄값", "打印值")}: {e.cardNo}
+                          </span>
+                        )}
+                      </span>
+
                       {done ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                         : current ? <Badge variant="outline" className="shrink-0 text-[10px]">{tr("대기", "等待")}</Badge>
                         : <span className="w-4" />}
