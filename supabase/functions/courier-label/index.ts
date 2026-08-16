@@ -80,10 +80,21 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
     };
   }
 
-
+  // 4PX 라벨의 "Ref No" 칸에는 ref_no 값이 그대로 인쇄됩니다.
+  // 수취인이 물품 내용/발송처를 알 수 있도록 브랜드+영문 품명을 접두로 붙입니다.
+  const refLabel = String(
+    extra.ref_label ?? [extra.brand, extra.item_name_en].filter(Boolean).join(" "),
+  )
+    .replace(/[^\x20-\x7E]/g, "")
+    .replace(/[^A-Za-z0-9 ._-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 32);
+  const refNo = [refLabel, order.external_order_id].filter(Boolean).join(" ").slice(0, 50);
 
   const bizData = {
-    ref_no: order.external_order_id,
+    ref_no: refNo,
+
     business_type: "BDS",
     duty_type: extra.duty_type ?? "P",
     logistics_service_info: {
@@ -194,9 +205,10 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
   // 4PX ds.xms.label.get requires `request_no` (the 4PX tracking / consignment no).
   const dsNo = d.ds_consignment_no ?? null;
   const attempts = [
-    { request_no: fpxNo ?? order.external_order_id },
-    { request_no: dsNo ?? fpxNo ?? order.external_order_id },
-    { request_no: order.external_order_id, ref_no: order.external_order_id },
+    { request_no: fpxNo ?? refNo },
+    { request_no: dsNo ?? fpxNo ?? refNo },
+    { request_no: refNo, ref_no: refNo },
+
   ];
 
   mark("4PX_label_start");

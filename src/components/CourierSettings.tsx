@@ -53,6 +53,7 @@ const emptyCred = {
   item_name_en: "",
   item_name_cn: "",
   brand: "",
+  ref_label: "",
 };
 
 export default function CourierSettings() {
@@ -146,6 +147,8 @@ export default function CourierSettings() {
       item_name_en: s("item_name_en"),
       item_name_cn: s("item_name_cn"),
       brand: s("brand"),
+      ref_label: s("ref_label"),
+
     }));
   }, [credDialog?.code, credExtra]);
 
@@ -195,6 +198,7 @@ export default function CourierSettings() {
       put("item_name_en", cred.item_name_en);
       put("item_name_cn", cred.item_name_cn);
       put("brand", cred.brand);
+      put("ref_label", cred.ref_label);
       if (cred.unit_price.trim() && !Number.isNaN(Number(cred.unit_price))) extra.unit_price = Number(cred.unit_price);
       else delete extra.unit_price;
 
@@ -528,6 +532,20 @@ export default function CourierSettings() {
                 <div className="space-y-1.5 col-span-2">
                   <Label className="text-xs">{tr("브랜드", "品牌")}</Label>
                   <Input value={cred.brand} onChange={(e) => setCred((c) => ({ ...c, brand: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5 col-span-2">
+                  <Label className="text-xs">{tr("송장 Ref No 표기", "面单 Ref No 显示")}</Label>
+                  <Input
+                    value={cred.ref_label}
+                    onChange={(e) => setCred((c) => ({ ...c, ref_label: e.target.value }))}
+                    placeholder={[cred.brand, cred.item_name_en].filter(Boolean).join(" ") || "TWINMETA T-Shirt"}
+                  />
+                  <p className="text-[11px] text-muted-foreground leading-tight">
+                    {tr(
+                      "4PX 송장의 Ref No 칸에 인쇄되는 문구입니다. 비워두면 브랜드 + 품명(영문)이 자동으로 사용됩니다. 영문/숫자만 가능하며 32자까지 인쇄됩니다.",
+                      "打印在4PX面单 Ref No 栏的文字。留空则自动使用 品牌 + 英文品名。仅支持英文数字，最多32个字符。",
+                    )}
+                  </p>
                 </div>
               </div>
             </div>
