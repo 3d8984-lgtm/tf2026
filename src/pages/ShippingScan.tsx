@@ -112,6 +112,10 @@ export default function ShippingScan() {
 
 
   const [scanInput, setScanInput] = useState("");
+  // 로컬 프린트 에이전트 설정 (서버 공유). 켜져 있으면 원본 PDF를 프린터로 직접 보냅니다.
+  const { value: agentValue } = useGlobalSetting<PrintAgentConfig>(PRINT_AGENT_SETTING_KEY, DEFAULT_PRINT_AGENT);
+  const agentCfg = { ...DEFAULT_PRINT_AGENT, ...(agentValue ?? {}) };
+
   // Print scale (%) — compensates printer drivers that shrink the page ("fit to page").
   const [labelScale, setLabelScale] = useState<number>(() => {
     const v = Number(localStorage.getItem("shipping-label-print-scale"));
