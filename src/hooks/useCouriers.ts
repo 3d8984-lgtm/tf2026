@@ -16,18 +16,34 @@ export interface CourierConfigRow {
   sort_order: number;
 }
 
+/** Safe list for any approved worker: no API URLs / modes / test metadata. */
 export function useCouriers(onlyEnabled = false) {
   return useQuery({
-    queryKey: ["courier_configs", onlyEnabled],
+    queryKey: ["courier_configs_safe", onlyEnabled],
     queryFn: async () => {
-      let q = supabase.from("courier_configs").select("*").order("sort_order", { ascending: true });
-      if (onlyEnabled) q = q.eq("enabled", true);
-      const { data, error } = await q;
+      const { data, error } = await supabase.rpc("list_couriers_safe");
+      if (error) throw error;
+      const rows = (data ?? []) as unknown as CourierConfigRow[];
+      return onlyEnabled ? rows.filter((r) => r.enabled) : rows;
+    },
+  });
+}
+
+/** Full configuration incl. API endpoints — admin only (RLS enforced). */
+export function useAdminCouriers() {
+  return useQuery({
+    queryKey: ["courier_configs"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("courier_configs")
+        .select("*")
+        .order("sort_order", { ascending: true });
       if (error) throw error;
       return (data ?? []) as unknown as CourierConfigRow[];
     },
   });
 }
+
 
 export function useSaveCourier() {
   const qc = useQueryClient();
