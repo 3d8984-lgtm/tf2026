@@ -345,6 +345,17 @@ function OrderDetail({
    */
   /** 프린터로 실제 전송할 값 — 기본은 카드 고유번호 */
   const printValueRef = useRef<(no: string) => string>((v) => v);
+  useEffect(() => {
+    const map = new Map<string, string>();
+    for (const e of expected) {
+      if (e.cardNo) {
+        map.set(norm(e.no), e.cardNo);
+        map.set(norm(e.base), e.cardNo);
+      }
+    }
+    printValueRef.current = (v: string) =>
+      labelOpts.valueSource === "card" ? (map.get(norm(v)) ?? v) : v;
+  }, [expected, labelOpts.valueSource]);
   const sendToPrinter = useCallback(async (code: string, override?: Partial<LabelOptions>): Promise<{ ok: boolean; error?: string }> => {
     const payload = buildLabelCommand(code, { ...labelOptsRef.current, ...(override || {}) });
     const record = (ok: boolean, error: string | null) => {
@@ -950,6 +961,17 @@ function OrderDetail({
                   </div>
                 </>
               )}
+              <div>
+                <Label className="text-xs">{tr("인쇄 값", "打印内容")}</Label>
+                <select
+                  className="mt-1 h-9 rounded-md border bg-background px-2 text-sm"
+                  value={labelOpts.valueSource}
+                  onChange={(e) => setLabelOpts((o) => ({ ...o, valueSource: e.target.value as LabelOptions["valueSource"] }))}
+                >
+                  <option value="card">{tr("카드 고유번호", "卡片唯一编号")}</option>
+                  <option value="item">{tr("주문 항목 고유번호", "订单项目编号")}</option>
+                </select>
+              </div>
               <Button size="sm" variant="outline" onClick={probeProtocols} disabled={printerTesting}>
                 {tr("프로토콜 자동 진단", "协议自动诊断")}
               </Button>
