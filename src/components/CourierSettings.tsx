@@ -146,6 +146,8 @@ export default function CourierSettings() {
       item_name_en: s("item_name_en"),
       item_name_cn: s("item_name_cn"),
       brand: s("brand"),
+      ref_label: s("ref_label"),
+
     }));
   }, [credDialog?.code, credExtra]);
 
