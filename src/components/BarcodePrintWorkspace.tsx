@@ -693,6 +693,10 @@ function OrderDetail({
   const doneCount = Object.values(saved).filter((s) => s.status === "done").length;
   const queuedCount = Object.values(saved).filter((s) => s.status === "queued").length;
   const errorCount = Object.values(saved).filter((s) => s.status === "error").length;
+  // 서버에 저장된 FIFO 인쇄 대기열 (스캔 검증 통과분 + 실패로 멈춘 항목)
+  const queueItems = Object.values(saved)
+    .filter((s) => s.status === "queued" || s.status === "error")
+    .sort((a, b) => a.position - b.position);
   const progress = total ? Math.min(100, (doneCount / total) * 100) : 0;
   const verdictMeta: Record<Verdict, { ko: string; zh: string; cls: string }> = {
     ok: { ko: "일치", zh: "匹配", cls: "text-emerald-500" },
