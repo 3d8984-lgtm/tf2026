@@ -239,18 +239,8 @@ function OrderDetail({
 
   const [printerTestText, setPrinterTestText] = useState("TEST123");
   const [printerTesting, setPrinterTesting] = useState(false);
-  // 라벨 프린터 명령 설정 (갭 센서 프린터는 SIZE/GAP/PRINT 명령이 있어야 실제로 출력된다)
-  const [labelOpts, setLabelOpts] = useState<LabelOptions>(() => {
-    try {
-      const raw = localStorage.getItem(LABEL_OPTS_KEY);
-      return raw ? { ...DEFAULT_LABEL_OPTIONS, ...JSON.parse(raw) } : DEFAULT_LABEL_OPTIONS;
-    } catch { return DEFAULT_LABEL_OPTIONS; }
-  });
-  const labelOptsRef = useRef(labelOpts);
-  useEffect(() => {
-    labelOptsRef.current = labelOpts;
-    try { localStorage.setItem(LABEL_OPTS_KEY, JSON.stringify(labelOpts)); } catch { /* ignore */ }
-  }, [labelOpts]);
+  // 라벨 명령 템플릿은 백엔드(게이트웨이)에서 관리하므로 화면 설정 없음
+
   const seenRef = useRef<Set<string>>(new Set());
   const lastCodeRef = useRef<string>("");
   // 게이트웨이 스캔 이력 기반 처리: 이미 처리한 이벤트 id / 최초 프라이밍 여부
