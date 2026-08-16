@@ -39,7 +39,6 @@ import {
   type PrintAgentSettings,
 } from "@/lib/print-agent";
 import { htmlLabelToPdfBlob } from "@/lib/html-label-pdf";
-import { finishLabelPdf } from "@/lib/label-pdf-finish";
 
 import { Html5Qrcode } from "html5-qrcode";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -159,12 +158,9 @@ export default function ShippingScan() {
     const cfg = agentCfgRef.current;
     if (!cfg.enabled) return false;
     try {
-      const raw = await fetchLabelPdf(opts.url);
-      // Normalise the carrier page to the real media size and stamp the Ref No box.
-      const size = labelSizeFor(opts.carrierCode);
-      const pdf = raw
-        ? await finishLabelPdf(raw, { widthMm: size.w, heightMm: size.h, refNo: opts.refNo })
-        : null;
+      // 4PX가 준 PDF를 그대로 전송한다 — 리사이즈/래스터화/스케일 보정 없음.
+      const pdf = await fetchLabelPdf(opts.url);
+
       await printPdfViaAgent({
         baseUrl: cfg.baseUrl,
         printerName: cfg.printerName,

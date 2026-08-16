@@ -102,6 +102,16 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
     .replace(/^-/, "")
     .slice(0, 32);
 
+  // SKU 칸에는 고유 접미사 없이 "브랜드 품명"만 인쇄한다 (4PX가 라벨에 SKU를 표시).
+  const skuText = String(
+    extra.sku ?? extra.ref_label ?? [extra.brand, extra.item_name_en].filter(Boolean).join(" "),
+  )
+    .replace(/[^\x20-\x7E]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 40) || "TWINMETA";
+
+
 
 
   const bizData = {
@@ -125,6 +135,10 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
         include_battery: "N",
         declare_product_info: [
           {
+            // 4PX 라벨의 SKU 칸(Ref No 부근)에 인쇄되는 값 — 브랜드 + 영문 품명.
+            sku: skuText,
+            sku_code: skuText,
+            declare_product_code: skuText,
             declare_product_name_cn: extra.item_name_cn ?? "T恤",
             declare_product_name_en: extra.item_name_en ?? "T-Shirt",
             declare_product_code_qty: String(qty),
@@ -138,6 +152,7 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
             hscode_import: extra.hscode ?? "",
           },
         ],
+
       },
     ],
     is_insure: "N",
