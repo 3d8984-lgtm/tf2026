@@ -735,9 +735,13 @@ export default function ShippingScan() {
       // Auto-print the carrier-issued waybill right after issuance.
       const liveUrl = (res as any)?.label_url as string | undefined;
       if (liveUrl) {
-        const size = labelSizeFor(carrier || shipment?.carrier);
-        const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
-        if (w) { w.document.write(buildRemoteLabelHtml(liveUrl, carrier || shipment?.carrier)); w.document.close(); perfMark("label_html_written"); }
+        const sentToAgent = await sendToPrintAgent({ url: liveUrl, carrierCode: carrier || shipment?.carrier, trackingNumber: res.tracking_number });
+        if (sentToAgent) { printWindow?.close(); perfMark("print_called"); }
+        else {
+          const size = labelSizeFor(carrier || shipment?.carrier);
+          const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
+          if (w) { w.document.write(buildRemoteLabelHtml(liveUrl, carrier || shipment?.carrier)); w.document.close(); perfMark("label_html_written"); }
+        }
       } else {
         printWindow?.close();
         toast({
