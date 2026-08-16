@@ -24,6 +24,9 @@ export type LabelMode =
 
 export type Terminator = "crlf" | "cr" | "lf" | "none";
 
+/** 프린터로 보낼 값의 출처 — 기본은 카드 고유번호(NFC 고유번호) */
+export type ValueSource = "card" | "item";
+
 export type LabelOptions = {
   mode: LabelMode;
   widthMm: number;
@@ -34,6 +37,8 @@ export type LabelOptions = {
   /** raw 모드에서 값 앞뒤에 붙일 문자열 (프린터 변수 필드 규격에 맞출 때 사용) */
   prefix: string;
   suffix: string;
+  /** 인쇄 값 출처: card = 카드 고유번호, item = 주문 항목 고유번호 */
+  valueSource: ValueSource;
 };
 
 export const DEFAULT_LABEL_OPTIONS: LabelOptions = {
@@ -44,6 +49,7 @@ export const DEFAULT_LABEL_OPTIONS: LabelOptions = {
   terminator: "crlf",
   prefix: "",
   suffix: "",
+  valueSource: "card",
 };
 
 export const LABEL_MODE_LABELS: Record<LabelMode, { ko: string; zh: string }> = {
