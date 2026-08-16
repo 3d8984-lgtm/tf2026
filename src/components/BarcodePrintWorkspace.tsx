@@ -914,21 +914,8 @@ function OrderDetail({
           </CardContent>
         </Card>
 
-        {/* 검수 통과 시 자동 인쇄 */}
-        <Card>
-          <CardContent className="p-4 flex flex-wrap items-center gap-3">
-            <Switch id="bp-auto-print" checked={autoPrint} onCheckedChange={setAutoPrint} disabled={testMode} />
-            <Label htmlFor="bp-auto-print" className="cursor-pointer">
-              <span className="font-medium flex items-center gap-1.5">
-                <Printer className="w-4 h-4" />{tr("검수 통과 시 자동 인쇄", "检验通过自动打印")}
-              </span>
-              <span className="block text-xs text-muted-foreground">
-                {tr("스캔 판정이 일치일 때 해당 고유번호를 QR 인쇄기로 즉시 전송합니다 (오류·중복·순서 오류는 인쇄 차단)",
-                    "扫描判定匹配时立即将该唯一编号发送至二维码打印机（错误·重复·顺序错误将阻止打印）")}
-              </span>
-            </Label>
-          </CardContent>
-        </Card>
+        {/* 자동 인쇄는 백엔드(게이트웨이)가 처리 */}
+
 
         {/* 프린터 진단 (POST /api/v1/print/test) */}
         <Card>
