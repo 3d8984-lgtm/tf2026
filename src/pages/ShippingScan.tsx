@@ -29,6 +29,15 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { scanSuccess, scanFail, scanDuplicate } from "@/lib/scan-sound";
 import { buildFpxLabelHtml } from "@/lib/label-4px";
+import { useGlobalSetting } from "@/hooks/useGlobalSetting";
+import {
+  checkPrintAgent,
+  printPdfViaAgent,
+  fetchLabelPdf,
+  PRINT_AGENT_SETTING_KEY,
+  PRINT_AGENT_DEFAULTS,
+  type PrintAgentSettings,
+} from "@/lib/print-agent";
 
 import { Html5Qrcode } from "html5-qrcode";
 import { ScrollArea } from "@/components/ui/scroll-area";
