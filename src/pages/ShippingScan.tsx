@@ -124,6 +124,54 @@ export default function ShippingScan() {
   useEffect(() => {
     localStorage.setItem("shipping-label-print-scale", String(labelScale));
   }, [labelScale]);
+
+  // ---- Local printer agent (http://127.0.0.1:9100) --------------------------
+  // Server-shared settings so every PC uses the same agent configuration.
+  const { value: agentCfgRaw, persist: persistAgentCfg } = useGlobalSetting<PrintAgentSettings>(
+    PRINT_AGENT_SETTING_KEY,
+    PRINT_AGENT_DEFAULTS,
+  );
+  const agentCfg = { ...PRINT_AGENT_DEFAULTS, ...(agentCfgRaw ?? {}) } as PrintAgentSettings;
+  const [agentOnline, setAgentOnline] = useState<boolean | null>(null);
+  const agentCfgRef = useRef(agentCfg);
+  useEffect(() => { agentCfgRef.current = agentCfg; });
+  useEffect(() => {
+    let cancelled = false;
+    const ping = async () => {
+      if (!agentCfg.enabled) { setAgentOnline(null); return; }
+      const ok = await checkPrintAgent(agentCfg.baseUrl);
+      if (!cancelled) setAgentOnline(ok);
+    };
+    void ping();
+    const t = setInterval(ping, 30_000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [agentCfg.enabled, agentCfg.baseUrl]);
+
+  /** Sends a label PDF to the local agent. Returns false when it must fall back. */
+  async function sendToPrintAgent(opts: { url: string; carrierCode?: string | null; trackingNumber?: string | null }) {
+    const cfg = agentCfgRef.current;
+    if (!cfg.enabled) return false;
+    try {
+      const pdf = await fetchLabelPdf(opts.url);
+      await printPdfViaAgent({
+        baseUrl: cfg.baseUrl,
+        printerName: cfg.printerName,
+        pdf,
+        pdfUrl: pdf ? null : opts.url,
+        courierCode: opts.carrierCode ?? undefined,
+        copies: 1,
+        trackingNumber: opts.trackingNumber ?? undefined,
+      });
+      setAgentOnline(true);
+      return true;
+    } catch (e) {
+      setAgentOnline(false);
+      // eslint-disable-next-line no-console
+      console.warn("[print-agent] failed, falling back to browser print:", (e as Error).message);
+      return false;
+    }
+  }
+
   // Calibration: print a 100×150mm ruler sheet, measure it, auto-derive the scale.
   const [calibOpen, setCalibOpen] = useState(false);
   const [measuredW, setMeasuredW] = useState("");
