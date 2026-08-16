@@ -1108,12 +1108,12 @@ function OrderDetail({
             </CardContent>
           </Card>
 
-          {/* 스캔 완료 (인쇄 대기) */}
-          <Card>
+          {/* 인쇄 대기열 (서버 저장 · FIFO) */}
+          <Card className={errorCount > 0 ? "border-destructive" : ""}>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Printer className="w-4 h-4" />{tr("스캔 완료", "扫描完成")}
-                <span className="text-xs font-normal text-muted-foreground">({waitingJobs.length})</span>
+                <Printer className="w-4 h-4" />{tr("인쇄 대기열", "打印队列")}
+                <span className="text-xs font-normal text-muted-foreground">({queueItems.length})</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -1121,23 +1121,22 @@ function OrderDetail({
                 <table className="w-full text-xs">
                   <thead className="bg-muted/40">
                     <tr className="text-left">
-                      <th className="px-2 py-1.5">{tr("바코드", "条码")}</th>
+                      <th className="px-2 py-1.5">{tr("순번", "序号")}</th>
+                      <th className="px-2 py-1.5">{tr("인쇄 값", "打印值")}</th>
                       <th className="px-2 py-1.5">{tr("상태", "状态")}</th>
-                      <th className="px-2 py-1.5">{tr("시각", "时间")}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {waitingJobs.length === 0 ? (
-                      <tr><td colSpan={3} className="px-2 py-6 text-center text-muted-foreground">{tr("인쇄 작업이 없습니다", "暂无打印作业")}</td></tr>
-                    ) : waitingJobs.map((j) => (
-                      <tr key={j.id} className={`border-t ${j.status === "failed" ? "bg-destructive/5" : ""}`}>
-                        <td className="px-2 py-1.5 font-mono break-all">{j.barcode}</td>
-                        <td className={`px-2 py-1.5 font-medium ${jobMeta[j.status]?.cls ?? ""}`}>
-                          {isKo ? jobMeta[j.status]?.ko : jobMeta[j.status]?.zh}
-                          {j.error && <span className="block text-[10px] text-muted-foreground break-all">{j.error}</span>}
-                        </td>
-                        <td className="px-2 py-1.5 tabular-nums text-muted-foreground">
-                          {new Date(j.printed_at ?? j.enqueued_at).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN")}
+                    {queueItems.length === 0 ? (
+                      <tr><td colSpan={3} className="px-2 py-6 text-center text-muted-foreground">{tr("대기 중인 인쇄 작업이 없습니다", "暂无待打印作业")}</td></tr>
+                    ) : queueItems.map((s, i) => (
+                      <tr key={s.position} className={`border-t ${s.status === "error" ? "bg-destructive/5" : ""}`}>
+                        <td className="px-2 py-1.5 tabular-nums">{s.position}</td>
+                        <td className="px-2 py-1.5 font-mono break-all">{printValueRef.current(s.code)}</td>
+                        <td className={`px-2 py-1.5 font-medium ${s.status === "error" ? "text-destructive" : i === 0 ? "text-primary" : "text-muted-foreground"}`}>
+                          {s.status === "error"
+                            ? tr("인쇄 실패 · 작업 중단", "打印失败 · 作业中断")
+                            : i === 0 ? tr("전송 중", "发送中") : tr("대기", "等待")}
                         </td>
                       </tr>
                     ))}
@@ -1146,6 +1145,7 @@ function OrderDetail({
               </div>
             </CardContent>
           </Card>
+
 
           {/* 인쇄 완료 */}
           <Card>
