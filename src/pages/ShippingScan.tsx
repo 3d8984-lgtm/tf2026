@@ -443,7 +443,7 @@ export default function ShippingScan() {
       scanSuccess();
       setFeedback({ kind: "success", msg: tr("테스트 QR 인식 → 송장 출력", "测试二维码识别 → 打印运单") });
       setScanInput("");
-      printTestLabel(printWindow);
+      void printTestLabel(printWindow);
       return;
     }
 
