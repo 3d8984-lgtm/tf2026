@@ -205,9 +205,10 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
   // 4PX ds.xms.label.get requires `request_no` (the 4PX tracking / consignment no).
   const dsNo = d.ds_consignment_no ?? null;
   const attempts = [
-    { request_no: fpxNo ?? order.external_order_id },
-    { request_no: dsNo ?? fpxNo ?? order.external_order_id },
-    { request_no: order.external_order_id, ref_no: order.external_order_id },
+    { request_no: fpxNo ?? refNo },
+    { request_no: dsNo ?? fpxNo ?? refNo },
+    { request_no: refNo, ref_no: refNo },
+
   ];
 
   mark("4PX_label_start");
