@@ -136,6 +136,17 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
         parcel_value: Number((unitPrice * qty).toFixed(2)),
         currency: "USD",
         include_battery: "N",
+        // 配货信息(피킹/배송 정보) 인쇄 시 라벨에 찍히는 상품 목록
+        product_list: [
+          {
+            sku_code: skuCode,
+            product_name: extra.item_name_en ?? "T-Shirt",
+            product_description: extra.item_name_en ?? "T-Shirt",
+            product_unit_price: unitPrice,
+            currency: "USD",
+            qty,
+          },
+        ],
         declare_product_info: [
           {
             // SKU 칸 — 주문번호(또는 설정된 SKU). 브랜드/품명은 넣지 않음.
@@ -158,6 +169,7 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
 
       },
     ],
+
     is_insure: "N",
     sender: {
       first_name: extra.sender_name ?? "TWINMETA",
