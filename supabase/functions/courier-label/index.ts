@@ -109,7 +109,9 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
     .replace(/[^\x20-\x7E]/g, "")
     .replace(/\s+/g, " ")
     .trim()
-    .slice(0, 40) || "TWINMETA";
+    .slice(0, 32) || "TWINMETA";
+  // declare_product_code 는 4PX 규격상 32자 이하여야 한다.
+  const skuCode = skuText.slice(0, 32);
 
 
 
