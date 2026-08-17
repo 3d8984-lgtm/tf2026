@@ -112,6 +112,9 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
     .slice(0, 32) || "TWINMETA";
   // declare_product_code 는 4PX 규격상 32자 이하여야 한다.
   const skuCode = skuText.slice(0, 32);
+  const printPickInfo =
+    String(extra.is_print_pick_info ?? "Y").toUpperCase() === "N" ? "N" : "Y";
+
 
 
 
