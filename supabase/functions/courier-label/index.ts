@@ -696,9 +696,12 @@ Deno.serve(async (req) => {
           tracking_number: result.tracking_number,
           label_url: result.label_url,
           ref_no: result.ref_no ?? null,
-          label_status: "ready",
-          label_error: null,
+          // 라벨 PDF까지 받아야 "발급 완료". 운송장번호만 있고 PDF가 없으면 실패로 표기해
+          // 재시도 시 주문을 다시 만들지 않고 라벨만 다시 받아온다.
+          label_status: result.label_url ? "ready" : "failed",
+          label_error: result.label_url ? null : "4PX 라벨 PDF를 받지 못했습니다. 재시도하면 라벨만 다시 요청합니다.",
           label_issued_at: issuedAt,
+
         })
         .eq("id", group.id);
       if (gErr) {
