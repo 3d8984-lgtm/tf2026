@@ -1,0 +1,1 @@
+update public.shipping_groups set label_status='failed', label_error='라벨 PDF 미수신 — 재시도 시 운송장 재생성 없이 라벨만 다시 요청합니다.' where tracking_number is not null and label_url is null and label_status='ready';
