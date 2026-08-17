@@ -245,7 +245,8 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
       const label = await fpxCall(endpoint, cred, "ds.xms.label.get", "1.1.0", {
         ...key,
         label_size: extra.label_size ?? "label_100x150",
-        is_print_pick_info: "N",
+        // 打印配货信息 (배송/피킹 정보 = SKU·품명 인쇄) — 기본 Y, 설정으로 끌 수 있음
+        is_print_pick_info: String(extra.is_print_pick_info ?? "Y").toUpperCase() === "N" ? "N" : "Y",
         is_print_merge: "N",
       });
       labelRaw = label.raw;
