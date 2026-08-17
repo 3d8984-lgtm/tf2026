@@ -52,7 +52,54 @@ function shippingRecipient(order: any, position?: number) {
 type Mark = (step: string) => void;
 const noopMark: Mark = () => {};
 
+// ---- 4PX: ds.xms.label.get — 주문 생성 직후에는 라벨 PDF가 아직 준비되지 않는 경우가 있어
+// 여러 파라미터 조합 × 재시도(지연)로 확실히 받아온다. 실패 시 null.
+async function fetch4pxLabel(
+  endpoint: string,
+  cred: any,
+  extra: Record<string, any>,
+  attempts: Record<string, string>[],
+  onRaw?: (raw: unknown) => void,
+  rounds = 3,
+): Promise<string | null> {
+  const printPick = String(extra.is_print_pick_info ?? "Y").toUpperCase() === "N" ? "N" : "Y";
+  for (let round = 0; round < rounds; round++) {
+    if (round > 0) await new Promise((r) => setTimeout(r, 1500));
+    for (const key of attempts) {
+      try {
+        const label = await fpxCall(endpoint, cred, "ds.xms.label.get", "1.1.0", {
+          ...key,
+          label_size: extra.label_size ?? "label_100x150",
+          // 打印配货信息 (배송/피킹 정보 = SKU·품명 인쇄)
+          is_print_pick_info: printPick,
+          is_print_merge: "N",
+        });
+        onRaw?.(label.raw);
+        const ld = label.data ?? {};
+        const first = Array.isArray(ld.label_list) ? ld.label_list[0] ?? {} : {};
+        const info = ld.label_url_info ?? first.label_url_info ?? {};
+        const direct =
+          info.logistics_label ?? info.label_url ?? info.url ??
+          ld.label_url ?? ld.url ?? ld.file_url ?? first.label_url ?? first.url ?? null;
+        const b64 =
+          ld.label_content ?? ld.file_content ?? ld.content ?? ld.label_data ??
+          first.label_content ?? first.content ?? null;
+        if (direct) {
+          return String(direct).replace(/^http:\/\/bss-fss\.4px\.com\//i, "https://bss-fss.4px.com/");
+        }
+        if (typeof b64 === "string" && b64.length > 100) {
+          const clean = b64.replace(/\s/g, "");
+          const isHtml = /^(PCFE|PGh0|PGRp|PHN2)/.test(clean) || /^\s*</.test(b64);
+          return `data:${isHtml ? "text/html" : "application/pdf"};base64,${clean}`;
+        }
+      } catch { /* try the next parameter combination */ }
+    }
+  }
+  return null;
+}
+
 // ---- 4PX: ds.xms.order.create (v1.1.0) + ds.xms.label.get (v1.1.0) ----------
+
 async function call4px(cfg: any, cred: any, order: any, shipment: any, position?: number, mark: Mark = noopMark, qtyOverride?: number): Promise<LabelResult> {
   const endpoint = fpxEndpoint(cfg.api_url, cfg.api_mode);
   const extra = (cred?.extra ?? {}) as Record<string, any>;
