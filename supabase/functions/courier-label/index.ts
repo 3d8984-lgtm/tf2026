@@ -431,9 +431,50 @@ Deno.serve(async (req) => {
     if (shipping_group_id) {
       const { data: g } = await admin.from("shipping_groups").select("*").eq("id", shipping_group_id).maybeSingle();
       if (!g) return json({ error: "shipping group not found" }, 404);
-      if (g.tracking_number && g.label_status === "ready") {
+      // 이미 4PX 주문/운송장은 만들어졌는데 라벨 PDF만 못 받은 경우:
+      // 주문을 다시 만들지 말고 ds.xms.label.get 만 재시도해서 복구한다.
+      if (g.tracking_number && !g.label_url && (g.carrier ?? carrier) === "4px") {
+        const { data: cfg0 } = await admin.from("courier_configs").select("*").eq("code", "4px").maybeSingle();
+        const { data: cred0 } = await admin.from("courier_credentials").select("*").eq("code", "4px").maybeSingle();
+        if (cfg0 && cred0) {
+          const ep = fpxEndpoint(cfg0.api_url, cfg0.api_mode ?? "prod");
+          const ex = (cred0.extra ?? {}) as Record<string, any>;
+          const recovered = await fetch4pxLabel(
+            ep,
+            cred0,
+            ex,
+            [
+              { request_no: g.tracking_number },
+              ...(g.ref_no ? [{ request_no: g.ref_no, ref_no: g.ref_no }] : []),
+            ],
+          );
+          if (recovered) {
+            const issuedAt = new Date().toISOString();
+            await admin.from("shipping_groups").update({
+              label_url: recovered,
+              label_status: "ready",
+              label_error: null,
+              label_issued_at: g.label_issued_at ?? issuedAt,
+            }).eq("id", g.id);
+            await admin.from("shipment_scan_items").update({
+              carrier: g.carrier ?? carrier,
+              tracking_number: g.tracking_number,
+              label_url: recovered,
+              tracking_issued_at: issuedAt,
+            }).eq("shipping_group_id", g.id);
+            return json({ ok: true, recovered: true, tracking_number: g.tracking_number, label_url: recovered, carrier: g.carrier ?? carrier });
+          }
+          await admin.from("shipping_groups").update({
+            label_status: "failed",
+            label_error: "4PX 라벨 PDF(ds.xms.label.get)를 받지 못했습니다. 잠시 후 재시도해 주세요.",
+          }).eq("id", g.id);
+          return json({ error: "4PX label PDF was not returned (tracking exists, retry later)", tracking_number: g.tracking_number }, 502);
+        }
+      }
+      if (g.tracking_number && g.label_url && g.label_status === "ready") {
         return json({ ok: true, already: true, tracking_number: g.tracking_number, label_url: g.label_url, carrier: g.carrier });
       }
+
       // Idempotent claim: only one caller may flip pending/failed -> issuing.
       const { data: claimed } = await admin
         .from("shipping_groups")
