@@ -138,7 +138,7 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
         include_battery: "N",
         declare_product_info: [
           {
-            // 4PX 라벨의 SKU 칸(Ref No 부근)에 인쇄되는 값 — 브랜드 + 영문 품명.
+            // SKU 칸 — 주문번호(또는 설정된 SKU). 브랜드/품명은 넣지 않음.
             sku: skuCode,
             sku_code: skuCode,
             declare_product_code: skuCode,
