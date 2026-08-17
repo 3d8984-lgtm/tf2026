@@ -539,13 +539,19 @@ export default function CourierSettings() {
                     value={cred.ref_label}
                     onChange={(e) => setCred((c) => ({ ...c, ref_label: e.target.value }))}
                     placeholder={[cred.brand, cred.item_name_en].filter(Boolean).join(" ") || "TWINMETA T-Shirt"}
+                    className={cred.ref_label && cred.ref_label.length > 32 ? "border-destructive text-destructive" : ""}
                   />
-                  <p className="text-[11px] text-muted-foreground leading-tight">
-                    {tr(
-                      "4PX 송장의 Ref No 칸에 인쇄되는 문구입니다. 비워두면 브랜드 + 품명(영문)이 자동으로 사용됩니다. 영문/숫자만 가능하며 32자까지 인쇄됩니다.",
-                      "打印在4PX面单 Ref No 栏的文字。留空则自动使用 品牌 + 英文品名。仅支持英文数字，最多32个字符。",
-                    )}
-                  </p>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-[11px] text-muted-foreground leading-tight">
+                      {tr(
+                        "4PX 송장의 Ref No 칸에 인쇄되는 문구입니다. 비워두면 브랜드 + 품명(영문)이 자동으로 사용됩니다. 영문/숫자만 가능하며 32자까지 인쇄됩니다.",
+                        "打印在4PX面单 Ref No 栏的文字。留空则自动使用 品牌 + 英文品名。仅支持英文数字，最多32个字符。",
+                      )}
+                    </p>
+                    <span className={`text-[11px] shrink-0 ${cred.ref_label && cred.ref_label.length > 32 ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                      {(cred.ref_label ?? "").length}/32
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
