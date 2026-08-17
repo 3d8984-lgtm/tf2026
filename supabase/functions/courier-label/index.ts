@@ -688,7 +688,28 @@ Deno.serve(async (req) => {
 
     const issuedAt = new Date().toISOString();
 
+    // 운송장번호는 받았는데 라벨 PDF만 비어서 온 경우: 주문 재생성 없이 라벨만 즉시 재요청.
+    if (!result.label_url && carrier === "4px" && result.tracking_number) {
+      try {
+        const { data: cfgR } = await admin.from("courier_configs").select("*").eq("code", "4px").maybeSingle();
+        const { data: credR } = await admin.from("courier_credentials").select("*").eq("code", "4px").maybeSingle();
+        if (cfgR && credR) {
+          const recovered = await fetch4pxLabel(
+            fpxEndpoint(cfgR.api_url, cfgR.api_mode ?? "prod"),
+            credR,
+            (credR.extra ?? {}) as Record<string, any>,
+            [
+              { request_no: result.tracking_number },
+              ...(result.ref_no ? [{ request_no: result.ref_no, ref_no: result.ref_no }] : []),
+            ],
+          );
+          if (recovered) result.label_url = recovered;
+        }
+      } catch { /* keep going — status below reflects the outcome */ }
+    }
+
     if (group) {
+
       const { error: gErr } = await admin
         .from("shipping_groups")
         .update({
