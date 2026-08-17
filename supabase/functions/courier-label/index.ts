@@ -112,6 +112,9 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
     .slice(0, 32) || "TWINMETA";
   // declare_product_code 는 4PX 규격상 32자 이하여야 한다.
   const skuCode = skuText.slice(0, 32);
+  const printPickInfo =
+    String(extra.is_print_pick_info ?? "Y").toUpperCase() === "N" ? "N" : "Y";
+
 
 
 
@@ -136,6 +139,17 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
         parcel_value: Number((unitPrice * qty).toFixed(2)),
         currency: "USD",
         include_battery: "N",
+        // 配货信息(피킹/배송 정보) 인쇄 시 라벨에 찍히는 상품 목록
+        product_list: [
+          {
+            sku_code: skuCode,
+            product_name: extra.item_name_en ?? "T-Shirt",
+            product_description: extra.item_name_en ?? "T-Shirt",
+            product_unit_price: unitPrice,
+            currency: "USD",
+            qty,
+          },
+        ],
         declare_product_info: [
           {
             // SKU 칸 — 주문번호(또는 설정된 SKU). 브랜드/품명은 넣지 않음.
@@ -158,6 +172,7 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
 
       },
     ],
+
     is_insure: "N",
     sender: {
       first_name: extra.sender_name ?? "TWINMETA",
@@ -199,7 +214,22 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
 
 
     deliver_type_info: { deliver_type: String(extra.deliver_type ?? "3") },
+
+    // 라벨 생성 옵션 — 주문 생성 시점에 지정해야 4PX가 해당 옵션으로 PDF를 만든다.
+    // is_print_pick_info = 打印配货信息 (SKU·품명 등 배송정보 인쇄)
+    label_config_info: {
+      label_size: extra.label_size ?? "label_100x150",
+      response_label_format: "PDF",
+      create_logistics_label: "Y",
+      logistics_label_config: {
+        is_print_time: "N",
+        is_print_buyer_id: "N",
+        is_print_pick_info: printPickInfo,
+      },
+      create_package_label: "N",
+    },
   };
+
 
   mark("4PX_create_start");
   const created = await fpxCall(endpoint, cred, "ds.xms.order.create", "1.1.0", bizData);
@@ -249,7 +279,7 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
         ...key,
         label_size: extra.label_size ?? "label_100x150",
         // 打印配货信息 (배송/피킹 정보 = SKU·품명 인쇄) — 기본 Y, 설정으로 끌 수 있음
-        is_print_pick_info: String(extra.is_print_pick_info ?? "Y").toUpperCase() === "N" ? "N" : "Y",
+        is_print_pick_info: printPickInfo,
         is_print_merge: "N",
       });
       labelRaw = label.raw;
