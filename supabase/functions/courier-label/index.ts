@@ -102,9 +102,9 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
     .replace(/^-/, "")
     .slice(0, 32);
 
-  // SKU 칸에는 고유 접미사 없이 "브랜드 품명"만 인쇄한다 (4PX가 라벨에 SKU를 표시).
+  // SKU 칸에는 브랜드/품명을 넣지 않는다. 설정된 SKU 값이 있으면 그것을, 없으면 주문번호를 사용.
   const skuText = String(
-    extra.sku ?? extra.ref_label ?? [extra.brand, extra.item_name_en].filter(Boolean).join(" "),
+    extra.sku ?? order.external_order_id ?? "",
   )
     .replace(/[^\x20-\x7E]/g, "")
     .replace(/\s+/g, " ")
@@ -112,6 +112,7 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
     .slice(0, 32) || "TWINMETA";
   // declare_product_code 는 4PX 규격상 32자 이하여야 한다.
   const skuCode = skuText.slice(0, 32);
+
 
 
 
