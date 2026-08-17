@@ -272,37 +272,9 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
   ];
 
   mark("4PX_label_start");
-  for (const key of attempts) {
-    if (labelUrl) break;
-    try {
-      const label = await fpxCall(endpoint, cred, "ds.xms.label.get", "1.1.0", {
-        ...key,
-        label_size: extra.label_size ?? "label_100x150",
-        // 打印配货信息 (배송/피킹 정보 = SKU·품명 인쇄) — 기본 Y, 설정으로 끌 수 있음
-        is_print_pick_info: printPickInfo,
-        is_print_merge: "N",
-      });
-      labelRaw = label.raw;
-      const ld = label.data ?? {};
-      const first = Array.isArray(ld.label_list) ? ld.label_list[0] ?? {} : {};
-      const info = ld.label_url_info ?? first.label_url_info ?? {};
-      const direct =
-        info.logistics_label ?? info.label_url ?? info.url ??
-        ld.label_url ?? ld.url ?? ld.file_url ?? first.label_url ?? first.url ?? null;
-      const b64 =
-        ld.label_content ?? ld.file_content ?? ld.content ?? ld.label_data ??
-        first.label_content ?? first.content ?? null;
-      if (direct) {
-        labelUrl = String(direct).replace(/^http:\/\/bss-fss\.4px\.com\//i, "https://bss-fss.4px.com/");
-      }
-      else if (typeof b64 === "string" && b64.length > 100) {
-        const clean = b64.replace(/\s/g, "");
-        const isHtml = /^(PCFE|PGh0|PGRp|PHN2)/.test(clean) || /^\s*</.test(b64);
-        labelUrl = `data:${isHtml ? "text/html" : "application/pdf"};base64,${clean}`;
-      }
-    } catch { /* try the next parameter combination */ }
-  }
+  labelUrl = await fetch4pxLabel(endpoint, cred, extra, attempts, (r) => { labelRaw = r; });
   mark("4PX_label_end");
+
 
   return {
     tracking_number: tracking,
