@@ -138,9 +138,9 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
         declare_product_info: [
           {
             // 4PX 라벨의 SKU 칸(Ref No 부근)에 인쇄되는 값 — 브랜드 + 영문 품명.
-            sku: skuText,
-            sku_code: skuText,
-            declare_product_code: skuText,
+            sku: skuCode,
+            sku_code: skuCode,
+            declare_product_code: skuCode,
             declare_product_name_cn: extra.item_name_cn ?? "T恤",
             declare_product_name_en: extra.item_name_en ?? "T-Shirt",
             declare_product_code_qty: String(qty),
