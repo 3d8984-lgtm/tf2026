@@ -216,7 +216,7 @@ export default function ShippingScan() {
 
   const [cameraOn, setCameraOn] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: FeedbackKind; msg: string }>({ kind: "idle", msg: "" });
-  const [testMode, setTestMode] = useState(true);
+  const [testMode, setTestMode] = useState(false);
   // Test mode now only uses the production endpoint and cancels the order immediately.
   const testVariant: "live_cancel" = "live_cancel";
   const [issuing, setIssuing] = useState(false);
