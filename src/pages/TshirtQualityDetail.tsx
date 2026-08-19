@@ -94,9 +94,13 @@ export default function TshirtQualityDetail() {
   }, [inspections]);
 
   const [activeSeq, setActiveSeq] = useState<number | null>(null);
+  const [localChecks, setLocalChecks] = useState<Record<number, QcChecks>>({});
   const active = items.find((i) => i.seq === activeSeq) ?? null;
   const activeRow = activeSeq != null ? bySeq[activeSeq] : null;
-  const activeChecks: QcChecks = (activeRow?.checks as QcChecks) ?? {};
+  const checksOf = (seq: number): QcChecks =>
+    localChecks[seq] ?? ((bySeq[seq]?.checks as QcChecks) ?? {});
+  const activeChecks: QcChecks = activeSeq != null ? checksOf(activeSeq) : {};
+
 
   // ---- Recording ----
   const folder = order?.external_order_id ?? "";
@@ -256,16 +260,21 @@ export default function TshirtQualityDetail() {
 
   const toggleCheck = (group: string, check: string, on: boolean) => {
     if (activeSeq == null) return;
-    const next = { ...activeChecks, [qcKey(group, check)]: on };
-    saveChecks(activeSeq, next, undefined, activeRow?.result === "fail" ? "fail" : undefined);
+    const seq = activeSeq;
+    const next = { ...checksOf(seq), [qcKey(group, check)]: on };
+    setLocalChecks((prev) => ({ ...prev, [seq]: next }));
+    saveChecks(seq, next, undefined, bySeq[seq]?.result === "fail" ? "fail" : undefined);
   };
 
   const toggleAll = (on: boolean) => {
     if (activeSeq == null) return;
+    const seq = activeSeq;
     const next: QcChecks = {};
     for (const g of QC_GROUPS) for (const c of g.checks) next[qcKey(g.key, c.key)] = on;
-    saveChecks(activeSeq, next);
+    setLocalChecks((prev) => ({ ...prev, [seq]: next }));
+    saveChecks(seq, next);
   };
+
 
   const [note, setNote] = useState("");
   useEffect(() => { setNote(activeRow?.note ?? ""); }, [activeSeq, activeRow?.note]);
@@ -295,7 +304,7 @@ export default function TshirtQualityDetail() {
     );
   }
 
-  const doneCount = items.filter((i) => qcIsComplete(bySeq[i.seq]?.checks)).length;
+  const doneCount = items.filter((i) => qcIsComplete(checksOf(i.seq))).length;
   const failCount = items.filter((i) => bySeq[i.seq]?.result === "fail").length;
 
   return (
@@ -352,7 +361,7 @@ export default function TshirtQualityDetail() {
                 <tbody>
                   {items.map((i) => {
                     const row = bySeq[i.seq];
-                    const cnt = qcCheckedCount(row?.checks);
+                    const cnt = qcCheckedCount(checksOf(i.seq));
                     const takes = videos?.[i.qr] ?? [];
                     return (
                       <tr
