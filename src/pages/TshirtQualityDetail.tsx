@@ -61,15 +61,17 @@ export default function TshirtQualityDetail() {
     const count = Math.max(list.length, order?.quantity ?? 0);
     return Array.from({ length: count }, (_, idx) => {
       const it = list[idx] ?? {};
+      const itemNo = String(it.order_id ?? it.sequence_no ?? `${order?.external_order_id ?? ""}-${idx + 1}`);
       return {
         seq: idx + 1,
-        itemNo: String(it.order_id ?? it.sequence_no ?? `${order?.external_order_id ?? ""}-${idx + 1}`),
-        qr: orderNo ? `${orderNo}-${idx + 1}` : "",
+        itemNo,
+        qr: `${itemNo}-3`,
         color: it.tshirt_color ?? "",
         size: it.tshirt_size ?? "",
       };
     });
-  }, [order, orderNo]);
+  }, [order]);
+
 
   // ---- Saved inspections ----
   const { data: inspections } = useQuery({
@@ -313,7 +315,7 @@ export default function TshirtQualityDetail() {
                 <thead className="bg-muted/40 text-muted-foreground">
                   <tr>
                     <th className="text-left px-3 py-2 font-medium">#</th>
-                    <th className="text-left px-3 py-2 font-medium">{tr("고유번호", "唯一编号")}</th>
+                    <th className="text-left px-3 py-2 font-medium">{tr("스티커 고유번호", "贴纸唯一编号")}</th>
                     <th className="text-left px-3 py-2 font-medium">{tr("색상/사이즈", "颜色/尺码")}</th>
                     <th className="text-left px-3 py-2 font-medium">{tr("검사 항목", "检验项")}</th>
                     <th className="text-left px-3 py-2 font-medium">{tr("영상", "视频")}</th>
