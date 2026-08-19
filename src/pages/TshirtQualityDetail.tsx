@@ -201,6 +201,34 @@ export default function TshirtQualityDetail() {
     toast.success(tr("녹화 시작", "开始录像"), { description: item.qr });
   }, [items, recordingSeq]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 스캐너 입력 자동 처리 (Enter 없이도 인식) + 입력 포커스 자동 유지
+  const scanRef = useRef(handleScan);
+  useEffect(() => { scanRef.current = handleScan; }, [handleScan]);
+
+  useEffect(() => {
+    const v = scanValue.trim();
+    if (!v) return;
+    const t = setTimeout(() => {
+      const value = norm(v);
+      const matched = items.some((i) => norm(i.qr) === value || norm(i.itemNo) === value);
+      if (matched) scanRef.current(v);
+    }, 120);
+    return () => clearTimeout(t);
+  }, [scanValue, items]);
+
+  useEffect(() => {
+    const refocus = () => {
+      const el = document.activeElement as HTMLElement | null;
+      const tag = el?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || el?.isContentEditable) return;
+      inputRef.current?.focus();
+    };
+    const id = window.setInterval(refocus, 800);
+    window.addEventListener("click", refocus);
+    return () => { window.clearInterval(id); window.removeEventListener("click", refocus); };
+  }, []);
+
+
   // ---- Checklist persistence ----
   const saveChecks = useCallback(async (seq: number, checks: QcChecks, note?: string | null, result?: string) => {
     if (!orderId) return;
