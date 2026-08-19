@@ -61,15 +61,17 @@ export default function TshirtQualityDetail() {
     const count = Math.max(list.length, order?.quantity ?? 0);
     return Array.from({ length: count }, (_, idx) => {
       const it = list[idx] ?? {};
+      const itemNo = String(it.order_id ?? it.sequence_no ?? `${order?.external_order_id ?? ""}-${idx + 1}`);
       return {
         seq: idx + 1,
-        itemNo: String(it.order_id ?? it.sequence_no ?? `${order?.external_order_id ?? ""}-${idx + 1}`),
-        qr: orderNo ? `${orderNo}-${idx + 1}` : "",
+        itemNo,
+        qr: `${itemNo}-3`,
         color: it.tshirt_color ?? "",
         size: it.tshirt_size ?? "",
       };
     });
-  }, [order, orderNo]);
+  }, [order]);
+
 
   // ---- Saved inspections ----
   const { data: inspections } = useQuery({
