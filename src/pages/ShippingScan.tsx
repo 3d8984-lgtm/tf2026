@@ -462,12 +462,21 @@ export default function ShippingScan() {
     if (!shipment || !order) return;
 
     // Already scanned in this shipment?
-    if (items.some((i) => i.qr_value === qrValue && i.is_scanned)) {
+    const localDup = items.find((i) => i.qr_value === qrValue && i.is_scanned);
+    if (localDup) {
       scanDuplicate();
-      setFeedback({ kind: "duplicate", msg: tr("이미 스캔된 QR입니다", "该二维码已扫描") });
+      printWindow?.close();
+      const g = offerReprint((localDup as any).shipping_group_id);
+      setFeedback({
+        kind: "duplicate",
+        msg: g
+          ? tr("이미 출력됨 · 재인쇄 버튼을 눌러 다시 출력하세요", "已打印 · 请点击重新打印按钮")
+          : tr("이미 스캔된 QR입니다", "该二维码已扫描"),
+      });
       await logAction("duplicate", { qrValue });
       return;
     }
+
 
     // Fast path: the QR is already known locally (detail list / existing slots),
     // so skip the hologram master round-trip entirely.
