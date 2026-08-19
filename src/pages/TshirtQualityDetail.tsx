@@ -220,7 +220,7 @@ export default function TshirtQualityDetail() {
   // ---- Scan handling ----
   const [scanValue, setScanValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { inputRef.current?.focus(); }, [items.length]);
+  useEffect(() => { inputRef.current?.focus({ preventScroll: true }); }, [items.length]);
 
   const handleScan = useCallback((raw: string) => {
     const value = norm(raw);
@@ -288,7 +288,7 @@ export default function TshirtQualityDetail() {
       if (e.ctrlKey || e.metaKey || e.altKey || SCANNER_BLOCKED_KEYS.has(e.key)
         || e.key === "Control" || e.key === "Meta" || e.key === "Alt") {
         block();
-        inputRef.current?.focus();
+        inputRef.current?.focus({ preventScroll: true });
         return;
       }
 
@@ -301,7 +301,7 @@ export default function TshirtQualityDetail() {
         const value = bufferRef.current || scanValueRef.current;
         bufferRef.current = "";
         scanRef.current(value);
-        inputRef.current?.focus();
+        inputRef.current?.focus({ preventScroll: true });
         return;
       }
       if (e.key === "Backspace" || e.code === "Backspace") {
@@ -315,7 +315,7 @@ export default function TshirtQualityDetail() {
         block();
         bufferRef.current += ch;
         setScanValue(bufferRef.current);
-        inputRef.current?.focus();
+        inputRef.current?.focus({ preventScroll: true });
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
@@ -336,9 +336,11 @@ export default function TshirtQualityDetail() {
   useEffect(() => {
     const refocus = () => {
       const el = document.activeElement as HTMLElement | null;
-      const tag = el?.tagName?.toLowerCase();
-      if (tag === "input" || tag === "textarea" || el?.isContentEditable) return;
-      inputRef.current?.focus();
+      // Keep focus on controls being operated. Scanner keystrokes are captured
+      // globally, so moving focus away from a checkbox is unnecessary and
+      // previously caused the page to jump back to the scan field.
+      if (el && el !== document.body && el !== document.documentElement) return;
+      inputRef.current?.focus({ preventScroll: true });
     };
     const id = window.setInterval(refocus, 800);
     window.addEventListener("click", refocus);
