@@ -247,7 +247,7 @@ export default function TshirtWork() {
   // Convert DB orders to local OrderData format
   const dbOrderData = useMemo<OrderData[]>(() => {
     if (!dbOrders) return [];
-    const sorted = [...dbOrders].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    const sorted = [...dbOrders].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     const dateCounters: Record<string, number> = {};
     return sorted.map(o => {
       const d = new Date(o.created_at);
