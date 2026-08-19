@@ -1629,6 +1629,62 @@ export type Database = {
           },
         ]
       }
+      tshirt_quality_inspections: {
+        Row: {
+          checks: Json
+          created_at: string
+          id: string
+          inspected_at: string | null
+          inspected_by: string | null
+          item_no: string | null
+          note: string | null
+          order_id: string
+          qr_value: string | null
+          result: string
+          seq: number
+          updated_at: string
+          video_path: string | null
+        }
+        Insert: {
+          checks?: Json
+          created_at?: string
+          id?: string
+          inspected_at?: string | null
+          inspected_by?: string | null
+          item_no?: string | null
+          note?: string | null
+          order_id: string
+          qr_value?: string | null
+          result?: string
+          seq: number
+          updated_at?: string
+          video_path?: string | null
+        }
+        Update: {
+          checks?: Json
+          created_at?: string
+          id?: string
+          inspected_at?: string | null
+          inspected_by?: string | null
+          item_no?: string | null
+          note?: string | null
+          order_id?: string
+          qr_value?: string | null
+          result?: string
+          seq?: number
+          updated_at?: string
+          video_path?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tshirt_quality_inspections_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tshirt_work_items: {
         Row: {
           completed_at: string | null
