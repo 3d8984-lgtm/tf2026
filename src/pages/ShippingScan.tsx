@@ -519,18 +519,7 @@ export default function ShippingScan() {
       return;
     }
 
-  }
 
-  /** Marks a shipping group as reprintable when its label was already issued. */
-  function offerReprint(groupId: string | null | undefined): ShippingGroupRow | null {
-    if (!groupId) return null;
-    const g = groupById.get(groupId);
-    if (!g || g.label_status !== "ready" || !g.label_url) return null;
-    setReprintGroup(g);
-    return g;
-  }
-
-  {
 
 
     // Fill next empty slot
