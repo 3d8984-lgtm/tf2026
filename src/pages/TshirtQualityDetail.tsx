@@ -304,7 +304,7 @@ export default function TshirtQualityDetail() {
     );
   }
 
-  const doneCount = items.filter((i) => qcIsComplete(bySeq[i.seq]?.checks)).length;
+  const doneCount = items.filter((i) => qcIsComplete(checksOf(i.seq))).length;
   const failCount = items.filter((i) => bySeq[i.seq]?.result === "fail").length;
 
   return (
