@@ -1246,10 +1246,27 @@ export default function ShippingScan() {
     return (
       <Alert className={`${map[feedback.kind]} border`}>
         <Icon className="w-4 h-4" />
-        <AlertDescription className="font-medium">{feedback.msg}</AlertDescription>
+        <AlertDescription className="font-medium flex items-center justify-between gap-3">
+          <span>{feedback.msg}</span>
+          {reprintGroup && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const g = reprintGroup;
+                setReprintGroup(null);
+                void printPreIssuedLabel(g);
+              }}
+            >
+              <Printer className="w-4 h-4 mr-1" />
+              {tr("재인쇄", "重新打印")}
+            </Button>
+          )}
+        </AlertDescription>
       </Alert>
     );
-  }, [feedback]);
+  }, [feedback, reprintGroup]);
+
 
   if (isLoading) return <div className="p-8 text-center text-muted-foreground">{tr("불러오는 중...", "加载中...")}</div>;
   if (!shipment) return (
