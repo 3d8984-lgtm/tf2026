@@ -361,7 +361,7 @@ export default function TshirtQualityDetail() {
                 <tbody>
                   {items.map((i) => {
                     const row = bySeq[i.seq];
-                    const cnt = qcCheckedCount(row?.checks);
+                    const cnt = qcCheckedCount(checksOf(i.seq));
                     const takes = videos?.[i.qr] ?? [];
                     return (
                       <tr
