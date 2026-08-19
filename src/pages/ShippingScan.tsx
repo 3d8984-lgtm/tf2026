@@ -507,11 +507,31 @@ export default function ShippingScan() {
       .maybeSingle();
     if (dupRow) {
       scanDuplicate();
-      setFeedback({ kind: "duplicate", msg: tr("중복 스캔 · 이미 확인된 제품입니다", "重复扫描 · 该产品已确认") });
       printWindow?.close();
+      const g = offerReprint((dupRow as any).shipping_group_id);
+      setFeedback({
+        kind: "duplicate",
+        msg: g
+          ? tr("이미 출력됨 · 재인쇄 버튼을 눌러 다시 출력하세요", "已打印 · 请点击重新打印按钮")
+          : tr("중복 스캔 · 이미 확인된 제품입니다", "重复扫描 · 该产品已确认"),
+      });
       void logAction("scan_duplicate", { qrValue, position: dupRow.position });
       return;
     }
+
+  }
+
+  /** Marks a shipping group as reprintable when its label was already issued. */
+  function offerReprint(groupId: string | null | undefined): ShippingGroupRow | null {
+    if (!groupId) return null;
+    const g = groupById.get(groupId);
+    if (!g || g.label_status !== "ready" || !g.label_url) return null;
+    setReprintGroup(g);
+    return g;
+  }
+
+  {
+
 
     // Fill next empty slot
     const slot = items.find((i) => !i.is_scanned);
