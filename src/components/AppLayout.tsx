@@ -5,7 +5,7 @@ import {
   Shirt, Activity, AlertTriangle, Settings,
   ChevronLeft, ChevronRight, ScanLine, Globe, LogOut, Truck, Search, BookOpen, QrCode, Camera,
   Factory, ClipboardList, Stamp, Printer, Sparkles, CreditCard, Image as ImageIcon, History, Cog, Loader2, PackageOpen,
-  SlidersHorizontal, ArrowUp, ArrowDown, RotateCcw,
+  SlidersHorizontal, ArrowUp, ArrowDown, RotateCcw, ShieldCheck,
 } from "lucide-react";
 import { useLang, type Lang } from "@/contexts/LangContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -44,6 +44,7 @@ const menuKeys: MenuItem[] = [
   { path: "/card-barcode-print", icon: Printer, key: "menu.cardBarcodePrint", section: "hq" },
   { path: "/tshirt-barcode-print", icon: Printer, key: "menu.tshirtBarcodePrint", section: "hq" },
   { path: "/tshirt-work", icon: ScanLine, key: "menu.tshirtWork", section: "hq" },
+  { path: "/tshirt-quality", icon: ShieldCheck, key: "menu.tshirtQuality", section: "hq" },
   { path: "/set-qr-inspect", icon: PackageOpen, key: "menu.setQrInspect", section: "hq" },
   { path: "/monitor", icon: Activity, key: "menu.monitor", section: "hq", children: [
     { label: { ko: "주문 관리", zh: "订单管理" }, tab: "orders" },
