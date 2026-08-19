@@ -602,6 +602,17 @@ export default function ShippingScan() {
     void printPreIssuedLabel(group, printWindow);
   }
 
+  /** Marks a shipping group as reprintable when its label was already issued. */
+  function offerReprint(groupId: string | null | undefined): ShippingGroupRow | null {
+    if (!groupId) return null;
+    const g = groupById.get(groupId) ?? null;
+    if (!g || g.label_status !== "ready" || !g.label_url) return null;
+    setReprintGroup(g);
+    return g;
+  }
+
+
+
   // Prints the waybill that was issued BEFORE packing started. No carrier API here.
   async function printPreIssuedLabel(group: ShippingGroupRow, printWindow?: Window | null) {
     if (group.label_status !== "ready" || !group.label_url) {
