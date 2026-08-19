@@ -447,6 +447,8 @@ export default function ShippingScan() {
     const now = Date.now();
     if (lastScanRef.current.value === qrValue && now - lastScanRef.current.at < 1500) return;
     lastScanRef.current = { value: qrValue, at: now };
+    setReprintGroup(null);
+
 
     // 🧪 Intercept TEST QR — bypass DB lookup, render label and open printer.
     if (qrValue === TEST_QR_VALUE) {
