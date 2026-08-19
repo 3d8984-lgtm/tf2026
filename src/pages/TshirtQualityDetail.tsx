@@ -94,9 +94,13 @@ export default function TshirtQualityDetail() {
   }, [inspections]);
 
   const [activeSeq, setActiveSeq] = useState<number | null>(null);
+  const [localChecks, setLocalChecks] = useState<Record<number, QcChecks>>({});
   const active = items.find((i) => i.seq === activeSeq) ?? null;
   const activeRow = activeSeq != null ? bySeq[activeSeq] : null;
-  const activeChecks: QcChecks = (activeRow?.checks as QcChecks) ?? {};
+  const checksOf = (seq: number): QcChecks =>
+    localChecks[seq] ?? ((bySeq[seq]?.checks as QcChecks) ?? {});
+  const activeChecks: QcChecks = activeSeq != null ? checksOf(activeSeq) : {};
+
 
   // ---- Recording ----
   const folder = order?.external_order_id ?? "";
