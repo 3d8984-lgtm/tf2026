@@ -315,7 +315,7 @@ export default function TshirtQualityDetail() {
                 <thead className="bg-muted/40 text-muted-foreground">
                   <tr>
                     <th className="text-left px-3 py-2 font-medium">#</th>
-                    <th className="text-left px-3 py-2 font-medium">{tr("고유번호", "唯一编号")}</th>
+                    <th className="text-left px-3 py-2 font-medium">{tr("스티커 고유번호", "贴纸唯一编号")}</th>
                     <th className="text-left px-3 py-2 font-medium">{tr("색상/사이즈", "颜色/尺码")}</th>
                     <th className="text-left px-3 py-2 font-medium">{tr("검사 항목", "检验项")}</th>
                     <th className="text-left px-3 py-2 font-medium">{tr("영상", "视频")}</th>
