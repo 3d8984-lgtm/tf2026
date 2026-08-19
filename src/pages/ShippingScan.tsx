@@ -315,6 +315,9 @@ export default function ShippingScan() {
   const scannerDivId = "shipping-qr-reader";
   const lastScanRef = useRef<{ value: string; at: number }>({ value: "", at: 0 });
   const hidBufRef = useRef<{ buf: string; lastAt: number }>({ buf: "", lastAt: 0 });
+  // Group whose label was already printed — offers a manual reprint button.
+  const [reprintGroup, setReprintGroup] = useState<ShippingGroupRow | null>(null);
+
 
   // ---- Scan → print timing profiler (console.table) -------------------------
   const perfRef = useRef<{ t0: number; rows: { step: string; ms: number }[] }>({ t0: 0, rows: [] });
