@@ -15,8 +15,10 @@ import { scanSuccess, scanFail } from "@/lib/scan-sound";
 import WorkCamRecorder from "@/components/WorkCamRecorder";
 import { useOrderNoMap } from "@/hooks/useOrderNoMap";
 import { QC_GROUPS, QC_TOTAL, qcCheckedCount, qcIsComplete, qcKey, type QcChecks } from "@/lib/tshirt-quality";
+import { latinCharFromEvent, normalizeScan, SCANNER_BLOCKED_KEYS } from "@/lib/scan-keys";
 import {
   ChevronLeft, ScanLine, Loader2, CheckCircle2, XCircle, Circle, Video, Play, AlertTriangle,
+  QrCode, Hash, Image as ImageIcon,
 } from "lucide-react";
 
 interface Item {
@@ -25,9 +27,11 @@ interface Item {
   qr: string;
   color: string;
   size: string;
+  designUrl: string | null;
+  twincodeUrl: string | null;
 }
 
-const norm = (v: string) => (v || "").trim().toUpperCase();
+const norm = normalizeScan;
 
 export default function TshirtQualityDetail() {
   const { orderId } = useParams<{ orderId: string }>();
@@ -68,10 +72,40 @@ export default function TshirtQualityDetail() {
         qr: `${itemNo}-3`,
         color: it.tshirt_color ?? "",
         size: it.tshirt_size ?? "",
+        designUrl: it.gft_original_image_url ?? it.design_image_url ?? null,
+        twincodeUrl: it.twincode_svg_url ?? it.twincode_url ?? null,
       };
     });
   }, [order]);
 
+  const folder = order?.external_order_id ?? "";
+
+  // ---- Reference images (design / twincode) from storage, same as the attach workstation ----
+  const { data: designImageFiles } = useQuery({
+    queryKey: ["qc_design_images", folder],
+    enabled: !!folder,
+    queryFn: async () => {
+      const { data: files } = await supabase.storage.from("design-images").list(folder);
+      const map: Record<string, string> = {};
+      for (const f of files ?? []) {
+        map[f.name.replace(/\.[^.]+$/, "")] = supabase.storage.from("design-images").getPublicUrl(`${folder}/${f.name}`).data.publicUrl;
+      }
+      return map;
+    },
+  });
+
+  const { data: twincodeImageFiles } = useQuery({
+    queryKey: ["qc_twincode_images", folder],
+    enabled: !!folder,
+    queryFn: async () => {
+      const { data: files } = await supabase.storage.from("twincode-images").list(folder);
+      const map: Record<string, string> = {};
+      for (const f of files ?? []) {
+        map[f.name.replace(/\.[^.]+$/, "")] = supabase.storage.from("twincode-images").getPublicUrl(`${folder}/${f.name}`).data.publicUrl;
+      }
+      return map;
+    },
+  });
 
   // ---- Saved inspections ----
   const { data: inspections } = useQuery({
@@ -100,10 +134,25 @@ export default function TshirtQualityDetail() {
   const checksOf = (seq: number): QcChecks =>
     localChecks[seq] ?? ((bySeq[seq]?.checks as QcChecks) ?? {});
   const activeChecks: QcChecks = activeSeq != null ? checksOf(activeSeq) : {};
+  const activePass = activeSeq != null && activeRow?.result !== "fail" && qcIsComplete(activeChecks);
+  const activeFail = activeRow?.result === "fail";
 
+  const [zoomed, setZoomed] = useState<{ src: string; alt: string } | null>(null);
+
+  const refFor = (item: Item) => {
+    const dCands = [`${item.itemNo}-2`, item.itemNo, String(item.seq)];
+    const dKey = dCands.find((c) => c && designImageFiles?.[c]);
+    const tCands = [item.itemNo, `${item.itemNo}-2`, String(item.seq)];
+    const tKey = tCands.find((c) => c && twincodeImageFiles?.[c]);
+    return {
+      design: (dKey && designImageFiles?.[dKey]) || item.designUrl || null,
+      designKey: dKey ?? `${item.itemNo}-2`,
+      twincode: (tKey && twincodeImageFiles?.[tKey]) || item.twincodeUrl || null,
+      twincodeKey: tKey ?? item.itemNo,
+    };
+  };
 
   // ---- Recording ----
-  const folder = order?.external_order_id ?? "";
   const [recordingSeq, setRecordingSeq] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
   const recordTargetRef = useRef<{ seq: number; qr: string } | null>(null);
@@ -205,7 +254,7 @@ export default function TshirtQualityDetail() {
     toast.success(tr("녹화 시작", "开始录像"), { description: item.qr });
   }, [items, recordingSeq]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 스캐너 입력 자동 처리 (Enter 없이도 인식) + 입력 포커스 자동 유지
+  // 스캐너 입력 자동 처리 (Enter 없이도 인식)
   const scanRef = useRef(handleScan);
   useEffect(() => { scanRef.current = handleScan; }, [handleScan]);
 
@@ -219,6 +268,70 @@ export default function TshirtQualityDetail() {
     }, 120);
     return () => clearTimeout(t);
   }, [scanValue, items]);
+
+  // ---- Global scanner capture (IME-proof, works even when input lost focus) ----
+  const bufferRef = useRef("");
+  const lastKeyRef = useRef(0);
+  const scanValueRef = useRef("");
+  useEffect(() => { scanValueRef.current = scanValue; }, [scanValue]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      const editable = el && (el.isContentEditable || el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && el !== inputRef.current));
+      if (editable || e.isComposing || e.key === "Process" || (e as any).keyCode === 229) return;
+
+      const block = () => { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); };
+
+      // Scanner prefix/suffix keys (Ctrl+F, Tab, F-keys…) must never reach
+      // browser search / sidebar shortcuts while the workstation is active.
+      if (e.ctrlKey || e.metaKey || e.altKey || SCANNER_BLOCKED_KEYS.has(e.key)
+        || e.key === "Control" || e.key === "Meta" || e.key === "Alt") {
+        block();
+        inputRef.current?.focus();
+        return;
+      }
+
+      const now = Date.now();
+      if (now - lastKeyRef.current > 1000) bufferRef.current = "";
+      lastKeyRef.current = now;
+
+      if (e.key === "Enter" || e.code === "Enter" || e.code === "NumpadEnter") {
+        block();
+        const value = bufferRef.current || scanValueRef.current;
+        bufferRef.current = "";
+        scanRef.current(value);
+        inputRef.current?.focus();
+        return;
+      }
+      if (e.key === "Backspace" || e.code === "Backspace") {
+        block();
+        bufferRef.current = bufferRef.current.slice(0, -1);
+        setScanValue(bufferRef.current);
+        return;
+      }
+      const ch = latinCharFromEvent(e);
+      if (ch) {
+        block();
+        bufferRef.current += ch;
+        setScanValue(bufferRef.current);
+        inputRef.current?.focus();
+      }
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.isContentEditable || el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && el !== inputRef.current))) return;
+      if (e.ctrlKey || e.metaKey || e.altKey || SCANNER_BLOCKED_KEYS.has(e.key) || e.key === "Control" || e.key === "Meta" || e.key === "Alt") {
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener("keyup", onKeyUp, true);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("keyup", onKeyUp, true);
+    };
+  }, []);
 
   useEffect(() => {
     const refocus = () => {
@@ -254,15 +367,34 @@ export default function TshirtQualityDetail() {
       toast.error(tr("검사 결과 저장 실패", "检验结果保存失败"), { description: error.message });
       return;
     }
+    if (result === "fail") {
+      const { error: logErr } = await supabase.from("defect_logs").insert({
+        source: "tshirt_quality",
+        order_id: orderId,
+        external_order_id: folder || null,
+        item_no: item?.itemNo ?? null,
+        seq,
+        defect_type: "quality_fail",
+        severity: "medium",
+        occurred_process: isKo ? "티셔츠 품질 검사" : "T恤品质检验",
+        detail: note ?? null,
+        status: "rework_queued",
+        restart_stage: "tshirt",
+        created_by: auth.user?.id ?? null,
+      });
+      if (logErr) toast.error(tr("불량 로그 기록 실패", "不良日志记录失败"), { description: logErr.message });
+      else queryClient.invalidateQueries({ queryKey: ["defect_logs"] });
+    }
     queryClient.invalidateQueries({ queryKey: ["tshirt_quality_inspections", orderId] });
     queryClient.invalidateQueries({ queryKey: ["tshirt_quality_inspections_summary"] });
-  }, [orderId, items, bySeq, queryClient]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [orderId, items, bySeq, queryClient, folder, isKo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleCheck = (group: string, check: string, on: boolean) => {
     if (activeSeq == null) return;
     const seq = activeSeq;
     const next = { ...checksOf(seq), [qcKey(group, check)]: on };
     setLocalChecks((prev) => ({ ...prev, [seq]: next }));
+    if (on && qcIsComplete(next) && bySeq[seq]?.result !== "fail") scanSuccess();
     saveChecks(seq, next, undefined, bySeq[seq]?.result === "fail" ? "fail" : undefined);
   };
 
@@ -272,6 +404,7 @@ export default function TshirtQualityDetail() {
     const next: QcChecks = {};
     for (const g of QC_GROUPS) for (const c of g.checks) next[qcKey(g.key, c.key)] = on;
     setLocalChecks((prev) => ({ ...prev, [seq]: next }));
+    if (on) scanSuccess();
     saveChecks(seq, next);
   };
 
@@ -304,26 +437,52 @@ export default function TshirtQualityDetail() {
     );
   }
 
-  const doneCount = items.filter((i) => qcIsComplete(checksOf(i.seq))).length;
+  const doneCount = items.filter((i) => qcIsComplete(checksOf(i.seq)) && bySeq[i.seq]?.result !== "fail").length;
   const failCount = items.filter((i) => bySeq[i.seq]?.result === "fail").length;
+  const pct = items.length > 0 ? Math.round((doneCount / items.length) * 100) : 0;
+  const activeRef = active ? refFor(active) : null;
 
   return (
     <div className="flex flex-col h-full">
       <PageHeader
         title={tr("티셔츠 품질 검사", "T恤品质检验")}
-        description={`${order.external_order_id} · ${order.recipient_name} · ${tr("검사 완료", "已完成")} ${doneCount}/${items.length}`}
+        description={`${orderNo ? orderNo + " · " : ""}${order.external_order_id} · ${order.recipient_name} · ${tr("검사 완료", "已完成")} ${doneCount}/${items.length}`}
       />
       <div className="flex-1 overflow-auto p-4 md:p-6 space-y-4">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3 flex-wrap">
           <Button variant="outline" size="sm" onClick={() => navigate("/tshirt-quality")}>
             <ChevronLeft className="w-4 h-4 mr-1" />{tr("주문 목록", "订单列表")}
           </Button>
+          <div className="flex items-center gap-2 min-w-[180px]">
+            <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${doneCount >= items.length && items.length > 0 ? "bg-[hsl(var(--success))]" : "bg-primary"}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <span className="text-xs tabular-nums text-muted-foreground w-14 text-right">{doneCount}/{items.length}</span>
+          </div>
           {failCount > 0 && (
             <Badge variant="destructive" className="gap-1">
               <AlertTriangle className="w-3 h-3" />{tr("불량", "不良")} {failCount}
             </Badge>
           )}
         </div>
+
+        {/* Large O/X indicator for the active item */}
+        {active && (activePass || activeFail) && (
+          <div className={`rounded-xl border-2 p-5 flex items-center gap-5 ${activeFail ? "border-destructive bg-destructive/5" : "border-[hsl(var(--success))] bg-[hsl(var(--success)/0.06)]"}`}>
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center text-3xl font-black ${activeFail ? "bg-destructive/10 text-destructive" : "bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]"}`}>
+              {activeFail ? "X" : "O"}
+            </div>
+            <div>
+              <p className={`text-lg font-bold ${activeFail ? "text-destructive" : "text-[hsl(var(--success))]"}`}>
+                {activeFail ? tr("불량 판정", "判定不良") : tr("검사 합격", "检验合格")}
+              </p>
+              <p className="text-sm text-muted-foreground mt-0.5 font-mono">{active.qr}</p>
+            </div>
+          </div>
+        )}
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
           {/* Left: item list + checklist */}
@@ -347,6 +506,36 @@ export default function TshirtQualityDetail() {
               </p>
             </div>
 
+            {/* Reference images for the active item */}
+            {active && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {([
+                  { title: tr("디자인 확인", "设计确认"), url: activeRef?.design ?? null, key: activeRef?.designKey ?? "", Icon: QrCode, alt: "Design" },
+                  { title: tr("트윈코드 확인", "TwinCode确认"), url: activeRef?.twincode ?? null, key: activeRef?.twincodeKey ?? "", Icon: Hash, alt: "TwinCode" },
+                ]).map(({ title, url, key, Icon, alt }) => (
+                  <div key={alt} className="kpi-card flex flex-col min-h-[180px]">
+                    <h3 className="text-sm font-medium mb-3 flex items-center gap-2"><Icon className="w-4 h-4" />{title}</h3>
+                    {url ? (
+                      <div className="flex-1 flex flex-col items-center justify-center gap-2">
+                        <div
+                          className="w-28 h-28 rounded-lg border-2 border-border bg-muted/40 flex items-center justify-center overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/40 transition-shadow"
+                          onClick={() => setZoomed({ src: url, alt })}
+                        >
+                          <img src={url} alt={alt} loading="lazy" className="max-w-full max-h-full object-contain" />
+                        </div>
+                        <span className="text-xs text-muted-foreground">{tr("클릭하여 확대", "点击放大")} · <span className="font-mono">{key}</span></span>
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
+                        <ImageIcon className="w-8 h-8 opacity-30" />
+                        <p className="text-xs">{tr("이미지 없음", "无图片")}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="rounded-lg border bg-card overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-muted/40 text-muted-foreground">
@@ -366,7 +555,7 @@ export default function TshirtQualityDetail() {
                     return (
                       <tr
                         key={i.seq}
-                        className={`border-t cursor-pointer hover:bg-muted/20 ${activeSeq === i.seq ? "bg-primary/5" : ""}`}
+                        className={`border-t cursor-pointer hover:bg-muted/20 ${row?.result === "fail" ? "bg-destructive/10 hover:bg-destructive/15" : activeSeq === i.seq ? "bg-primary/5" : ""}`}
                         onClick={() => setActiveSeq(i.seq)}
                       >
                         <td className="px-3 py-2">{i.seq}</td>
@@ -456,7 +645,7 @@ export default function TshirtQualityDetail() {
                     <Button size="sm" onClick={() => saveChecks(active.seq, activeChecks, note)}>
                       {tr("저장", "保存")}
                     </Button>
-                    <Button size="sm" variant="destructive" onClick={() => saveChecks(active.seq, activeChecks, note, "fail")}>
+                    <Button size="sm" variant="destructive" onClick={() => { scanFail(); saveChecks(active.seq, activeChecks, note, "fail"); }}>
                       <XCircle className="w-4 h-4 mr-1" />{tr("불량 처리", "判定不良")}
                     </Button>
                     {activeRow?.result === "fail" && (
@@ -484,6 +673,13 @@ export default function TshirtQualityDetail() {
           </div>
         </div>
       </div>
+
+      <Dialog open={!!zoomed} onOpenChange={(o) => !o && setZoomed(null)}>
+        <DialogContent className="max-w-3xl p-2 bg-background">
+          <DialogHeader><DialogTitle className="sr-only">{zoomed?.alt}</DialogTitle></DialogHeader>
+          {zoomed && <img src={zoomed.src} alt={zoomed.alt} className="w-full max-h-[80vh] object-contain" />}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!playing} onOpenChange={(o) => !o && setPlaying(null)}>
         <DialogContent className="max-w-3xl">
