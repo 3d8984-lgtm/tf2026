@@ -315,6 +315,9 @@ export default function ShippingScan() {
   const scannerDivId = "shipping-qr-reader";
   const lastScanRef = useRef<{ value: string; at: number }>({ value: "", at: 0 });
   const hidBufRef = useRef<{ buf: string; lastAt: number }>({ buf: "", lastAt: 0 });
+  // Group whose label was already printed — offers a manual reprint button.
+  const [reprintGroup, setReprintGroup] = useState<ShippingGroupRow | null>(null);
+
 
   // ---- Scan → print timing profiler (console.table) -------------------------
   const perfRef = useRef<{ t0: number; rows: { step: string; ms: number }[] }>({ t0: 0, rows: [] });
@@ -444,6 +447,8 @@ export default function ShippingScan() {
     const now = Date.now();
     if (lastScanRef.current.value === qrValue && now - lastScanRef.current.at < 1500) return;
     lastScanRef.current = { value: qrValue, at: now };
+    setReprintGroup(null);
+
 
     // 🧪 Intercept TEST QR — bypass DB lookup, render label and open printer.
     if (qrValue === TEST_QR_VALUE) {
@@ -457,12 +462,21 @@ export default function ShippingScan() {
     if (!shipment || !order) return;
 
     // Already scanned in this shipment?
-    if (items.some((i) => i.qr_value === qrValue && i.is_scanned)) {
+    const localDup = items.find((i) => i.qr_value === qrValue && i.is_scanned);
+    if (localDup) {
       scanDuplicate();
-      setFeedback({ kind: "duplicate", msg: tr("이미 스캔된 QR입니다", "该二维码已扫描") });
+      printWindow?.close();
+      const g = offerReprint((localDup as any).shipping_group_id);
+      setFeedback({
+        kind: "duplicate",
+        msg: g
+          ? tr("이미 출력됨 · 재인쇄 버튼을 눌러 다시 출력하세요", "已打印 · 请点击重新打印按钮")
+          : tr("이미 스캔된 QR입니다", "该二维码已扫描"),
+      });
       await logAction("duplicate", { qrValue });
       return;
     }
+
 
     // Fast path: the QR is already known locally (detail list / existing slots),
     // so skip the hologram master round-trip entirely.
@@ -493,11 +507,20 @@ export default function ShippingScan() {
       .maybeSingle();
     if (dupRow) {
       scanDuplicate();
-      setFeedback({ kind: "duplicate", msg: tr("중복 스캔 · 이미 확인된 제품입니다", "重复扫描 · 该产品已确认") });
       printWindow?.close();
+      const g = offerReprint((dupRow as any).shipping_group_id);
+      setFeedback({
+        kind: "duplicate",
+        msg: g
+          ? tr("이미 출력됨 · 재인쇄 버튼을 눌러 다시 출력하세요", "已打印 · 请点击重新打印按钮")
+          : tr("중복 스캔 · 이미 확인된 제품입니다", "重复扫描 · 该产品已确认"),
+      });
       void logAction("scan_duplicate", { qrValue, position: dupRow.position });
       return;
     }
+
+
+
 
     // Fill next empty slot
     const slot = items.find((i) => !i.is_scanned);
@@ -578,6 +601,17 @@ export default function ShippingScan() {
     void logAction("scan_group_completed", { shipping_group_id: group.id, required });
     void printPreIssuedLabel(group, printWindow);
   }
+
+  /** Marks a shipping group as reprintable when its label was already issued. */
+  function offerReprint(groupId: string | null | undefined): ShippingGroupRow | null {
+    if (!groupId) return null;
+    const g = groupById.get(groupId) ?? null;
+    if (!g || g.label_status !== "ready" || !g.label_url) return null;
+    setReprintGroup(g);
+    return g;
+  }
+
+
 
   // Prints the waybill that was issued BEFORE packing started. No carrier API here.
   async function printPreIssuedLabel(group: ShippingGroupRow, printWindow?: Window | null) {
@@ -1212,10 +1246,27 @@ export default function ShippingScan() {
     return (
       <Alert className={`${map[feedback.kind]} border`}>
         <Icon className="w-4 h-4" />
-        <AlertDescription className="font-medium">{feedback.msg}</AlertDescription>
+        <AlertDescription className="font-medium flex items-center justify-between gap-3">
+          <span>{feedback.msg}</span>
+          {reprintGroup && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const g = reprintGroup;
+                setReprintGroup(null);
+                void printPreIssuedLabel(g);
+              }}
+            >
+              <Printer className="w-4 h-4 mr-1" />
+              {tr("재인쇄", "重新打印")}
+            </Button>
+          )}
+        </AlertDescription>
       </Alert>
     );
-  }, [feedback]);
+  }, [feedback, reprintGroup]);
+
 
   if (isLoading) return <div className="p-8 text-center text-muted-foreground">{tr("불러오는 중...", "加载中...")}</div>;
   if (!shipment) return (
