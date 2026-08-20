@@ -500,7 +500,7 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
 
   const item = Array.isArray(raw?.Item) ? raw.Item[0] : raw?.Item ?? raw?.Data?.[0] ?? null;
   const tracking = item?.TrackingNumber ?? item?.WayBillNumber ?? raw?.TrackingNumber ?? null;
-  const label = item?.LabelUrl ?? item?.ShippingLabelUrl ?? null;
+  let label = item?.LabelUrl ?? item?.ShippingLabelUrl ?? null;
   if (!res.ok || !tracking) {
     return {
       tracking_number: null,
@@ -508,6 +508,21 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
       raw,
       error: item?.Message ?? raw?.ResultDesc ?? raw?.Message ?? `HTTP ${res.status}`,
     };
+  }
+  // 구버전 응답에 라벨 URL이 없으면 신버전 OpenAPI 라벨 조회를 시도한다.
+  if (!label && tracking) {
+    try {
+      label = await fetchYunLabel(
+        base,
+        btoa(`${cred?.account_no ?? ""}&${cred?.api_key ?? ""}`),
+        [tracking].filter(Boolean) as string[],
+        {
+          base: cred?.extra?.openapi_url ?? cfg?.extra?.openapi_url,
+          token: cred?.extra?.openapi_app_id ?? cred?.extra?.openapi_token ?? cred?.extra?.token,
+          secret: cred?.extra?.openapi_app_secret ?? cred?.extra?.openapi_secret ?? cred?.extra?.secret,
+        },
+      );
+    } catch { /* ignore — status below reflects the outcome */ }
   }
   return { tracking_number: tracking, label_url: label, raw };
 }
