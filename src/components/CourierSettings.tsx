@@ -28,6 +28,9 @@ const emptyCred = {
   account_no: "",
   channel_code: "",
   access_token: "",
+  // YunExpress 신버전 OpenAPI (openapi.yunexpress.cn) 라벨 PDF 조회용
+  openapi_app_id: "",
+  openapi_app_secret: "",
   // 발송인 정보
   sender_name: "",
   sender_company: "",
@@ -125,6 +128,8 @@ export default function CourierSettings() {
       account_no: credExtra.account_no ?? "",
       channel_code: s("channel_code") || s("logistics_product_code"),
       access_token: s("access_token"),
+      openapi_app_id: s("openapi_app_id") || s("openapi_token") || s("token"),
+      openapi_app_secret: s("openapi_app_secret") || s("openapi_secret") || s("secret"),
       sender_name: s("sender_name"),
       sender_company: s("sender_company"),
       sender_phone: s("sender_phone"),
@@ -177,6 +182,19 @@ export default function CourierSettings() {
       };
       put("channel_code", cred.channel_code);
       put("access_token", cred.access_token);
+      put("openapi_app_id", cred.openapi_app_id);
+      put("openapi_app_secret", cred.openapi_app_secret);
+      // 하위 호환: 기존 키도 동기화
+      if (cred.openapi_app_id.trim()) {
+        extra.openapi_token = cred.openapi_app_id.trim();
+      } else {
+        delete extra.openapi_token;
+      }
+      if (cred.openapi_app_secret.trim()) {
+        extra.openapi_secret = cred.openapi_app_secret.trim();
+      } else {
+        delete extra.openapi_secret;
+      }
       put("sender_name", cred.sender_name);
       put("sender_company", cred.sender_company);
       put("sender_phone", cred.sender_phone);
@@ -401,6 +419,27 @@ export default function CourierSettings() {
                 </p>
               )}
             </div>
+
+            {credDialog?.code === "yunexpress" && (
+              <div className="rounded-md border border-dashed p-3 space-y-3 bg-muted/30">
+                <p className="text-sm font-medium">{tr("YunExpress 신버전 OpenAPI (라벨 PDF 조회용)", "云途新版 OpenAPI（用于查询标签 PDF）")}</p>
+                <div className="space-y-2">
+                  <Label>{tr("OpenAPI AppId (Token)", "OpenAPI AppId (Token)")}</Label>
+                  <Input name="yun-openapi-app-id" autoComplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" value={cred.openapi_app_id} onChange={(e) => setCred((c) => ({ ...c, openapi_app_id: e.target.value }))} placeholder="6387f82c8548" />
+                  <p className="text-xs text-muted-foreground">
+                    {tr("메일로 받은 appId 값. openapi.yunexpress.cn 의 token 헤더에 사용됩니다.", "邮件中的 appId，对应 openapi.yunexpress.cn 请求头中的 token。")}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>{tr("OpenAPI AppSecret", "OpenAPI AppSecret")}</Label>
+                  <Input type="password" name="yun-openapi-app-secret" autoComplete="new-password" data-1p-ignore data-lpignore="true" data-form-type="other" value={cred.openapi_app_secret} onChange={(e) => setCred((c) => ({ ...c, openapi_app_secret: e.target.value }))} placeholder="0f6d46a78295..." />
+                  <p className="text-xs text-muted-foreground">
+                    {tr("메일로 받은 appSecret 값. 라벨 조회 API 서명(sign) 생성에 사용됩니다.", "邮件中的 appSecret，用于生成标签查询 API 的 sign 签名。")}
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>
                 {credDialog?.code === "yunexpress"
