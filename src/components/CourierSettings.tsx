@@ -447,6 +447,16 @@ export default function CourierSettings() {
                     {tr("메일로 받은 appSecret 값. 라벨 조회 API 서명(sign) 생성에 사용됩니다.", "邮件中的 appSecret，用于生成标签查询 API 的 sign 签名。")}
                   </p>
                 </div>
+                <div className="space-y-2">
+                  <Label>{tr("OpenAPI Access Token (직접 입력)", "OpenAPI Access Token (手动填写)")}</Label>
+                  <Input type="password" name="yun-openapi-access-token" autoComplete="new-password" data-1p-ignore data-lpignore="true" data-form-type="other" value={cred.openapi_access_token} onChange={(e) => setCred((c) => ({ ...c, openapi_access_token: e.target.value }))} placeholder="YunExpress 담당자에게 받은 access token" />
+                  <p className="text-xs text-muted-foreground">
+                    {tr(
+                      "값이 입력되면 AppId 대신 이 토큰을 OpenAPI token 헤더로 사용합니다. 만료 시 새 토큰으로 교체하세요.",
+                      "填写后将使用该令牌替代 AppId 作为 OpenAPI token 请求头。过期后请更换新令牌。",
+                    )}
+                  </p>
+                </div>
               </div>
             )}
 
