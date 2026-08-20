@@ -9,7 +9,7 @@ export function useShipmentScan(orderId: string | undefined) {
       const { data: shipment, error: e1 } = await supabase
         .from("shipments")
         .select(
-          "id, order_id, carrier, tracking_number, status, scan_status, scanned_count, design_confirmed, tracking_issued_at, reported_at, orders(*)"
+          "id, order_id, carrier, tracking_number, status, scan_status, scanned_count, design_confirmed, tracking_issued_at, reported_at, orders(*), shipment_carrier_prefs(carrier)"
         )
         .eq("order_id", orderId!)
         .maybeSingle();
