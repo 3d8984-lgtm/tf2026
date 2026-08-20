@@ -422,12 +422,18 @@ export default function CourierSettings() {
 
             {credDialog?.code === "yunexpress" && (
               <div className="rounded-md border border-dashed p-3 space-y-3 bg-muted/30">
-                <p className="text-sm font-medium">{tr("YunExpress 신버전 OpenAPI (라벨 PDF 조회용)", "云途新版 OpenAPI（用于查询标签 PDF）")}</p>
+                <p className="text-sm font-medium">{tr("YunExpress 신버전 OpenAPI", "云途新版 OpenAPI")}</p>
+                <p className="text-xs text-muted-foreground">
+                  {tr(
+                    "택배사 모드가 테스트이면 샌드박스, 실서비스이면 운영 OpenAPI로 자동 연결됩니다. 승인받은 앱 환경과 모드를 반드시 일치시키세요.",
+                    "快递模式为测试时连接沙箱，为正式时连接生产 OpenAPI。请确保模式与应用获批环境一致。",
+                  )}
+                </p>
                 <div className="space-y-2">
                   <Label>{tr("OpenAPI AppId (Token)", "OpenAPI AppId (Token)")}</Label>
                   <Input name="yun-openapi-app-id" autoComplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" value={cred.openapi_app_id} onChange={(e) => setCred((c) => ({ ...c, openapi_app_id: e.target.value }))} placeholder="6387f82c8548" />
                   <p className="text-xs text-muted-foreground">
-                    {tr("메일로 받은 appId 값. openapi.yunexpress.cn 의 token 헤더에 사용됩니다.", "邮件中的 appId，对应 openapi.yunexpress.cn 请求头中的 token。")}
+                    {tr("메일로 받은 appId 값이며 OpenAPI token 헤더에 사용됩니다.", "邮件中的 appId，用于 OpenAPI token 请求头。")}
                   </p>
                 </div>
                 <div className="space-y-2">
