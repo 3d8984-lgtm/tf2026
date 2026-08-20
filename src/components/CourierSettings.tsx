@@ -131,6 +131,7 @@ export default function CourierSettings() {
       access_token: s("access_token"),
       openapi_app_id: s("openapi_app_id") || s("openapi_token") || s("token"),
       openapi_app_secret: s("openapi_app_secret") || s("openapi_secret") || s("secret"),
+      openapi_access_token: s("openapi_access_token"),
       sender_name: s("sender_name"),
       sender_company: s("sender_company"),
       sender_phone: s("sender_phone"),
