@@ -381,17 +381,43 @@ export default function CourierSettings() {
               )}
             </p>
             <div className="space-y-2">
-              <Label>{credDialog?.code === "yunexpress" ? "Customer ID (Account)" : "App Key"}</Label>
+              <Label>{credDialog?.code === "yunexpress" ? tr("API Key (密钥)", "API Key (密钥)") : "App Key"}</Label>
               <Input name="courier-app-key" autoComplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" value={cred.api_key} onChange={(e) => setCred((c) => ({ ...c, api_key: e.target.value }))} placeholder={credDialog?.has_credentials ? "••••••••" : ""} />
+              {credDialog?.code === "yunexpress" && (
+                <p className="text-xs text-muted-foreground">
+                  {tr(
+                    "云途 개방플랫폼에서 발급한 API 密钥(SecretKey). 고객코드가 아닙니다.",
+                    "云途开放平台签发的 API 密钥(SecretKey)，不是客户代码。"
+                  )}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
-              <Label>{credDialog?.code === "yunexpress" ? "API Secret" : "App Secret"}</Label>
+              <Label>{credDialog?.code === "yunexpress" ? tr("API Secret (미사용)", "API Secret (未使用)") : "App Secret"}</Label>
               <Input type="password" name="courier-app-secret" autoComplete="new-password" data-1p-ignore data-lpignore="true" data-form-type="other" value={cred.api_secret} onChange={(e) => setCred((c) => ({ ...c, api_secret: e.target.value }))} placeholder={credDialog?.has_credentials ? "••••••••" : ""} />
+              {credDialog?.code === "yunexpress" && (
+                <p className="text-xs text-muted-foreground">
+                  {tr("YunExpress 인증에는 사용되지 않습니다. 비워두세요.", "YunExpress 认证不使用此项，可留空。")}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
-              <Label>{tr("거래처/계정 번호", "客户/账号编号")}</Label>
-              <Input name="courier-account-no" autoComplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" value={cred.account_no} onChange={(e) => setCred((c) => ({ ...c, account_no: e.target.value }))} />
+              <Label>
+                {credDialog?.code === "yunexpress"
+                  ? tr("Customer Code / Account No (客户代码) *필수", "客户代码 / 账号 *必填")
+                  : tr("거래처/계정 번호", "客户/账号编号")}
+              </Label>
+              <Input name="courier-account-no" autoComplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" value={cred.account_no} onChange={(e) => setCred((c) => ({ ...c, account_no: e.target.value }))} placeholder={credDialog?.code === "yunexpress" ? "CN0C031972" : ""} />
+              {credDialog?.code === "yunexpress" && (
+                <p className="text-xs text-muted-foreground">
+                  {tr(
+                    "인증은 Base64(\"Account No & API Key\") 방식입니다. 비어 있으면 401 인증 실패가 발생합니다.",
+                    "认证方式为 Base64(\"账号&API密钥\")。留空将导致 401 认证失败。"
+                  )}
+                </p>
+              )}
             </div>
+
             <div className="space-y-2">
               <Label>{tr("배송 채널 코드", "运输渠道代码")}</Label>
               <Input name="courier-channel-code" autoComplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" value={cred.channel_code} onChange={(e) => setCred((c) => ({ ...c, channel_code: e.target.value }))} placeholder={tr("예: US-EXP", "例：US-EXP")} />
