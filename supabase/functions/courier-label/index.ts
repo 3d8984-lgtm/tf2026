@@ -334,6 +334,63 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
 }
 
 
+/** YunExpress: fetch the shipping label PDF for an already-created waybill. */
+async function fetchYunLabel(base: string, auth: string, refs: string[]): Promise<string | null> {
+  const root = (base ?? "").replace(/\/+$/, "");
+  const clean = refs.filter(Boolean);
+  if (!root || !clean.length) return null;
+
+  const pick = (raw: any): string | null => {
+    if (!raw) return null;
+    if (typeof raw === "string") {
+      if (/^https?:\/\//i.test(raw.trim())) return raw.trim();
+      if (raw.length > 500 && /^[A-Za-z0-9+/=\s]+$/.test(raw.trim())) return `data:application/pdf;base64,${raw.replace(/\s+/g, "")}`;
+      return null;
+    }
+    if (Array.isArray(raw)) { for (const r of raw) { const v = pick(r); if (v) return v; } return null; }
+    if (typeof raw === "object") {
+      for (const k of ["LabelUrl", "labelUrl", "Url", "url", "PdfUrl", "ShippingLabelUrl", "LabelContent", "Content", "Base64", "Data", "Item"]) {
+        if (k in raw) { const v = pick((raw as any)[k]); if (v) return v; }
+      }
+    }
+    return null;
+  };
+
+  for (const ref of clean) {
+    const candidates: { url: string; method: "GET" | "POST"; body?: string }[] = [
+      { url: `${root}/api/WayBill/GetLabels?OrderNumber=${encodeURIComponent(ref)}`, method: "GET" },
+      { url: `${root}/api/Label/GetLabel?OrderNumber=${encodeURIComponent(ref)}&Format=PDF`, method: "GET" },
+      { url: `${root}/api/WayBill/GetLabel?OrderNumber=${encodeURIComponent(ref)}`, method: "GET" },
+      { url: `${root}/api/Label/GetLabels`, method: "POST", body: JSON.stringify([ref]) },
+    ];
+    for (const c of candidates) {
+      try {
+        const res = await fetch(c.url, {
+          method: c.method,
+          headers: { Authorization: `Basic ${auth}`, Accept: "application/json,application/pdf", "Content-Type": "application/json" },
+          body: c.body,
+          signal: AbortSignal.timeout(20_000),
+        });
+        if (!res.ok) continue;
+        const ct = res.headers.get("content-type") ?? "";
+        if (ct.includes("pdf")) {
+          const buf = new Uint8Array(await res.arrayBuffer());
+          if (buf.byteLength < 800) continue;
+          let bin = "";
+          for (const b of buf) bin += String.fromCharCode(b);
+          return `data:application/pdf;base64,${btoa(bin)}`;
+        }
+        const text = await res.text();
+        let raw: any = text;
+        try { raw = JSON.parse(text); } catch { /* keep text */ }
+        const found = pick(raw);
+        if (found) return found;
+      } catch { /* try the next candidate */ }
+    }
+  }
+  return null;
+}
+
 
 async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, position?: number, qtyOverride?: number): Promise<LabelResult> {
   const qty = Math.max(1, Number(qtyOverride ?? 1));
@@ -431,8 +488,41 @@ Deno.serve(async (req) => {
     if (shipping_group_id) {
       const { data: g } = await admin.from("shipping_groups").select("*").eq("id", shipping_group_id).maybeSingle();
       if (!g) return json({ error: "shipping group not found" }, 404);
+
+      // YunExpress: 주문(운송장)은 이미 만들어졌는데 라벨 PDF만 못 받은 경우 —
+      // 절대로 주문을 다시 만들지 않고 라벨만 재요청한다 (중복 접수 방지).
+      if (g.tracking_number && !g.label_url && (g.carrier ?? carrier) === "yunexpress") {
+        const { data: cfgY } = await admin.from("courier_configs").select("*").eq("code", "yunexpress").maybeSingle();
+        const { data: credY } = await admin.from("courier_credentials").select("*").eq("code", "yunexpress").maybeSingle();
+        const issuedAt = new Date().toISOString();
+        let recovered: string | null = null;
+        if (cfgY && credY) {
+          recovered = await fetchYunLabel(
+            cfgY.api_url ?? "",
+            btoa(`${credY.account_no ?? ""}&${credY.api_key ?? ""}`),
+            [g.tracking_number, g.ref_no].filter(Boolean) as string[],
+          );
+        }
+        await admin.from("shipping_groups").update({
+          carrier: "yunexpress",
+          label_url: recovered,
+          // 운송장번호가 있으면 접수는 성공한 것 → 실패로 표시하지 않는다.
+          label_status: "ready",
+          label_error: recovered ? null : "운송장은 발급됨 · 라벨 PDF 미수신 (재시도 시 라벨만 다시 요청)",
+          label_issued_at: g.label_issued_at ?? issuedAt,
+        }).eq("id", g.id);
+        await admin.from("shipment_scan_items").update({
+          carrier: "yunexpress",
+          tracking_number: g.tracking_number,
+          label_url: recovered,
+          tracking_issued_at: issuedAt,
+        }).eq("shipping_group_id", g.id);
+        return json({ ok: true, recovered: !!recovered, carrier: "yunexpress", tracking_number: g.tracking_number, label_url: recovered });
+      }
+
       // 이미 4PX 주문/운송장은 만들어졌는데 라벨 PDF만 못 받은 경우:
       // 주문을 다시 만들지 말고 ds.xms.label.get 만 재시도해서 복구한다.
+
       if (g.tracking_number && !g.label_url && (g.carrier ?? carrier) === "4px") {
         const { data: cfg0 } = await admin.from("courier_configs").select("*").eq("code", "4px").maybeSingle();
         const { data: cred0 } = await admin.from("courier_credentials").select("*").eq("code", "4px").maybeSingle();
@@ -716,6 +806,17 @@ Deno.serve(async (req) => {
       } catch { /* keep going — status below reflects the outcome */ }
     }
 
+    // YunExpress도 동일: 운송장번호만 오고 라벨이 비면 라벨만 재요청.
+    if (!result.label_url && carrier === "yunexpress" && result.tracking_number) {
+      try {
+        result.label_url = await fetchYunLabel(
+          cfg.api_url ?? "",
+          btoa(`${cred?.account_no ?? ""}&${cred?.api_key ?? ""}`),
+          [result.tracking_number, result.ref_no].filter(Boolean) as string[],
+        );
+      } catch { /* status below reflects the outcome */ }
+    }
+
     if (group) {
 
       const { error: gErr } = await admin
@@ -725,11 +826,14 @@ Deno.serve(async (req) => {
           tracking_number: result.tracking_number,
           label_url: result.label_url,
           ref_no: result.ref_no ?? null,
-          // 라벨 PDF까지 받아야 "발급 완료". 운송장번호만 있고 PDF가 없으면 실패로 표기해
+          // 운송장번호가 발급되면 접수는 성공 → ready. 라벨 PDF만 없으면 안내 문구만 남기고
           // 재시도 시 주문을 다시 만들지 않고 라벨만 다시 받아온다.
-          label_status: result.label_url ? "ready" : "failed",
-          label_error: result.label_url ? null : "4PX 라벨 PDF를 받지 못했습니다. 재시도하면 라벨만 다시 요청합니다.",
+          label_status: "ready",
+          label_error: result.label_url
+            ? null
+            : "운송장은 발급됨 · 라벨 PDF 미수신 (재시도 시 라벨만 다시 요청)",
           label_issued_at: issuedAt,
+
 
         })
         .eq("id", group.id);
