@@ -28,6 +28,9 @@ const emptyCred = {
   account_no: "",
   channel_code: "",
   access_token: "",
+  // YunExpress 신버전 OpenAPI (openapi.yunexpress.cn) 라벨 PDF 조회용
+  openapi_app_id: "",
+  openapi_app_secret: "",
   // 발송인 정보
   sender_name: "",
   sender_company: "",
