@@ -334,11 +334,69 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
 }
 
 
+async function md5Hex(s: string): Promise<string> {
+  const { md5 } = await import("https://esm.sh/js-md5@0.8.3");
+  return (md5 as any)(s);
+}
+
+/**
+ * YunExpress OpenAPI (openapi.yunexpress.cn) label fetch:
+ *   GET /v1/order/label/get?order_number=XXX
+ *   headers: token, date(ms), sign = MD5(token + date + "GET/v1/order/label/get" + body + secret)
+ * Returns result.url (PDF/PNG) or result.label_string (base64).
+ */
+async function fetchYunOpenApiLabel(
+  openapiBase: string,
+  token: string,
+  secret: string,
+  refs: string[],
+): Promise<string | null> {
+  const root = (openapiBase || "https://openapi.yunexpress.cn").replace(/\/+$/, "");
+  const path = "/v1/order/label/get";
+  for (const ref of refs.filter(Boolean)) {
+    try {
+      const date = String(Date.now());
+      const sign = await md5Hex(`${token}${date}GET${path}${secret ?? ""}`);
+      const res = await fetch(`${root}${path}?order_number=${encodeURIComponent(ref)}`, {
+        method: "GET",
+        headers: {
+          token,
+          date,
+          sign,
+          "Accept-Language": "zh-CN",
+          Accept: "application/json",
+          "Content-Type": "application/json;charset=utf-8",
+        },
+        signal: AbortSignal.timeout(20_000),
+      });
+      const text = await res.text();
+      let raw: any = text;
+      try { raw = JSON.parse(text); } catch { /* keep text */ }
+      const r = raw?.result ?? {};
+      if (raw?.success && typeof r?.url === "string" && /^https?:\/\//i.test(r.url)) return r.url;
+      if (raw?.success && typeof r?.label_string === "string" && r.label_string.length > 500) {
+        const type = String(r.label_type ?? "PDF").toUpperCase() === "PNG" ? "image/png" : "application/pdf";
+        return `data:${type};base64,${r.label_string.replace(/\s+/g, "")}`;
+      }
+      console.log("[yun openapi label]", ref, res.status, String(text).slice(0, 300));
+    } catch (e) {
+      console.log("[yun openapi label error]", ref, String(e));
+    }
+  }
+  return null;
+}
+
 /** YunExpress: fetch the shipping label PDF for an already-created waybill. */
-async function fetchYunLabel(base: string, auth: string, refs: string[]): Promise<string | null> {
+async function fetchYunLabel(base: string, auth: string, refs: string[], openapi?: { base?: string; token?: string; secret?: string }): Promise<string | null> {
   const root = (base ?? "").replace(/\/+$/, "");
   const clean = refs.filter(Boolean);
-  if (!root || !clean.length) return null;
+  if (!clean.length) return null;
+  if (openapi?.token) {
+    const viaOpenApi = await fetchYunOpenApiLabel(openapi.base ?? "", openapi.token, openapi.secret ?? "", clean);
+    if (viaOpenApi) return viaOpenApi;
+  }
+  if (!root) return null;
+
 
   const pick = (raw: any): string | null => {
     if (!raw) return null;
@@ -501,6 +559,11 @@ Deno.serve(async (req) => {
             cfgY.api_url ?? "",
             btoa(`${credY.account_no ?? ""}&${credY.api_key ?? ""}`),
             [g.tracking_number, g.ref_no].filter(Boolean) as string[],
+            {
+              base: credY?.extra?.openapi_url ?? cfgY?.extra?.openapi_url,
+              token: credY?.extra?.openapi_token ?? credY?.extra?.token,
+              secret: credY?.extra?.openapi_secret ?? credY?.extra?.secret,
+            },
           );
         }
         await admin.from("shipping_groups").update({
@@ -813,6 +876,11 @@ Deno.serve(async (req) => {
           cfg.api_url ?? "",
           btoa(`${cred?.account_no ?? ""}&${cred?.api_key ?? ""}`),
           [result.tracking_number, result.ref_no].filter(Boolean) as string[],
+          {
+            base: cred?.extra?.openapi_url ?? cfg?.extra?.openapi_url,
+            token: cred?.extra?.openapi_token ?? cred?.extra?.token,
+            secret: cred?.extra?.openapi_secret ?? cred?.extra?.secret,
+          },
         );
       } catch { /* status below reflects the outcome */ }
     }
