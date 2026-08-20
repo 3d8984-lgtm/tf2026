@@ -806,6 +806,17 @@ Deno.serve(async (req) => {
       } catch { /* keep going — status below reflects the outcome */ }
     }
 
+    // YunExpress도 동일: 운송장번호만 오고 라벨이 비면 라벨만 재요청.
+    if (!result.label_url && carrier === "yunexpress" && result.tracking_number) {
+      try {
+        result.label_url = await fetchYunLabel(
+          cfg.api_url ?? "",
+          btoa(`${cred?.account_no ?? ""}&${cred?.api_key ?? ""}`),
+          [result.tracking_number, result.ref_no].filter(Boolean) as string[],
+        );
+      } catch { /* status below reflects the outcome */ }
+    }
+
     if (group) {
 
       const { error: gErr } = await admin
@@ -815,11 +826,14 @@ Deno.serve(async (req) => {
           tracking_number: result.tracking_number,
           label_url: result.label_url,
           ref_no: result.ref_no ?? null,
-          // 라벨 PDF까지 받아야 "발급 완료". 운송장번호만 있고 PDF가 없으면 실패로 표기해
+          // 운송장번호가 발급되면 접수는 성공 → ready. 라벨 PDF만 없으면 안내 문구만 남기고
           // 재시도 시 주문을 다시 만들지 않고 라벨만 다시 받아온다.
-          label_status: result.label_url ? "ready" : "failed",
-          label_error: result.label_url ? null : "4PX 라벨 PDF를 받지 못했습니다. 재시도하면 라벨만 다시 요청합니다.",
+          label_status: "ready",
+          label_error: result.label_url
+            ? null
+            : "운송장은 발급됨 · 라벨 PDF 미수신 (재시도 시 라벨만 다시 요청)",
           label_issued_at: issuedAt,
+
 
         })
         .eq("id", group.id);
