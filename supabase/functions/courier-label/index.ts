@@ -454,6 +454,7 @@ async function fetchYunLabel(base: string, auth: string, refs: string[], openapi
 /** YunExpress 신버전 OpenAPI 오류코드 → 사람이 읽는 메시지 */
 function yunOpenApiErrorText(code?: string, msg?: string): string {
   const map: Record<string, string> = {
+    "0200401002": "YunExpress OpenAPI 인증 토큰이 유효하지 않거나 만료되었습니다. 샌드박스 승인 AppId는 테스트 모드(openapi-sbx), 운영 승인 AppId는 실서비스 모드(openapi)에 맞춰 사용하고 인증정보를 다시 저장해 주세요.",
     "02039311": "YunExpress 계정 잔액 부족 — 충전 후 다시 발행하세요.",
     "02039015": "동일 주문이 처리 중입니다. 잠시 후 다시 시도하세요.",
     "02039066": "이미 등록된 주문번호입니다(중복). 초기화 후 재발행하세요.",
@@ -466,6 +467,14 @@ function yunOpenApiErrorText(code?: string, msg?: string): string {
     "02039306": "중량은 0보다 커야 하며 소수점 3자리까지만 허용됩니다.",
   };
   return map[String(code ?? "")] ?? (msg ? `${msg}${code ? ` (${code})` : ""}` : `YunExpress 오류 ${code ?? ""}`);
+}
+
+function yunOpenApiBase(cfg: any, cred: any): string {
+  const configured = String(cred?.extra?.openapi_url ?? "").trim();
+  if (configured) return configured;
+  return String(cfg?.api_mode ?? "test").toLowerCase() === "live"
+    ? "https://openapi.yunexpress.cn"
+    : "https://openapi-sbx.yunexpress.cn";
 }
 
 /**
@@ -543,7 +552,7 @@ async function createYunOpenApiOrder(
     // 인증 자체가 거부되면(권한 미개통 등) 구버전 경로로 폴백한다.
     if (!raw.success && !raw.code) return null;
     if (!raw.success) {
-      return { tracking_number: null, label_url: null, raw, error: yunOpenApiErrorText(raw.code, raw.msg) };
+      return { tracking_number: null, label_url: null, raw, error: yunOpenApiErrorText(raw.code, raw.msg ?? raw.message) };
     }
     const result = raw.result ?? {};
     const tracking = result.tracking_number || result.waybill_number || null;
@@ -567,7 +576,7 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
   const oaSecret = cred?.extra?.openapi_app_secret ?? cred?.extra?.openapi_secret ?? cred?.extra?.secret;
   if (oaToken && oaSecret) {
     const viaOpenApi = await createYunOpenApiOrder(
-      { base: cred?.extra?.openapi_url ?? cfg?.extra?.openapi_url, token: oaToken, secret: oaSecret },
+      { base: yunOpenApiBase(cfg, cred), token: oaToken, secret: oaSecret },
       cred, order, shipment, position, qty,
     );
     if (viaOpenApi) return viaOpenApi;
@@ -635,7 +644,7 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
         btoa(`${cred?.account_no ?? ""}&${cred?.api_key ?? ""}`),
         [tracking].filter(Boolean) as string[],
         {
-          base: cred?.extra?.openapi_url ?? cfg?.extra?.openapi_url,
+           base: yunOpenApiBase(cfg, cred),
           token: cred?.extra?.openapi_app_id ?? cred?.extra?.openapi_token ?? cred?.extra?.token,
           secret: cred?.extra?.openapi_app_secret ?? cred?.extra?.openapi_secret ?? cred?.extra?.secret,
         },
@@ -693,7 +702,7 @@ Deno.serve(async (req) => {
             btoa(`${credY.account_no ?? ""}&${credY.api_key ?? ""}`),
             [g.tracking_number, g.ref_no].filter(Boolean) as string[],
             {
-              base: credY?.extra?.openapi_url ?? cfgY?.extra?.openapi_url,
+              base: yunOpenApiBase(cfgY, credY),
               token: credY?.extra?.openapi_app_id ?? credY?.extra?.openapi_token ?? credY?.extra?.token,
               secret: credY?.extra?.openapi_app_secret ?? credY?.extra?.openapi_secret ?? credY?.extra?.secret,
             },
@@ -1010,7 +1019,7 @@ Deno.serve(async (req) => {
           btoa(`${cred?.account_no ?? ""}&${cred?.api_key ?? ""}`),
           [result.tracking_number, result.ref_no].filter(Boolean) as string[],
           {
-            base: cred?.extra?.openapi_url ?? cfg?.extra?.openapi_url,
+             base: yunOpenApiBase(cfg, cred),
             token: cred?.extra?.openapi_app_id ?? cred?.extra?.openapi_token ?? cred?.extra?.token,
             secret: cred?.extra?.openapi_app_secret ?? cred?.extra?.openapi_secret ?? cred?.extra?.secret,
           },

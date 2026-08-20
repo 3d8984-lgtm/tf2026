@@ -64,17 +64,30 @@ export async function issueGroupLabels(
     onProgress?: (p: { done: number; total: number; success: number; failed: number; last?: { id: string; name: string; ok: boolean; message?: string } }) => void;
   } = {},
 ) {
-  const concurrency = Math.min(Math.max(opts.concurrency ?? 6, 1), 10);
+  // YunExpress authentication applies to the whole account. Keep its queue
+  // sequential so one terminal credential error cannot create many identical
+  // failed requests at once.
+  const concurrency = carrier === "yunexpress"
+    ? 1
+    : Math.min(Math.max(opts.concurrency ?? 6, 1), 10);
   const total = groups.length;
   let cursor = 0;
   let done = 0;
   let success = 0;
   let failed = 0;
   const results: { id: string; ok: boolean; message?: string; tracking_number?: string }[] = [];
+  let terminalError: string | null = null;
 
   async function worker() {
     while (cursor < groups.length) {
       const g = groups[cursor++];
+      if (terminalError) {
+        failed++;
+        done++;
+        results.push({ id: g.id, ok: false, message: terminalError });
+        opts.onProgress?.({ done, total, success, failed, last: { id: g.id, name: g.recipient_name, ok: false, message: terminalError } });
+        continue;
+      }
       try {
         const r = await issueGroupLabel(g.id, carrier);
         success++;
@@ -84,6 +97,9 @@ export async function issueGroupLabels(
       } catch (e) {
         failed++;
         const message = e instanceof Error ? e.message : "unknown error";
+        if (/0200401002|토큰이 유효하지|访问令牌无效|token.*(?:invalid|expired)/i.test(message)) {
+          terminalError = message;
+        }
         results.push({ id: g.id, ok: false, message });
         done++;
         opts.onProgress?.({ done, total, success, failed, last: { id: g.id, name: g.recipient_name, ok: false, message } });
