@@ -54,7 +54,7 @@ export default function Shipping() {
   };
 
   const carrierOf = (r: any) =>
-    r.shipment_carrier_prefs?.[0]?.carrier ?? r.carrier ?? defaultCarrier ?? "";
+    r.shipment_carrier_prefs?.carrier ?? r.carrier ?? defaultCarrier ?? "";
 
 
 
