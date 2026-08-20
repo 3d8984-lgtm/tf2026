@@ -1698,6 +1698,8 @@ export default function ShippingScan() {
                   <th className="text-center px-3 py-2">{tr("스캔", "扫码")}</th>
                   <th className="text-left px-3 py-2">{tr("택배사", "承运商")}</th>
                   <th className="text-left px-3 py-2">{tr("송장번호", "运单号")}</th>
+                  <th className="text-center px-3 py-2">{tr("송장출력", "运单打印")}</th>
+
                 </tr>
               </thead>
               <tbody>
