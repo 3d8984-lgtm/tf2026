@@ -1282,6 +1282,8 @@ export default function ShippingScan() {
     </div>
   );
 
+  const activeCarrier = carrier || shipmentCarrier || "4px";
+  const activeCarrierName = couriers.find((c) => c.code === activeCarrier)?.name ?? activeCarrier.toUpperCase();
   const previewSize = labelSizeFor(shipment.carrier || carrier);
   const sizeLabel = `${previewSize.w} × ${previewSize.h} mm`;
   // Real device pixels for the label at 96dpi, then scaled down to fit the card.
@@ -1313,6 +1315,8 @@ export default function ShippingScan() {
           </label>
           <Button size="sm" onClick={() => setPreIssueOpen(true)} disabled={buildingGroups}>
             <Truck className="w-4 h-4 mr-1"/>{tr("송장 사전발행", "运单预发行")}
+            <span className="mx-1.5 opacity-70">·</span>
+            <span className="text-[11px] font-medium">{activeCarrierName}</span>
             {pendingGroups.length > 0 && (
               <Badge variant="outline" className="ml-2 text-[10px]">{pendingGroups.length}</Badge>
             )}
@@ -1332,6 +1336,10 @@ export default function ShippingScan() {
           </DialogHeader>
           {!preIssueRunning && preIssueProgress.total === 0 ? (
             <div className="space-y-2 text-sm">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">{tr("발행 택배사", "发行承运商")}</span>
+                <Badge variant="secondary" className="text-xs">{activeCarrierName}</Badge>
+              </div>
               <div className="flex justify-between"><span className="text-muted-foreground">{tr("전체 제품(주문 항목)", "全部产品(订单项)")}</span><b>{groupMembers.length}</b></div>
               <div className="flex justify-between"><span className="text-muted-foreground">{tr("실제 발송건", "实际发货件")}</span><b>{groups.length}</b></div>
               <div className="flex justify-between"><span className="text-muted-foreground">{tr("1개 발송", "单件发货")}</span><b>{singleGroups.length}</b></div>
