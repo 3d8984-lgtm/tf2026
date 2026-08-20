@@ -1744,6 +1744,21 @@ export default function ShippingScan() {
                       </td>
                       <td className="px-3 py-2 text-xs uppercase">{(it.carrier ?? "-") as string}</td>
                       <td className="px-3 py-2 font-mono text-xs">{it.tracking_number ?? "-"}</td>
+                      <td className="px-3 py-2 text-center">
+                        {printedOk ? (
+                          <Badge variant="outline" className="text-[10px] bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                            title={printedAt ? new Date(printedAt).toLocaleString() : ""}>
+                            {tr("완료", "完成")}
+                          </Badge>
+                        ) : printedFail ? (
+                          <Badge variant="outline" className="text-[10px] bg-destructive/15 text-destructive border-destructive/30" title={failReason}>
+                            {tr("실패", "失败")}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px]">{tr("대기", "待打印")}</Badge>
+                        )}
+                      </td>
+
 
                     </tr>
                   );
