@@ -187,7 +187,7 @@ export default function Shipping() {
                                   className="h-7 px-2 text-xs"
                                   title={c.enabled ? c.name : tr("비활성 (시스템 설정에서 활성화)", "未启用（请在系统设置启用）")}
                                   disabled={!!r.tracking_number || !c.enabled}
-                                  onClick={() => setPicked((p) => ({ ...p, [r.id]: c.code }))}
+                                  onClick={() => updateCarrier.mutate({ shipment_id: r.id, carrier: c.code })}
                                 >
                                   {c.name}
                                 </Button>
