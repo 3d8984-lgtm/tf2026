@@ -1986,10 +1986,6 @@ export type Database = {
           sort_order: number
         }[]
       }
-      update_shipment_carrier: {
-        Args: { carrier_code: string; shipment_id: string }
-        Returns: undefined
-      }
     }
     Enums: {
       inspect_result: "pending" | "pass" | "mismatch" | "weight_fail"
