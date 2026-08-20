@@ -77,6 +77,7 @@ export default function ShippingScan() {
 
   const { data, isLoading, refetch } = useShipmentScan(orderId);
   const shipment = data?.shipment;
+  const shipmentCarrier = shipment?.shipment_carrier_prefs?.carrier ?? shipment?.carrier;
   const items = data?.items ?? [];
   const { data: holoSerials = {} } = useHologramSerials(items.map((i: any) => i.qr_value ?? ""));
   const order: any = shipment?.orders;
@@ -304,9 +305,9 @@ export default function ShippingScan() {
 
   useEffect(() => {
     if (carrier || couriers.length === 0) return;
-    const current = shipment?.carrier && couriers.find((c) => c.code === shipment.carrier);
+    const current = shipmentCarrier && couriers.find((c) => c.code === shipmentCarrier);
     setCarrier((current ?? couriers.find((c) => c.is_default) ?? couriers[0]).code);
-  }, [couriers, shipment?.carrier, carrier]);
+  }, [couriers, shipmentCarrier, carrier]);
 
 
   const [hidActive, setHidActive] = useState(false);
@@ -382,7 +383,7 @@ export default function ShippingScan() {
         if (v.length >= 3) {
           setHidActive(true);
           setTimeout(() => setHidActive(false), 600);
-          const size = labelSizeFor(carrier || shipment?.carrier || "4PX");
+          const size = labelSizeFor(carrier || shipmentCarrier || "4PX");
           const printWindow = window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
           if (printWindow) {
             printWindow.document.write(`<!doctype html><html><body style="font-family:sans-serif;padding:24px">${tr("송장을 생성하고 있습니다…", "正在生成运单…")}</body></html>`);
@@ -629,7 +630,7 @@ export default function ShippingScan() {
       return;
     }
     const url = labelCacheRef.current.get(group.id) ?? group.label_url;
-    const carrierCode = group.carrier || carrier || shipment?.carrier;
+    const carrierCode = group.carrier || carrier || shipmentCarrier;
     perfMark("LABEL_READY");
     void logAction("label_print_requested", { shipping_group_id: group.id, tracking_number: group.tracking_number });
 
@@ -710,7 +711,7 @@ export default function ShippingScan() {
         // Barcode scanners finish with Enter. Open the print target synchronously
         // while that user activation is still valid; opening it after API/database
         // awaits is blocked by Chrome and the carrier label never reaches print.
-        const size = labelSizeFor(carrier || shipment?.carrier || "4PX");
+        const size = labelSizeFor(carrier || shipmentCarrier || "4PX");
         const printWindow = window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
         if (printWindow) {
           printWindow.document.write(`<!doctype html><html><body style="font-family:sans-serif;padding:24px">${tr("송장을 생성하고 있습니다…", "正在生成运单…")}</body></html>`);
@@ -761,12 +762,12 @@ export default function ShippingScan() {
         const url = (res as any)?.label_url as string | undefined;
         setTestLabelUrl(url ?? null);
         if (url) {
-          const sentToAgent = await sendToPrintAgent({ url, carrierCode: carrier || shipment?.carrier, trackingNumber: res.tracking_number, refNo: (res as any)?.ref_no });
+          const sentToAgent = await sendToPrintAgent({ url, carrierCode: carrier || shipmentCarrier, trackingNumber: res.tracking_number, refNo: (res as any)?.ref_no });
           if (sentToAgent) { printWindow?.close(); perfMark("print_called"); }
           else {
-            const size = labelSizeFor(carrier || shipment?.carrier);
+            const size = labelSizeFor(carrier || shipmentCarrier);
             const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
-            if (w) { w.document.write(buildRemoteLabelHtml(url, carrier || shipment?.carrier)); w.document.close(); perfMark("label_html_written"); }
+            if (w) { w.document.write(buildRemoteLabelHtml(url, carrier || shipmentCarrier)); w.document.close(); perfMark("label_html_written"); }
           }
         } else {
           const why = (res as any)?.message as string | undefined;
@@ -806,12 +807,12 @@ export default function ShippingScan() {
       // Auto-print the carrier-issued waybill right after issuance.
       const liveUrl = (res as any)?.label_url as string | undefined;
       if (liveUrl) {
-        const sentToAgent = await sendToPrintAgent({ url: liveUrl, carrierCode: carrier || shipment?.carrier, trackingNumber: res.tracking_number, refNo: (res as any)?.ref_no });
+        const sentToAgent = await sendToPrintAgent({ url: liveUrl, carrierCode: carrier || shipmentCarrier, trackingNumber: res.tracking_number, refNo: (res as any)?.ref_no });
         if (sentToAgent) { printWindow?.close(); perfMark("print_called"); }
         else {
-          const size = labelSizeFor(carrier || shipment?.carrier);
+          const size = labelSizeFor(carrier || shipmentCarrier);
           const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
-          if (w) { w.document.write(buildRemoteLabelHtml(liveUrl, carrier || shipment?.carrier)); w.document.close(); perfMark("label_html_written"); }
+          if (w) { w.document.write(buildRemoteLabelHtml(liveUrl, carrier || shipmentCarrier)); w.document.close(); perfMark("label_html_written"); }
         }
       } else {
         printWindow?.close();
@@ -965,7 +966,7 @@ export default function ShippingScan() {
     // `testTracking` = real order data, simulated tracking number (4PX test mode).
     const test = !!opts.test;
     const simulated = !!opts.testTracking;
-    const carrierCode = test ? TEST_RECIPIENT.carrier : (shipment?.carrier || carrier || "");
+    const carrierCode = test ? TEST_RECIPIENT.carrier : (shipmentCarrier || carrier || "");
     const size = labelSizeFor(carrierCode);
     const tn = opts.testTracking ?? (test ? TEST_RECIPIENT.trackingNumber : (shipment?.tracking_number || "—"));
     const qty = test ? TEST_RECIPIENT.qty : (total || 1);
@@ -1150,9 +1151,9 @@ export default function ShippingScan() {
 
   // Test-mode label: real order/address data, simulated (non-billable) tracking number.
   async function printSimulatedLabel(trackingNumber: string, printWindow?: Window | null) {
-    const size = labelSizeFor(carrier || shipment?.carrier);
+    const size = labelSizeFor(carrier || shipmentCarrier);
     const html = buildLabelHtml({ testTracking: trackingNumber });
-    if (await sendHtmlLabelToAgent({ html, size, carrierCode: carrier || shipment?.carrier, trackingNumber })) {
+    if (await sendHtmlLabelToAgent({ html, size, carrierCode: carrier || shipmentCarrier, trackingNumber })) {
       printWindow?.close();
       return;
     }
@@ -1168,7 +1169,7 @@ export default function ShippingScan() {
   // frame with a ruler; the real scale is derived from the difference, which
   // cancels out any hidden driver shrink ("fit to page" / printable-area fit).
   function printCalibrationSheet() {
-    const size = labelSizeFor(shipment?.carrier || carrier || "4PX");
+    const size = labelSizeFor(shipmentCarrier || carrier || "4PX");
     const k = Math.min(3, Math.max(0.5, labelScale / 100));
     const PW = +(size.w * k).toFixed(3);
     const PH = +(size.h * k).toFixed(3);
@@ -1210,7 +1211,7 @@ export default function ShippingScan() {
   }
 
   function applyCalibration() {
-    const size = labelSizeFor(shipment?.carrier || carrier || "4PX");
+    const size = labelSizeFor(shipmentCarrier || carrier || "4PX");
     const mw = Number(measuredW);
     const mh = Number(measuredH);
     const ratios: number[] = [];

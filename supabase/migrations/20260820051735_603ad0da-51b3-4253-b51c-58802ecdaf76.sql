@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.update_shipment_carrier_prefs_updated_at() FROM public, anon, authenticated;

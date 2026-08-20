@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScanLine, Search, Truck, Package, CheckCircle2, Send } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
-import { useShippingQueue, useShippingQueueKpis, type ScanStatus } from "@/hooks/useShippingQueue";
+import { useShippingQueue, useShippingQueueKpis, useUpdateShipmentCarrier, type ScanStatus } from "@/hooks/useShippingQueue";
 import { useCouriers } from "@/hooks/useCouriers";
 
 import { format } from "date-fns";
@@ -43,7 +43,7 @@ export default function Shipping() {
   const { data: kpis } = useShippingQueueKpis();
   const { data: rows = [], isLoading } = useShippingQueue({ status, search });
   const { data: couriers = [] } = useCouriers(false);
-  const [picked, setPicked] = useState<Record<string, string>>({});
+  const updateCarrier = useUpdateShipmentCarrier();
   const [defaultCarrier, setDefaultCarrier] = useState<string>(
     () => localStorage.getItem("shipping_default_carrier") || "4px",
   );
@@ -54,7 +54,7 @@ export default function Shipping() {
   };
 
   const carrierOf = (r: any) =>
-    picked[r.id] ?? r.carrier ?? defaultCarrier ?? "";
+    r.shipment_carrier_prefs?.carrier ?? r.carrier ?? defaultCarrier ?? "";
 
 
 
@@ -187,7 +187,7 @@ export default function Shipping() {
                                   className="h-7 px-2 text-xs"
                                   title={c.enabled ? c.name : tr("비활성 (시스템 설정에서 활성화)", "未启用（请在系统设置启用）")}
                                   disabled={!!r.tracking_number || !c.enabled}
-                                  onClick={() => setPicked((p) => ({ ...p, [r.id]: c.code }))}
+                                  onClick={() => updateCarrier.mutate({ shipment_id: r.id, carrier: c.code })}
                                 >
                                   {c.name}
                                 </Button>

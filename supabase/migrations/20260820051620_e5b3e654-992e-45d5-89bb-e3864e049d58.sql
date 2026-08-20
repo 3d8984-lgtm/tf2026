@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.update_shipment_carrier(uuid, text);

@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -16,7 +16,7 @@ export function useShippingQueue(filters: QueueFilters) {
       let q = supabase
         .from("shipments")
         .select(
-          "id, order_id, carrier, tracking_number, status, scan_status, scanned_count, design_confirmed, tracking_issued_at, reported_at, created_at, orders(external_order_id, recipient_name, recipient_phone, shipping_address, shipping_city, shipping_state, shipping_zip, product_code, design_code, quantity, project_completed_at, logo_url)"
+          "id, order_id, carrier, tracking_number, status, scan_status, scanned_count, design_confirmed, tracking_issued_at, reported_at, created_at, orders(external_order_id, recipient_name, recipient_phone, shipping_address, shipping_city, shipping_state, shipping_zip, product_code, design_code, quantity, project_completed_at, logo_url), shipment_carrier_prefs(carrier)"
         )
         .order("created_at", { ascending: false })
         .limit(200);
@@ -51,6 +51,21 @@ export function useShippingQueueKpis() {
         reported: c("reported"),
         total: data?.length ?? 0,
       };
+    },
+  });
+}
+
+export function useUpdateShipmentCarrier() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ shipment_id, carrier }: { shipment_id: string; carrier: string }) => {
+      const { error } = await supabase
+        .from("shipment_carrier_prefs")
+        .upsert({ shipment_id, carrier }, { onConflict: "shipment_id" });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shipping_queue"] });
     },
   });
 }

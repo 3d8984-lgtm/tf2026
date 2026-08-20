@@ -1,0 +1,1 @@
+DELETE FROM public.shipment_carrier_prefs WHERE shipment_id = '7a0f0cb3-1389-43dc-aaee-8fe82445f0b3';
