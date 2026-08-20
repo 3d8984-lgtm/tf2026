@@ -303,11 +303,16 @@ export default function ShippingScan() {
     for (const u of labelCacheRef.current.values()) if (u.startsWith("blob:")) URL.revokeObjectURL(u);
   }, []);
 
+  // Keep the active carrier in sync with the per-order preference saved in the
+  // order list. When the preference changes (e.g. 4PX -> YunExpress) the scan
+  // page must switch too, otherwise pre-issuance would go to the old carrier.
   useEffect(() => {
-    if (carrier || couriers.length === 0) return;
-    const current = shipmentCarrier && couriers.find((c) => c.code === shipmentCarrier);
-    setCarrier((current ?? couriers.find((c) => c.is_default) ?? couriers[0]).code);
-  }, [couriers, shipmentCarrier, carrier]);
+    if (couriers.length === 0) return;
+    const preferred = shipmentCarrier && couriers.find((c) => c.code === shipmentCarrier);
+    const next = (preferred ?? couriers.find((c) => c.is_default) ?? couriers[0]).code;
+    setCarrier((prev) => (prev === next ? prev : next));
+  }, [couriers, shipmentCarrier]);
+
 
 
   const [hidActive, setHidActive] = useState(false);
