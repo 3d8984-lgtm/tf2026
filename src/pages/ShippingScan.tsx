@@ -331,6 +331,9 @@ export default function ShippingScan() {
   const hidBufRef = useRef<{ buf: string; lastAt: number }>({ buf: "", lastAt: 0 });
   // Group whose label was already printed — offers a manual reprint button.
   const [reprintGroup, setReprintGroup] = useState<ShippingGroupRow | null>(null);
+  /** Last print outcome per shipping group (UI only): success time or failure reason. */
+  const [printOutcome, setPrintOutcome] = useState<Record<string, { ok: boolean; at: string; reason?: string }>>({});
+
 
 
   // ---- Scan → print timing profiler (console.table) -------------------------
@@ -632,6 +635,7 @@ export default function ShippingScan() {
     if (group.label_status !== "ready" || !group.label_url) {
       printWindow?.close();
       scanFail();
+      setPrintOutcome((p) => ({ ...p, [group.id]: { ok: false, at: new Date().toISOString(), reason: tr("송장 미발급/라벨 PDF 없음", "运单未发行/无标签PDF") } }));
       setFeedback({ kind: "notfound", msg: tr("송장 미발급 · 먼저 송장 사전발행을 진행하세요", "运单未发行 · 请先执行运单预发行") });
       toast({
         variant: "destructive",
@@ -651,8 +655,10 @@ export default function ShippingScan() {
     if (await sendToPrintAgent({ url, carrierCode, trackingNumber: group.tracking_number, refNo: (group as any).ref_no })) {
       printWindow?.close();
       perfMark("print_called");
+      setPrintOutcome((p) => ({ ...p, [group.id]: { ok: true, at: new Date().toISOString() } }));
       void supabase.from("shipping_groups").update({ printed_at: new Date().toISOString() }).eq("id", group.id);
       void logAction("label_print_success", { shipping_group_id: group.id, tracking_number: group.tracking_number, via: "agent" });
+      void refetchGroups();
       return;
     }
 
@@ -661,15 +667,19 @@ export default function ShippingScan() {
     const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
     if (!w) {
       toast({ variant: "destructive", title: tr("팝업이 차단되었습니다", "弹窗被拦截") });
+      setPrintOutcome((p) => ({ ...p, [group.id]: { ok: false, at: new Date().toISOString(), reason: tr("팝업 차단", "弹窗被拦截") } }));
       void logAction("label_print_failed", { shipping_group_id: group.id, reason: "popup_blocked" });
       return;
     }
     w.document.write(buildRemoteLabelHtml(url, carrierCode));
     w.document.close();
     perfMark("label_html_written");
+    setPrintOutcome((p) => ({ ...p, [group.id]: { ok: true, at: new Date().toISOString() } }));
     void supabase.from("shipping_groups").update({ printed_at: new Date().toISOString() }).eq("id", group.id);
     void logAction("label_print_success", { shipping_group_id: group.id, tracking_number: group.tracking_number, via: "browser" });
+    void refetchGroups();
   }
+
 
 
   // ---- Pre-issue (before packing starts) ------------------------------------
@@ -1688,6 +1698,8 @@ export default function ShippingScan() {
                   <th className="text-center px-3 py-2">{tr("스캔", "扫码")}</th>
                   <th className="text-left px-3 py-2">{tr("택배사", "承运商")}</th>
                   <th className="text-left px-3 py-2">{tr("송장번호", "运单号")}</th>
+                  <th className="text-center px-3 py-2">{tr("송장출력", "运单打印")}</th>
+
                 </tr>
               </thead>
               <tbody>
@@ -1704,8 +1716,15 @@ export default function ShippingScan() {
                   const address = si.shipping_address || order?.shipping_address || "";
                   const zip = si.shipping_zip || order?.shipping_zip || "-";
                   const country = si.country_code || order?.shipping_country || "-";
+                  const grp = it.shipping_group_id ? groupById.get(it.shipping_group_id) : undefined;
+                  const outcome = it.shipping_group_id ? printOutcome[it.shipping_group_id] : undefined;
+                  const printedOk = outcome?.ok || (!outcome && !!grp?.printed_at);
+                  const printedFail = outcome ? !outcome.ok : (!grp?.printed_at && grp?.label_status === "failed");
+                  const printedAt = outcome?.at ?? grp?.printed_at ?? null;
+                  const failReason = outcome?.reason ?? grp?.label_error ?? "";
                   return (
                     <tr key={it.id} className="border-b hover:bg-accent/30 transition-colors">
+
                       <td className="px-3 py-2 text-center font-mono text-xs">{it.position}</td>
                       <td className="px-3 py-2 font-mono text-xs">{holoNo}</td>
                       <td className="px-3 py-2 font-mono text-xs max-w-[180px] truncate" title={it.qr_value ?? ""}>{it.qr_value ?? "-"}</td>
@@ -1725,12 +1744,27 @@ export default function ShippingScan() {
                       </td>
                       <td className="px-3 py-2 text-xs uppercase">{(it.carrier ?? "-") as string}</td>
                       <td className="px-3 py-2 font-mono text-xs">{it.tracking_number ?? "-"}</td>
+                      <td className="px-3 py-2 text-center">
+                        {printedOk ? (
+                          <Badge variant="outline" className="text-[10px] bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                            title={printedAt ? new Date(printedAt).toLocaleString() : ""}>
+                            {tr("완료", "完成")}
+                          </Badge>
+                        ) : printedFail ? (
+                          <Badge variant="outline" className="text-[10px] bg-destructive/15 text-destructive border-destructive/30" title={failReason}>
+                            {tr("실패", "失败")}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px]">{tr("대기", "待打印")}</Badge>
+                        )}
+                      </td>
+
 
                     </tr>
                   );
                 })}
                 {items.length === 0 && (
-                  <tr><td colSpan={12} className="text-center text-xs text-muted-foreground py-8">
+                  <tr><td colSpan={13} className="text-center text-xs text-muted-foreground py-8">
                     {tr("이 주문의 상세 항목이 없습니다.", "该订单暂无明细。")}
                   </td></tr>
                 )}
