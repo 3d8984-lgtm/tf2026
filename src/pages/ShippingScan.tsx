@@ -77,6 +77,7 @@ export default function ShippingScan() {
 
   const { data, isLoading, refetch } = useShipmentScan(orderId);
   const shipment = data?.shipment;
+  const shipmentCarrier = shipment?.shipment_carrier_prefs?.[0]?.carrier ?? shipment?.carrier;
   const items = data?.items ?? [];
   const { data: holoSerials = {} } = useHologramSerials(items.map((i: any) => i.qr_value ?? ""));
   const order: any = shipment?.orders;
