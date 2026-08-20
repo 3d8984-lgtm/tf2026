@@ -1315,6 +1315,8 @@ export default function ShippingScan() {
           </label>
           <Button size="sm" onClick={() => setPreIssueOpen(true)} disabled={buildingGroups}>
             <Truck className="w-4 h-4 mr-1"/>{tr("송장 사전발행", "运单预发行")}
+            <span className="mx-1.5 opacity-70">·</span>
+            <span className="text-[11px] font-medium">{activeCarrierName}</span>
             {pendingGroups.length > 0 && (
               <Badge variant="outline" className="ml-2 text-[10px]">{pendingGroups.length}</Badge>
             )}
