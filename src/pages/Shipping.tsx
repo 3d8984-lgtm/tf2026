@@ -12,6 +12,7 @@ import { ScanLine, Search, Truck, Package, CheckCircle2, Send } from "lucide-rea
 import { useLang } from "@/contexts/LangContext";
 import { useShippingQueue, useShippingQueueKpis, useUpdateShipmentCarrier, type ScanStatus } from "@/hooks/useShippingQueue";
 import { useCouriers } from "@/hooks/useCouriers";
+import { useGlobalSetting } from "@/hooks/useGlobalSetting";
 
 import { format } from "date-fns";
 
@@ -44,13 +45,14 @@ export default function Shipping() {
   const { data: rows = [], isLoading } = useShippingQueue({ status, search });
   const { data: couriers = [] } = useCouriers(false);
   const updateCarrier = useUpdateShipmentCarrier();
-  const [defaultCarrier, setDefaultCarrier] = useState<string>(
-    () => localStorage.getItem("shipping_default_carrier") || "4px",
+  // Shared across every account and device (server-backed).
+  const { value: defaultCarrier, persist: persistDefaultCarrier } = useGlobalSetting<string>(
+    "shipping_default_carrier",
+    "4px",
   );
 
   const pickDefault = (code: string) => {
-    setDefaultCarrier(code);
-    localStorage.setItem("shipping_default_carrier", code);
+    void persistDefaultCarrier(code);
   };
 
   const carrierOf = (r: any) =>
