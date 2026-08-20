@@ -43,7 +43,7 @@ export default function Shipping() {
   const { data: kpis } = useShippingQueueKpis();
   const { data: rows = [], isLoading } = useShippingQueue({ status, search });
   const { data: couriers = [] } = useCouriers(false);
-  const [picked, setPicked] = useState<Record<string, string>>({});
+  const updateCarrier = useUpdateShipmentCarrier();
   const [defaultCarrier, setDefaultCarrier] = useState<string>(
     () => localStorage.getItem("shipping_default_carrier") || "4px",
   );
@@ -54,7 +54,7 @@ export default function Shipping() {
   };
 
   const carrierOf = (r: any) =>
-    picked[r.id] ?? r.carrier ?? defaultCarrier ?? "";
+    r.shipment_carrier_prefs?.[0]?.carrier ?? r.carrier ?? defaultCarrier ?? "";
 
 
 
