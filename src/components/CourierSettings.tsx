@@ -419,6 +419,27 @@ export default function CourierSettings() {
                 </p>
               )}
             </div>
+
+            {credDialog?.code === "yunexpress" && (
+              <div className="rounded-md border border-dashed p-3 space-y-3 bg-muted/30">
+                <p className="text-sm font-medium">{tr("YunExpress 신버전 OpenAPI (라벨 PDF 조회용)", "云途新版 OpenAPI（用于查询标签 PDF）")}</p>
+                <div className="space-y-2">
+                  <Label>{tr("OpenAPI AppId (Token)", "OpenAPI AppId (Token)")}</Label>
+                  <Input name="yun-openapi-app-id" autoComplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" value={cred.openapi_app_id} onChange={(e) => setCred((c) => ({ ...c, openapi_app_id: e.target.value }))} placeholder="6387f82c8548" />
+                  <p className="text-xs text-muted-foreground">
+                    {tr("메일로 받은 appId 값. openapi.yunexpress.cn 의 token 헤더에 사용됩니다.", "邮件中的 appId，对应 openapi.yunexpress.cn 请求头中的 token。")}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>{tr("OpenAPI AppSecret", "OpenAPI AppSecret")}</Label>
+                  <Input type="password" name="yun-openapi-app-secret" autoComplete="new-password" data-1p-ignore data-lpignore="true" data-form-type="other" value={cred.openapi_app_secret} onChange={(e) => setCred((c) => ({ ...c, openapi_app_secret: e.target.value }))} placeholder="0f6d46a78295..." />
+                  <p className="text-xs text-muted-foreground">
+                    {tr("메일로 받은 appSecret 값. 라벨 조회 API 서명(sign) 생성에 사용됩니다.", "邮件中的 appSecret，用于生成标签查询 API 的 sign 签名。")}
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>
                 {credDialog?.code === "yunexpress"
