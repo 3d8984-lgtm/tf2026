@@ -182,6 +182,19 @@ export default function CourierSettings() {
       };
       put("channel_code", cred.channel_code);
       put("access_token", cred.access_token);
+      put("openapi_app_id", cred.openapi_app_id);
+      put("openapi_app_secret", cred.openapi_app_secret);
+      // 하위 호환: 기존 키도 동기화
+      if (cred.openapi_app_id.trim()) {
+        extra.openapi_token = cred.openapi_app_id.trim();
+      } else {
+        delete extra.openapi_token;
+      }
+      if (cred.openapi_app_secret.trim()) {
+        extra.openapi_secret = cred.openapi_app_secret.trim();
+      } else {
+        delete extra.openapi_secret;
+      }
       put("sender_name", cred.sender_name);
       put("sender_company", cred.sender_company);
       put("sender_phone", cred.sender_phone);
