@@ -1079,6 +1079,35 @@ export type Database = {
         }
         Relationships: []
       }
+      shipment_carrier_prefs: {
+        Row: {
+          carrier: string
+          created_at: string
+          shipment_id: string
+          updated_at: string
+        }
+        Insert: {
+          carrier: string
+          created_at?: string
+          shipment_id: string
+          updated_at?: string
+        }
+        Update: {
+          carrier?: string
+          created_at?: string
+          shipment_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shipment_carrier_prefs_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: true
+            referencedRelation: "shipments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shipment_scan_items: {
         Row: {
           carrier: string | null
