@@ -230,6 +230,8 @@ export default function ShippingScan() {
   const [carrier, setCarrier] = useState("");
   const [manualTracking, setManualTracking] = useState("");
   const { data: couriers = [] } = useCouriers(true);
+  // Shared default carrier (server-backed, same on every device/account).
+  const { value: globalCarrier } = useGlobalSetting<string>("shipping_default_carrier", "");
 
   // ---- Shipping groups (pre-issued waybills) --------------------------------
   const { data: groupData, refetch: refetchGroups } = useShippingGroupsForOrder(orderId);
@@ -308,10 +310,16 @@ export default function ShippingScan() {
   // page must switch too, otherwise pre-issuance would go to the old carrier.
   useEffect(() => {
     if (couriers.length === 0) return;
-    const preferred = shipmentCarrier && couriers.find((c) => c.code === shipmentCarrier);
+    // Priority: carrier already used by an issued group > per-order preference >
+    // shared (server-side) default > courier flagged as default.
+    const issued = groups.find((g) => g.carrier)?.carrier ?? null;
+    const preferred =
+      (issued && couriers.find((c) => c.code === issued)) ||
+      (shipmentCarrier && couriers.find((c) => c.code === shipmentCarrier)) ||
+      (globalCarrier && couriers.find((c) => c.code === globalCarrier));
     const next = (preferred ?? couriers.find((c) => c.is_default) ?? couriers[0]).code;
     setCarrier((prev) => (prev === next ? prev : next));
-  }, [couriers, shipmentCarrier]);
+  }, [couriers, shipmentCarrier, globalCarrier, groups]);
 
 
 
