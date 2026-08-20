@@ -561,8 +561,8 @@ Deno.serve(async (req) => {
             [g.tracking_number, g.ref_no].filter(Boolean) as string[],
             {
               base: credY?.extra?.openapi_url ?? cfgY?.extra?.openapi_url,
-              token: credY?.extra?.openapi_token ?? credY?.extra?.token,
-              secret: credY?.extra?.openapi_secret ?? credY?.extra?.secret,
+              token: credY?.extra?.openapi_app_id ?? credY?.extra?.openapi_token ?? credY?.extra?.token,
+              secret: credY?.extra?.openapi_app_secret ?? credY?.extra?.openapi_secret ?? credY?.extra?.secret,
             },
           );
         }
