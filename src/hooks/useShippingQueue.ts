@@ -16,7 +16,7 @@ export function useShippingQueue(filters: QueueFilters) {
       let q = supabase
         .from("shipments")
         .select(
-          "id, order_id, carrier, tracking_number, status, scan_status, scanned_count, design_confirmed, tracking_issued_at, reported_at, created_at, orders(external_order_id, recipient_name, recipient_phone, shipping_address, shipping_city, shipping_state, shipping_zip, product_code, design_code, quantity, project_completed_at, logo_url)"
+          "id, order_id, carrier, tracking_number, status, scan_status, scanned_count, design_confirmed, tracking_issued_at, reported_at, created_at, orders(external_order_id, recipient_name, recipient_phone, shipping_address, shipping_city, shipping_state, shipping_zip, product_code, design_code, quantity, project_completed_at, logo_url), shipment_carrier_prefs(carrier)"
         )
         .order("created_at", { ascending: false })
         .limit(200);
