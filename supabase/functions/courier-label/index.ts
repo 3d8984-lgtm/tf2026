@@ -450,11 +450,129 @@ async function fetchYunLabel(base: string, auth: string, refs: string[], openapi
 }
 
 
+
+/** YunExpress 신버전 OpenAPI 오류코드 → 사람이 읽는 메시지 */
+function yunOpenApiErrorText(code?: string, msg?: string): string {
+  const map: Record<string, string> = {
+    "02039311": "YunExpress 계정 잔액 부족 — 충전 후 다시 발행하세요.",
+    "02039015": "동일 주문이 처리 중입니다. 잠시 후 다시 시도하세요.",
+    "02039066": "이미 등록된 주문번호입니다(중복). 초기화 후 재발행하세요.",
+    "02039067": "이미 등록된 트래킹번호입니다(중복).",
+    "02039019": "선택한 물류상품(product_code)이 존재하지 않거나 사용할 수 없습니다.",
+    "02039083": "목적지 주소(우편번호) 미배송 지역이거나 중량이 지원되지 않습니다.",
+    "02039026": "수취인 정보가 누락되었습니다.",
+    "02039039": "수취인 정보에 특수문자가 포함되어 있습니다.",
+    "02030010": "수취인 우편번호는 영문/숫자/공백만 허용됩니다.",
+    "02039306": "중량은 0보다 커야 하며 소수점 3자리까지만 허용됩니다.",
+  };
+  return map[String(code ?? "")] ?? (msg ? `${msg}${code ? ` (${code})` : ""}` : `YunExpress 오류 ${code ?? ""}`);
+}
+
+/**
+ * YunExpress 신버전 OpenAPI 단표 주문 생성
+ *   POST /v1/order/package/create
+ *   headers: token, date(ms), sign = MD5(token + date + "POST" + path + body + secret)
+ */
+async function createYunOpenApiOrder(
+  openapi: { base?: string; token: string; secret: string },
+  cred: any,
+  order: any,
+  shipment: any,
+  position?: number,
+  qty = 1,
+): Promise<LabelResult | null> {
+  const root = (openapi.base || "https://openapi.yunexpress.cn").replace(/\/+$/, "");
+  const path = "/v1/order/package/create";
+  const src = shippingRecipient(order, position);
+  const r = normalizeRecipient(src);
+  const weightKg = Math.max(0.001, Math.round(((((shipment.weight_grams ?? shipment.expected_weight_grams ?? 0) / 1000) || 0.1) * qty) * 1000) / 1000);
+  const unitPrice = Number(cred?.extra?.unit_price ?? 10);
+
+  const body = JSON.stringify({
+    product_code: cred?.extra?.openapi_product_code ?? cred?.extra?.channel_code ?? "",
+    customer_order_number: String(order.external_order_id ?? "").slice(0, 50),
+    weight_unit: "KG",
+    size_unit: "CM",
+    label_type: "PDF",
+    sensitive_type: "W",
+    packages: [{ weight: weightKg, length: Number(cred?.extra?.length_cm ?? 25), width: Number(cred?.extra?.width_cm ?? 20), height: Number(cred?.extra?.height_cm ?? 3) }],
+    receiver: {
+      first_name: r.first_name,
+      last_name: r.last_name,
+      company: "",
+      country_code: r.country,
+      province: r.state,
+      city: r.city,
+      address_lines: [r.street].filter(Boolean),
+      postal_code: r.zip,
+      phone_number: src.recipient_phone ?? "",
+      email: src.recipient_email ?? "",
+    },
+    declaration_info: [{
+      name_en: cred?.extra?.item_name_en ?? "T-Shirt",
+      name_local: cred?.extra?.item_name_cn ?? "T恤",
+      quantity: qty,
+      unit_price: unitPrice,
+      unit_weight: Math.max(0.001, Math.round((weightKg / qty) * 1000) / 1000),
+      currency: "USD",
+      hs_code: cred?.extra?.hs_code ?? "",
+    }],
+  });
+
+  try {
+    const date = String(Date.now());
+    const sign = await md5Hex(`${openapi.token}${date}POST${path}${body}${openapi.secret ?? ""}`);
+    const res = await fetch(`${root}${path}`, {
+      method: "POST",
+      headers: {
+        token: openapi.token,
+        date,
+        sign,
+        "Accept-Language": "zh-CN",
+        Accept: "application/json",
+        "Content-Type": "application/json;charset=utf-8",
+      },
+      body,
+      signal: AbortSignal.timeout(30_000),
+    });
+    const text = await res.text();
+    let raw: any = text;
+    try { raw = JSON.parse(text); } catch { /* keep text */ }
+    console.log("[yun openapi create]", res.status, String(text).slice(0, 400));
+    if (!raw || typeof raw !== "object") return null;
+    // 인증 자체가 거부되면(권한 미개통 등) 구버전 경로로 폴백한다.
+    if (!raw.success && !raw.code) return null;
+    if (!raw.success) {
+      return { tracking_number: null, label_url: null, raw, error: yunOpenApiErrorText(raw.code, raw.msg) };
+    }
+    const result = raw.result ?? {};
+    const tracking = result.tracking_number || result.waybill_number || null;
+    if (!tracking) return { tracking_number: null, label_url: null, raw, error: raw.msg ?? "운송장번호 미수신" };
+    const label = await fetchYunOpenApiLabel(root, openapi.token, openapi.secret ?? "", [result.waybill_number, result.customer_order_number, tracking].filter(Boolean));
+    return { tracking_number: tracking, label_url: label, raw };
+  } catch (e) {
+    console.log("[yun openapi create error]", String(e));
+    return null;
+  }
+}
+
 async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, position?: number, qtyOverride?: number): Promise<LabelResult> {
   const qty = Math.max(1, Number(qtyOverride ?? 1));
   const base = (cfg.api_url ?? "").replace(/\/+$/, "");
   const url = `${base}/api/WayBill/CreateOrder`;
   const auth = btoa(`${cred?.account_no ?? ""}&${cred?.api_key ?? ""}`);
+
+  // 신버전 OpenAPI 자격증명이 있으면 우선 사용 (라벨 PDF까지 한 번에 확보)
+  const oaToken = cred?.extra?.openapi_app_id ?? cred?.extra?.openapi_token ?? cred?.extra?.token;
+  const oaSecret = cred?.extra?.openapi_app_secret ?? cred?.extra?.openapi_secret ?? cred?.extra?.secret;
+  if (oaToken && oaSecret) {
+    const viaOpenApi = await createYunOpenApiOrder(
+      { base: cred?.extra?.openapi_url ?? cfg?.extra?.openapi_url, token: oaToken, secret: oaSecret },
+      cred, order, shipment, position, qty,
+    );
+    if (viaOpenApi) return viaOpenApi;
+  }
+
   const payload = [
     {
       CustomerOrderNumber: order.external_order_id,
