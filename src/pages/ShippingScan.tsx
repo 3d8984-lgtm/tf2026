@@ -1716,8 +1716,15 @@ export default function ShippingScan() {
                   const address = si.shipping_address || order?.shipping_address || "";
                   const zip = si.shipping_zip || order?.shipping_zip || "-";
                   const country = si.country_code || order?.shipping_country || "-";
+                  const grp = it.shipping_group_id ? groupById.get(it.shipping_group_id) : undefined;
+                  const outcome = it.shipping_group_id ? printOutcome[it.shipping_group_id] : undefined;
+                  const printedOk = outcome?.ok || (!outcome && !!grp?.printed_at);
+                  const printedFail = outcome ? !outcome.ok : (!grp?.printed_at && grp?.label_status === "failed");
+                  const printedAt = outcome?.at ?? grp?.printed_at ?? null;
+                  const failReason = outcome?.reason ?? grp?.label_error ?? "";
                   return (
                     <tr key={it.id} className="border-b hover:bg-accent/30 transition-colors">
+
                       <td className="px-3 py-2 text-center font-mono text-xs">{it.position}</td>
                       <td className="px-3 py-2 font-mono text-xs">{holoNo}</td>
                       <td className="px-3 py-2 font-mono text-xs max-w-[180px] truncate" title={it.qr_value ?? ""}>{it.qr_value ?? "-"}</td>
