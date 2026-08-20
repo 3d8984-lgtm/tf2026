@@ -31,6 +31,7 @@ const emptyCred = {
   // YunExpress 신버전 OpenAPI (openapi.yunexpress.cn) 라벨 PDF 조회용
   openapi_app_id: "",
   openapi_app_secret: "",
+  openapi_access_token: "",
   // 발송인 정보
   sender_name: "",
   sender_company: "",
@@ -130,6 +131,7 @@ export default function CourierSettings() {
       access_token: s("access_token"),
       openapi_app_id: s("openapi_app_id") || s("openapi_token") || s("token"),
       openapi_app_secret: s("openapi_app_secret") || s("openapi_secret") || s("secret"),
+      openapi_access_token: s("openapi_access_token"),
       sender_name: s("sender_name"),
       sender_company: s("sender_company"),
       sender_phone: s("sender_phone"),
@@ -184,9 +186,11 @@ export default function CourierSettings() {
       put("access_token", cred.access_token);
       put("openapi_app_id", cred.openapi_app_id);
       put("openapi_app_secret", cred.openapi_app_secret);
-      // 하위 호환: 기존 키도 동기화
-      if (cred.openapi_app_id.trim()) {
-        extra.openapi_token = cred.openapi_app_id.trim();
+      put("openapi_access_token", cred.openapi_access_token);
+      // 하위 호환: 기존 키도 동기화 (access token 우선)
+      const effToken = cred.openapi_access_token.trim() || cred.openapi_app_id.trim();
+      if (effToken) {
+        extra.openapi_token = effToken;
       } else {
         delete extra.openapi_token;
       }
@@ -441,6 +445,16 @@ export default function CourierSettings() {
                   <Input type="password" name="yun-openapi-app-secret" autoComplete="new-password" data-1p-ignore data-lpignore="true" data-form-type="other" value={cred.openapi_app_secret} onChange={(e) => setCred((c) => ({ ...c, openapi_app_secret: e.target.value }))} placeholder="0f6d46a78295..." />
                   <p className="text-xs text-muted-foreground">
                     {tr("메일로 받은 appSecret 값. 라벨 조회 API 서명(sign) 생성에 사용됩니다.", "邮件中的 appSecret，用于生成标签查询 API 的 sign 签名。")}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>{tr("OpenAPI Access Token (직접 입력)", "OpenAPI Access Token (手动填写)")}</Label>
+                  <Input type="password" name="yun-openapi-access-token" autoComplete="new-password" data-1p-ignore data-lpignore="true" data-form-type="other" value={cred.openapi_access_token} onChange={(e) => setCred((c) => ({ ...c, openapi_access_token: e.target.value }))} placeholder="YunExpress 담당자에게 받은 access token" />
+                  <p className="text-xs text-muted-foreground">
+                    {tr(
+                      "값이 입력되면 AppId 대신 이 토큰을 OpenAPI token 헤더로 사용합니다. 만료 시 새 토큰으로 교체하세요.",
+                      "填写后将使用该令牌替代 AppId 作为 OpenAPI token 请求头。过期后请更换新令牌。",
+                    )}
                   </p>
                 </div>
               </div>
