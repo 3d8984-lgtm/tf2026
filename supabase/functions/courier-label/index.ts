@@ -472,8 +472,16 @@ Deno.serve(async (req) => {
         }
       }
       if (g.tracking_number && g.label_url && g.label_status === "ready") {
+        if (g.carrier && g.carrier !== carrier) {
+          return json({
+            error: `이미 ${String(g.carrier).toUpperCase()} 송장(${g.tracking_number})이 발급된 그룹입니다. 초기화 후 ${String(carrier).toUpperCase()}로 다시 발행하세요.`,
+            tracking_number: g.tracking_number,
+            carrier: g.carrier,
+          }, 409);
+        }
         return json({ ok: true, already: true, tracking_number: g.tracking_number, label_url: g.label_url, carrier: g.carrier });
       }
+
 
       // Idempotent claim: only one caller may flip pending/failed -> issuing.
       const { data: claimed } = await admin
