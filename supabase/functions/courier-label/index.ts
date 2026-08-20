@@ -488,8 +488,41 @@ Deno.serve(async (req) => {
     if (shipping_group_id) {
       const { data: g } = await admin.from("shipping_groups").select("*").eq("id", shipping_group_id).maybeSingle();
       if (!g) return json({ error: "shipping group not found" }, 404);
+
+      // YunExpress: 주문(운송장)은 이미 만들어졌는데 라벨 PDF만 못 받은 경우 —
+      // 절대로 주문을 다시 만들지 않고 라벨만 재요청한다 (중복 접수 방지).
+      if (g.tracking_number && !g.label_url && (g.carrier ?? carrier) === "yunexpress") {
+        const { data: cfgY } = await admin.from("courier_configs").select("*").eq("code", "yunexpress").maybeSingle();
+        const { data: credY } = await admin.from("courier_credentials").select("*").eq("code", "yunexpress").maybeSingle();
+        const issuedAt = new Date().toISOString();
+        let recovered: string | null = null;
+        if (cfgY && credY) {
+          recovered = await fetchYunLabel(
+            cfgY.api_url ?? "",
+            btoa(`${credY.account_no ?? ""}&${credY.api_key ?? ""}`),
+            [g.tracking_number, g.ref_no].filter(Boolean) as string[],
+          );
+        }
+        await admin.from("shipping_groups").update({
+          carrier: "yunexpress",
+          label_url: recovered,
+          // 운송장번호가 있으면 접수는 성공한 것 → 실패로 표시하지 않는다.
+          label_status: "ready",
+          label_error: recovered ? null : "운송장은 발급됨 · 라벨 PDF 미수신 (재시도 시 라벨만 다시 요청)",
+          label_issued_at: g.label_issued_at ?? issuedAt,
+        }).eq("id", g.id);
+        await admin.from("shipment_scan_items").update({
+          carrier: "yunexpress",
+          tracking_number: g.tracking_number,
+          label_url: recovered,
+          tracking_issued_at: issuedAt,
+        }).eq("shipping_group_id", g.id);
+        return json({ ok: true, recovered: !!recovered, carrier: "yunexpress", tracking_number: g.tracking_number, label_url: recovered });
+      }
+
       // 이미 4PX 주문/운송장은 만들어졌는데 라벨 PDF만 못 받은 경우:
       // 주문을 다시 만들지 말고 ds.xms.label.get 만 재시도해서 복구한다.
+
       if (g.tracking_number && !g.label_url && (g.carrier ?? carrier) === "4px") {
         const { data: cfg0 } = await admin.from("courier_configs").select("*").eq("code", "4px").maybeSingle();
         const { data: cred0 } = await admin.from("courier_credentials").select("*").eq("code", "4px").maybeSingle();
