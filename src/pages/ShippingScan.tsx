@@ -331,6 +331,9 @@ export default function ShippingScan() {
   const hidBufRef = useRef<{ buf: string; lastAt: number }>({ buf: "", lastAt: 0 });
   // Group whose label was already printed — offers a manual reprint button.
   const [reprintGroup, setReprintGroup] = useState<ShippingGroupRow | null>(null);
+  /** Last print outcome per shipping group (UI only): success time or failure reason. */
+  const [printOutcome, setPrintOutcome] = useState<Record<string, { ok: boolean; at: string; reason?: string }>>({});
+
 
 
   // ---- Scan → print timing profiler (console.table) -------------------------
