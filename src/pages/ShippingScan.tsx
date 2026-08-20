@@ -305,7 +305,7 @@ export default function ShippingScan() {
 
   useEffect(() => {
     if (carrier || couriers.length === 0) return;
-    const current = shipmentCarrier && couriers.find((c) => c.code === shipment.carrier);
+    const current = shipmentCarrier && couriers.find((c) => c.code === shipmentCarrier);
     setCarrier((current ?? couriers.find((c) => c.is_default) ?? couriers[0]).code);
   }, [couriers, shipmentCarrier, carrier]);
 
