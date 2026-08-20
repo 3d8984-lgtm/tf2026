@@ -186,9 +186,11 @@ export default function CourierSettings() {
       put("access_token", cred.access_token);
       put("openapi_app_id", cred.openapi_app_id);
       put("openapi_app_secret", cred.openapi_app_secret);
-      // 하위 호환: 기존 키도 동기화
-      if (cred.openapi_app_id.trim()) {
-        extra.openapi_token = cred.openapi_app_id.trim();
+      put("openapi_access_token", cred.openapi_access_token);
+      // 하위 호환: 기존 키도 동기화 (access token 우선)
+      const effToken = cred.openapi_access_token.trim() || cred.openapi_app_id.trim();
+      if (effToken) {
+        extra.openapi_token = effToken;
       } else {
         delete extra.openapi_token;
       }
