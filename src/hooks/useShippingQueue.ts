@@ -54,3 +54,18 @@ export function useShippingQueueKpis() {
     },
   });
 }
+
+export function useUpdateShipmentCarrier() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ shipment_id, carrier }: { shipment_id: string; carrier: string }) => {
+      const { error } = await supabase
+        .from("shipment_carrier_prefs")
+        .upsert({ shipment_id, carrier }, { onConflict: "shipment_id" });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shipping_queue"] });
+    },
+  });
+}
