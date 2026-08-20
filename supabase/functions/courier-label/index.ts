@@ -334,6 +334,63 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
 }
 
 
+/** YunExpress: fetch the shipping label PDF for an already-created waybill. */
+async function fetchYunLabel(base: string, auth: string, refs: string[]): Promise<string | null> {
+  const root = (base ?? "").replace(/\/+$/, "");
+  const clean = refs.filter(Boolean);
+  if (!root || !clean.length) return null;
+
+  const pick = (raw: any): string | null => {
+    if (!raw) return null;
+    if (typeof raw === "string") {
+      if (/^https?:\/\//i.test(raw.trim())) return raw.trim();
+      if (raw.length > 500 && /^[A-Za-z0-9+/=\s]+$/.test(raw.trim())) return `data:application/pdf;base64,${raw.replace(/\s+/g, "")}`;
+      return null;
+    }
+    if (Array.isArray(raw)) { for (const r of raw) { const v = pick(r); if (v) return v; } return null; }
+    if (typeof raw === "object") {
+      for (const k of ["LabelUrl", "labelUrl", "Url", "url", "PdfUrl", "ShippingLabelUrl", "LabelContent", "Content", "Base64", "Data", "Item"]) {
+        if (k in raw) { const v = pick((raw as any)[k]); if (v) return v; }
+      }
+    }
+    return null;
+  };
+
+  for (const ref of clean) {
+    const candidates: { url: string; method: "GET" | "POST"; body?: string }[] = [
+      { url: `${root}/api/WayBill/GetLabels?OrderNumber=${encodeURIComponent(ref)}`, method: "GET" },
+      { url: `${root}/api/Label/GetLabel?OrderNumber=${encodeURIComponent(ref)}&Format=PDF`, method: "GET" },
+      { url: `${root}/api/WayBill/GetLabel?OrderNumber=${encodeURIComponent(ref)}`, method: "GET" },
+      { url: `${root}/api/Label/GetLabels`, method: "POST", body: JSON.stringify([ref]) },
+    ];
+    for (const c of candidates) {
+      try {
+        const res = await fetch(c.url, {
+          method: c.method,
+          headers: { Authorization: `Basic ${auth}`, Accept: "application/json,application/pdf", "Content-Type": "application/json" },
+          body: c.body,
+          signal: AbortSignal.timeout(20_000),
+        });
+        if (!res.ok) continue;
+        const ct = res.headers.get("content-type") ?? "";
+        if (ct.includes("pdf")) {
+          const buf = new Uint8Array(await res.arrayBuffer());
+          if (buf.byteLength < 800) continue;
+          let bin = "";
+          for (const b of buf) bin += String.fromCharCode(b);
+          return `data:application/pdf;base64,${btoa(bin)}`;
+        }
+        const text = await res.text();
+        let raw: any = text;
+        try { raw = JSON.parse(text); } catch { /* keep text */ }
+        const found = pick(raw);
+        if (found) return found;
+      } catch { /* try the next candidate */ }
+    }
+  }
+  return null;
+}
+
 
 async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, position?: number, qtyOverride?: number): Promise<LabelResult> {
   const qty = Math.max(1, Number(qtyOverride ?? 1));
