@@ -635,6 +635,7 @@ export default function ShippingScan() {
     if (group.label_status !== "ready" || !group.label_url) {
       printWindow?.close();
       scanFail();
+      setPrintOutcome((p) => ({ ...p, [group.id]: { ok: false, at: new Date().toISOString(), reason: tr("송장 미발급/라벨 PDF 없음", "运单未发行/无标签PDF") } }));
       setFeedback({ kind: "notfound", msg: tr("송장 미발급 · 먼저 송장 사전발행을 진행하세요", "运单未发行 · 请先执行运单预发行") });
       toast({
         variant: "destructive",
@@ -654,8 +655,10 @@ export default function ShippingScan() {
     if (await sendToPrintAgent({ url, carrierCode, trackingNumber: group.tracking_number, refNo: (group as any).ref_no })) {
       printWindow?.close();
       perfMark("print_called");
+      setPrintOutcome((p) => ({ ...p, [group.id]: { ok: true, at: new Date().toISOString() } }));
       void supabase.from("shipping_groups").update({ printed_at: new Date().toISOString() }).eq("id", group.id);
       void logAction("label_print_success", { shipping_group_id: group.id, tracking_number: group.tracking_number, via: "agent" });
+      void refetchGroups();
       return;
     }
 
@@ -664,15 +667,19 @@ export default function ShippingScan() {
     const w = printWindow ?? window.open("", "_blank", `width=${Math.round(size.w * 4)},height=${Math.round(size.h * 4)}`);
     if (!w) {
       toast({ variant: "destructive", title: tr("팝업이 차단되었습니다", "弹窗被拦截") });
+      setPrintOutcome((p) => ({ ...p, [group.id]: { ok: false, at: new Date().toISOString(), reason: tr("팝업 차단", "弹窗被拦截") } }));
       void logAction("label_print_failed", { shipping_group_id: group.id, reason: "popup_blocked" });
       return;
     }
     w.document.write(buildRemoteLabelHtml(url, carrierCode));
     w.document.close();
     perfMark("label_html_written");
+    setPrintOutcome((p) => ({ ...p, [group.id]: { ok: true, at: new Date().toISOString() } }));
     void supabase.from("shipping_groups").update({ printed_at: new Date().toISOString() }).eq("id", group.id);
     void logAction("label_print_success", { shipping_group_id: group.id, tracking_number: group.tracking_number, via: "browser" });
+    void refetchGroups();
   }
+
 
 
   // ---- Pre-issue (before packing starts) ------------------------------------
