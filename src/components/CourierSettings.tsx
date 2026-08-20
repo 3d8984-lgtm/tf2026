@@ -128,6 +128,8 @@ export default function CourierSettings() {
       account_no: credExtra.account_no ?? "",
       channel_code: s("channel_code") || s("logistics_product_code"),
       access_token: s("access_token"),
+      openapi_app_id: s("openapi_app_id") || s("openapi_token") || s("token"),
+      openapi_app_secret: s("openapi_app_secret") || s("openapi_secret") || s("secret"),
       sender_name: s("sender_name"),
       sender_company: s("sender_company"),
       sender_phone: s("sender_phone"),
