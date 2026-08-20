@@ -688,6 +688,13 @@ export default function ShippingScan() {
     setPreIssueLog([]);
     setPreIssueProgress({ done: 0, total: targets.length, success: 0, failed: 0 });
     await logAction("label_preissue_started", { count: targets.length, carrier });
+    // Persist the carrier used, so every other device/account sees the same one.
+    if (shipment?.id) {
+      await supabase
+        .from("shipment_carrier_prefs")
+        .upsert({ shipment_id: shipment.id, carrier }, { onConflict: "shipment_id" });
+      qc.invalidateQueries({ queryKey: ["shipping_queue"] });
+    }
     const startedAt = performance.now();
     await issueGroupLabels(targets, carrier, {
       concurrency: 6,
