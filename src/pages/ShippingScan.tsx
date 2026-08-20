@@ -1282,6 +1282,8 @@ export default function ShippingScan() {
     </div>
   );
 
+  const activeCarrier = carrier || shipmentCarrier || "4px";
+  const activeCarrierName = couriers.find((c) => c.code === activeCarrier)?.name ?? activeCarrier.toUpperCase();
   const previewSize = labelSizeFor(shipment.carrier || carrier);
   const sizeLabel = `${previewSize.w} × ${previewSize.h} mm`;
   // Real device pixels for the label at 96dpi, then scaled down to fit the card.
