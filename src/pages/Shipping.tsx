@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScanLine, Search, Truck, Package, CheckCircle2, Send } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
-import { useShippingQueue, useShippingQueueKpis, type ScanStatus } from "@/hooks/useShippingQueue";
+import { useShippingQueue, useShippingQueueKpis, useUpdateShipmentCarrier, type ScanStatus } from "@/hooks/useShippingQueue";
 import { useCouriers } from "@/hooks/useCouriers";
 
 import { format } from "date-fns";
