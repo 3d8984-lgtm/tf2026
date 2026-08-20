@@ -1336,6 +1336,10 @@ export default function ShippingScan() {
           </DialogHeader>
           {!preIssueRunning && preIssueProgress.total === 0 ? (
             <div className="space-y-2 text-sm">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">{tr("발행 택배사", "发行承运商")}</span>
+                <Badge variant="secondary" className="text-xs">{activeCarrierName}</Badge>
+              </div>
               <div className="flex justify-between"><span className="text-muted-foreground">{tr("전체 제품(주문 항목)", "全部产品(订单项)")}</span><b>{groupMembers.length}</b></div>
               <div className="flex justify-between"><span className="text-muted-foreground">{tr("실제 발송건", "实际发货件")}</span><b>{groups.length}</b></div>
               <div className="flex justify-between"><span className="text-muted-foreground">{tr("1개 발송", "单件发货")}</span><b>{singleGroups.length}</b></div>
