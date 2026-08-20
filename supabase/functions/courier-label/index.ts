@@ -334,7 +334,6 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
 }
 
 
-/** YunExpress: fetch the shipping label PDF for an already-created waybill. */
 async function md5Hex(s: string): Promise<string> {
   const { md5 } = await import("https://esm.sh/js-md5@0.8.3");
   return (md5 as any)(s);
@@ -560,6 +559,11 @@ Deno.serve(async (req) => {
             cfgY.api_url ?? "",
             btoa(`${credY.account_no ?? ""}&${credY.api_key ?? ""}`),
             [g.tracking_number, g.ref_no].filter(Boolean) as string[],
+            {
+              base: credY?.extra?.openapi_url ?? cfgY?.extra?.openapi_url,
+              token: credY?.extra?.openapi_token ?? credY?.extra?.token,
+              secret: credY?.extra?.openapi_secret ?? credY?.extra?.secret,
+            },
           );
         }
         await admin.from("shipping_groups").update({
@@ -872,6 +876,11 @@ Deno.serve(async (req) => {
           cfg.api_url ?? "",
           btoa(`${cred?.account_no ?? ""}&${cred?.api_key ?? ""}`),
           [result.tracking_number, result.ref_no].filter(Boolean) as string[],
+          {
+            base: cred?.extra?.openapi_url ?? cfg?.extra?.openapi_url,
+            token: cred?.extra?.openapi_token ?? cred?.extra?.token,
+            secret: cred?.extra?.openapi_secret ?? cred?.extra?.secret,
+          },
         );
       } catch { /* status below reflects the outcome */ }
     }
