@@ -334,16 +334,24 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
 }
 
 
-async function md5Hex(s: string): Promise<string> {
-  const { md5 } = await import("https://esm.sh/js-md5@0.8.3");
-  return (md5 as any)(s);
+async function yunOpenApiSign(secret: string, canonical: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signed = new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(canonical)));
+  let binary = "";
+  for (const byte of signed) binary += String.fromCharCode(byte);
+  return btoa(binary);
 }
 
 /**
- * YunExpress 신버전 OpenAPI 요청.
- * 서명 누락(0200401101)/서명 무효(0200401102)를 만나면 알려진 sign 공식들을 순차 시도한다.
- *   sign 후보: MD5(token+date+secret), MD5(token+date+body+secret),
- *              MD5(token+date+METHOD+path+body+secret), MD5(secret+token+date)
+ * YunExpress OpenAPI request signing.
+ * canonical: [body=<exact JSON>&]date=<epoch ms>&method=<METHOD>&uri=<path>
  */
 async function yunOpenApiFetch(
   url: string,
@@ -353,72 +361,33 @@ async function yunOpenApiFetch(
   token: string,
   secret: string,
   timeoutMs: number,
-  appId?: string,
-  sourceKey?: string,
 ): Promise<{ res: Response; text: string; raw: any }> {
-  const dateMs = String(Date.now());
-  const dateSec = String(Math.floor(Date.now() / 1000));
-  const b = body ?? "";
-  const combinations = [
-    { d: dateMs, t: token },
-    { d: dateMs, t: appId || token },
-    { d: dateSec, t: token },
-    { d: dateSec, t: appId || token },
-  ];
-
-  const raws: string[] = [];
-  for (const { d, t } of combinations) {
-    raws.push(
-      `${t}${d}${secret}`,
-      `${t}${d}${b}${secret}`,
-      `${t}${d}${method}${path}${b}${secret}`,
-      `${secret}${t}${d}`,
-      `${t}${d}${secret}${sourceKey ?? ""}`,
-    );
-  }
-
-  const signs: { s: string; d: string }[] = [];
-  for (const r of [...new Set(raws.filter(Boolean))]) {
-    const h = await md5Hex(r);
-    // Guess which date was used for this sign
-    const d = combinations.find(c => r.includes(c.d))?.d ?? dateMs;
-    signs.push({ s: h, d }, { s: h.toUpperCase(), d });
-  }
-
-  let last: { res: Response; text: string; raw: any } | null = null;
-  for (const { s: sign, d: date } of signs) {
-    const res = await fetch(url, {
-      method,
-      headers: {
-        token,
-        date,
-        sign,
-        ...(appId ? { appid: appId, AppId: appId } : {}),
-        ...(sourceKey ? { "source-key": sourceKey, sourcekey: sourceKey, SourceKey: sourceKey } : {}),
-        Authorization: `Bearer ${token}`,
-        "Accept-Language": "zh-CN",
-        Accept: "application/json",
-        "Content-Type": "application/json;charset=utf-8",
-      },
-      ...(body ? { body } : {}),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    const text = await res.text();
-    let raw: any = text;
-    try { raw = JSON.parse(text); } catch { /* keep text */ }
-    last = { res, text, raw };
-    const code = String(raw?.code ?? "");
-    if (code !== "0200401101" && code !== "0200401102") return last;
-    console.log("[yun openapi sign retry]", path, code, sign.slice(0, 8), date.length > 10 ? "ms" : "sec");
-  }
-  return last!;
+  const date = String(Date.now());
+  const canonical = `${body ? `body=${body}&` : ""}date=${date}&method=${method}&uri=${path}`;
+  const sign = await yunOpenApiSign(secret, canonical);
+  const res = await fetch(url, {
+    method,
+    headers: {
+      token,
+      date,
+      sign,
+      "Accept-Language": "zh-CN",
+      Accept: "application/json",
+      "Content-Type": "application/json;charset=utf-8",
+    },
+    ...(body ? { body } : {}),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  const text = await res.text();
+  let raw: any = text;
+  try { raw = JSON.parse(text); } catch { /* keep text */ }
+  return { res, text, raw };
 }
-
 
 /**
  * YunExpress OpenAPI (openapi.yunexpress.cn) label fetch:
  *   GET /v1/order/label/get?order_number=XXX
- *   headers: token, date(ms), sign = MD5(token + date + "GET/v1/order/label/get" + body + secret)
+ *   headers: token, date(ms), sign = Base64(HMAC-SHA256(appSecret, canonical request))
  * Returns result.url (PDF/PNG) or result.label_string (base64).
  */
 async function fetchYunOpenApiLabel(
@@ -426,15 +395,13 @@ async function fetchYunOpenApiLabel(
   token: string,
   secret: string,
   refs: string[],
-  appId?: string,
-  sourceKey?: string,
-async function fetchYunLabel(base: string, auth: string, refs: string[], openapi?: { base?: string; token?: string; secret?: string; appId?: string; sourceKey?: string }): Promise<string | null> {
+): Promise<string | null> {
   const root = (openapiBase || "https://openapi.yunexpress.cn").replace(/\/+$/, "");
   const path = "/v1/order/label/get";
   for (const ref of refs.filter(Boolean)) {
     try {
       const q = `${root}${path}?order_number=${encodeURIComponent(ref)}`;
-      const { res, text, raw } = await yunOpenApiFetch(q, "GET", path, undefined, token, secret, 20_000, appId, sourceKey);
+      const { res, text, raw } = await yunOpenApiFetch(q, "GET", path, undefined, token, secret, 20_000);
 
       const r = raw?.result ?? {};
       if (raw?.success && typeof r?.url === "string" && /^https?:\/\//i.test(r.url)) return r.url;
@@ -456,7 +423,7 @@ async function fetchYunLabel(base: string, auth: string, refs: string[], openapi
   const clean = refs.filter(Boolean);
   if (!clean.length) return null;
   if (openapi?.token) {
-    const viaOpenApi = await fetchYunOpenApiLabel(openapi.base ?? "", openapi.token, openapi.secret ?? "", clean, openapi.appId, openapi.sourceKey);
+    const viaOpenApi = await fetchYunOpenApiLabel(openapi.base ?? "", openapi.token, openapi.secret ?? "", clean);
     if (viaOpenApi) return viaOpenApi;
   }
   if (!root) return null;
@@ -574,14 +541,17 @@ async function yunAccessToken(cfg: any, cred: any): Promise<string | undefined> 
       headers: { "Content-Type": "application/json;charset=utf-8", Accept: "application/json" },
       body: JSON.stringify({ grantType: "client_credentials", appId, appSecret, sourceKey }),
       signal: AbortSignal.timeout(20_000),
-async function createYunOpenApiOrder(
-  openapi: { base?: string; token: string; secret: string; appId?: string; sourceKey?: string },
-  cred: any,
-  order: any,
-  shipment: any,
-  position?: number,
-  qty = 1,
-): Promise<LabelResult | null> {
+    });
+    const text = await res.text();
+    let raw: any = text;
+    try { raw = JSON.parse(text); } catch { /* keep text */ }
+    const node = raw?.accessToken ? raw : (raw?.data ?? raw?.result ?? {});
+    const token = String(node?.accessToken ?? node?.access_token ?? "").trim();
+    if (!token) {
+      console.log("[yun oauth2 token error]", res.status, String(raw?.code ?? ""), String(raw?.message ?? raw?.msg ?? "token missing").slice(0, 160));
+      return undefined;
+    }
+    console.log("[yun oauth2 token]", res.status, "issued");
     const ttl = Number(node?.expiresIn ?? node?.expires_in ?? 7200);
     yunTokenCache.set(key, { token, exp: Date.now() + Math.max(60, ttl - 60) * 1000 });
     return token;
@@ -595,7 +565,7 @@ async function createYunOpenApiOrder(
 /**
  * YunExpress 신버전 OpenAPI 단표 주문 생성
  *   POST /v1/order/package/create
- *   headers: token, date(ms), sign = MD5(token + date + "POST" + path + body + secret)
+ *   headers: token, date(ms), sign = Base64(HMAC-SHA256(appSecret, canonical request))
  */
 async function createYunOpenApiOrder(
   openapi: { base?: string; token: string; secret: string },
@@ -644,7 +614,7 @@ async function createYunOpenApiOrder(
   });
 
   try {
-    const { res, text, raw } = await yunOpenApiFetch(`${root}${path}`, "POST", path, body, openapi.token, openapi.secret ?? "", 30_000, openapi.appId, openapi.sourceKey);
+    const { res, text, raw } = await yunOpenApiFetch(`${root}${path}`, "POST", path, body, openapi.token, openapi.secret ?? "", 30_000);
     console.log("[yun openapi create]", res.status, String(text).slice(0, 400));
 
     if (!raw || typeof raw !== "object") return null;
@@ -656,7 +626,7 @@ async function createYunOpenApiOrder(
     const result = raw.result ?? {};
     const tracking = result.tracking_number || result.waybill_number || null;
     if (!tracking) return { tracking_number: null, label_url: null, raw, error: raw.msg ?? "운송장번호 미수신" };
-    const label = await fetchYunOpenApiLabel(root, openapi.token, openapi.secret ?? "", [result.waybill_number, result.customer_order_number, tracking].filter(Boolean), openapi.appId, openapi.sourceKey);
+    const label = await fetchYunOpenApiLabel(root, openapi.token, openapi.secret ?? "", [result.waybill_number, result.customer_order_number, tracking].filter(Boolean));
     return { tracking_number: tracking, label_url: label, raw };
   } catch (e) {
     console.log("[yun openapi create error]", String(e));
@@ -673,11 +643,9 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
   // 신버전 OpenAPI 자격증명이 있으면 우선 사용 (라벨 PDF까지 한 번에 확보)
   const oaToken = await yunAccessToken(cfg, cred);
   const oaSecret = cred?.extra?.openapi_app_secret ?? cred?.extra?.openapi_secret ?? cred?.extra?.secret;
-  const oaAppId = String(cred?.extra?.openapi_app_id ?? cred?.extra?.openapi_token ?? cred?.extra?.token ?? "").trim();
-  const oaSourceKey = String(cred?.extra?.openapi_source_key ?? cred?.extra?.source_key ?? cred?.extra?.sourcekey ?? "").trim();
   if (oaToken && oaSecret) {
     const viaOpenApi = await createYunOpenApiOrder(
-      { base: yunOpenApiBase(cfg, cred), token: oaToken, secret: oaSecret, appId: oaAppId, sourceKey: oaSourceKey },
+      { base: yunOpenApiBase(cfg, cred), token: oaToken, secret: oaSecret },
       cred, order, shipment, position, qty,
     );
     if (viaOpenApi) return viaOpenApi;
@@ -745,16 +713,15 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
         btoa(`${cred?.account_no ?? ""}&${cred?.api_key ?? ""}`),
         [tracking].filter(Boolean) as string[],
         {
-          base: yunOpenApiBase(cfg, cred),
+           base: yunOpenApiBase(cfg, cred),
           token: await yunAccessToken(cfg, cred),
-          secret: oaSecret,
-          appId: oaAppId,
-          sourceKey: oaSourceKey,
+          secret: cred?.extra?.openapi_app_secret ?? cred?.extra?.openapi_secret ?? cred?.extra?.secret,
         },
       );
-    } catch { /* ignore */ }
+    } catch { /* ignore — status below reflects the outcome */ }
   }
   return { tracking_number: tracking, label_url: label, raw };
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -777,6 +744,12 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const { carrier, test, test_variant, item_position, shipping_group_id } = body;
+    let { shipment_id } = body;
+    // Test mode now only supports the production endpoint with real credentials;
+    // the created waybill is cancelled immediately after the label is fetched.
+    const variant: "live_cancel" = test_variant === "live_cancel" ? "live_cancel" : "live_cancel";
+    if (!carrier) return json({ error: "carrier required" }, 400);
+
     // ---- SHIPPING GROUP (pre-issue) ----------------------------------------
     // One shipping group (same recipient name/phone/address/zip) = exactly one
     // waybill, whatever the number of orders it contains.
@@ -801,8 +774,6 @@ Deno.serve(async (req) => {
               base: yunOpenApiBase(cfgY, credY),
               token: await yunAccessToken(cfgY, credY),
               secret: credY?.extra?.openapi_app_secret ?? credY?.extra?.openapi_secret ?? credY?.extra?.secret,
-              appId: String(credY?.extra?.openapi_app_id ?? credY?.extra?.openapi_token ?? credY?.extra?.token ?? "").trim(),
-              sourceKey: String(credY?.extra?.openapi_source_key ?? credY?.extra?.source_key ?? credY?.extra?.sourcekey ?? "").trim(),
             },
           );
         }
