@@ -492,22 +492,30 @@ export default function TshirtQualityDetail() {
               <AlertTriangle className="w-3 h-3" />{tr("불량", "不良")} {failCount}
             </Badge>
           )}
+          {resolvedCount > 0 && (
+            <Badge variant="outline" className="gap-1 border-[hsl(var(--success))] text-[hsl(var(--success))]">
+              <CheckCircle2 className="w-3 h-3" />{tr("불량 처리완료", "不良处理完成")} {resolvedCount}
+            </Badge>
+          )}
         </div>
 
         {/* Large O/X indicator for the active item */}
-        {active && (activePass || activeFail) && (
+        {active && (activePass || activeFail || activeResolved) && (
           <div className={`rounded-xl border-2 p-5 flex items-center gap-5 ${activeFail ? "border-destructive bg-destructive/5" : "border-[hsl(var(--success))] bg-[hsl(var(--success)/0.06)]"}`}>
             <div className={`w-16 h-16 rounded-full flex items-center justify-center text-3xl font-black ${activeFail ? "bg-destructive/10 text-destructive" : "bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]"}`}>
               {activeFail ? "X" : "O"}
             </div>
             <div>
               <p className={`text-lg font-bold ${activeFail ? "text-destructive" : "text-[hsl(var(--success))]"}`}>
-                {activeFail ? tr("불량 판정", "判定不良") : tr("검사 합격", "检验合格")}
+                {activeFail ? tr("불량 판정", "判定不良")
+                  : activeResolved ? tr("불량 처리완료", "不良处理完成")
+                  : tr("검사 합격", "检验合格")}
               </p>
               <p className="text-sm text-muted-foreground mt-0.5 font-mono">{active.qr}</p>
             </div>
           </div>
         )}
+
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
           {/* Left: item list + checklist */}
