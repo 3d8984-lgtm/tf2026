@@ -353,28 +353,49 @@ async function yunOpenApiFetch(
   token: string,
   secret: string,
   timeoutMs: number,
+  appId?: string,
+  sourceKey?: string,
 ): Promise<{ res: Response; text: string; raw: any }> {
-  const date = String(Date.now());
+  const dateMs = String(Date.now());
+  const dateSec = String(Math.floor(Date.now() / 1000));
   const b = body ?? "";
-  const raws = [
-    `${token}${date}${secret}`,
-    `${token}${date}${b}${secret}`,
-    `${token}${date}${method}${path}${b}${secret}`,
-    `${secret}${token}${date}`,
+  const combinations = [
+    { d: dateMs, t: token },
+    { d: dateMs, t: appId || token },
+    { d: dateSec, t: token },
+    { d: dateSec, t: appId || token },
   ];
-  const signs: string[] = [];
-  for (const r of raws) {
-    const h = await md5Hex(r);
-    signs.push(h, h.toUpperCase());
+
+  const raws: string[] = [];
+  for (const { d, t } of combinations) {
+    raws.push(
+      `${t}${d}${secret}`,
+      `${t}${d}${b}${secret}`,
+      `${t}${d}${method}${path}${b}${secret}`,
+      `${secret}${t}${d}`,
+      `${t}${d}${secret}${sourceKey ?? ""}`,
+    );
   }
+
+  const signs: { s: string; d: string }[] = [];
+  for (const r of [...new Set(raws.filter(Boolean))]) {
+    const h = await md5Hex(r);
+    // Guess which date was used for this sign
+    const d = combinations.find(c => r.includes(c.d))?.d ?? dateMs;
+    signs.push({ s: h, d }, { s: h.toUpperCase(), d });
+  }
+
   let last: { res: Response; text: string; raw: any } | null = null;
-  for (const sign of signs) {
+  for (const { s: sign, d: date } of signs) {
     const res = await fetch(url, {
       method,
       headers: {
         token,
         date,
         sign,
+        ...(appId ? { appid: appId, AppId: appId } : {}),
+        ...(sourceKey ? { "source-key": sourceKey, sourcekey: sourceKey, SourceKey: sourceKey } : {}),
+        Authorization: `Bearer ${token}`,
         "Accept-Language": "zh-CN",
         Accept: "application/json",
         "Content-Type": "application/json;charset=utf-8",
@@ -388,7 +409,7 @@ async function yunOpenApiFetch(
     last = { res, text, raw };
     const code = String(raw?.code ?? "");
     if (code !== "0200401101" && code !== "0200401102") return last;
-    console.log("[yun openapi sign retry]", path, code, sign.slice(0, 8));
+    console.log("[yun openapi sign retry]", path, code, sign.slice(0, 8), date.length > 10 ? "ms" : "sec");
   }
   return last!;
 }
