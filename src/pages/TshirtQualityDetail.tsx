@@ -640,7 +640,9 @@ export default function TshirtQualityDetail() {
                     <th className="text-left px-3 py-2 font-medium">{tr("스티커 고유번호", "贴纸唯一编号")}</th>
                     <th className="text-left px-3 py-2 font-medium">{tr("색상/사이즈", "颜色/尺码")}</th>
                     <th className="text-left px-3 py-2 font-medium">{tr("검사 항목", "检验项")}</th>
+                    <th className="text-left px-3 py-2 font-medium">{tr("검사결과", "检验结果")}</th>
                     <th className="text-left px-3 py-2 font-medium">{tr("영상", "视频")}</th>
+
                   </tr>
                 </thead>
                 <tbody>
@@ -677,6 +679,19 @@ export default function TshirtQualityDetail() {
                         </td>
 
                         <td className="px-3 py-2">
+                          {row?.result === "fail" ? (
+                            <Badge variant="destructive" className="text-[10px]">{tr("불량", "不良")}</Badge>
+                          ) : row?.result === "resolved" || cnt === QC_TOTAL ? (
+                            <Badge variant="outline" className="text-[10px] border-[hsl(var(--success))] text-[hsl(var(--success))]">
+                              {tr("통과", "通过")}
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-[10px]">{tr("대기", "待检")}</Badge>
+                          )}
+                        </td>
+
+                        <td className="px-3 py-2">
+
                           {takes.length === 0 ? (
                             <span className="text-xs text-muted-foreground">-</span>
                           ) : (
