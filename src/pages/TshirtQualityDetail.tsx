@@ -10,6 +10,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { scanSuccess, scanFail } from "@/lib/scan-sound";
 import WorkCamRecorder from "@/components/WorkCamRecorder";
@@ -18,7 +22,7 @@ import { QC_GROUPS, QC_TOTAL, qcCheckedCount, qcIsComplete, qcKey, type QcChecks
 import { latinCharFromEvent, normalizeScan, SCANNER_BLOCKED_KEYS } from "@/lib/scan-keys";
 import {
   ChevronLeft, ScanLine, Loader2, CheckCircle2, XCircle, Circle, Video, Play, AlertTriangle,
-  QrCode, Hash, Image as ImageIcon,
+  QrCode, Hash, Image as ImageIcon, RotateCcw,
 } from "lucide-react";
 
 interface Item {
@@ -437,6 +441,40 @@ export default function TshirtQualityDetail() {
   const [note, setNote] = useState("");
   useEffect(() => { setNote(activeRow?.note ?? ""); }, [activeSeq, activeRow?.note]);
 
+  // ---- Reset every inspection record for this order ----
+  const [resetting, setResetting] = useState(false);
+  const resetOrder = useCallback(async () => {
+    if (!orderId) return;
+    setResetting(true);
+    const { error } = await supabase
+      .from("tshirt_quality_inspections")
+      .delete()
+      .eq("order_id", orderId);
+    if (error) {
+      setResetting(false);
+      toast.error(tr("초기화 실패", "重置失败"), { description: error.message });
+      return;
+    }
+    const { error: logErr } = await supabase
+      .from("defect_logs")
+      .delete()
+      .eq("order_id", orderId)
+      .eq("source", "tshirt_quality");
+    setResetting(false);
+    if (logErr) {
+      toast.error(tr("불량 기록 초기화 실패", "不良记录重置失败"), { description: logErr.message });
+      return;
+    }
+    setLocalChecks({});
+    setNote("");
+    setActiveSeq(null);
+    queryClient.invalidateQueries({ queryKey: ["tshirt_quality_inspections", orderId] });
+    queryClient.invalidateQueries({ queryKey: ["tshirt_quality_inspections_summary"] });
+    queryClient.invalidateQueries({ queryKey: ["defect_logs"] });
+    toast.success(tr("초기화되었습니다", "已重置"));
+  }, [orderId, queryClient]); // eslint-disable-line react-hooks/exhaustive-deps
+
+
   // ---- Video playback ----
   const [playing, setPlaying] = useState<{ title: string; url: string } | null>(null);
   const openVideo = async (path: string, title: string) => {
@@ -498,7 +536,31 @@ export default function TshirtQualityDetail() {
               <CheckCircle2 className="w-3 h-3" />{tr("불량 처리완료", "不良处理完成")} {resolvedCount}
             </Badge>
           )}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm" className="ml-auto gap-1 text-destructive" disabled={resetting}>
+                {resetting ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+                {tr("초기화", "重置")}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{tr("이 주문의 검사 내용을 모두 초기화할까요?", "确定重置该订单的全部检验内容？")}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {tr(
+                    "체크리스트, 특이사항, 합격/불량 판정과 관련 불량 기록이 모두 삭제됩니다. 저장된 작업 영상은 유지됩니다.",
+                    "检查清单、备注、合格/不良判定及相关不良记录将全部删除。已保存的作业视频将保留。",
+                  )}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{tr("취소", "取消")}</AlertDialogCancel>
+                <AlertDialogAction onClick={resetOrder}>{tr("초기화", "重置")}</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
+
 
         {/* Large O/X indicator for the active item */}
         {active && (activePass || activeFail || activeResolved) && (
