@@ -679,6 +679,19 @@ export default function TshirtQualityDetail() {
                         </td>
 
                         <td className="px-3 py-2">
+                          {row?.result === "fail" ? (
+                            <Badge variant="destructive" className="text-[10px]">{tr("불량", "不良")}</Badge>
+                          ) : row?.result === "resolved" || cnt === QC_TOTAL ? (
+                            <Badge variant="outline" className="text-[10px] border-[hsl(var(--success))] text-[hsl(var(--success))]">
+                              {tr("통과", "通过")}
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-[10px]">{tr("대기", "待检")}</Badge>
+                          )}
+                        </td>
+
+                        <td className="px-3 py-2">
+
                           {takes.length === 0 ? (
                             <span className="text-xs text-muted-foreground">-</span>
                           ) : (
