@@ -498,7 +498,31 @@ export default function TshirtQualityDetail() {
               <CheckCircle2 className="w-3 h-3" />{tr("불량 처리완료", "不良处理完成")} {resolvedCount}
             </Badge>
           )}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm" className="ml-auto gap-1 text-destructive" disabled={resetting}>
+                {resetting ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+                {tr("초기화", "重置")}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{tr("이 주문의 검사 내용을 모두 초기화할까요?", "确定重置该订单的全部检验内容？")}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {tr(
+                    "체크리스트, 특이사항, 합격/불량 판정과 관련 불량 기록이 모두 삭제됩니다. 저장된 작업 영상은 유지됩니다.",
+                    "检查清单、备注、合格/不良判定及相关不良记录将全部删除。已保存的作业视频将保留。",
+                  )}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{tr("취소", "取消")}</AlertDialogCancel>
+                <AlertDialogAction onClick={resetOrder}>{tr("초기화", "重置")}</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
+
 
         {/* Large O/X indicator for the active item */}
         {active && (activePass || activeFail || activeResolved) && (
