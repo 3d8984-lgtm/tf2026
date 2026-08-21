@@ -461,8 +461,9 @@ export default function TshirtQualityDetail() {
     );
   }
 
-  const doneCount = items.filter((i) => qcIsComplete(checksOf(i.seq)) && bySeq[i.seq]?.result !== "fail").length;
+  const doneCount = items.filter((i) => bySeq[i.seq]?.result === "resolved" || (qcIsComplete(checksOf(i.seq)) && bySeq[i.seq]?.result !== "fail")).length;
   const failCount = items.filter((i) => bySeq[i.seq]?.result === "fail").length;
+  const resolvedCount = items.filter((i) => bySeq[i.seq]?.result === "resolved").length;
   const pct = items.length > 0 ? Math.round((doneCount / items.length) * 100) : 0;
   const activeRef = active ? refFor(active) : null;
 
