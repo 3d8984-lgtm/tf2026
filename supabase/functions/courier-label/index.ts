@@ -682,8 +682,6 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
     );
     if (viaOpenApi) return viaOpenApi;
   }
-    if (viaOpenApi) return viaOpenApi;
-  }
 
   const payload = [
     {
@@ -742,21 +740,21 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
   // 구버전 응답에 라벨 URL이 없으면 신버전 OpenAPI 라벨 조회를 시도한다.
   if (!label && tracking) {
     try {
+      label = await fetchYunLabel(
+        base,
+        btoa(`${cred?.account_no ?? ""}&${cred?.api_key ?? ""}`),
+        [tracking].filter(Boolean) as string[],
         {
           base: yunOpenApiBase(cfg, cred),
           token: await yunAccessToken(cfg, cred),
-          secret: cred?.extra?.openapi_app_secret ?? cred?.extra?.openapi_secret ?? cred?.extra?.secret,
-          appId: String(cred?.extra?.openapi_app_id ?? cred?.extra?.openapi_token ?? cred?.extra?.token ?? "").trim(),
-          sourceKey: String(cred?.extra?.openapi_source_key ?? cred?.extra?.source_key ?? cred?.extra?.sourcekey ?? "").trim(),
-        },
-          token: await yunAccessToken(cfg, cred),
-          secret: cred?.extra?.openapi_app_secret ?? cred?.extra?.openapi_secret ?? cred?.extra?.secret,
+          secret: oaSecret,
+          appId: oaAppId,
+          sourceKey: oaSourceKey,
         },
       );
-    } catch { /* ignore — status below reflects the outcome */ }
+    } catch { /* ignore */ }
   }
   return { tracking_number: tracking, label_url: label, raw };
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
