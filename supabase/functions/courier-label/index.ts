@@ -801,6 +801,8 @@ Deno.serve(async (req) => {
               base: yunOpenApiBase(cfgY, credY),
               token: await yunAccessToken(cfgY, credY),
               secret: credY?.extra?.openapi_app_secret ?? credY?.extra?.openapi_secret ?? credY?.extra?.secret,
+              appId: String(credY?.extra?.openapi_app_id ?? credY?.extra?.openapi_token ?? credY?.extra?.token ?? "").trim(),
+              sourceKey: String(credY?.extra?.openapi_source_key ?? credY?.extra?.source_key ?? credY?.extra?.sourcekey ?? "").trim(),
             },
           );
         }
