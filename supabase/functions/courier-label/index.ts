@@ -340,6 +340,61 @@ async function md5Hex(s: string): Promise<string> {
 }
 
 /**
+ * YunExpress 신버전 OpenAPI 요청.
+ * 서명 누락(0200401101)/서명 무효(0200401102)를 만나면 알려진 sign 공식들을 순차 시도한다.
+ *   sign 후보: MD5(token+date+secret), MD5(token+date+body+secret),
+ *              MD5(token+date+METHOD+path+body+secret), MD5(secret+token+date)
+ */
+async function yunOpenApiFetch(
+  url: string,
+  method: "GET" | "POST",
+  path: string,
+  body: string | undefined,
+  token: string,
+  secret: string,
+  timeoutMs: number,
+): Promise<{ res: Response; text: string; raw: any }> {
+  const date = String(Date.now());
+  const b = body ?? "";
+  const raws = [
+    `${token}${date}${secret}`,
+    `${token}${date}${b}${secret}`,
+    `${token}${date}${method}${path}${b}${secret}`,
+    `${secret}${token}${date}`,
+  ];
+  const signs: string[] = [];
+  for (const r of raws) {
+    const h = await md5Hex(r);
+    signs.push(h, h.toUpperCase());
+  }
+  let last: { res: Response; text: string; raw: any } | null = null;
+  for (const sign of signs) {
+    const res = await fetch(url, {
+      method,
+      headers: {
+        token,
+        date,
+        sign,
+        "Accept-Language": "zh-CN",
+        Accept: "application/json",
+        "Content-Type": "application/json;charset=utf-8",
+      },
+      ...(body ? { body } : {}),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    const text = await res.text();
+    let raw: any = text;
+    try { raw = JSON.parse(text); } catch { /* keep text */ }
+    last = { res, text, raw };
+    const code = String(raw?.code ?? "");
+    if (code !== "0200401101" && code !== "0200401102") return last;
+    console.log("[yun openapi sign retry]", path, code, sign.slice(0, 8));
+  }
+  return last!;
+}
+
+
+/**
  * YunExpress OpenAPI (openapi.yunexpress.cn) label fetch:
  *   GET /v1/order/label/get?order_number=XXX
  *   headers: token, date(ms), sign = MD5(token + date + "GET/v1/order/label/get" + body + secret)
@@ -355,20 +410,9 @@ async function fetchYunOpenApiLabel(
   const path = "/v1/order/label/get";
   for (const ref of refs.filter(Boolean)) {
     try {
-      // OAuth2 방식: 헤더에 access token만 사용한다(별도 sign/date 사용 시 0200401102).
-      const res = await fetch(`${root}${path}?order_number=${encodeURIComponent(ref)}`, {
-        method: "GET",
-        headers: {
-          token,
-          "Accept-Language": "zh-CN",
-          Accept: "application/json",
-          "Content-Type": "application/json;charset=utf-8",
-        },
-        signal: AbortSignal.timeout(20_000),
-      });
-      const text = await res.text();
-      let raw: any = text;
-      try { raw = JSON.parse(text); } catch { /* keep text */ }
+      const q = `${root}${path}?order_number=${encodeURIComponent(ref)}`;
+      const { res, text, raw } = await yunOpenApiFetch(q, "GET", path, undefined, token, secret, 20_000);
+
       const r = raw?.result ?? {};
       if (raw?.success && typeof r?.url === "string" && /^https?:\/\//i.test(r.url)) return r.url;
       if (raw?.success && typeof r?.label_string === "string" && r.label_string.length > 500) {
@@ -452,7 +496,9 @@ async function fetchYunLabel(base: string, auth: string, refs: string[], openapi
 function yunOpenApiErrorText(code?: string, msg?: string): string {
   const map: Record<string, string> = {
     "0200401002": "YunExpress OpenAPI 인증 토큰이 유효하지 않거나 만료되었습니다. 샌드박스 승인 AppId는 테스트 모드(openapi-sbx), 운영 승인 AppId는 실서비스 모드(openapi)에 맞춰 사용하고 인증정보를 다시 저장해 주세요.",
+    "0200401101": "YunExpress OpenAPI 접근 서명(sign)이 누락/불일치입니다. AppSecret(密钥)이 정확한지, 환경(샌드박스/운영)이 일치하는지 확인해 주세요.",
     "0200401102": "YunExpress OpenAPI 서명/토큰이 무효하거나 만료되었습니다. AppId·AppSecret·SourceKey가 해당 환경(샌드박스/운영)과 일치하는지 확인해 주세요.",
+
     "02039311": "YunExpress 계정 잔액 부족 — 충전 후 다시 발행하세요.",
     "02039015": "동일 주문이 처리 중입니다. 잠시 후 다시 시도하세요.",
     "02039066": "이미 등록된 주문번호입니다(중복). 초기화 후 재발행하세요.",
@@ -575,22 +621,9 @@ async function createYunOpenApiOrder(
   });
 
   try {
-    // OAuth2 방식: 헤더에 access token만 사용한다(sign/date 동봉 시 0200401102 서명 오류).
-    const res = await fetch(`${root}${path}`, {
-      method: "POST",
-      headers: {
-        token: openapi.token,
-        "Accept-Language": "zh-CN",
-        Accept: "application/json",
-        "Content-Type": "application/json;charset=utf-8",
-      },
-      body,
-      signal: AbortSignal.timeout(30_000),
-    });
-    const text = await res.text();
-    let raw: any = text;
-    try { raw = JSON.parse(text); } catch { /* keep text */ }
+    const { res, text, raw } = await yunOpenApiFetch(`${root}${path}`, "POST", path, body, openapi.token, openapi.secret ?? "", 30_000);
     console.log("[yun openapi create]", res.status, String(text).slice(0, 400));
+
     if (!raw || typeof raw !== "object") return null;
     // 인증 자체가 거부되면(권한 미개통 등) 구버전 경로로 폴백한다.
     if (!raw.success && !raw.code) return null;
