@@ -134,8 +134,10 @@ export default function TshirtQualityDetail() {
   const checksOf = (seq: number): QcChecks =>
     localChecks[seq] ?? ((bySeq[seq]?.checks as QcChecks) ?? {});
   const activeChecks: QcChecks = activeSeq != null ? checksOf(activeSeq) : {};
-  const activePass = activeSeq != null && activeRow?.result !== "fail" && qcIsComplete(activeChecks);
+  const activeResolved = activeRow?.result === "resolved";
+  const activePass = activeSeq != null && activeRow?.result !== "fail" && !activeResolved && qcIsComplete(activeChecks);
   const activeFail = activeRow?.result === "fail";
+
 
   const [zoomed, setZoomed] = useState<{ src: string; alt: string } | null>(null);
 
