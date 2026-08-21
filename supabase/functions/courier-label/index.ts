@@ -334,16 +334,24 @@ async function call4px(cfg: any, cred: any, order: any, shipment: any, position?
 }
 
 
-async function md5Hex(s: string): Promise<string> {
-  const { md5 } = await import("https://esm.sh/js-md5@0.8.3");
-  return (md5 as any)(s);
+async function yunOpenApiSign(secret: string, canonical: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signed = new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(canonical)));
+  let binary = "";
+  for (const byte of signed) binary += String.fromCharCode(byte);
+  return btoa(binary);
 }
 
 /**
- * YunExpress 신버전 OpenAPI 요청.
- * 서명 누락(0200401101)/서명 무효(0200401102)를 만나면 알려진 sign 공식들을 순차 시도한다.
- *   sign 후보: MD5(token+date+secret), MD5(token+date+body+secret),
- *              MD5(token+date+METHOD+path+body+secret), MD5(secret+token+date)
+ * YunExpress OpenAPI request signing.
+ * canonical: [body=<exact JSON>&]date=<epoch ms>&method=<METHOD>&uri=<path>
  */
 async function yunOpenApiFetch(
   url: string,
@@ -355,49 +363,31 @@ async function yunOpenApiFetch(
   timeoutMs: number,
 ): Promise<{ res: Response; text: string; raw: any }> {
   const date = String(Date.now());
-  const b = body ?? "";
-  const raws = [
-    `${token}${date}${secret}`,
-    `${token}${date}${b}${secret}`,
-    `${token}${date}${method}${path}${b}${secret}`,
-    `${secret}${token}${date}`,
-  ];
-  const signs: string[] = [];
-  for (const r of raws) {
-    const h = await md5Hex(r);
-    signs.push(h, h.toUpperCase());
-  }
-  let last: { res: Response; text: string; raw: any } | null = null;
-  for (const sign of signs) {
-    const res = await fetch(url, {
-      method,
-      headers: {
-        token,
-        date,
-        sign,
-        "Accept-Language": "zh-CN",
-        Accept: "application/json",
-        "Content-Type": "application/json;charset=utf-8",
-      },
-      ...(body ? { body } : {}),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    const text = await res.text();
-    let raw: any = text;
-    try { raw = JSON.parse(text); } catch { /* keep text */ }
-    last = { res, text, raw };
-    const code = String(raw?.code ?? "");
-    if (code !== "0200401101" && code !== "0200401102") return last;
-    console.log("[yun openapi sign retry]", path, code, sign.slice(0, 8));
-  }
-  return last!;
+  const canonical = `${body ? `body=${body}&` : ""}date=${date}&method=${method}&uri=${path}`;
+  const sign = await yunOpenApiSign(secret, canonical);
+  const res = await fetch(url, {
+    method,
+    headers: {
+      token,
+      date,
+      sign,
+      "Accept-Language": "zh-CN",
+      Accept: "application/json",
+      "Content-Type": "application/json;charset=utf-8",
+    },
+    ...(body ? { body } : {}),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  const text = await res.text();
+  let raw: any = text;
+  try { raw = JSON.parse(text); } catch { /* keep text */ }
+  return { res, text, raw };
 }
-
 
 /**
  * YunExpress OpenAPI (openapi.yunexpress.cn) label fetch:
  *   GET /v1/order/label/get?order_number=XXX
- *   headers: token, date(ms), sign = MD5(token + date + "GET/v1/order/label/get" + body + secret)
+ *   headers: token, date(ms), sign = Base64(HMAC-SHA256(appSecret, canonical request))
  * Returns result.url (PDF/PNG) or result.label_string (base64).
  */
 async function fetchYunOpenApiLabel(
@@ -555,10 +545,13 @@ async function yunAccessToken(cfg: any, cred: any): Promise<string | undefined> 
     const text = await res.text();
     let raw: any = text;
     try { raw = JSON.parse(text); } catch { /* keep text */ }
-    console.log("[yun oauth2 token]", res.status, String(text).slice(0, 300));
     const node = raw?.accessToken ? raw : (raw?.data ?? raw?.result ?? {});
     const token = String(node?.accessToken ?? node?.access_token ?? "").trim();
-    if (!token) return undefined;
+    if (!token) {
+      console.log("[yun oauth2 token error]", res.status, String(raw?.code ?? ""), String(raw?.message ?? raw?.msg ?? "token missing").slice(0, 160));
+      return undefined;
+    }
+    console.log("[yun oauth2 token]", res.status, "issued");
     const ttl = Number(node?.expiresIn ?? node?.expires_in ?? 7200);
     yunTokenCache.set(key, { token, exp: Date.now() + Math.max(60, ttl - 60) * 1000 });
     return token;
@@ -572,7 +565,7 @@ async function yunAccessToken(cfg: any, cred: any): Promise<string | undefined> 
 /**
  * YunExpress 신버전 OpenAPI 단표 주문 생성
  *   POST /v1/order/package/create
- *   headers: token, date(ms), sign = MD5(token + date + "POST" + path + body + secret)
+ *   headers: token, date(ms), sign = Base64(HMAC-SHA256(appSecret, canonical request))
  */
 async function createYunOpenApiOrder(
   openapi: { base?: string; token: string; secret: string },
