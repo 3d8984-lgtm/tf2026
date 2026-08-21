@@ -441,6 +441,40 @@ export default function TshirtQualityDetail() {
   const [note, setNote] = useState("");
   useEffect(() => { setNote(activeRow?.note ?? ""); }, [activeSeq, activeRow?.note]);
 
+  // ---- Reset every inspection record for this order ----
+  const [resetting, setResetting] = useState(false);
+  const resetOrder = useCallback(async () => {
+    if (!orderId) return;
+    setResetting(true);
+    const { error } = await supabase
+      .from("tshirt_quality_inspections")
+      .delete()
+      .eq("order_id", orderId);
+    if (error) {
+      setResetting(false);
+      toast.error(tr("초기화 실패", "重置失败"), { description: error.message });
+      return;
+    }
+    const { error: logErr } = await supabase
+      .from("defect_logs")
+      .delete()
+      .eq("order_id", orderId)
+      .eq("source", "tshirt_quality");
+    setResetting(false);
+    if (logErr) {
+      toast.error(tr("불량 기록 초기화 실패", "不良记录重置失败"), { description: logErr.message });
+      return;
+    }
+    setLocalChecks({});
+    setNote("");
+    setActiveSeq(null);
+    queryClient.invalidateQueries({ queryKey: ["tshirt_quality_inspections", orderId] });
+    queryClient.invalidateQueries({ queryKey: ["tshirt_quality_inspections_summary"] });
+    queryClient.invalidateQueries({ queryKey: ["defect_logs"] });
+    toast.success(tr("초기화되었습니다", "已重置"));
+  }, [orderId, queryClient]); // eslint-disable-line react-hooks/exhaustive-deps
+
+
   // ---- Video playback ----
   const [playing, setPlaying] = useState<{ title: string; url: string } | null>(null);
   const openVideo = async (path: string, title: string) => {
