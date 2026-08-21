@@ -496,7 +496,9 @@ async function fetchYunLabel(base: string, auth: string, refs: string[], openapi
 function yunOpenApiErrorText(code?: string, msg?: string): string {
   const map: Record<string, string> = {
     "0200401002": "YunExpress OpenAPI 인증 토큰이 유효하지 않거나 만료되었습니다. 샌드박스 승인 AppId는 테스트 모드(openapi-sbx), 운영 승인 AppId는 실서비스 모드(openapi)에 맞춰 사용하고 인증정보를 다시 저장해 주세요.",
+    "0200401101": "YunExpress OpenAPI 접근 서명(sign)이 누락/불일치입니다. AppSecret(密钥)이 정확한지, 환경(샌드박스/운영)이 일치하는지 확인해 주세요.",
     "0200401102": "YunExpress OpenAPI 서명/토큰이 무효하거나 만료되었습니다. AppId·AppSecret·SourceKey가 해당 환경(샌드박스/운영)과 일치하는지 확인해 주세요.",
+
     "02039311": "YunExpress 계정 잔액 부족 — 충전 후 다시 발행하세요.",
     "02039015": "동일 주문이 처리 중입니다. 잠시 후 다시 시도하세요.",
     "02039066": "이미 등록된 주문번호입니다(중복). 초기화 후 재발행하세요.",
