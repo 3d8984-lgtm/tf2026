@@ -477,6 +477,54 @@ function yunOpenApiBase(cfg: any, cred: any): string {
     : "https://openapi-sbx.yunexpress.cn";
 }
 
+/** OAuth2 access token cache (per base + appId), refreshed a minute before expiry. */
+const yunTokenCache = new Map<string, { token: string; exp: number }>();
+
+/**
+ * YunExpress OAuth2 (client_credentials)
+ *   POST {base}/openapi/oauth2/token
+ *   { grantType, appId, appSecret, sourceKey } → { accessToken, expiresIn }
+ * 수동 입력된 access token이 있으면 그 값을 그대로 사용한다.
+ */
+async function yunAccessToken(cfg: any, cred: any): Promise<string | undefined> {
+  const e = (cred?.extra ?? {}) as Record<string, any>;
+  const manual = String(e.openapi_access_token ?? "").trim();
+  if (manual) return manual;
+
+  const appId = String(e.openapi_app_id ?? e.openapi_token ?? e.token ?? "").trim();
+  const appSecret = String(e.openapi_app_secret ?? e.openapi_secret ?? e.secret ?? "").trim();
+  const sourceKey = String(e.openapi_source_key ?? e.source_key ?? e.sourcekey ?? "").trim();
+  if (!appId || !appSecret) return undefined;
+
+  const base = yunOpenApiBase(cfg, cred).replace(/\/+$/, "");
+  const key = `${base}|${appId}`;
+  const hit = yunTokenCache.get(key);
+  if (hit && hit.exp > Date.now()) return hit.token;
+
+  try {
+    const res = await fetch(`${base}/openapi/oauth2/token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json;charset=utf-8", Accept: "application/json" },
+      body: JSON.stringify({ grantType: "client_credentials", appId, appSecret, sourceKey }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    const text = await res.text();
+    let raw: any = text;
+    try { raw = JSON.parse(text); } catch { /* keep text */ }
+    console.log("[yun oauth2 token]", res.status, String(text).slice(0, 300));
+    const node = raw?.accessToken ? raw : (raw?.data ?? raw?.result ?? {});
+    const token = String(node?.accessToken ?? node?.access_token ?? "").trim();
+    if (!token) return undefined;
+    const ttl = Number(node?.expiresIn ?? node?.expires_in ?? 7200);
+    yunTokenCache.set(key, { token, exp: Date.now() + Math.max(60, ttl - 60) * 1000 });
+    return token;
+  } catch (err) {
+    console.log("[yun oauth2 token error]", String(err));
+    return undefined;
+  }
+}
+
+
 /**
  * YunExpress 신버전 OpenAPI 단표 주문 생성
  *   POST /v1/order/package/create
@@ -572,7 +620,7 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
   const auth = btoa(`${cred?.account_no ?? ""}&${cred?.api_key ?? ""}`);
 
   // 신버전 OpenAPI 자격증명이 있으면 우선 사용 (라벨 PDF까지 한 번에 확보)
-  const oaToken = cred?.extra?.openapi_access_token ?? cred?.extra?.openapi_app_id ?? cred?.extra?.openapi_token ?? cred?.extra?.token;
+  const oaToken = await yunAccessToken(cfg, cred);
   const oaSecret = cred?.extra?.openapi_app_secret ?? cred?.extra?.openapi_secret ?? cred?.extra?.secret;
   if (oaToken && oaSecret) {
     const viaOpenApi = await createYunOpenApiOrder(
@@ -645,7 +693,7 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
         [tracking].filter(Boolean) as string[],
         {
            base: yunOpenApiBase(cfg, cred),
-          token: cred?.extra?.openapi_access_token ?? cred?.extra?.openapi_app_id ?? cred?.extra?.openapi_token ?? cred?.extra?.token,
+          token: await yunAccessToken(cfg, cred),
           secret: cred?.extra?.openapi_app_secret ?? cred?.extra?.openapi_secret ?? cred?.extra?.secret,
         },
       );
@@ -703,7 +751,7 @@ Deno.serve(async (req) => {
             [g.tracking_number, g.ref_no].filter(Boolean) as string[],
             {
               base: yunOpenApiBase(cfgY, credY),
-              token: credY?.extra?.openapi_access_token ?? credY?.extra?.openapi_app_id ?? credY?.extra?.openapi_token ?? credY?.extra?.token,
+              token: await yunAccessToken(cfgY, credY),
               secret: credY?.extra?.openapi_app_secret ?? credY?.extra?.openapi_secret ?? credY?.extra?.secret,
             },
           );
@@ -1020,7 +1068,7 @@ Deno.serve(async (req) => {
           [result.tracking_number, result.ref_no].filter(Boolean) as string[],
           {
              base: yunOpenApiBase(cfg, cred),
-            token: cred?.extra?.openapi_access_token ?? cred?.extra?.openapi_app_id ?? cred?.extra?.openapi_token ?? cred?.extra?.token,
+            token: await yunAccessToken(cfg, cred),
             secret: cred?.extra?.openapi_app_secret ?? cred?.extra?.openapi_secret ?? cred?.extra?.secret,
           },
         );

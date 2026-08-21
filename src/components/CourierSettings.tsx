@@ -32,6 +32,7 @@ const emptyCred = {
   openapi_app_id: "",
   openapi_app_secret: "",
   openapi_access_token: "",
+  openapi_source_key: "",
   // 발송인 정보
   sender_name: "",
   sender_company: "",
@@ -132,6 +133,7 @@ export default function CourierSettings() {
       openapi_app_id: s("openapi_app_id") || s("openapi_token") || s("token"),
       openapi_app_secret: s("openapi_app_secret") || s("openapi_secret") || s("secret"),
       openapi_access_token: s("openapi_access_token"),
+      openapi_source_key: s("openapi_source_key") || s("source_key") || s("sourcekey"),
       sender_name: s("sender_name"),
       sender_company: s("sender_company"),
       sender_phone: s("sender_phone"),
@@ -187,6 +189,7 @@ export default function CourierSettings() {
       put("openapi_app_id", cred.openapi_app_id);
       put("openapi_app_secret", cred.openapi_app_secret);
       put("openapi_access_token", cred.openapi_access_token);
+      put("openapi_source_key", cred.openapi_source_key);
       // 하위 호환: 기존 키도 동기화 (access token 우선)
       const effToken = cred.openapi_access_token.trim() || cred.openapi_app_id.trim();
       if (effToken) {
@@ -448,12 +451,22 @@ export default function CourierSettings() {
                   </p>
                 </div>
                 <div className="space-y-2">
+                  <Label>{tr("OpenAPI SourceKey", "OpenAPI SourceKey")}</Label>
+                  <Input name="yun-openapi-source-key" autoComplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" value={cred.openapi_source_key} onChange={(e) => setCred((c) => ({ ...c, openapi_source_key: e.target.value }))} placeholder="7oyrdqo1" />
+                  <p className="text-xs text-muted-foreground">
+                    {tr(
+                      "개발자 포털 사용자 중심 - 사용자 정보의 sourcekey 값. AppId/AppSecret과 함께 access token 자동 발급에 사용됩니다.",
+                      "开发者后台 用户中心-用户信息 的 sourcekey，与 AppId/AppSecret 一起用于自动获取 access token。",
+                    )}
+                  </p>
+                </div>
+                <div className="space-y-2">
                   <Label>{tr("OpenAPI Access Token (직접 입력)", "OpenAPI Access Token (手动填写)")}</Label>
                   <Input type="password" name="yun-openapi-access-token" autoComplete="new-password" data-1p-ignore data-lpignore="true" data-form-type="other" value={cred.openapi_access_token} onChange={(e) => setCred((c) => ({ ...c, openapi_access_token: e.target.value }))} placeholder="YunExpress 담당자에게 받은 access token" />
                   <p className="text-xs text-muted-foreground">
                     {tr(
-                      "값이 입력되면 AppId 대신 이 토큰을 OpenAPI token 헤더로 사용합니다. 만료 시 새 토큰으로 교체하세요.",
-                      "填写后将使用该令牌替代 AppId 作为 OpenAPI token 请求头。过期后请更换新令牌。",
+                      "비워두면 AppId/AppSecret/SourceKey로 access token을 자동 발급(OAuth2)해 사용합니다. 값을 입력하면 해당 토큰을 우선 사용합니다.",
+                      "留空则通过 AppId/AppSecret/SourceKey 自动获取 access token（OAuth2）；填写后优先使用该令牌。",
                     )}
                   </p>
                 </div>
