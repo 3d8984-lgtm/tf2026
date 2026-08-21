@@ -620,7 +620,7 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
   const auth = btoa(`${cred?.account_no ?? ""}&${cred?.api_key ?? ""}`);
 
   // 신버전 OpenAPI 자격증명이 있으면 우선 사용 (라벨 PDF까지 한 번에 확보)
-  const oaToken = cred?.extra?.openapi_access_token ?? cred?.extra?.openapi_app_id ?? cred?.extra?.openapi_token ?? cred?.extra?.token;
+  const oaToken = await yunAccessToken(cfg, cred);
   const oaSecret = cred?.extra?.openapi_app_secret ?? cred?.extra?.openapi_secret ?? cred?.extra?.secret;
   if (oaToken && oaSecret) {
     const viaOpenApi = await createYunOpenApiOrder(
@@ -693,7 +693,7 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
         [tracking].filter(Boolean) as string[],
         {
            base: yunOpenApiBase(cfg, cred),
-          token: cred?.extra?.openapi_access_token ?? cred?.extra?.openapi_app_id ?? cred?.extra?.openapi_token ?? cred?.extra?.token,
+          token: await yunAccessToken(cfg, cred),
           secret: cred?.extra?.openapi_app_secret ?? cred?.extra?.openapi_secret ?? cred?.extra?.secret,
         },
       );
@@ -751,7 +751,7 @@ Deno.serve(async (req) => {
             [g.tracking_number, g.ref_no].filter(Boolean) as string[],
             {
               base: yunOpenApiBase(cfgY, credY),
-              token: credY?.extra?.openapi_access_token ?? credY?.extra?.openapi_app_id ?? credY?.extra?.openapi_token ?? credY?.extra?.token,
+              token: await yunAccessToken(cfgY, credY),
               secret: credY?.extra?.openapi_app_secret ?? credY?.extra?.openapi_secret ?? credY?.extra?.secret,
             },
           );
@@ -1068,7 +1068,7 @@ Deno.serve(async (req) => {
           [result.tracking_number, result.ref_no].filter(Boolean) as string[],
           {
              base: yunOpenApiBase(cfg, cred),
-            token: cred?.extra?.openapi_access_token ?? cred?.extra?.openapi_app_id ?? cred?.extra?.openapi_token ?? cred?.extra?.token,
+            token: await yunAccessToken(cfg, cred),
             secret: cred?.extra?.openapi_app_secret ?? cred?.extra?.openapi_secret ?? cred?.extra?.secret,
           },
         );
