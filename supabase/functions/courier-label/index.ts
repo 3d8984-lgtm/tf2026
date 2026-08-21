@@ -574,14 +574,11 @@ async function createYunOpenApiOrder(
   });
 
   try {
-    const date = String(Date.now());
-    const sign = await md5Hex(`${openapi.token}${date}POST${path}${body}${openapi.secret ?? ""}`);
+    // OAuth2 방식: 헤더에 access token만 사용한다(sign/date 동봉 시 0200401102 서명 오류).
     const res = await fetch(`${root}${path}`, {
       method: "POST",
       headers: {
         token: openapi.token,
-        date,
-        sign,
         "Accept-Language": "zh-CN",
         Accept: "application/json",
         "Content-Type": "application/json;charset=utf-8",
