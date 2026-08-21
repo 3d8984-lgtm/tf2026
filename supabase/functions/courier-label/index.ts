@@ -355,14 +355,11 @@ async function fetchYunOpenApiLabel(
   const path = "/v1/order/label/get";
   for (const ref of refs.filter(Boolean)) {
     try {
-      const date = String(Date.now());
-      const sign = await md5Hex(`${token}${date}GET${path}${secret ?? ""}`);
+      // OAuth2 방식: 헤더에 access token만 사용한다(별도 sign/date 사용 시 0200401102).
       const res = await fetch(`${root}${path}?order_number=${encodeURIComponent(ref)}`, {
         method: "GET",
         headers: {
           token,
-          date,
-          sign,
           "Accept-Language": "zh-CN",
           Accept: "application/json",
           "Content-Type": "application/json;charset=utf-8",
