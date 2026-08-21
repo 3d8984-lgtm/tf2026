@@ -460,19 +460,39 @@ export default function TshirtQualityDetail() {
       .delete()
       .eq("order_id", orderId)
       .eq("source", "tshirt_quality");
-    setResetting(false);
     if (logErr) {
+      setResetting(false);
       toast.error(tr("불량 기록 초기화 실패", "不良记录重置失败"), { description: logErr.message });
       return;
     }
+
+    // Delete QC recordings for this order (storage + records)
+    try {
+      if (folder) {
+        const { data: files } = await supabase.storage.from("work-videos").list(folder, { limit: 1000 });
+        const paths = (files ?? [])
+          .filter((f) => f.name.startsWith("QC-"))
+          .map((f) => `${folder}/${f.name}`);
+        if (paths.length) {
+          await supabase.storage.from("work-videos").remove(paths);
+          await supabase.from("work_video_records").delete().in("path", paths);
+        }
+      }
+    } catch (e) {
+      console.error("video reset failed", e);
+    }
+
+    setResetting(false);
     setLocalChecks({});
     setNote("");
     setActiveSeq(null);
     queryClient.invalidateQueries({ queryKey: ["tshirt_quality_inspections", orderId] });
     queryClient.invalidateQueries({ queryKey: ["tshirt_quality_inspections_summary"] });
+    queryClient.invalidateQueries({ queryKey: ["tshirt_quality_videos", folder] });
     queryClient.invalidateQueries({ queryKey: ["defect_logs"] });
     toast.success(tr("초기화되었습니다", "已重置"));
-  }, [orderId, queryClient]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [orderId, folder, queryClient]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
 
   // ---- Video playback ----
