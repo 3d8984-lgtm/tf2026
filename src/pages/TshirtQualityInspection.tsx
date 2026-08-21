@@ -41,14 +41,16 @@ export default function TshirtQualityInspection() {
   });
 
   const summary = useMemo(() => {
-    const map: Record<string, { done: number; fail: number }> = {};
+    const map: Record<string, { done: number; fail: number; resolved: number }> = {};
     for (const row of inspections ?? []) {
-      const cur = (map[row.order_id as string] ??= { done: 0, fail: 0 });
+      const cur = (map[row.order_id as string] ??= { done: 0, fail: 0, resolved: 0 });
       if (row.result === "fail") cur.fail += 1;
+      else if (row.result === "resolved") { cur.resolved += 1; cur.done += 1; }
       else if (qcIsComplete(row.checks as any)) cur.done += 1;
     }
     return map;
   }, [inspections]);
+
 
   return (
     <div className="flex flex-col h-full">
