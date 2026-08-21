@@ -665,19 +665,35 @@ export default function TshirtQualityDetail() {
                     placeholder={tr("특이사항 / 불량 내용", "备注 / 不良内容")}
                     rows={2}
                   />
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 items-center flex-wrap">
                     <Button size="sm" onClick={() => saveChecks(active.seq, activeChecks, note)}>
                       {tr("저장", "保存")}
                     </Button>
-                    <Button size="sm" variant="destructive" onClick={() => { scanFail(); saveChecks(active.seq, activeChecks, note, "fail"); }}>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={!note.trim()}
+                      onClick={() => { scanFail(); saveChecks(active.seq, activeChecks, note, "fail"); }}
+                    >
                       <XCircle className="w-4 h-4 mr-1" />{tr("불량 처리", "判定不良")}
                     </Button>
                     {activeRow?.result === "fail" && (
-                      <Button size="sm" variant="outline" onClick={() => saveChecks(active.seq, activeChecks, note, qcIsComplete(activeChecks) ? "pass" : "pending")}>
-                        {tr("불량 해제", "取消不良")}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!note.trim()}
+                        onClick={() => saveChecks(active.seq, activeChecks, note, "resolved")}
+                      >
+                        <CheckCircle2 className="w-4 h-4 mr-1" />{tr("불량 처리완료", "不良处理完成")}
                       </Button>
                     )}
+                    {!note.trim() && (
+                      <span className="text-xs text-muted-foreground">
+                        {tr("특이사항 / 불량 내용을 입력해야 불량 처리가 가능합니다", "需填写备注 / 不良内容后方可进行不良处理")}
+                      </span>
+                    )}
                   </div>
+
                 </div>
               </div>
             )}
