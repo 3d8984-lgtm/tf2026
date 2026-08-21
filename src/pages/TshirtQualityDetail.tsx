@@ -596,8 +596,14 @@ export default function TshirtQualityDetail() {
                               : cnt === QC_TOTAL ? <CheckCircle2 className="w-4 h-4 text-success" />
                               : <Circle className="w-4 h-4 text-muted-foreground/50" />}
                             <span className="text-xs">{cnt}/{QC_TOTAL}</span>
+                            {row?.result === "resolved" && (
+                              <Badge variant="outline" className="text-[10px] border-[hsl(var(--success))] text-[hsl(var(--success))]">
+                                {tr("불량 처리완료", "不良处理完成")}
+                              </Badge>
+                            )}
                           </span>
                         </td>
+
                         <td className="px-3 py-2">
                           {takes.length === 0 ? (
                             <span className="text-xs text-muted-foreground">-</span>
