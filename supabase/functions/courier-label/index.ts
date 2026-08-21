@@ -673,11 +673,15 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
   // 신버전 OpenAPI 자격증명이 있으면 우선 사용 (라벨 PDF까지 한 번에 확보)
   const oaToken = await yunAccessToken(cfg, cred);
   const oaSecret = cred?.extra?.openapi_app_secret ?? cred?.extra?.openapi_secret ?? cred?.extra?.secret;
+  const oaAppId = String(cred?.extra?.openapi_app_id ?? cred?.extra?.openapi_token ?? cred?.extra?.token ?? "").trim();
+  const oaSourceKey = String(cred?.extra?.openapi_source_key ?? cred?.extra?.source_key ?? cred?.extra?.sourcekey ?? "").trim();
   if (oaToken && oaSecret) {
     const viaOpenApi = await createYunOpenApiOrder(
-      { base: yunOpenApiBase(cfg, cred), token: oaToken, secret: oaSecret },
+      { base: yunOpenApiBase(cfg, cred), token: oaToken, secret: oaSecret, appId: oaAppId, sourceKey: oaSourceKey },
       cred, order, shipment, position, qty,
     );
+    if (viaOpenApi) return viaOpenApi;
+  }
     if (viaOpenApi) return viaOpenApi;
   }
 
@@ -738,12 +742,13 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
   // 구버전 응답에 라벨 URL이 없으면 신버전 OpenAPI 라벨 조회를 시도한다.
   if (!label && tracking) {
     try {
-      label = await fetchYunLabel(
-        base,
-        btoa(`${cred?.account_no ?? ""}&${cred?.api_key ?? ""}`),
-        [tracking].filter(Boolean) as string[],
         {
-           base: yunOpenApiBase(cfg, cred),
+          base: yunOpenApiBase(cfg, cred),
+          token: await yunAccessToken(cfg, cred),
+          secret: cred?.extra?.openapi_app_secret ?? cred?.extra?.openapi_secret ?? cred?.extra?.secret,
+          appId: String(cred?.extra?.openapi_app_id ?? cred?.extra?.openapi_token ?? cred?.extra?.token ?? "").trim(),
+          sourceKey: String(cred?.extra?.openapi_source_key ?? cred?.extra?.source_key ?? cred?.extra?.sourcekey ?? "").trim(),
+        },
           token: await yunAccessToken(cfg, cred),
           secret: cred?.extra?.openapi_app_secret ?? cred?.extra?.openapi_secret ?? cred?.extra?.secret,
         },
@@ -774,12 +779,6 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const { carrier, test, test_variant, item_position, shipping_group_id } = body;
-    let { shipment_id } = body;
-    // Test mode now only supports the production endpoint with real credentials;
-    // the created waybill is cancelled immediately after the label is fetched.
-    const variant: "live_cancel" = test_variant === "live_cancel" ? "live_cancel" : "live_cancel";
-    if (!carrier) return json({ error: "carrier required" }, 400);
-
     // ---- SHIPPING GROUP (pre-issue) ----------------------------------------
     // One shipping group (same recipient name/phone/address/zip) = exactly one
     // waybill, whatever the number of orders it contains.
