@@ -426,13 +426,15 @@ async function fetchYunOpenApiLabel(
   token: string,
   secret: string,
   refs: string[],
-): Promise<string | null> {
+  appId?: string,
+  sourceKey?: string,
+async function fetchYunLabel(base: string, auth: string, refs: string[], openapi?: { base?: string; token?: string; secret?: string; appId?: string; sourceKey?: string }): Promise<string | null> {
   const root = (openapiBase || "https://openapi.yunexpress.cn").replace(/\/+$/, "");
   const path = "/v1/order/label/get";
   for (const ref of refs.filter(Boolean)) {
     try {
       const q = `${root}${path}?order_number=${encodeURIComponent(ref)}`;
-      const { res, text, raw } = await yunOpenApiFetch(q, "GET", path, undefined, token, secret, 20_000);
+      const { res, text, raw } = await yunOpenApiFetch(q, "GET", path, undefined, token, secret, 20_000, appId, sourceKey);
 
       const r = raw?.result ?? {};
       if (raw?.success && typeof r?.url === "string" && /^https?:\/\//i.test(r.url)) return r.url;
@@ -454,7 +456,7 @@ async function fetchYunLabel(base: string, auth: string, refs: string[], openapi
   const clean = refs.filter(Boolean);
   if (!clean.length) return null;
   if (openapi?.token) {
-    const viaOpenApi = await fetchYunOpenApiLabel(openapi.base ?? "", openapi.token, openapi.secret ?? "", clean);
+    const viaOpenApi = await fetchYunOpenApiLabel(openapi.base ?? "", openapi.token, openapi.secret ?? "", clean, openapi.appId, openapi.sourceKey);
     if (viaOpenApi) return viaOpenApi;
   }
   if (!root) return null;
@@ -572,14 +574,14 @@ async function yunAccessToken(cfg: any, cred: any): Promise<string | undefined> 
       headers: { "Content-Type": "application/json;charset=utf-8", Accept: "application/json" },
       body: JSON.stringify({ grantType: "client_credentials", appId, appSecret, sourceKey }),
       signal: AbortSignal.timeout(20_000),
-    });
-    const text = await res.text();
-    let raw: any = text;
-    try { raw = JSON.parse(text); } catch { /* keep text */ }
-    console.log("[yun oauth2 token]", res.status, String(text).slice(0, 300));
-    const node = raw?.accessToken ? raw : (raw?.data ?? raw?.result ?? {});
-    const token = String(node?.accessToken ?? node?.access_token ?? "").trim();
-    if (!token) return undefined;
+async function createYunOpenApiOrder(
+  openapi: { base?: string; token: string; secret: string; appId?: string; sourceKey?: string },
+  cred: any,
+  order: any,
+  shipment: any,
+  position?: number,
+  qty = 1,
+): Promise<LabelResult | null> {
     const ttl = Number(node?.expiresIn ?? node?.expires_in ?? 7200);
     yunTokenCache.set(key, { token, exp: Date.now() + Math.max(60, ttl - 60) * 1000 });
     return token;
@@ -642,7 +644,7 @@ async function createYunOpenApiOrder(
   });
 
   try {
-    const { res, text, raw } = await yunOpenApiFetch(`${root}${path}`, "POST", path, body, openapi.token, openapi.secret ?? "", 30_000);
+    const { res, text, raw } = await yunOpenApiFetch(`${root}${path}`, "POST", path, body, openapi.token, openapi.secret ?? "", 30_000, openapi.appId, openapi.sourceKey);
     console.log("[yun openapi create]", res.status, String(text).slice(0, 400));
 
     if (!raw || typeof raw !== "object") return null;
@@ -654,7 +656,7 @@ async function createYunOpenApiOrder(
     const result = raw.result ?? {};
     const tracking = result.tracking_number || result.waybill_number || null;
     if (!tracking) return { tracking_number: null, label_url: null, raw, error: raw.msg ?? "운송장번호 미수신" };
-    const label = await fetchYunOpenApiLabel(root, openapi.token, openapi.secret ?? "", [result.waybill_number, result.customer_order_number, tracking].filter(Boolean));
+    const label = await fetchYunOpenApiLabel(root, openapi.token, openapi.secret ?? "", [result.waybill_number, result.customer_order_number, tracking].filter(Boolean), openapi.appId, openapi.sourceKey);
     return { tracking_number: tracking, label_url: label, raw };
   } catch (e) {
     console.log("[yun openapi create error]", String(e));
