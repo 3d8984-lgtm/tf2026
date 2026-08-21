@@ -387,6 +387,26 @@ export default function TshirtQualityDetail() {
       if (logErr) toast.error(tr("불량 로그 기록 실패", "不良日志记录失败"), { description: logErr.message });
       else queryClient.invalidateQueries({ queryKey: ["defect_logs"] });
     }
+    // Closing out a defect: mark the matching defect log entries as resolved
+    // so the 불량/예외 관리 board also shows 처리 완료.
+    if (result === "resolved") {
+      const { error: logErr } = await supabase.from("defect_logs")
+        .update({
+          status: "rework_done",
+          resolved_at: new Date().toISOString(),
+          detail: note ?? null,
+        })
+        .eq("order_id", orderId)
+        .eq("seq", seq)
+        .eq("source", "tshirt_quality")
+        .neq("status", "rework_done");
+      if (logErr) toast.error(tr("불량 로그 갱신 실패", "不良日志更新失败"), { description: logErr.message });
+      else {
+        queryClient.invalidateQueries({ queryKey: ["defect_logs"] });
+        toast.success(tr("불량 처리완료 되었습니다", "已完成不良处理"));
+      }
+    }
+
     queryClient.invalidateQueries({ queryKey: ["tshirt_quality_inspections", orderId] });
     queryClient.invalidateQueries({ queryKey: ["tshirt_quality_inspections_summary"] });
   }, [orderId, items, bySeq, queryClient, folder, isKo]); // eslint-disable-line react-hooks/exhaustive-deps
