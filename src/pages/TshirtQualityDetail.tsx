@@ -22,7 +22,7 @@ import { QC_GROUPS, QC_TOTAL, qcCheckedCount, qcIsComplete, qcKey, type QcChecks
 import { latinCharFromEvent, normalizeScan, SCANNER_BLOCKED_KEYS } from "@/lib/scan-keys";
 import {
   ChevronLeft, ScanLine, Loader2, CheckCircle2, XCircle, Circle, Video, Play, AlertTriangle,
-  QrCode, Hash, Image as ImageIcon,
+  QrCode, Hash, Image as ImageIcon, RotateCcw,
 } from "lucide-react";
 
 interface Item {
