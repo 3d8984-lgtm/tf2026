@@ -41,14 +41,16 @@ export default function TshirtQualityInspection() {
   });
 
   const summary = useMemo(() => {
-    const map: Record<string, { done: number; fail: number }> = {};
+    const map: Record<string, { done: number; fail: number; resolved: number }> = {};
     for (const row of inspections ?? []) {
-      const cur = (map[row.order_id as string] ??= { done: 0, fail: 0 });
+      const cur = (map[row.order_id as string] ??= { done: 0, fail: 0, resolved: 0 });
       if (row.result === "fail") cur.fail += 1;
+      else if (row.result === "resolved") { cur.resolved += 1; cur.done += 1; }
       else if (qcIsComplete(row.checks as any)) cur.done += 1;
     }
     return map;
   }, [inspections]);
+
 
   return (
     <div className="flex flex-col h-full">
@@ -82,7 +84,7 @@ export default function TshirtQualityInspection() {
               <tbody>
                 {(orders ?? []).map((o: any) => {
                   const total = Math.max(Array.isArray(o.source_data?.items) ? o.source_data.items.length : 0, o.quantity ?? 0);
-                  const s = summary[o.id] ?? { done: 0, fail: 0 };
+                  const s = summary[o.id] ?? { done: 0, fail: 0, resolved: 0 };
                   const pct = total > 0 ? Math.round(((s.done + s.fail) / total) * 100) : 0;
                   return (
                     <tr
@@ -96,14 +98,20 @@ export default function TshirtQualityInspection() {
                       <td className="px-4 py-3">{o.product_code}</td>
                       <td className="px-4 py-3">{total}</td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <div className="h-1.5 w-24 rounded-full bg-muted overflow-hidden">
                             <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
                           </div>
                           <span className="text-xs text-muted-foreground">{s.done + s.fail}/{total}</span>
                           {s.fail > 0 && <Badge variant="destructive" className="text-[10px]">{tr("불량", "不良")} {s.fail}</Badge>}
+                          {s.resolved > 0 && (
+                            <Badge variant="outline" className="text-[10px] border-[hsl(var(--success))] text-[hsl(var(--success))]">
+                              {tr("불량 처리완료", "不良处理完成")} {s.resolved}
+                            </Badge>
+                          )}
                         </div>
                       </td>
+
                       <td className="px-4 py-3 text-muted-foreground">
                         {o.project_completed_at ? new Date(o.project_completed_at).toLocaleDateString(isKo ? "ko-KR" : "zh-CN") : "-"}
                       </td>

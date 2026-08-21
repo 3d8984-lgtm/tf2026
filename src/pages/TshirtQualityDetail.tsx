@@ -134,8 +134,10 @@ export default function TshirtQualityDetail() {
   const checksOf = (seq: number): QcChecks =>
     localChecks[seq] ?? ((bySeq[seq]?.checks as QcChecks) ?? {});
   const activeChecks: QcChecks = activeSeq != null ? checksOf(activeSeq) : {};
-  const activePass = activeSeq != null && activeRow?.result !== "fail" && qcIsComplete(activeChecks);
+  const activeResolved = activeRow?.result === "resolved";
+  const activePass = activeSeq != null && activeRow?.result !== "fail" && !activeResolved && qcIsComplete(activeChecks);
   const activeFail = activeRow?.result === "fail";
+
 
   const [zoomed, setZoomed] = useState<{ src: string; alt: string } | null>(null);
 
@@ -387,6 +389,26 @@ export default function TshirtQualityDetail() {
       if (logErr) toast.error(tr("불량 로그 기록 실패", "不良日志记录失败"), { description: logErr.message });
       else queryClient.invalidateQueries({ queryKey: ["defect_logs"] });
     }
+    // Closing out a defect: mark the matching defect log entries as resolved
+    // so the 불량/예외 관리 board also shows 처리 완료.
+    if (result === "resolved") {
+      const { error: logErr } = await supabase.from("defect_logs")
+        .update({
+          status: "rework_done",
+          resolved_at: new Date().toISOString(),
+          detail: note ?? null,
+        })
+        .eq("order_id", orderId)
+        .eq("seq", seq)
+        .eq("source", "tshirt_quality")
+        .neq("status", "rework_done");
+      if (logErr) toast.error(tr("불량 로그 갱신 실패", "不良日志更新失败"), { description: logErr.message });
+      else {
+        queryClient.invalidateQueries({ queryKey: ["defect_logs"] });
+        toast.success(tr("불량 처리완료 되었습니다", "已完成不良处理"));
+      }
+    }
+
     queryClient.invalidateQueries({ queryKey: ["tshirt_quality_inspections", orderId] });
     queryClient.invalidateQueries({ queryKey: ["tshirt_quality_inspections_summary"] });
   }, [orderId, items, bySeq, queryClient, folder, isKo]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -397,7 +419,8 @@ export default function TshirtQualityDetail() {
     const next = { ...checksOf(seq), [qcKey(group, check)]: on };
     setLocalChecks((prev) => ({ ...prev, [seq]: next }));
     if (on && qcIsComplete(next) && bySeq[seq]?.result !== "fail") scanSuccess();
-    saveChecks(seq, next, undefined, bySeq[seq]?.result === "fail" ? "fail" : undefined);
+    const keep = bySeq[seq]?.result;
+    saveChecks(seq, next, undefined, keep === "fail" || keep === "resolved" ? keep : undefined);
   };
 
   const toggleAll = (on: boolean) => {
@@ -439,8 +462,9 @@ export default function TshirtQualityDetail() {
     );
   }
 
-  const doneCount = items.filter((i) => qcIsComplete(checksOf(i.seq)) && bySeq[i.seq]?.result !== "fail").length;
+  const doneCount = items.filter((i) => bySeq[i.seq]?.result === "resolved" || (qcIsComplete(checksOf(i.seq)) && bySeq[i.seq]?.result !== "fail")).length;
   const failCount = items.filter((i) => bySeq[i.seq]?.result === "fail").length;
+  const resolvedCount = items.filter((i) => bySeq[i.seq]?.result === "resolved").length;
   const pct = items.length > 0 ? Math.round((doneCount / items.length) * 100) : 0;
   const activeRef = active ? refFor(active) : null;
 
@@ -469,22 +493,30 @@ export default function TshirtQualityDetail() {
               <AlertTriangle className="w-3 h-3" />{tr("불량", "不良")} {failCount}
             </Badge>
           )}
+          {resolvedCount > 0 && (
+            <Badge variant="outline" className="gap-1 border-[hsl(var(--success))] text-[hsl(var(--success))]">
+              <CheckCircle2 className="w-3 h-3" />{tr("불량 처리완료", "不良处理完成")} {resolvedCount}
+            </Badge>
+          )}
         </div>
 
         {/* Large O/X indicator for the active item */}
-        {active && (activePass || activeFail) && (
+        {active && (activePass || activeFail || activeResolved) && (
           <div className={`rounded-xl border-2 p-5 flex items-center gap-5 ${activeFail ? "border-destructive bg-destructive/5" : "border-[hsl(var(--success))] bg-[hsl(var(--success)/0.06)]"}`}>
             <div className={`w-16 h-16 rounded-full flex items-center justify-center text-3xl font-black ${activeFail ? "bg-destructive/10 text-destructive" : "bg-[hsl(var(--success)/0.15)] text-[hsl(var(--success))]"}`}>
               {activeFail ? "X" : "O"}
             </div>
             <div>
               <p className={`text-lg font-bold ${activeFail ? "text-destructive" : "text-[hsl(var(--success))]"}`}>
-                {activeFail ? tr("불량 판정", "判定不良") : tr("검사 합격", "检验合格")}
+                {activeFail ? tr("불량 판정", "判定不良")
+                  : activeResolved ? tr("불량 처리완료", "不良处理完成")
+                  : tr("검사 합격", "检验合格")}
               </p>
               <p className="text-sm text-muted-foreground mt-0.5 font-mono">{active.qr}</p>
             </div>
           </div>
         )}
+
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
           {/* Left: item list + checklist */}
@@ -574,8 +606,14 @@ export default function TshirtQualityDetail() {
                               : cnt === QC_TOTAL ? <CheckCircle2 className="w-4 h-4 text-success" />
                               : <Circle className="w-4 h-4 text-muted-foreground/50" />}
                             <span className="text-xs">{cnt}/{QC_TOTAL}</span>
+                            {row?.result === "resolved" && (
+                              <Badge variant="outline" className="text-[10px] border-[hsl(var(--success))] text-[hsl(var(--success))]">
+                                {tr("불량 처리완료", "不良处理完成")}
+                              </Badge>
+                            )}
                           </span>
                         </td>
+
                         <td className="px-3 py-2">
                           {takes.length === 0 ? (
                             <span className="text-xs text-muted-foreground">-</span>
@@ -643,19 +681,35 @@ export default function TshirtQualityDetail() {
                     placeholder={tr("특이사항 / 불량 내용", "备注 / 不良内容")}
                     rows={2}
                   />
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 items-center flex-wrap">
                     <Button size="sm" onClick={() => saveChecks(active.seq, activeChecks, note)}>
                       {tr("저장", "保存")}
                     </Button>
-                    <Button size="sm" variant="destructive" onClick={() => { scanFail(); saveChecks(active.seq, activeChecks, note, "fail"); }}>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={!note.trim()}
+                      onClick={() => { scanFail(); saveChecks(active.seq, activeChecks, note, "fail"); }}
+                    >
                       <XCircle className="w-4 h-4 mr-1" />{tr("불량 처리", "判定不良")}
                     </Button>
                     {activeRow?.result === "fail" && (
-                      <Button size="sm" variant="outline" onClick={() => saveChecks(active.seq, activeChecks, note, qcIsComplete(activeChecks) ? "pass" : "pending")}>
-                        {tr("불량 해제", "取消不良")}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!note.trim()}
+                        onClick={() => saveChecks(active.seq, activeChecks, note, "resolved")}
+                      >
+                        <CheckCircle2 className="w-4 h-4 mr-1" />{tr("불량 처리완료", "不良处理完成")}
                       </Button>
                     )}
+                    {!note.trim() && (
+                      <span className="text-xs text-muted-foreground">
+                        {tr("특이사항 / 불량 내용을 입력해야 불량 처리가 가능합니다", "需填写备注 / 不良内容后方可进行不良处理")}
+                      </span>
+                    )}
                   </div>
+
                 </div>
               </div>
             )}
