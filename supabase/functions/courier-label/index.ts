@@ -410,20 +410,9 @@ async function fetchYunOpenApiLabel(
   const path = "/v1/order/label/get";
   for (const ref of refs.filter(Boolean)) {
     try {
-      // OAuth2 방식: 헤더에 access token만 사용한다(별도 sign/date 사용 시 0200401102).
-      const res = await fetch(`${root}${path}?order_number=${encodeURIComponent(ref)}`, {
-        method: "GET",
-        headers: {
-          token,
-          "Accept-Language": "zh-CN",
-          Accept: "application/json",
-          "Content-Type": "application/json;charset=utf-8",
-        },
-        signal: AbortSignal.timeout(20_000),
-      });
-      const text = await res.text();
-      let raw: any = text;
-      try { raw = JSON.parse(text); } catch { /* keep text */ }
+      const q = `${root}${path}?order_number=${encodeURIComponent(ref)}`;
+      const { res, text, raw } = await yunOpenApiFetch(q, "GET", path, undefined, token, secret, 20_000);
+
       const r = raw?.result ?? {};
       if (raw?.success && typeof r?.url === "string" && /^https?:\/\//i.test(r.url)) return r.url;
       if (raw?.success && typeof r?.label_string === "string" && r.label_string.length > 500) {
