@@ -419,7 +419,8 @@ export default function TshirtQualityDetail() {
     const next = { ...checksOf(seq), [qcKey(group, check)]: on };
     setLocalChecks((prev) => ({ ...prev, [seq]: next }));
     if (on && qcIsComplete(next) && bySeq[seq]?.result !== "fail") scanSuccess();
-    saveChecks(seq, next, undefined, bySeq[seq]?.result === "fail" ? "fail" : undefined);
+    const keep = bySeq[seq]?.result;
+    saveChecks(seq, next, undefined, keep === "fail" || keep === "resolved" ? keep : undefined);
   };
 
   const toggleAll = (on: boolean) => {
