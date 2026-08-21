@@ -619,22 +619,9 @@ async function createYunOpenApiOrder(
   });
 
   try {
-    // OAuth2 방식: 헤더에 access token만 사용한다(sign/date 동봉 시 0200401102 서명 오류).
-    const res = await fetch(`${root}${path}`, {
-      method: "POST",
-      headers: {
-        token: openapi.token,
-        "Accept-Language": "zh-CN",
-        Accept: "application/json",
-        "Content-Type": "application/json;charset=utf-8",
-      },
-      body,
-      signal: AbortSignal.timeout(30_000),
-    });
-    const text = await res.text();
-    let raw: any = text;
-    try { raw = JSON.parse(text); } catch { /* keep text */ }
+    const { res, text, raw } = await yunOpenApiFetch(`${root}${path}`, "POST", path, body, openapi.token, openapi.secret ?? "", 30_000);
     console.log("[yun openapi create]", res.status, String(text).slice(0, 400));
+
     if (!raw || typeof raw !== "object") return null;
     // 인증 자체가 거부되면(권한 미개통 등) 구버전 경로로 폴백한다.
     if (!raw.success && !raw.code) return null;
