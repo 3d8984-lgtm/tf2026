@@ -18,6 +18,8 @@ import {
   ChevronLeft, AlertTriangle, Loader2, Play, Pause, SkipForward, FlaskConical,
 } from "lucide-react";
 
+import PfPrinterCard from "@/components/PfPrinterCard";
+
 const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 
@@ -800,6 +802,8 @@ function OrderDetail({
             </CardContent>
           </Card>
         </div>
+
+        <PfPrinterCard />
 
         {/* 상단 상태 바 */}
         <Card className={halted ? "border-destructive" : ""}>
