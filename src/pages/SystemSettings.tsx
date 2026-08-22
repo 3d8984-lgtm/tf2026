@@ -1,7 +1,7 @@
 import PageHeader from "@/components/PageHeader";
 import { useLang } from "@/contexts/LangContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Bell, Shield, Cog, Server, Cpu, Radio, Play, AlertTriangle, Plus, Pencil, Trash2, Wifi, WifiOff, ShieldCheck, Webhook, Truck, ArrowUpRight, Video, HardDrive } from "lucide-react";
+import { Users, Bell, Shield, Cog, Server, Cpu, Radio, Play, AlertTriangle, Plus, Pencil, Trash2, Wifi, WifiOff, ShieldCheck, Webhook, Truck, ArrowUpRight, Video, HardDrive, Lightbulb } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import InspectionStandards from "@/components/InspectionStandards";
 import UserManagement from "@/components/UserManagement";
@@ -10,6 +10,7 @@ import CourierSettings from "@/components/CourierSettings";
 import SiteCallbackSettings from "@/components/SiteCallbackSettings";
 import CameraSettings from "@/components/CameraSettings";
 import WorkVideoRetentionSettings from "@/components/WorkVideoRetentionSettings";
+import WarningLightPanel from "@/components/WarningLightPanel";
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
@@ -149,6 +150,7 @@ export default function SystemSettings() {
     { icon: Webhook, label: t("settings.webhook"), desc: isKo ? "수신 웹훅 로그 확인 및 관리" : "接收Webhook日志查看及管理", tab: "webhook" },
     { icon: Truck, label: isKo ? "택배사 연동" : "快递对接", desc: isKo ? "4PX, YunExpress 등 택배사 API 설정" : "4PX、云途等快递公司API设置", tab: "courier" },
     { icon: ArrowUpRight, label: isKo ? "TWINMETA 회신" : "TWINMETA回调", desc: isKo ? "TWINMETA 사이트 콜백 URL 및 자동 전송 설정" : "TWINMETA站点回调URL及自动发送设置", tab: "callback" },
+    { icon: Lightbulb, label: isKo ? "경고등 제어" : "警示灯控制", desc: isKo ? "빨강/초록 경고등 상태 조회 및 점멸 제어" : "红/绿警示灯状态查询与闪烁控制", tab: "warningLight" },
     { icon: HardDrive, label: isKo ? "작업 영상 보관" : "作业视频保留", desc: isKo ? "작업 영상 자동 삭제 기간 및 보존 규칙" : "作业视频自动删除周期及保留规则", tab: "workVideo" },
   ];
 
@@ -165,6 +167,7 @@ export default function SystemSettings() {
     { value: "webhook", icon: Webhook, label: t("settings.webhook") },
     { value: "courier", icon: Truck, label: isKo ? "택배사 연동" : "快递对接" },
     { value: "callback", icon: ArrowUpRight, label: isKo ? "TWINMETA 회신" : "TWINMETA回调" },
+    { value: "warningLight", icon: Lightbulb, label: isKo ? "경고등 제어" : "警示灯控制" },
     { value: "workVideo", icon: HardDrive, label: isKo ? "작업 영상 보관" : "作业视频保留" },
   ];
 
@@ -539,6 +542,7 @@ export default function SystemSettings() {
           <TabsContent value="webhook"><WebhookSettings /></TabsContent>
           <TabsContent value="courier"><CourierSettings /></TabsContent>
           <TabsContent value="callback"><SiteCallbackSettings /></TabsContent>
+          <TabsContent value="warningLight"><div className="section-enter"><WarningLightPanel /></div></TabsContent>
           <TabsContent value="workVideo"><WorkVideoRetentionSettings /></TabsContent>
         </Tabs>
       </div>

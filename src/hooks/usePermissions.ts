@@ -29,7 +29,7 @@ const ROLE_PERMISSIONS: Record<UserRole, {
   manager: {
     menuAccess: ["/", "/upload", "/all-orders", "/tshirt-work", "/tshirt-quality", "/set-qr-inspect", "/card-qr-inspect", "/card-photo-inspect", "/card-barcode-print", "/tshirt-barcode-print", "/tshirt", "/monitor", "/shipping", "/defects", "/cctv-quality", "/settings",
       "/outsource", "/outsource/orders", "/outsource/silicon", "/outsource/heat-transfer", "/outsource/hologram", "/outsource/nfc-card", "/outsource/card-order/templates", "/outsource/card-order/orders", "/outsource/logo", "/outsource/tshirt-order", "/outsource/tshirt-factory", "/outsource/packaging", "/outsource/history", "/outsource/settings"],
-    settingsTabs: ["general", "equipment", "plcTags", "sensors", "commands", "alarms", "inspection"],
+    settingsTabs: ["general", "equipment", "plcTags", "sensors", "commands", "alarms", "inspection", "warningLight"],
     canEdit: {
       orders: true,
       production: true,
@@ -41,7 +41,7 @@ const ROLE_PERMISSIONS: Record<UserRole, {
   admin: {
     menuAccess: ["/", "/upload", "/all-orders", "/tshirt-work", "/tshirt-quality", "/set-qr-inspect", "/card-qr-inspect", "/card-photo-inspect", "/card-barcode-print", "/tshirt-barcode-print", "/tshirt", "/monitor", "/shipping", "/defects", "/cctv-quality", "/settings",
       "/outsource", "/outsource/orders", "/outsource/silicon", "/outsource/heat-transfer", "/outsource/hologram", "/outsource/nfc-card", "/outsource/card-order/templates", "/outsource/card-order/orders", "/outsource/logo", "/outsource/tshirt-order", "/outsource/tshirt-factory", "/outsource/packaging", "/outsource/history", "/outsource/settings"],
-    settingsTabs: ["general", "users", "equipment", "camera", "plcTags", "sensors", "commands", "alarms", "inspection", "webhook", "courier", "callback", "workVideo"],
+    settingsTabs: ["general", "users", "equipment", "camera", "plcTags", "sensors", "commands", "alarms", "inspection", "webhook", "courier", "callback", "workVideo", "warningLight"],
     canEdit: {
       orders: true,
       production: true,
