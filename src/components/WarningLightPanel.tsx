@@ -1,0 +1,169 @@
+import { useCallback, useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useLang } from "@/contexts/LangContext";
+import { useToast } from "@/hooks/use-toast";
+import { Lightbulb, RefreshCw, Wifi, WifiOff } from "lucide-react";
+
+const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
+const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+
+function proxyFetch(path: string, init?: RequestInit) {
+  return fetch(`${PROXY_BASE}${path}`, {
+    ...init,
+    headers: { apikey: ANON_KEY, "Content-Type": "application/json", ...(init?.headers ?? {}) },
+  });
+}
+
+type ChannelMode = "off" | "on" | "blink" | "unknown";
+type ChannelState = { mode: ChannelMode; blink_level: number | null };
+type LightStatus = Record<string, ChannelState | number | string | null>;
+
+const CHANNELS = [
+  { key: "red", ko: "빨강", zh: "红色", dot: "bg-destructive" },
+  { key: "green", ko: "초록", zh: "绿色", dot: "bg-emerald-500" },
+] as const;
+
+/**
+ * USB Modbus-RTU 경고등 제어 패널.
+ * GET /api/v1/warning-light/status 로 상태를 폴링하고,
+ * POST /api/v1/warning-light/control 로 채널별 off/on/점멸을 지정한다.
+ */
+export default function WarningLightPanel() {
+  const { lang } = useLang();
+  const isKo = lang === "ko";
+  const tr = (ko: string, zh: string) => (isKo ? ko : zh);
+  const { toast } = useToast();
+
+  const [status, setStatus] = useState<LightStatus | null>(null);
+  const [offline, setOffline] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [levels, setLevels] = useState<Record<string, string>>({ red: "3", green: "3" });
+
+  const load = useCallback(async () => {
+    try {
+      const res = await proxyFetch("/api/v1/warning-light/status");
+      const j: any = await res.json().catch(() => ({}));
+      if (!res.ok || "upstream_status" in (j ?? {})) { setOffline(true); return; }
+      setOffline(false);
+      setStatus(j as LightStatus);
+    } catch {
+      setOffline(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    const iv = setInterval(load, 5000);
+    return () => clearInterval(iv);
+  }, [load]);
+
+  const control = useCallback(async (channel: string, mode: "off" | "on" | "blink") => {
+    setBusy(true);
+    const value: Record<string, unknown> = { mode };
+    if (mode === "blink") value.blink_level = Number(levels[channel] ?? 3);
+    try {
+      const res = await proxyFetch("/api/v1/warning-light/control", {
+        method: "POST",
+        body: JSON.stringify({ [channel]: value }),
+      });
+      const j: any = await res.json().catch(() => ({}));
+      if (!res.ok || !j?.accepted) {
+        const detail = j?.detail;
+        const msg = typeof detail === "string"
+          ? detail
+          : Array.isArray(detail) ? detail.map((d: any) => d.msg).join(", ") : `HTTP ${res.status}`;
+        toast({ title: tr("경고등 제어 실패", "警示灯控制失败"), description: msg, variant: "destructive" });
+      } else {
+        toast({ title: tr("경고등 명령 전송됨", "已发送警示灯命令") });
+        load();
+      }
+    } catch (e) {
+      toast({ title: tr("경고등 제어 실패", "警示灯控制失败"), description: String(e), variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  }, [levels, load, toast, isKo]);
+
+  const modeLabel = (m?: ChannelMode) =>
+    m === "on" ? tr("켜짐", "常亮")
+      : m === "blink" ? tr("점멸", "闪烁")
+        : m === "off" ? tr("꺼짐", "关闭")
+          : tr("알 수 없음", "未知");
+
+  return (
+    <Card className={offline ? "border-destructive" : ""}>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center justify-between gap-2">
+          <span className="flex items-center gap-2">
+            <Lightbulb className="w-4 h-4" />{tr("경고등 제어", "警示灯控制")}
+          </span>
+          <span className="flex items-center gap-2">
+            {offline ? (
+              <Badge variant="outline" className="gap-1 text-destructive border-destructive/40">
+                <WifiOff className="w-3 h-3" />{tr("연결 끊김", "连接断开")}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="gap-1 text-emerald-500 border-emerald-500/40">
+                <Wifi className="w-3 h-3" />{tr("연결됨", "已连接")}
+              </Badge>
+            )}
+            <Button size="sm" variant="outline" className="gap-1" onClick={() => void load()}>
+              <RefreshCw className="w-3.5 h-3.5" />{tr("새로고침", "刷新")}
+            </Button>
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {CHANNELS.map((c) => {
+          const st = (status?.[c.key] as ChannelState | undefined) ?? undefined;
+          const on = st?.mode === "on";
+          const blink = st?.mode === "blink";
+          return (
+            <div key={c.key} className="flex flex-wrap items-center gap-3 rounded-md border p-3">
+              <span
+                className={`w-8 h-8 rounded-full border shrink-0 ${on || blink ? c.dot : "bg-muted"} ${blink ? "animate-pulse" : ""}`}
+              />
+              <div className="min-w-0">
+                <p className="text-sm font-medium">{isKo ? c.ko : c.zh}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {modeLabel(st?.mode)}
+                  {st?.blink_level != null && ` · ${tr("주기", "周期")} ${st.blink_level}`}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 ml-auto">
+                <Select value={levels[c.key] ?? "3"} onValueChange={(v) => setLevels((p) => ({ ...p, [c.key]: v }))}>
+                  <SelectTrigger className="w-[110px] h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                      <SelectItem key={n} value={String(n)}>{tr("점멸", "闪烁")} {n} ({(n / 10).toFixed(1)}s)</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => void control(c.key, "on")}>
+                  {tr("켜기", "开")}
+                </Button>
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => void control(c.key, "blink")}>
+                  {tr("점멸", "闪烁")}
+                </Button>
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => void control(c.key, "off")}>
+                  {tr("끄기", "关")}
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+        <p className="text-[11px] text-muted-foreground">
+          {tr(
+            "장치가 소프트웨어 제어 모드일 때만 명령이 반영됩니다. IO 제어(잠금) 모드에서는 응답은 정상이어도 실제 동작하지 않습니다.",
+            "仅当设备处于软件控制模式时命令才生效。IO控制（锁定）模式下即使返回正常也不会实际动作。",
+          )}
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
