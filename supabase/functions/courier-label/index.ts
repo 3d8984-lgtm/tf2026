@@ -871,6 +871,31 @@ Deno.serve(async (req) => {
       const { data: g } = await admin.from("shipping_groups").select("*").eq("id", shipping_group_id).maybeSingle();
       if (!g) return json({ error: "shipping group not found" }, 404);
 
+      // YunExpress: 접수 직후 내부 주문번호(숫자만)만 저장된 경우 실제 운송장번호(YT…)로 승격한다.
+      if (g.tracking_number && (g.carrier ?? carrier) === "yunexpress" && !isYunTrackingNumber(g.tracking_number)) {
+        const { data: cfgU } = await admin.from("courier_configs").select("*").eq("code", "yunexpress").maybeSingle();
+        const { data: credU } = await admin.from("courier_credentials").select("*").eq("code", "yunexpress").maybeSingle();
+        if (cfgU && credU) {
+          const upgraded = await waitForYunTracking(
+            (yunOpenApiBase(cfgU, credU) || "https://openapi.yunexpress.cn").replace(/\/+$/, ""),
+            (await yunAccessToken(cfgU, credU)) ?? "",
+            credU?.extra?.openapi_app_secret ?? credU?.extra?.openapi_secret ?? credU?.extra?.secret ?? "",
+            [g.tracking_number, g.ref_no].filter(Boolean) as string[],
+            2,
+          );
+          if (upgraded) {
+            g.ref_no = g.ref_no ?? g.tracking_number;
+            g.tracking_number = upgraded;
+            await admin.from("shipping_groups")
+              .update({ tracking_number: upgraded, ref_no: g.ref_no })
+              .eq("id", g.id);
+            await admin.from("shipment_scan_items")
+              .update({ tracking_number: upgraded })
+              .eq("shipping_group_id", g.id);
+          }
+        }
+      }
+
       // YunExpress: 주문(운송장)은 이미 만들어졌는데 라벨 PDF만 못 받은 경우 —
       // 절대로 주문을 다시 만들지 않고 라벨만 재요청한다 (중복 접수 방지).
       if (g.tracking_number && !g.label_url && (g.carrier ?? carrier) === "yunexpress") {
@@ -882,7 +907,7 @@ Deno.serve(async (req) => {
           recovered = await fetchYunLabel(
             cfgY.api_url ?? "",
             btoa(`${credY.account_no ?? ""}&${credY.api_key ?? ""}`),
-            [g.tracking_number, g.ref_no].filter(Boolean) as string[],
+            [g.ref_no, g.tracking_number].filter(Boolean) as string[],
             {
               base: yunOpenApiBase(cfgY, credY),
               token: await yunAccessToken(cfgY, credY),
@@ -906,6 +931,7 @@ Deno.serve(async (req) => {
         }).eq("shipping_group_id", g.id);
         return json({ ok: true, recovered: !!recovered, carrier: "yunexpress", tracking_number: g.tracking_number, label_url: recovered });
       }
+
 
       // 이미 4PX 주문/운송장은 만들어졌는데 라벨 PDF만 못 받은 경우:
       // 주문을 다시 만들지 말고 ds.xms.label.get 만 재시도해서 복구한다.
