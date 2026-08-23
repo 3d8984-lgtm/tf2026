@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { warnLightOkFlash, warnLightError } from "@/lib/warning-light";
+import { pfPrint, pfPrinterStatus } from "@/lib/pf-printer";
 
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -391,23 +392,10 @@ function OrderDetail({
         ...prev,
       ].slice(0, 100));
     };
-    try {
-      const res = await proxyFetch("/api/v1/print/test", {
-        method: "POST",
-        body: JSON.stringify({ text: payload }),
-      });
-      const j: any = await res.json().catch(() => ({}));
-      if (res.ok && j?.accepted) { record(true, null); return { ok: true }; }
-      const detail = j?.detail;
-      const msg = typeof detail === "string"
-        ? detail
-        : Array.isArray(detail) ? detail.map((d: any) => d.msg).join(", ") : `HTTP ${res.status}`;
-      record(false, msg);
-      return { ok: false, error: msg };
-    } catch (e) {
-      record(false, String(e));
-      return { ok: false, error: String(e) };
-    }
+    // PF 신형 프린터(/api/v2/pf-printer) — 구형 /api/v1/print/* 는 deprecated
+    const r = await pfPrint(payload);
+    record(r.ok, r.ok ? null : r.error ?? null);
+    return r.ok ? { ok: true } : { ok: false, error: r.error };
   }, []);
 
 
@@ -418,9 +406,9 @@ function OrderDetail({
     let alive = true;
     const tick = async () => {
       try {
-        const [sRes, pRes, hRes] = await Promise.all([
+        const [sRes, pf, hRes] = await Promise.all([
           proxyFetch("/api/v1/scan/status"),
-          proxyFetch("/api/v1/print/queue"),
+          pfPrinterStatus(),
           proxyFetch("/api/v1/scan/history"),
         ]);
         const s: any = await sRes.json();
@@ -428,17 +416,9 @@ function OrderDetail({
         if (!sRes.ok || "upstream_status" in s) { setOffline(true); }
         else { setOffline(false); setStatus(s as ScanStatus); }
         const cut = ts(cutoffRef.current);
-        if (pRes.ok) {
-          const p: any = await pRes.json();
-          setPrinterOffline("upstream_status" in p);
-          if (Array.isArray(p?.jobs)) {
-            const fresh = (p.jobs as PrintJob[]).filter((j) => ts(j.printed_at ?? j.enqueued_at) > cut);
-            setJobs(fresh.slice(-50).reverse());
-            setPendingCount(cut ? fresh.filter((j) => j.status === "pending").length : (p.pending_count ?? 0));
-          }
-        } else {
-          setPrinterOffline(true);
-        }
+        // PF 신형 프린터 상태 (잉크/버퍼) — 인쇄 대기 건수는 프린터 버퍼 기준
+        setPrinterOffline(pf.offline);
+        setPendingCount(pf.buffer_count ?? 0);
         if (hRes.ok) {
           const h: any = await hRes.json();
           if (Array.isArray(h?.events)) {
@@ -521,21 +501,28 @@ function OrderDetail({
   }, [queue, expected, cursor, testMode, ready, markQueued, kind]);
 
 
-  // ── 소비자(인쇄) 결과 반영 ────────────────────────────────────────
-  // 실제 인쇄는 백엔드(게이트웨이)가 스캔 값을 프린터 큐에 자동 투입해 처리한다.
-  // 화면은 게이트웨이 인쇄 대기열 상태를 읽어 queued 항목의 완료/실패만 기록한다.
+  // ── 소비자(인쇄) 처리 ─────────────────────────────────────────────
+  // PF 신형 프린터(/api/v2/pf-printer)는 스캔 이벤트에 자동 연결되어 있지 않다.
+  // 따라서 검증을 통과해 queued 상태가 된 항목을 프론트엔드가 순차적으로 직접 인쇄 전송한다.
+  const printingRef = useRef(false);
   useEffect(() => {
-    if (!ready || testMode) return;
+    if (!ready || testMode || printingRef.current) return;
     const queued = Object.values(saved).filter((s) => s.status === "queued").sort((a, b) => a.position - b.position);
     if (queued.length === 0) return;
-    for (const item of queued) {
-      const entry = expected.find((e) => e.position === item.position);
-      const job = jobs.find((j) => (entry ? entry.keys.includes(norm(j.barcode)) : norm(j.barcode) === norm(item.code)));
-      if (!job) continue;
-      if (job.status === "done") void markDone(item.position, item.code, job.barcode, false);
-      else if (job.status === "failed") void markPrintError(item.position, item.code, job.error ?? "printer job failed");
-    }
-  }, [jobs, saved, expected, ready, testMode, markDone, markPrintError]);
+    printingRef.current = true;
+    void (async () => {
+      try {
+        for (const item of queued) {
+          const r = await sendToPrinter(printValueRef.current(item.code));
+          if (r.ok) await markDone(item.position, item.code, null, false);
+          else await markPrintError(item.position, item.code, r.error ?? "printer send failed");
+        }
+      } finally {
+        printingRef.current = false;
+      }
+    })();
+  }, [saved, ready, testMode, sendToPrinter, markDone, markPrintError]);
+
 
 
   /** 실패한 항목을 다시 대기열로 되돌리고 인쇄 재개 */
