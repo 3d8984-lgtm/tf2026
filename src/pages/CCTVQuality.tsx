@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Camera as CameraIcon, RefreshCw, Download, Image as ImageIcon, Loader2, PlayCircle, Pencil, ArrowUp, ArrowDown, Play, VideoOff } from "lucide-react";
 import { toast } from "sonner";
 import { DateTimePicker } from "@/components/DateTimePicker";
+import { resolveDirectBase, getDirectBase } from "@/lib/cctv-api";
 
 const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
@@ -31,6 +32,13 @@ type Cam = {
   [k: string]: any;
 };
 
+// Prefer the gateway's own LAN address when this device is on the internal
+// network — streams then come straight from the camera server instead of
+// being relayed through the edge proxy.
+function streamBase(): string {
+  return getDirectBase() || PROXY_BASE;
+}
+
 function toProxyUrl(u: string | undefined | null): string | null {
   if (!u) return null;
   try {
@@ -41,14 +49,17 @@ function toProxyUrl(u: string | undefined | null): string | null {
     } else {
       path = u.startsWith("/") ? u : `/${u}`;
     }
-    return `${PROXY_BASE}${path}`;
+    return `${streamBase()}${path}`;
   } catch {
     return null;
   }
 }
 
 async function proxyFetch(pathOrUrl: string, init?: RequestInit) {
-  const target = pathOrUrl.startsWith("http") ? pathOrUrl : `${PROXY_BASE}${pathOrUrl.startsWith("/") ? "" : "/"}${pathOrUrl}`;
+  const direct = getDirectBase();
+  const target = pathOrUrl.startsWith("http") ? pathOrUrl : `${streamBase()}${pathOrUrl.startsWith("/") ? "" : "/"}${pathOrUrl}`;
+  // LAN gateway is unauthenticated — no Supabase headers (avoids preflight).
+  if (direct && target.startsWith(direct)) return fetch(target, init);
   const headers = new Headers(init?.headers);
   headers.set("apikey", ANON_KEY);
   const session = await supabase.auth.getSession();
@@ -120,11 +131,13 @@ function MiniLiveTile({
   label,
   active,
   onSelect,
+  directBase,
 }: {
   cam: Cam;
   label: string;
   active: boolean;
   onSelect: () => void;
+  directBase: string | null;
 }) {
   const ref = useRef<HTMLVideoElement | null>(null);
   const [state, setState] = useState<"connecting" | "playing" | "waiting">("connecting");
@@ -151,15 +164,19 @@ function MiniLiveTile({
         }
         return;
       }
-      const { data } = await supabase.auth.getSession();
+      const isDirect = !!directBase && src.startsWith(directBase);
+      const token = isDirect ? null : (await supabase.auth.getSession()).data.session?.access_token;
       if (disposed) return;
-      const token = data.session?.access_token;
-      hls = new Hls({
-        xhrSetup: (xhr: XMLHttpRequest) => {
-          xhr.setRequestHeader("apikey", ANON_KEY);
-          if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-        },
-      });
+      hls = new Hls(
+        isDirect
+          ? {}
+          : {
+              xhrSetup: (xhr: XMLHttpRequest) => {
+                xhr.setRequestHeader("apikey", ANON_KEY);
+                if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+              },
+            },
+      );
       const scheduleReload = () => {
         if (retryTimer || disposed) return;
         setState("waiting");
@@ -196,7 +213,7 @@ function MiniLiveTile({
       video.removeAttribute("src");
       video.load();
     };
-  }, [cam.id, cam.live_playlist, cam.hls_url]);
+  }, [cam.id, cam.live_playlist, cam.hls_url, directBase]);
 
   return (
     <button
@@ -227,6 +244,7 @@ export default function CCTVQuality() {
   const [order, setOrder] = useState<string[]>(loadOrder);
   const [statusMap, setStatusMap] = useState<Record<string, "online" | "offline" | "checking">>({});
   const [loading, setLoading] = useState(false);
+  const [directBase, setDirectBase] = useState<string | null>(null);
   const [selected, setSelected] = useState<Cam | null>(null);
   const [snapshotTime, setSnapshotTime] = useState<string>(nowLocalDatetime(-1));
   const [snapshotSrc, setSnapshotSrc] = useState<string | null>(null);
@@ -440,7 +458,12 @@ export default function CCTVQuality() {
   };
 
   useEffect(() => {
-    loadCams();
+    // Probe the LAN gateway first: if this device is inside the internal
+    // network, every stream/request below goes straight to it.
+    resolveDirectBase()
+      .then((base) => setDirectBase(base))
+      .catch(() => setDirectBase(null))
+      .finally(() => loadCams());
     fetchServerSettings().then(({ names, order: srvOrder }) => {
       if (Object.keys(names).length) {
         setNameMap((prev) => ({ ...prev, ...names }));
@@ -477,15 +500,20 @@ export default function CCTVQuality() {
 
     const initialize = async () => {
       if (Hls.isSupported()) {
-        const { data } = await supabase.auth.getSession();
+        const directRoot = getDirectBase();
+        const isDirect = !!directRoot && src.startsWith(directRoot);
+        const token = isDirect ? null : (await supabase.auth.getSession()).data.session?.access_token;
         if (disposed) return;
-        const token = data.session?.access_token;
-        const hls = new Hls({
-          xhrSetup: (xhr: XMLHttpRequest) => {
-            xhr.setRequestHeader("apikey", ANON_KEY);
-            if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-          },
-        });
+        const hls = new Hls(
+          isDirect
+            ? {}
+            : {
+                xhrSetup: (xhr: XMLHttpRequest) => {
+                  xhr.setRequestHeader("apikey", ANON_KEY);
+                  if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+                },
+              },
+        );
         const scheduleReload = () => {
           if (retryTimer || disposed) return;
           setLiveState("waiting");
@@ -531,7 +559,7 @@ export default function CCTVQuality() {
       video.removeAttribute("src");
       video.load();
     };
-  }, [selected]);
+  }, [selected, directBase]);
 
   const fetchSnapshot = async () => {
     if (!selected) return;
@@ -706,7 +734,7 @@ export default function CCTVQuality() {
       }
       // Stream straight into <video> so playback starts as soon as the first
       // bytes arrive, instead of buffering the whole MP4 into a blob first.
-      const streamUrl = `${PROXY_BASE}/api/v1/cam/${selected.id}/clip?${params.toString()}`;
+      const streamUrl = `${streamBase()}/api/v1/cam/${selected.id}/clip?${params.toString()}`;
       if (playSrc?.startsWith("blob:")) URL.revokeObjectURL(playSrc);
       playFallbackRef.current = false;
       setPlaySrc(streamUrl);
@@ -772,6 +800,7 @@ export default function CCTVQuality() {
                   label={displayName(c)}
                   active={!!selected && String(selected.id) === String(c.id)}
                   onSelect={() => setSelected(c)}
+                  directBase={directBase}
                 />
               ))}
             </div>

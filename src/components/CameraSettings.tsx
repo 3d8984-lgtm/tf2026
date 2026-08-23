@@ -17,6 +17,9 @@ import {
   patchGatewayCamera,
   deleteGatewayCamera,
   setGatewayRecording,
+  loadCctvLanBase,
+  saveCctvLanBase,
+  resolveDirectBase,
 } from "@/lib/cctv-api";
 
 interface EditState {
@@ -39,14 +42,37 @@ export default function CameraSettings() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [lanBase, setLanBase] = useState("");
+  const [lanState, setLanState] = useState<"unknown" | "direct" | "proxy">("unknown");
+  const [lanSaving, setLanSaving] = useState(false);
   const [editItem, setEditItem] = useState<EditState | null>(null);
 
   const fail = (err: any) =>
     toast({ title: isKo ? "오류" : "错误", description: err?.message ?? String(err), variant: "destructive" });
 
+  const refreshLan = async () => {
+    const reachable = await resolveDirectBase();
+    setLanState(reachable ? "direct" : "proxy");
+  };
+
+  const handleSaveLanBase = async () => {
+    try {
+      setLanSaving(true);
+      await saveCctvLanBase(lanBase);
+      await refreshLan();
+      toast({ title: isKo ? "저장되었습니다" : "已保存" });
+      fetchAll();
+    } catch (err) {
+      fail(err);
+    } finally {
+      setLanSaving(false);
+    }
+  };
+
   const fetchAll = async () => {
     try {
       setLoading(true);
+      await resolveDirectBase();
       const [cams, settings] = await Promise.all([
         listGatewayCameras(),
         supabase.from("cctv_camera_settings").select("camera_id, display_name, sort_order").order("sort_order"),
@@ -69,6 +95,8 @@ export default function CameraSettings() {
   };
 
   useEffect(() => {
+    loadCctvLanBase().then(setLanBase).catch(() => undefined);
+    refreshLan().catch(() => undefined);
     fetchAll();
   }, []);
 
@@ -200,6 +228,43 @@ export default function CameraSettings() {
             {isKo ? "카메라 추가" : "添加摄像头"}
           </Button>
         </div>
+      </div>
+
+      <div className="rounded-lg border bg-card p-4 space-y-2">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <Label>{isKo ? "내부망 게이트웨이 주소 (직접 연결)" : "内网网关地址（直连）"}</Label>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {isKo
+                ? "같은 내부망에 있으면 서버를 거치지 않고 이 주소로 직접 영상을 받아옵니다."
+                : "处于同一内网时，将绕过服务器直接从该地址获取视频。"}
+            </p>
+          </div>
+          {lanState === "direct" ? (
+            <Badge className="bg-emerald-500/15 text-emerald-500 hover:bg-emerald-500/15">
+              {isKo ? "직접 연결 중" : "直连中"}
+            </Badge>
+          ) : lanState === "proxy" ? (
+            <Badge variant="secondary">{isKo ? "서버 경유" : "经服务器"}</Badge>
+          ) : null}
+        </div>
+        <div className="flex gap-2">
+          <Input
+            value={lanBase}
+            onChange={(e) => setLanBase(e.target.value)}
+            placeholder="http://192.168.1.9:8000"
+            className="font-mono text-xs"
+          />
+          <Button variant="outline" className="gap-1.5" onClick={handleSaveLanBase} disabled={lanSaving}>
+            <Save className="w-4 h-4" />
+            {isKo ? "저장" : "保存"}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {isKo
+            ? "비워두면 항상 서버(에지 프록시)를 경유합니다. HTTPS 사이트에서는 http:// 주소로 직접 연결할 수 없어 자동으로 서버 경유로 전환됩니다."
+            : "留空则始终经服务器（边缘代理）。HTTPS 站点无法直连 http:// 地址，将自动改为经服务器。"}
+        </p>
       </div>
 
       <div className="rounded-lg border overflow-x-auto bg-card">
