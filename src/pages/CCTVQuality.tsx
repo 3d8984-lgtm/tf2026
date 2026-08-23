@@ -559,7 +559,7 @@ export default function CCTVQuality() {
       video.removeAttribute("src");
       video.load();
     };
-  }, [selected]);
+  }, [selected, directBase]);
 
   const fetchSnapshot = async () => {
     if (!selected) return;
