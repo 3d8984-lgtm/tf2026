@@ -384,38 +384,89 @@ async function yunOpenApiFetch(
   return { res, text, raw };
 }
 
+/** Download a carrier label URL server-side and inline it as a data URL (avoids CORS / expiring links). */
+async function inlineLabelUrl(url: string, fallbackType = "application/pdf"): Promise<string> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(25_000) });
+    if (!res.ok) return url;
+    const buf = new Uint8Array(await res.arrayBuffer());
+    if (buf.byteLength < 1000) return url;
+    let ct = (res.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+    if (!ct || ct === "application/octet-stream" || ct === "binary/octet-stream") {
+      ct = /^%PDF/.test(new TextDecoder().decode(buf.slice(0, 4))) ? "application/pdf" : fallbackType;
+    }
+    let binary = "";
+    for (let i = 0; i < buf.length; i += 0x8000) {
+      binary += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+    }
+    return `data:${ct};base64,${btoa(binary)}`;
+  } catch (e) {
+    console.log("[yun label download error]", String(e));
+    return url;
+  }
+}
+
+/** YunExpress OpenAPI: waybill status probe (GET /v1/order/info/get) — used for diagnostics only. */
+async function fetchYunOpenApiInfo(root: string, token: string, secret: string, ref: string): Promise<void> {
+  const path = "/v1/order/info/get";
+  try {
+    const { res, text } = await yunOpenApiFetch(
+      `${root}${path}?order_number=${encodeURIComponent(ref)}`,
+      "GET", path, undefined, token, secret, 15_000,
+    );
+    console.log("[yun openapi info]", ref, res.status, String(text).slice(0, 300));
+  } catch (e) {
+    console.log("[yun openapi info error]", ref, String(e));
+  }
+}
+
 /**
  * YunExpress OpenAPI (openapi.yunexpress.cn) label fetch:
  *   GET /v1/order/label/get?order_number=XXX
  *   headers: token, date(ms), sign = Base64(HMAC-SHA256(appSecret, canonical request))
- * Returns result.url (PDF/PNG) or result.label_string (base64).
+ * Returns result.url (PDF/PNG, downloaded and inlined) or result.label_string (base64).
+ * The label is not always ready immediately after order creation, so we retry.
  */
 async function fetchYunOpenApiLabel(
   openapiBase: string,
   token: string,
   secret: string,
   refs: string[],
+  attempts = 3,
 ): Promise<string | null> {
   const root = (openapiBase || "https://openapi.yunexpress.cn").replace(/\/+$/, "");
   const path = "/v1/order/label/get";
-  for (const ref of refs.filter(Boolean)) {
-    try {
-      const q = `${root}${path}?order_number=${encodeURIComponent(ref)}`;
-      const { res, text, raw } = await yunOpenApiFetch(q, "GET", path, undefined, token, secret, 20_000);
+  const list = refs.filter(Boolean);
+  let lastRef = "";
+  for (let attempt = 0; attempt < Math.max(1, attempts); attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 1500 * attempt));
+    for (const ref of list) {
+      lastRef = ref;
+      try {
+        const q = `${root}${path}?order_number=${encodeURIComponent(ref)}`;
+        const { res, text, raw } = await yunOpenApiFetch(q, "GET", path, undefined, token, secret, 20_000);
 
-      const r = raw?.result ?? {};
-      if (raw?.success && typeof r?.url === "string" && /^https?:\/\//i.test(r.url)) return r.url;
-      if (raw?.success && typeof r?.label_string === "string" && r.label_string.length > 500) {
-        const type = String(r.label_type ?? "PDF").toUpperCase() === "PNG" ? "image/png" : "application/pdf";
-        return `data:${type};base64,${r.label_string.replace(/\s+/g, "")}`;
+        const r = raw?.result ?? raw?.data ?? {};
+        const type = String(r?.label_type ?? r?.labelType ?? "PDF").toUpperCase() === "PNG"
+          ? "image/png"
+          : "application/pdf";
+        const url = [r?.url, r?.label_url, r?.labelUrl, r?.file_url, r?.fileUrl]
+          .find((v: unknown) => typeof v === "string" && /^https?:\/\//i.test(v)) as string | undefined;
+        const b64 = [r?.label_string, r?.labelString, r?.label_content, r?.content]
+          .find((v: unknown) => typeof v === "string" && v.length > 500) as string | undefined;
+
+        if (raw?.success !== false && url) return await inlineLabelUrl(url, type);
+        if (raw?.success !== false && b64) return `data:${type};base64,${b64.replace(/\s+/g, "")}`;
+        console.log("[yun openapi label]", ref, `try${attempt + 1}`, res.status, String(text).slice(0, 300));
+      } catch (e) {
+        console.log("[yun openapi label error]", ref, String(e));
       }
-      console.log("[yun openapi label]", ref, res.status, String(text).slice(0, 300));
-    } catch (e) {
-      console.log("[yun openapi label error]", ref, String(e));
     }
   }
+  if (lastRef) await fetchYunOpenApiInfo(root, token, secret, lastRef);
   return null;
 }
+
 
 /** YunExpress: fetch the shipping label PDF for an already-created waybill. */
 async function fetchYunLabel(base: string, auth: string, refs: string[], openapi?: { base?: string; token?: string; secret?: string }): Promise<string | null> {
