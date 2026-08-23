@@ -598,6 +598,16 @@ function yunOpenApiBase(cfg: any, cred: any): string {
     : "https://openapi-sbx.yunexpress.cn";
 }
 
+function yunOpenApiSecret(cred: any): string {
+  return String(
+    Deno.env.get("YUNEXPRESS_OPENAPI_APP_SECRET") ??
+    cred?.extra?.openapi_app_secret ??
+    cred?.extra?.openapi_secret ??
+    cred?.extra?.secret ??
+    "",
+  ).trim();
+}
+
 /** OAuth2 access token cache (per base + appId), refreshed a minute before expiry. */
 const yunTokenCache = new Map<string, { token: string; exp: number }>();
 
@@ -612,9 +622,9 @@ async function yunAccessToken(cfg: any, cred: any): Promise<string | undefined> 
   const manual = String(e.openapi_access_token ?? "").trim();
   if (manual) return manual;
 
-  const appId = String(e.openapi_app_id ?? e.openapi_token ?? e.token ?? "").trim();
-  const appSecret = String(e.openapi_app_secret ?? e.openapi_secret ?? e.secret ?? "").trim();
-  const sourceKey = String(e.openapi_source_key ?? e.source_key ?? e.sourcekey ?? "").trim();
+  const appId = String(Deno.env.get("YUNEXPRESS_OPENAPI_APP_ID") ?? e.openapi_app_id ?? e.openapi_token ?? e.token ?? "").trim();
+  const appSecret = yunOpenApiSecret(cred);
+  const sourceKey = String(Deno.env.get("YUNEXPRESS_OPENAPI_SOURCE_KEY") ?? e.openapi_source_key ?? e.source_key ?? e.sourcekey ?? "").trim();
   if (!appId || !appSecret) return undefined;
 
   const base = yunOpenApiBase(cfg, cred).replace(/\/+$/, "");
@@ -795,7 +805,7 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
 
   // 신버전 OpenAPI 자격증명이 있으면 우선 사용 (라벨 PDF까지 한 번에 확보)
   const oaToken = await yunAccessToken(cfg, cred);
-  const oaSecret = cred?.extra?.openapi_app_secret ?? cred?.extra?.openapi_secret ?? cred?.extra?.secret;
+  const oaSecret = yunOpenApiSecret(cred);
   if (oaToken && oaSecret) {
     const viaOpenApi = await createYunOpenApiOrder(
       { base: yunOpenApiBase(cfg, cred), token: oaToken, secret: oaSecret },
@@ -870,7 +880,7 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
         {
            base: yunOpenApiBase(cfg, cred),
           token: await yunAccessToken(cfg, cred),
-          secret: cred?.extra?.openapi_app_secret ?? cred?.extra?.openapi_secret ?? cred?.extra?.secret,
+          secret: yunOpenApiSecret(cred),
         },
       );
     } catch { /* ignore — status below reflects the outcome */ }
@@ -921,7 +931,7 @@ Deno.serve(async (req) => {
           const upgraded = await waitForYunTracking(
             (yunOpenApiBase(cfgU, credU) || "https://openapi.yunexpress.cn").replace(/\/+$/, ""),
             (await yunAccessToken(cfgU, credU)) ?? "",
-            credU?.extra?.openapi_app_secret ?? credU?.extra?.openapi_secret ?? credU?.extra?.secret ?? "",
+            yunOpenApiSecret(credU),
             [g.tracking_number, g.ref_no].filter(Boolean) as string[],
             2,
           );
@@ -965,7 +975,7 @@ Deno.serve(async (req) => {
             {
               base: yunOpenApiBase(cfgY, credY),
               token: await yunAccessToken(cfgY, credY),
-              secret: credY?.extra?.openapi_app_secret ?? credY?.extra?.openapi_secret ?? credY?.extra?.secret,
+              secret: yunOpenApiSecret(credY),
             },
           );
         }
@@ -1284,7 +1294,7 @@ Deno.serve(async (req) => {
           {
              base: yunOpenApiBase(cfg, cred),
             token: await yunAccessToken(cfg, cred),
-            secret: cred?.extra?.openapi_app_secret ?? cred?.extra?.openapi_secret ?? cred?.extra?.secret,
+            secret: yunOpenApiSecret(cred),
           },
         );
       } catch { /* status below reflects the outcome */ }
