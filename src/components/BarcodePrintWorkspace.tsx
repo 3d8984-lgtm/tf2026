@@ -501,21 +501,28 @@ function OrderDetail({
   }, [queue, expected, cursor, testMode, ready, markQueued, kind]);
 
 
-  // ── 소비자(인쇄) 결과 반영 ────────────────────────────────────────
-  // 실제 인쇄는 백엔드(게이트웨이)가 스캔 값을 프린터 큐에 자동 투입해 처리한다.
-  // 화면은 게이트웨이 인쇄 대기열 상태를 읽어 queued 항목의 완료/실패만 기록한다.
+  // ── 소비자(인쇄) 처리 ─────────────────────────────────────────────
+  // PF 신형 프린터(/api/v2/pf-printer)는 스캔 이벤트에 자동 연결되어 있지 않다.
+  // 따라서 검증을 통과해 queued 상태가 된 항목을 프론트엔드가 순차적으로 직접 인쇄 전송한다.
+  const printingRef = useRef(false);
   useEffect(() => {
-    if (!ready || testMode) return;
+    if (!ready || testMode || printingRef.current) return;
     const queued = Object.values(saved).filter((s) => s.status === "queued").sort((a, b) => a.position - b.position);
     if (queued.length === 0) return;
-    for (const item of queued) {
-      const entry = expected.find((e) => e.position === item.position);
-      const job = jobs.find((j) => (entry ? entry.keys.includes(norm(j.barcode)) : norm(j.barcode) === norm(item.code)));
-      if (!job) continue;
-      if (job.status === "done") void markDone(item.position, item.code, job.barcode, false);
-      else if (job.status === "failed") void markPrintError(item.position, item.code, job.error ?? "printer job failed");
-    }
-  }, [jobs, saved, expected, ready, testMode, markDone, markPrintError]);
+    printingRef.current = true;
+    void (async () => {
+      try {
+        for (const item of queued) {
+          const r = await sendToPrinter(printValueRef.current(item.code));
+          if (r.ok) await markDone(item.position, item.code, null, false);
+          else await markPrintError(item.position, item.code, r.error ?? "printer send failed");
+        }
+      } finally {
+        printingRef.current = false;
+      }
+    })();
+  }, [saved, ready, testMode, sendToPrinter, markDone, markPrintError]);
+
 
 
   /** 실패한 항목을 다시 대기열로 되돌리고 인쇄 재개 */
