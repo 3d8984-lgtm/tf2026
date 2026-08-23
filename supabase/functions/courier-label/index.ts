@@ -808,7 +808,9 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
   try { raw = JSON.parse(text); } catch { /* keep text */ }
 
   const item = Array.isArray(raw?.Item) ? raw.Item[0] : raw?.Item ?? raw?.Data?.[0] ?? null;
-  const tracking = item?.TrackingNumber ?? item?.WayBillNumber ?? raw?.TrackingNumber ?? null;
+  const tracking = [item?.TrackingNumber, item?.WayBillNumber, raw?.TrackingNumber]
+    .find((v: unknown) => isYunTrackingNumber(v)) ?? null;
+
   let label = item?.LabelUrl ?? item?.ShippingLabelUrl ?? null;
   if (!res.ok || !tracking) {
     return {
