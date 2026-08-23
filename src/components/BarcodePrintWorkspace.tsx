@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { warnLightOkFlash, warnLightError } from "@/lib/warning-light";
+
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -510,8 +512,14 @@ function OrderDetail({
     setCursor(c);
     setLastVerdict(lastV);
     if (halt) setHalted(true);
+    // 1번 경고등: 순서 일치 → 녹색 0.5초 점멸 / 불일치 → 빨강 점등 유지
+    if (kind === "card") {
+      if (halt) void warnLightError();
+      else if (lastV === "ok") void warnLightOkFlash();
+    }
     setLog((prev) => [...rows.slice().reverse(), ...prev].slice(0, 100));
-  }, [queue, expected, cursor, testMode, ready, markQueued]);
+  }, [queue, expected, cursor, testMode, ready, markQueued, kind]);
+
 
   // ── 소비자(인쇄) 결과 반영 ────────────────────────────────────────
   // 실제 인쇄는 백엔드(게이트웨이)가 스캔 값을 프린터 큐에 자동 투입해 처리한다.
