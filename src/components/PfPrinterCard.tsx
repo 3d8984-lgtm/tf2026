@@ -5,22 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useLang } from "@/contexts/LangContext";
 import { toast } from "sonner";
-import { Printer, Wifi, WifiOff } from "lucide-react";
-
-const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
-const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
-
-function proxyFetch(path: string, init?: RequestInit) {
-  return fetch(`${PROXY_BASE}${path}`, {
-    ...init,
-    headers: { apikey: ANON_KEY, "Content-Type": "application/json", ...(init?.headers ?? {}) },
-  });
-}
-
-const errText = (j: any, status: number) => {
-  const d = j?.detail;
-  return typeof d === "string" ? d : Array.isArray(d) ? d.map((x: any) => x.msg).join(", ") : `HTTP ${status}`;
-};
+import { Printer, Wifi, WifiOff, Play, Square } from "lucide-react";
+import { pfPrint, pfPrinterRun, pfPrinterStop, pfPrinterStatus } from "@/lib/pf-printer";
 
 /** PF 신형 프린터(/api/v2/pf-printer) 잉크·버퍼 상태 표시 + 테스트 인쇄. */
 export default function PfPrinterCard({ defaultText = "" }: { defaultText?: string }) {
@@ -37,17 +23,11 @@ export default function PfPrinterCard({ defaultText = "" }: { defaultText?: stri
   useEffect(() => {
     let alive = true;
     const tick = async () => {
-      try {
-        const res = await proxyFetch("/api/v2/pf-printer/status");
-        const j: any = await res.json().catch(() => ({}));
-        if (!alive) return;
-        if (!res.ok || "upstream_status" in (j ?? {})) { setOffline(true); return; }
-        setOffline(false);
-        setInk(typeof j?.ink_percent === "number" ? j.ink_percent : null);
-        setBuffer(typeof j?.buffer_count === "number" ? j.buffer_count : null);
-      } catch {
-        if (alive) setOffline(true);
-      }
+      const st = await pfPrinterStatus();
+      if (!alive) return;
+      setOffline(st.offline);
+      setInk(st.ink_percent);
+      setBuffer(st.buffer_count);
     };
     tick();
     const iv = setInterval(tick, 5000);
@@ -58,19 +38,10 @@ export default function PfPrinterCard({ defaultText = "" }: { defaultText?: stri
     const payload = text.trim().slice(0, 200);
     if (!payload) { toast.error(tr("인쇄할 값을 입력하세요", "请输入要打印的值")); return; }
     setBusy(true);
-    try {
-      const res = await proxyFetch("/api/v2/pf-printer/test", {
-        method: "POST",
-        body: JSON.stringify({ text: payload }),
-      });
-      const j: any = await res.json().catch(() => ({}));
-      if (res.ok && j?.accepted) toast.success(`${tr("PF 프린터로 전송했습니다", "已发送到PF打印机")} · ${payload}`);
-      else toast.error(`${tr("PF 프린터 전송 실패", "PF打印机发送失败")} — ${errText(j, res.status)}`);
-    } catch (e) {
-      toast.error(`${tr("PF 프린터 전송 실패", "PF打印机发送失败")} — ${String(e)}`);
-    } finally {
-      setBusy(false);
-    }
+    const r = await pfPrint(payload);
+    setBusy(false);
+    if (r.ok) toast.success(`${tr("PF 프린터로 전송했습니다", "已发送到PF打印机")} · ${payload}`);
+    else toast.error(`${tr("PF 프린터 전송 실패", "PF打印机发送失败")} — ${r.error}`);
   }, [text, isKo]);
 
   return (
@@ -103,6 +74,32 @@ export default function PfPrinterCard({ defaultText = "" }: { defaultText?: stri
           />
           <Button size="sm" disabled={busy} onClick={() => void testPrint()}>
             {tr("테스트 인쇄", "测试打印")}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            title={tr("Run 모드 전환 (인쇄는 Run 모드에서만 동작)", "切换到Run模式")}
+            onClick={async () => {
+              const r = await pfPrinterRun();
+              r.ok ? toast.success(tr("Run 모드로 전환했습니다", "已切换到Run模式"))
+                   : toast.error(`${tr("Run 전환 실패", "切换失败")} — ${r.error}`);
+            }}
+          >
+            <Play className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            title={tr("Stop 모드 전환", "切换到Stop模式")}
+            onClick={async () => {
+              const r = await pfPrinterStop();
+              r.ok ? toast.success(tr("Stop 모드로 전환했습니다", "已切换到Stop模式"))
+                   : toast.error(`${tr("Stop 전환 실패", "切换失败")} — ${r.error}`);
+            }}
+          >
+            <Square className="w-3.5 h-3.5" />
           </Button>
         </div>
       </CardContent>
