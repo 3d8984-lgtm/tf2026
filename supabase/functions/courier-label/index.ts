@@ -711,10 +711,36 @@ async function createYunOpenApiOrder(
       return { tracking_number: null, label_url: null, raw, error: yunOpenApiErrorText(raw.code, raw.msg ?? raw.message) };
     }
     const result = raw.result ?? {};
-    const tracking = result.tracking_number || result.waybill_number || null;
-    if (!tracking) return { tracking_number: null, label_url: null, raw, error: raw.msg ?? "운송장번호 미수신" };
-    const label = await fetchYunOpenApiLabel(root, openapi.token, openapi.secret ?? "", [result.waybill_number, result.customer_order_number, tracking].filter(Boolean));
-    return { tracking_number: tracking, label_url: label, raw };
+    // YunExpress는 접수 직후 내부 주문번호(타임스탬프 형태 2026...)만 돌려주고
+    // 실제 운송장번호(YT...)는 조금 늦게 배정되는 경우가 있다. 내부 주문번호를
+    // 운송장번호로 저장하면 4PX 송장처럼 보이는 숫자 번호가 찍히므로 금지한다.
+    const orderNo = String(result.order_number ?? result.waybill_number ?? result.customer_order_number ?? "").trim() || null;
+    let tracking = [result.tracking_number, result.waybill_number].find((v: unknown) => isYunTrackingNumber(v)) ?? null;
+    if (!tracking) {
+      tracking = await waitForYunTracking(
+        root,
+        openapi.token,
+        openapi.secret ?? "",
+        [orderNo, result.customer_order_number].filter(Boolean) as string[],
+      );
+    }
+    if (!tracking) {
+      return {
+        tracking_number: null,
+        label_url: null,
+        raw,
+        ref_no: orderNo,
+        error: raw.msg ?? "YunExpress 접수는 되었으나 운송장번호(YT…)가 아직 배정되지 않았습니다. 잠시 후 재시도하세요.",
+      };
+    }
+    const label = await fetchYunOpenApiLabel(
+      root,
+      openapi.token,
+      openapi.secret ?? "",
+      [orderNo, tracking, result.customer_order_number].filter(Boolean) as string[],
+    );
+    return { tracking_number: String(tracking), label_url: label, raw, ref_no: orderNo };
+
   } catch (e) {
     console.log("[yun openapi create error]", String(e));
     return null;
