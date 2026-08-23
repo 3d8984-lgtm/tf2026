@@ -722,15 +722,26 @@ export default function ShippingScan() {
   }
 
   async function retryGroupLabel(group: ShippingGroupRow) {
-    if (!carrier) return;
+    if (!carrier) {
+      toast({ variant: "destructive", title: tr("택배사를 선택하세요", "请选择承运商") });
+      return;
+    }
+    if (retryingGroupId) return;
+    setRetryingGroupId(group.id);
     try {
-      await issueGroupLabel(group.id, carrier);
-      toast({ title: tr("송장이 발급되었습니다", "已生成运单"), description: group.recipient_name });
+      const r = await issueGroupLabel(group.id, carrier);
+      toast({
+        title: r?.already ? tr("이미 발급된 송장을 복구했습니다", "已恢复既有运单") : tr("송장이 발급되었습니다", "已生成运单"),
+        description: `${group.recipient_name} ${r?.tracking_number ?? ""}`.trim(),
+      });
     } catch (e: any) {
       toast({ variant: "destructive", title: tr("발급 실패", "生成失败"), description: e?.message });
+    } finally {
+      setRetryingGroupId(null);
+      refetchGroups();
     }
-    refetchGroups();
   }
+
 
 
 
