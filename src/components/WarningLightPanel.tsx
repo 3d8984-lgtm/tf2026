@@ -105,7 +105,7 @@ export default function WarningLightPanel() {
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center justify-between gap-2">
           <span className="flex items-center gap-2">
-            <Lightbulb className="w-4 h-4" />{tr("경고등 제어", "警示灯控制")}
+            <Lightbulb className="w-4 h-4" />{tr("1번 경고등 제어", "1号警示灯控制")}
           </span>
           <span className="flex items-center gap-2">
             {offline ? (
