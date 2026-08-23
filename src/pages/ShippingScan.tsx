@@ -1674,7 +1674,12 @@ export default function ShippingScan() {
                     </button>
                     {open && (
                       <div className="px-10 pb-3 space-y-1">
-                        {g.label_error && <div className="text-[11px] text-destructive">{g.label_error}</div>}
+                        {g.label_error && (
+                          <div className="text-[11px] text-destructive">
+                            <b>{describeLabelError(g.label_error)}</b> — {g.label_error}
+                          </div>
+                        )}
+
                         <div className="text-[11px] text-muted-foreground">
                           {g.shipping_address} · {g.recipient_phone} · {g.shipping_country}
                           {g.label_issued_at && ` · ${tr("발급", "发行")} ${new Date(g.label_issued_at).toLocaleString()}`}
