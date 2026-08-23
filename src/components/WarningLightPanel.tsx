@@ -42,17 +42,37 @@ export default function WarningLightPanel() {
   const [busy, setBusy] = useState(false);
   const [levels, setLevels] = useState<Record<string, string>>({ red: "3", green: "3" });
 
+  // 게이트웨이(터널)가 순간적으로 503을 돌려주는 일이 잦아, 단발성 실패로는
+  // "연결 끊김"으로 표시하지 않고 연속 실패 3회부터 오프라인으로 판정한다.
+  const failRef = useRef(0);
+
   const load = useCallback(async () => {
-    try {
+    const tryOnce = async () => {
       const res = await proxyFetch("/api/v1/warning-light/status");
       const j: any = await res.json().catch(() => ({}));
-      if (!res.ok || "upstream_status" in (j ?? {})) { setOffline(true); return; }
+      if (!res.ok || "upstream_status" in (j ?? {})) return null;
+      return j as LightStatus;
+    };
+    try {
+      let j = await tryOnce();
+      if (!j) {
+        await new Promise((r) => setTimeout(r, 600));
+        j = await tryOnce();
+      }
+      if (!j) {
+        failRef.current += 1;
+        if (failRef.current >= 3) setOffline(true);
+        return;
+      }
+      failRef.current = 0;
       setOffline(false);
-      setStatus(j as LightStatus);
+      setStatus(j);
     } catch {
-      setOffline(true);
+      failRef.current += 1;
+      if (failRef.current >= 3) setOffline(true);
     }
   }, []);
+
 
   useEffect(() => {
     load();
