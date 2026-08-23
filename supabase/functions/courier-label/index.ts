@@ -1140,13 +1140,59 @@ Deno.serve(async (req) => {
         return json({ ok: true, already: true, tracking_number: g.tracking_number, label_url: g.label_url, carrier: g.carrier });
       }
 
+      // YunExpress: 접수 요청 도중 함수가 타임아웃되면 그룹은 "발급중"으로 남지만
+      // 택배사에는 주문이 실제로 등록되어 있을 수 있다. 새로 만들기 전에
+      // 결정적 고객주문번호로 조회해서 이미 있으면 그대로 복구한다 (중복 접수 방지).
+      if (!g.tracking_number && carrier === "yunexpress") {
+        const { data: cfgP } = await admin.from("courier_configs").select("*").eq("code", "yunexpress").maybeSingle();
+        const { data: credP } = await admin.from("courier_credentials").select("*").eq("code", "yunexpress").maybeSingle();
+        const { data: itemP } = await admin
+          .from("shipment_scan_items").select("order_id").eq("shipping_group_id", g.id).limit(1).maybeSingle();
+        const { data: orderP } = itemP?.order_id
+          ? await admin.from("orders").select("external_order_id").eq("id", itemP.order_id).maybeSingle()
+          : { data: null };
+        const probeRef = orderP?.external_order_id
+          ? `${orderP.external_order_id}-G${String(g.id).slice(0, 8)}`
+          : null;
+        if (cfgP && credP && probeRef) {
+          const rootP = (yunOpenApiBase(cfgP, credP) || "https://openapi.yunexpress.cn").replace(/\/+$/, "");
+          const tokenP = (await yunAccessToken(cfgP, credP)) ?? "";
+          const existing = tokenP
+            ? await waitForYunTracking(rootP, tokenP, yunOpenApiSecret(credP), [probeRef, g.ref_no].filter(Boolean) as string[], 1)
+            : null;
+          if (existing) {
+            const label = await fetchYunOpenApiLabel(rootP, tokenP, yunOpenApiSecret(credP), [probeRef, existing]);
+            const issuedAt = new Date().toISOString();
+            await admin.from("shipping_groups").update({
+              carrier: "yunexpress",
+              tracking_number: existing,
+              ref_no: g.ref_no ?? probeRef,
+              label_url: label,
+              label_status: "ready",
+              label_error: label ? null : "운송장은 발급됨 · 라벨 PDF 미수신 (재시도 시 라벨만 다시 요청)",
+              label_issued_at: g.label_issued_at ?? issuedAt,
+            }).eq("id", g.id);
+            await admin.from("shipment_scan_items").update({
+              carrier: "yunexpress",
+              tracking_number: existing,
+              label_url: label,
+              tracking_issued_at: issuedAt,
+            }).eq("shipping_group_id", g.id);
+            return json({ ok: true, recovered: true, carrier: "yunexpress", tracking_number: existing, label_url: label });
+          }
+        }
+      }
 
       // Idempotent claim: only one caller may flip pending/failed -> issuing.
+      // "issuing" 상태가 90초 넘게 방치된 건은 이전 호출이 타임아웃된 것이므로 다시 가져온다.
+      const staleCutoff = new Date(Date.now() - 90_000).toISOString();
+      const claimable = ["pending", "failed"];
+      if (g.label_status === "issuing" && String(g.updated_at ?? "") < staleCutoff) claimable.push("issuing");
       const { data: claimed } = await admin
         .from("shipping_groups")
         .update({ label_status: "issuing", label_error: null })
         .eq("id", g.id)
-        .in("label_status", ["pending", "failed"])
+        .in("label_status", claimable)
         .select("id")
         .maybeSingle();
       if (!claimed) return json({ ok: true, already: true, busy: true, tracking_number: g.tracking_number, label_url: g.label_url });
