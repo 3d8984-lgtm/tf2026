@@ -384,27 +384,86 @@ async function yunOpenApiFetch(
   return { res, text, raw };
 }
 
-/** Download a carrier label URL server-side and inline it as a data URL (avoids CORS / expiring links). */
-async function inlineLabelUrl(url: string, fallbackType = "application/pdf"): Promise<string> {
+/** base64 -> bytes (tolerant of whitespace / url-safe alphabet / data: prefix). */
+function b64ToBytes(input: string): Uint8Array | null {
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(25_000) });
-    if (!res.ok) return url;
-    const buf = new Uint8Array(await res.arrayBuffer());
-    if (buf.byteLength < 1000) return url;
-    let ct = (res.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
-    if (!ct || ct === "application/octet-stream" || ct === "binary/octet-stream") {
-      ct = /^%PDF/.test(new TextDecoder().decode(buf.slice(0, 4))) ? "application/pdf" : fallbackType;
-    }
-    let binary = "";
-    for (let i = 0; i < buf.length; i += 0x8000) {
-      binary += String.fromCharCode(...buf.subarray(i, i + 0x8000));
-    }
-    return `data:${ct};base64,${btoa(binary)}`;
-  } catch (e) {
-    console.log("[yun label download error]", String(e));
-    return url;
+    let s = input.trim();
+    const comma = s.indexOf(",");
+    if (s.startsWith("data:") && comma > 0) s = s.slice(comma + 1);
+    s = s.replace(/\s+/g, "").replace(/-/g, "+").replace(/_/g, "/");
+    if (s.length % 4) s += "=".repeat(4 - (s.length % 4));
+    const bin = atob(s);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  } catch {
+    return null;
   }
 }
+
+/** Detects the real file type from the leading magic bytes. */
+function sniffLabelType(buf: Uint8Array): string | null {
+  const head = new TextDecoder("latin1").decode(buf.slice(0, 512));
+  if (/^%PDF/.test(head)) return "application/pdf";
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return "image/png";
+  if (buf[0] === 0xff && buf[1] === 0xd8) return "image/jpeg";
+  if (head.startsWith("GIF8")) return "image/gif";
+  if (/^\s*(<!doctype html|<html|<\?xml|<svg)/i.test(head)) return "text/html";
+  return null;
+}
+
+function bytesToDataUrl(buf: Uint8Array, ct: string): string {
+  let binary = "";
+  for (let i = 0; i < buf.length; i += 0x8000) {
+    binary += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+  }
+  return `data:${ct};base64,${btoa(binary)}`;
+}
+
+/**
+ * Download a carrier label URL server-side and inline it as a data URL
+ * (avoids CORS / expiring links). The MIME type is decided by the real bytes,
+ * never by the carrier's content-type header — a JSON/HTML error page served as
+ * "application/pdf" is what produced corrupted printouts.
+ */
+async function inlineLabelUrl(url: string, fallbackType = "application/pdf"): Promise<string | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(25_000) });
+    if (!res.ok) {
+      console.log("[label download]", res.status, url.slice(0, 160));
+      return null;
+    }
+    const buf = new Uint8Array(await res.arrayBuffer());
+    if (buf.byteLength < 1000) {
+      console.log("[label download] too small", buf.byteLength, url.slice(0, 160));
+      return null;
+    }
+    const sniffed = sniffLabelType(buf);
+    if (!sniffed || sniffed === "text/html") {
+      console.log("[label download] not a printable label", sniffed ?? "unknown",
+        new TextDecoder("latin1").decode(buf.slice(0, 120)));
+      return null;
+    }
+    const ct = sniffed ?? fallbackType;
+    return bytesToDataUrl(buf, ct);
+  } catch (e) {
+    console.log("[yun label download error]", String(e));
+    return null;
+  }
+}
+
+/** Turns a carrier-supplied base64 payload into a validated data URL (null if not printable). */
+function base64LabelToDataUrl(b64: string, fallbackType = "application/pdf"): string | null {
+  const buf = b64ToBytes(b64);
+  if (!buf || buf.byteLength < 800) return null;
+  const sniffed = sniffLabelType(buf);
+  if (!sniffed || sniffed === "text/html") {
+    console.log("[label base64] not a printable label", sniffed ?? "unknown");
+    return null;
+  }
+  return bytesToDataUrl(buf, sniffed ?? fallbackType);
+}
+
 
 /** YunExpress OpenAPI: waybill status probe (GET /v1/order/info/get). Returns the parsed result. */
 async function fetchYunOpenApiInfo(root: string, token: string, secret: string, ref: string): Promise<any> {
