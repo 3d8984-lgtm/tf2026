@@ -114,6 +114,111 @@ async function fetchServerSettings(): Promise<{ names: Record<string, string>; o
 }
 
 
+// Small always-on live tile used by the camera wall at the top of the page.
+function MiniLiveTile({
+  cam,
+  label,
+  active,
+  onSelect,
+}: {
+  cam: Cam;
+  label: string;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  const ref = useRef<HTMLVideoElement | null>(null);
+  const [state, setState] = useState<"connecting" | "playing" | "waiting">("connecting");
+
+  useEffect(() => {
+    const video = ref.current;
+    if (!video) return;
+    const raw = cam.live_playlist || cam.hls_url || `/api/v1/cam/${cam.id}/live/stream.m3u8`;
+    const src = toProxyUrl(raw);
+    if (!src) return;
+    let disposed = false;
+    let retryTimer: number | null = null;
+    let hls: Hls | null = null;
+    const markPlaying = () => setState("playing");
+    video.addEventListener("playing", markPlaying);
+
+    const init = async () => {
+      if (!Hls.isSupported()) {
+        if (video.canPlayType("application/vnd.apple.mpegurl")) {
+          video.src = src;
+          video.play().catch(() => setState("waiting"));
+        } else {
+          setState("waiting");
+        }
+        return;
+      }
+      const { data } = await supabase.auth.getSession();
+      if (disposed) return;
+      const token = data.session?.access_token;
+      hls = new Hls({
+        xhrSetup: (xhr: XMLHttpRequest) => {
+          xhr.setRequestHeader("apikey", ANON_KEY);
+          if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+        },
+      });
+      const scheduleReload = () => {
+        if (retryTimer || disposed) return;
+        setState("waiting");
+        retryTimer = window.setTimeout(() => {
+          retryTimer = null;
+          if (disposed || !hls) return;
+          setState("connecting");
+          try {
+            hls.stopLoad();
+            hls.loadSource(src);
+            hls.startLoad();
+          } catch {
+            scheduleReload();
+          }
+        }, 8000);
+      };
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        setState("playing");
+        video.play().catch(() => undefined);
+      });
+      hls.on(Hls.Events.ERROR, (_e, d) => {
+        if (d.response?.code === 204 || d.response?.code === 404 || d.fatal) scheduleReload();
+      });
+      hls.loadSource(src);
+      hls.attachMedia(video);
+    };
+    init();
+
+    return () => {
+      disposed = true;
+      video.removeEventListener("playing", markPlaying);
+      if (retryTimer) window.clearTimeout(retryTimer);
+      hls?.destroy();
+      video.removeAttribute("src");
+      video.load();
+    };
+  }, [cam.id, cam.live_playlist, cam.hls_url]);
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`relative aspect-video w-full overflow-hidden rounded-md border bg-black text-left transition ${
+        active ? "border-primary ring-1 ring-primary" : "border-border hover:border-primary/50"
+      }`}
+    >
+      <video ref={ref} muted playsInline className="h-full w-full object-cover" />
+      {state !== "playing" && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-[10px] text-muted-foreground">
+          {state === "connecting" ? <Loader2 className="h-4 w-4 animate-spin" /> : <VideoOff className="h-4 w-4" />}
+        </div>
+      )}
+      <span className="absolute bottom-0 left-0 right-0 truncate bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
+        {label}
+      </span>
+    </button>
+  );
+}
+
 export default function CCTVQuality() {
   const { lang } = useLang();
   const isKo = lang === "ko";
