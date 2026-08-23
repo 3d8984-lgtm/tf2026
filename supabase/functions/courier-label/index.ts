@@ -431,7 +431,7 @@ function bytesToDataUrl(buf: Uint8Array, ct: string): string {
  */
 async function inlineLabelUrl(url: string, fallbackType = "application/pdf"): Promise<string | null> {
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(25_000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
     if (!res.ok) {
       console.log("[label download]", res.status, url.slice(0, 160));
       return null;
