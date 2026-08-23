@@ -406,19 +406,55 @@ async function inlineLabelUrl(url: string, fallbackType = "application/pdf"): Pr
   }
 }
 
-/** YunExpress OpenAPI: waybill status probe (GET /v1/order/info/get) — used for diagnostics only. */
-async function fetchYunOpenApiInfo(root: string, token: string, secret: string, ref: string): Promise<void> {
+/** YunExpress OpenAPI: waybill status probe (GET /v1/order/info/get). Returns the parsed result. */
+async function fetchYunOpenApiInfo(root: string, token: string, secret: string, ref: string): Promise<any> {
   const path = "/v1/order/info/get";
   try {
-    const { res, text } = await yunOpenApiFetch(
+    const { res, text, raw } = await yunOpenApiFetch(
       `${root}${path}?order_number=${encodeURIComponent(ref)}`,
       "GET", path, undefined, token, secret, 15_000,
     );
     console.log("[yun openapi info]", ref, res.status, String(text).slice(0, 300));
+    return raw?.result ?? raw?.data ?? null;
   } catch (e) {
     console.log("[yun openapi info error]", ref, String(e));
+    return null;
   }
 }
+
+/**
+ * A real YunExpress waybill number is the carrier tracking code (YT…, LP…, UA… etc.).
+ * The OpenAPI also returns an internal order number that is just a timestamp
+ * (e.g. 20260823141846822) — that is NOT a waybill and must never be stored as one.
+ */
+function isYunTrackingNumber(v: unknown): boolean {
+  const s = String(v ?? "").trim();
+  if (s.length < 8) return false;
+  return !/^\d{12,}$/.test(s);
+}
+
+/** Poll /v1/order/info/get until YunExpress allocates the real tracking number. */
+async function waitForYunTracking(
+  root: string,
+  token: string,
+  secret: string,
+  refs: string[],
+  attempts = 4,
+): Promise<string | null> {
+  const list = refs.filter(Boolean).map(String);
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 2000 * attempt));
+    for (const ref of list) {
+      const info = await fetchYunOpenApiInfo(root, token, secret, ref);
+      const candidate = [info?.tracking_number, info?.trackingNumber, info?.waybill_number, info?.waybillNumber]
+        .find((v) => isYunTrackingNumber(v));
+      if (candidate) return String(candidate).trim();
+    }
+  }
+  return null;
+}
+
+
 
 /**
  * YunExpress OpenAPI (openapi.yunexpress.cn) label fetch:
