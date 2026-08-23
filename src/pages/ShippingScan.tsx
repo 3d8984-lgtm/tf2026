@@ -653,7 +653,30 @@ export default function ShippingScan() {
         void refetchGroups();
       }
     }
+    // Still not ready: the waybill may already exist at the carrier while our row
+    // is stuck on pending/issuing/failed. The backend call is idempotent and
+    // recovers an existing waybill, so try once before telling the operator it
+    // was never issued.
     if (group.label_status !== "ready" || !group.label_url) {
+      const carrierForRecovery = group.carrier || carrier || shipmentCarrier;
+      if (carrierForRecovery) {
+        setFeedback({ kind: "success", msg: tr("송장 확인 중…", "正在确认运单…") });
+        try {
+          await issueGroupLabel(group.id, carrierForRecovery);
+        } catch { /* handled below */ }
+        const { data: recovered } = await supabase
+          .from("shipping_groups")
+          .select("*")
+          .eq("id", group.id)
+          .maybeSingle();
+        if (recovered && (recovered as any).label_status === "ready" && (recovered as any).label_url) {
+          group = recovered as unknown as ShippingGroupRow;
+          void refetchGroups();
+        }
+      }
+    }
+    if (group.label_status !== "ready" || !group.label_url) {
+
       printWindow?.close();
       scanFail();
       setPrintOutcome((p) => ({ ...p, [group.id]: { ok: false, at: new Date().toISOString(), reason: tr("송장 미발급/라벨 PDF 없음", "运单未发行/无标签PDF") } }));
