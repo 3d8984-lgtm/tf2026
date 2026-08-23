@@ -749,6 +749,36 @@ export default function CCTVQuality() {
     <div className="space-y-4">
       <PageHeader title={T.title} description={T.desc} />
 
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <CameraIcon className="w-4 h-4" />
+            {isKo ? "전체 카메라 모니터링" : "全部摄像头监控"}
+            <Badge variant="outline" className="text-[10px]">{sortedCams.length}</Badge>
+          </CardTitle>
+          <Button size="sm" variant="ghost" onClick={loadCams} disabled={loading}>
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {sortedCams.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">{T.noCams}</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
+              {sortedCams.map((c) => (
+                <MiniLiveTile
+                  key={String(c.id)}
+                  cam={c}
+                  label={displayName(c)}
+                  active={!!selected && String(selected.id) === String(c.id)}
+                  onSelect={() => setSelected(c)}
+                />
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2">
