@@ -13,12 +13,19 @@ export interface GatewayCamera {
   live_playlist: string | null;
 }
 
-/** Calls the camera gateway through the edge proxy (API key stays server-side). */
+/**
+ * Calls the camera gateway. When this device sits on the same internal
+ * network the request goes straight to the gateway; otherwise it is relayed
+ * through the edge proxy (API key stays server-side).
+ */
 export async function cctvFetch(pathOrUrl: string, init?: RequestInit) {
   const direct = getDirectBase();
   const target = pathOrUrl.startsWith("http")
     ? pathOrUrl
-    : `${CCTV_PROXY_BASE}${pathOrUrl.startsWith("/") ? "" : "/"}${pathOrUrl}`;
+    : `${direct || CCTV_PROXY_BASE}${pathOrUrl.startsWith("/") ? "" : "/"}${pathOrUrl}`;
+  // The LAN gateway is unauthenticated; sending Supabase headers there would
+  // only trigger needless CORS preflights.
+  if (direct && target.startsWith(direct)) return fetch(target, init);
   const headers = new Headers(init?.headers);
   headers.set("apikey", ANON_KEY);
   const session = await supabase.auth.getSession();
