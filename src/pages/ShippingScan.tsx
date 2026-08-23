@@ -253,7 +253,9 @@ export default function ShippingScan() {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [buildingGroups, setBuildingGroups] = useState(false);
+  const [retryingGroupId, setRetryingGroupId] = useState<string | null>(null);
   const [preIssueOpen, setPreIssueOpen] = useState(false);
+
   const [preIssueRunning, setPreIssueRunning] = useState(false);
   const [preIssueProgress, setPreIssueProgress] = useState({ done: 0, total: 0, success: 0, failed: 0 });
   const [preIssueLog, setPreIssueLog] = useState<{ name: string; ok: boolean; message?: string }[]>([]);
@@ -722,15 +724,26 @@ export default function ShippingScan() {
   }
 
   async function retryGroupLabel(group: ShippingGroupRow) {
-    if (!carrier) return;
+    if (!carrier) {
+      toast({ variant: "destructive", title: tr("택배사를 선택하세요", "请选择承运商") });
+      return;
+    }
+    if (retryingGroupId) return;
+    setRetryingGroupId(group.id);
     try {
-      await issueGroupLabel(group.id, carrier);
-      toast({ title: tr("송장이 발급되었습니다", "已生成运单"), description: group.recipient_name });
+      const r = await issueGroupLabel(group.id, carrier);
+      toast({
+        title: r?.already ? tr("이미 발급된 송장을 복구했습니다", "已恢复既有运单") : tr("송장이 발급되었습니다", "已生成运单"),
+        description: `${group.recipient_name} ${r?.tracking_number ?? ""}`.trim(),
+      });
     } catch (e: any) {
       toast({ variant: "destructive", title: tr("발급 실패", "生成失败"), description: e?.message });
+    } finally {
+      setRetryingGroupId(null);
+      refetchGroups();
     }
-    refetchGroups();
   }
+
 
 
 
@@ -1629,16 +1642,24 @@ export default function ShippingScan() {
                       <div className="text-xs w-24">{tr("스캔", "扫码")} <b className={done >= required ? "text-emerald-400" : ""}>{done} / {required}</b></div>
                       <div className="w-24">{statusBadge}</div>
                       <div className="font-mono text-xs flex-1 truncate">{g.tracking_number ?? "-"}</div>
-                      {g.label_status === "failed" && (
+                      {g.label_status !== "ready" && (
                         <span
                           role="button"
                           tabIndex={0}
-                          className="text-xs underline text-destructive"
+                          aria-disabled={retryingGroupId === g.id}
+                          className={`text-xs underline shrink-0 ${retryingGroupId === g.id ? "text-muted-foreground pointer-events-none" : g.label_status === "failed" ? "text-destructive" : "text-primary"}`}
                           onClick={(e) => { e.stopPropagation(); void retryGroupLabel(g); }}
                         >
-                          {tr("재시도", "重试")}
+                          {retryingGroupId === g.id
+                            ? tr("발행 중...", "发行中...")
+                            : g.label_status === "failed"
+                            ? tr("재시도", "重试")
+                            : g.label_status === "issuing"
+                            ? tr("다시 발행", "重新发行")
+                            : tr("사전발행", "预发行")}
                         </span>
                       )}
+
                     </button>
                     {open && (
                       <div className="px-10 pb-3 space-y-1">
