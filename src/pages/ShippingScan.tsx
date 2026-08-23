@@ -733,13 +733,20 @@ export default function ShippingScan() {
     if (retryingGroupId) return;
     setRetryingGroupId(group.id);
     try {
-      const r = await issueGroupLabel(group.id, carrier);
+      const r = await issueGroupLabel(group.id, carrier, {
+        onRetry: (attempt, message) =>
+          toast({
+            title: tr(`일시 오류 — 자동 재발급 (${attempt}회)`, `临时错误 — 自动重发 (${attempt})`),
+            description: message,
+          }),
+      });
       toast({
         title: r?.already ? tr("이미 발급된 송장을 복구했습니다", "已恢复既有运单") : tr("송장이 발급되었습니다", "已生成运单"),
         description: `${group.recipient_name} ${r?.tracking_number ?? ""}`.trim(),
       });
     } catch (e: any) {
-      toast({ variant: "destructive", title: tr("발급 실패", "生成失败"), description: e?.message });
+      toast({ variant: "destructive", title: `${tr("발급 실패", "生成失败")} — ${describeLabelError(e?.message)}`, description: e?.message });
+
     } finally {
       setRetryingGroupId(null);
       refetchGroups();
