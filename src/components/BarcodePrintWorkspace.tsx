@@ -503,25 +503,32 @@ function OrderDetail({
 
   // ── 소비자(인쇄) 처리 ─────────────────────────────────────────────
   // PF 신형 프린터(/api/v2/pf-printer)는 스캔 이벤트에 자동 연결되어 있지 않다.
-  // 따라서 검증을 통과해 queued 상태가 된 항목을 프론트엔드가 순차적으로 직접 인쇄 전송한다.
+  // 검증을 통과해 queued 상태가 된 항목을 대기열 선두부터 "한 건씩" 전송하고,
+  // 전송 결과를 저장한 뒤 다음 건을 이어서 처리한다(FIFO, 순서 보장).
   const printingRef = useRef(false);
+  const [printTick, setPrintTick] = useState(0);
+  const [printingPos, setPrintingPos] = useState<number | null>(null);
   useEffect(() => {
     if (!ready || testMode || printingRef.current) return;
-    const queued = Object.values(saved).filter((s) => s.status === "queued").sort((a, b) => a.position - b.position);
-    if (queued.length === 0) return;
+    const head = Object.values(saved)
+      .filter((s) => s.status === "queued")
+      .sort((a, b) => a.position - b.position)[0];
+    if (!head) { setPrintingPos(null); return; }
     printingRef.current = true;
+    setPrintingPos(head.position);
     void (async () => {
       try {
-        for (const item of queued) {
-          const r = await sendToPrinter(printValueRef.current(item.code));
-          if (r.ok) await markDone(item.position, item.code, null, false);
-          else await markPrintError(item.position, item.code, r.error ?? "printer send failed");
-        }
+        const r = await sendToPrinter(printValueRef.current(head.code));
+        if (r.ok) await markDone(head.position, head.code, null, false);
+        else await markPrintError(head.position, head.code, r.error ?? "printer send failed");
       } finally {
         printingRef.current = false;
+        setPrintingPos(null);
+        setPrintTick((t) => t + 1); // 다음 대기 건 이어서 처리
       }
     })();
-  }, [saved, ready, testMode, sendToPrinter, markDone, markPrintError]);
+  }, [saved, printTick, ready, testMode, sendToPrinter, markDone, markPrintError]);
+
 
 
 
