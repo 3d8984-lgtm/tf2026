@@ -89,8 +89,11 @@ async function fetch4pxLabel(
         }
         if (typeof b64 === "string" && b64.length > 100) {
           const clean = b64.replace(/\s/g, "");
+          const decoded = base64LabelToDataUrl(clean);
+          if (decoded) return decoded;
           const isHtml = /^(PCFE|PGh0|PGRp|PHN2)/.test(clean) || /^\s*</.test(b64);
-          return `data:${isHtml ? "text/html" : "application/pdf"};base64,${clean}`;
+          if (isHtml) return `data:text/html;base64,${clean}`;
+          console.log("[4px label] base64 payload was not a valid PDF/PNG");
         }
       } catch { /* try the next parameter combination */ }
     }
