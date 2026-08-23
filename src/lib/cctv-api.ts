@@ -15,6 +15,7 @@ export interface GatewayCamera {
 
 /** Calls the camera gateway through the edge proxy (API key stays server-side). */
 export async function cctvFetch(pathOrUrl: string, init?: RequestInit) {
+  const direct = getDirectBase();
   const target = pathOrUrl.startsWith("http")
     ? pathOrUrl
     : `${CCTV_PROXY_BASE}${pathOrUrl.startsWith("/") ? "" : "/"}${pathOrUrl}`;
@@ -79,4 +80,98 @@ export async function setGatewayRecording(id: string, enabled: boolean) {
   });
   if (!res.ok) throw new Error(await cctvError(res));
   return res.json();
+}
+
+/* ------------------------------------------------------------------ *
+ * Direct (LAN) access
+ *
+ * The gateway has no auth and allows any origin, so a browser that sits
+ * on the same internal network can hit it directly instead of relaying
+ * every HLS segment through the edge proxy. The LAN base URL is stored
+ * server-side (shared by every device) and probed once per page load.
+ * ------------------------------------------------------------------ */
+
+export const CCTV_LAN_BASE_KEY = "cctv_lan_base";
+
+let directBase: string | null | undefined;
+let directProbe: Promise<string | null> | null = null;
+
+export function getDirectBase(): string | null {
+  return directBase ?? null;
+}
+
+export async function loadCctvLanBase(): Promise<string> {
+  const { data } = await supabase
+    .from("app_ui_settings")
+    .select("setting_value")
+    .eq("setting_key", CCTV_LAN_BASE_KEY)
+    .maybeSingle();
+  const raw = data?.setting_value as unknown;
+  const val = typeof raw === "string" ? raw : (raw as { url?: string } | null)?.url ?? "";
+  return String(val || "").trim();
+}
+
+export async function saveCctvLanBase(base: string) {
+  const clean = base.trim().replace(/\/+$/, "");
+  const { data: auth } = await supabase.auth.getUser();
+  const { error } = await supabase.from("app_ui_settings").upsert(
+    { setting_key: CCTV_LAN_BASE_KEY, setting_value: clean as unknown as never, updated_by: auth.user?.id ?? null },
+    { onConflict: "setting_key" },
+  );
+  if (error) throw new Error(error.message);
+  directBase = undefined;
+  directProbe = null;
+}
+
+/** Returns the LAN gateway base if this device can actually reach it, else null. */
+export async function resolveDirectBase(): Promise<string | null> {
+  if (directBase !== undefined) return directBase;
+  if (!directProbe) {
+    directProbe = (async () => {
+      try {
+        const base = (await loadCctvLanBase()).replace(/\/+$/, "");
+        if (!base) return null;
+        // An https page cannot load http:// LAN resources (mixed content).
+        if (window.location.protocol === "https:" && base.startsWith("http://")) return null;
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 2000);
+        try {
+          const res = await fetch(`${base}/api/v1/cam`, { signal: ctrl.signal, cache: "no-store" });
+          return res.ok ? base : null;
+        } finally {
+          clearTimeout(timer);
+        }
+      } catch {
+        return null;
+      }
+    })().then((v) => {
+      directBase = v;
+      return v;
+    });
+  }
+  return directProbe;
+}
+
+/** Builds a playable/fetchable URL, preferring the direct LAN gateway. */
+export function cctvUrl(pathOrUrl: string | null | undefined, base?: string | null): string | null {
+  if (!pathOrUrl) return null;
+  const root = (base ?? getDirectBase()) || CCTV_PROXY_BASE;
+  try {
+    let path: string;
+    if (/^https?:\/\//i.test(pathOrUrl)) {
+      const parsed = new URL(pathOrUrl);
+      path = parsed.pathname + parsed.search;
+    } else {
+      path = pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`;
+    }
+    return `${root}${path}`;
+  } catch {
+    return null;
+  }
+}
+
+/** True when the URL points at the LAN gateway (no Supabase auth headers needed). */
+export function isDirectUrl(url: string, base?: string | null): boolean {
+  const root = (base ?? getDirectBase()) || "";
+  return !!root && url.startsWith(root);
 }
