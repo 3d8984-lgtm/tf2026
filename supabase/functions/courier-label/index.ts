@@ -598,6 +598,16 @@ function yunOpenApiBase(cfg: any, cred: any): string {
     : "https://openapi-sbx.yunexpress.cn";
 }
 
+function yunOpenApiSecret(cred: any): string {
+  return String(
+    Deno.env.get("YUNEXPRESS_OPENAPI_APP_SECRET") ??
+    cred?.extra?.openapi_app_secret ??
+    cred?.extra?.openapi_secret ??
+    cred?.extra?.secret ??
+    "",
+  ).trim();
+}
+
 /** OAuth2 access token cache (per base + appId), refreshed a minute before expiry. */
 const yunTokenCache = new Map<string, { token: string; exp: number }>();
 
@@ -612,9 +622,9 @@ async function yunAccessToken(cfg: any, cred: any): Promise<string | undefined> 
   const manual = String(e.openapi_access_token ?? "").trim();
   if (manual) return manual;
 
-  const appId = String(e.openapi_app_id ?? e.openapi_token ?? e.token ?? "").trim();
-  const appSecret = String(e.openapi_app_secret ?? e.openapi_secret ?? e.secret ?? "").trim();
-  const sourceKey = String(e.openapi_source_key ?? e.source_key ?? e.sourcekey ?? "").trim();
+  const appId = String(Deno.env.get("YUNEXPRESS_OPENAPI_APP_ID") ?? e.openapi_app_id ?? e.openapi_token ?? e.token ?? "").trim();
+  const appSecret = yunOpenApiSecret(cred);
+  const sourceKey = String(Deno.env.get("YUNEXPRESS_OPENAPI_SOURCE_KEY") ?? e.openapi_source_key ?? e.source_key ?? e.sourcekey ?? "").trim();
   if (!appId || !appSecret) return undefined;
 
   const base = yunOpenApiBase(cfg, cred).replace(/\/+$/, "");
@@ -708,11 +718,26 @@ async function createYunOpenApiOrder(
     // 먼저 주문 조회로 중복 접수를 막고, 미접수일 때만 재시도한다.
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) await new Promise((r) => setTimeout(r, 1500 * attempt));
-      const call = await yunOpenApiFetch(`${root}${path}`, "POST", path, body, openapi.token, openapi.secret ?? "", 30_000);
+      let call: Awaited<ReturnType<typeof yunOpenApiFetch>> | null = null;
+      try {
+        call = await yunOpenApiFetch(`${root}${path}`, "POST", path, body, openapi.token, openapi.secret ?? "", 30_000);
+      } catch (networkError) {
+        console.log("[yun openapi create network error]", `attempt=${attempt + 1}`, String(networkError));
+        // A timed-out request may still have reached YunExpress. Query first,
+        // then retry only when no accepted order is visible.
+        if (customerOrderNo) {
+          const info = await fetchYunOpenApiInfo(root, openapi.token, openapi.secret ?? "", customerOrderNo);
+          if (info) {
+            raw = { success: true, result: info };
+            break;
+          }
+        }
+        continue;
+      }
       raw = call.raw;
       console.log("[yun openapi create]", call.res.status, `attempt=${attempt + 1}`, String(call.text).slice(0, 400));
 
-      if (!raw || typeof raw !== "object") return null;
+      if (!raw || typeof raw !== "object") continue;
       if (raw.success) break;
       // 인증 자체가 거부되면(권한 미개통 등) 구버전 경로로 폴백한다.
       if (!raw.code) return null;
@@ -745,14 +770,15 @@ async function createYunOpenApiOrder(
     // YunExpress는 접수 직후 내부 주문번호(타임스탬프 형태 2026...)만 돌려주고
     // 실제 운송장번호(YT...)는 조금 늦게 배정되는 경우가 있다. 내부 주문번호를
     // 운송장번호로 저장하면 4PX 송장처럼 보이는 숫자 번호가 찍히므로 금지한다.
-    const orderNo = String(result.order_number ?? result.waybill_number ?? result.customer_order_number ?? "").trim() || null;
+    const customerOrderNoFromResult = String(result.customer_order_number ?? customerOrderNo ?? "").trim() || null;
+    const carrierOrderNo = String(result.order_number ?? result.waybill_number ?? "").trim() || null;
     let tracking = [result.tracking_number, result.waybill_number].find((v: unknown) => isYunTrackingNumber(v)) ?? null;
     if (!tracking) {
       tracking = await waitForYunTracking(
         root,
         openapi.token,
         openapi.secret ?? "",
-        [orderNo, result.customer_order_number].filter(Boolean) as string[],
+        [customerOrderNoFromResult, carrierOrderNo].filter(Boolean) as string[],
       );
     }
     if (!tracking) {
@@ -760,7 +786,7 @@ async function createYunOpenApiOrder(
         tracking_number: null,
         label_url: null,
         raw,
-        ref_no: orderNo,
+        ref_no: customerOrderNoFromResult,
         error: raw.msg ?? "YunExpress 접수는 되었으나 운송장번호(YT…)가 아직 배정되지 않았습니다. 잠시 후 재시도하세요.",
       };
     }
@@ -768,13 +794,21 @@ async function createYunOpenApiOrder(
       root,
       openapi.token,
       openapi.secret ?? "",
-      [orderNo, tracking, result.customer_order_number].filter(Boolean) as string[],
+      [customerOrderNoFromResult, carrierOrderNo, tracking].filter(Boolean) as string[],
     );
-    return { tracking_number: String(tracking), label_url: label, raw, ref_no: orderNo };
+    return { tracking_number: String(tracking), label_url: label, raw, ref_no: customerOrderNoFromResult };
 
   } catch (e) {
     console.log("[yun openapi create error]", String(e));
-    return null;
+    // Do not fall through to the legacy CreateOrder endpoint after an OpenAPI
+    // network timeout: the order may already have been accepted upstream.
+    return {
+      tracking_number: null,
+      label_url: null,
+      raw: null,
+      error: `YunExpress OpenAPI 연결이 지연되었습니다. 중복 등록 방지를 위해 구버전 API로 재접수하지 않았습니다. 잠시 후 다시 시도하세요. (${e instanceof Error ? e.message : String(e)})`,
+      ref_no: customerOrderNo,
+    };
   }
 }
 
@@ -786,7 +820,7 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
 
   // 신버전 OpenAPI 자격증명이 있으면 우선 사용 (라벨 PDF까지 한 번에 확보)
   const oaToken = await yunAccessToken(cfg, cred);
-  const oaSecret = cred?.extra?.openapi_app_secret ?? cred?.extra?.openapi_secret ?? cred?.extra?.secret;
+  const oaSecret = yunOpenApiSecret(cred);
   if (oaToken && oaSecret) {
     const viaOpenApi = await createYunOpenApiOrder(
       { base: yunOpenApiBase(cfg, cred), token: oaToken, secret: oaSecret },
@@ -861,7 +895,7 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
         {
            base: yunOpenApiBase(cfg, cred),
           token: await yunAccessToken(cfg, cred),
-          secret: cred?.extra?.openapi_app_secret ?? cred?.extra?.openapi_secret ?? cred?.extra?.secret,
+          secret: yunOpenApiSecret(cred),
         },
       );
     } catch { /* ignore — status below reflects the outcome */ }
@@ -912,7 +946,7 @@ Deno.serve(async (req) => {
           const upgraded = await waitForYunTracking(
             (yunOpenApiBase(cfgU, credU) || "https://openapi.yunexpress.cn").replace(/\/+$/, ""),
             (await yunAccessToken(cfgU, credU)) ?? "",
-            credU?.extra?.openapi_app_secret ?? credU?.extra?.openapi_secret ?? credU?.extra?.secret ?? "",
+            yunOpenApiSecret(credU),
             [g.tracking_number, g.ref_no].filter(Boolean) as string[],
             2,
           );
@@ -934,23 +968,36 @@ Deno.serve(async (req) => {
       if (g.tracking_number && !g.label_url && (g.carrier ?? carrier) === "yunexpress") {
         const { data: cfgY } = await admin.from("courier_configs").select("*").eq("code", "yunexpress").maybeSingle();
         const { data: credY } = await admin.from("courier_credentials").select("*").eq("code", "yunexpress").maybeSingle();
+        const { data: linkedItem } = await admin
+          .from("shipment_scan_items")
+          .select("order_id")
+          .eq("shipping_group_id", g.id)
+          .limit(1)
+          .maybeSingle();
+        const { data: linkedOrder } = linkedItem?.order_id
+          ? await admin.from("orders").select("external_order_id").eq("id", linkedItem.order_id).maybeSingle()
+          : { data: null };
+        const syntheticCustomerOrderNo = linkedOrder?.external_order_id
+          ? `${linkedOrder.external_order_id}-G${String(g.id).slice(0, 8)}`
+          : null;
         const issuedAt = new Date().toISOString();
         let recovered: string | null = null;
         if (cfgY && credY) {
           recovered = await fetchYunLabel(
             cfgY.api_url ?? "",
             btoa(`${credY.account_no ?? ""}&${credY.api_key ?? ""}`),
-            [g.ref_no, g.tracking_number].filter(Boolean) as string[],
+            [g.ref_no, syntheticCustomerOrderNo, g.tracking_number].filter(Boolean) as string[],
             {
               base: yunOpenApiBase(cfgY, credY),
               token: await yunAccessToken(cfgY, credY),
-              secret: credY?.extra?.openapi_app_secret ?? credY?.extra?.openapi_secret ?? credY?.extra?.secret,
+              secret: yunOpenApiSecret(credY),
             },
           );
         }
         await admin.from("shipping_groups").update({
           carrier: "yunexpress",
           label_url: recovered,
+          ref_no: g.ref_no ?? syntheticCustomerOrderNo,
           // 운송장번호가 있으면 접수는 성공한 것 → 실패로 표시하지 않는다.
           label_status: "ready",
           label_error: recovered ? null : "운송장은 발급됨 · 라벨 PDF 미수신 (재시도 시 라벨만 다시 요청)",
@@ -1262,7 +1309,7 @@ Deno.serve(async (req) => {
           {
              base: yunOpenApiBase(cfg, cred),
             token: await yunAccessToken(cfg, cred),
-            secret: cred?.extra?.openapi_app_secret ?? cred?.extra?.openapi_secret ?? cred?.extra?.secret,
+            secret: yunOpenApiSecret(cred),
           },
         );
       } catch { /* status below reflects the outcome */ }

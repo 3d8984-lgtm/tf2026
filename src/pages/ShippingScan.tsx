@@ -263,7 +263,10 @@ export default function ShippingScan() {
   const singleGroups = useMemo(() => groups.filter((g) => (g.item_count ?? 0) <= 1), [groups]);
   const multiGroups = useMemo(() => groups.filter((g) => (g.item_count ?? 0) > 1), [groups]);
   const pendingGroups = useMemo(
-    () => groups.filter((g) => !(g.tracking_number && g.label_status === "ready")),
+    // A tracking number without the actual label file is not print-ready.
+    // Keep it in the queue so the server can retry label retrieval without
+    // creating another YunExpress order.
+    () => groups.filter((g) => !(g.tracking_number && g.label_url && g.label_status === "ready")),
     [groups],
   );
 
