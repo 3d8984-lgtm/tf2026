@@ -68,16 +68,27 @@ export default function WarningLightPanel() {
     // 낙관적 갱신: 장치 응답/폴링을 기다리지 않고 UI를 먼저 반영한다.
     setStatus((p) => ({ ...(p ?? {}), [channel]: { mode, blink_level: mode === "blink" ? level : null } }));
     try {
-      const res = await proxyFetch("/api/v1/warning-light/control", {
-        method: "POST",
-        body: JSON.stringify({ [channel]: value }),
-      });
-      const j: any = await res.json().catch(() => ({}));
-      if (!res.ok || !j?.accepted) {
+      // 게이트웨이가 일시적으로 503(offline)을 반환하는 경우가 있어 짧게 재시도한다.
+      let j: any = {};
+      let res: Response | null = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        res = await proxyFetch("/api/v1/warning-light/control", {
+          method: "POST",
+          body: JSON.stringify({ [channel]: value }),
+        });
+        j = await res.json().catch(() => ({}));
+        if (res.ok && j?.accepted) break;
+        const transient = j?.offline === true || j?.upstream_status === 503 || res.status === 503;
+        if (!transient) break;
+        await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
+      }
+      if (!res?.ok || !j?.accepted) {
         const detail = j?.detail;
-        const msg = typeof detail === "string"
-          ? detail
-          : Array.isArray(detail) ? detail.map((d: any) => d.msg).join(", ") : `HTTP ${res.status}`;
+        const msg = j?.offline
+          ? tr("게이트웨이/경고등 장치가 응답하지 않습니다 (503).", "网关/警示灯设备无响应 (503)。")
+          : typeof detail === "string"
+            ? detail
+            : Array.isArray(detail) ? detail.map((d: any) => d.msg).join(", ") : `HTTP ${res?.status ?? "-"}`;
         toast({ title: tr("1번 경고등 제어 실패", "1号警示灯控制失败"), description: msg, variant: "destructive" });
         load();
       } else {
@@ -85,6 +96,7 @@ export default function WarningLightPanel() {
         // 장치가 점멸 사이클을 끝낸 뒤 값을 적용하므로 짧게 여러 번 재조회한다.
         [400, 1200, 2500].forEach((ms) => setTimeout(() => void load(), ms));
       }
+
     } catch (e) {
       toast({ title: tr("1번 경고등 제어 실패", "1号警示灯控制失败"), description: String(e), variant: "destructive" });
       load();
