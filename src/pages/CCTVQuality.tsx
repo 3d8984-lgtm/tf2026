@@ -764,7 +764,7 @@ export default function CCTVQuality() {
           {sortedCams.length === 0 ? (
             <p className="text-sm text-muted-foreground py-6 text-center">{T.noCams}</p>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-3">
               {sortedCams.map((c) => (
                 <MiniLiveTile
                   key={String(c.id)}
