@@ -78,15 +78,15 @@ export default function WarningLightPanel() {
         const msg = typeof detail === "string"
           ? detail
           : Array.isArray(detail) ? detail.map((d: any) => d.msg).join(", ") : `HTTP ${res.status}`;
-        toast({ title: tr("경고등 제어 실패", "警示灯控制失败"), description: msg, variant: "destructive" });
+        toast({ title: tr("1번 경고등 제어 실패", "1号警示灯控制失败"), description: msg, variant: "destructive" });
         load();
       } else {
-        toast({ title: tr("경고등 명령 전송됨", "已发送警示灯命令") });
+        toast({ title: tr("1번 경고등 명령 전송됨", "已发送1号警示灯命令") });
         // 장치가 점멸 사이클을 끝낸 뒤 값을 적용하므로 짧게 여러 번 재조회한다.
         [400, 1200, 2500].forEach((ms) => setTimeout(() => void load(), ms));
       }
     } catch (e) {
-      toast({ title: tr("경고등 제어 실패", "警示灯控制失败"), description: String(e), variant: "destructive" });
+      toast({ title: tr("1번 경고등 제어 실패", "1号警示灯控制失败"), description: String(e), variant: "destructive" });
       load();
     } finally {
       setBusy(false);
