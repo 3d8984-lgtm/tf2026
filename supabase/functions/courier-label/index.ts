@@ -718,11 +718,26 @@ async function createYunOpenApiOrder(
     // 먼저 주문 조회로 중복 접수를 막고, 미접수일 때만 재시도한다.
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) await new Promise((r) => setTimeout(r, 1500 * attempt));
-      const call = await yunOpenApiFetch(`${root}${path}`, "POST", path, body, openapi.token, openapi.secret ?? "", 30_000);
+      let call: Awaited<ReturnType<typeof yunOpenApiFetch>> | null = null;
+      try {
+        call = await yunOpenApiFetch(`${root}${path}`, "POST", path, body, openapi.token, openapi.secret ?? "", 30_000);
+      } catch (networkError) {
+        console.log("[yun openapi create network error]", `attempt=${attempt + 1}`, String(networkError));
+        // A timed-out request may still have reached YunExpress. Query first,
+        // then retry only when no accepted order is visible.
+        if (customerOrderNo) {
+          const info = await fetchYunOpenApiInfo(root, openapi.token, openapi.secret ?? "", customerOrderNo);
+          if (info) {
+            raw = { success: true, result: info };
+            break;
+          }
+        }
+        continue;
+      }
       raw = call.raw;
       console.log("[yun openapi create]", call.res.status, `attempt=${attempt + 1}`, String(call.text).slice(0, 400));
 
-      if (!raw || typeof raw !== "object") return null;
+      if (!raw || typeof raw !== "object") continue;
       if (raw.success) break;
       // 인증 자체가 거부되면(권한 미개통 등) 구버전 경로로 폴백한다.
       if (!raw.code) return null;
