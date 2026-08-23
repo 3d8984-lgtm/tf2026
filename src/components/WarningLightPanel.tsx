@@ -68,7 +68,6 @@ export default function WarningLightPanel() {
     // 낙관적 갱신: 장치 응답/폴링을 기다리지 않고 UI를 먼저 반영한다.
     setStatus((p) => ({ ...(p ?? {}), [channel]: { mode, blink_level: mode === "blink" ? level : null } }));
     try {
-    try {
       // 게이트웨이가 일시적으로 503(offline)을 반환하는 경우가 있어 짧게 재시도한다.
       let j: any = {};
       let res: Response | null = null;
