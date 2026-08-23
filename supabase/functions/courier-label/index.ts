@@ -700,16 +700,47 @@ async function createYunOpenApiOrder(
     }],
   });
 
-  try {
-    const { res, text, raw } = await yunOpenApiFetch(`${root}${path}`, "POST", path, body, openapi.token, openapi.secret ?? "", 30_000);
-    console.log("[yun openapi create]", res.status, String(text).slice(0, 400));
+  const customerOrderNo = String(JSON.parse(body).customer_order_number ?? "");
 
-    if (!raw || typeof raw !== "object") return null;
-    // 인증 자체가 거부되면(권한 미개통 등) 구버전 경로로 폴백한다.
-    if (!raw.success && !raw.code) return null;
-    if (!raw.success) {
-      return { tracking_number: null, label_url: null, raw, error: yunOpenApiErrorText(raw.code, raw.msg ?? raw.message) };
+  try {
+    let raw: any = null;
+    // 02030012 = "服务执行超时" (upstream timeout). 접수가 실제로 되었을 수도 있으므로
+    // 먼저 주문 조회로 중복 접수를 막고, 미접수일 때만 재시도한다.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 1500 * attempt));
+      const call = await yunOpenApiFetch(`${root}${path}`, "POST", path, body, openapi.token, openapi.secret ?? "", 30_000);
+      raw = call.raw;
+      console.log("[yun openapi create]", call.res.status, `attempt=${attempt + 1}`, String(call.text).slice(0, 400));
+
+      if (!raw || typeof raw !== "object") return null;
+      if (raw.success) break;
+      // 인증 자체가 거부되면(권한 미개통 등) 구버전 경로로 폴백한다.
+      if (!raw.code) return null;
+
+      const timedOut = String(raw.code) === "02030012" || /超时|timeout/i.test(String(raw.msg ?? raw.message ?? ""));
+      if (!timedOut) {
+        return { tracking_number: null, label_url: null, raw, error: yunOpenApiErrorText(raw.code, raw.msg ?? raw.message) };
+      }
+      // 타임아웃이어도 실제로 접수됐는지 확인
+      if (customerOrderNo) {
+        const info = await fetchYunOpenApiInfo(root, openapi.token, openapi.secret ?? "", customerOrderNo);
+        if (info) {
+          raw = { success: true, result: info };
+          break;
+        }
+      }
     }
+
+    if (!raw?.success) {
+      return {
+        tracking_number: null,
+        label_url: null,
+        raw,
+        error: yunOpenApiErrorText(raw?.code, raw?.msg ?? raw?.message) +
+          " — YunExpress 서버 응답 지연(타임아웃)으로 3회 재시도했습니다. 잠시 후 다시 시도하세요.",
+      };
+    }
+
     const result = raw.result ?? {};
     // YunExpress는 접수 직후 내부 주문번호(타임스탬프 형태 2026...)만 돌려주고
     // 실제 운송장번호(YT...)는 조금 늦게 배정되는 경우가 있다. 내부 주문번호를
