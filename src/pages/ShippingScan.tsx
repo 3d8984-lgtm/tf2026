@@ -20,6 +20,8 @@ import {
   buildShippingGroups,
   issueGroupLabels,
   issueGroupLabel,
+  describeLabelError,
+
   type ShippingGroupRow,
 } from "@/hooks/useShippingGroups";
 
@@ -731,13 +733,20 @@ export default function ShippingScan() {
     if (retryingGroupId) return;
     setRetryingGroupId(group.id);
     try {
-      const r = await issueGroupLabel(group.id, carrier);
+      const r = await issueGroupLabel(group.id, carrier, {
+        onRetry: (attempt, message) =>
+          toast({
+            title: tr(`일시 오류 — 자동 재발급 (${attempt}회)`, `临时错误 — 自动重发 (${attempt})`),
+            description: message,
+          }),
+      });
       toast({
         title: r?.already ? tr("이미 발급된 송장을 복구했습니다", "已恢复既有运单") : tr("송장이 발급되었습니다", "已生成运单"),
         description: `${group.recipient_name} ${r?.tracking_number ?? ""}`.trim(),
       });
     } catch (e: any) {
-      toast({ variant: "destructive", title: tr("발급 실패", "生成失败"), description: e?.message });
+      toast({ variant: "destructive", title: `${tr("발급 실패", "生成失败")} — ${describeLabelError(e?.message)}`, description: e?.message });
+
     } finally {
       setRetryingGroupId(null);
       refetchGroups();
@@ -1437,8 +1446,9 @@ export default function ShippingScan() {
                   <ScrollArea className="h-28 border border-destructive/40 rounded-md p-2 bg-destructive/5">
                     {preIssueLog.filter((l) => !l.ok).map((l, i) => (
                       <div key={i} className="text-[11px] py-1 border-b border-border/40 last:border-0">
-                        <div className="font-medium">{l.name}</div>
+                        <div className="font-medium">{l.name} <span className="text-destructive">· {describeLabelError(l.message)}</span></div>
                         <div className="text-destructive break-all whitespace-pre-wrap">{l.message ?? tr("알 수 없는 오류", "未知错误")}</div>
+
                       </div>
                     ))}
                   </ScrollArea>
@@ -1641,7 +1651,15 @@ export default function ShippingScan() {
                       <div className="text-xs w-24">{tr("제품수량", "产品数")} <b>{g.item_count}</b></div>
                       <div className="text-xs w-24">{tr("스캔", "扫码")} <b className={done >= required ? "text-emerald-400" : ""}>{done} / {required}</b></div>
                       <div className="w-24">{statusBadge}</div>
-                      <div className="font-mono text-xs flex-1 truncate">{g.tracking_number ?? "-"}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-mono text-xs truncate">{g.tracking_number ?? "-"}</div>
+                        {g.label_status === "failed" && g.label_error && (
+                          <div className="text-[11px] text-destructive truncate" title={g.label_error}>
+                            {describeLabelError(g.label_error)} · {g.label_error}
+                          </div>
+                        )}
+                      </div>
+
                       {g.label_status !== "ready" && (
                         <span
                           role="button"
@@ -1663,7 +1681,12 @@ export default function ShippingScan() {
                     </button>
                     {open && (
                       <div className="px-10 pb-3 space-y-1">
-                        {g.label_error && <div className="text-[11px] text-destructive">{g.label_error}</div>}
+                        {g.label_error && (
+                          <div className="text-[11px] text-destructive">
+                            <b>{describeLabelError(g.label_error)}</b> — {g.label_error}
+                          </div>
+                        )}
+
                         <div className="text-[11px] text-muted-foreground">
                           {g.shipping_address} · {g.recipient_phone} · {g.shipping_country}
                           {g.label_issued_at && ` · ${tr("발급", "发行")} ${new Date(g.label_issued_at).toLocaleString()}`}

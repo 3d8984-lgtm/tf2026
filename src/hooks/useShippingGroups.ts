@@ -37,8 +37,29 @@ export async function buildShippingGroups(orderIds?: string[]) {
   return data as { ok: boolean; groups: number; linked: number };
 }
 
-/** Issues (or re-tries) the waybill of ONE shipping group. Idempotent server-side. */
-export async function issueGroupLabel(groupId: string, carrier: string) {
+/** Network / server hiccups that are safe to retry (the backend call is idempotent). */
+export function isTransientLabelError(message: string) {
+  return /failed to fetch|networkerror|network error|load failed|timeout|timed out|idle_timeout|502|503|504|temporarily|일시/i.test(
+    message,
+  );
+}
+
+/** Human readable reason shown in the address list when a waybill cannot be issued. */
+export function describeLabelError(message?: string | null) {
+  const m = String(message ?? "");
+  if (!m) return "";
+  if (/postcode|post code|zip|우편/i.test(m)) return "우편번호 오류";
+  if (/address|주소|street|addr/i.test(m)) return "주소 오류";
+  if (/city|state|province|region|지역|区域|城市/i.test(m)) return "배송 불가 지역 / 지역정보 오류";
+  if (/phone|tel|전화/i.test(m)) return "연락처 오류";
+  if (/weight|무게|重量/i.test(m)) return "중량 오류";
+  if (/balance|余额|잔액|insufficient/i.test(m)) return "택배사 잔액 부족";
+  if (/token|auth|401|403|서명|sign/i.test(m)) return "택배사 인증 오류";
+  if (isTransientLabelError(m)) return "네트워크/서버 일시 오류";
+  return "발급 실패";
+}
+
+async function invokeIssue(groupId: string, carrier: string) {
   const { data, error } = await supabase.functions.invoke("courier-label", {
     body: { shipping_group_id: groupId, carrier },
   });
@@ -54,6 +75,33 @@ export async function issueGroupLabel(groupId: string, carrier: string) {
   if ((data as any)?.error) throw new Error((data as any).error);
   return data as { ok: boolean; tracking_number: string; label_url: string | null; already?: boolean };
 }
+
+/**
+ * Issues (or re-tries) the waybill of ONE shipping group. Idempotent server-side,
+ * so transient network/server failures are retried automatically (max 3 attempts).
+ */
+export async function issueGroupLabel(
+  groupId: string,
+  carrier: string,
+  opts: { attempts?: number; onRetry?: (attempt: number, message: string) => void } = {},
+) {
+  const attempts = Math.max(opts.attempts ?? 3, 1);
+  let lastErr: unknown;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await invokeIssue(groupId, carrier);
+    } catch (e) {
+      lastErr = e;
+      const message = e instanceof Error ? e.message : "unknown error";
+      if (i === attempts || !isTransientLabelError(message)) break;
+      opts.onRetry?.(i, message);
+      await new Promise((r) => setTimeout(r, 1500 * i));
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("unknown error");
+}
+
+
 
 /** Limited-concurrency queue so we never flood the carrier API. */
 export async function issueGroupLabels(
