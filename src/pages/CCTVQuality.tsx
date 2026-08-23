@@ -244,6 +244,7 @@ export default function CCTVQuality() {
   const [order, setOrder] = useState<string[]>(loadOrder);
   const [statusMap, setStatusMap] = useState<Record<string, "online" | "offline" | "checking">>({});
   const [loading, setLoading] = useState(false);
+  const [directBase, setDirectBase] = useState<string | null>(null);
   const [selected, setSelected] = useState<Cam | null>(null);
   const [snapshotTime, setSnapshotTime] = useState<string>(nowLocalDatetime(-1));
   const [snapshotSrc, setSnapshotSrc] = useState<string | null>(null);
@@ -457,7 +458,12 @@ export default function CCTVQuality() {
   };
 
   useEffect(() => {
-    loadCams();
+    // Probe the LAN gateway first: if this device is inside the internal
+    // network, every stream/request below goes straight to it.
+    resolveDirectBase()
+      .then((base) => setDirectBase(base))
+      .catch(() => setDirectBase(null))
+      .finally(() => loadCams());
     fetchServerSettings().then(({ names, order: srvOrder }) => {
       if (Object.keys(names).length) {
         setNameMap((prev) => ({ ...prev, ...names }));
@@ -794,6 +800,7 @@ export default function CCTVQuality() {
                   label={displayName(c)}
                   active={!!selected && String(selected.id) === String(c.id)}
                   onSelect={() => setSelected(c)}
+                  directBase={directBase}
                 />
               ))}
             </div>
