@@ -406,19 +406,55 @@ async function inlineLabelUrl(url: string, fallbackType = "application/pdf"): Pr
   }
 }
 
-/** YunExpress OpenAPI: waybill status probe (GET /v1/order/info/get) — used for diagnostics only. */
-async function fetchYunOpenApiInfo(root: string, token: string, secret: string, ref: string): Promise<void> {
+/** YunExpress OpenAPI: waybill status probe (GET /v1/order/info/get). Returns the parsed result. */
+async function fetchYunOpenApiInfo(root: string, token: string, secret: string, ref: string): Promise<any> {
   const path = "/v1/order/info/get";
   try {
-    const { res, text } = await yunOpenApiFetch(
+    const { res, text, raw } = await yunOpenApiFetch(
       `${root}${path}?order_number=${encodeURIComponent(ref)}`,
       "GET", path, undefined, token, secret, 15_000,
     );
     console.log("[yun openapi info]", ref, res.status, String(text).slice(0, 300));
+    return raw?.result ?? raw?.data ?? null;
   } catch (e) {
     console.log("[yun openapi info error]", ref, String(e));
+    return null;
   }
 }
+
+/**
+ * A real YunExpress waybill number is the carrier tracking code (YT…, LP…, UA… etc.).
+ * The OpenAPI also returns an internal order number that is just a timestamp
+ * (e.g. 20260823141846822) — that is NOT a waybill and must never be stored as one.
+ */
+function isYunTrackingNumber(v: unknown): boolean {
+  const s = String(v ?? "").trim();
+  if (s.length < 8) return false;
+  return !/^\d{12,}$/.test(s);
+}
+
+/** Poll /v1/order/info/get until YunExpress allocates the real tracking number. */
+async function waitForYunTracking(
+  root: string,
+  token: string,
+  secret: string,
+  refs: string[],
+  attempts = 4,
+): Promise<string | null> {
+  const list = refs.filter(Boolean).map(String);
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 2000 * attempt));
+    for (const ref of list) {
+      const info = await fetchYunOpenApiInfo(root, token, secret, ref);
+      const candidate = [info?.tracking_number, info?.trackingNumber, info?.waybill_number, info?.waybillNumber]
+        .find((v) => isYunTrackingNumber(v));
+      if (candidate) return String(candidate).trim();
+    }
+  }
+  return null;
+}
+
+
 
 /**
  * YunExpress OpenAPI (openapi.yunexpress.cn) label fetch:
@@ -675,10 +711,36 @@ async function createYunOpenApiOrder(
       return { tracking_number: null, label_url: null, raw, error: yunOpenApiErrorText(raw.code, raw.msg ?? raw.message) };
     }
     const result = raw.result ?? {};
-    const tracking = result.tracking_number || result.waybill_number || null;
-    if (!tracking) return { tracking_number: null, label_url: null, raw, error: raw.msg ?? "운송장번호 미수신" };
-    const label = await fetchYunOpenApiLabel(root, openapi.token, openapi.secret ?? "", [result.waybill_number, result.customer_order_number, tracking].filter(Boolean));
-    return { tracking_number: tracking, label_url: label, raw };
+    // YunExpress는 접수 직후 내부 주문번호(타임스탬프 형태 2026...)만 돌려주고
+    // 실제 운송장번호(YT...)는 조금 늦게 배정되는 경우가 있다. 내부 주문번호를
+    // 운송장번호로 저장하면 4PX 송장처럼 보이는 숫자 번호가 찍히므로 금지한다.
+    const orderNo = String(result.order_number ?? result.waybill_number ?? result.customer_order_number ?? "").trim() || null;
+    let tracking = [result.tracking_number, result.waybill_number].find((v: unknown) => isYunTrackingNumber(v)) ?? null;
+    if (!tracking) {
+      tracking = await waitForYunTracking(
+        root,
+        openapi.token,
+        openapi.secret ?? "",
+        [orderNo, result.customer_order_number].filter(Boolean) as string[],
+      );
+    }
+    if (!tracking) {
+      return {
+        tracking_number: null,
+        label_url: null,
+        raw,
+        ref_no: orderNo,
+        error: raw.msg ?? "YunExpress 접수는 되었으나 운송장번호(YT…)가 아직 배정되지 않았습니다. 잠시 후 재시도하세요.",
+      };
+    }
+    const label = await fetchYunOpenApiLabel(
+      root,
+      openapi.token,
+      openapi.secret ?? "",
+      [orderNo, tracking, result.customer_order_number].filter(Boolean) as string[],
+    );
+    return { tracking_number: String(tracking), label_url: label, raw, ref_no: orderNo };
+
   } catch (e) {
     console.log("[yun openapi create error]", String(e));
     return null;
@@ -746,7 +808,9 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
   try { raw = JSON.parse(text); } catch { /* keep text */ }
 
   const item = Array.isArray(raw?.Item) ? raw.Item[0] : raw?.Item ?? raw?.Data?.[0] ?? null;
-  const tracking = item?.TrackingNumber ?? item?.WayBillNumber ?? raw?.TrackingNumber ?? null;
+  const tracking = [item?.TrackingNumber, item?.WayBillNumber, raw?.TrackingNumber]
+    .find((v: unknown) => isYunTrackingNumber(v)) ?? null;
+
   let label = item?.LabelUrl ?? item?.ShippingLabelUrl ?? null;
   if (!res.ok || !tracking) {
     return {
@@ -809,6 +873,31 @@ Deno.serve(async (req) => {
       const { data: g } = await admin.from("shipping_groups").select("*").eq("id", shipping_group_id).maybeSingle();
       if (!g) return json({ error: "shipping group not found" }, 404);
 
+      // YunExpress: 접수 직후 내부 주문번호(숫자만)만 저장된 경우 실제 운송장번호(YT…)로 승격한다.
+      if (g.tracking_number && (g.carrier ?? carrier) === "yunexpress" && !isYunTrackingNumber(g.tracking_number)) {
+        const { data: cfgU } = await admin.from("courier_configs").select("*").eq("code", "yunexpress").maybeSingle();
+        const { data: credU } = await admin.from("courier_credentials").select("*").eq("code", "yunexpress").maybeSingle();
+        if (cfgU && credU) {
+          const upgraded = await waitForYunTracking(
+            (yunOpenApiBase(cfgU, credU) || "https://openapi.yunexpress.cn").replace(/\/+$/, ""),
+            (await yunAccessToken(cfgU, credU)) ?? "",
+            credU?.extra?.openapi_app_secret ?? credU?.extra?.openapi_secret ?? credU?.extra?.secret ?? "",
+            [g.tracking_number, g.ref_no].filter(Boolean) as string[],
+            2,
+          );
+          if (upgraded) {
+            g.ref_no = g.ref_no ?? g.tracking_number;
+            g.tracking_number = upgraded;
+            await admin.from("shipping_groups")
+              .update({ tracking_number: upgraded, ref_no: g.ref_no })
+              .eq("id", g.id);
+            await admin.from("shipment_scan_items")
+              .update({ tracking_number: upgraded })
+              .eq("shipping_group_id", g.id);
+          }
+        }
+      }
+
       // YunExpress: 주문(운송장)은 이미 만들어졌는데 라벨 PDF만 못 받은 경우 —
       // 절대로 주문을 다시 만들지 않고 라벨만 재요청한다 (중복 접수 방지).
       if (g.tracking_number && !g.label_url && (g.carrier ?? carrier) === "yunexpress") {
@@ -820,7 +909,7 @@ Deno.serve(async (req) => {
           recovered = await fetchYunLabel(
             cfgY.api_url ?? "",
             btoa(`${credY.account_no ?? ""}&${credY.api_key ?? ""}`),
-            [g.tracking_number, g.ref_no].filter(Boolean) as string[],
+            [g.ref_no, g.tracking_number].filter(Boolean) as string[],
             {
               base: yunOpenApiBase(cfgY, credY),
               token: await yunAccessToken(cfgY, credY),
@@ -844,6 +933,7 @@ Deno.serve(async (req) => {
         }).eq("shipping_group_id", g.id);
         return json({ ok: true, recovered: !!recovered, carrier: "yunexpress", tracking_number: g.tracking_number, label_url: recovered });
       }
+
 
       // 이미 4PX 주문/운송장은 만들어졌는데 라벨 PDF만 못 받은 경우:
       // 주문을 다시 만들지 말고 ds.xms.label.get 만 재시도해서 복구한다.
