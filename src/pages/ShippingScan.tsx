@@ -1643,7 +1643,15 @@ export default function ShippingScan() {
                       <div className="text-xs w-24">{tr("제품수량", "产品数")} <b>{g.item_count}</b></div>
                       <div className="text-xs w-24">{tr("스캔", "扫码")} <b className={done >= required ? "text-emerald-400" : ""}>{done} / {required}</b></div>
                       <div className="w-24">{statusBadge}</div>
-                      <div className="font-mono text-xs flex-1 truncate">{g.tracking_number ?? "-"}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-mono text-xs truncate">{g.tracking_number ?? "-"}</div>
+                        {g.label_status === "failed" && g.label_error && (
+                          <div className="text-[11px] text-destructive truncate" title={g.label_error}>
+                            {describeLabelError(g.label_error)} · {g.label_error}
+                          </div>
+                        )}
+                      </div>
+
                       {g.label_status !== "ready" && (
                         <span
                           role="button"
