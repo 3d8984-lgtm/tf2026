@@ -586,7 +586,7 @@ async function fetchYunLabel(base: string, auth: string, refs: string[], openapi
     if (!raw) return null;
     if (typeof raw === "string") {
       if (/^https?:\/\//i.test(raw.trim())) return raw.trim();
-      if (raw.length > 500 && /^[A-Za-z0-9+/=\s]+$/.test(raw.trim())) return `data:application/pdf;base64,${raw.replace(/\s+/g, "")}`;
+      if (raw.length > 500 && /^[A-Za-z0-9+/=\s]+$/.test(raw.trim())) return base64LabelToDataUrl(raw);
       return null;
     }
     if (Array.isArray(raw)) { for (const r of raw) { const v = pick(r); if (v) return v; } return null; }
@@ -615,19 +615,20 @@ async function fetchYunLabel(base: string, auth: string, refs: string[], openapi
         });
         if (!res.ok) continue;
         const ct = res.headers.get("content-type") ?? "";
-        if (ct.includes("pdf")) {
+        if (ct.includes("pdf") || ct.includes("octet-stream") || ct.includes("image/")) {
           const buf = new Uint8Array(await res.arrayBuffer());
           if (buf.byteLength < 800) continue;
-          let bin = "";
-          for (const b of buf) bin += String.fromCharCode(b);
-          return `data:application/pdf;base64,${btoa(bin)}`;
+          const sniffed = sniffLabelType(buf);
+          if (!sniffed || sniffed === "text/html") continue;
+          return bytesToDataUrl(buf, sniffed);
         }
         const text = await res.text();
         let raw: any = text;
         try { raw = JSON.parse(text); } catch { /* keep text */ }
         const found = pick(raw);
-        if (found) return found;
+        if (found) return found.startsWith("data:") ? found : (await inlineLabelUrl(found)) ?? found;
       } catch { /* try the next candidate */ }
+
     }
   }
   return null;
