@@ -63,7 +63,10 @@ export default function WarningLightPanel() {
   const control = useCallback(async (channel: string, mode: "off" | "on" | "blink") => {
     setBusy(true);
     const value: Record<string, unknown> = { mode };
-    if (mode === "blink") value.blink_level = Number(levels[channel] ?? 3);
+    const level = Number(levels[channel] ?? 3);
+    if (mode === "blink") value.blink_level = level;
+    // 낙관적 갱신: 장치 응답/폴링을 기다리지 않고 UI를 먼저 반영한다.
+    setStatus((p) => ({ ...(p ?? {}), [channel]: { mode, blink_level: mode === "blink" ? level : null } }));
     try {
       const res = await proxyFetch("/api/v1/warning-light/control", {
         method: "POST",
@@ -76,16 +79,20 @@ export default function WarningLightPanel() {
           ? detail
           : Array.isArray(detail) ? detail.map((d: any) => d.msg).join(", ") : `HTTP ${res.status}`;
         toast({ title: tr("경고등 제어 실패", "警示灯控制失败"), description: msg, variant: "destructive" });
+        load();
       } else {
         toast({ title: tr("경고등 명령 전송됨", "已发送警示灯命令") });
-        load();
+        // 장치가 점멸 사이클을 끝낸 뒤 값을 적용하므로 짧게 여러 번 재조회한다.
+        [400, 1200, 2500].forEach((ms) => setTimeout(() => void load(), ms));
       }
     } catch (e) {
       toast({ title: tr("경고등 제어 실패", "警示灯控制失败"), description: String(e), variant: "destructive" });
+      load();
     } finally {
       setBusy(false);
     }
   }, [levels, load, toast, isKo]);
+
 
   const modeLabel = (m?: ChannelMode) =>
     m === "on" ? tr("켜짐", "常亮")
