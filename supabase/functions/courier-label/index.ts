@@ -431,7 +431,7 @@ function bytesToDataUrl(buf: Uint8Array, ct: string): string {
  */
 async function inlineLabelUrl(url: string, fallbackType = "application/pdf"): Promise<string | null> {
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(25_000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
     if (!res.ok) {
       console.log("[label download]", res.status, url.slice(0, 160));
       return null;
@@ -536,13 +536,18 @@ async function fetchYunOpenApiLabel(
   const path = "/v1/order/label/get";
   const list = refs.filter(Boolean);
   let lastRef = "";
+  // Hard wall-clock budget: the edge runtime kills the request at 150s idle.
+  // Label fetch + download must always finish well before that.
+  const deadline = Date.now() + 45_000;
   for (let attempt = 0; attempt < Math.max(1, attempts); attempt++) {
+    if (Date.now() > deadline) break;
     if (attempt > 0) await new Promise((r) => setTimeout(r, 1500 * attempt));
     for (const ref of list) {
+      if (Date.now() > deadline) break;
       lastRef = ref;
       try {
         const q = `${root}${path}?order_number=${encodeURIComponent(ref)}`;
-        const { res, text, raw } = await yunOpenApiFetch(q, "GET", path, undefined, token, secret, 20_000);
+        const { res, text, raw } = await yunOpenApiFetch(q, "GET", path, undefined, token, secret, 12_000);
 
         const r = raw?.result ?? raw?.data ?? {};
         const type = String(r?.label_type ?? r?.labelType ?? "PDF").toUpperCase() === "PNG"
