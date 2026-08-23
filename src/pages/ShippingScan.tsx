@@ -1439,8 +1439,9 @@ export default function ShippingScan() {
                   <ScrollArea className="h-28 border border-destructive/40 rounded-md p-2 bg-destructive/5">
                     {preIssueLog.filter((l) => !l.ok).map((l, i) => (
                       <div key={i} className="text-[11px] py-1 border-b border-border/40 last:border-0">
-                        <div className="font-medium">{l.name}</div>
+                        <div className="font-medium">{l.name} <span className="text-destructive">· {describeLabelError(l.message)}</span></div>
                         <div className="text-destructive break-all whitespace-pre-wrap">{l.message ?? tr("알 수 없는 오류", "未知错误")}</div>
+
                       </div>
                     ))}
                   </ScrollArea>
