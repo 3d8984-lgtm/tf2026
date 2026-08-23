@@ -550,8 +550,15 @@ async function fetchYunOpenApiLabel(
         const b64 = [r?.label_string, r?.labelString, r?.label_content, r?.content]
           .find((v: unknown) => typeof v === "string" && v.length > 500) as string | undefined;
 
-        if (raw?.success !== false && url) return await inlineLabelUrl(url, type);
-        if (raw?.success !== false && b64) return `data:${type};base64,${b64.replace(/\s+/g, "")}`;
+        if (raw?.success !== false && url) {
+          const inlined = await inlineLabelUrl(url, type);
+          if (inlined) return inlined;
+        }
+        if (raw?.success !== false && b64) {
+          const decoded = base64LabelToDataUrl(b64, type);
+          if (decoded) return decoded;
+          console.log("[yun openapi label] base64 payload was not a valid PDF/PNG", ref);
+        }
         console.log("[yun openapi label]", ref, `try${attempt + 1}`, res.status, String(text).slice(0, 300));
       } catch (e) {
         console.log("[yun openapi label error]", ref, String(e));
