@@ -253,7 +253,9 @@ export default function ShippingScan() {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [buildingGroups, setBuildingGroups] = useState(false);
+  const [retryingGroupId, setRetryingGroupId] = useState<string | null>(null);
   const [preIssueOpen, setPreIssueOpen] = useState(false);
+
   const [preIssueRunning, setPreIssueRunning] = useState(false);
   const [preIssueProgress, setPreIssueProgress] = useState({ done: 0, total: 0, success: 0, failed: 0 });
   const [preIssueLog, setPreIssueLog] = useState<{ name: string; ok: boolean; message?: string }[]>([]);
