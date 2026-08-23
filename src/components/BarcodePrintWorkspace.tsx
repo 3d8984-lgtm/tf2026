@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { warnLightOkFlash, warnLightError } from "@/lib/warning-light";
+import { pfPrint, pfPrinterStatus } from "@/lib/pf-printer";
 
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -391,23 +392,10 @@ function OrderDetail({
         ...prev,
       ].slice(0, 100));
     };
-    try {
-      const res = await proxyFetch("/api/v1/print/test", {
-        method: "POST",
-        body: JSON.stringify({ text: payload }),
-      });
-      const j: any = await res.json().catch(() => ({}));
-      if (res.ok && j?.accepted) { record(true, null); return { ok: true }; }
-      const detail = j?.detail;
-      const msg = typeof detail === "string"
-        ? detail
-        : Array.isArray(detail) ? detail.map((d: any) => d.msg).join(", ") : `HTTP ${res.status}`;
-      record(false, msg);
-      return { ok: false, error: msg };
-    } catch (e) {
-      record(false, String(e));
-      return { ok: false, error: String(e) };
-    }
+    // PF 신형 프린터(/api/v2/pf-printer) — 구형 /api/v1/print/* 는 deprecated
+    const r = await pfPrint(payload);
+    record(r.ok, r.ok ? null : r.error ?? null);
+    return r.ok ? { ok: true } : { ok: false, error: r.error };
   }, []);
 
 
@@ -418,9 +406,9 @@ function OrderDetail({
     let alive = true;
     const tick = async () => {
       try {
-        const [sRes, pRes, hRes] = await Promise.all([
+        const [sRes, pf, hRes] = await Promise.all([
           proxyFetch("/api/v1/scan/status"),
-          proxyFetch("/api/v1/print/queue"),
+          pfPrinterStatus(),
           proxyFetch("/api/v1/scan/history"),
         ]);
         const s: any = await sRes.json();
@@ -428,17 +416,9 @@ function OrderDetail({
         if (!sRes.ok || "upstream_status" in s) { setOffline(true); }
         else { setOffline(false); setStatus(s as ScanStatus); }
         const cut = ts(cutoffRef.current);
-        if (pRes.ok) {
-          const p: any = await pRes.json();
-          setPrinterOffline("upstream_status" in p);
-          if (Array.isArray(p?.jobs)) {
-            const fresh = (p.jobs as PrintJob[]).filter((j) => ts(j.printed_at ?? j.enqueued_at) > cut);
-            setJobs(fresh.slice(-50).reverse());
-            setPendingCount(cut ? fresh.filter((j) => j.status === "pending").length : (p.pending_count ?? 0));
-          }
-        } else {
-          setPrinterOffline(true);
-        }
+        // PF 신형 프린터 상태 (잉크/버퍼) — 인쇄 대기 건수는 프린터 버퍼 기준
+        setPrinterOffline(pf.offline);
+        setPendingCount(pf.buffer_count ?? 0);
         if (hRes.ok) {
           const h: any = await hRes.json();
           if (Array.isArray(h?.events)) {

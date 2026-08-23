@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { ScanLine, RotateCcw, CheckCircle2, XCircle, Wifi, WifiOff, ShieldAlert, Printer, AlertTriangle, BellOff } from "lucide-react";
 import { STAGE_PLC } from "@/hooks/usePlcStatus";
 import { scanSuccess, scanFail } from "@/lib/scan-sound";
+import { pfPrint } from "@/lib/pf-printer";
 
 const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
@@ -129,21 +130,10 @@ export default function DmScannerMonitor() {
     return () => { alive = false; clearInterval(iv); };
   }, []);
 
-  /** 검수 통과 건을 QR 인쇄기로 전송 (POST /api/v1/print/test) */
+  /** 검수 통과 건을 QR 인쇄기로 전송 (POST /api/v2/pf-printer/test) */
   const sendToPrinter = useCallback(async (code: string): Promise<{ ok: boolean; error?: string }> => {
-    try {
-      const res = await proxyFetch("/api/v1/print/test", {
-        method: "POST",
-        body: JSON.stringify({ text: code.slice(0, 200) }),
-      });
-      const j: any = await res.json().catch(() => ({}));
-      if (res.ok && j?.accepted) return { ok: true };
-      const d = j?.detail;
-      const msg = typeof d === "string" ? d : Array.isArray(d) ? d.map((x: any) => x.msg).join(", ") : `HTTP ${res.status}`;
-      return { ok: false, error: msg };
-    } catch (e) {
-      return { ok: false, error: String(e) };
-    }
+    const r = await pfPrint(code);
+    return r.ok ? { ok: true } : { ok: false, error: r.error };
   }, []);
 
   // 새 스캔 감지 → 자동 검수 → 통과 시 인쇄 신호 / 오류 시 경보
