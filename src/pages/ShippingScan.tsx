@@ -639,6 +639,20 @@ export default function ShippingScan() {
 
   // Prints the waybill that was issued BEFORE packing started. No carrier API here.
   async function printPreIssuedLabel(group: ShippingGroupRow, printWindow?: Window | null) {
+    // The cached row can be stale (label issued from another device/tab, or issued
+    // right before this scan). Always re-read the group from the DB before
+    // declaring "not issued".
+    if (group.label_status !== "ready" || !group.label_url) {
+      const { data: fresh } = await supabase
+        .from("shipping_groups")
+        .select("*")
+        .eq("id", group.id)
+        .maybeSingle();
+      if (fresh && (fresh as any).label_status === "ready" && (fresh as any).label_url) {
+        group = fresh as unknown as ShippingGroupRow;
+        void refetchGroups();
+      }
+    }
     if (group.label_status !== "ready" || !group.label_url) {
       printWindow?.close();
       scanFail();
@@ -653,6 +667,7 @@ export default function ShippingScan() {
       void logAction("label_print_failed", { shipping_group_id: group.id, reason: "label_not_ready" });
       return;
     }
+
     const url = labelCacheRef.current.get(group.id) ?? group.label_url;
     const carrierCode = group.carrier || carrier || shipmentCarrier;
     perfMark("LABEL_READY");
