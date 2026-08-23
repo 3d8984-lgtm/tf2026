@@ -1020,14 +1020,14 @@ function OrderDetail({
                   <tbody>
                     {queueItems.length === 0 ? (
                       <tr><td colSpan={3} className="px-2 py-6 text-center text-muted-foreground">{tr("대기 중인 인쇄 작업이 없습니다", "暂无待打印作业")}</td></tr>
-                    ) : queueItems.map((s, i) => (
+                    ) : queueItems.map((s) => (
                       <tr key={s.position} className={`border-t ${s.status === "error" ? "bg-destructive/5" : ""}`}>
                         <td className="px-2 py-1.5 tabular-nums">{s.position}</td>
                         <td className="px-2 py-1.5 font-mono break-all">{printValueRef.current(s.code)}</td>
-                        <td className={`px-2 py-1.5 font-medium ${s.status === "error" ? "text-destructive" : i === 0 ? "text-primary" : "text-muted-foreground"}`}>
+                        <td className={`px-2 py-1.5 font-medium ${s.status === "error" ? "text-destructive" : printingPos === s.position ? "text-primary" : "text-muted-foreground"}`}>
                           {s.status === "error"
                             ? tr("인쇄 실패 · 작업 중단", "打印失败 · 作业中断")
-                            : i === 0 ? tr("전송 중", "发送中") : tr("대기", "等待")}
+                            : printingPos === s.position ? tr("전송 중", "发送中") : tr("대기", "等待")}
                         </td>
                       </tr>
                     ))}
