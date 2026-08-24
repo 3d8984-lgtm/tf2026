@@ -235,7 +235,13 @@ export default function CourierSettings() {
       put("item_name_en", cred.item_name_en);
       put("item_name_cn", cred.item_name_cn);
       put("brand", cred.brand);
+      put("material", cred.material);
+      put("usage", cred.usage);
+      put("model", cred.model);
+      put("spec", cred.spec);
+      put("weaving_mode", cred.weaving_mode);
       put("ref_label", cred.ref_label);
+
       if (cred.unit_price.trim() && !Number.isNaN(Number(cred.unit_price))) extra.unit_price = Number(cred.unit_price);
       else delete extra.unit_price;
 
