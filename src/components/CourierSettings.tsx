@@ -162,7 +162,13 @@ export default function CourierSettings() {
       item_name_en: s("item_name_en"),
       item_name_cn: s("item_name_cn"),
       brand: s("brand"),
+      material: s("material"),
+      usage: s("usage"),
+      model: s("model"),
+      spec: s("spec"),
+      weaving_mode: s("weaving_mode"),
       ref_label: s("ref_label"),
+
 
     }));
   }, [credDialog?.code, credExtra]);
