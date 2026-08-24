@@ -974,6 +974,19 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
           Phone: shippingRecipient(order, position).recipient_phone,
         };
       })(),
+      Sender: {
+        CompanyName: cred?.extra?.sender_company ?? cred?.extra?.sender_name ?? "TWINMETA",
+        FirstName: cred?.extra?.sender_name ?? "TWINMETA",
+        LastName: cred?.extra?.sender_name ?? "TWINMETA",
+        CountryCode: cred?.extra?.sender_country ?? "CN",
+        State: cred?.extra?.sender_state ?? "GuangDong",
+        City: cred?.extra?.sender_city ?? "Shenzhen",
+        Street: cred?.extra?.sender_street ?? "-",
+        Zip: cred?.extra?.sender_post_code ?? cred?.extra?.sender_zip ?? "518000",
+        Phone: cred?.extra?.sender_phone ?? "13000000000",
+        Email: cred?.extra?.sender_email ?? "",
+      },
+
 
       Parcels: [
         {
