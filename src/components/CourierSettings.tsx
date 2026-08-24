@@ -58,7 +58,13 @@ const emptyCred = {
   item_name_en: "",
   item_name_cn: "",
   brand: "",
+  material: "",
+  usage: "",
+  model: "",
+  spec: "",
+  weaving_mode: "",
   ref_label: "",
+
 };
 
 export default function CourierSettings() {
