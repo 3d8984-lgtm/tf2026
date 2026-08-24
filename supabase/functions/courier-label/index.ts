@@ -753,6 +753,42 @@ async function createYunOpenApiOrder(
   const r = normalizeRecipient(src);
   const weightKg = Math.max(0.001, Math.round(((((shipment.weight_grams ?? shipment.expected_weight_grams ?? 0) / 1000) || 0.1) * qty) * 1000) / 1000);
   const unitPrice = Number(cred?.extra?.unit_price ?? 10);
+  const ex = (cred?.extra ?? {}) as Record<string, unknown>;
+  const s = (...keys: string[]) => {
+    for (const k of keys) {
+      const v = ex[k];
+      if (v !== undefined && v !== null && String(v).trim() !== "") return String(v).trim();
+    }
+    return "";
+  };
+  // 시스템 설정에 저장되는 키(hscode)와 OpenAPI 필드명(hs_code)이 달라 신고정보가 비어 있던 문제 수정
+  const hsCode = s("hs_code", "hscode");
+  const brand = s("brand");
+  const material = s("material");
+  const usage = s("usage", "purpose");
+  const model = s("model");
+  const spec = s("spec", "specification");
+  const weave = s("weaving_mode", "weave");
+  const nameEn = s("item_name_en") || "T-Shirt";
+  const nameCn = s("item_name_cn") || "T恤";
+  const sku = s("sku") || String(order.product_code ?? order.external_order_id ?? "").slice(0, 32);
+
+  const declaration: Record<string, unknown> = {
+    name_en: nameEn,
+    name_local: nameCn,
+    quantity: qty,
+    unit_price: unitPrice,
+    unit_weight: Math.max(0.001, Math.round((weightKg / qty) * 1000) / 1000),
+    currency: "USD",
+  };
+  if (hsCode) declaration.hs_code = hsCode;
+  if (sku) declaration.sku = sku;
+  if (brand) { declaration.brand = brand; declaration.brand_name = brand; }
+  if (material) { declaration.material = material; declaration.texture = material; }
+  if (usage) { declaration.usage = usage; declaration.purpose = usage; }
+  if (model) { declaration.model = model; declaration.model_number = model; }
+  if (spec) { declaration.spec = spec; declaration.specification = spec; }
+  if (weave) { declaration.weaving_mode = weave; declaration.weave_method = weave; }
 
   const body = JSON.stringify({
     product_code: cred?.extra?.openapi_product_code ?? cred?.extra?.channel_code ?? "",
@@ -774,16 +810,10 @@ async function createYunOpenApiOrder(
       phone_number: src.recipient_phone ?? "",
       email: src.recipient_email ?? "",
     },
-    declaration_info: [{
-      name_en: cred?.extra?.item_name_en ?? "T-Shirt",
-      name_local: cred?.extra?.item_name_cn ?? "T恤",
-      quantity: qty,
-      unit_price: unitPrice,
-      unit_weight: Math.max(0.001, Math.round((weightKg / qty) * 1000) / 1000),
-      currency: "USD",
-      hs_code: cred?.extra?.hs_code ?? "",
-    }],
+    declaration_info: [declaration],
   });
+  console.log("[yun openapi declaration]", JSON.stringify(declaration));
+
 
   const customerOrderNo = String(JSON.parse(body).customer_order_number ?? "");
 
