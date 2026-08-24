@@ -1689,13 +1689,41 @@ export default function ShippingScan() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <Tabs value={groupTab} onValueChange={(v) => setGroupTab(v as any)}>
-            <TabsList>
-              <TabsTrigger value="all">{tr("전체", "全部")} <Badge variant="outline" className="ml-2 text-[10px]">{groups.length}</Badge></TabsTrigger>
-              <TabsTrigger value="single">{tr("1건 주문", "单件订单")} <Badge variant="outline" className="ml-2 text-[10px]">{singleGroups.length}</Badge></TabsTrigger>
-              <TabsTrigger value="multi">{tr("2개 이상 주문", "2件以上订单")} <Badge variant="outline" className="ml-2 text-[10px]">{multiGroups.length}</Badge></TabsTrigger>
-            </TabsList>
-          </Tabs>
+          {(() => {
+            const visibleGroups = groupTab === "single" ? singleGroups : groupTab === "multi" ? multiGroups : groups;
+            const stats = { total: 0, scanned: 0 };
+            for (const g of visibleGroups) {
+              const members = membersByGroup.get(g.id) ?? [];
+              stats.total += g.required_scan_count || g.item_count || 1;
+              stats.scanned += members.filter((m: any) => m.is_scanned).length;
+            }
+            const missing = stats.total - stats.scanned;
+            return (
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <Tabs value={groupTab} onValueChange={(v) => setGroupTab(v as any)} className="w-full sm:w-auto">
+                  <TabsList>
+                    <TabsTrigger value="all">{tr("전체", "全部")} <Badge variant="outline" className="ml-2 text-[10px]">{groups.length}</Badge></TabsTrigger>
+                    <TabsTrigger value="single">{tr("1건 주문", "单件订单")} <Badge variant="outline" className="ml-2 text-[10px]">{singleGroups.length}</Badge></TabsTrigger>
+                    <TabsTrigger value="multi">{tr("2개 이상 주문", "2件以上订单")} <Badge variant="outline" className="ml-2 text-[10px]">{multiGroups.length}</Badge></TabsTrigger>
+                  </TabsList>
+                </Tabs>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-muted/60 border text-xs">
+                    <span className="text-muted-foreground">{tr("총 수량", "总数量")}</span>
+                    <b className="text-foreground tabular-nums">{stats.total}</b>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-xs">
+                    <span className="text-emerald-400">{tr("스캔 완료", "扫描完成")}</span>
+                    <b className="text-emerald-400 tabular-nums">{stats.scanned}</b>
+                  </div>
+                  <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs ${missing > 0 ? "bg-amber-500/10 border-amber-500/20 text-amber-400" : "bg-muted/60 text-muted-foreground"}`}>
+                    <span>{tr("미스캔", "未扫描")}</span>
+                    <b className={`tabular-nums ${missing > 0 ? "text-amber-400" : ""}`}>{missing}</b>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           <ScrollArea className="h-[420px] border rounded-md">
             <div className="divide-y">
