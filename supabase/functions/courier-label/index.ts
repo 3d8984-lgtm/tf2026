@@ -790,6 +790,23 @@ async function createYunOpenApiOrder(
   if (spec) { declaration.spec = spec; declaration.specification = spec; }
   if (weave) { declaration.weaving_mode = weave; declaration.weave_method = weave; }
 
+  // 발신자(发件人) 정보 — 미전송 시 관리자 페이지 발신인 영역이 비어 있어 반드시 포함한다.
+  const senderName = s("sender_name") || "TWINMETA";
+  const senderParts = senderName.split(/\s+/);
+  const sender = {
+    first_name: senderParts[0] ?? senderName,
+    last_name: senderParts.slice(1).join(" ") || senderParts[0] || senderName,
+    company: s("sender_company") || senderName,
+    country_code: s("sender_country") || "CN",
+    province: s("sender_state") || "GuangDong",
+    city: s("sender_city") || "Shenzhen",
+    address_lines: [s("sender_street") || "-"],
+    postal_code: s("sender_post_code", "sender_zip") || "518000",
+    phone_number: s("sender_phone") || "13000000000",
+    email: s("sender_email"),
+    usci: s("sender_usci", "usci"),
+  };
+
   const body = JSON.stringify({
     product_code: cred?.extra?.openapi_product_code ?? cred?.extra?.channel_code ?? "",
     customer_order_number: String(order.external_order_id ?? "").slice(0, 50),
@@ -798,6 +815,8 @@ async function createYunOpenApiOrder(
     label_type: "PDF",
     sensitive_type: "W",
     packages: [{ weight: weightKg, length: Number(cred?.extra?.length_cm ?? 25), width: Number(cred?.extra?.width_cm ?? 20), height: Number(cred?.extra?.height_cm ?? 3) }],
+    sender,
+    shipper: sender,
     receiver: {
       first_name: r.first_name,
       last_name: r.last_name,
@@ -813,6 +832,8 @@ async function createYunOpenApiOrder(
     declaration_info: [declaration],
   });
   console.log("[yun openapi declaration]", JSON.stringify(declaration));
+  console.log("[yun openapi sender]", JSON.stringify(sender));
+
 
 
   const customerOrderNo = String(JSON.parse(body).customer_order_number ?? "");
