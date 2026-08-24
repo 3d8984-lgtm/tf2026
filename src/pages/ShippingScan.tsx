@@ -1421,6 +1421,41 @@ export default function ShippingScan() {
         </div>
       </div>
 
+      {/* 중복 스캔 — 재인쇄 여부 확인 */}
+      <Dialog open={!!dupConfirm} onOpenChange={(o) => { if (!o) setDupConfirm(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              {tr("이미 스캔·출력된 주문입니다", "该订单已扫描并打印")}
+            </DialogTitle>
+          </DialogHeader>
+          {dupConfirm && (
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">{tr("수취인", "收件人")}</span><b>{dupConfirm.group.recipient_name}</b></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">{tr("운송장", "运单号")}</span><b className="font-mono">{dupConfirm.group.tracking_number ?? "-"}</b></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">{tr("스캔 값", "扫描值")}</span><span className="font-mono text-xs break-all">{dupConfirm.qrValue}</span></div>
+              <p className="text-muted-foreground pt-1">
+                {tr("중복 스캔입니다. 그래도 송장을 다시 인쇄할까요?", "重复扫描。是否仍要重新打印运单？")}
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDupConfirm(null)}>{tr("취소", "取消")}</Button>
+            <Button
+              className="gap-1"
+              onClick={() => {
+                const g = dupConfirm?.group;
+                setDupConfirm(null);
+                if (g) void printPreIssuedLabel(g);
+              }}
+            >
+              <Printer className="w-4 h-4" />{tr("그래도 인쇄", "仍要打印")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* 송장 사전발행 — 확인 / 진행상태 */}
       <Dialog open={preIssueOpen} onOpenChange={(o) => { if (!preIssueRunning) setPreIssueOpen(o); }}>
         <DialogContent className="max-w-lg">
