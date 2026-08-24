@@ -537,10 +537,11 @@ export default function ShippingScan() {
       scanDuplicate();
       printWindow?.close();
       const g = offerReprint((dupRow as any).shipping_group_id);
+      if (g) setDupConfirm({ group: g, qrValue });
       setFeedback({
         kind: "duplicate",
         msg: g
-          ? tr("이미 출력됨 · 재인쇄 버튼을 눌러 다시 출력하세요", "已打印 · 请点击重新打印按钮")
+          ? tr("이미 출력된 주문입니다 · 인쇄 여부를 선택하세요", "该订单已打印 · 请选择是否打印")
           : tr("중복 스캔 · 이미 확인된 제품입니다", "重复扫描 · 该产品已确认"),
       });
       void logAction("scan_duplicate", { qrValue, position: dupRow.position });
