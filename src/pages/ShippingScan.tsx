@@ -491,15 +491,17 @@ export default function ShippingScan() {
       scanDuplicate();
       printWindow?.close();
       const g = offerReprint((localDup as any).shipping_group_id);
+      if (g) setDupConfirm({ group: g, qrValue });
       setFeedback({
         kind: "duplicate",
         msg: g
-          ? tr("이미 출력됨 · 재인쇄 버튼을 눌러 다시 출력하세요", "已打印 · 请点击重新打印按钮")
+          ? tr("이미 출력된 주문입니다 · 인쇄 여부를 선택하세요", "该订单已打印 · 请选择是否打印")
           : tr("이미 스캔된 QR입니다", "该二维码已扫描"),
       });
       await logAction("duplicate", { qrValue });
       return;
     }
+
 
 
     // Fast path: the QR is already known locally (detail list / existing slots),
