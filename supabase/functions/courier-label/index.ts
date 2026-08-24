@@ -962,6 +962,13 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
           UnitPrice: Number(cred?.extra?.unit_price ?? 10),
           UnitWeight: 0.2,
           Currency: "USD",
+          HSCode: cred?.extra?.hs_code ?? cred?.extra?.hscode ?? "",
+          Brand: cred?.extra?.brand ?? "",
+          Material: cred?.extra?.material ?? "",
+          Usage: cred?.extra?.usage ?? "",
+          Model: cred?.extra?.model ?? "",
+          Spec: cred?.extra?.spec ?? "",
+
         },
       ],
     },
