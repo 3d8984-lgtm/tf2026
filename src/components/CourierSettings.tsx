@@ -645,10 +645,31 @@ export default function CourierSettings() {
                   <Label className="text-xs">{tr("품명 (중문)", "品名 (中文)")}</Label>
                   <Input value={cred.item_name_cn} onChange={(e) => setCred((c) => ({ ...c, item_name_cn: e.target.value }))} placeholder="T恤" />
                 </div>
-                <div className="space-y-1.5 col-span-2">
+                <div className="space-y-1.5">
                   <Label className="text-xs">{tr("브랜드", "品牌")}</Label>
-                  <Input value={cred.brand} onChange={(e) => setCred((c) => ({ ...c, brand: e.target.value }))} />
+                  <Input value={cred.brand} onChange={(e) => setCred((c) => ({ ...c, brand: e.target.value }))} placeholder="TWINMETA" />
                 </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("재질", "材质")}</Label>
+                  <Input value={cred.material} onChange={(e) => setCred((c) => ({ ...c, material: e.target.value }))} placeholder="100% Cotton" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("용도", "用途")}</Label>
+                  <Input value={cred.usage} onChange={(e) => setCred((c) => ({ ...c, usage: e.target.value }))} placeholder="Daily wear" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("모델(형번)", "型号")}</Label>
+                  <Input value={cred.model} onChange={(e) => setCred((c) => ({ ...c, model: e.target.value }))} placeholder="TS-001" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("규격", "规格")}</Label>
+                  <Input value={cred.spec} onChange={(e) => setCred((c) => ({ ...c, spec: e.target.value }))} placeholder="S/M/L/XL" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{tr("직조방식", "织造方式")}</Label>
+                  <Input value={cred.weaving_mode} onChange={(e) => setCred((c) => ({ ...c, weaving_mode: e.target.value }))} placeholder="Knitted" />
+                </div>
+
                 <div className="space-y-1.5 col-span-2">
                   <Label className="text-xs">{tr("송장 Ref No 표기", "面单 Ref No 显示")}</Label>
                   <Input
