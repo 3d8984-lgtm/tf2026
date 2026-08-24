@@ -338,6 +338,8 @@ export default function ShippingScan() {
   const hidBufRef = useRef<{ buf: string; lastAt: number }>({ buf: "", lastAt: 0 });
   // Group whose label was already printed — offers a manual reprint button.
   const [reprintGroup, setReprintGroup] = useState<ShippingGroupRow | null>(null);
+  /** Duplicate scan awaiting the worker's print / cancel decision. */
+  const [dupConfirm, setDupConfirm] = useState<{ group: ShippingGroupRow; qrValue: string } | null>(null);
   /** Last print outcome per shipping group (UI only): success time or failure reason. */
   const [printOutcome, setPrintOutcome] = useState<Record<string, { ok: boolean; at: string; reason?: string }>>({});
 
