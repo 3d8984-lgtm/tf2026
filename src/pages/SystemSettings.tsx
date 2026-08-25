@@ -11,6 +11,7 @@ import SiteCallbackSettings from "@/components/SiteCallbackSettings";
 import CameraSettings from "@/components/CameraSettings";
 import WorkVideoRetentionSettings from "@/components/WorkVideoRetentionSettings";
 import WarningLightPanel from "@/components/WarningLightPanel";
+import D3v1LightPanel from "@/components/D3v1LightPanel";
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
