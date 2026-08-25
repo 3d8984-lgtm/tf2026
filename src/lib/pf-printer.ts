@@ -15,10 +15,13 @@ const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 
 export function pfFetch(path: string, init?: RequestInit) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 4000);
   return fetch(`${PROXY_BASE}${path}`, {
     ...init,
+    signal: init?.signal ?? controller.signal,
     headers: { apikey: ANON_KEY, "Content-Type": "application/json", ...(init?.headers ?? {}) },
-  });
+  }).finally(() => window.clearTimeout(timeout));
 }
 
 /** 게이트웨이 에러 응답(FastAPI detail 배열/문자열 모두)에서 사람이 읽을 메시지를 뽑는다. */

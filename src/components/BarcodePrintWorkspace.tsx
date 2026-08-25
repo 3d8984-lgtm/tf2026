@@ -27,10 +27,13 @@ const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 
 function proxyFetch(path: string, init?: RequestInit) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 4000);
   return fetch(`${PROXY_BASE}${path}`, {
     ...init,
+    signal: init?.signal ?? controller.signal,
     headers: { apikey: ANON_KEY, "Content-Type": "application/json", ...(init?.headers || {}) },
-  });
+  }).finally(() => window.clearTimeout(timeout));
 }
 
 const norm = (v: string) => (v || "").trim().toUpperCase();
@@ -404,7 +407,10 @@ function OrderDetail({
   // 스캐너 상태 + 인쇄 대기열 폴링
   useEffect(() => {
     let alive = true;
+    let inFlight = false;
     const tick = async () => {
+      if (inFlight) return;
+      inFlight = true;
       try {
         const [sRes, pf, hRes] = await Promise.all([
           proxyFetch("/api/v1/scan/status"),
@@ -438,10 +444,12 @@ function OrderDetail({
 
       } catch {
         if (alive) { setOffline(true); setPrinterOffline(true); }
+      } finally {
+        inFlight = false;
       }
     };
     tick();
-    const iv = setInterval(tick, 1500);
+    const iv = setInterval(tick, 3000);
     return () => { alive = false; clearInterval(iv); };
   }, []);
 

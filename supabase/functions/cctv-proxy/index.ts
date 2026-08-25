@@ -34,6 +34,8 @@ Deno.serve(async (req) => {
   const isPlcStatus = /\/api\/v1\/plc\/[^/]+\/status$/i.test(url.pathname);
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
     const isBodyless = ["GET", "HEAD"].includes(req.method);
     const fwdHeaders: Record<string, string> = {
       "X-API-Key": API_KEY,
@@ -49,11 +51,17 @@ Deno.serve(async (req) => {
       // payload arrives as a raw string and fails model validation (422).
       fwdHeaders["Content-Type"] = req.headers.get("content-type") || "application/json";
     }
-    const upstream = await fetch(target, {
-      method: req.method,
-      headers: fwdHeaders,
-      body: isBodyless ? undefined : await req.arrayBuffer(),
-    });
+    let upstream: Response;
+    try {
+      upstream = await fetch(target, {
+        method: req.method,
+        headers: fwdHeaders,
+        body: isBodyless ? undefined : await req.arrayBuffer(),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
 
 
     // A recorder can briefly return 404 while its live recording pipeline is
