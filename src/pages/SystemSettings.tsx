@@ -542,7 +542,7 @@ export default function SystemSettings() {
           <TabsContent value="webhook"><WebhookSettings /></TabsContent>
           <TabsContent value="courier"><CourierSettings /></TabsContent>
           <TabsContent value="callback"><SiteCallbackSettings /></TabsContent>
-          <TabsContent value="warningLight"><div className="section-enter"><WarningLightPanel /></div></TabsContent>
+          <TabsContent value="warningLight"><div className="section-enter space-y-4"><WarningLightPanel /><D3v1LightPanel /></div></TabsContent>
           <TabsContent value="workVideo"><WorkVideoRetentionSettings /></TabsContent>
         </Tabs>
       </div>
