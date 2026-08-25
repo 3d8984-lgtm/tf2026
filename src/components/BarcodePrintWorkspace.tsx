@@ -503,7 +503,11 @@ function OrderDetail({
     // 1번 경고등: 순서 일치 → 녹색 0.5초 점멸 / 불일치 → 빨강 점등 유지
     if (kind === "card") {
       if (halt) void warnLightError();
-      else if (lastV === "ok") void warnLightOkFlash();
+      else if (lastV === "ok") {
+        void warnLightOkFlash();
+        // 2번 경고등: 검증 일치 시 녹색 0.5초 점등
+        void warnLight2OkFlash();
+      }
     }
     setLog((prev) => [...rows.slice().reverse(), ...prev].slice(0, 100));
   }, [queue, expected, cursor, testMode, ready, markQueued, kind]);
