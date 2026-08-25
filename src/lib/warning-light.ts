@@ -33,3 +33,27 @@ export async function warnLightError() {
 export async function warnLightClear() {
   await control({ red: { mode: "off" } });
 }
+
+/** 2번 경고등(USB_D3V1) 제어 — /api/v2/d3v1-light/control */
+async function control2(body: Record<string, unknown>) {
+  try {
+    await fetch(`${PROXY_BASE}/api/v2/d3v1-light/control`, {
+      method: "POST",
+      headers: { apikey: ANON_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    /* 경고등 장치 오류는 스캔 흐름을 막지 않는다 */
+  }
+}
+
+/** 2번 경고등 검수 통과: 녹색등 0.5초 점등 후 소등 */
+export async function warnLight2OkFlash() {
+  await control2({ green: { mode: "on" } });
+  setTimeout(() => void control2({ green: { mode: "off" } }), 500);
+}
+
+/** 2번 경고등 녹색 소등 */
+export async function warnLight2Off() {
+  await control2({ green: { mode: "off" } });
+}
