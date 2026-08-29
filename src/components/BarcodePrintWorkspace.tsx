@@ -395,7 +395,7 @@ function OrderDetail({
         ...prev,
       ].slice(0, 100));
     };
-    // PF 신형 프린터(/api/v2/pf-printer) — 구형 /api/v1/print/* 는 deprecated
+    // PF 신형 프린터(/api/v1/pf-printer) — 구형 /api/v1/print/* 는 deprecated
     const r = await pfPrint(payload);
     record(r.ok, r.ok ? null : r.error ?? null);
     return r.ok ? { ok: true } : { ok: false, error: r.error };
@@ -514,7 +514,7 @@ function OrderDetail({
 
 
   // ── 소비자(인쇄) 처리 ─────────────────────────────────────────────
-  // PF 신형 프린터(/api/v2/pf-printer)는 스캔 이벤트에 자동 연결되어 있지 않다.
+  // PF 신형 프린터(/api/v1/pf-printer)는 스캔 이벤트에 자동 연결되어 있지 않다.
   // 검증을 통과해 queued 상태가 된 항목을 대기열 선두부터 "한 건씩" 전송하고,
   // 전송 결과를 저장한 뒤 다음 건을 이어서 처리한다(FIFO, 순서 보장).
   const printingRef = useRef(false);

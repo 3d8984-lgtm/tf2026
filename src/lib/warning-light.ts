@@ -34,10 +34,10 @@ export async function warnLightClear() {
   await control({ red: { mode: "off" } });
 }
 
-/** 2번 경고등(USB_D3V1) 제어 — /api/v2/d3v1-light/control */
+/** 2번 경고등(USB_D3V1) 제어 — /api/v1/d3v1-light/control */
 async function control2(body: Record<string, unknown>) {
   try {
-    await fetch(`${PROXY_BASE}/api/v2/d3v1-light/control`, {
+    await fetch(`${PROXY_BASE}/api/v1/d3v1-light/control`, {
       method: "POST",
       headers: { apikey: ANON_KEY, "Content-Type": "application/json" },
       body: JSON.stringify(body),

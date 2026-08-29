@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { Printer, Wifi, WifiOff, Play, Square } from "lucide-react";
 import { pfPrint, pfPrinterRun, pfPrinterStop, pfPrinterStatus } from "@/lib/pf-printer";
 
-/** PF 신형 프린터(/api/v2/pf-printer) 잉크·버퍼 상태 표시 + 테스트 인쇄. */
+/** PF 신형 프린터(/api/v1/pf-printer) 잉크·버퍼 상태 표시 + 테스트 인쇄. */
 export default function PfPrinterCard({ defaultText = "" }: { defaultText?: string }) {
   const { lang } = useLang();
   const isKo = lang === "ko";

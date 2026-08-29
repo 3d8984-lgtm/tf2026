@@ -1,11 +1,11 @@
 /**
- * PF 신형 프린터 (게이트웨이 /api/v2/pf-printer/*) 클라이언트.
+ * PF 신형 프린터 (게이트웨이 /api/v1/pf-printer/*) 클라이언트.
  *
  * 구형 Cosofteck 프린터 API(/api/v1/print/*)는 deprecated 이므로 신규 인쇄는 모두 이 모듈을 사용한다.
- * - POST /api/v2/pf-printer/test   값 전송(0x11) + 인쇄 트리거(0x21) 를 동기 처리
- * - GET  /api/v2/pf-printer/status 잉크 잔량 / 버퍼 대기 건수
- * - POST /api/v2/pf-printer/run    Run(喷印启动) 모드 전환 — /test 는 Run 모드에서만 동작
- * - POST /api/v2/pf-printer/stop   Stop 모드 전환
+ * - POST /api/v1/pf-printer/test   값 전송(0x11) + 인쇄 트리거(0x21) 를 동기 처리
+ * - GET  /api/v1/pf-printer/status 잉크 잔량 / 버퍼 대기 건수
+ * - POST /api/v1/pf-printer/run    Run(喷印启动) 모드 전환 — /test 는 Run 모드에서만 동작
+ * - POST /api/v1/pf-printer/stop   Stop 모드 전환
  *
  * 프린터가 Stop 상태이거나 템플릿 편집 후 Run 이 풀리면 /test 가 409(NAK)를 반환한다.
  * 이 경우 자동으로 /run 을 호출한 뒤 1회 재시도한다.
@@ -43,7 +43,7 @@ export type PfStatus = { ink_percent: number | null; buffer_count: number | null
 
 export async function pfPrinterStatus(): Promise<PfStatus> {
   try {
-    const res = await pfFetch("/api/v2/pf-printer/status");
+    const res = await pfFetch("/api/v1/pf-printer/status");
     const j: any = await res.json().catch(() => ({}));
     if (!res.ok || "upstream_status" in (j ?? {})) return { ink_percent: null, buffer_count: null, offline: true };
     return {
@@ -58,7 +58,7 @@ export async function pfPrinterStatus(): Promise<PfStatus> {
 
 async function pfMode(mode: "run" | "stop"): Promise<{ ok: boolean; error?: string }> {
   try {
-    const res = await pfFetch(`/api/v2/pf-printer/${mode}`, { method: "POST", body: "{}" });
+    const res = await pfFetch(`/api/v1/pf-printer/${mode}`, { method: "POST", body: "{}" });
     const j: any = await res.json().catch(() => ({}));
     if (res.ok && j?.accepted) return { ok: true };
     return { ok: false, error: pfErrorText(j, res.status) };
@@ -82,7 +82,7 @@ export async function pfPrint(
   const body = JSON.stringify(padToLength ? { text: payload, pad_to_length: padToLength } : { text: payload });
 
   const attempt = async () => {
-    const res = await pfFetch("/api/v2/pf-printer/test", { method: "POST", body });
+    const res = await pfFetch("/api/v1/pf-printer/test", { method: "POST", body });
     const j: any = await res.json().catch(() => ({}));
     return { res, j };
   };

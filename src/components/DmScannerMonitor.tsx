@@ -130,7 +130,7 @@ export default function DmScannerMonitor() {
     return () => { alive = false; clearInterval(iv); };
   }, []);
 
-  /** 검수 통과 건을 QR 인쇄기로 전송 (POST /api/v2/pf-printer/test) */
+  /** 검수 통과 건을 QR 인쇄기로 전송 (POST /api/v1/pf-printer/test) */
   const sendToPrinter = useCallback(async (code: string): Promise<{ ok: boolean; error?: string }> => {
     const r = await pfPrint(code);
     return r.ok ? { ok: true } : { ok: false, error: r.error };
