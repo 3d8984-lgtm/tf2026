@@ -12,7 +12,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Camera as CameraIcon, RefreshCw, Download, Image as ImageIcon, Loader2, PlayCircle, Pencil, ArrowUp, ArrowDown, Play, VideoOff } from "lucide-react";
 import { toast } from "sonner";
 import { DateTimePicker } from "@/components/DateTimePicker";
-import { resolveDirectBase, getDirectBase } from "@/lib/cctv-api";
+import { resolveDirectBase, getDirectBase, loadCctvLanBase } from "@/lib/cctv-api";
+import { Switch } from "@/components/ui/switch";
 
 const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
