@@ -17,15 +17,21 @@
 const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 
-export function pfFetch(path: string, init?: RequestInit) {
+/**
+ * 서버는 프린터 통신을 내부 FIFO 큐로 직렬화한다(/test·/run·/stop·/status 공유).
+ * 동시에 여러 건을 보내도 안전하지만, 자기 차례가 와야 응답이 오므로 인쇄 요청은
+ * 넉넉한 타임아웃(기본 30초)을 준다. 상태 조회는 짧게(5초) 유지한다.
+ */
+export function pfFetch(path: string, init?: RequestInit, timeoutMs = 30000) {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 4000);
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
   return fetch(`${PROXY_BASE}${path}`, {
     ...init,
     signal: init?.signal ?? controller.signal,
     headers: { apikey: ANON_KEY, "Content-Type": "application/json", ...(init?.headers ?? {}) },
   }).finally(() => window.clearTimeout(timeout));
 }
+
 
 /** 게이트웨이 에러 응답(FastAPI detail 배열/문자열 모두)에서 사람이 읽을 메시지를 뽑는다. */
 export function pfErrorText(j: any, status: number): string {
