@@ -27,7 +27,7 @@ const CHANNELS = [
 ] as const;
 
 /**
- * 2번 경고등(USB_D3V1) 제어 패널 — /api/v1/d3v1-light/*.
+ * 2번 경고등(USB 다층 경고등 USB_D3V1) 제어 패널 — /api/v1/d3v1-light/*.
  * 3색 + 부저, 점멸 속도 조절 없음(off/on/blink만).
  */
 export default function D3v1LightPanel() {
