@@ -284,6 +284,8 @@ export default function CCTVQuality() {
   const [statusMap, setStatusMap] = useState<Record<string, "online" | "offline" | "checking">>({});
   const [loading, setLoading] = useState(false);
   const [directBase, setDirectBase] = useState<string | null>(null);
+  const [lanBase, setLanBase] = useState<string>("");
+  const [mode, setMode] = useState<SourceMode>(getSourceMode());
   const [selected, setSelected] = useState<Cam | null>(null);
   const [snapshotTime, setSnapshotTime] = useState<string>(nowLocalDatetime(-1));
   const [snapshotSrc, setSnapshotSrc] = useState<string | null>(null);
