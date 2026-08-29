@@ -151,13 +151,13 @@ function MiniLiveTile({
   label,
   active,
   onSelect,
-  directBase,
+  mode,
 }: {
   cam: Cam;
   label: string;
   active: boolean;
   onSelect: () => void;
-  directBase: string | null;
+  mode: SourceMode;
 }) {
   const ref = useRef<HTMLVideoElement | null>(null);
   const [state, setState] = useState<"connecting" | "playing" | "waiting">("connecting");
@@ -170,6 +170,7 @@ function MiniLiveTile({
     if (!src) return;
     let disposed = false;
     let retryTimer: number | null = null;
+    let watchdog: number | null = null;
     let hls: Hls | null = null;
     const markPlaying = () => setState("playing");
     video.addEventListener("playing", markPlaying);
@@ -184,7 +185,7 @@ function MiniLiveTile({
         }
         return;
       }
-      const isDirect = !!directBase && src.startsWith(directBase);
+      const isDirect = isLanUrl(src);
       const token = isDirect ? null : (await supabase.auth.getSession()).data.session?.access_token;
       if (disposed) return;
       hls = new Hls(
@@ -197,7 +198,7 @@ function MiniLiveTile({
               },
             },
       );
-      const scheduleReload = () => {
+      const scheduleReload = (delay = 8000) => {
         if (retryTimer || disposed) return;
         setState("waiting");
         retryTimer = window.setTimeout(() => {
@@ -208,10 +209,11 @@ function MiniLiveTile({
             hls.stopLoad();
             hls.loadSource(src);
             hls.startLoad();
+            video.play().catch(() => undefined);
           } catch {
-            scheduleReload();
+            scheduleReload(delay);
           }
-        }, 8000);
+        }, delay);
       };
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         setState("playing");
@@ -222,6 +224,22 @@ function MiniLiveTile({
       });
       hls.loadSource(src);
       hls.attachMedia(video);
+
+      // Health check: a long-running HLS stream can silently stall (segments
+      // stop advancing without a fatal error). Reload when playback freezes.
+      let lastTime = -1;
+      let stalled = 0;
+      watchdog = window.setInterval(() => {
+        if (disposed || !hls) return;
+        const t = video.currentTime;
+        if (t > 0 && t === lastTime && !video.paused) stalled += 1;
+        else stalled = 0;
+        lastTime = t;
+        if (stalled >= 3) {
+          stalled = 0;
+          scheduleReload(500);
+        }
+      }, 5000);
     };
     init();
 
@@ -229,11 +247,12 @@ function MiniLiveTile({
       disposed = true;
       video.removeEventListener("playing", markPlaying);
       if (retryTimer) window.clearTimeout(retryTimer);
+      if (watchdog) window.clearInterval(watchdog);
       hls?.destroy();
       video.removeAttribute("src");
       video.load();
     };
-  }, [cam.id, cam.live_playlist, cam.hls_url, directBase]);
+  }, [cam.id, cam.live_playlist, cam.hls_url, mode]);
 
   return (
     <button
