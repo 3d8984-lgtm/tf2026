@@ -12,7 +12,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Camera as CameraIcon, RefreshCw, Download, Image as ImageIcon, Loader2, PlayCircle, Pencil, ArrowUp, ArrowDown, Play, VideoOff } from "lucide-react";
 import { toast } from "sonner";
 import { DateTimePicker } from "@/components/DateTimePicker";
-import { resolveDirectBase, getDirectBase } from "@/lib/cctv-api";
+import { resolveDirectBase, getDirectBase, loadCctvLanBase } from "@/lib/cctv-api";
+import { Switch } from "@/components/ui/switch";
 
 const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
@@ -32,11 +33,27 @@ type Cam = {
   [k: string]: any;
 };
 
-// Prefer the gateway's own LAN address when this device is on the internal
-// network — streams then come straight from the camera server instead of
-// being relayed through the edge proxy.
+// Stream source mode. "direct" forces the gateway's own LAN address (fastest
+// when this PC sits on the internal network), "proxy" forces the backend edge
+// API. Stored per device because reachability depends on the network.
+const LS_SOURCE = "cctv_source_mode_v1";
+type SourceMode = "direct" | "proxy";
+
+let sourceMode: SourceMode = (() => {
+  try { return (localStorage.getItem(LS_SOURCE) as SourceMode) || "proxy"; } catch { return "proxy"; }
+})();
+let lanBaseValue: string | null = null;
+
+export function getSourceMode(): SourceMode { return sourceMode; }
+function setSourceModeValue(m: SourceMode) {
+  sourceMode = m;
+  try { localStorage.setItem(LS_SOURCE, m); } catch { /* ignore */ }
+}
+function setLanBaseValue(v: string | null) { lanBaseValue = v ? v.replace(/\/+$/, "") : null; }
+
 function streamBase(): string {
-  return getDirectBase() || PROXY_BASE;
+  if (sourceMode === "direct") return lanBaseValue || getDirectBase() || PROXY_BASE;
+  return PROXY_BASE;
 }
 
 function toProxyUrl(u: string | undefined | null): string | null {
@@ -55,11 +72,15 @@ function toProxyUrl(u: string | undefined | null): string | null {
   }
 }
 
+/** True when the URL points at the unauthenticated LAN gateway. */
+function isLanUrl(u: string): boolean {
+  return !u.startsWith(PROXY_BASE);
+}
+
 async function proxyFetch(pathOrUrl: string, init?: RequestInit) {
-  const direct = getDirectBase();
   const target = pathOrUrl.startsWith("http") ? pathOrUrl : `${streamBase()}${pathOrUrl.startsWith("/") ? "" : "/"}${pathOrUrl}`;
   // LAN gateway is unauthenticated — no Supabase headers (avoids preflight).
-  if (direct && target.startsWith(direct)) return fetch(target, init);
+  if (isLanUrl(target)) return fetch(target, init);
   const headers = new Headers(init?.headers);
   headers.set("apikey", ANON_KEY);
   const session = await supabase.auth.getSession();
@@ -131,13 +152,13 @@ function MiniLiveTile({
   label,
   active,
   onSelect,
-  directBase,
+  mode,
 }: {
   cam: Cam;
   label: string;
   active: boolean;
   onSelect: () => void;
-  directBase: string | null;
+  mode: SourceMode;
 }) {
   const ref = useRef<HTMLVideoElement | null>(null);
   const [state, setState] = useState<"connecting" | "playing" | "waiting">("connecting");
@@ -150,6 +171,7 @@ function MiniLiveTile({
     if (!src) return;
     let disposed = false;
     let retryTimer: number | null = null;
+    let watchdog: number | null = null;
     let hls: Hls | null = null;
     const markPlaying = () => setState("playing");
     video.addEventListener("playing", markPlaying);
@@ -164,7 +186,7 @@ function MiniLiveTile({
         }
         return;
       }
-      const isDirect = !!directBase && src.startsWith(directBase);
+      const isDirect = isLanUrl(src);
       const token = isDirect ? null : (await supabase.auth.getSession()).data.session?.access_token;
       if (disposed) return;
       hls = new Hls(
@@ -177,7 +199,7 @@ function MiniLiveTile({
               },
             },
       );
-      const scheduleReload = () => {
+      const scheduleReload = (delay = 8000) => {
         if (retryTimer || disposed) return;
         setState("waiting");
         retryTimer = window.setTimeout(() => {
@@ -188,10 +210,11 @@ function MiniLiveTile({
             hls.stopLoad();
             hls.loadSource(src);
             hls.startLoad();
+            video.play().catch(() => undefined);
           } catch {
-            scheduleReload();
+            scheduleReload(delay);
           }
-        }, 8000);
+        }, delay);
       };
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         setState("playing");
@@ -202,6 +225,22 @@ function MiniLiveTile({
       });
       hls.loadSource(src);
       hls.attachMedia(video);
+
+      // Health check: a long-running HLS stream can silently stall (segments
+      // stop advancing without a fatal error). Reload when playback freezes.
+      let lastTime = -1;
+      let stalled = 0;
+      watchdog = window.setInterval(() => {
+        if (disposed || !hls) return;
+        const t = video.currentTime;
+        if (t > 0 && t === lastTime && !video.paused) stalled += 1;
+        else stalled = 0;
+        lastTime = t;
+        if (stalled >= 3) {
+          stalled = 0;
+          scheduleReload(500);
+        }
+      }, 5000);
     };
     init();
 
@@ -209,11 +248,12 @@ function MiniLiveTile({
       disposed = true;
       video.removeEventListener("playing", markPlaying);
       if (retryTimer) window.clearTimeout(retryTimer);
+      if (watchdog) window.clearInterval(watchdog);
       hls?.destroy();
       video.removeAttribute("src");
       video.load();
     };
-  }, [cam.id, cam.live_playlist, cam.hls_url, directBase]);
+  }, [cam.id, cam.live_playlist, cam.hls_url, mode]);
 
   return (
     <button
@@ -245,6 +285,8 @@ export default function CCTVQuality() {
   const [statusMap, setStatusMap] = useState<Record<string, "online" | "offline" | "checking">>({});
   const [loading, setLoading] = useState(false);
   const [directBase, setDirectBase] = useState<string | null>(null);
+  const [lanBase, setLanBase] = useState<string>("");
+  const [mode, setMode] = useState<SourceMode>(getSourceMode());
   const [selected, setSelected] = useState<Cam | null>(null);
   const [snapshotTime, setSnapshotTime] = useState<string>(nowLocalDatetime(-1));
   const [snapshotSrc, setSnapshotSrc] = useState<string | null>(null);
@@ -459,9 +501,19 @@ export default function CCTVQuality() {
 
   useEffect(() => {
     // Probe the LAN gateway first: if this device is inside the internal
-    // network, every stream/request below goes straight to it.
+    // network, streams can be pulled straight from it.
+    loadCctvLanBase()
+      .then((b) => { setLanBase(b); setLanBaseValue(b || null); })
+      .catch(() => undefined);
     resolveDirectBase()
-      .then((base) => setDirectBase(base))
+      .then((base) => {
+        setDirectBase(base);
+        // First visit on this device: prefer the LAN gateway when reachable.
+        if (base && !localStorage.getItem(LS_SOURCE)) {
+          setSourceModeValue("direct");
+          setMode("direct");
+        }
+      })
       .catch(() => setDirectBase(null))
       .finally(() => loadCams());
     fetchServerSettings().then(({ names, order: srvOrder }) => {
@@ -476,6 +528,13 @@ export default function CCTVQuality() {
     }).catch((e) => console.error("fetchServerSettings failed", e));
     /* eslint-disable-next-line */
   }, []);
+
+  /** Toggle between the LAN (direct RTSP gateway) and the backend API proxy. */
+  const changeMode = (next: SourceMode) => {
+    setSourceModeValue(next);
+    setMode(next);
+    loadCams();
+  };
 
   // Re-probe every 30s so status reflects actual connectivity.
   useEffect(() => {
@@ -493,6 +552,7 @@ export default function CCTVQuality() {
     if (!src) return;
     let disposed = false;
     let retryTimer: number | null = null;
+    let watchdog: number | null = null;
     setLiveState("connecting");
 
     const markPlaying = () => setLiveState("playing");
@@ -500,8 +560,7 @@ export default function CCTVQuality() {
 
     const initialize = async () => {
       if (Hls.isSupported()) {
-        const directRoot = getDirectBase();
-        const isDirect = !!directRoot && src.startsWith(directRoot);
+        const isDirect = isLanUrl(src);
         const token = isDirect ? null : (await supabase.auth.getSession()).data.session?.access_token;
         if (disposed) return;
         const hls = new Hls(
@@ -514,7 +573,7 @@ export default function CCTVQuality() {
                 },
               },
         );
-        const scheduleReload = () => {
+        const scheduleReload = (delay = 5000) => {
           if (retryTimer || disposed) return;
           setLiveState("waiting");
           retryTimer = window.setTimeout(() => {
@@ -525,10 +584,11 @@ export default function CCTVQuality() {
               hls.stopLoad();
               hls.loadSource(src);
               hls.startLoad();
+              video.play().catch(() => undefined);
             } catch {
-              scheduleReload();
+              scheduleReload(delay);
             }
-          }, 5000);
+          }, delay);
         };
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           setLiveState("playing");
@@ -541,6 +601,22 @@ export default function CCTVQuality() {
         hls.loadSource(src);
         hls.attachMedia(video);
         hlsRef.current = hls;
+
+        // Continuous health check — a stream left open for hours can stall
+        // without emitting a fatal error. Reconnect as soon as it freezes.
+        let lastTime = -1;
+        let stalled = 0;
+        watchdog = window.setInterval(() => {
+          if (disposed) return;
+          const t = video.currentTime;
+          if (t > 0 && t === lastTime && !video.paused) stalled += 1;
+          else stalled = 0;
+          lastTime = t;
+          if (stalled >= 3) {
+            stalled = 0;
+            scheduleReload(500);
+          }
+        }, 5000);
       } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
         video.src = src;
         video.play().catch(() => setLiveState("waiting"));
@@ -554,12 +630,13 @@ export default function CCTVQuality() {
       disposed = true;
       video.removeEventListener("playing", markPlaying);
       if (retryTimer) window.clearTimeout(retryTimer);
+      if (watchdog) window.clearInterval(watchdog);
       hlsRef.current?.destroy();
       hlsRef.current = null;
       video.removeAttribute("src");
       video.load();
     };
-  }, [selected, directBase]);
+  }, [selected, mode]);
 
   const fetchSnapshot = async () => {
     if (!selected) return;
@@ -784,9 +861,28 @@ export default function CCTVQuality() {
             {isKo ? "전체 카메라 모니터링" : "全部摄像头监控"}
             <Badge variant="outline" className="text-[10px]">{sortedCams.length}</Badge>
           </CardTitle>
-          <Button size="sm" variant="ghost" onClick={loadCams} disabled={loading}>
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-          </Button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="cctv-source" className="text-xs text-muted-foreground">
+                {mode === "direct"
+                  ? (isKo ? "로컬 직접 연결" : "本地直连")
+                  : (isKo ? "백엔드 API" : "后端 API")}
+              </Label>
+              <Switch
+                id="cctv-source"
+                checked={mode === "direct"}
+                onCheckedChange={(v) => changeMode(v ? "direct" : "proxy")}
+              />
+              <Badge variant={mode === "direct" ? (directBase ? "default" : "destructive") : "secondary"} className="text-[10px]">
+                {mode === "direct"
+                  ? (lanBase || (isKo ? "LAN 주소 미설정" : "未设置 LAN 地址"))
+                  : (isKo ? "프록시" : "代理")}
+              </Badge>
+            </div>
+            <Button size="sm" variant="ghost" onClick={loadCams} disabled={loading}>
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {sortedCams.length === 0 ? (
@@ -795,12 +891,12 @@ export default function CCTVQuality() {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-3">
               {sortedCams.map((c) => (
                 <MiniLiveTile
-                  key={String(c.id)}
+                  key={`${String(c.id)}-${mode}`}
                   cam={c}
                   label={displayName(c)}
                   active={!!selected && String(selected.id) === String(c.id)}
                   onSelect={() => setSelected(c)}
-                  directBase={directBase}
+                  mode={mode}
                 />
               ))}
             </div>

@@ -522,10 +522,12 @@ function OrderDetail({
   const [printingPos, setPrintingPos] = useState<number | null>(null);
   useEffect(() => {
     if (!ready || testMode || printingRef.current) return;
-    const head = Object.values(saved)
-      .filter((s) => s.status === "queued")
-      .sort((a, b) => a.position - b.position)[0];
-    if (!head) { setPrintingPos(null); return; }
+    const pending = Object.values(saved)
+      .filter((s) => s.status === "queued" || s.status === "error")
+      .sort((a, b) => a.position - b.position);
+    const head = pending[0];
+    // 선두가 인쇄 실패 상태면 순서 보장을 위해 뒤 항목을 먼저 인쇄하지 않는다.
+    if (!head || head.status !== "queued") { setPrintingPos(null); return; }
     printingRef.current = true;
     setPrintingPos(head.position);
     void (async () => {
