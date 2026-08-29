@@ -1,15 +1,18 @@
 /**
- * PF 신형 프린터 (게이트웨이 /api/v1/pf-printer/*) 클라이언트.
+ * PF 시리즈 잉크젯 프린터 (게이트웨이 /api/v1/pf-printer/*) 클라이언트.
  *
- * 구형 Cosofteck 프린터 API(/api/v1/print/*)는 deprecated 이므로 신규 인쇄는 모두 이 모듈을 사용한다.
+ * 백엔드 API는 2026-08 개정으로 단일 버전(/api/v1)으로 통합되었다. 구형 /api/v2/* 및
+ * /api/v1/print/* 경로는 더 이상 존재하지 않으므로 모든 인쇄는 이 모듈을 사용한다.
  * - POST /api/v1/pf-printer/test   값 전송(0x11) + 인쇄 트리거(0x21) 를 동기 처리
  * - GET  /api/v1/pf-printer/status 잉크 잔량 / 버퍼 대기 건수
  * - POST /api/v1/pf-printer/run    Run(喷印启动) 모드 전환 — /test 는 Run 모드에서만 동작
  * - POST /api/v1/pf-printer/stop   Stop 모드 전환
  *
+ * 스캔 이벤트(MQTT)와 인쇄는 서버에서 자동 연결되어 있지 않다 — 프론트가 직접 /test 를 호출한다.
  * 프린터가 Stop 상태이거나 템플릿 편집 후 Run 이 풀리면 /test 가 409(NAK)를 반환한다.
  * 이 경우 자동으로 /run 을 호출한 뒤 1회 재시도한다.
  */
+
 
 const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
