@@ -552,6 +552,7 @@ export default function CCTVQuality() {
     if (!src) return;
     let disposed = false;
     let retryTimer: number | null = null;
+    let watchdog: number | null = null;
     setLiveState("connecting");
 
     const markPlaying = () => setLiveState("playing");
@@ -559,8 +560,7 @@ export default function CCTVQuality() {
 
     const initialize = async () => {
       if (Hls.isSupported()) {
-        const directRoot = getDirectBase();
-        const isDirect = !!directRoot && src.startsWith(directRoot);
+        const isDirect = isLanUrl(src);
         const token = isDirect ? null : (await supabase.auth.getSession()).data.session?.access_token;
         if (disposed) return;
         const hls = new Hls(
@@ -573,7 +573,7 @@ export default function CCTVQuality() {
                 },
               },
         );
-        const scheduleReload = () => {
+        const scheduleReload = (delay = 5000) => {
           if (retryTimer || disposed) return;
           setLiveState("waiting");
           retryTimer = window.setTimeout(() => {
@@ -584,10 +584,11 @@ export default function CCTVQuality() {
               hls.stopLoad();
               hls.loadSource(src);
               hls.startLoad();
+              video.play().catch(() => undefined);
             } catch {
-              scheduleReload();
+              scheduleReload(delay);
             }
-          }, 5000);
+          }, delay);
         };
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           setLiveState("playing");
@@ -600,6 +601,22 @@ export default function CCTVQuality() {
         hls.loadSource(src);
         hls.attachMedia(video);
         hlsRef.current = hls;
+
+        // Continuous health check — a stream left open for hours can stall
+        // without emitting a fatal error. Reconnect as soon as it freezes.
+        let lastTime = -1;
+        let stalled = 0;
+        watchdog = window.setInterval(() => {
+          if (disposed) return;
+          const t = video.currentTime;
+          if (t > 0 && t === lastTime && !video.paused) stalled += 1;
+          else stalled = 0;
+          lastTime = t;
+          if (stalled >= 3) {
+            stalled = 0;
+            scheduleReload(500);
+          }
+        }, 5000);
       } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
         video.src = src;
         video.play().catch(() => setLiveState("waiting"));
@@ -613,12 +630,13 @@ export default function CCTVQuality() {
       disposed = true;
       video.removeEventListener("playing", markPlaying);
       if (retryTimer) window.clearTimeout(retryTimer);
+      if (watchdog) window.clearInterval(watchdog);
       hlsRef.current?.destroy();
       hlsRef.current = null;
       video.removeAttribute("src");
       video.load();
     };
-  }, [selected, directBase]);
+  }, [selected, mode]);
 
   const fetchSnapshot = async () => {
     if (!selected) return;
