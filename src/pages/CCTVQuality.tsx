@@ -861,9 +861,28 @@ export default function CCTVQuality() {
             {isKo ? "전체 카메라 모니터링" : "全部摄像头监控"}
             <Badge variant="outline" className="text-[10px]">{sortedCams.length}</Badge>
           </CardTitle>
-          <Button size="sm" variant="ghost" onClick={loadCams} disabled={loading}>
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-          </Button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="cctv-source" className="text-xs text-muted-foreground">
+                {mode === "direct"
+                  ? (isKo ? "로컬 직접 연결" : "本地直连")
+                  : (isKo ? "백엔드 API" : "后端 API")}
+              </Label>
+              <Switch
+                id="cctv-source"
+                checked={mode === "direct"}
+                onCheckedChange={(v) => changeMode(v ? "direct" : "proxy")}
+              />
+              <Badge variant={mode === "direct" ? (directBase ? "default" : "destructive") : "secondary"} className="text-[10px]">
+                {mode === "direct"
+                  ? (lanBase || (isKo ? "LAN 주소 미설정" : "未设置 LAN 地址"))
+                  : (isKo ? "프록시" : "代理")}
+              </Badge>
+            </div>
+            <Button size="sm" variant="ghost" onClick={loadCams} disabled={loading}>
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {sortedCams.length === 0 ? (
@@ -872,12 +891,12 @@ export default function CCTVQuality() {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-3">
               {sortedCams.map((c) => (
                 <MiniLiveTile
-                  key={String(c.id)}
+                  key={`${String(c.id)}-${mode}`}
                   cam={c}
                   label={displayName(c)}
                   active={!!selected && String(selected.id) === String(c.id)}
                   onSelect={() => setSelected(c)}
-                  directBase={directBase}
+                  mode={mode}
                 />
               ))}
             </div>
