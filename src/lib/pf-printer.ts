@@ -8,6 +8,9 @@
  * - POST /api/v1/pf-printer/run    Run(喷印启动) 모드 전환 — /test 는 Run 모드에서만 동작
  * - POST /api/v1/pf-printer/stop   Stop 모드 전환
  *
+ * 서버는 /test·/run·/stop·/status 를 하나의 FIFO 큐로 직렬화하므로 동시 호출이 안전하다.
+ * 다만 응답은 "자기 차례가 와서 인쇄까지 끝난 뒤" 오므로 대기 시간이 길어질 수 있다.
+ *
  * 스캔 이벤트(MQTT)와 인쇄는 서버에서 자동 연결되어 있지 않다 — 프론트가 직접 /test 를 호출한다.
  * 프린터가 Stop 상태이거나 템플릿 편집 후 Run 이 풀리면 /test 가 409(NAK)를 반환한다.
  * 이 경우 자동으로 /run 을 호출한 뒤 1회 재시도한다.
@@ -52,7 +55,7 @@ export type PfStatus = { ink_percent: number | null; buffer_count: number | null
 
 export async function pfPrinterStatus(): Promise<PfStatus> {
   try {
-    const res = await pfFetch("/api/v1/pf-printer/status");
+    const res = await pfFetch("/api/v1/pf-printer/status", undefined, 8000);
     const j: any = await res.json().catch(() => ({}));
     if (!res.ok || "upstream_status" in (j ?? {})) return { ink_percent: null, buffer_count: null, offline: true };
     return {
@@ -67,7 +70,7 @@ export async function pfPrinterStatus(): Promise<PfStatus> {
 
 async function pfMode(mode: "run" | "stop"): Promise<{ ok: boolean; error?: string }> {
   try {
-    const res = await pfFetch(`/api/v1/pf-printer/${mode}`, { method: "POST", body: "{}" });
+    const res = await pfFetch(`/api/v1/pf-printer/${mode}`, { method: "POST", body: "{}" }, 20000);
     const j: any = await res.json().catch(() => ({}));
     if (res.ok && j?.accepted) return { ok: true };
     return { ok: false, error: pfErrorText(j, res.status) };
