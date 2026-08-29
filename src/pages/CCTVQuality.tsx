@@ -32,11 +32,27 @@ type Cam = {
   [k: string]: any;
 };
 
-// Prefer the gateway's own LAN address when this device is on the internal
-// network — streams then come straight from the camera server instead of
-// being relayed through the edge proxy.
+// Stream source mode. "direct" forces the gateway's own LAN address (fastest
+// when this PC sits on the internal network), "proxy" forces the backend edge
+// API. Stored per device because reachability depends on the network.
+const LS_SOURCE = "cctv_source_mode_v1";
+type SourceMode = "direct" | "proxy";
+
+let sourceMode: SourceMode = (() => {
+  try { return (localStorage.getItem(LS_SOURCE) as SourceMode) || "proxy"; } catch { return "proxy"; }
+})();
+let lanBaseValue: string | null = null;
+
+export function getSourceMode(): SourceMode { return sourceMode; }
+function setSourceModeValue(m: SourceMode) {
+  sourceMode = m;
+  try { localStorage.setItem(LS_SOURCE, m); } catch { /* ignore */ }
+}
+function setLanBaseValue(v: string | null) { lanBaseValue = v ? v.replace(/\/+$/, "") : null; }
+
 function streamBase(): string {
-  return getDirectBase() || PROXY_BASE;
+  if (sourceMode === "direct") return lanBaseValue || getDirectBase() || PROXY_BASE;
+  return PROXY_BASE;
 }
 
 function toProxyUrl(u: string | undefined | null): string | null {
@@ -55,11 +71,15 @@ function toProxyUrl(u: string | undefined | null): string | null {
   }
 }
 
+/** True when the URL points at the unauthenticated LAN gateway. */
+function isLanUrl(u: string): boolean {
+  return !u.startsWith(PROXY_BASE);
+}
+
 async function proxyFetch(pathOrUrl: string, init?: RequestInit) {
-  const direct = getDirectBase();
   const target = pathOrUrl.startsWith("http") ? pathOrUrl : `${streamBase()}${pathOrUrl.startsWith("/") ? "" : "/"}${pathOrUrl}`;
   // LAN gateway is unauthenticated — no Supabase headers (avoids preflight).
-  if (direct && target.startsWith(direct)) return fetch(target, init);
+  if (isLanUrl(target)) return fetch(target, init);
   const headers = new Headers(init?.headers);
   headers.set("apikey", ANON_KEY);
   const session = await supabase.auth.getSession();
