@@ -500,9 +500,19 @@ export default function CCTVQuality() {
 
   useEffect(() => {
     // Probe the LAN gateway first: if this device is inside the internal
-    // network, every stream/request below goes straight to it.
+    // network, streams can be pulled straight from it.
+    loadCctvLanBase()
+      .then((b) => { setLanBase(b); setLanBaseValue(b || null); })
+      .catch(() => undefined);
     resolveDirectBase()
-      .then((base) => setDirectBase(base))
+      .then((base) => {
+        setDirectBase(base);
+        // First visit on this device: prefer the LAN gateway when reachable.
+        if (base && !localStorage.getItem(LS_SOURCE)) {
+          setSourceModeValue("direct");
+          setMode("direct");
+        }
+      })
       .catch(() => setDirectBase(null))
       .finally(() => loadCams());
     fetchServerSettings().then(({ names, order: srvOrder }) => {
@@ -517,6 +527,13 @@ export default function CCTVQuality() {
     }).catch((e) => console.error("fetchServerSettings failed", e));
     /* eslint-disable-next-line */
   }, []);
+
+  /** Toggle between the LAN (direct RTSP gateway) and the backend API proxy. */
+  const changeMode = (next: SourceMode) => {
+    setSourceModeValue(next);
+    setMode(next);
+    loadCams();
+  };
 
   // Re-probe every 30s so status reflects actual connectivity.
   useEffect(() => {
