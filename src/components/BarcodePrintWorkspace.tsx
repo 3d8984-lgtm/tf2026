@@ -513,35 +513,45 @@ function OrderDetail({
   }, [queue, expected, cursor, testMode, ready, markQueued, kind]);
 
 
-  // ── 소비자(인쇄) 처리 ─────────────────────────────────────────────
-  // PF 프린터(/api/v1/pf-printer)는 스캔 이벤트에 자동 연결되어 있지 않다.
-  // 검증을 통과해 queued 상태가 된 항목을 대기열 선두부터 "한 건씩" 전송하고,
-  // 전송 결과를 저장한 뒤 다음 건을 이어서 처리한다(FIFO, 순서 보장).
-  const printingRef = useRef(false);
+  // ── 소비자(인쇄 큐 적재) ───────────────────────────────────────────
+  // 백엔드 개정(2026-08): PF 프린터 API는 서버 내부 FIFO 큐를 거쳐 직렬 처리된다.
+  // 따라서 프론트는 "한 건 인쇄가 끝날 때까지 대기"하지 않고, 검증을 통과한 항목을
+  // 순서대로 서버 큐에 밀어 넣는다(요청 도착 순서 = 인쇄 순서). 응답은 실제 인쇄가
+  // 끝난 뒤에 오므로, 응답 시점에 완료/실패로 표시한다.
+  const MAX_IN_FLIGHT = 3;
+  const dispatchedRef = useRef<Set<number>>(new Set());
+  const inFlightRef = useRef(0);
   const [printTick, setPrintTick] = useState(0);
   const [printingPos, setPrintingPos] = useState<number | null>(null);
   useEffect(() => {
-    if (!ready || testMode || printingRef.current) return;
+    if (!ready || testMode) return;
     const pending = Object.values(saved)
-      .filter((s) => s.status === "queued" || s.status === "error")
+      .filter((s) => s.status === "queued" && !dispatchedRef.current.has(s.position))
       .sort((a, b) => a.position - b.position);
-    const head = pending[0];
-    // 선두가 인쇄 실패 상태면 순서 보장을 위해 뒤 항목을 먼저 인쇄하지 않는다.
-    if (!head || head.status !== "queued") { setPrintingPos(null); return; }
-    printingRef.current = true;
-    setPrintingPos(head.position);
-    void (async () => {
-      try {
-        const r = await sendToPrinter(printValueRef.current(head.code));
-        if (r.ok) await markDone(head.position, head.code, null, false);
-        else await markPrintError(head.position, head.code, r.error ?? "printer send failed");
-      } finally {
-        printingRef.current = false;
-        setPrintingPos(null);
-        setPrintTick((t) => t + 1); // 다음 대기 건 이어서 처리
-      }
-    })();
+    if (pending.length === 0) return;
+
+    for (const item of pending) {
+      if (inFlightRef.current >= MAX_IN_FLIGHT) break;
+      dispatchedRef.current.add(item.position);
+      inFlightRef.current += 1;
+      setPrintingPos((p) => p ?? item.position);
+      void (async () => {
+        try {
+          const r = await sendToPrinter(printValueRef.current(item.code));
+          if (r.ok) await markDone(item.position, item.code, null, false);
+          else {
+            dispatchedRef.current.delete(item.position); // 재시도 가능하도록 해제
+            await markPrintError(item.position, item.code, r.error ?? "printer send failed");
+          }
+        } finally {
+          inFlightRef.current -= 1;
+          setPrintingPos(inFlightRef.current > 0 ? item.position : null);
+          setPrintTick((t) => t + 1);
+        }
+      })();
+    }
   }, [saved, printTick, ready, testMode, sendToPrinter, markDone, markPrintError]);
+
 
 
 
