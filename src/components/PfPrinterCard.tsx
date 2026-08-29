@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { Printer, Wifi, WifiOff, Play, Square } from "lucide-react";
 import { pfPrint, pfPrinterRun, pfPrinterStop, pfPrinterStatus } from "@/lib/pf-printer";
 
-/** PF 신형 프린터(/api/v2/pf-printer) 잉크·버퍼 상태 표시 + 테스트 인쇄. */
+/** PF 시리즈 잉크젯 프린터(/api/v1/pf-printer) 잉크·버퍼 상태 표시 + 테스트 인쇄. */
 export default function PfPrinterCard({ defaultText = "" }: { defaultText?: string }) {
   const { lang } = useLang();
   const isKo = lang === "ko";
@@ -50,7 +50,7 @@ export default function PfPrinterCard({ defaultText = "" }: { defaultText?: stri
         <div className="flex items-center gap-4">
           <Printer className="w-5 h-5 text-muted-foreground shrink-0" />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium">{tr("PF 신형 프린터", "PF新型打印机")}</p>
+            <p className="text-sm font-medium">{tr("PF 프린터", "PF新型打印机")}</p>
             <p className="text-[11px] text-muted-foreground truncate">
               {tr("잉크", "墨量")} {ink != null ? `${ink}%` : "-"} · {tr("버퍼 대기", "缓冲等待")} {buffer ?? "-"}
             </p>

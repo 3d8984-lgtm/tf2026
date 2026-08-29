@@ -27,7 +27,7 @@ const CHANNELS = [
 ] as const;
 
 /**
- * 2번 경고등(USB_D3V1) 제어 패널 — /api/v2/d3v1-light/*.
+ * 2번 경고등(USB 다층 경고등 USB_D3V1) 제어 패널 — /api/v1/d3v1-light/*.
  * 3색 + 부저, 점멸 속도 조절 없음(off/on/blink만).
  */
 export default function D3v1LightPanel() {
@@ -43,7 +43,7 @@ export default function D3v1LightPanel() {
 
   const load = useCallback(async () => {
     const tryOnce = async () => {
-      const res = await proxyFetch("/api/v2/d3v1-light/status");
+      const res = await proxyFetch("/api/v1/d3v1-light/status");
       const j: any = await res.json().catch(() => ({}));
       if (!res.ok || "upstream_status" in (j ?? {})) return null;
       return j as Status;
@@ -81,7 +81,7 @@ export default function D3v1LightPanel() {
       let j: any = {};
       let res: Response | null = null;
       for (let attempt = 0; attempt < 3; attempt++) {
-        res = await proxyFetch("/api/v2/d3v1-light/control", {
+        res = await proxyFetch("/api/v1/d3v1-light/control", {
           method: "POST",
           body: JSON.stringify({ [channel]: { mode } }),
         });
