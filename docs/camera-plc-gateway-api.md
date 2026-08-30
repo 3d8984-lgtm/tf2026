@@ -431,16 +431,19 @@ PLC 삭제 (설정에서 제거 + 가동시간 모니터 정지).
 
 ---
 
-## 스캔 카운트 API (MQTT)
+## 스캔 카운트 API
 
-PLC와는 완전히 별개의 서브시스템입니다. 바코드 스캐너가 스캔할 때마다 공개 MQTT 브로커
-(`broker.emqx.io:1883`, 토픽 `AMU262052715/dp`)로 이벤트를 발행하고, 서버가 백그라운드에서
-구독해서 아래 API로 노출합니다 (`app/services/mqtt_client.py`). 카메라/PLC처럼 여러 대
-등록하는 구조가 아니라 스캐너 한 대 전용 — `.env`의
-`MQTT_BROKER_HOST`/`MQTT_BROKER_PORT`/`MQTT_TOPIC`로만 설정합니다.
+PLC와는 완전히 별개의 서브시스템입니다. `Settings.scan_input_mode`(기본 `usb`)에 따라 두 입력
+경로 중 하나가 활성화되고, 아래 API 형태는 어느 쪽이든 동일합니다:
+- **`usb`(기본)**: 스캐너가 서버에 USB로 직접 연결(HID 키보드 에뮬레이션, evdev로 읽음,
+  `app/services/usb_scanner_client.py`). 원래 MQTT였는데 신규 서버 이전 후 네트워크 경로가
+  불안정해서 전환함.
+- **`mqtt`(레거시)**: 스캐너가 MQTT 브로커(토픽 `AMU262052715/dp`)로 이벤트를 발행하고 서버가
+  구독 (`app/services/mqtt_client.py`). 실제 페이로드는 필드명이 소문자이고, 한 메시지에 스캔
+  여러 건이 `barcode_list`로 배치될 수 있습니다 (자세한 형식은 README "바코드 스캐너 카운트"
+  섹션 참고).
 
-실제 페이로드는 필드명이 소문자이고, 한 메시지에 스캔 여러 건이 `barcode_list`로 배치될 수
-있습니다 (자세한 형식과 처리 방식은 README "바코드 스캐너 카운트 (MQTT)" 섹션 참고).
+카메라/PLC처럼 여러 대 등록하는 구조가 아니라 스캐너 한 대 전용입니다.
 
 **스캔 이벤트는 인쇄와 자동으로 연결되어 있지 않습니다** — 아래 스캔 API는 순수하게 카운트/이력만
 다루고, 인쇄는 프론트엔드가 "PF 시리즈 잉크젯 프린터 API" 섹션을 별도로 호출해서 트리거합니다.
@@ -459,13 +462,13 @@ PLC와는 완전히 별개의 서브시스템입니다. 바코드 스캐너가 �
 ```
 | 필드 | 설명 |
 |---|---|
-| `count` | 현재 누적 스캔 카운트. 기기가 보낸 `js` 값을 그대로 신뢰(서버가 직접 세지 않음), `POST /scan/reset`으로 초기화한 시점 이후분만 표시 |
+| `count` | 현재 누적 스캔 카운트. `usb` 모드는 스캔마다 서버가 1씩 증가, `mqtt` 모드는 기기가 보낸 `js` 값을 그대로 신뢰(둘 다 서버가 직접 세는 건 `usb`뿐). `POST /scan/reset`으로 초기화한 시점 이후분만 표시 |
 | `last_barcode` | 마지막으로 스캔된 바코드/QR 내용. 아직 하나도 안 들어왔으면 `null` |
-| `last_duration` | 마지막 스캔과 그 이전 스캔 사이 간격(초) — 기기가 보낸 `DURATION` 값 그대로 |
+| `last_duration` | 마지막 스캔과 그 이전 스캔 사이 간격(초). `mqtt` 모드는 기기가 보낸 `DURATION` 값 그대로, `usb` 모드는 서버가 `이번 스캔 시각 − 직전 스캔 시각`으로 근사 계산 |
 | `last_seen` | 마지막 스캔 이벤트를 서버가 수신한 시각. 아직 하나도 없으면 `null` |
-| `connected` | 서버가 지금 MQTT 브로커에 연결되어 있는지. `false`면 `count` 등은 마지막으로 받은 값에서 멈춰있는 상태 |
+| `connected` | 활성 모드(usb/mqtt)의 장치/브로커에 서버가 지금 붙어있는지. `false`면 `count` 등은 마지막으로 받은 값에서 멈춰있는 상태 |
 
-이 엔드포인트 자체는 에러를 내지 않습니다 (MQTT 연결 문제는 `connected: false`로만 표시).
+이 엔드포인트 자체는 에러를 내지 않습니다 (장치/브로커 연결 문제는 `connected: false`로만 표시).
 
 ---
 
@@ -524,11 +527,16 @@ PLC와는 완전히 별개의 서브시스템입니다. 바코드 스캐너가 �
 호출하면 됩니다 — 어떤 값을 어떤 시점에 찍을지(카드 스캔 후, 티셔츠 매칭 후 등)는
 프론트엔드가 판단해서 호출 타이밍을 결정합니다.
 
-**⚠️ 자동 스캔 흐름(MQTT)에 연결되어 있지 않습니다** — `POST /test`를 직접 호출해야
-인쇄됩니다(스캔 이벤트가 자동으로 프린터를 트리거하지 않음). 이름은 `/test`지만 큐를 거치지
-않고 **그 자리에서 바로** 값 전송+인쇄 트리거까지 동기적으로 처리합니다 — 응답이 오면
-(`accepted: true`) 인쇄 트리거까지 끝난 것입니다(진단용으로 만들어졌지만 지금은 이게 실질
-적인 인쇄 API입니다).
+**⚠️ 자동 스캔 흐름에 연결되어 있지 않습니다** — `POST /test`를 직접 호출해야 인쇄됩니다(스캔
+이벤트가 자동으로 프린터를 트리거하지 않음). 이름은 `/test`지만 값 전송+인쇄 트리거까지
+처리하는 실질적인 인쇄 API로 쓰입니다 — 응답이 오면(`accepted: true`) 인쇄 트리거까지 끝난
+것입니다.
+
+**동시에 여러 번 호출해도 안전합니다** — 내부적으로 FIFO 큐를 거쳐서 실제 프린터와의 통신은
+항상 한 번에 하나씩만 이뤄집니다. 다만 이 API 자체는 여전히 "요청을 큐에 등록만 하고 바로
+응답"하는 방식이 아니라, **자기 차례가 와서 실제로 인쇄까지 끝나야 응답이 옵니다** — 그래서
+여러 요청을 동시에 보내면 앞 요청들이 처리되는 동안 뒤 요청의 응답은 그만큼 늦게 옵니다
+(`/run`/`/stop`/`/status`도 같은 큐를 공유합니다).
 
 ### `POST /api/v1/pf-printer/test`
 
@@ -605,6 +613,60 @@ PLC와는 완전히 별개의 서브시스템입니다. 바코드 스캐너가 �
 
 ---
 
+### `GET /api/v1/pf-printer/queue`
+
+지금 큐에 뭐가 대기/처리 중인지, 최근에 뭐가 처리됐는지 조회합니다 — `/test`/`/run`/`/stop`/
+`/status` 네 엔드포인트가 전부 같은 큐를 거치므로 이 응답에 종류 상관없이 다 같이 나옵니다.
+
+**응답 200**
+```json
+{
+  "jobs": [
+    {
+      "id": "a1b2c3d4",
+      "kind": "print",
+      "text": "9cef4a0e-b0c2-4dea-9fac-1c00c2d3e9f4-4",
+      "status": "done",
+      "submitted_at": "2026-08-30T02:00:00.000000Z",
+      "completed_at": "2026-08-30T02:00:00.412000Z",
+      "error": null
+    },
+    {
+      "id": "e5f6a7b8",
+      "kind": "print",
+      "text": "9cef4a0e-b0c2-4dea-9fac-1c00c2d3e9f5-5",
+      "status": "failed",
+      "submitted_at": "2026-08-30T02:00:01.000000Z",
+      "completed_at": "2026-08-30T02:00:01.203000Z",
+      "error": "printer NAK'd the barcode variable update ..."
+    },
+    {
+      "id": "c9d0e1f2",
+      "kind": "print",
+      "text": "9cef4a0e-b0c2-4dea-9fac-1c00c2d3e9f6-6",
+      "status": "pending",
+      "submitted_at": "2026-08-30T02:00:01.050000Z",
+      "completed_at": null,
+      "error": null
+    }
+  ],
+  "pending_count": 1
+}
+```
+| 필드 | 설명 |
+|---|---|
+| `jobs` | 최근 요청 목록 (오래된 순, 최대 200건, 대기/처리중/완료 전부 포함) |
+| `jobs[].kind` | `print`(=`/test`) \| `run` \| `stop` \| `status` — 어떤 엔드포인트 호출이 만든 job인지 |
+| `jobs[].text` | `kind=print`일 때만 값이 있음(전송한 바코드 값) |
+| `jobs[].status` | `pending`(대기) \| `processing`(지금 시리얼 통신 중) \| `done`(완료) \| `failed`(에러) |
+| `jobs[].completed_at` | 아직 처리 안 됐으면(`pending`/`processing`) `null` |
+| `jobs[].error` | `status=failed`일 때만 값이 있음(에러 메시지 문자열) |
+| `pending_count` | `pending` + `processing` 상태인 job 수 |
+
+이 엔드포인트 자체는 큐에 새 job을 넣지 않고 조회만 하므로 에러를 내지 않습니다.
+
+---
+
 ## USB 다층 경고등 API (USB_D3V1)
 
 빨강/노랑/초록 3색 + 부저를 제어합니다(파랑/흰색 없음). **점멸 "속도" 조절 기능이 없습니다**
@@ -673,15 +735,16 @@ PLC와는 완전히 별개의 서브시스템입니다. 바코드 스캐너가 �
     "plc0": { "monitored": true },
     "plc1": { "monitored": true }
   },
-  "scan": { "connected": true }
+  "scan": { "mode": "usb", "connected": true }
 }
 ```
 - `plcs.{plc_id}.monitored`: 서버가 그 PLC의 가동시간 백그라운드 폴러를 실행 중인지 여부.
   PLC가 실제로 응답하는지(연결 가능 여부)는 확인하지 않습니다 — 그건 `GET /api/v1/plc/{plc_id}/status`
   호출로 확인하세요 (헬스체크 엔드포인트가 매번 모든 PLC에 Modbus 요청을 보내면 느려지고, PLC가
   꺼져있을 때 헬스체크 자체가 느려지거나 타임아웃날 수 있어 의도적으로 분리함).
-- `scan.connected`: 서버가 지금 MQTT 브로커에 연결되어 있는지 (`GET /api/v1/scan/status`의
-  `connected`와 동일한 값).
+- `scan.mode`: 현재 활성 스캔 입력 경로 (`"usb"` 또는 `"mqtt"`, `Settings.scan_input_mode`).
+- `scan.connected`: 그 모드의 장치(USB)/브로커(MQTT)에 서버가 지금 붙어있는지
+  (`GET /api/v1/scan/status`의 `connected`와 동일한 값).
 
 ---
 
