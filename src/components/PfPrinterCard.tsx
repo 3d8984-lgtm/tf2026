@@ -61,8 +61,9 @@ export default function PfPrinterCard({ defaultText = "" }: { defaultText?: stri
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium">{tr("PF 프린터", "PF新型打印机")}</p>
             <p className="text-[11px] text-muted-foreground truncate">
-              {tr("잉크", "墨量")} {ink != null ? `${ink}%` : "-"} · {tr("버퍼 대기", "缓冲等待")} {buffer ?? "-"}
+              {tr("잉크", "墨量")} {ink != null ? `${ink}%` : "-"} · {tr("버퍼 대기", "缓冲等待")} {buffer ?? "-"} · {tr("서버 대기열", "服务器队列")} {pending ?? "-"}
             </p>
+
           </div>
           {offline ? (
             <Badge variant="outline" className="gap-1 text-destructive border-destructive/40 shrink-0">
