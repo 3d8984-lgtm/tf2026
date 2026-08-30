@@ -82,6 +82,33 @@ async function pfMode(mode: "run" | "stop"): Promise<{ ok: boolean; error?: stri
 export const pfPrinterRun = () => pfMode("run");
 export const pfPrinterStop = () => pfMode("stop");
 
+export type PfQueueJob = {
+  id: string;
+  kind: "print" | "run" | "stop" | "status";
+  text: string | null;
+  status: "pending" | "processing" | "done" | "failed";
+  submitted_at: string;
+  completed_at: string | null;
+  error: string | null;
+};
+
+/** GET /api/v1/pf-printer/queue — 서버 FIFO 큐의 대기/처리/완료 작업 목록 (최대 200건) */
+export async function pfPrinterQueue(): Promise<{ jobs: PfQueueJob[]; pendingCount: number; offline: boolean }> {
+  try {
+    const res = await pfFetch("/api/v1/pf-printer/queue", undefined, 8000);
+    const j: any = await res.json().catch(() => ({}));
+    if (!res.ok || "upstream_status" in (j ?? {})) return { jobs: [], pendingCount: 0, offline: true };
+    const jobs: PfQueueJob[] = Array.isArray(j?.jobs) ? j.jobs : [];
+    return {
+      jobs,
+      pendingCount: typeof j?.pending_count === "number" ? j.pending_count : jobs.filter((x) => x.status === "pending" || x.status === "processing").length,
+      offline: false,
+    };
+  } catch {
+    return { jobs: [], pendingCount: 0, offline: true };
+  }
+}
+
 /**
  * 바코드/QR 값 인쇄. 응답이 오면 인쇄 트리거까지 완료된 상태다.
  * @param padToLength 프린터 QR 객체의 "var length" (미지정 시 서버 기본값 사용)
