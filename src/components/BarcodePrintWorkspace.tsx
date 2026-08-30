@@ -1206,6 +1206,9 @@ function OrderDetail({
               <CardTitle className="text-base flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-500" />{tr("인쇄 완료", "打印完成")}
                 <span className="text-xs font-normal text-muted-foreground">({printedItems.length}/{total})</span>
+                <span className="text-[11px] font-normal text-muted-foreground ml-auto">
+                  {tr("인쇄완료(0x40) 확인", "打印完成(0x40)确认")} {confirmedPrinted}
+                </span>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -1215,8 +1218,7 @@ function OrderDetail({
                     <tr className="text-left">
                       <th className="px-2 py-1.5">{tr("순번", "序号")}</th>
                       <th className="px-2 py-1.5">{tr("바코드", "条码")}</th>
-                      <th className="px-2 py-1.5">{tr("게이트웨이 전송", "网关发送")}</th>
-                      <th className="px-2 py-1.5">{tr("프린터 전달", "送达打印机")}</th>
+                      <th className="px-2 py-1.5">{tr("인쇄 확인", "打印确认")}</th>
 
                       <th className="px-2 py-1.5">{tr("인쇄 시각", "打印时间")}</th>
                     </tr>
