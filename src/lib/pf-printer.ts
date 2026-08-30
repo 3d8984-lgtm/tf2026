@@ -87,12 +87,14 @@ export type PfQueueJob = {
   kind: "print" | "run" | "stop" | "status";
   text: string | null;
   status: "pending" | "processing" | "done" | "failed";
+  /** kind=print & status=done 일 때만 값 존재. true = 프린터 인쇄완료(0x40) 확인됨 */
+  printed?: boolean | null;
   submitted_at: string;
   completed_at: string | null;
   error: string | null;
 };
 
-/** GET /api/v1/pf-printer/queue — 서버 FIFO 큐의 대기/처리/완료 작업 목록 (최대 200건) */
+/** GET /api/v1/pf-printer/queue — 서버 FIFO 큐의 대기/처리/완료 작업 목록 (최대 100건) */
 export async function pfPrinterQueue(): Promise<{ jobs: PfQueueJob[]; pendingCount: number; offline: boolean }> {
   try {
     const res = await pfFetch("/api/v1/pf-printer/queue", undefined, 8000);
@@ -110,13 +112,29 @@ export async function pfPrinterQueue(): Promise<{ jobs: PfQueueJob[]; pendingCou
 }
 
 /**
+ * POST /api/v1/pf-printer/queue/clear — 아직 처리 시작 전(pending)인 요청을 모두 취소한다.
+ * 지금 시리얼 통신 중인 1건은 끝까지 진행된다. 취소된 요청의 원 호출은 409를 받는다.
+ */
+export async function pfPrinterQueueClear(): Promise<{ ok: boolean; cleared: number; error?: string }> {
+  try {
+    const res = await pfFetch("/api/v1/pf-printer/queue/clear", { method: "POST", body: "{}" }, 15000);
+    const j: any = await res.json().catch(() => ({}));
+    if (!res.ok || "upstream_status" in (j ?? {})) return { ok: false, cleared: 0, error: pfErrorText(j, res.status) };
+    return { ok: true, cleared: typeof j?.cleared === "number" ? j.cleared : 0 };
+  } catch (e) {
+    return { ok: false, cleared: 0, error: String(e) };
+  }
+}
+
+/**
  * 바코드/QR 값 인쇄. 응답이 오면 인쇄 트리거까지 완료된 상태다.
+ * `printed`는 프린터의 인쇄완료(0x40) 응답까지 확인됐는지 여부(미확인이어도 에러는 아님).
  * @param padToLength 프린터 QR 객체의 "var length" (미지정 시 서버 기본값 사용)
  */
 export async function pfPrint(
   text: string,
   padToLength?: number,
-): Promise<{ ok: boolean; error?: string; payload: string }> {
+): Promise<{ ok: boolean; printed?: boolean; error?: string; payload: string }> {
   const payload = String(text ?? "").slice(0, 200);
   const body = JSON.stringify(padToLength ? { text: payload, pad_to_length: padToLength } : { text: payload });
 
@@ -133,9 +151,10 @@ export async function pfPrint(
       const run = await pfPrinterRun();
       if (run.ok) ({ res, j } = await attempt());
     }
-    if (res.ok && j?.accepted) return { ok: true, payload };
+    if (res.ok && j?.accepted) return { ok: true, printed: j?.printed === true, payload };
     return { ok: false, error: pfErrorText(j, res.status), payload };
   } catch (e) {
     return { ok: false, error: String(e), payload };
   }
 }
+
