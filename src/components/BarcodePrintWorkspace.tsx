@@ -389,7 +389,7 @@ function OrderDetail({
     printValueRef.current = (v: string) => map.get(norm(v)) ?? String(v ?? "").trim();
   }, [expected]);
 
-  const sendToPrinter = useCallback(async (code: string): Promise<{ ok: boolean; error?: string }> => {
+  const sendToPrinter = useCallback(async (code: string): Promise<{ ok: boolean; printed?: boolean; error?: string }> => {
     const payload = String(code ?? "").slice(0, 200);
     const record = (ok: boolean, error: string | null) => {
       setPrinterLog((prev) => [
@@ -400,7 +400,7 @@ function OrderDetail({
     // PF 프린터 인쇄 (POST /api/v1/pf-printer/test)
     const r = await pfPrint(payload);
     record(r.ok, r.ok ? null : r.error ?? null);
-    return r.ok ? { ok: true } : { ok: false, error: r.error };
+    return r.ok ? { ok: true, printed: r.printed } : { ok: false, error: r.error };
   }, []);
 
 
