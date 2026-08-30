@@ -429,9 +429,9 @@ function bytesToDataUrl(buf: Uint8Array, ct: string): string {
  * never by the carrier's content-type header — a JSON/HTML error page served as
  * "application/pdf" is what produced corrupted printouts.
  */
-async function inlineLabelUrl(url: string, fallbackType = "application/pdf"): Promise<string | null> {
+async function inlineLabelUrl(url: string, fallbackType = "application/pdf", timeoutMs = 25_000): Promise<string | null> {
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
     if (!res.ok) {
       console.log("[label download]", res.status, url.slice(0, 160));
       return null;
@@ -454,6 +454,7 @@ async function inlineLabelUrl(url: string, fallbackType = "application/pdf"): Pr
     return null;
   }
 }
+
 
 /** Turns a carrier-supplied base64 payload into a validated data URL (null if not printable). */
 function base64LabelToDataUrl(b64: string, fallbackType = "application/pdf"): string | null {
