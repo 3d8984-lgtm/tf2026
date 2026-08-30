@@ -40,9 +40,14 @@ export default function PfPrinterCard({ defaultText = "" }: { defaultText?: stri
     setBusy(true);
     const r = await pfPrint(payload);
     setBusy(false);
-    if (r.ok) toast.success(`${tr("PF 프린터로 전송했습니다", "已发送到PF打印机")} · ${payload}`);
-    else toast.error(`${tr("PF 프린터 전송 실패", "PF打印机发送失败")} — ${r.error}`);
+    if (r.ok) {
+      const note = r.printed
+        ? tr("인쇄 완료 확인됨", "已确认打印完成")
+        : tr("전송 성공 · 완료 응답 미확인", "发送成功 · 未确认完成");
+      toast.success(`${tr("PF 프린터로 전송했습니다", "已发送到PF打印机")} · ${payload} · ${note}`);
+    } else toast.error(`${tr("PF 프린터 전송 실패", "PF打印机发送失败")} — ${r.error}`);
   }, [text, isKo]);
+
 
   return (
     <Card className={offline ? "border-destructive" : ""}>
