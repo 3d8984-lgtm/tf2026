@@ -553,17 +553,18 @@ PLC와는 완전히 별개의 서브시스템입니다. `Settings.scan_input_mod
 
 **응답 200**
 ```json
-{ "accepted": true, "text": "9cef4a0e-...-4", "timestamp": "2026-08-19T02:00:00.000000Z" }
+{ "accepted": true, "text": "9cef4a0e-...-4", "printed": true, "timestamp": "2026-08-19T02:00:00.000000Z" }
 ```
-`accepted: true`는 프린터가 값 갱신에 ACK, 인쇄 트리거에도 정상 응답(인쇄시작 0x39 또는
-바로 인쇄완료 0x40 — 실기 확인 결과 이 프린터는 인쇄가 빨라서 0x39 없이 0x40으로 바로
-올 수 있음, 둘 다 성공으로 처리)했다는 뜻입니다.
+| 필드 | 설명 |
+|---|---|
+| `accepted` | 프린터가 값 갱신에 ACK, 인쇄 트리거에도 정상 응답(인쇄시작 0x39 또는 바로 인쇄완료 0x40)했다는 뜻 — 인쇄 자체가 시작됐는지는 이 값으로 판단하고, 인쇄가 **완료까지** 됐는지는 아래 `printed`로 별도 확인 |
+| `printed` | `true`면 프린터가 인쇄완료(CMD 0x40) 응답까지 실제로 보낸 걸 확인함. `false`면 값 전송+트리거는 성공(`accepted: true`)했지만 완료 응답이 타임아웃돼서 확인은 못 함 — 이 경우도 에러(4xx/5xx)는 아님. 실기 확인 결과 이 프린터는 인쇄가 빨라서 트리거 응답으로 바로 0x40이 오는 경우가 대부분이라 `printed: false`는 드묾, 나오더라도 실제로는 인쇄됐을 가능성이 높음(그냥 완료 확인 타이밍을 놓친 것) |
 
 **에러**
 - `422` — `text`가 비어있거나 200자 초과
 - `503` — 프린터 시리얼 포트에 연결할 수 없음
-- `409` — 프린터가 NAK(0x15)를 반환 (var length 불일치, 템플릿에 바코드 변수 바인딩 없음,
-  또는 Run 모드가 아님 등)
+- `409` — 프린터가 NAK(0x15)를 반환(var length 불일치, 템플릿에 바코드 변수 바인딩 없음, 또는
+  Run 모드가 아님 등), 또는 아직 처리 시작 전에 `POST /queue/clear`로 취소됨
 - `502` — 연결은 됐는데 그 외 통신 오류(예상 밖의 응답 등)
 
 ---
@@ -581,6 +582,7 @@ PLC와는 완전히 별개의 서브시스템입니다. `Settings.scan_input_mod
 
 **에러**
 - `503` — 프린터 시리얼 포트에 연결할 수 없음
+- `409` — 아직 처리 시작 전에 `POST /queue/clear`로 취소됨
 - `502` — 연결은 됐는데 통신 중 오류 발생
 
 ---
@@ -601,7 +603,7 @@ PLC와는 완전히 별개의 서브시스템입니다. `Settings.scan_input_mod
 
 **에러**
 - `503` — 프린터 시리얼 포트에 연결할 수 없음
-- `409` — 프린터가 NAK를 반환
+- `409` — 프린터가 NAK를 반환, 또는 아직 처리 시작 전에 `POST /queue/clear`로 취소됨
 - `502` — 연결은 됐는데 그 외 통신 오류
 
 ---
@@ -627,6 +629,7 @@ PLC와는 완전히 별개의 서브시스템입니다. `Settings.scan_input_mod
       "kind": "print",
       "text": "9cef4a0e-b0c2-4dea-9fac-1c00c2d3e9f4-4",
       "status": "done",
+      "printed": true,
       "submitted_at": "2026-08-30T02:00:00.000000Z",
       "completed_at": "2026-08-30T02:00:00.412000Z",
       "error": null
@@ -636,6 +639,7 @@ PLC와는 완전히 별개의 서브시스템입니다. `Settings.scan_input_mod
       "kind": "print",
       "text": "9cef4a0e-b0c2-4dea-9fac-1c00c2d3e9f5-5",
       "status": "failed",
+      "printed": null,
       "submitted_at": "2026-08-30T02:00:01.000000Z",
       "completed_at": "2026-08-30T02:00:01.203000Z",
       "error": "printer NAK'd the barcode variable update ..."
@@ -645,6 +649,7 @@ PLC와는 완전히 별개의 서브시스템입니다. `Settings.scan_input_mod
       "kind": "print",
       "text": "9cef4a0e-b0c2-4dea-9fac-1c00c2d3e9f6-6",
       "status": "pending",
+      "printed": null,
       "submitted_at": "2026-08-30T02:00:01.050000Z",
       "completed_at": null,
       "error": null
@@ -655,15 +660,37 @@ PLC와는 완전히 별개의 서브시스템입니다. `Settings.scan_input_mod
 ```
 | 필드 | 설명 |
 |---|---|
-| `jobs` | 최근 요청 목록 (오래된 순, 최대 200건, 대기/처리중/완료 전부 포함) |
+| `jobs` | 최근 요청 목록 (오래된 순, 최대 100건, 대기/처리중/완료 전부 포함) |
 | `jobs[].kind` | `print`(=`/test`) \| `run` \| `stop` \| `status` — 어떤 엔드포인트 호출이 만든 job인지 |
 | `jobs[].text` | `kind=print`일 때만 값이 있음(전송한 바코드 값) |
 | `jobs[].status` | `pending`(대기) \| `processing`(지금 시리얼 통신 중) \| `done`(완료) \| `failed`(에러) |
+| `jobs[].printed` | `kind=print`이고 `status=done`일 때만 값이 있음. `true`=인쇄완료(0x40) 확인됨, `false`=트리거는 성공했지만 완료 확인은 타임아웃(`POST /test`의 `printed`와 동일한 의미) |
 | `jobs[].completed_at` | 아직 처리 안 됐으면(`pending`/`processing`) `null` |
 | `jobs[].error` | `status=failed`일 때만 값이 있음(에러 메시지 문자열) |
 | `pending_count` | `pending` + `processing` 상태인 job 수 |
 
 이 엔드포인트 자체는 큐에 새 job을 넣지 않고 조회만 하므로 에러를 내지 않습니다.
+
+---
+
+### `POST /api/v1/pf-printer/queue/clear`
+
+아직 처리 시작 안 한(`status=pending`인) 요청을 전부 취소합니다. **지금 시리얼 통신 중인
+요청(있다면 최대 1건)은 건드리지 않고 끝까지 진행시킵니다** — 중간에 끊으면 프린터가 반쯤
+받은 명령 상태로 남을 위험이 있어서입니다. 취소된 요청을 기다리고 있던 원래 호출(`/test`
+등)에는 `409`가 즉시 반환됩니다.
+
+**요청 바디**: 없음
+
+**응답 200**
+```json
+{ "cleared": 3, "timestamp": "2026-08-30T02:05:00.000000Z" }
+```
+| 필드 | 설명 |
+|---|---|
+| `cleared` | 취소된(아직 처리 시작 안 했던) 요청 수. 대기 중인 게 없었으면 `0` |
+
+이 엔드포인트 자체는 에러를 내지 않습니다.
 
 ---
 

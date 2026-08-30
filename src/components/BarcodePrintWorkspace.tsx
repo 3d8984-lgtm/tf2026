@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { warnLightOkFlash, warnLightError, warnLight2OkFlash } from "@/lib/warning-light";
-import { pfPrint, pfPrinterStatus, pfPrinterQueue } from "@/lib/pf-printer";
+import { pfPrint, pfPrinterStatus, pfPrinterQueue, pfPrinterQueueClear } from "@/lib/pf-printer";
 
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -602,30 +602,39 @@ function OrderDetail({
     toast.success(`${tr("인쇄 대기열에 추가했습니다", "已加入打印队列")} · ${targets.length}`);
   }, [expected, saved, kind, order.id, cursor, isKo]);
 
-  /** 인쇄 대기열 초기화 — 대기(queued)/실패(error) 항목만 제거. 완료 기록은 유지 */
+  /**
+   * 인쇄 대기열 초기화 — 프린터 서버 FIFO 큐(pending)까지 함께 취소하고,
+   * 앱 측 대기(queued)/실패(error) 항목을 제거한다. 완료 기록은 유지.
+   */
   const clearQueue = useCallback(async () => {
+    const cleared = await pfPrinterQueueClear();
     const targets = Object.values(saved).filter((s) => s.status === "queued" || s.status === "error");
-    if (targets.length === 0) {
+    if (targets.length === 0 && cleared.cleared === 0) {
       toast.info(tr("초기화할 대기열 항목이 없습니다", "没有可清空的队列项目"));
       return;
     }
-    const { error } = await supabase
-      .from("barcode_print_items")
-      .delete()
-      .eq("kind", kind)
-      .eq("order_id", order.id)
-      .in("status", ["queued", "error"]);
-    if (error) { toast.error(error.message); return; }
-    // 전송 중(in-flight)이 아닌 항목은 재디스패치 가능 상태로 정리
-    for (const s of targets) dispatchedRef.current.delete(s.position);
-    setSaved((prev) => {
-      const next = { ...prev };
-      for (const s of targets) delete next[s.position];
-      return next;
-    });
+    if (targets.length > 0) {
+      const { error } = await supabase
+        .from("barcode_print_items")
+        .delete()
+        .eq("kind", kind)
+        .eq("order_id", order.id)
+        .in("status", ["queued", "error"]);
+      if (error) { toast.error(error.message); return; }
+      // 전송 중(in-flight)이 아닌 항목은 재디스패치 가능 상태로 정리
+      for (const s of targets) dispatchedRef.current.delete(s.position);
+      setSaved((prev) => {
+        const next = { ...prev };
+        for (const s of targets) delete next[s.position];
+        return next;
+      });
+    }
     setHalted(false);
-    toast.success(`${tr("인쇄 대기열을 초기화했습니다", "打印队列已清空")} · ${targets.length}`);
+    toast.success(
+      `${tr("인쇄 대기열을 초기화했습니다", "打印队列已清空")} · ${tr("앱", "应用")} ${targets.length} · ${tr("프린터", "打印机")} ${cleared.ok ? cleared.cleared : "-"}`,
+    );
   }, [saved, kind, order.id, isKo]);
+
 
 
 
@@ -1115,7 +1124,7 @@ function OrderDetail({
                 </Button>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button size="sm" variant="outline" className="gap-1 h-8" disabled={queueItems.length === 0}>
+                    <Button size="sm" variant="outline" className="gap-1 h-8" disabled={queueItems.length === 0 && pendingCount === 0}>
                       <Eraser className="w-3.5 h-3.5" />{tr("대기열 초기화", "清空队列")}
                     </Button>
                   </AlertDialogTrigger>
@@ -1124,8 +1133,8 @@ function OrderDetail({
                       <AlertDialogTitle>{tr("인쇄 대기열을 초기화할까요?", "确定清空打印队列吗？")}</AlertDialogTitle>
                       <AlertDialogDescription>
                         {tr(
-                          `대기 중 ${queuedCount}건${errorCount > 0 ? ` · 실패 ${errorCount}건` : ""}이 대기열에서 제거됩니다. 완료된 인쇄 기록은 유지되고, 이미 프린터로 전송 중인 작업은 끝까지 출력될 수 있습니다.`,
-                          `将移除等待中 ${queuedCount} 项${errorCount > 0 ? `、失败 ${errorCount} 项` : ""}。已完成的打印记录会保留，已发送到打印机的任务可能仍会输出。`
+                          `대기 중 ${queuedCount}건${errorCount > 0 ? ` · 실패 ${errorCount}건` : ""}이 제거되고, 프린터 서버에서 아직 시작하지 않은 인쇄 요청도 함께 취소됩니다. 완료된 기록은 유지되고, 이미 프린터가 처리 중인 1건은 끝까지 출력됩니다.`,
+                          `将移除等待中 ${queuedCount} 项${errorCount > 0 ? `、失败 ${errorCount} 项` : ""}，并取消打印服务器中尚未开始的请求。已完成的记录会保留，正在处理中的 1 项仍会打印完成。`
                         )}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
@@ -1135,6 +1144,7 @@ function OrderDetail({
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
+
               </div>
             </CardHeader>
 
