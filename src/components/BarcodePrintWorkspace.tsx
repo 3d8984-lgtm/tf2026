@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { warnLightOkFlash, warnLightError, warnLight2OkFlash } from "@/lib/warning-light";
-import { pfPrint, pfPrinterStatus } from "@/lib/pf-printer";
+import { pfPrint, pfPrinterStatus, pfPrinterQueue } from "@/lib/pf-printer";
 
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -412,10 +412,11 @@ function OrderDetail({
       if (inFlight) return;
       inFlight = true;
       try {
-        const [sRes, pf, hRes] = await Promise.all([
+        const [sRes, pf, hRes, q] = await Promise.all([
           proxyFetch("/api/v1/scan/status"),
           pfPrinterStatus(),
           proxyFetch("/api/v1/scan/history"),
+          pfPrinterQueue(),
         ]);
         const s: any = await sRes.json();
         if (!alive) return;
@@ -423,8 +424,25 @@ function OrderDetail({
         else { setOffline(false); setStatus(s as ScanStatus); }
         const cut = ts(cutoffRef.current);
         // PF 프린터 상태 (잉크/버퍼) — 인쇄 대기 건수는 프린터 버퍼 기준
-        setPrinterOffline(pf.offline);
-        setPendingCount(pf.buffer_count ?? 0);
+        setPrinterOffline(pf.offline && q.offline);
+        // 서버 FIFO 큐의 실제 작업 목록 (초기화 컷오프 이후만 표시)
+        setPendingCount(q.offline ? (pf.buffer_count ?? 0) : q.pendingCount);
+        if (!q.offline) {
+          setJobs(
+            q.jobs
+              .filter((j) => j.kind === "print" && ts(j.submitted_at) > cut)
+              .map((j) => ({
+                id: j.id,
+                barcode: j.text ?? "",
+                status: j.status === "processing" ? "printing" as const : j.status,
+                enqueued_at: j.submitted_at,
+                printed_at: j.completed_at,
+                error: j.error,
+              }))
+              .slice()
+              .reverse(),
+          );
+        }
         if (hRes.ok) {
           const h: any = await hRes.json();
           if (Array.isArray(h?.events)) {
