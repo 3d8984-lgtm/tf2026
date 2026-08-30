@@ -1058,12 +1058,19 @@ function OrderDetail({
 
           {/* 인쇄 대기열 (서버 저장 · FIFO) */}
           <Card className={errorCount > 0 ? "border-destructive" : ""}>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
+            <CardHeader className="pb-3 space-y-2">
+              <CardTitle className="text-base flex items-center gap-2 flex-wrap">
                 <Printer className="w-4 h-4" />{tr("인쇄 대기열", "打印队列")}
                 <span className="text-xs font-normal text-muted-foreground">({queueItems.length})</span>
+                <span className="text-[11px] font-normal text-muted-foreground ml-auto">
+                  {tr("전송 중", "发送中")} {inFlightCount} · {tr("프린터 버퍼", "打印机缓冲")} {printerOffline ? "-" : pendingCount}
+                </span>
               </CardTitle>
+              <Button size="sm" variant="outline" className="gap-1 h-8 w-full" onClick={() => void enqueueAllRemaining()}>
+                <Printer className="w-3.5 h-3.5" />{tr("남은 항목 전체 대기열 추가", "将剩余项目全部加入队列")}
+              </Button>
             </CardHeader>
+
             <CardContent>
               <div className="max-h-[420px] overflow-auto">
                 <table className="w-full text-xs">
