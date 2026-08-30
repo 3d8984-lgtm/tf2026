@@ -57,6 +57,8 @@ type PrintJob = {
   status: "pending" | "printing" | "done" | "failed";
   enqueued_at: string;
   printed_at: string | null;
+  /** kind=print & done일 때만 값 존재. true = 프린터 인쇄완료(0x40) 확인됨 */
+  printed: boolean | null;
   error: string | null;
 };
 
@@ -387,7 +389,7 @@ function OrderDetail({
     printValueRef.current = (v: string) => map.get(norm(v)) ?? String(v ?? "").trim();
   }, [expected]);
 
-  const sendToPrinter = useCallback(async (code: string): Promise<{ ok: boolean; error?: string }> => {
+  const sendToPrinter = useCallback(async (code: string): Promise<{ ok: boolean; printed?: boolean; error?: string }> => {
     const payload = String(code ?? "").slice(0, 200);
     const record = (ok: boolean, error: string | null) => {
       setPrinterLog((prev) => [
@@ -398,7 +400,7 @@ function OrderDetail({
     // PF 프린터 인쇄 (POST /api/v1/pf-printer/test)
     const r = await pfPrint(payload);
     record(r.ok, r.ok ? null : r.error ?? null);
-    return r.ok ? { ok: true } : { ok: false, error: r.error };
+    return r.ok ? { ok: true, printed: r.printed } : { ok: false, error: r.error };
   }, []);
 
 
@@ -437,6 +439,7 @@ function OrderDetail({
                 status: j.status === "processing" ? "printing" as const : j.status,
                 enqueued_at: j.submitted_at,
                 printed_at: j.completed_at,
+                printed: j.printed ?? null,
                 error: j.error,
               }))
               .slice()
@@ -799,9 +802,10 @@ function OrderDetail({
   const lampBad = halted;
 
   // 프린터 장비 상태 (게이트웨이 인쇄 대기열 기준)
+  // 인쇄 완료 = 프린터가 인쇄완료(0x40) 응답까지 보낸 job만 카운트
   const doneJobs = jobs.filter((j) => j.status === "done");
-  const waitingJobs = jobs.filter((j) => j.status !== "done");
-  const printedJobs = doneJobs.length;
+  const printedJobs = doneJobs.filter((j) => j.printed === true).length;
+  const waitingJobs = jobs.filter((j) => j.status === "pending" || j.status === "printing");
   // 인쇄 완료 목록 = 이 주문에서 실제 검증 후 인쇄 처리된 항목 (초기화 시 함께 지워짐)
   // 게이트웨이 인쇄 대기열에서 바코드별 최종 상태 조회용 맵
   const jobByCode: Record<string, PrintJob> = {};
@@ -814,6 +818,8 @@ function OrderDetail({
     .map((e) => ({ e, s: saved[e.position], job: jobByCode[norm(e.no)] ?? null }))
     .filter((r) => r.s?.status === "done" && r.s?.printed_at)
     .sort((a, b) => a.e.position - b.e.position);
+  // 실제 인쇄완료(0x40) 확인된 건수 — 게이트웨이 큐에 job이 남아있는 항목 기준
+  const confirmedPrinted = printedItems.filter((r) => r.job?.printed === true).length;
 
 
 
@@ -1115,7 +1121,7 @@ function OrderDetail({
                 <Printer className="w-4 h-4" />{tr("인쇄 대기열", "打印队列")}
                 <span className="text-xs font-normal text-muted-foreground">({queueItems.length})</span>
                 <span className="text-[11px] font-normal text-muted-foreground ml-auto">
-                  {tr("전송 중", "发送中")} {inFlightCount} · {tr("프린터 버퍼", "打印机缓冲")} {printerOffline ? "-" : pendingCount}
+                  {tr("전송 중", "发送中")} {inFlightCount} · {tr("프린터 대기", "打印机等待")} {printerOffline ? "-" : waitingJobs.length}
                 </span>
               </CardTitle>
               <div className="flex gap-1.5">
@@ -1161,17 +1167,32 @@ function OrderDetail({
                   <tbody>
                     {queueItems.length === 0 ? (
                       <tr><td colSpan={3} className="px-2 py-6 text-center text-muted-foreground">{tr("대기 중인 인쇄 작업이 없습니다", "暂无待打印作业")}</td></tr>
-                    ) : queueItems.map((s) => (
-                      <tr key={s.position} className={`border-t ${s.status === "error" ? "bg-destructive/5" : ""}`}>
-                        <td className="px-2 py-1.5 tabular-nums">{s.position}</td>
-                        <td className="px-2 py-1.5 font-mono break-all">{printValueRef.current(s.code)}</td>
-                        <td className={`px-2 py-1.5 font-medium ${s.status === "error" ? "text-destructive" : printingPos === s.position ? "text-primary" : "text-muted-foreground"}`}>
-                          {s.status === "error"
-                            ? tr("인쇄 실패 · 작업 중단", "打印失败 · 作业中断")
-                            : printingPos === s.position ? tr("전송 중", "发送中") : tr("대기", "等待")}
-                        </td>
-                      </tr>
-                    ))}
+                    ) : queueItems.map((s) => {
+                      // 스캔 검증 통과 항목이 프린터 서버 FIFO 큐에서 실제로 대기/처리 중인지 표시
+                      const job = jobByCode[norm(printValueRef.current(s.code))];
+                      const state =
+                        s.status === "error" ? "error"
+                        : job?.status === "printing" ? "printing"
+                        : job?.status === "pending" ? "printer_wait"
+                        : printingPos === s.position ? "sending"
+                        : "app_wait";
+                      const stateMeta = {
+                        error: { ko: "인쇄 실패 · 작업 중단", zh: "打印失败 · 作业中断", cls: "text-destructive" },
+                        printing: { ko: "프린터 인쇄 중", zh: "打印机打印中", cls: "text-primary" },
+                        printer_wait: { ko: "프린터 대기 중", zh: "打印机等待中", cls: "text-primary" },
+                        sending: { ko: "전송 중", zh: "发送中", cls: "text-primary" },
+                        app_wait: { ko: "전송 대기", zh: "等待发送", cls: "text-muted-foreground" },
+                      }[state];
+                      return (
+                        <tr key={s.position} className={`border-t ${s.status === "error" ? "bg-destructive/5" : ""}`}>
+                          <td className="px-2 py-1.5 tabular-nums">{s.position}</td>
+                          <td className="px-2 py-1.5 font-mono break-all">{printValueRef.current(s.code)}</td>
+                          <td className={`px-2 py-1.5 font-medium ${stateMeta.cls}`}>
+                            {isKo ? stateMeta.ko : stateMeta.zh}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1185,6 +1206,9 @@ function OrderDetail({
               <CardTitle className="text-base flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-500" />{tr("인쇄 완료", "打印完成")}
                 <span className="text-xs font-normal text-muted-foreground">({printedItems.length}/{total})</span>
+                <span className="text-[11px] font-normal text-muted-foreground ml-auto">
+                  {tr("인쇄완료(0x40) 확인", "打印完成(0x40)确认")} {confirmedPrinted}
+                </span>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -1194,15 +1218,14 @@ function OrderDetail({
                     <tr className="text-left">
                       <th className="px-2 py-1.5">{tr("순번", "序号")}</th>
                       <th className="px-2 py-1.5">{tr("바코드", "条码")}</th>
-                      <th className="px-2 py-1.5">{tr("게이트웨이 전송", "网关发送")}</th>
-                      <th className="px-2 py-1.5">{tr("프린터 전달", "送达打印机")}</th>
+                      <th className="px-2 py-1.5">{tr("인쇄 확인", "打印确认")}</th>
 
                       <th className="px-2 py-1.5">{tr("인쇄 시각", "打印时间")}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {printedItems.length === 0 ? (
-                      <tr><td colSpan={5} className="px-2 py-6 text-center text-muted-foreground">{tr("인쇄 완료 기록이 없습니다", "暂无打印完成记录")}</td></tr>
+                      <tr><td colSpan={4} className="px-2 py-6 text-center text-muted-foreground">{tr("인쇄 완료 기록이 없습니다", "暂无打印完成记录")}</td></tr>
                     ) : printedItems.map(({ e, s, job }) => (
                       <tr key={e.position} className="border-t">
                         <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{e.position}</td>
@@ -1210,14 +1233,17 @@ function OrderDetail({
                           {e.no}
                           {s?.test_mode && <span className="ml-1 text-[10px] text-amber-500">TEST</span>}
                         </td>
-                        <td className="px-2 py-1.5 text-emerald-500">{tr("전송됨", "已发送")}</td>
                         <td className="px-2 py-1.5">
                           {job?.status === "done" ? (
-                            <span className="text-emerald-500">{tr("전달됨", "已送达")}</span>
+                            job.printed === true ? (
+                              <span className="text-emerald-500">{tr("인쇄 완료", "打印完成")}</span>
+                            ) : (
+                              <span className="text-amber-600 dark:text-amber-400">{tr("완료 확인 지연", "完成确认延迟")}</span>
+                            )
                           ) : job?.status === "failed" ? (
                             <span className="text-destructive">{tr("실패", "失败")}</span>
                           ) : job ? (
-                            <span className="text-primary">{tr("전달 중", "送达中")}</span>
+                            <span className="text-primary">{tr("인쇄 중", "打印中")}</span>
                           ) : (
                             <span className="text-muted-foreground">{tr("확인 불가", "无法确认")}</span>
                           )}
@@ -1234,8 +1260,8 @@ function OrderDetail({
               </div>
               <p className="mt-2 text-[11px] text-muted-foreground">
                 {tr(
-                  "※ '전달됨'은 게이트웨이가 프린터로 명령 전송을 마쳤다는 뜻입니다. 프린터에 실제 출력 완료 신호를 되돌려주는 기능이 없어, 용지 없음·라벨 걸림 등 물리적 실패는 화면에서 확인할 수 없습니다.",
-                  "※ '已送达' 表示网关已将指令发送至打印机。打印机不会返回实际打印完成信号，因此缺纸、卡标签等物理故障无法在界面上确认。"
+                  "※ '인쇄 완료'는 프린터가 인쇄완료(0x40) 응답까지 보낸 것을 확인한 상태입니다. '완료 확인 지연'은 인쇄 트리거는 성공했으나 완료 응답 수신이 타임아웃된 경우로, 실제로는 인쇄됐을 가능성이 높습니다. 게이트웨이 큐는 최근 100건만 보관하므로 오래된 항목은 '확인 불가'로 표시됩니다.",
+                  "※ '打印完成'表示已确认打印机返回打印完成(0x40)响应。'完成确认延迟'表示打印触发成功但完成响应超时，实际很可能已打印。网关队列仅保留最近100条，较早的项目显示为'无法确认'。"
                 )}
               </p>
             </CardContent>
