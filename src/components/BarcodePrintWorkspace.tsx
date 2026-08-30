@@ -1233,14 +1233,17 @@ function OrderDetail({
                           {e.no}
                           {s?.test_mode && <span className="ml-1 text-[10px] text-amber-500">TEST</span>}
                         </td>
-                        <td className="px-2 py-1.5 text-emerald-500">{tr("전송됨", "已发送")}</td>
                         <td className="px-2 py-1.5">
                           {job?.status === "done" ? (
-                            <span className="text-emerald-500">{tr("전달됨", "已送达")}</span>
+                            job.printed === true ? (
+                              <span className="text-emerald-500">{tr("인쇄 완료", "打印完成")}</span>
+                            ) : (
+                              <span className="text-amber-600 dark:text-amber-400">{tr("완료 확인 지연", "完成确认延迟")}</span>
+                            )
                           ) : job?.status === "failed" ? (
                             <span className="text-destructive">{tr("실패", "失败")}</span>
                           ) : job ? (
-                            <span className="text-primary">{tr("전달 중", "送达中")}</span>
+                            <span className="text-primary">{tr("인쇄 중", "打印中")}</span>
                           ) : (
                             <span className="text-muted-foreground">{tr("확인 불가", "无法确认")}</span>
                           )}
