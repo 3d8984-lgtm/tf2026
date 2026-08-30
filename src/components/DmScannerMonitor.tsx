@@ -110,24 +110,34 @@ export default function DmScannerMonitor() {
     });
   }, [order]);
 
-  // 스캐너 상태 폴링
+  // 스캐너 상태 폴링 (요청이 겹치지 않도록 순차 실행 + 실패 시 지수 백오프)
   useEffect(() => {
     let alive = true;
+    let delay = 1500;
+    let timer: ReturnType<typeof setTimeout>;
     const tick = async () => {
+      let ok = false;
       try {
         const res = await proxyFetch("/api/v1/scan/status");
-        const j: any = await res.json();
+        const j: any = await res.json().catch(() => ({}));
         if (!alive) return;
-        if (!res.ok || "upstream_status" in j) { setOffline(true); return; }
-        setOffline(false);
-        setStatus(j as ScanStatus);
+        if (!res.ok || "upstream_status" in j) {
+          setOffline(true);
+        } else {
+          ok = true;
+          setOffline(false);
+          setStatus(j as ScanStatus);
+        }
       } catch {
-        if (alive) setOffline(true);
+        if (!alive) return;
+        setOffline(true);
       }
+      if (!alive) return;
+      delay = ok ? 1500 : Math.min(delay * 2, 30000);
+      timer = setTimeout(tick, delay);
     };
-    tick();
-    const iv = setInterval(tick, 1500);
-    return () => { alive = false; clearInterval(iv); };
+    void tick();
+    return () => { alive = false; clearTimeout(timer); };
   }, []);
 
   /** 검수 통과 건을 QR 인쇄기로 전송 (POST /api/v1/pf-printer/test) */
