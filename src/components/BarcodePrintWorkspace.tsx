@@ -1124,7 +1124,7 @@ function OrderDetail({
                 </Button>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button size="sm" variant="outline" className="gap-1 h-8" disabled={queueItems.length === 0}>
+                    <Button size="sm" variant="outline" className="gap-1 h-8" disabled={queueItems.length === 0 && pendingCount === 0}>
                       <Eraser className="w-3.5 h-3.5" />{tr("대기열 초기화", "清空队列")}
                     </Button>
                   </AlertDialogTrigger>
@@ -1133,8 +1133,8 @@ function OrderDetail({
                       <AlertDialogTitle>{tr("인쇄 대기열을 초기화할까요?", "确定清空打印队列吗？")}</AlertDialogTitle>
                       <AlertDialogDescription>
                         {tr(
-                          `대기 중 ${queuedCount}건${errorCount > 0 ? ` · 실패 ${errorCount}건` : ""}이 대기열에서 제거됩니다. 완료된 인쇄 기록은 유지되고, 이미 프린터로 전송 중인 작업은 끝까지 출력될 수 있습니다.`,
-                          `将移除等待中 ${queuedCount} 项${errorCount > 0 ? `、失败 ${errorCount} 项` : ""}。已完成的打印记录会保留，已发送到打印机的任务可能仍会输出。`
+                          `대기 중 ${queuedCount}건${errorCount > 0 ? ` · 실패 ${errorCount}건` : ""}이 제거되고, 프린터 서버에서 아직 시작하지 않은 인쇄 요청도 함께 취소됩니다. 완료된 기록은 유지되고, 이미 프린터가 처리 중인 1건은 끝까지 출력됩니다.`,
+                          `将移除等待中 ${queuedCount} 项${errorCount > 0 ? `、失败 ${errorCount} 项` : ""}，并取消打印服务器中尚未开始的请求。已完成的记录会保留，正在处理中的 1 项仍会打印完成。`
                         )}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
@@ -1144,6 +1144,7 @@ function OrderDetail({
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
+
               </div>
             </CardHeader>
 
