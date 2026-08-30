@@ -57,6 +57,8 @@ type PrintJob = {
   status: "pending" | "printing" | "done" | "failed";
   enqueued_at: string;
   printed_at: string | null;
+  /** kind=print & done일 때만 값 존재. true = 프린터 인쇄완료(0x40) 확인됨 */
+  printed: boolean | null;
   error: string | null;
 };
 
@@ -437,6 +439,7 @@ function OrderDetail({
                 status: j.status === "processing" ? "printing" as const : j.status,
                 enqueued_at: j.submitted_at,
                 printed_at: j.completed_at,
+                printed: j.printed ?? null,
                 error: j.error,
               }))
               .slice()
