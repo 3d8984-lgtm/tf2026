@@ -1225,7 +1225,7 @@ function OrderDetail({
                   </thead>
                   <tbody>
                     {printedItems.length === 0 ? (
-                      <tr><td colSpan={5} className="px-2 py-6 text-center text-muted-foreground">{tr("인쇄 완료 기록이 없습니다", "暂无打印完成记录")}</td></tr>
+                      <tr><td colSpan={4} className="px-2 py-6 text-center text-muted-foreground">{tr("인쇄 완료 기록이 없습니다", "暂无打印完成记录")}</td></tr>
                     ) : printedItems.map(({ e, s, job }) => (
                       <tr key={e.position} className="border-t">
                         <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{e.position}</td>
@@ -1260,8 +1260,8 @@ function OrderDetail({
               </div>
               <p className="mt-2 text-[11px] text-muted-foreground">
                 {tr(
-                  "※ '전달됨'은 게이트웨이가 프린터로 명령 전송을 마쳤다는 뜻입니다. 프린터에 실제 출력 완료 신호를 되돌려주는 기능이 없어, 용지 없음·라벨 걸림 등 물리적 실패는 화면에서 확인할 수 없습니다.",
-                  "※ '已送达' 表示网关已将指令发送至打印机。打印机不会返回实际打印完成信号，因此缺纸、卡标签等物理故障无法在界面上确认。"
+                  "※ '인쇄 완료'는 프린터가 인쇄완료(0x40) 응답까지 보낸 것을 확인한 상태입니다. '완료 확인 지연'은 인쇄 트리거는 성공했으나 완료 응답 수신이 타임아웃된 경우로, 실제로는 인쇄됐을 가능성이 높습니다. 게이트웨이 큐는 최근 100건만 보관하므로 오래된 항목은 '확인 불가'로 표시됩니다.",
+                  "※ '打印完成'表示已确认打印机返回打印完成(0x40)响应。'完成确认延迟'表示打印触发成功但完成响应超时，实际很可能已打印。网关队列仅保留最近100条，较早的项目显示为'无法确认'。"
                 )}
               </p>
             </CardContent>
