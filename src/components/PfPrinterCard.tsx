@@ -17,6 +17,7 @@ export default function PfPrinterCard({ defaultText = "" }: { defaultText?: stri
 
   const [ink, setInk] = useState<number | null>(null);
   const [buffer, setBuffer] = useState<number | null>(null);
+  const [pending, setPending] = useState<number | null>(null);
   const [offline, setOffline] = useState(false);
   const [text, setText] = useState(defaultText);
   const [busy, setBusy] = useState(false);
@@ -24,16 +25,18 @@ export default function PfPrinterCard({ defaultText = "" }: { defaultText?: stri
   useEffect(() => {
     let alive = true;
     const tick = async () => {
-      const st = await pfPrinterStatus();
+      const [st, q] = await Promise.all([pfPrinterStatus(), pfPrinterQueue()]);
       if (!alive) return;
-      setOffline(st.offline);
+      setOffline(st.offline && q.offline);
       setInk(st.ink_percent);
       setBuffer(st.buffer_count);
+      setPending(q.offline ? null : q.pendingCount);
     };
     tick();
     const iv = setInterval(tick, 5000);
     return () => { alive = false; clearInterval(iv); };
   }, []);
+
 
   const testPrint = useCallback(async () => {
     const payload = text.trim().slice(0, 200);
