@@ -521,6 +521,7 @@ function OrderDetail({
   const MAX_IN_FLIGHT = 3;
   const dispatchedRef = useRef<Set<number>>(new Set());
   const inFlightRef = useRef(0);
+  const [inFlightCount, setInFlightCount] = useState(0);
   const [printTick, setPrintTick] = useState(0);
   const [printingPos, setPrintingPos] = useState<number | null>(null);
   useEffect(() => {
@@ -534,6 +535,7 @@ function OrderDetail({
       if (inFlightRef.current >= MAX_IN_FLIGHT) break;
       dispatchedRef.current.add(item.position);
       inFlightRef.current += 1;
+      setInFlightCount(inFlightRef.current);
       setPrintingPos((p) => p ?? item.position);
       void (async () => {
         try {
@@ -545,12 +547,43 @@ function OrderDetail({
           }
         } finally {
           inFlightRef.current -= 1;
+          setInFlightCount(inFlightRef.current);
           setPrintingPos(inFlightRef.current > 0 ? item.position : null);
           setPrintTick((t) => t + 1);
         }
       })();
     }
   }, [saved, printTick, ready, testMode, sendToPrinter, markDone, markPrintError]);
+
+  /** 스캔 없이 남은 항목 전체를 인쇄 대기열(FIFO)에 적재 */
+  const enqueueAllRemaining = useCallback(async () => {
+    const targets = expected.filter((e) => {
+      const st = saved[e.position]?.status;
+      return st !== "done" && st !== "queued";
+    });
+    if (targets.length === 0) {
+      toast.info(tr("대기열에 추가할 항목이 없습니다", "没有可加入队列的项目"));
+      return;
+    }
+    const now = new Date().toISOString();
+    const rows = targets.map((e) => ({
+      kind, order_id: order.id, position: e.position, code: e.no,
+      status: "queued", verdict: "ok", scanned_value: null,
+      scanned_at: now, printed_at: null, test_mode: false,
+    }));
+    const { error } = await supabase.from("barcode_print_items").upsert(rows, { onConflict: "kind,order_id,position" });
+    if (error) { toast.error(error.message); return; }
+    setSaved((prev) => {
+      const next = { ...prev };
+      for (const e of targets) next[e.position] = { position: e.position, code: e.no, status: "queued", test_mode: false, printed_at: null };
+      return next;
+    });
+    for (const e of targets) seenRef.current.add(norm(e.no));
+    setCursor(Math.max(cursor, ...targets.map((t) => t.position)));
+    setHalted(false);
+    toast.success(`${tr("인쇄 대기열에 추가했습니다", "已加入打印队列")} · ${targets.length}`);
+  }, [expected, saved, kind, order.id, cursor, isKo]);
+
 
 
 
