@@ -1121,7 +1121,7 @@ function OrderDetail({
                 <Printer className="w-4 h-4" />{tr("인쇄 대기열", "打印队列")}
                 <span className="text-xs font-normal text-muted-foreground">({queueItems.length})</span>
                 <span className="text-[11px] font-normal text-muted-foreground ml-auto">
-                  {tr("전송 중", "发送中")} {inFlightCount} · {tr("프린터 버퍼", "打印机缓冲")} {printerOffline ? "-" : pendingCount}
+                  {tr("전송 중", "发送中")} {inFlightCount} · {tr("프린터 대기", "打印机等待")} {printerOffline ? "-" : waitingJobs.length}
                 </span>
               </CardTitle>
               <div className="flex gap-1.5">
@@ -1167,17 +1167,32 @@ function OrderDetail({
                   <tbody>
                     {queueItems.length === 0 ? (
                       <tr><td colSpan={3} className="px-2 py-6 text-center text-muted-foreground">{tr("대기 중인 인쇄 작업이 없습니다", "暂无待打印作业")}</td></tr>
-                    ) : queueItems.map((s) => (
-                      <tr key={s.position} className={`border-t ${s.status === "error" ? "bg-destructive/5" : ""}`}>
-                        <td className="px-2 py-1.5 tabular-nums">{s.position}</td>
-                        <td className="px-2 py-1.5 font-mono break-all">{printValueRef.current(s.code)}</td>
-                        <td className={`px-2 py-1.5 font-medium ${s.status === "error" ? "text-destructive" : printingPos === s.position ? "text-primary" : "text-muted-foreground"}`}>
-                          {s.status === "error"
-                            ? tr("인쇄 실패 · 작업 중단", "打印失败 · 作业中断")
-                            : printingPos === s.position ? tr("전송 중", "发送中") : tr("대기", "等待")}
-                        </td>
-                      </tr>
-                    ))}
+                    ) : queueItems.map((s) => {
+                      // 스캔 검증 통과 항목이 프린터 서버 FIFO 큐에서 실제로 대기/처리 중인지 표시
+                      const job = jobByCode[norm(printValueRef.current(s.code))];
+                      const state =
+                        s.status === "error" ? "error"
+                        : job?.status === "printing" ? "printing"
+                        : job?.status === "pending" ? "printer_wait"
+                        : printingPos === s.position ? "sending"
+                        : "app_wait";
+                      const stateMeta = {
+                        error: { ko: "인쇄 실패 · 작업 중단", zh: "打印失败 · 作业中断", cls: "text-destructive" },
+                        printing: { ko: "프린터 인쇄 중", zh: "打印机打印中", cls: "text-primary" },
+                        printer_wait: { ko: "프린터 대기 중", zh: "打印机等待中", cls: "text-primary" },
+                        sending: { ko: "전송 중", zh: "发送中", cls: "text-primary" },
+                        app_wait: { ko: "전송 대기", zh: "等待发送", cls: "text-muted-foreground" },
+                      }[state];
+                      return (
+                        <tr key={s.position} className={`border-t ${s.status === "error" ? "bg-destructive/5" : ""}`}>
+                          <td className="px-2 py-1.5 tabular-nums">{s.position}</td>
+                          <td className="px-2 py-1.5 font-mono break-all">{printValueRef.current(s.code)}</td>
+                          <td className={`px-2 py-1.5 font-medium ${stateMeta.cls}`}>
+                            {isKo ? stateMeta.ko : stateMeta.zh}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
