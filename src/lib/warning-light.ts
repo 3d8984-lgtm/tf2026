@@ -21,13 +21,11 @@ async function post(path: string, body: Record<string, unknown>): Promise<Respon
   }
 }
 
-/** 1번 경고등(구형 Modbus-RTU). 엔드포인트가 사라졌으면 2번 경고등으로 폴백. */
+/** 경고등 제어 — 통합 v1 API(`/api/v1/d3v1-light/control`) 단일 경로. */
 async function control(body: Record<string, unknown>) {
-  const res = await post("/api/v1/warning-light/control", body);
-  if (!res || res.status === 404 || res.status === 405 || res.status === 501) {
-    await control2(body);
-  }
+  await control2(body);
 }
+
 
 /** 검수 통과: 녹색등을 0.5초간 점등 후 자동 소등 */
 export async function warnLightOkFlash() {
