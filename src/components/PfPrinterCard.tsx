@@ -111,6 +111,19 @@ export default function PfPrinterCard({ defaultText = "" }: { defaultText?: stri
           >
             <Square className="w-3.5 h-3.5" />
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            title={tr("대기 중인 인쇄 요청 취소 (처리 중 1건은 유지)", "取消等待中的打印请求（处理中的1项保留）")}
+            onClick={async () => {
+              const r = await pfPrinterQueueClear();
+              r.ok ? toast.success(`${tr("대기열을 비웠습니다", "已清空队列")} · ${r.cleared}`)
+                   : toast.error(`${tr("대기열 초기화 실패", "清空队列失败")} — ${r.error}`);
+            }}
+          >
+            <Eraser className="w-3.5 h-3.5" />
+
         </div>
       </CardContent>
     </Card>
