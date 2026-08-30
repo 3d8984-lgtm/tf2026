@@ -18,7 +18,7 @@ import {
 import { toast } from "sonner";
 import {
   ScanLine, Printer, RotateCcw, CheckCircle2, XCircle, Wifi, WifiOff,
-  ChevronLeft, AlertTriangle, Loader2, Play, Pause, SkipForward, FlaskConical,
+  ChevronLeft, AlertTriangle, Loader2, Play, Pause, SkipForward, FlaskConical, Eraser,
 } from "lucide-react";
 
 import PfPrinterCard from "@/components/PfPrinterCard";
@@ -601,6 +601,31 @@ function OrderDetail({
     setHalted(false);
     toast.success(`${tr("인쇄 대기열에 추가했습니다", "已加入打印队列")} · ${targets.length}`);
   }, [expected, saved, kind, order.id, cursor, isKo]);
+
+  /** 인쇄 대기열 초기화 — 대기(queued)/실패(error) 항목만 제거. 완료 기록은 유지 */
+  const clearQueue = useCallback(async () => {
+    const targets = Object.values(saved).filter((s) => s.status === "queued" || s.status === "error");
+    if (targets.length === 0) {
+      toast.info(tr("초기화할 대기열 항목이 없습니다", "没有可清空的队列项目"));
+      return;
+    }
+    const { error } = await supabase
+      .from("barcode_print_items")
+      .delete()
+      .eq("kind", kind)
+      .eq("order_id", order.id)
+      .in("status", ["queued", "error"]);
+    if (error) { toast.error(error.message); return; }
+    // 전송 중(in-flight)이 아닌 항목은 재디스패치 가능 상태로 정리
+    for (const s of targets) dispatchedRef.current.delete(s.position);
+    setSaved((prev) => {
+      const next = { ...prev };
+      for (const s of targets) delete next[s.position];
+      return next;
+    });
+    setHalted(false);
+    toast.success(`${tr("인쇄 대기열을 초기화했습니다", "打印队列已清空")} · ${targets.length}`);
+  }, [saved, kind, order.id, isKo]);
 
 
 
