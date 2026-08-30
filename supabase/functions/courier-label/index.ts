@@ -791,23 +791,38 @@ async function createYunOpenApiOrder(
   if (weave) { declaration.weaving_mode = weave; declaration.weave_method = weave; }
 
   // 발신자(发件人) 정보 — 미전송 시 관리자 페이지 발신인 영역이 비어 있어 반드시 포함한다.
+  // YunExpress OpenAPI 버전에 따라 키 이름이 street/postcode/phone 계열과
+  // address_lines/postal_code/phone_number 계열로 갈리므로 양쪽 별칭을 함께 보낸다.
   const senderName = s("sender_name") || "TWINMETA";
   const senderParts = senderName.split(/\s+/);
+  const senderStreet = s("sender_street") || "-";
+  const senderZip = s("sender_post_code", "sender_zip") || "518000";
+  const senderPhone = s("sender_phone") || "13000000000";
+  const senderCompany = s("sender_company") || senderName;
   const sender = {
     first_name: senderParts[0] ?? senderName,
     last_name: senderParts.slice(1).join(" ") || senderParts[0] || senderName,
-    company: s("sender_company") || senderName,
+    name: senderName,
+    company: senderCompany,
+    company_name: senderCompany,
     country_code: s("sender_country") || "CN",
     province: s("sender_state") || "GuangDong",
+    state: s("sender_state") || "GuangDong",
     city: s("sender_city") || "Shenzhen",
-    address_lines: [s("sender_street") || "-"],
-    postal_code: s("sender_post_code", "sender_zip") || "518000",
-    phone_number: s("sender_phone") || "13000000000",
+    district: s("sender_district"),
+    street: senderStreet,
+    address: senderStreet,
+    address_lines: [senderStreet],
+    postal_code: senderZip,
+    postcode: senderZip,
+    zip: senderZip,
+    phone_number: senderPhone,
+    phone: senderPhone,
     email: s("sender_email"),
     usci: s("sender_usci", "usci"),
   };
 
-  const body = JSON.stringify({
+  const payload = {
     product_code: cred?.extra?.openapi_product_code ?? cred?.extra?.channel_code ?? "",
     customer_order_number: String(order.external_order_id ?? "").slice(0, 50),
     weight_unit: "KG",
@@ -817,6 +832,7 @@ async function createYunOpenApiOrder(
     packages: [{ weight: weightKg, length: Number(cred?.extra?.length_cm ?? 25), width: Number(cred?.extra?.width_cm ?? 20), height: Number(cred?.extra?.height_cm ?? 3) }],
     sender,
     shipper: sender,
+    sender_info: sender,
     receiver: {
       first_name: r.first_name,
       last_name: r.last_name,
@@ -830,9 +846,11 @@ async function createYunOpenApiOrder(
       email: src.recipient_email ?? "",
     },
     declaration_info: [declaration],
-  });
+  };
+  const body = JSON.stringify(payload);
   console.log("[yun openapi declaration]", JSON.stringify(declaration));
-  console.log("[yun openapi sender]", JSON.stringify(sender));
+  console.log("[yun openapi request]", body.slice(0, 2000));
+
 
 
 
