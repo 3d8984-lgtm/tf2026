@@ -18,7 +18,7 @@ import {
 import { toast } from "sonner";
 import {
   ScanLine, Printer, RotateCcw, CheckCircle2, XCircle, Wifi, WifiOff,
-  ChevronLeft, AlertTriangle, Loader2, Play, Pause, SkipForward, FlaskConical,
+  ChevronLeft, AlertTriangle, Loader2, Play, Pause, SkipForward, FlaskConical, Eraser,
 } from "lucide-react";
 
 import PfPrinterCard from "@/components/PfPrinterCard";
@@ -602,6 +602,31 @@ function OrderDetail({
     toast.success(`${tr("인쇄 대기열에 추가했습니다", "已加入打印队列")} · ${targets.length}`);
   }, [expected, saved, kind, order.id, cursor, isKo]);
 
+  /** 인쇄 대기열 초기화 — 대기(queued)/실패(error) 항목만 제거. 완료 기록은 유지 */
+  const clearQueue = useCallback(async () => {
+    const targets = Object.values(saved).filter((s) => s.status === "queued" || s.status === "error");
+    if (targets.length === 0) {
+      toast.info(tr("초기화할 대기열 항목이 없습니다", "没有可清空的队列项目"));
+      return;
+    }
+    const { error } = await supabase
+      .from("barcode_print_items")
+      .delete()
+      .eq("kind", kind)
+      .eq("order_id", order.id)
+      .in("status", ["queued", "error"]);
+    if (error) { toast.error(error.message); return; }
+    // 전송 중(in-flight)이 아닌 항목은 재디스패치 가능 상태로 정리
+    for (const s of targets) dispatchedRef.current.delete(s.position);
+    setSaved((prev) => {
+      const next = { ...prev };
+      for (const s of targets) delete next[s.position];
+      return next;
+    });
+    setHalted(false);
+    toast.success(`${tr("인쇄 대기열을 초기화했습니다", "打印队列已清空")} · ${targets.length}`);
+  }, [saved, kind, order.id, isKo]);
+
 
 
 
@@ -1084,9 +1109,33 @@ function OrderDetail({
                   {tr("전송 중", "发送中")} {inFlightCount} · {tr("프린터 버퍼", "打印机缓冲")} {printerOffline ? "-" : pendingCount}
                 </span>
               </CardTitle>
-              <Button size="sm" variant="outline" className="gap-1 h-8 w-full" onClick={() => void enqueueAllRemaining()}>
-                <Printer className="w-3.5 h-3.5" />{tr("남은 항목 전체 대기열 추가", "将剩余项目全部加入队列")}
-              </Button>
+              <div className="flex gap-1.5">
+                <Button size="sm" variant="outline" className="gap-1 h-8 flex-1" onClick={() => void enqueueAllRemaining()}>
+                  <Printer className="w-3.5 h-3.5" />{tr("남은 항목 전체 대기열 추가", "将剩余项目全部加入队列")}
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button size="sm" variant="outline" className="gap-1 h-8" disabled={queueItems.length === 0}>
+                      <Eraser className="w-3.5 h-3.5" />{tr("대기열 초기화", "清空队列")}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>{tr("인쇄 대기열을 초기화할까요?", "确定清空打印队列吗？")}</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {tr(
+                          `대기 중 ${queuedCount}건${errorCount > 0 ? ` · 실패 ${errorCount}건` : ""}이 대기열에서 제거됩니다. 완료된 인쇄 기록은 유지되고, 이미 프린터로 전송 중인 작업은 끝까지 출력될 수 있습니다.`,
+                          `将移除等待中 ${queuedCount} 项${errorCount > 0 ? `、失败 ${errorCount} 项` : ""}。已完成的打印记录会保留，已发送到打印机的任务可能仍会输出。`
+                        )}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>{tr("취소", "取消")}</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => { void clearQueue(); }}>{tr("초기화", "清空")}</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
             </CardHeader>
 
             <CardContent>
