@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { warnLightOkFlash, warnLightError, warnLight2OkFlash } from "@/lib/warning-light";
-import { pfPrint, pfPrinterStatus } from "@/lib/pf-printer";
+import { pfPrint, pfPrinterStatus, pfPrinterQueue } from "@/lib/pf-printer";
 
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -412,10 +412,11 @@ function OrderDetail({
       if (inFlight) return;
       inFlight = true;
       try {
-        const [sRes, pf, hRes] = await Promise.all([
+        const [sRes, pf, hRes, q] = await Promise.all([
           proxyFetch("/api/v1/scan/status"),
           pfPrinterStatus(),
           proxyFetch("/api/v1/scan/history"),
+          pfPrinterQueue(),
         ]);
         const s: any = await sRes.json();
         if (!alive) return;
