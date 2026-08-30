@@ -802,9 +802,10 @@ function OrderDetail({
   const lampBad = halted;
 
   // 프린터 장비 상태 (게이트웨이 인쇄 대기열 기준)
+  // 인쇄 완료 = 프린터가 인쇄완료(0x40) 응답까지 보낸 job만 카운트
   const doneJobs = jobs.filter((j) => j.status === "done");
-  const waitingJobs = jobs.filter((j) => j.status !== "done");
-  const printedJobs = doneJobs.length;
+  const printedJobs = doneJobs.filter((j) => j.printed === true).length;
+  const waitingJobs = jobs.filter((j) => j.status === "pending" || j.status === "printing");
   // 인쇄 완료 목록 = 이 주문에서 실제 검증 후 인쇄 처리된 항목 (초기화 시 함께 지워짐)
   // 게이트웨이 인쇄 대기열에서 바코드별 최종 상태 조회용 맵
   const jobByCode: Record<string, PrintJob> = {};
@@ -817,6 +818,8 @@ function OrderDetail({
     .map((e) => ({ e, s: saved[e.position], job: jobByCode[norm(e.no)] ?? null }))
     .filter((r) => r.s?.status === "done" && r.s?.printed_at)
     .sort((a, b) => a.e.position - b.e.position);
+  // 실제 인쇄완료(0x40) 확인된 건수 — 게이트웨이 큐에 job이 남아있는 항목 기준
+  const confirmedPrinted = printedItems.filter((r) => r.job?.printed === true).length;
 
 
 
