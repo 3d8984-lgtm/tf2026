@@ -537,12 +537,23 @@ async function fetchYunOpenApiLabel(
   const path = "/v1/order/label/get";
   const list = refs.filter(Boolean);
   let lastRef = "";
-  // Hard wall-clock budget: the edge runtime kills the request at 150s idle.
-  // Label fetch + download must always finish well before that.
-  const deadline = Date.now() + 45_000;
+  // Every /v1/order/label/get call is recorded by YunExpress as a "打印订单" event,
+  // so it must be requested as few times as possible: once we hold a label URL we
+  // only re-download that URL instead of asking the carrier for the label again.
+  let cachedUrl: string | null = null;
+  let cachedType = "application/pdf";
+  const deadline = Date.now() + 60_000;
   for (let attempt = 0; attempt < Math.max(1, attempts); attempt++) {
     if (Date.now() > deadline) break;
     if (attempt > 0) await new Promise((r) => setTimeout(r, 1500 * attempt));
+
+    // Retry path: reuse the URL we already obtained — no new carrier print event.
+    if (cachedUrl) {
+      const again = await inlineLabelUrl(cachedUrl, cachedType, 30_000);
+      if (again) return again;
+      continue;
+    }
+
     for (const ref of list) {
       if (Date.now() > deadline) break;
       lastRef = ref;
@@ -560,8 +571,12 @@ async function fetchYunOpenApiLabel(
           .find((v: unknown) => typeof v === "string" && v.length > 500) as string | undefined;
 
         if (raw?.success !== false && url) {
-          const inlined = await inlineLabelUrl(url, type);
+          cachedUrl = url;
+          cachedType = type;
+          const inlined = await inlineLabelUrl(url, type, 30_000);
           if (inlined) return inlined;
+          // URL is valid but the CDN was slow — stop asking the carrier for more labels.
+          break;
         }
         if (raw?.success !== false && b64) {
           const decoded = base64LabelToDataUrl(b64, type);
@@ -574,9 +589,10 @@ async function fetchYunOpenApiLabel(
       }
     }
   }
-  if (lastRef) await fetchYunOpenApiInfo(root, token, secret, lastRef);
+  if (!cachedUrl && lastRef) await fetchYunOpenApiInfo(root, token, secret, lastRef);
   return null;
 }
+
 
 
 /** YunExpress: fetch the shipping label PDF for an already-created waybill. */
