@@ -886,9 +886,7 @@ function OrderDetail({
   const doneJobs = jobs.filter((j) => j.status === "done");
   const printedJobs = doneJobs.filter((j) => j.printed === true).length;
   // 패널2(인쇄 대기열) = pending/processing + (done 이지만 인쇄완료 미확인)
-  const waitingJobs = jobs.filter(
-    (j) => j.status === "pending" || j.status === "printing" || (j.status === "done" && j.printed === false),
-  );
+  const waitingJobs = selectWaitingJobs(jobs);
 
   // ── 인쇄 대기열 표시 데이터 ────────────────────────────────────────
   // 프린터 서버 FIFO 큐에 실제 대기/처리 중인 건 + 앱에서 전송 중인 건 + 실패로 멈춘 건
