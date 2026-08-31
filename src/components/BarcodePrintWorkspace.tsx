@@ -818,6 +818,8 @@ function OrderDetail({
     setCutoff(serverCut);
     cutoffRef.current = serverCut;
     setJobs([]);
+    setPrintedAcc({});
+    setCompleteEvents({});
     setHistory([]);
     setQueue([]);
     setPendingCount(0);
