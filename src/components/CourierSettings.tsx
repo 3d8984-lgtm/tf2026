@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLang } from "@/contexts/LangContext";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -65,6 +66,8 @@ const emptyCred = {
   weaving_mode: "",
   ref_label: "",
   remark: "",
+  // YunExpress declaration_info에 병합할 추가 키/값 (JSON)
+  declaration_extra: "",
 
 };
 
@@ -170,6 +173,9 @@ export default function CourierSettings() {
       weaving_mode: s("weaving_mode"),
       ref_label: s("ref_label"),
       remark: s("remark"),
+      declaration_extra: typeof e.declaration_extra === "object" && e.declaration_extra !== null
+        ? JSON.stringify(e.declaration_extra, null, 2)
+        : s("declaration_extra"),
 
 
     }));
@@ -244,6 +250,27 @@ export default function CourierSettings() {
       put("weaving_mode", cred.weaving_mode);
       put("ref_label", cred.ref_label);
       put("remark", cred.remark);
+      // declaration_info에 병합할 사용자 정의 항목 (JSON 객체). 잘못된 JSON이면 저장 차단.
+      const declRaw = cred.declaration_extra.trim();
+      if (declRaw) {
+        try {
+          const parsed = JSON.parse(declRaw);
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            extra.declaration_extra = parsed;
+          } else {
+            throw new Error("not-object");
+          }
+        } catch {
+          toast({
+            variant: "destructive",
+            title: tr("declaration_info 형식 오류", "declaration_info 格式错误"),
+            description: tr("JSON 객체 형식으로 입력하세요. 예: {\"key\": \"value\"}", "请输入 JSON 对象格式，例如 {\"key\": \"value\"}"),
+          });
+          return;
+        }
+      } else {
+        delete extra.declaration_extra;
+      }
 
       if (cred.unit_price.trim() && !Number.isNaN(Number(cred.unit_price))) extra.unit_price = Number(cred.unit_price);
       else delete extra.unit_price;
@@ -706,6 +733,27 @@ export default function CourierSettings() {
                       {tr(
                         "YunExpress 송장 사전발행 시 remark 필드로 전송되는 제품 비고 내용입니다.",
                         "云途预出运单时作为 remark 字段发送的产品备注内容。",
+                      )}
+                    </p>
+                  </div>
+                )}
+
+                {credDialog?.code === "yunexpress" && (
+                  <div className="space-y-1.5 col-span-2">
+                    <Label className="text-xs">{tr("declaration_info 추가 항목 (JSON)", "declaration_info 附加项 (JSON)")}</Label>
+                    <Textarea
+                      value={cred.declaration_extra}
+                      onChange={(e) => setCred((c) => ({ ...c, declaration_extra: e.target.value }))}
+                      placeholder={'{ "sender_name": "TWINMETA", "sender_phone": "13000000000" }'}
+                      rows={3}
+                      className="font-mono text-xs"
+                      autoComplete="off"
+                      data-1p-ignore data-lpignore="true" data-form-type="other"
+                    />
+                    <p className="text-[11px] text-muted-foreground leading-tight">
+                      {tr(
+                        "YunExpress 신고정보(declaration_info) 객체에 그대로 병합되는 사용자 정의 키/값입니다. 택배사에서 요청한 발신자 정보 등을 JSON 객체로 입력하세요. 비워두면 발신자 정보가 자동으로 포함됩니다.",
+                        "将原样合并到 YunExpress 申报信息(declaration_info)对象中的自定义键/值。请以 JSON 对象输入快递公司要求的发件人信息等。留空时自动包含发件人信息。",
                       )}
                     </p>
                   </div>
