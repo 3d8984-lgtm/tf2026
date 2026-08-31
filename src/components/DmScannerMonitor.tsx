@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { ScanLine, RotateCcw, CheckCircle2, XCircle, Wifi, WifiOff, ShieldAlert, Printer, AlertTriangle, BellOff } from "lucide-react";
+import { ScanLine, RotateCcw, CheckCircle2, XCircle, Wifi, WifiOff, ShieldAlert, Printer, AlertTriangle, BellOff, Loader2 } from "lucide-react";
 import { STAGE_PLC } from "@/hooks/usePlcStatus";
 import { scanSuccess, scanFail } from "@/lib/scan-sound";
 import { pfPrint } from "@/lib/pf-printer";
