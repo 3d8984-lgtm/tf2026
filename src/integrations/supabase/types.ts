@@ -46,7 +46,9 @@ export type Database = {
           kind: string
           order_id: string
           position: number
+          print_confirmed_at: string | null
           printed_at: string | null
+          printer_job_id: string | null
           scanned_at: string | null
           scanned_value: string | null
           status: string
@@ -62,7 +64,9 @@ export type Database = {
           kind: string
           order_id: string
           position: number
+          print_confirmed_at?: string | null
           printed_at?: string | null
+          printer_job_id?: string | null
           scanned_at?: string | null
           scanned_value?: string | null
           status?: string
@@ -78,7 +82,9 @@ export type Database = {
           kind?: string
           order_id?: string
           position?: number
+          print_confirmed_at?: string | null
           printed_at?: string | null
+          printer_job_id?: string | null
           scanned_at?: string | null
           scanned_value?: string | null
           status?: string
@@ -881,6 +887,53 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      print_complete_events: {
+        Row: {
+          code: string
+          created_at: string
+          device: string | null
+          error: string | null
+          event_at: string
+          id: string
+          job_id: string | null
+          matched_item_id: string | null
+          printed: boolean
+          raw: Json | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          device?: string | null
+          error?: string | null
+          event_at?: string
+          id?: string
+          job_id?: string | null
+          matched_item_id?: string | null
+          printed?: boolean
+          raw?: Json | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          device?: string | null
+          error?: string | null
+          event_at?: string
+          id?: string
+          job_id?: string | null
+          matched_item_id?: string | null
+          printed?: boolean
+          raw?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "print_complete_events_matched_item_id_fkey"
+            columns: ["matched_item_id"]
+            isOneToOne: false
+            referencedRelation: "barcode_print_items"
             referencedColumns: ["id"]
           },
         ]
