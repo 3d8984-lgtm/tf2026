@@ -737,6 +737,27 @@ export default function CourierSettings() {
                     </p>
                   </div>
                 )}
+
+                {credDialog?.code === "yunexpress" && (
+                  <div className="space-y-1.5 col-span-2">
+                    <Label className="text-xs">{tr("declaration_info 추가 항목 (JSON)", "declaration_info 附加项 (JSON)")}</Label>
+                    <Textarea
+                      value={cred.declaration_extra}
+                      onChange={(e) => setCred((c) => ({ ...c, declaration_extra: e.target.value }))}
+                      placeholder={'{ "sender_name": "TWINMETA", "sender_phone": "13000000000" }'}
+                      rows={3}
+                      className="font-mono text-xs"
+                      autoComplete="off"
+                      data-1p-ignore data-lpignore="true" data-form-type="other"
+                    />
+                    <p className="text-[11px] text-muted-foreground leading-tight">
+                      {tr(
+                        "YunExpress 신고정보(declaration_info) 객체에 그대로 병합되는 사용자 정의 키/값입니다. 택배사에서 요청한 발신자 정보 등을 JSON 객체로 입력하세요. 비워두면 발신자 정보가 자동으로 포함됩니다.",
+                        "将原样合并到 YunExpress 申报信息(declaration_info)对象中的自定义键/值。请以 JSON 对象输入快递公司要求的发件人信息等。留空时自动包含发件人信息。",
+                      )}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
