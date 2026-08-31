@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useLang } from "@/contexts/LangContext";
 import { toast } from "sonner";
-import { Printer, Wifi, WifiOff, Play, Square, Eraser } from "lucide-react";
+import { Printer, Wifi, WifiOff, Play, Square, Eraser, Loader2 } from "lucide-react";
 import { pfPrint, pfPrinterRun, pfPrinterStop, pfPrinterStatus, pfPrinterQueue, pfPrinterQueueClear } from "@/lib/pf-printer";
 
 
