@@ -799,7 +799,12 @@ async function createYunOpenApiOrder(
     currency: "USD",
   };
   if (hsCode) declaration.hs_code = hsCode;
-  if (sku) declaration.sku = sku;
+  if (sku) { declaration.sku = sku; declaration.sku_code = sku; }
+  // 택배사 안내: 비고(remark)는 최상위가 아니라 declaration_info 안에 넣어야 반영됨
+  const declRemark = s("remark");
+  if (declRemark) declaration.remark = declRemark.slice(0, 100);
+  const salesUrl = s("sales_url");
+  if (salesUrl) declaration.sales_url = salesUrl;
   if (brand) { declaration.brand = brand; declaration.brand_name = brand; }
   if (material) { declaration.material = material; declaration.texture = material; }
   if (usage) { declaration.usage = usage; declaration.purpose = usage; }
