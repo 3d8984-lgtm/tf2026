@@ -64,6 +64,7 @@ const emptyCred = {
   spec: "",
   weaving_mode: "",
   ref_label: "",
+  remark: "",
 
 };
 
@@ -168,6 +169,7 @@ export default function CourierSettings() {
       spec: s("spec"),
       weaving_mode: s("weaving_mode"),
       ref_label: s("ref_label"),
+      remark: s("remark"),
 
 
     }));
@@ -241,6 +243,7 @@ export default function CourierSettings() {
       put("spec", cred.spec);
       put("weaving_mode", cred.weaving_mode);
       put("ref_label", cred.ref_label);
+      put("remark", cred.remark);
 
       if (cred.unit_price.trim() && !Number.isNaN(Number(cred.unit_price))) extra.unit_price = Number(cred.unit_price);
       else delete extra.unit_price;
