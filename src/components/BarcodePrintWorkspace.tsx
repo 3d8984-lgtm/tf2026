@@ -344,39 +344,7 @@ function OrderDetail({
 
 
   // 기대 스캔 순서 = 고유번호(개별 주문번호 + suffix) 순서
-  const expected = useMemo(() => {
-    const src: any[] = Array.isArray(order.source_data?.items) ? order.source_data.items : [];
-    const count = Math.max(src.length, order.quantity ?? 0);
-    return Array.from({ length: count }, (_, idx) => {
-      const it = src[idx] || {};
-      const base = String(it.order_id ?? it.sequence_no ?? `${order.external_order_id}-${idx + 1}`);
-      const no = `${base}${suffix}`;
-      // 카드 고유번호 = NFC-0141-000054 형태만 추출 (NDEF 전체 문자열은 인쇄하지 않음)
-      const ndef = String(it.nfc_ndef_data ?? "");
-      const pickCardNo = (raw: unknown): string => {
-        const s = String(raw ?? "").trim();
-        if (!s) return "";
-        const m = s.match(/NFC-[A-Za-z0-9]+-[A-Za-z0-9]+/i);
-        if (m) return m[0];
-        // 파이프가 있으면 NDEF 원문이므로 두 번째 세그먼트만 사용
-        if (s.includes("|")) return (s.split("|")[1] ?? "").trim();
-        return s;
-      };
-      const cardNo =
-        pickCardNo(it.card_no) ||
-        pickCardNo(it.card_unique_no) ||
-        pickCardNo(it.unique_no) ||
-        pickCardNo(ndef);
-
-      return {
-        position: idx + 1,
-        no,
-        base,
-        cardNo: cardNo || null,
-        keys: [no, base, cardNo].filter(Boolean).map((v: string) => norm(v)),
-      };
-    });
-  }, [order, suffix]);
+  const expected = useMemo(() => buildExpected(order, suffix), [order, suffix]);
 
   // 서버에 저장된 작업 이력 로드 / 없으면 생성
   const loadSaved = useCallback(async () => {
