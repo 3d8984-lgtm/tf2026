@@ -587,6 +587,9 @@ function OrderDetail({
     let c = cursor;
     let lastV: Verdict | null = null;
     let halt = false;
+    // 이미 중단 상태면 이후 스캔은 검증만 기록하고 프린터로 절대 전송하지 않는다.
+    // (작업자가 '재개' 버튼을 눌러야만 다시 전송)
+    let blocked = halted;
     const rows: LogRow[] = [];
 
     for (const ev of events) {
@@ -609,14 +612,14 @@ function OrderDetail({
         seenRef.current.add(code);
         c += 1;
         // 생산자(스캔)는 검증 후 인쇄 대기열에 적재만 한다 — 실제 인쇄는 소비자 루프가 순서대로 처리
-        void markQueued(target.position, target.no, ev.barcode);
+        if (!blocked) void markQueued(target.position, target.no, ev.barcode);
       } else {
         const found = expected.findIndex((e) => e.keys.includes(code));
         if (found >= 0) { verdict = "order"; position = found + 1; }
       }
 
       lastV = verdict;
-      if (verdict !== "ok") halt = true;
+      if (verdict !== "ok") { halt = true; blocked = true; }
       rows.push({ at: ev.scanned_at, barcode: ev.barcode, verdict, expected: target?.no ?? null, position });
     }
 
@@ -627,14 +630,14 @@ function OrderDetail({
     // 1번 경고등: 순서 일치 → 녹색 0.5초 점멸 / 불일치 → 빨강 점등 유지
     if (kind === "card") {
       if (halt) void warnLightError();
-      else if (lastV === "ok") {
+      else if (lastV === "ok" && !blocked) {
         void warnLightOkFlash();
         // 2번 경고등: 검증 일치 시 녹색 0.5초 점등
         void warnLight2OkFlash();
       }
     }
     setLog((prev) => [...rows.slice().reverse(), ...prev].slice(0, 100));
-  }, [queue, expected, cursor, testMode, ready, markQueued, kind]);
+  }, [queue, expected, cursor, testMode, ready, markQueued, kind, halted]);
 
 
   // ── 소비자(인쇄 큐 적재) ───────────────────────────────────────────
