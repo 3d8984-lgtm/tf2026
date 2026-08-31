@@ -166,7 +166,7 @@ Deno.serve(async (req) => {
     for (const k of keys) {
       const gid = idByKey.get(k);
       if (!gid) continue;
-      const toLink = buckets.get(k)!.itemIds.filter((id) => currentGroup.get(id) !== gid);
+      const toLink = parcelByKey.get(k)!.itemIds.filter((id) => currentGroup.get(id) !== gid);
       for (let i = 0; i < toLink.length; i += 200) {
         const chunk = toLink.slice(i, i + 200);
         const { error } = await admin.from("shipment_scan_items").update({ shipping_group_id: gid }).in("id", chunk);
