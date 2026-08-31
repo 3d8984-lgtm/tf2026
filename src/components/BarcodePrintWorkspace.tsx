@@ -412,7 +412,10 @@ function OrderDetail({
 
 
 
-  // 스캐너 상태 + 인쇄 대기열 폴링
+  // ── 스캐너 폴링 (프린터 큐와 분리) ─────────────────────────────────
+  // 게이트웨이는 /pf-printer/* 요청을 하나의 FIFO 큐로 직렬 처리하므로, 프린터 상태 조회를
+  // 스캔 폴링과 같은 tick 에 묶으면 인쇄가 진행되는 동안 스캔 이력 수집까지 함께 지연된다.
+  // → 스캔(status/history)은 1초 주기로 독립 실행해 검증이 건건이 즉시 이뤄지게 한다.
   useEffect(() => {
     let alive = true;
     let inFlight = false;
@@ -420,20 +423,56 @@ function OrderDetail({
       if (inFlight) return;
       inFlight = true;
       try {
-        const [sRes, pf, hRes, q] = await Promise.all([
+        const [sRes, hRes] = await Promise.all([
           proxyFetch("/api/v1/scan/status"),
-          pfPrinterStatus(),
           proxyFetch("/api/v1/scan/history"),
-          pfPrinterQueue(),
         ]);
         const s: any = await sRes.json();
         if (!alive) return;
         if (!sRes.ok || "upstream_status" in s) { setOffline(true); }
         else { setOffline(false); setStatus(s as ScanStatus); }
         const cut = ts(cutoffRef.current);
-        // PF 프린터 상태 (잉크/버퍼) — 인쇄 대기 건수는 프린터 버퍼 기준
+        if (hRes.ok) {
+          const h: any = await hRes.json();
+          if (Array.isArray(h?.events)) {
+            const events = (h.events as ScanEvent[])
+              .filter((e) => ts(e.scanned_at) > cut)
+              .sort((a, b) => ts(a.scanned_at) - ts(b.scanned_at));
+            setHistory(events.slice(-100).slice().reverse());
+
+            // 게이트웨이 이력 기반 검증: 폴링 간격 안에 여러 건이 스캔돼도 모두 순서대로 처리한다.
+            const fresh = events.filter((e) => !processedRef.current.has(e.id));
+            for (const e of fresh) processedRef.current.add(e.id);
+            if (!primedRef.current) primedRef.current = true; // 최초 진입 시 기존 이력은 재처리하지 않음
+            else if (fresh.length > 0) setQueue((q) => [...q, ...fresh]);
+          }
+        }
+      } catch {
+        if (alive) setOffline(true);
+      } finally {
+        inFlight = false;
+        if (alive) setProbed(true);
+      }
+    };
+    tick();
+    const iv = setInterval(tick, 1000);
+    return () => { alive = false; clearInterval(iv); };
+  }, []);
+
+  // ── 프린터 상태/큐 폴링 ────────────────────────────────────────────
+  // 상태 조회도 같은 FIFO 큐를 소비하므로, 인쇄가 진행 중일 때는 폴링을 건너뛰어
+  // 실제 인쇄 요청이 조회 요청 뒤에서 대기하지 않도록 한다.
+  useEffect(() => {
+    let alive = true;
+    let inFlight = false;
+    const tick = async () => {
+      if (inFlight || inFlightRef.current > 0) return;
+      inFlight = true;
+      try {
+        const [pf, q] = await Promise.all([pfPrinterStatus(), pfPrinterQueue()]);
+        if (!alive) return;
+        const cut = ts(cutoffRef.current);
         setPrinterOffline(pf.offline && q.offline);
-        // 서버 FIFO 큐의 실제 작업 목록 (초기화 컷오프 이후만 표시)
         setPendingCount(q.offline ? (pf.buffer_count ?? 0) : q.pendingCount);
         if (!q.offline) {
           setJobs(
@@ -452,35 +491,17 @@ function OrderDetail({
               .reverse(),
           );
         }
-        if (hRes.ok) {
-          const h: any = await hRes.json();
-          if (Array.isArray(h?.events)) {
-            const events = (h.events as ScanEvent[])
-              .filter((e) => ts(e.scanned_at) > cut)
-              .sort((a, b) => ts(a.scanned_at) - ts(b.scanned_at));
-            setHistory(events.slice(-100).slice().reverse());
-
-            // 게이트웨이 이력 기반 검증: 폴링 간격 안에 여러 건이 스캔돼도 모두 순서대로 처리한다.
-            const fresh = events.filter((e) => !processedRef.current.has(e.id));
-            for (const e of fresh) processedRef.current.add(e.id);
-            if (!primedRef.current) primedRef.current = true; // 최초 진입 시 기존 이력은 재처리하지 않음
-            else if (fresh.length > 0) setQueue((q) => [...q, ...fresh]);
-          }
-        }
-
-
       } catch {
-        if (alive) { setOffline(true); setPrinterOffline(true); }
+        if (alive) setPrinterOffline(true);
       } finally {
         inFlight = false;
-        if (alive) setProbed(true);
       }
-
     };
     tick();
-    const iv = setInterval(tick, 3000);
+    const iv = setInterval(tick, 6000);
     return () => { alive = false; clearInterval(iv); };
   }, []);
+
 
   // 프린터 출력 완료 이벤트 폴링 (print-complete-event 로 수신되어 DB에 적재된 기록)
   useEffect(() => {
