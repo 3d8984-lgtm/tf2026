@@ -731,8 +731,8 @@ export default function CourierSettings() {
                     />
                     <p className="text-[11px] text-muted-foreground leading-tight">
                       {tr(
-                        "YunExpress 송장 사전발행 시 remark 필드로 전송되는 제품 비고 내용입니다.",
-                        "云途预出运单时作为 remark 字段发送的产品备注内容。",
+                        "YunExpress 송장 발행 시 declaration_info 안의 remark 필드로 전송되는 제품 비고 내용입니다.",
+                        "云途出运单时作为 declaration_info 内的 remark 字段发送的产品备注内容。",
                       )}
                     </p>
                   </div>
