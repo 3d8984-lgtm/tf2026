@@ -213,6 +213,9 @@ function OrderDetail({
   const [history, setHistory] = useState<ScanEvent[]>([]);
   const [printerLog, setPrinterLog] = useState<PrinterSendLog[]>([]);
   const [rawTab, setRawTab] = useState<"scanner" | "printer">("scanner");
+  /** 프린터가 보내온 실제 출력 완료 이벤트 (code → 완료 시각) */
+  const [completeEvents, setCompleteEvents] = useState<Record<string, string>>({});
+
 
   // 게이트웨이는 대기열/이력 삭제 API가 없어서, 초기화 시점 이후 데이터만 화면에 표시한다.
   // 컷오프는 서버에 저장해 모든 기기(패드)에서 동일하게 적용하고,
