@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { warnLightOkFlash, warnLightError, warnLight2OkFlash } from "@/lib/warning-light";
+import { warnLightError } from "@/lib/warning-light";
 import { pfPrint, pfPrinterStatus, pfPrinterQueue, pfPrinterQueueClear } from "@/lib/pf-printer";
 
 import {
@@ -293,6 +293,8 @@ function OrderDetail({
   const [rawTab, setRawTab] = useState<"scanner" | "printer">("scanner");
   /** 프린터가 보내온 실제 출력 완료 이벤트 (code → 완료 시각) */
   const [completeEvents, setCompleteEvents] = useState<Record<string, string>>({});
+  /** 프린터 서버 큐는 최근 100건만 유지하므로, printed=true 확인 건은 화면에서 자체 누적한다. */
+  const [printedAcc, setPrintedAcc] = useState<Record<string, string>>({});
 
 
   // 게이트웨이는 대기열/이력 삭제 API가 없어서, 초기화 시점 이후 데이터만 화면에 표시한다.
@@ -627,15 +629,8 @@ function OrderDetail({
     setCursor(c);
     setLastVerdict(lastV);
     if (halt) setHalted(true);
-    // 1번 경고등: 순서 일치 → 녹색 0.5초 점멸 / 불일치 → 빨강 점등 유지
-    if (kind === "card") {
-      if (halt) void warnLightError();
-      else if (lastV === "ok" && !blocked) {
-        void warnLightOkFlash();
-        // 2번 경고등: 검증 일치 시 녹색 0.5초 점등
-        void warnLight2OkFlash();
-      }
-    }
+    // 경고등: 불일치일 때만 적색 점등 (녹색 점멸은 지연이 커서 사용하지 않음)
+    if (halt) void warnLightError();
     setLog((prev) => [...rows.slice().reverse(), ...prev].slice(0, 100));
   }, [queue, expected, cursor, testMode, ready, markQueued, kind, halted]);
 
