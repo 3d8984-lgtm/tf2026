@@ -807,6 +807,15 @@ async function createYunOpenApiOrder(
   if (spec) { declaration.spec = spec; declaration.specification = spec; }
   if (weave) { declaration.weaving_mode = weave; declaration.weave_method = weave; }
 
+  // 시스템 설정 > 택배사 연동 > YunExpress "declaration_info 추가 항목" (JSON) 을
+  // 신고정보 객체에 그대로 병합한다. 택배사 측 요청 필드를 임의로 추가할 때 사용.
+  if (ex.declaration_extra && typeof ex.declaration_extra === "object" && !Array.isArray(ex.declaration_extra)) {
+    for (const [k, v] of Object.entries(ex.declaration_extra as Record<string, unknown>)) {
+      if (v === undefined || v === null || String(v).trim?.() === "") continue;
+      declaration[k] = v;
+    }
+  }
+
   // 발신자(发件人) 정보 — 공식 문서(2026-07-21) 기준 스펙 필드만 전송한다.
   // 문서상 sender 는 "非必须"이며, 누락/검증 실패 시 계정의 公共发件人(공용 발신인)로 대체되어
   // 관리자 페이지에 우리가 보낸 발신자가 표시되지 않는다 (에러 02039160/02039161 참조).
