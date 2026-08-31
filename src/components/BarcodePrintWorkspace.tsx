@@ -681,7 +681,7 @@ function OrderDetail({
         }
       })();
     }
-  }, [saved, printTick, ready, testMode, sendToPrinter, markDone, markPrintError]);
+  }, [saved, printTick, ready, testMode, halted, sendToPrinter, markDone, markPrintError]);
 
   /** 스캔 없이 남은 항목 전체를 인쇄 대기열(FIFO)에 적재 */
   const enqueueAllRemaining = useCallback(async () => {
