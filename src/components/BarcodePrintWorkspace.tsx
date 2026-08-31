@@ -918,14 +918,18 @@ function OrderDetail({
   // 인쇄 완료 = 프린터가 인쇄완료(0x40) 응답까지 보낸 job만 카운트
   const doneJobs = jobs.filter((j) => j.status === "done");
   const printedJobs = doneJobs.filter((j) => j.printed === true).length;
-  const waitingJobs = jobs.filter((j) => j.status === "pending" || j.status === "printing");
+  // 패널2(인쇄 대기열) = pending/processing + (done 이지만 인쇄완료 미확인)
+  const waitingJobs = jobs.filter(
+    (j) => j.status === "pending" || j.status === "printing" || (j.status === "done" && j.printed === false),
+  );
 
   // ── 인쇄 대기열 표시 데이터 ────────────────────────────────────────
   // 프린터 서버 FIFO 큐에 실제 대기/처리 중인 건 + 앱에서 전송 중인 건 + 실패로 멈춘 건
-  type QueueState = "printing" | "printer_wait" | "sending" | "error";
+  type QueueState = "printing" | "printer_wait" | "unconfirmed" | "sending" | "error";
   const queueStateMeta: Record<QueueState, { ko: string; zh: string; cls: string }> = {
     printing: { ko: "프린터 인쇄 중", zh: "打印机打印中", cls: "text-primary" },
     printer_wait: { ko: "프린터 대기 중", zh: "打印机等待中", cls: "text-primary" },
+    unconfirmed: { ko: "인쇄 완료 미확인", zh: "打印完成未确认", cls: "text-amber-500" },
     sending: { ko: "전송 중", zh: "发送中", cls: "text-primary" },
     error: { ko: "인쇄 실패 · 작업 중단", zh: "打印失败 · 作业中断", cls: "text-destructive" },
   };
@@ -944,7 +948,7 @@ function OrderDetail({
         key: `job-${j.id}`,
         position: posByPrintValue[norm(j.barcode)] ?? null,
         code: j.barcode,
-        state: (j.status === "printing" ? "printing" : "printer_wait") as QueueState,
+        state: (j.status === "done" ? "unconfirmed" : j.status === "printing" ? "printing" : "printer_wait") as QueueState,
       })),
     // 아직 프린터 큐에 반영되기 전(앱→게이트웨이 전송 중)
     ...Object.values(saved)
