@@ -913,6 +913,58 @@ function OrderDetail({
   const doneJobs = jobs.filter((j) => j.status === "done");
   const printedJobs = doneJobs.filter((j) => j.printed === true).length;
   const waitingJobs = jobs.filter((j) => j.status === "pending" || j.status === "printing");
+
+  // ── 인쇄 대기열 표시 데이터 ────────────────────────────────────────
+  // 프린터 서버 FIFO 큐에 실제 대기/처리 중인 건 + 앱에서 전송 중인 건 + 실패로 멈춘 건
+  type QueueState = "printing" | "printer_wait" | "sending" | "error";
+  const queueStateMeta: Record<QueueState, { ko: string; zh: string; cls: string }> = {
+    printing: { ko: "프린터 인쇄 중", zh: "打印机打印中", cls: "text-primary" },
+    printer_wait: { ko: "프린터 대기 중", zh: "打印机等待中", cls: "text-primary" },
+    sending: { ko: "전송 중", zh: "发送中", cls: "text-primary" },
+    error: { ko: "인쇄 실패 · 작업 중단", zh: "打印失败 · 作业中断", cls: "text-destructive" },
+  };
+  const posByPrintValue: Record<string, number> = {};
+  for (const e of expected) {
+    posByPrintValue[norm(e.no)] = e.position;
+    posByPrintValue[norm(e.base)] = e.position;
+    if (e.cardNo) posByPrintValue[norm(e.cardNo)] = e.position;
+  }
+  const queueRows: Array<{ key: string; position: number | null; code: string; state: QueueState }> = [
+    // 프린터 서버 큐 (오래된 요청 순 = 인쇄 순서)
+    ...waitingJobs
+      .slice()
+      .sort((a, b) => ts(a.enqueued_at) - ts(b.enqueued_at))
+      .map((j) => ({
+        key: `job-${j.id}`,
+        position: posByPrintValue[norm(j.barcode)] ?? null,
+        code: j.barcode,
+        state: (j.status === "printing" ? "printing" : "printer_wait") as QueueState,
+      })),
+    // 아직 프린터 큐에 반영되기 전(앱→게이트웨이 전송 중)
+    ...Object.values(saved)
+      .filter((s) => s.status === "queued" && !jobByCodePending(s))
+      .sort((a, b) => a.position - b.position)
+      .map((s) => ({
+        key: `send-${s.position}`,
+        position: s.position,
+        code: printValueRef.current(s.code),
+        state: "sending" as QueueState,
+      })),
+    // 실패로 멈춘 건
+    ...Object.values(saved)
+      .filter((s) => s.status === "error")
+      .sort((a, b) => a.position - b.position)
+      .map((s) => ({
+        key: `err-${s.position}`,
+        position: s.position,
+        code: printValueRef.current(s.code),
+        state: "error" as QueueState,
+      })),
+  ];
+  function jobByCodePending(s: SavedItem) {
+    const j = jobs.find((x) => norm(x.barcode) === norm(printValueRef.current(s.code)));
+    return !!j && (j.status === "pending" || j.status === "printing");
+  }
   // 인쇄 완료 목록 = 이 주문에서 실제 검증 후 인쇄 처리된 항목 (초기화 시 함께 지워짐)
   // 게이트웨이 인쇄 대기열에서 바코드별 최종 상태 조회용 맵
   const jobByCode: Record<string, PrintJob> = {};
