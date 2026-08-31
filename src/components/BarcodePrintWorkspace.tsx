@@ -43,6 +43,51 @@ const ts = (v?: string | null) => {
   return Number.isNaN(t) ? 0 : t;
 };
 
+export type ExpectedItem = {
+  position: number;
+  no: string;
+  base: string;
+  cardNo: string | null;
+  keys: string[];
+};
+
+/** 주문의 기대 스캔 순서(고유번호) 목록을 만든다. 목록 화면의 자동 주문 탐색에도 사용. */
+export function buildExpected(
+  order: { external_order_id: string; quantity: number; source_data: any },
+  suffix: string,
+): ExpectedItem[] {
+  const src: any[] = Array.isArray(order.source_data?.items) ? order.source_data.items : [];
+  const count = Math.max(src.length, order.quantity ?? 0);
+  return Array.from({ length: count }, (_, idx) => {
+    const it = src[idx] || {};
+    const base = String(it.order_id ?? it.sequence_no ?? `${order.external_order_id}-${idx + 1}`);
+    const no = `${base}${suffix}`;
+    // 카드 고유번호 = NFC-0141-000054 형태만 추출 (NDEF 전체 문자열은 인쇄하지 않음)
+    const ndef = String(it.nfc_ndef_data ?? "");
+    const pickCardNo = (raw: unknown): string => {
+      const s = String(raw ?? "").trim();
+      if (!s) return "";
+      const m = s.match(/NFC-[A-Za-z0-9]+-[A-Za-z0-9]+/i);
+      if (m) return m[0];
+      if (s.includes("|")) return (s.split("|")[1] ?? "").trim();
+      return s;
+    };
+    const cardNo =
+      pickCardNo(it.card_no) ||
+      pickCardNo(it.card_unique_no) ||
+      pickCardNo(it.unique_no) ||
+      pickCardNo(ndef);
+
+    return {
+      position: idx + 1,
+      no,
+      base,
+      cardNo: cardNo || null,
+      keys: [no, base, cardNo].filter(Boolean).map((v: string) => norm(v)),
+    };
+  });
+}
+
 type ScanStatus = {
   count: number;
   last_barcode: string | null;
