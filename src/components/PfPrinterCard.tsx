@@ -19,6 +19,8 @@ export default function PfPrinterCard({ defaultText = "" }: { defaultText?: stri
   const [buffer, setBuffer] = useState<number | null>(null);
   const [pending, setPending] = useState<number | null>(null);
   const [offline, setOffline] = useState(false);
+  // 첫 응답 전에는 상태를 알 수 없으므로 "확인 중" 으로 표시한다.
+  const [probed, setProbed] = useState(false);
   const [text, setText] = useState(defaultText);
   const [busy, setBusy] = useState(false);
 
@@ -31,11 +33,13 @@ export default function PfPrinterCard({ defaultText = "" }: { defaultText?: stri
       setInk(st.ink_percent);
       setBuffer(st.buffer_count);
       setPending(q.offline ? null : q.pendingCount);
+      setProbed(true);
     };
     tick();
     const iv = setInterval(tick, 5000);
     return () => { alive = false; clearInterval(iv); };
   }, []);
+
 
 
   const testPrint = useCallback(async () => {
