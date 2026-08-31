@@ -54,6 +54,8 @@ export default function DmScannerMonitor() {
 
   const [status, setStatus] = useState<ScanStatus | null>(null);
   const [offline, setOffline] = useState(false);
+  // 첫 상태 응답 전에는 "확인 중" 으로 표시 (끊김 → 연결됨 깜빡임 방지)
+  const [probed, setProbed] = useState(false);
   const [order, setOrder] = useState<any>(null);
   const [log, setLog] = useState<LogRow[]>([]);
   const [cursor, setCursor] = useState(0);
