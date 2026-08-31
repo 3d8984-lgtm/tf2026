@@ -1038,6 +1038,9 @@ async function callYunExpress(cfg: any, cred: any, order: any, shipment: any, po
 
         },
       ],
+      ...(String(cred?.extra?.remark ?? "").trim()
+        ? { Remark: String(cred.extra.remark).trim() }
+        : {}),
     },
   ];
 
