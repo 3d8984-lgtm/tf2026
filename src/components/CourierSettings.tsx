@@ -693,6 +693,23 @@ export default function CourierSettings() {
                     </span>
                   </div>
                 </div>
+
+                {credDialog?.code === "yunexpress" && (
+                  <div className="space-y-1.5 col-span-2">
+                    <Label className="text-xs">{tr("비고 (Remark)", "备注 (Remark)")}</Label>
+                    <Input
+                      value={cred.remark}
+                      onChange={(e) => setCred((c) => ({ ...c, remark: e.target.value }))}
+                      placeholder="TWINMETA T-Shirt"
+                    />
+                    <p className="text-[11px] text-muted-foreground leading-tight">
+                      {tr(
+                        "YunExpress 송장 사전발행 시 remark 필드로 전송되는 제품 비고 내용입니다.",
+                        "云途预出运单时作为 remark 字段发送的产品备注内容。",
+                      )}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
