@@ -537,19 +537,7 @@ function OrderDetail({
             }));
           setJobs(rows.slice().reverse());
           // 인쇄완료(printed=true) 확인 건은 큐에서 밀려나도 남도록 누적 저장
-          const done = rows.filter((j) => j.status === "done" && j.printed === true);
-          if (done.length > 0) {
-            setPrintedAcc((prev) => {
-              const next = { ...prev };
-              let changed = false;
-              for (const j of done) {
-                const k = norm(j.barcode);
-                const at = j.printed_at ?? j.enqueued_at;
-                if (!next[k] || ts(at) > ts(next[k])) { next[k] = at; changed = true; }
-              }
-              return changed ? next : prev;
-            });
-          }
+          setPrintedAcc((prev) => mergePrintedAcc(prev, rows));
         }
       } catch {
         if (alive) setPrinterOffline(true);
