@@ -66,12 +66,15 @@ Deno.serve(async (req) => {
 
     const orderById = new Map<string, any>((orders ?? []).map((o: any) => [o.id, o]));
 
+    // 한 택배(소포)당 담을 수 있는 최대 수량. 기본 2개.
+    const MAX_PER_PARCEL = Math.max(1, Number(body?.max_per_parcel ?? 2) || 2);
+
     type Bucket = {
       key: string;
       recipient_name: string; recipient_phone: string;
       shipping_address: string; shipping_city: string | null; shipping_state: string | null;
       shipping_zip: string; shipping_country: string;
-      itemIds: string[];
+      items: { id: string; order_id: string; position: number }[];
     };
     const buckets = new Map<string, Bucket>();
 
@@ -99,32 +102,55 @@ Deno.serve(async (req) => {
           shipping_state: si.shipping_state ?? o.shipping_state ?? null,
           shipping_zip: rec.zip,
           shipping_country: String(si.country_code ?? o.shipping_country ?? "US").trim() || "US",
-          itemIds: [],
+          items: [],
         };
         buckets.set(key, b);
       }
-      b.itemIds.push(it.id);
+      b.items.push({ id: it.id, order_id: it.order_id, position: Number(it.position ?? 1) });
     }
 
-    const keys = [...buckets.keys()];
-    if (!keys.length) return json({ ok: true, groups: 0, linked: 0 });
+    // 동일 수취인 묶음을 소포 단위(최대 MAX_PER_PARCEL개)로 분할한다.
+    // 예) 5개 주문 → 2개 / 2개 / 1개 = 송장 3건
+    type Parcel = Omit<Bucket, "items" | "key"> & { key: string; itemIds: string[] };
+    const parcels: Parcel[] = [];
+    for (const b of buckets.values()) {
+      // 분할 결과가 매번 동일하도록 정렬 (주문 → 순번)
+      const sorted = b.items.slice().sort((x, y) =>
+        x.order_id === y.order_id ? x.position - y.position : x.order_id.localeCompare(y.order_id),
+      );
+      for (let i = 0; i < sorted.length; i += MAX_PER_PARCEL) {
+        const chunk = sorted.slice(i, i + MAX_PER_PARCEL);
+        parcels.push({
+          key: `${b.key}|p${Math.floor(i / MAX_PER_PARCEL) + 1}`,
+          recipient_name: b.recipient_name,
+          recipient_phone: b.recipient_phone,
+          shipping_address: b.shipping_address,
+          shipping_city: b.shipping_city,
+          shipping_state: b.shipping_state,
+          shipping_zip: b.shipping_zip,
+          shipping_country: b.shipping_country,
+          itemIds: chunk.map((c) => c.id),
+        });
+      }
+    }
+
+    if (!parcels.length) return json({ ok: true, groups: 0, linked: 0 });
+    const parcelByKey = new Map<string, Parcel>(parcels.map((p) => [p.key, p]));
+    const keys = parcels.map((p) => p.key);
 
     // Upsert groups (idempotent on group_key) — never touch tracking/label fields.
-    const payload = keys.map((k) => {
-      const b = buckets.get(k)!;
-      return {
-        group_key: b.key,
-        recipient_name: b.recipient_name,
-        recipient_phone: b.recipient_phone,
-        shipping_address: b.shipping_address,
-        shipping_city: b.shipping_city,
-        shipping_state: b.shipping_state,
-        shipping_zip: b.shipping_zip,
-        shipping_country: b.shipping_country,
-        item_count: b.itemIds.length,
-        required_scan_count: b.itemIds.length,
-      };
-    });
+    const payload = parcels.map((b) => ({
+      group_key: b.key,
+      recipient_name: b.recipient_name,
+      recipient_phone: b.recipient_phone,
+      shipping_address: b.shipping_address,
+      shipping_city: b.shipping_city,
+      shipping_state: b.shipping_state,
+      shipping_zip: b.shipping_zip,
+      shipping_country: b.shipping_country,
+      item_count: b.itemIds.length,
+      required_scan_count: b.itemIds.length,
+    }));
 
     const { data: upserted, error: uErr } = await admin
       .from("shipping_groups")
