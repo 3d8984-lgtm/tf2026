@@ -1217,9 +1217,15 @@ function OrderDetail({
                         )}
                       </span>
 
-                      {done ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                        : current ? <Badge variant="outline" className="shrink-0 text-[10px]">{tr("대기", "等待")}</Badge>
-                        : <span className="w-4" />}
+                      {done ? (
+                        <Badge variant="outline" className="shrink-0 text-[10px] gap-1 border-emerald-500/50 text-emerald-500">
+                          <CheckCircle2 className="w-3 h-3" />{tr("완료", "完成")}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className={`shrink-0 text-[10px] ${current ? "border-primary text-primary" : "text-muted-foreground"}`}>
+                          {tr("대기", "等待")}
+                        </Badge>
+                      )}
                       <Button
                         size="sm" variant="ghost" className="h-7 px-2 gap-1 text-xs shrink-0"
                         onClick={() => resumeFrom(e.position)}
