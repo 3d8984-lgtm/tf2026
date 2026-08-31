@@ -1202,7 +1202,8 @@ function OrderDetail({
               <div className="max-h-[420px] overflow-auto divide-y">
                 {expected.map((e, i) => {
                   const rec = saved[e.position];
-                  const done = rec?.status === "done";
+                  // 스캔 검증을 통과하면 즉시 '완료'로 표시 (인쇄 결과와 무관)
+                  const done = rec?.status === "done" || rec?.status === "queued" || rec?.status === "error";
                   const current = i === cursor;
                   return (
                     <div key={i} className={`flex items-center gap-2 py-2.5 px-2 text-sm ${current ? "bg-primary/10 rounded" : ""}`}>
