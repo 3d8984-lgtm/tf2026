@@ -276,7 +276,11 @@ export default function DmScannerMonitor() {
               {tr("99 DM 바코드 스캐너", "99 DM条码扫描仪")}
             </span>
             <span className="flex items-center gap-2">
-              {offline || !status?.connected ? (
+              {!probed ? (
+                <Badge variant="outline" className="gap-1 text-muted-foreground">
+                  <Loader2 className="w-3 h-3 animate-spin" />{tr("확인 중", "检查中")}
+                </Badge>
+              ) : offline || !status?.connected ? (
                 <Badge variant="outline" className="gap-1 text-destructive border-destructive/40">
                   <WifiOff className="w-3 h-3" />{tr("연결 끊김", "连接断开")}
                 </Badge>
