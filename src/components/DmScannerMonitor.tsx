@@ -133,6 +133,7 @@ export default function DmScannerMonitor() {
         setOffline(true);
       }
       if (!alive) return;
+      setProbed(true);
       delay = ok ? 1500 : Math.min(delay * 2, 30000);
       timer = setTimeout(tick, delay);
     };
