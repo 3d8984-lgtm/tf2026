@@ -652,7 +652,8 @@ function OrderDetail({
   const [printTick, setPrintTick] = useState(0);
   const [printingPos, setPrintingPos] = useState<number | null>(null);
   useEffect(() => {
-    if (!ready || testMode) return;
+    // 검증 실패로 중단된 동안에는 대기열이 있어도 프린터로 보내지 않는다 ('재개' 버튼 필요)
+    if (!ready || testMode || halted) return;
     const pending = Object.values(saved)
       .filter((s) => s.status === "queued" && !dispatchedRef.current.has(s.position))
       .sort((a, b) => a.position - b.position);
