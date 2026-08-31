@@ -968,6 +968,10 @@ function OrderDetail({
                 <Badge variant="outline" className="gap-1 justify-center border-amber-500/50 text-amber-600 dark:text-amber-400">
                   <FlaskConical className="w-3 h-3" />{tr("테스트 모드", "测试模式")}
                 </Badge>
+              ) : !probed ? (
+                <Badge variant="outline" className="gap-1 text-muted-foreground justify-center">
+                  <Loader2 className="w-3 h-3 animate-spin" />{tr("스캐너 확인 중", "扫描仪检查中")}
+                </Badge>
               ) : offline || !status?.connected ? (
                 <Badge variant="outline" className="gap-1 text-destructive border-destructive/40 justify-center">
                   <WifiOff className="w-3 h-3" />{tr("스캐너 연결 끊김", "扫描仪断开")}
