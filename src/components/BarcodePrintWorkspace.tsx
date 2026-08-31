@@ -192,6 +192,39 @@ export default function BarcodePrintWorkspace(props: BarcodePrintWorkspaceProps)
     })();
   }, []);
 
+  // ── 스캔 값으로 주문 자동 탐색 ────────────────────────────────────
+  // 주문을 고르지 않은 상태에서 바코드를 스캔하면, 그 값이 포함된 주문건을 찾아 자동으로 연다.
+  const ordersRef = useRef<OrderRow[]>([]);
+  ordersRef.current = orders;
+  const suffix = props.suffix;
+  useEffect(() => {
+    if (selected || orders.length === 0) return;
+    let alive = true;
+    let lastKey = "";
+    let primed = false;
+    const tick = async () => {
+      try {
+        const r = await proxyFetch("/api/v1/scan/status");
+        const j: any = await r.json();
+        if (!alive || !r.ok || !j?.last_barcode) return;
+        const key = `${j.last_seen ?? ""}|${j.last_barcode}`;
+        if (!primed) { primed = true; lastKey = key; return; } // 진입 시 기존 값은 무시
+        if (key === lastKey) return;
+        lastKey = key;
+        const code = norm(String(j.last_barcode));
+        const hit = ordersRef.current.find((o) => buildExpected(o, suffix).some((e) => e.keys.includes(code)));
+        if (hit) {
+          toast.success(`${tr("주문 자동 선택", "自动选择订单")} · ${hit.external_order_id}`);
+          setSelected(hit);
+        } else {
+          toast.error(`${tr("해당 값이 포함된 주문을 찾을 수 없습니다", "未找到包含该值的订单")} · ${j.last_barcode}`);
+        }
+      } catch { /* 네트워크 오류는 무시 */ }
+    };
+    const iv = setInterval(tick, 1500);
+    return () => { alive = false; clearInterval(iv); };
+  }, [selected, orders.length, suffix, isKo]);
+
   if (selected) {
     return <OrderDetail order={selected} onBack={() => setSelected(null)} {...props} />;
   }
