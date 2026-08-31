@@ -58,7 +58,7 @@ export default function PfPrinterCard({ defaultText = "" }: { defaultText?: stri
 
 
   return (
-    <Card className={offline ? "border-destructive" : ""}>
+    <Card className={probed && offline ? "border-destructive" : ""}>
       <CardContent className="p-4 space-y-3">
         <div className="flex items-center gap-4">
           <Printer className="w-5 h-5 text-muted-foreground shrink-0" />
@@ -69,7 +69,11 @@ export default function PfPrinterCard({ defaultText = "" }: { defaultText?: stri
             </p>
 
           </div>
-          {offline ? (
+          {!probed ? (
+            <Badge variant="outline" className="gap-1 text-muted-foreground shrink-0">
+              <Loader2 className="w-3 h-3 animate-spin" />{tr("확인 중", "检查中")}
+            </Badge>
+          ) : offline ? (
             <Badge variant="outline" className="gap-1 text-destructive border-destructive/40 shrink-0">
               <WifiOff className="w-3 h-3" />{tr("연결 끊김", "连接断开")}
             </Badge>
