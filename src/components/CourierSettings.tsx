@@ -173,6 +173,9 @@ export default function CourierSettings() {
       weaving_mode: s("weaving_mode"),
       ref_label: s("ref_label"),
       remark: s("remark"),
+      declaration_extra: typeof e.declaration_extra === "object" && e.declaration_extra !== null
+        ? JSON.stringify(e.declaration_extra, null, 2)
+        : s("declaration_extra"),
 
 
     }));
@@ -247,6 +250,27 @@ export default function CourierSettings() {
       put("weaving_mode", cred.weaving_mode);
       put("ref_label", cred.ref_label);
       put("remark", cred.remark);
+      // declaration_info에 병합할 사용자 정의 항목 (JSON 객체). 잘못된 JSON이면 저장 차단.
+      const declRaw = cred.declaration_extra.trim();
+      if (declRaw) {
+        try {
+          const parsed = JSON.parse(declRaw);
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            extra.declaration_extra = parsed;
+          } else {
+            throw new Error("not-object");
+          }
+        } catch {
+          toast({
+            variant: "destructive",
+            title: tr("declaration_info 형식 오류", "declaration_info 格式错误"),
+            description: tr("JSON 객체 형식으로 입력하세요. 예: {\"key\": \"value\"}", "请输入 JSON 对象格式，例如 {\"key\": \"value\"}"),
+          });
+          return;
+        }
+      } else {
+        delete extra.declaration_extra;
+      }
 
       if (cred.unit_price.trim() && !Number.isNaN(Number(cred.unit_price))) extra.unit_price = Number(cred.unit_price);
       else delete extra.unit_price;
