@@ -482,6 +482,34 @@ function OrderDetail({
     return () => { alive = false; clearInterval(iv); };
   }, []);
 
+  // 프린터 출력 완료 이벤트 폴링 (print-complete-event 로 수신되어 DB에 적재된 기록)
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      const cut = cutoffRef.current;
+      let q = supabase
+        .from("print_complete_events")
+        .select("code, event_at, printed")
+        .eq("printed", true)
+        .order("event_at", { ascending: false })
+        .limit(500);
+      if (cut) q = q.gt("event_at", cut);
+      const { data } = await q;
+      if (!alive || !data) return;
+      const map: Record<string, string> = {};
+      for (const r of data as Array<{ code: string; event_at: string }>) {
+        const k = norm(r.code);
+        if (!map[k] || ts(r.event_at) > ts(map[k])) map[k] = r.event_at;
+      }
+      setCompleteEvents(map);
+    };
+    load();
+    const iv = setInterval(load, 5000);
+    return () => { alive = false; clearInterval(iv); };
+  }, []);
+
+
+
   // 새 스캔 이벤트 큐 처리 → 순서/정보 검증 (테스트 모드에서는 스캔 무시)
   useEffect(() => {
     if (queue.length === 0) return;
