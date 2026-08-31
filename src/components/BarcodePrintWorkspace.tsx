@@ -954,10 +954,10 @@ function OrderDetail({
   const printedItems = expected
     .map((e) => {
       const pv = norm(printValueRef.current(e.no));
+      const codes = [e.no, pv];
       const job = jobByCode[pv] ?? jobByCode[norm(e.no)] ?? null;
       const event = completeEvents[norm(e.no)] ?? completeEvents[pv] ?? null;
-      const acc = printedAcc[pv] ?? printedAcc[norm(e.no)] ?? null;
-      return { e, s: saved[e.position], job, event, at: event ?? acc ?? (job?.printed === true ? job.printed_at : null) };
+      return { e, s: saved[e.position], job, event, at: resolvePrintedAt({ codes, completeEvents, printedAcc, job }) };
     })
     .filter((r) => !!r.at)
     .sort((a, b) => a.e.position - b.e.position);
