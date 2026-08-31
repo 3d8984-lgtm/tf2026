@@ -43,6 +43,51 @@ const ts = (v?: string | null) => {
   return Number.isNaN(t) ? 0 : t;
 };
 
+export type ExpectedItem = {
+  position: number;
+  no: string;
+  base: string;
+  cardNo: string | null;
+  keys: string[];
+};
+
+/** 주문의 기대 스캔 순서(고유번호) 목록을 만든다. 목록 화면의 자동 주문 탐색에도 사용. */
+export function buildExpected(
+  order: { external_order_id: string; quantity: number; source_data: any },
+  suffix: string,
+): ExpectedItem[] {
+  const src: any[] = Array.isArray(order.source_data?.items) ? order.source_data.items : [];
+  const count = Math.max(src.length, order.quantity ?? 0);
+  return Array.from({ length: count }, (_, idx) => {
+    const it = src[idx] || {};
+    const base = String(it.order_id ?? it.sequence_no ?? `${order.external_order_id}-${idx + 1}`);
+    const no = `${base}${suffix}`;
+    // 카드 고유번호 = NFC-0141-000054 형태만 추출 (NDEF 전체 문자열은 인쇄하지 않음)
+    const ndef = String(it.nfc_ndef_data ?? "");
+    const pickCardNo = (raw: unknown): string => {
+      const s = String(raw ?? "").trim();
+      if (!s) return "";
+      const m = s.match(/NFC-[A-Za-z0-9]+-[A-Za-z0-9]+/i);
+      if (m) return m[0];
+      if (s.includes("|")) return (s.split("|")[1] ?? "").trim();
+      return s;
+    };
+    const cardNo =
+      pickCardNo(it.card_no) ||
+      pickCardNo(it.card_unique_no) ||
+      pickCardNo(it.unique_no) ||
+      pickCardNo(ndef);
+
+    return {
+      position: idx + 1,
+      no,
+      base,
+      cardNo: cardNo || null,
+      keys: [no, base, cardNo].filter(Boolean).map((v: string) => norm(v)),
+    };
+  });
+}
+
 type ScanStatus = {
   count: number;
   last_barcode: string | null;
@@ -146,6 +191,39 @@ export default function BarcodePrintWorkspace(props: BarcodePrintWorkspaceProps)
       setLoading(false);
     })();
   }, []);
+
+  // ── 스캔 값으로 주문 자동 탐색 ────────────────────────────────────
+  // 주문을 고르지 않은 상태에서 바코드를 스캔하면, 그 값이 포함된 주문건을 찾아 자동으로 연다.
+  const ordersRef = useRef<OrderRow[]>([]);
+  ordersRef.current = orders;
+  const suffix = props.suffix;
+  useEffect(() => {
+    if (selected || orders.length === 0) return;
+    let alive = true;
+    let lastKey = "";
+    let primed = false;
+    const tick = async () => {
+      try {
+        const r = await proxyFetch("/api/v1/scan/status");
+        const j: any = await r.json();
+        if (!alive || !r.ok || !j?.last_barcode) return;
+        const key = `${j.last_seen ?? ""}|${j.last_barcode}`;
+        if (!primed) { primed = true; lastKey = key; return; } // 진입 시 기존 값은 무시
+        if (key === lastKey) return;
+        lastKey = key;
+        const code = norm(String(j.last_barcode));
+        const hit = ordersRef.current.find((o) => buildExpected(o, suffix).some((e) => e.keys.includes(code)));
+        if (hit) {
+          toast.success(`${tr("주문 자동 선택", "自动选择订单")} · ${hit.external_order_id}`);
+          setSelected(hit);
+        } else {
+          toast.error(`${tr("해당 값이 포함된 주문을 찾을 수 없습니다", "未找到包含该值的订单")} · ${j.last_barcode}`);
+        }
+      } catch { /* 네트워크 오류는 무시 */ }
+    };
+    const iv = setInterval(tick, 1500);
+    return () => { alive = false; clearInterval(iv); };
+  }, [selected, orders.length, suffix, isKo]);
 
   if (selected) {
     return <OrderDetail order={selected} onBack={() => setSelected(null)} {...props} />;
@@ -266,39 +344,7 @@ function OrderDetail({
 
 
   // 기대 스캔 순서 = 고유번호(개별 주문번호 + suffix) 순서
-  const expected = useMemo(() => {
-    const src: any[] = Array.isArray(order.source_data?.items) ? order.source_data.items : [];
-    const count = Math.max(src.length, order.quantity ?? 0);
-    return Array.from({ length: count }, (_, idx) => {
-      const it = src[idx] || {};
-      const base = String(it.order_id ?? it.sequence_no ?? `${order.external_order_id}-${idx + 1}`);
-      const no = `${base}${suffix}`;
-      // 카드 고유번호 = NFC-0141-000054 형태만 추출 (NDEF 전체 문자열은 인쇄하지 않음)
-      const ndef = String(it.nfc_ndef_data ?? "");
-      const pickCardNo = (raw: unknown): string => {
-        const s = String(raw ?? "").trim();
-        if (!s) return "";
-        const m = s.match(/NFC-[A-Za-z0-9]+-[A-Za-z0-9]+/i);
-        if (m) return m[0];
-        // 파이프가 있으면 NDEF 원문이므로 두 번째 세그먼트만 사용
-        if (s.includes("|")) return (s.split("|")[1] ?? "").trim();
-        return s;
-      };
-      const cardNo =
-        pickCardNo(it.card_no) ||
-        pickCardNo(it.card_unique_no) ||
-        pickCardNo(it.unique_no) ||
-        pickCardNo(ndef);
-
-      return {
-        position: idx + 1,
-        no,
-        base,
-        cardNo: cardNo || null,
-        keys: [no, base, cardNo].filter(Boolean).map((v: string) => norm(v)),
-      };
-    });
-  }, [order, suffix]);
+  const expected = useMemo(() => buildExpected(order, suffix), [order, suffix]);
 
   // 서버에 저장된 작업 이력 로드 / 없으면 생성
   const loadSaved = useCallback(async () => {
@@ -541,6 +587,9 @@ function OrderDetail({
     let c = cursor;
     let lastV: Verdict | null = null;
     let halt = false;
+    // 이미 중단 상태면 이후 스캔은 검증만 기록하고 프린터로 절대 전송하지 않는다.
+    // (작업자가 '재개' 버튼을 눌러야만 다시 전송)
+    let blocked = halted;
     const rows: LogRow[] = [];
 
     for (const ev of events) {
@@ -563,14 +612,14 @@ function OrderDetail({
         seenRef.current.add(code);
         c += 1;
         // 생산자(스캔)는 검증 후 인쇄 대기열에 적재만 한다 — 실제 인쇄는 소비자 루프가 순서대로 처리
-        void markQueued(target.position, target.no, ev.barcode);
+        if (!blocked) void markQueued(target.position, target.no, ev.barcode);
       } else {
         const found = expected.findIndex((e) => e.keys.includes(code));
         if (found >= 0) { verdict = "order"; position = found + 1; }
       }
 
       lastV = verdict;
-      if (verdict !== "ok") halt = true;
+      if (verdict !== "ok") { halt = true; blocked = true; }
       rows.push({ at: ev.scanned_at, barcode: ev.barcode, verdict, expected: target?.no ?? null, position });
     }
 
@@ -581,14 +630,14 @@ function OrderDetail({
     // 1번 경고등: 순서 일치 → 녹색 0.5초 점멸 / 불일치 → 빨강 점등 유지
     if (kind === "card") {
       if (halt) void warnLightError();
-      else if (lastV === "ok") {
+      else if (lastV === "ok" && !blocked) {
         void warnLightOkFlash();
         // 2번 경고등: 검증 일치 시 녹색 0.5초 점등
         void warnLight2OkFlash();
       }
     }
     setLog((prev) => [...rows.slice().reverse(), ...prev].slice(0, 100));
-  }, [queue, expected, cursor, testMode, ready, markQueued, kind]);
+  }, [queue, expected, cursor, testMode, ready, markQueued, kind, halted]);
 
 
   // ── 소비자(인쇄 큐 적재) ───────────────────────────────────────────
@@ -603,7 +652,8 @@ function OrderDetail({
   const [printTick, setPrintTick] = useState(0);
   const [printingPos, setPrintingPos] = useState<number | null>(null);
   useEffect(() => {
-    if (!ready || testMode) return;
+    // 검증 실패로 중단된 동안에는 대기열이 있어도 프린터로 보내지 않는다 ('재개' 버튼 필요)
+    if (!ready || testMode || halted) return;
     const pending = Object.values(saved)
       .filter((s) => s.status === "queued" && !dispatchedRef.current.has(s.position))
       .sort((a, b) => a.position - b.position);
@@ -631,7 +681,7 @@ function OrderDetail({
         }
       })();
     }
-  }, [saved, printTick, ready, testMode, sendToPrinter, markDone, markPrintError]);
+  }, [saved, printTick, ready, testMode, halted, sendToPrinter, markDone, markPrintError]);
 
   /** 스캔 없이 남은 항목 전체를 인쇄 대기열(FIFO)에 적재 */
   const enqueueAllRemaining = useCallback(async () => {
@@ -863,6 +913,58 @@ function OrderDetail({
   const doneJobs = jobs.filter((j) => j.status === "done");
   const printedJobs = doneJobs.filter((j) => j.printed === true).length;
   const waitingJobs = jobs.filter((j) => j.status === "pending" || j.status === "printing");
+
+  // ── 인쇄 대기열 표시 데이터 ────────────────────────────────────────
+  // 프린터 서버 FIFO 큐에 실제 대기/처리 중인 건 + 앱에서 전송 중인 건 + 실패로 멈춘 건
+  type QueueState = "printing" | "printer_wait" | "sending" | "error";
+  const queueStateMeta: Record<QueueState, { ko: string; zh: string; cls: string }> = {
+    printing: { ko: "프린터 인쇄 중", zh: "打印机打印中", cls: "text-primary" },
+    printer_wait: { ko: "프린터 대기 중", zh: "打印机等待中", cls: "text-primary" },
+    sending: { ko: "전송 중", zh: "发送中", cls: "text-primary" },
+    error: { ko: "인쇄 실패 · 작업 중단", zh: "打印失败 · 作业中断", cls: "text-destructive" },
+  };
+  const posByPrintValue: Record<string, number> = {};
+  for (const e of expected) {
+    posByPrintValue[norm(e.no)] = e.position;
+    posByPrintValue[norm(e.base)] = e.position;
+    if (e.cardNo) posByPrintValue[norm(e.cardNo)] = e.position;
+  }
+  const queueRows: Array<{ key: string; position: number | null; code: string; state: QueueState }> = [
+    // 프린터 서버 큐 (오래된 요청 순 = 인쇄 순서)
+    ...waitingJobs
+      .slice()
+      .sort((a, b) => ts(a.enqueued_at) - ts(b.enqueued_at))
+      .map((j) => ({
+        key: `job-${j.id}`,
+        position: posByPrintValue[norm(j.barcode)] ?? null,
+        code: j.barcode,
+        state: (j.status === "printing" ? "printing" : "printer_wait") as QueueState,
+      })),
+    // 아직 프린터 큐에 반영되기 전(앱→게이트웨이 전송 중)
+    ...Object.values(saved)
+      .filter((s) => s.status === "queued" && !jobByCodePending(s))
+      .sort((a, b) => a.position - b.position)
+      .map((s) => ({
+        key: `send-${s.position}`,
+        position: s.position,
+        code: printValueRef.current(s.code),
+        state: "sending" as QueueState,
+      })),
+    // 실패로 멈춘 건
+    ...Object.values(saved)
+      .filter((s) => s.status === "error")
+      .sort((a, b) => a.position - b.position)
+      .map((s) => ({
+        key: `err-${s.position}`,
+        position: s.position,
+        code: printValueRef.current(s.code),
+        state: "error" as QueueState,
+      })),
+  ];
+  function jobByCodePending(s: SavedItem) {
+    const j = jobs.find((x) => norm(x.barcode) === norm(printValueRef.current(s.code)));
+    return !!j && (j.status === "pending" || j.status === "printing");
+  }
   // 인쇄 완료 목록 = 이 주문에서 실제 검증 후 인쇄 처리된 항목 (초기화 시 함께 지워짐)
   // 게이트웨이 인쇄 대기열에서 바코드별 최종 상태 조회용 맵
   const jobByCode: Record<string, PrintJob> = {};
@@ -1152,7 +1254,8 @@ function OrderDetail({
               <div className="max-h-[420px] overflow-auto divide-y">
                 {expected.map((e, i) => {
                   const rec = saved[e.position];
-                  const done = rec?.status === "done";
+                  // 스캔 검증을 통과하면 즉시 '완료'로 표시 (인쇄 결과와 무관)
+                  const done = rec?.status === "done" || rec?.status === "queued" || rec?.status === "error";
                   const current = i === cursor;
                   return (
                     <div key={i} className={`flex items-center gap-2 py-2.5 px-2 text-sm ${current ? "bg-primary/10 rounded" : ""}`}>
@@ -1166,9 +1269,15 @@ function OrderDetail({
                         )}
                       </span>
 
-                      {done ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                        : current ? <Badge variant="outline" className="shrink-0 text-[10px]">{tr("대기", "等待")}</Badge>
-                        : <span className="w-4" />}
+                      {done ? (
+                        <Badge variant="outline" className="shrink-0 text-[10px] gap-1 border-emerald-500/50 text-emerald-500">
+                          <CheckCircle2 className="w-3 h-3" />{tr("완료", "完成")}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className={`shrink-0 text-[10px] ${current ? "border-primary text-primary" : "text-muted-foreground"}`}>
+                          {tr("대기", "等待")}
+                        </Badge>
+                      )}
                       <Button
                         size="sm" variant="ghost" className="h-7 px-2 gap-1 text-xs shrink-0"
                         onClick={() => resumeFrom(e.position)}
@@ -1190,14 +1299,15 @@ function OrderDetail({
             </CardContent>
           </Card>
 
-          {/* 인쇄 대기열 (서버 저장 · FIFO) */}
+          {/* 인쇄 대기열 — 프린터 서버 FIFO 큐에 실제 대기/처리 중인 건 */}
           <Card className={errorCount > 0 ? "border-destructive" : ""}>
             <CardHeader className="pb-3 space-y-2">
               <CardTitle className="text-base flex items-center gap-2 flex-wrap">
                 <Printer className="w-4 h-4" />{tr("인쇄 대기열", "打印队列")}
-                <span className="text-xs font-normal text-muted-foreground">({queueItems.length})</span>
+                <span className="text-xs font-normal text-muted-foreground">({printerOffline ? "-" : waitingJobs.length})</span>
                 <span className="text-[11px] font-normal text-muted-foreground ml-auto">
-                  {tr("전송 중", "发送中")} {inFlightCount} · {tr("프린터 대기", "打印机等待")} {printerOffline ? "-" : waitingJobs.length}
+                  {tr("전송 중", "发送中")} {inFlightCount}
+                  {errorCount > 0 && <span className="text-destructive"> · {tr("실패", "失败")} {errorCount}</span>}
                 </span>
               </CardTitle>
               <div className="flex gap-1.5">
@@ -1241,34 +1351,17 @@ function OrderDetail({
                     </tr>
                   </thead>
                   <tbody>
-                    {queueItems.length === 0 ? (
-                      <tr><td colSpan={3} className="px-2 py-6 text-center text-muted-foreground">{tr("대기 중인 인쇄 작업이 없습니다", "暂无待打印作业")}</td></tr>
-                    ) : queueItems.map((s) => {
-                      // 스캔 검증 통과 항목이 프린터 서버 FIFO 큐에서 실제로 대기/처리 중인지 표시
-                      const job = jobByCode[norm(printValueRef.current(s.code))];
-                      const state =
-                        s.status === "error" ? "error"
-                        : job?.status === "printing" ? "printing"
-                        : job?.status === "pending" ? "printer_wait"
-                        : printingPos === s.position ? "sending"
-                        : "app_wait";
-                      const stateMeta = {
-                        error: { ko: "인쇄 실패 · 작업 중단", zh: "打印失败 · 作业中断", cls: "text-destructive" },
-                        printing: { ko: "프린터 인쇄 중", zh: "打印机打印中", cls: "text-primary" },
-                        printer_wait: { ko: "프린터 대기 중", zh: "打印机等待中", cls: "text-primary" },
-                        sending: { ko: "전송 중", zh: "发送中", cls: "text-primary" },
-                        app_wait: { ko: "전송 대기", zh: "等待发送", cls: "text-muted-foreground" },
-                      }[state];
-                      return (
-                        <tr key={s.position} className={`border-t ${s.status === "error" ? "bg-destructive/5" : ""}`}>
-                          <td className="px-2 py-1.5 tabular-nums">{s.position}</td>
-                          <td className="px-2 py-1.5 font-mono break-all">{printValueRef.current(s.code)}</td>
-                          <td className={`px-2 py-1.5 font-medium ${stateMeta.cls}`}>
-                            {isKo ? stateMeta.ko : stateMeta.zh}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {queueRows.length === 0 ? (
+                      <tr><td colSpan={3} className="px-2 py-6 text-center text-muted-foreground">{tr("프린터에 대기 중인 인쇄 작업이 없습니다", "打印机中暂无待打印作业")}</td></tr>
+                    ) : queueRows.map((r) => (
+                      <tr key={r.key} className={`border-t ${r.state === "error" ? "bg-destructive/5" : ""}`}>
+                        <td className="px-2 py-1.5 tabular-nums">{r.position ?? "-"}</td>
+                        <td className="px-2 py-1.5 font-mono break-all">{r.code}</td>
+                        <td className={`px-2 py-1.5 font-medium ${queueStateMeta[r.state].cls}`}>
+                          {isKo ? queueStateMeta[r.state].ko : queueStateMeta[r.state].zh}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
