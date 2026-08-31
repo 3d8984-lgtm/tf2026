@@ -190,7 +190,30 @@ Deno.serve(async (req) => {
       await admin.from("shipping_groups").update({ scanned_count: c }).eq("id", gid);
     }
 
-    return json({ ok: true, groups: groupIds.length, linked });
+    // 분할 이전(수취인 전체를 1건으로 묶던) 구 그룹 정리:
+    // 남은 항목이 없고 송장도 발행되지 않은 그룹만 삭제한다.
+    let removed = 0;
+    const { data: stale } = await admin
+      .from("shipping_groups")
+      .select("id, tracking_number, label_status")
+      .is("tracking_number", null);
+    const staleIds = (stale ?? [])
+      .filter((g: any) => !groupIds.includes(g.id) && g.label_status !== "issued")
+      .map((g: any) => g.id);
+    if (staleIds.length) {
+      const { data: used } = await admin
+        .from("shipment_scan_items")
+        .select("shipping_group_id")
+        .in("shipping_group_id", staleIds);
+      const usedSet = new Set((used ?? []).map((r: any) => r.shipping_group_id));
+      const deletable = staleIds.filter((id: string) => !usedSet.has(id));
+      if (deletable.length) {
+        const { error } = await admin.from("shipping_groups").delete().in("id", deletable);
+        if (!error) removed = deletable.length;
+      }
+    }
+
+    return json({ ok: true, groups: groupIds.length, linked, removed, max_per_parcel: MAX_PER_PARCEL });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : "unknown error" }, 500);
   }
