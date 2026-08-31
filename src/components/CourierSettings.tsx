@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLang } from "@/contexts/LangContext";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -65,6 +66,8 @@ const emptyCred = {
   weaving_mode: "",
   ref_label: "",
   remark: "",
+  // YunExpress declaration_info에 병합할 추가 키/값 (JSON)
+  declaration_extra: "",
 
 };
 
