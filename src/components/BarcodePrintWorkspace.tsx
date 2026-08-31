@@ -899,7 +899,7 @@ function OrderDetail({
             </CardContent>
           </Card>
 
-          <Card className={printerOffline ? "border-destructive" : ""}>
+          <Card className={probed && printerOffline ? "border-destructive" : ""}>
             <CardContent className="p-4 flex items-center gap-4">
               <Printer className="w-5 h-5 text-muted-foreground shrink-0" />
               <div className="min-w-0 flex-1">
@@ -912,7 +912,11 @@ function OrderDetail({
                 </p>
                 {lastJob?.error && <p className="text-[11px] text-destructive truncate">{lastJob.error}</p>}
               </div>
-              {printerOffline ? (
+              {!probed ? (
+                <Badge variant="outline" className="gap-1 text-muted-foreground shrink-0">
+                  <Loader2 className="w-3 h-3 animate-spin" />{tr("확인 중", "检查中")}
+                </Badge>
+              ) : printerOffline ? (
                 <Badge variant="outline" className="gap-1 text-destructive border-destructive/40 shrink-0">
                   <WifiOff className="w-3 h-3" />{tr("연결 끊김", "连接断开")}
                 </Badge>
