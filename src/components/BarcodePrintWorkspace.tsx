@@ -1405,7 +1405,7 @@ function OrderDetail({
                   <tbody>
                     {printedItems.length === 0 ? (
                       <tr><td colSpan={4} className="px-2 py-6 text-center text-muted-foreground">{tr("인쇄 완료 기록이 없습니다", "暂无打印完成记录")}</td></tr>
-                    ) : printedItems.map(({ e, s, job, event }) => (
+                    ) : printedItems.map(({ e, s, event, at }) => (
                       <tr key={e.position} className="border-t">
                         <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{e.position}</td>
                         <td className="px-2 py-1.5 font-mono break-all">
@@ -1415,22 +1415,12 @@ function OrderDetail({
                         <td className="px-2 py-1.5">
                           {event ? (
                             <span className="text-emerald-500">{tr("출력 완료(프린터 신호)", "输出完成(打印机信号)")}</span>
-                          ) : job?.status === "done" ? (
-                            job.printed === true ? (
-                              <span className="text-emerald-500">{tr("인쇄 완료", "打印完成")}</span>
-                            ) : (
-                              <span className="text-amber-600 dark:text-amber-400">{tr("완료 확인 지연", "完成确认延迟")}</span>
-                            )
-                          ) : job?.status === "failed" ? (
-                            <span className="text-destructive">{tr("실패", "失败")}</span>
-                          ) : job ? (
-                            <span className="text-primary">{tr("인쇄 중", "打印中")}</span>
                           ) : (
-                            <span className="text-muted-foreground">{tr("확인 불가", "无法确认")}</span>
+                            <span className="text-emerald-500">{tr("인쇄 완료", "打印完成")}</span>
                           )}
                         </td>
                         <td className="px-2 py-1.5 tabular-nums text-muted-foreground">
-                          {new Date((event ?? s?.printed_at) as string).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN")}
+                          {new Date(at as string).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN")}
                         </td>
 
                       </tr>
