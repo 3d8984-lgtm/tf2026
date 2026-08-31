@@ -523,21 +523,32 @@ function OrderDetail({
         setPrinterOffline(pf.offline && q.offline);
         setPendingCount(q.offline ? (pf.buffer_count ?? 0) : q.pendingCount);
         if (!q.offline) {
-          setJobs(
-            q.jobs
-              .filter((j) => j.kind === "print" && ts(j.submitted_at) > cut)
-              .map((j) => ({
-                id: j.id,
-                barcode: j.text ?? "",
-                status: j.status === "processing" ? "printing" as const : j.status,
-                enqueued_at: j.submitted_at,
-                printed_at: j.completed_at,
-                printed: j.printed ?? null,
-                error: j.error,
-              }))
-              .slice()
-              .reverse(),
-          );
+          const rows = q.jobs
+            .filter((j) => j.kind === "print" && ts(j.submitted_at) > cut)
+            .map((j) => ({
+              id: j.id,
+              barcode: j.text ?? "",
+              status: j.status === "processing" ? "printing" as const : j.status,
+              enqueued_at: j.submitted_at,
+              printed_at: j.completed_at,
+              printed: j.printed ?? null,
+              error: j.error,
+            }));
+          setJobs(rows.slice().reverse());
+          // 인쇄완료(printed=true) 확인 건은 큐에서 밀려나도 남도록 누적 저장
+          const done = rows.filter((j) => j.status === "done" && j.printed === true);
+          if (done.length > 0) {
+            setPrintedAcc((prev) => {
+              const next = { ...prev };
+              let changed = false;
+              for (const j of done) {
+                const k = norm(j.barcode);
+                const at = j.printed_at ?? j.enqueued_at;
+                if (!next[k] || ts(at) > ts(next[k])) { next[k] = at; changed = true; }
+              }
+              return changed ? next : prev;
+            });
+          }
         }
       } catch {
         if (alive) setPrinterOffline(true);
