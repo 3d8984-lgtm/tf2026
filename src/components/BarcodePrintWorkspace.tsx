@@ -198,6 +198,9 @@ function OrderDetail({
   const [status, setStatus] = useState<ScanStatus | null>(null);
   const [offline, setOffline] = useState(false);
   const [printerOffline, setPrinterOffline] = useState(false);
+  // 최초 폴링 응답 전에는 연결 여부를 알 수 없다 → "확인 중" 으로 표시(끊김으로 깜빡이지 않도록)
+  const [probed, setProbed] = useState(false);
+
   const [jobs, setJobs] = useState<PrintJob[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
   const [log, setLog] = useState<LogRow[]>([]);
