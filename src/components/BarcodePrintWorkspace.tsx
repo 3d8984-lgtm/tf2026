@@ -983,18 +983,18 @@ function OrderDetail({
     const prev = jobByCode[k];
     if (!prev || ts(j.printed_at ?? j.enqueued_at) >= ts(prev.printed_at ?? prev.enqueued_at)) jobByCode[k] = j;
   }
+  // 패널3(인쇄 완료) = 실제 인쇄완료(printed=true) 또는 프린터 완료 이벤트가 확인된 항목만
   const printedItems = expected
-    .map((e) => ({
-      e,
-      s: saved[e.position],
-      job: jobByCode[norm(e.no)] ?? null,
-      /** 프린터가 직접 보내온 출력 완료 이벤트 시각 (가장 신뢰도 높은 근거) */
-      event: completeEvents[norm(e.no)] ?? null,
-    }))
-    .filter((r) => (r.s?.status === "done" && r.s?.printed_at) || r.event)
+    .map((e) => {
+      const pv = norm(printValueRef.current(e.no));
+      const job = jobByCode[pv] ?? jobByCode[norm(e.no)] ?? null;
+      const event = completeEvents[norm(e.no)] ?? completeEvents[pv] ?? null;
+      const acc = printedAcc[pv] ?? printedAcc[norm(e.no)] ?? null;
+      return { e, s: saved[e.position], job, event, at: event ?? acc ?? (job?.printed === true ? job.printed_at : null) };
+    })
+    .filter((r) => !!r.at)
     .sort((a, b) => a.e.position - b.e.position);
-  // 실제 인쇄 완료 건수 — 프린터 완료 이벤트 또는 인쇄완료(0x40) 응답이 확인된 항목
-  const confirmedPrinted = printedItems.filter((r) => r.event || r.job?.printed === true).length;
+  const confirmedPrinted = printedItems.length;
 
 
 
