@@ -597,51 +597,27 @@ function OrderDetail({
     const events = queue;
     setQueue([]);
 
-    let c = cursor;
-    let lastV: Verdict | null = null;
-    let halt = false;
-    // 이미 중단 상태면 이후 스캔은 검증만 기록하고 프린터로 절대 전송하지 않는다.
-    // (작업자가 '재개' 버튼을 눌러야만 다시 전송)
-    let blocked = halted;
-    const rows: LogRow[] = [];
-
-    for (const ev of events) {
-      const code = norm(ev.barcode);
-      if (!code) continue;
-      // 같은 값이 연속으로 이중 스캔된 경우 1건으로만 반영 (직전 값과 동일하면 무시)
-      if (code === lastCodeRef.current) continue;
-      lastCodeRef.current = code;
-
-      let verdict: Verdict = "mismatch";
-      let position: number | null = null;
-      const target = expected[c];
-
-      if (seenRef.current.has(code)) {
-        verdict = "duplicate";
-        position = expected.findIndex((e) => e.keys.includes(code)) + 1 || null;
-      } else if (target && target.keys.includes(code)) {
-        verdict = "ok";
-        position = target.position;
-        seenRef.current.add(code);
-        c += 1;
-        // 생산자(스캔)는 검증 후 인쇄 대기열에 적재만 한다 — 실제 인쇄는 소비자 루프가 순서대로 처리
-        if (!blocked) void markQueued(target.position, target.no, ev.barcode);
-      } else {
-        const found = expected.findIndex((e) => e.keys.includes(code));
-        if (found >= 0) { verdict = "order"; position = found + 1; }
-      }
-
-      lastV = verdict;
-      if (verdict !== "ok") { halt = true; blocked = true; }
-      rows.push({ at: ev.scanned_at, barcode: ev.barcode, verdict, expected: target?.no ?? null, position });
+    const res = verifyScanBatch({
+      events,
+      expected,
+      cursor,
+      seen: seenRef.current,
+      halted,
+      lastCode: lastCodeRef.current,
+    });
+    if (res.rows.length === 0) return;
+    seenRef.current = res.seen;
+    lastCodeRef.current = res.lastCode;
+    // 생산자(스캔)는 검증 후 인쇄 대기열에 적재만 한다 — 실제 인쇄는 소비자 루프가 순서대로 처리
+    for (const r of res.rows) {
+      if (r.enqueue && r.position != null) void markQueued(r.position, expected[r.position - 1].no, r.barcode);
     }
-
-    if (rows.length === 0) return;
-    setCursor(c);
-    setLastVerdict(lastV);
-    if (halt) setHalted(true);
+    setCursor(res.cursor);
+    setLastVerdict(res.lastVerdict);
+    if (res.halted) setHalted(true);
     // 경고등: 불일치일 때만 적색 점등 (녹색 점멸은 지연이 커서 사용하지 않음)
-    if (halt) void warnLightError();
+    if (res.halted && !halted) void warnLightError();
+    const rows: LogRow[] = res.rows.map(({ at, barcode, verdict, expected: exp, position }) => ({ at, barcode, verdict, expected: exp, position }));
     setLog((prev) => [...rows.slice().reverse(), ...prev].slice(0, 100));
   }, [queue, expected, cursor, testMode, ready, markQueued, kind, halted]);
 
