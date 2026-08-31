@@ -786,3 +786,43 @@ PLC와는 완전히 별개의 서브시스템입니다. `Settings.scan_input_mod
 | 502 | 하위 장치(PLC/PF 프린터/D3V1 경고등)가 비정상 응답 | `/plc/*`, `/pf-printer/*`, `/d3v1-light/*` |
 | 503 | 하위 장치(PLC/PF 프린터/D3V1 경고등)에 연결 불가 | `/plc/*`, `/pf-printer/*`, `/d3v1-light/*` |
 | 500 | 서버 내부 오류 (ffmpeg 실패 등) | `/cam/{id}/seek`, `/cam/{id}/clip` |
+
+---
+
+## 앱으로 보내는 인쇄 완료 콜백 (게이트웨이 → 앱)
+
+프린터가 실제 출력 완료(0x40) 신호를 돌려준 순간, 게이트웨이가 아래 엔드포인트로 POST 하면
+앱의 "인쇄 완료" 카운트가 물리적 출력 기준으로 정확해집니다. (폴링 없이 즉시 반영)
+
+```
+POST https://bbsfhmarrcvhvcmuqwej.supabase.co/functions/v1/print-complete-event
+Content-Type: application/json
+x-print-secret: <운영자에게 전달받은 PRINT_EVENT_SECRET>
+```
+
+**요청 바디 (단건)**
+```json
+{
+  "code": "9cef4a0e-b0c2-4dea-9fac-1c00c2d3e9f4-4",
+  "job_id": "a1b2c3d4",
+  "printed": true,
+  "printed_at": "2026-08-31T02:00:00.412Z",
+  "device": "PF-A",
+  "error": null
+}
+```
+**배치 전송**: `{ "events": [ {...}, {...} ] }`
+
+| 필드 | 필수 | 설명 |
+|---|---|---|
+| `code` | O | 인쇄한 바코드 값 (`barcode`/`text` 키도 허용) |
+| `job_id` | X | 게이트웨이 큐의 job id (`id` 키도 허용) |
+| `printed` | X | 기본 `true`. `false`거나 `error`가 있으면 실패로 기록 |
+| `printed_at` | X | 완료 시각 ISO8601. 없으면 수신 시각 (`completed_at` 키도 허용) |
+| `device` | X | 프린터 식별자 (`printer` 키도 허용) |
+| `error` | X | 실패 사유 |
+
+**응답 200**: `{ "ok": true, "received": 1, "results": [{ "code": "...", "matched": true }] }`
+(`matched=false` = 앱에 해당 바코드의 인쇄 항목이 없어 이벤트만 기록됨)
+
+**조회**: `GET .../print-complete-event?since=<ISO>&limit=100` → `{ "events": [...] }`

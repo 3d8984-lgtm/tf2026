@@ -213,6 +213,9 @@ function OrderDetail({
   const [history, setHistory] = useState<ScanEvent[]>([]);
   const [printerLog, setPrinterLog] = useState<PrinterSendLog[]>([]);
   const [rawTab, setRawTab] = useState<"scanner" | "printer">("scanner");
+  /** 프린터가 보내온 실제 출력 완료 이벤트 (code → 완료 시각) */
+  const [completeEvents, setCompleteEvents] = useState<Record<string, string>>({});
+
 
   // 게이트웨이는 대기열/이력 삭제 API가 없어서, 초기화 시점 이후 데이터만 화면에 표시한다.
   // 컷오프는 서버에 저장해 모든 기기(패드)에서 동일하게 적용하고,
@@ -478,6 +481,34 @@ function OrderDetail({
     const iv = setInterval(tick, 3000);
     return () => { alive = false; clearInterval(iv); };
   }, []);
+
+  // 프린터 출력 완료 이벤트 폴링 (print-complete-event 로 수신되어 DB에 적재된 기록)
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      const cut = cutoffRef.current;
+      let q = supabase
+        .from("print_complete_events")
+        .select("code, event_at, printed")
+        .eq("printed", true)
+        .order("event_at", { ascending: false })
+        .limit(500);
+      if (cut) q = q.gt("event_at", cut);
+      const { data } = await q;
+      if (!alive || !data) return;
+      const map: Record<string, string> = {};
+      for (const r of data as Array<{ code: string; event_at: string }>) {
+        const k = norm(r.code);
+        if (!map[k] || ts(r.event_at) > ts(map[k])) map[k] = r.event_at;
+      }
+      setCompleteEvents(map);
+    };
+    load();
+    const iv = setInterval(load, 5000);
+    return () => { alive = false; clearInterval(iv); };
+  }, []);
+
+
 
   // 새 스캔 이벤트 큐 처리 → 순서/정보 검증 (테스트 모드에서는 스캔 무시)
   useEffect(() => {
@@ -820,11 +851,18 @@ function OrderDetail({
     if (!prev || ts(j.printed_at ?? j.enqueued_at) >= ts(prev.printed_at ?? prev.enqueued_at)) jobByCode[k] = j;
   }
   const printedItems = expected
-    .map((e) => ({ e, s: saved[e.position], job: jobByCode[norm(e.no)] ?? null }))
-    .filter((r) => r.s?.status === "done" && r.s?.printed_at)
+    .map((e) => ({
+      e,
+      s: saved[e.position],
+      job: jobByCode[norm(e.no)] ?? null,
+      /** 프린터가 직접 보내온 출력 완료 이벤트 시각 (가장 신뢰도 높은 근거) */
+      event: completeEvents[norm(e.no)] ?? null,
+    }))
+    .filter((r) => (r.s?.status === "done" && r.s?.printed_at) || r.event)
     .sort((a, b) => a.e.position - b.e.position);
-  // 실제 인쇄완료(0x40) 확인된 건수 — 게이트웨이 큐에 job이 남아있는 항목 기준
-  const confirmedPrinted = printedItems.filter((r) => r.job?.printed === true).length;
+  // 실제 인쇄 완료 건수 — 프린터 완료 이벤트 또는 인쇄완료(0x40) 응답이 확인된 항목
+  const confirmedPrinted = printedItems.filter((r) => r.event || r.job?.printed === true).length;
+
 
 
 
@@ -1224,7 +1262,7 @@ function OrderDetail({
                 <CheckCircle2 className="w-4 h-4 text-emerald-500" />{tr("인쇄 완료", "打印完成")}
                 <span className="text-xs font-normal text-muted-foreground">({printedItems.length}/{total})</span>
                 <span className="text-[11px] font-normal text-muted-foreground ml-auto">
-                  {tr("인쇄완료(0x40) 확인", "打印完成(0x40)确认")} {confirmedPrinted}
+                  {tr("출력 완료 확인", "输出完成确认")} {confirmedPrinted}
                 </span>
               </CardTitle>
             </CardHeader>
@@ -1243,7 +1281,7 @@ function OrderDetail({
                   <tbody>
                     {printedItems.length === 0 ? (
                       <tr><td colSpan={4} className="px-2 py-6 text-center text-muted-foreground">{tr("인쇄 완료 기록이 없습니다", "暂无打印完成记录")}</td></tr>
-                    ) : printedItems.map(({ e, s, job }) => (
+                    ) : printedItems.map(({ e, s, job, event }) => (
                       <tr key={e.position} className="border-t">
                         <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{e.position}</td>
                         <td className="px-2 py-1.5 font-mono break-all">
@@ -1251,7 +1289,9 @@ function OrderDetail({
                           {s?.test_mode && <span className="ml-1 text-[10px] text-amber-500">TEST</span>}
                         </td>
                         <td className="px-2 py-1.5">
-                          {job?.status === "done" ? (
+                          {event ? (
+                            <span className="text-emerald-500">{tr("출력 완료(프린터 신호)", "输出完成(打印机信号)")}</span>
+                          ) : job?.status === "done" ? (
                             job.printed === true ? (
                               <span className="text-emerald-500">{tr("인쇄 완료", "打印完成")}</span>
                             ) : (
@@ -1266,7 +1306,7 @@ function OrderDetail({
                           )}
                         </td>
                         <td className="px-2 py-1.5 tabular-nums text-muted-foreground">
-                          {new Date(s!.printed_at as string).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN")}
+                          {new Date((event ?? s?.printed_at) as string).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN")}
                         </td>
 
                       </tr>
@@ -1277,9 +1317,10 @@ function OrderDetail({
               </div>
               <p className="mt-2 text-[11px] text-muted-foreground">
                 {tr(
-                  "※ '인쇄 완료'는 프린터가 인쇄완료(0x40) 응답까지 보낸 것을 확인한 상태입니다. '완료 확인 지연'은 인쇄 트리거는 성공했으나 완료 응답 수신이 타임아웃된 경우로, 실제로는 인쇄됐을 가능성이 높습니다. 게이트웨이 큐는 최근 100건만 보관하므로 오래된 항목은 '확인 불가'로 표시됩니다.",
-                  "※ '打印完成'表示已确认打印机返回打印完成(0x40)响应。'完成确认延迟'表示打印触发成功但完成响应超时，实际很可能已打印。网关队列仅保留最近100条，较早的项目显示为'无法确认'。"
+                  "※ '출력 완료(프린터 신호)'는 프린터/게이트웨이가 완료 이벤트 API(print-complete-event)로 직접 통보한 실제 출력 완료 건입니다. 이벤트가 없는 항목은 게이트웨이 큐의 인쇄완료(0x40) 응답으로 판정하며, '완료 확인 지연'은 트리거는 성공했으나 완료 응답 수신이 타임아웃된 경우입니다.",
+                  "※ '输出完成(打印机信号)'表示打印机/网关通过完成事件API(print-complete-event)直接通知的实际输出完成。无事件的项目按网关队列的打印完成(0x40)响应判定，'完成确认延迟'表示触发成功但完成响应超时。"
                 )}
+
               </p>
             </CardContent>
 
