@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useLang } from "@/contexts/LangContext";
 import { toast } from "sonner";
-import { Printer, Wifi, WifiOff, Play, Square, Eraser } from "lucide-react";
+import { Printer, Wifi, WifiOff, Play, Square, Eraser, Loader2 } from "lucide-react";
 import { pfPrint, pfPrinterRun, pfPrinterStop, pfPrinterStatus, pfPrinterQueue, pfPrinterQueueClear } from "@/lib/pf-printer";
 
 
@@ -19,6 +19,8 @@ export default function PfPrinterCard({ defaultText = "" }: { defaultText?: stri
   const [buffer, setBuffer] = useState<number | null>(null);
   const [pending, setPending] = useState<number | null>(null);
   const [offline, setOffline] = useState(false);
+  // 첫 응답 전에는 상태를 알 수 없으므로 "확인 중" 으로 표시한다.
+  const [probed, setProbed] = useState(false);
   const [text, setText] = useState(defaultText);
   const [busy, setBusy] = useState(false);
 
@@ -31,11 +33,13 @@ export default function PfPrinterCard({ defaultText = "" }: { defaultText?: stri
       setInk(st.ink_percent);
       setBuffer(st.buffer_count);
       setPending(q.offline ? null : q.pendingCount);
+      setProbed(true);
     };
     tick();
     const iv = setInterval(tick, 5000);
     return () => { alive = false; clearInterval(iv); };
   }, []);
+
 
 
   const testPrint = useCallback(async () => {
@@ -54,7 +58,7 @@ export default function PfPrinterCard({ defaultText = "" }: { defaultText?: stri
 
 
   return (
-    <Card className={offline ? "border-destructive" : ""}>
+    <Card className={probed && offline ? "border-destructive" : ""}>
       <CardContent className="p-4 space-y-3">
         <div className="flex items-center gap-4">
           <Printer className="w-5 h-5 text-muted-foreground shrink-0" />
@@ -65,7 +69,11 @@ export default function PfPrinterCard({ defaultText = "" }: { defaultText?: stri
             </p>
 
           </div>
-          {offline ? (
+          {!probed ? (
+            <Badge variant="outline" className="gap-1 text-muted-foreground shrink-0">
+              <Loader2 className="w-3 h-3 animate-spin" />{tr("확인 중", "检查中")}
+            </Badge>
+          ) : offline ? (
             <Badge variant="outline" className="gap-1 text-destructive border-destructive/40 shrink-0">
               <WifiOff className="w-3 h-3" />{tr("연결 끊김", "连接断开")}
             </Badge>

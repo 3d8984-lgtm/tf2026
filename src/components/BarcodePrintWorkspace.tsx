@@ -198,6 +198,9 @@ function OrderDetail({
   const [status, setStatus] = useState<ScanStatus | null>(null);
   const [offline, setOffline] = useState(false);
   const [printerOffline, setPrinterOffline] = useState(false);
+  // 최초 폴링 응답 전에는 연결 여부를 알 수 없다 → "확인 중" 으로 표시(끊김으로 깜빡이지 않도록)
+  const [probed, setProbed] = useState(false);
+
   const [jobs, setJobs] = useState<PrintJob[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
   const [log, setLog] = useState<LogRow[]>([]);
@@ -467,7 +470,9 @@ function OrderDetail({
         if (alive) { setOffline(true); setPrinterOffline(true); }
       } finally {
         inFlight = false;
+        if (alive) setProbed(true);
       }
+
     };
     tick();
     const iv = setInterval(tick, 3000);
@@ -878,7 +883,11 @@ function OrderDetail({
                   {status?.last_duration != null && ` · ${status.last_duration}s`}
                 </p>
               </div>
-              {offline || !status?.connected ? (
+              {!probed ? (
+                <Badge variant="outline" className="gap-1 text-muted-foreground shrink-0">
+                  <Loader2 className="w-3 h-3 animate-spin" />{tr("확인 중", "检查中")}
+                </Badge>
+              ) : offline || !status?.connected ? (
                 <Badge variant="outline" className="gap-1 text-destructive border-destructive/40 shrink-0">
                   <WifiOff className="w-3 h-3" />{tr("연결 끊김", "连接断开")}
                 </Badge>
@@ -890,7 +899,7 @@ function OrderDetail({
             </CardContent>
           </Card>
 
-          <Card className={printerOffline ? "border-destructive" : ""}>
+          <Card className={probed && printerOffline ? "border-destructive" : ""}>
             <CardContent className="p-4 flex items-center gap-4">
               <Printer className="w-5 h-5 text-muted-foreground shrink-0" />
               <div className="min-w-0 flex-1">
@@ -903,7 +912,11 @@ function OrderDetail({
                 </p>
                 {lastJob?.error && <p className="text-[11px] text-destructive truncate">{lastJob.error}</p>}
               </div>
-              {printerOffline ? (
+              {!probed ? (
+                <Badge variant="outline" className="gap-1 text-muted-foreground shrink-0">
+                  <Loader2 className="w-3 h-3 animate-spin" />{tr("확인 중", "检查中")}
+                </Badge>
+              ) : printerOffline ? (
                 <Badge variant="outline" className="gap-1 text-destructive border-destructive/40 shrink-0">
                   <WifiOff className="w-3 h-3" />{tr("연결 끊김", "连接断开")}
                 </Badge>
@@ -954,6 +967,10 @@ function OrderDetail({
               {testMode ? (
                 <Badge variant="outline" className="gap-1 justify-center border-amber-500/50 text-amber-600 dark:text-amber-400">
                   <FlaskConical className="w-3 h-3" />{tr("테스트 모드", "测试模式")}
+                </Badge>
+              ) : !probed ? (
+                <Badge variant="outline" className="gap-1 text-muted-foreground justify-center">
+                  <Loader2 className="w-3 h-3 animate-spin" />{tr("스캐너 확인 중", "扫描仪检查中")}
                 </Badge>
               ) : offline || !status?.connected ? (
                 <Badge variant="outline" className="gap-1 text-destructive border-destructive/40 justify-center">

@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { ScanLine, RotateCcw, CheckCircle2, XCircle, Wifi, WifiOff, ShieldAlert, Printer, AlertTriangle, BellOff } from "lucide-react";
+import { ScanLine, RotateCcw, CheckCircle2, XCircle, Wifi, WifiOff, ShieldAlert, Printer, AlertTriangle, BellOff, Loader2 } from "lucide-react";
 import { STAGE_PLC } from "@/hooks/usePlcStatus";
 import { scanSuccess, scanFail } from "@/lib/scan-sound";
 import { pfPrint } from "@/lib/pf-printer";
@@ -54,6 +54,8 @@ export default function DmScannerMonitor() {
 
   const [status, setStatus] = useState<ScanStatus | null>(null);
   const [offline, setOffline] = useState(false);
+  // 첫 상태 응답 전에는 "확인 중" 으로 표시 (끊김 → 연결됨 깜빡임 방지)
+  const [probed, setProbed] = useState(false);
   const [order, setOrder] = useState<any>(null);
   const [log, setLog] = useState<LogRow[]>([]);
   const [cursor, setCursor] = useState(0);
@@ -133,6 +135,7 @@ export default function DmScannerMonitor() {
         setOffline(true);
       }
       if (!alive) return;
+      setProbed(true);
       delay = ok ? 1500 : Math.min(delay * 2, 30000);
       timer = setTimeout(tick, delay);
     };
@@ -273,7 +276,11 @@ export default function DmScannerMonitor() {
               {tr("99 DM 바코드 스캐너", "99 DM条码扫描仪")}
             </span>
             <span className="flex items-center gap-2">
-              {offline || !status?.connected ? (
+              {!probed ? (
+                <Badge variant="outline" className="gap-1 text-muted-foreground">
+                  <Loader2 className="w-3 h-3 animate-spin" />{tr("확인 중", "检查中")}
+                </Badge>
+              ) : offline || !status?.connected ? (
                 <Badge variant="outline" className="gap-1 text-destructive border-destructive/40">
                   <WifiOff className="w-3 h-3" />{tr("연결 끊김", "连接断开")}
                 </Badge>
