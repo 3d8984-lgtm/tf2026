@@ -1247,14 +1247,15 @@ function OrderDetail({
             </CardContent>
           </Card>
 
-          {/* 인쇄 대기열 (서버 저장 · FIFO) */}
+          {/* 인쇄 대기열 — 프린터 서버 FIFO 큐에 실제 대기/처리 중인 건 */}
           <Card className={errorCount > 0 ? "border-destructive" : ""}>
             <CardHeader className="pb-3 space-y-2">
               <CardTitle className="text-base flex items-center gap-2 flex-wrap">
                 <Printer className="w-4 h-4" />{tr("인쇄 대기열", "打印队列")}
-                <span className="text-xs font-normal text-muted-foreground">({queueItems.length})</span>
+                <span className="text-xs font-normal text-muted-foreground">({printerOffline ? "-" : waitingJobs.length})</span>
                 <span className="text-[11px] font-normal text-muted-foreground ml-auto">
-                  {tr("전송 중", "发送中")} {inFlightCount} · {tr("프린터 대기", "打印机等待")} {printerOffline ? "-" : waitingJobs.length}
+                  {tr("전송 중", "发送中")} {inFlightCount}
+                  {errorCount > 0 && <span className="text-destructive"> · {tr("실패", "失败")} {errorCount}</span>}
                 </span>
               </CardTitle>
               <div className="flex gap-1.5">
