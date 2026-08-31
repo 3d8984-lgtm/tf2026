@@ -883,7 +883,11 @@ function OrderDetail({
                   {status?.last_duration != null && ` · ${status.last_duration}s`}
                 </p>
               </div>
-              {offline || !status?.connected ? (
+              {!probed ? (
+                <Badge variant="outline" className="gap-1 text-muted-foreground shrink-0">
+                  <Loader2 className="w-3 h-3 animate-spin" />{tr("확인 중", "检查中")}
+                </Badge>
+              ) : offline || !status?.connected ? (
                 <Badge variant="outline" className="gap-1 text-destructive border-destructive/40 shrink-0">
                   <WifiOff className="w-3 h-3" />{tr("연결 끊김", "连接断开")}
                 </Badge>
