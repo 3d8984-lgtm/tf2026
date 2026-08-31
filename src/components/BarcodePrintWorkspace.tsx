@@ -470,7 +470,9 @@ function OrderDetail({
         if (alive) { setOffline(true); setPrinterOffline(true); }
       } finally {
         inFlight = false;
+        if (alive) setProbed(true);
       }
+
     };
     tick();
     const iv = setInterval(tick, 3000);
