@@ -859,8 +859,8 @@ async function createYunOpenApiOrder(
       email: src.recipient_email ?? "",
     },
     declaration_info: [declaration],
-    // 시스템 설정 > 택배사 연동 > YunExpress 의 "비고(Remark)" 값
-    ...(s("remark") ? { remark: s("remark") } : {}),
+    // 시스템 설정 > 택배사 연동 > YunExpress 의 "비고(Remark)" 값 (API 규격: 0~100자)
+    ...(s("remark") ? { remark: s("remark").slice(0, 100) } : {}),
   };
   const body = JSON.stringify(payload);
   console.log("[yun openapi declaration]", JSON.stringify(declaration));
