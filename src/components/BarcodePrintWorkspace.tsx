@@ -851,11 +851,18 @@ function OrderDetail({
     if (!prev || ts(j.printed_at ?? j.enqueued_at) >= ts(prev.printed_at ?? prev.enqueued_at)) jobByCode[k] = j;
   }
   const printedItems = expected
-    .map((e) => ({ e, s: saved[e.position], job: jobByCode[norm(e.no)] ?? null }))
-    .filter((r) => r.s?.status === "done" && r.s?.printed_at)
+    .map((e) => ({
+      e,
+      s: saved[e.position],
+      job: jobByCode[norm(e.no)] ?? null,
+      /** 프린터가 직접 보내온 출력 완료 이벤트 시각 (가장 신뢰도 높은 근거) */
+      event: completeEvents[norm(e.no)] ?? null,
+    }))
+    .filter((r) => (r.s?.status === "done" && r.s?.printed_at) || r.event)
     .sort((a, b) => a.e.position - b.e.position);
-  // 실제 인쇄완료(0x40) 확인된 건수 — 게이트웨이 큐에 job이 남아있는 항목 기준
-  const confirmedPrinted = printedItems.filter((r) => r.job?.printed === true).length;
+  // 실제 인쇄 완료 건수 — 프린터 완료 이벤트 또는 인쇄완료(0x40) 응답이 확인된 항목
+  const confirmedPrinted = printedItems.filter((r) => r.event || r.job?.printed === true).length;
+
 
 
 
