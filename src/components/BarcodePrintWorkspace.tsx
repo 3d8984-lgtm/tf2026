@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { warnLightOkFlash, warnLightError, warnLight2OkFlash } from "@/lib/warning-light";
+import { warnLightError } from "@/lib/warning-light";
 import { pfPrint, pfPrinterStatus, pfPrinterQueue, pfPrinterQueueClear } from "@/lib/pf-printer";
 
 import {
@@ -293,6 +293,8 @@ function OrderDetail({
   const [rawTab, setRawTab] = useState<"scanner" | "printer">("scanner");
   /** 프린터가 보내온 실제 출력 완료 이벤트 (code → 완료 시각) */
   const [completeEvents, setCompleteEvents] = useState<Record<string, string>>({});
+  /** 프린터 서버 큐는 최근 100건만 유지하므로, printed=true 확인 건은 화면에서 자체 누적한다. */
+  const [printedAcc, setPrintedAcc] = useState<Record<string, string>>({});
 
 
   // 게이트웨이는 대기열/이력 삭제 API가 없어서, 초기화 시점 이후 데이터만 화면에 표시한다.
@@ -521,21 +523,32 @@ function OrderDetail({
         setPrinterOffline(pf.offline && q.offline);
         setPendingCount(q.offline ? (pf.buffer_count ?? 0) : q.pendingCount);
         if (!q.offline) {
-          setJobs(
-            q.jobs
-              .filter((j) => j.kind === "print" && ts(j.submitted_at) > cut)
-              .map((j) => ({
-                id: j.id,
-                barcode: j.text ?? "",
-                status: j.status === "processing" ? "printing" as const : j.status,
-                enqueued_at: j.submitted_at,
-                printed_at: j.completed_at,
-                printed: j.printed ?? null,
-                error: j.error,
-              }))
-              .slice()
-              .reverse(),
-          );
+          const rows = q.jobs
+            .filter((j) => j.kind === "print" && ts(j.submitted_at) > cut)
+            .map((j) => ({
+              id: j.id,
+              barcode: j.text ?? "",
+              status: j.status === "processing" ? "printing" as const : j.status,
+              enqueued_at: j.submitted_at,
+              printed_at: j.completed_at,
+              printed: j.printed ?? null,
+              error: j.error,
+            }));
+          setJobs(rows.slice().reverse());
+          // 인쇄완료(printed=true) 확인 건은 큐에서 밀려나도 남도록 누적 저장
+          const done = rows.filter((j) => j.status === "done" && j.printed === true);
+          if (done.length > 0) {
+            setPrintedAcc((prev) => {
+              const next = { ...prev };
+              let changed = false;
+              for (const j of done) {
+                const k = norm(j.barcode);
+                const at = j.printed_at ?? j.enqueued_at;
+                if (!next[k] || ts(at) > ts(next[k])) { next[k] = at; changed = true; }
+              }
+              return changed ? next : prev;
+            });
+          }
         }
       } catch {
         if (alive) setPrinterOffline(true);
@@ -627,15 +640,8 @@ function OrderDetail({
     setCursor(c);
     setLastVerdict(lastV);
     if (halt) setHalted(true);
-    // 1번 경고등: 순서 일치 → 녹색 0.5초 점멸 / 불일치 → 빨강 점등 유지
-    if (kind === "card") {
-      if (halt) void warnLightError();
-      else if (lastV === "ok" && !blocked) {
-        void warnLightOkFlash();
-        // 2번 경고등: 검증 일치 시 녹색 0.5초 점등
-        void warnLight2OkFlash();
-      }
-    }
+    // 경고등: 불일치일 때만 적색 점등 (녹색 점멸은 지연이 커서 사용하지 않음)
+    if (halt) void warnLightError();
     setLog((prev) => [...rows.slice().reverse(), ...prev].slice(0, 100));
   }, [queue, expected, cursor, testMode, ready, markQueued, kind, halted]);
 
@@ -812,6 +818,8 @@ function OrderDetail({
     setCutoff(serverCut);
     cutoffRef.current = serverCut;
     setJobs([]);
+    setPrintedAcc({});
+    setCompleteEvents({});
     setHistory([]);
     setQueue([]);
     setPendingCount(0);
@@ -912,14 +920,18 @@ function OrderDetail({
   // 인쇄 완료 = 프린터가 인쇄완료(0x40) 응답까지 보낸 job만 카운트
   const doneJobs = jobs.filter((j) => j.status === "done");
   const printedJobs = doneJobs.filter((j) => j.printed === true).length;
-  const waitingJobs = jobs.filter((j) => j.status === "pending" || j.status === "printing");
+  // 패널2(인쇄 대기열) = pending/processing + (done 이지만 인쇄완료 미확인)
+  const waitingJobs = jobs.filter(
+    (j) => j.status === "pending" || j.status === "printing" || (j.status === "done" && j.printed === false),
+  );
 
   // ── 인쇄 대기열 표시 데이터 ────────────────────────────────────────
   // 프린터 서버 FIFO 큐에 실제 대기/처리 중인 건 + 앱에서 전송 중인 건 + 실패로 멈춘 건
-  type QueueState = "printing" | "printer_wait" | "sending" | "error";
+  type QueueState = "printing" | "printer_wait" | "unconfirmed" | "sending" | "error";
   const queueStateMeta: Record<QueueState, { ko: string; zh: string; cls: string }> = {
     printing: { ko: "프린터 인쇄 중", zh: "打印机打印中", cls: "text-primary" },
     printer_wait: { ko: "프린터 대기 중", zh: "打印机等待中", cls: "text-primary" },
+    unconfirmed: { ko: "인쇄 완료 미확인", zh: "打印完成未确认", cls: "text-amber-500" },
     sending: { ko: "전송 중", zh: "发送中", cls: "text-primary" },
     error: { ko: "인쇄 실패 · 작업 중단", zh: "打印失败 · 作业中断", cls: "text-destructive" },
   };
@@ -938,7 +950,7 @@ function OrderDetail({
         key: `job-${j.id}`,
         position: posByPrintValue[norm(j.barcode)] ?? null,
         code: j.barcode,
-        state: (j.status === "printing" ? "printing" : "printer_wait") as QueueState,
+        state: (j.status === "done" ? "unconfirmed" : j.status === "printing" ? "printing" : "printer_wait") as QueueState,
       })),
     // 아직 프린터 큐에 반영되기 전(앱→게이트웨이 전송 중)
     ...Object.values(saved)
@@ -973,18 +985,18 @@ function OrderDetail({
     const prev = jobByCode[k];
     if (!prev || ts(j.printed_at ?? j.enqueued_at) >= ts(prev.printed_at ?? prev.enqueued_at)) jobByCode[k] = j;
   }
+  // 패널3(인쇄 완료) = 실제 인쇄완료(printed=true) 또는 프린터 완료 이벤트가 확인된 항목만
   const printedItems = expected
-    .map((e) => ({
-      e,
-      s: saved[e.position],
-      job: jobByCode[norm(e.no)] ?? null,
-      /** 프린터가 직접 보내온 출력 완료 이벤트 시각 (가장 신뢰도 높은 근거) */
-      event: completeEvents[norm(e.no)] ?? null,
-    }))
-    .filter((r) => (r.s?.status === "done" && r.s?.printed_at) || r.event)
+    .map((e) => {
+      const pv = norm(printValueRef.current(e.no));
+      const job = jobByCode[pv] ?? jobByCode[norm(e.no)] ?? null;
+      const event = completeEvents[norm(e.no)] ?? completeEvents[pv] ?? null;
+      const acc = printedAcc[pv] ?? printedAcc[norm(e.no)] ?? null;
+      return { e, s: saved[e.position], job, event, at: event ?? acc ?? (job?.printed === true ? job.printed_at : null) };
+    })
+    .filter((r) => !!r.at)
     .sort((a, b) => a.e.position - b.e.position);
-  // 실제 인쇄 완료 건수 — 프린터 완료 이벤트 또는 인쇄완료(0x40) 응답이 확인된 항목
-  const confirmedPrinted = printedItems.filter((r) => r.event || r.job?.printed === true).length;
+  const confirmedPrinted = printedItems.length;
 
 
 
@@ -1395,7 +1407,7 @@ function OrderDetail({
                   <tbody>
                     {printedItems.length === 0 ? (
                       <tr><td colSpan={4} className="px-2 py-6 text-center text-muted-foreground">{tr("인쇄 완료 기록이 없습니다", "暂无打印完成记录")}</td></tr>
-                    ) : printedItems.map(({ e, s, job, event }) => (
+                    ) : printedItems.map(({ e, s, event, at }) => (
                       <tr key={e.position} className="border-t">
                         <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{e.position}</td>
                         <td className="px-2 py-1.5 font-mono break-all">
@@ -1405,22 +1417,12 @@ function OrderDetail({
                         <td className="px-2 py-1.5">
                           {event ? (
                             <span className="text-emerald-500">{tr("출력 완료(프린터 신호)", "输出完成(打印机信号)")}</span>
-                          ) : job?.status === "done" ? (
-                            job.printed === true ? (
-                              <span className="text-emerald-500">{tr("인쇄 완료", "打印完成")}</span>
-                            ) : (
-                              <span className="text-amber-600 dark:text-amber-400">{tr("완료 확인 지연", "完成确认延迟")}</span>
-                            )
-                          ) : job?.status === "failed" ? (
-                            <span className="text-destructive">{tr("실패", "失败")}</span>
-                          ) : job ? (
-                            <span className="text-primary">{tr("인쇄 중", "打印中")}</span>
                           ) : (
-                            <span className="text-muted-foreground">{tr("확인 불가", "无法确认")}</span>
+                            <span className="text-emerald-500">{tr("인쇄 완료", "打印完成")}</span>
                           )}
                         </td>
                         <td className="px-2 py-1.5 tabular-nums text-muted-foreground">
-                          {new Date((event ?? s?.printed_at) as string).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN")}
+                          {new Date(at as string).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN")}
                         </td>
 
                       </tr>
