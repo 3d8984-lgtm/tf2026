@@ -132,19 +132,21 @@ export async function pfPrinterQueueClear(): Promise<{ ok: boolean; cleared: num
 }
 
 /**
- * 바코드/QR 값 인쇄. 응답이 오면 인쇄 트리거까지 완료된 상태다.
- * `printed`는 프린터의 인쇄완료(0x40) 응답까지 확인됐는지 여부(미확인이어도 에러는 아님).
- * @param padToLength 프린터 QR 객체의 "var length" (미지정 시 서버 기본값 사용)
+ * 바코드/QR 값 인쇄. 응답이 오면 프린터 버퍼에 접수까지 완료된 상태다(물리 인쇄 완료 아님).
+ * `printed`=true 는 응답 시점에 이미 물리 인쇄완료(0x40)까지 확인된 경우(프린터 idle 시).
+ * null/false 면 `id`로 GET /queue 를 폴링해 status="done" && printed=true 를 확인한다.
+ * @param padToLength 프린터 QR 객체의 "var length" (미지정 시 서버 기본값 사용, 현장 기본 38)
  */
 export async function pfPrint(
   text: string,
   padToLength?: number,
-): Promise<{ ok: boolean; printed?: boolean; error?: string; payload: string }> {
+): Promise<{ ok: boolean; printed?: boolean; id?: string; error?: string; payload: string }> {
   const payload = String(text ?? "").slice(0, 200);
   const body = JSON.stringify(padToLength ? { text: payload, pad_to_length: padToLength } : { text: payload });
 
   const attempt = async () => {
-    const res = await pfFetch("/api/v1/pf-printer/test", { method: "POST", body });
+    // 개정 서버는 접수 즉시 응답하므로 긴 대기가 필요 없다(네트워크/직렬화 여유만 둠)
+    const res = await pfFetch("/api/v1/pf-printer/test", { method: "POST", body }, 15000);
     const j: any = await res.json().catch(() => ({}));
     return { res, j };
   };
@@ -156,7 +158,9 @@ export async function pfPrint(
       const run = await pfPrinterRun();
       if (run.ok) ({ res, j } = await attempt());
     }
-    if (res.ok && j?.accepted) return { ok: true, printed: j?.printed === true, payload };
+    if (res.ok && j?.accepted) {
+      return { ok: true, printed: j?.printed === true, id: typeof j?.id === "string" ? j.id : undefined, payload };
+    }
     return { ok: false, error: pfErrorText(j, res.status), payload };
   } catch (e) {
     return { ok: false, error: String(e), payload };
