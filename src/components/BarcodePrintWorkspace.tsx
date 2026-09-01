@@ -670,6 +670,7 @@ function OrderDetail({
   const warmedUpRef = useRef(false);
   const gateRef = useRef({ ready, testMode, halted });
   gateRef.current = { ready, testMode, halted };
+  haltRef.current = halted;
 
   // 프린터 웜업: Run 모드로 미리 전환해 첫 /test 가 Stop 상태에서 NAK/타임아웃 나지 않게 한다.
   // 프린터가 모드 전환을 마칠 시간을 확보한 뒤 true 를 반환한다.
@@ -678,15 +679,13 @@ function OrderDetail({
     const seq = ++dispatchSeqRef.current;
     const dispatchAt = Date.now();
     setDispatchLog((prev) => [
-      { seq, position: -1, code: "WARMUP", scanAt: null, dispatchAt, ackAt: null, ok: null, gatewayJobId: null, printedAt: null, error: null },
+      { seq, position: -1, code: "WARMUP", scanAt: null, dispatchAt, ackAt: null, ok: null, gatewayJobId: null, printedAt: null, error: null, errorCode: null, responseCode: null, retryCount: 0, runState: null, readyAt: null, serialSendAt: null, serialResponseAt: null },
       ...prev,
     ].slice(0, 200));
-    const r = await pfPrinterRun();
-    // Run 명령 직후 프린터가 모드 전환을 마칠 시간 확보
-    await new Promise((res) => setTimeout(res, 1200));
+    const r = await pfEnsureReady(8000, 400);
     const ackAt = Date.now();
     setDispatchLog((prev) => prev.map((row) => (row.seq === seq
-      ? { ...row, ackAt, ok: r.ok, error: r.ok ? null : r.error ?? "warmup failed" }
+      ? { ...row, ackAt, ok: r.ok, error: r.ok ? null : r.error ?? "warmup failed", errorCode: r.errorCode ?? null, runState: r.runState ?? null, readyAt: r.readyAt ?? null }
       : row)));
     warmedUpRef.current = r.ok;
     return r.ok;
@@ -696,43 +695,78 @@ function OrderDetail({
     if (busyRef.current) return; // 이미 다른 소비자가 실행 중
     busyRef.current = true;
     try {
-      // 첫 인쇄 전 프린터 예열(Run 모드 전환) — Stop 상태 웜업 타임아웃 방지.
-      // 웜업 실패 시에도 전송은 시도한다 (pfPrint 내부의 NAK 자동 복구가 후속 처리).
+      // 첫 인쇄 전 RUN/READY를 실제 확인한다. 확인 실패 시 어떤 print도 보내지 않는다.
       const hasQueued = Object.values(savedRef.current)
         .some((s) => s.status === "queued" && !dispatchedRef.current.has(s.position));
-      if (hasQueued && !warmedUpRef.current) await warmupPrinter();
+      if (hasQueued && !warmedUpRef.current) {
+        const warm = await warmupPrinter();
+        if (!warm) {
+          const first = Object.values(savedRef.current).filter((s) => s.status === "queued").sort((a, b) => a.position - b.position)[0];
+          if (first) await markPrintError(first.position, first.code, "프린터 READY 확인에 실패했습니다", "PRINTER_NOT_READY");
+          return;
+        }
+      }
       // 대기열이 빌 때까지 한 건씩 순차 전송 (ACK 후 다음 건)
       // eslint-disable-next-line no-constant-condition
       while (true) {
         const g = gateRef.current;
-        if (!g.ready || g.testMode || g.halted) break;
+        if (!g.ready || g.testMode || g.halted || haltRef.current) break;
         const next = Object.values(savedRef.current)
           .filter((s) => s.status === "queued" && !dispatchedRef.current.has(s.position))
           .sort((a, b) => a.position - b.position)[0];
         if (!next) break;
 
+        // DB compare-and-set claim: 다른 탭/기기가 이미 가져간 작업은 전송하지 않는다.
+        const dispatchStartedAt = new Date().toISOString();
+        const { data: claimed, error: claimError } = await supabase
+          .from("barcode_print_items")
+          .update({ dispatch_status: "dispatching", dispatch_started_at: dispatchStartedAt, error_code: null, error_detail: null })
+          .eq("kind", kind).eq("order_id", order.id).eq("position", next.position)
+          .eq("dispatch_status", "queued")
+          .select("position")
+          .maybeSingle();
+        if (claimError || !claimed) {
+          await loadSaved();
+          break;
+        }
         dispatchedRef.current.add(next.position);
+        setSaved((prev) => ({ ...prev, [next.position]: { ...prev[next.position], dispatch_status: "dispatching" } }));
         const seq = ++dispatchSeqRef.current;
         const dispatchAt = Date.now();
         setPrintingPos(next.position);
         setInFlightCount(1);
         setDispatchLog((prev) => [
-          { seq, position: next.position, code: next.code, scanAt: null, dispatchAt, ackAt: null, ok: null, gatewayJobId: null, printedAt: null, error: null },
+          { seq, position: next.position, code: next.code, scanAt: next.scanned_at ?? null, dispatchAt, ackAt: null, ok: null, gatewayJobId: null, printedAt: null, error: null, errorCode: null, responseCode: null, retryCount: 0, runState: "READY", readyAt: new Date().toISOString(), serialSendAt: null, serialResponseAt: null },
           ...prev,
         ].slice(0, 200));
 
         const r = await sendToPrinter(printValueRef.current(next.code));
         const ackAt = Date.now();
         setDispatchLog((prev) => prev.map((row) => (row.seq === seq
-          ? { ...row, ackAt, ok: r.ok, gatewayJobId: r.id ?? null, error: r.ok ? null : r.error ?? "send failed" }
+          ? { ...row, ackAt, ok: r.ok, gatewayJobId: r.id ?? null, error: r.ok ? null : r.error ?? "send failed", errorCode: r.errorCode ?? null, responseCode: r.responseCode ?? null, retryCount: r.retryCount, serialSendAt: r.serialSendAt ?? null, serialResponseAt: r.serialResponseAt ?? null }
           : row)));
 
         if (r.ok) {
+          const receivedAt = new Date().toISOString();
+          await supabase.from("barcode_print_items").update({
+            dispatch_status: r.printed ? "printed" : "accepted",
+            gateway_job_id: r.id ?? null,
+            gateway_received_at: receivedAt,
+            printer_run_state: "READY",
+            printer_ready_at: receivedAt,
+            serial_send_at: r.serialSendAt ?? null,
+            serial_response_at: r.serialResponseAt ?? null,
+            response_code: r.responseCode ?? null,
+            retry_count: r.retryCount,
+            error_code: null,
+            error_detail: null,
+          }).eq("kind", kind).eq("order_id", order.id).eq("position", next.position);
+          setSaved((prev) => ({ ...prev, [next.position]: { ...prev[next.position], dispatch_status: r.printed ? "printed" : "accepted", gateway_job_id: r.id ?? null, retry_count: r.retryCount } }));
           // printed=true → 이미 물리 인쇄 확인. null/false 는 "버퍼 접수됨"이며 오류가 아니다.
           if (r.printed) await markDone(next.position, next.code, null, false);
         } else {
           dispatchedRef.current.delete(next.position); // 재시도 가능하도록 해제 (queued 유지)
-          await markPrintError(next.position, next.code, r.error ?? "printer send failed");
+          await markPrintError(next.position, next.code, r.error ?? "printer send failed", r.errorCode);
           break; // Fail-fast: 이후 항목은 전송하지 않는다
         }
       }
@@ -741,7 +775,7 @@ function OrderDetail({
       setInFlightCount(0);
       setPrintingPos(null);
     }
-  }, [sendToPrinter, markDone, markPrintError, warmupPrinter]);
+  }, [sendToPrinter, markDone, markPrintError, warmupPrinter, kind, order.id, loadSaved]);
 
   // 상태가 바뀔 때마다 디스패처를 깨운다 (실행 중이면 pump 가 즉시 반환하므로 중복 없음)
   useEffect(() => { void pump(); }, [saved, ready, testMode, halted, pump]);
