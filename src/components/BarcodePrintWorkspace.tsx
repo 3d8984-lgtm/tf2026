@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { warnLightError, warnLightOkFlash } from "@/lib/warning-light";
-import { pfPrint, pfPrinterStatus, pfPrinterQueue, pfPrinterBufferClear } from "@/lib/pf-printer";
+import { pfPrint, pfPrinterStatus, pfPrinterQueue, pfPrinterBufferClear, pfPrinterRun } from "@/lib/pf-printer";
 import { verifyScanBatch, selectWaitingJobs, mergePrintedAcc, resolvePrintedAt } from "@/lib/barcode-print-logic";
 
 import {
@@ -427,6 +427,7 @@ function OrderDetail({
     );
     setSaved((prev) => ({ ...prev, [position]: { position, code, status: "error", test_mode: false, printed_at: null } }));
     setHalted(true);
+    warmedUpRef.current = false; // 실패 후 프린터가 Stop 으로 돌아갔을 수 있어 재개 시 재예열
     toast.error(`${code} · ${message}`);
   }, [kind, order.id]);
 
@@ -647,13 +648,41 @@ function OrderDetail({
   const [inFlightCount, setInFlightCount] = useState(0);
   const [printingPos, setPrintingPos] = useState<number | null>(null);
   const dispatchSeqRef = useRef(1000);
+  /** 프린터 웜업 여부 — 첫 인쇄 전 Run 모드 전환(예열)으로 Stop→Run 전환 타임아웃 방지 */
+  const warmedUpRef = useRef(false);
   const gateRef = useRef({ ready, testMode, halted });
   gateRef.current = { ready, testMode, halted };
+
+  // 프린터 웜업: Run 모드로 미리 전환해 첫 /test 가 Stop 상태에서 NAK/타임아웃 나지 않게 한다.
+  // 프린터가 모드 전환을 마칠 시간을 확보한 뒤 true 를 반환한다.
+  const warmupPrinter = useCallback(async (): Promise<boolean> => {
+    if (warmedUpRef.current) return true;
+    const seq = ++dispatchSeqRef.current;
+    const dispatchAt = Date.now();
+    setDispatchLog((prev) => [
+      { seq, position: -1, code: "WARMUP", scanAt: null, dispatchAt, ackAt: null, ok: null, gatewayJobId: null, printedAt: null, error: null },
+      ...prev,
+    ].slice(0, 200));
+    const r = await pfPrinterRun();
+    // Run 명령 직후 프린터가 모드 전환을 마칠 시간 확보
+    await new Promise((res) => setTimeout(res, 1200));
+    const ackAt = Date.now();
+    setDispatchLog((prev) => prev.map((row) => (row.seq === seq
+      ? { ...row, ackAt, ok: r.ok, error: r.ok ? null : r.error ?? "warmup failed" }
+      : row)));
+    warmedUpRef.current = r.ok;
+    return r.ok;
+  }, []);
 
   const pump = useCallback(async () => {
     if (busyRef.current) return; // 이미 다른 소비자가 실행 중
     busyRef.current = true;
     try {
+      // 첫 인쇄 전 프린터 예열(Run 모드 전환) — Stop 상태 웜업 타임아웃 방지.
+      // 웜업 실패 시에도 전송은 시도한다 (pfPrint 내부의 NAK 자동 복구가 후속 처리).
+      const hasQueued = Object.values(savedRef.current)
+        .some((s) => s.status === "queued" && !dispatchedRef.current.has(s.position));
+      if (hasQueued && !warmedUpRef.current) await warmupPrinter();
       // 대기열이 빌 때까지 한 건씩 순차 전송 (ACK 후 다음 건)
       // eslint-disable-next-line no-constant-condition
       while (true) {
@@ -694,7 +723,7 @@ function OrderDetail({
       setInFlightCount(0);
       setPrintingPos(null);
     }
-  }, [sendToPrinter, markDone, markPrintError]);
+  }, [sendToPrinter, markDone, markPrintError, warmupPrinter]);
 
   // 상태가 바뀔 때마다 디스패처를 깨운다 (실행 중이면 pump 가 즉시 반환하므로 중복 없음)
   useEffect(() => { void pump(); }, [saved, ready, testMode, halted, pump]);
@@ -756,6 +785,7 @@ function OrderDetail({
   const clearQueue = useCallback(async () => {
     // 버퍼 클리어: pending 취소 + 프린터 물리 버퍼(processing)까지 전부 삭제
     const cleared = await pfPrinterBufferClear();
+    warmedUpRef.current = false; // 버퍼가 비면 Stop 상태로 돌아갈 수 있어 다음 인쇄 전 재예열
     const targets = Object.values(saved).filter((s) => s.status === "queued" || s.status === "error");
     if (targets.length === 0 && cleared.cancelledPending === 0 && cleared.failedProcessing === 0) {
       toast.info(tr("초기화할 대기열 항목이 없습니다", "没有可清空的队列项目"));
@@ -810,6 +840,7 @@ function OrderDetail({
   // 전체 초기화 — 서버 기록 삭제 + 게이트웨이 대기열/이력 표시 컷오프 갱신
   const resetAll = async () => {
     const now = new Date().toISOString();
+    warmedUpRef.current = false; // 전체 초기화 후에는 첫 인쇄 전 재예열
 
     // 1) 게이트웨이 스캔 카운터 초기화 (대기열/이력 삭제 API는 게이트웨이에 없음)
     await proxyFetch("/api/v1/scan/reset", { method: "POST", body: "{}" }).catch(() => null);
@@ -1635,7 +1666,7 @@ function OrderDetail({
                       return (
                         <tr key={d.seq} className={`border-t ${d.ok === false ? "bg-destructive/5" : ""}`}>
                           <td className="px-2 py-1.5 tabular-nums">{d.seq}</td>
-                          <td className="px-2 py-1.5 tabular-nums">{d.position}</td>
+                          <td className="px-2 py-1.5 tabular-nums">{d.position < 0 ? "-" : d.position}</td>
                           <td className="px-2 py-1.5 font-mono break-all">{d.code}</td>
                           <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap">{fmt(d.dispatchAt)}</td>
                           <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap">{fmt(d.ackAt)}</td>
