@@ -265,6 +265,15 @@ export async function pfPrint(
   const payload = String(text ?? "").slice(0, 200);
   const body = JSON.stringify(padToLength ? { text: payload, pad_to_length: padToLength } : { text: payload });
 
+  const requestStartedAt = new Date().toISOString();
+  const t0 = Date.now();
+  const readTiming = (res: Response, j: any) => ({
+    requestStartedAt,
+    proxyReceivedAt: res.headers.get("x-proxy-received-at") ?? (typeof j?.proxy_received_at === "string" ? j.proxy_received_at : undefined),
+    proxyUpstreamMs: Number(res.headers.get("x-proxy-upstream-ms") ?? j?.proxy_upstream_ms ?? NaN) || undefined,
+    frontendTotalMs: Date.now() - t0,
+  });
+
   const attempt = async () => {
     // 개정 서버는 접수 즉시 응답하므로 긴 대기가 필요 없다(네트워크/직렬화 여유만 둠)
     const res = await pfFetch("/api/v1/pf-printer/test", { method: "POST", body }, 15000);
