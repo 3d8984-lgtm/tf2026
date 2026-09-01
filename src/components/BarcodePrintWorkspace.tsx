@@ -427,6 +427,7 @@ function OrderDetail({
     );
     setSaved((prev) => ({ ...prev, [position]: { position, code, status: "error", test_mode: false, printed_at: null } }));
     setHalted(true);
+    warmedUpRef.current = false; // 실패 후 프린터가 Stop 으로 돌아갔을 수 있어 재개 시 재예열
     toast.error(`${code} · ${message}`);
   }, [kind, order.id]);
 
