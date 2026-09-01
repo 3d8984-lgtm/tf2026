@@ -109,9 +109,11 @@ export default function PfPrinterCard({ defaultText = "" }: { defaultText?: stri
             placeholder={tr("테스트 인쇄할 바코드 값", "测试打印的条码值")}
             className="h-8 text-xs font-mono"
           />
-          <Button size="sm" disabled={busy} onClick={() => void testPrint()}>
-            {tr("테스트 인쇄", "测试打印")}
+          <Button size="sm" disabled={busy} onClick={() => void testPrint()} className="shrink-0">
+            {busy && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />}
+            {waiting ? tr("인쇄 대기 중", "等待打印") : tr("테스트 인쇄", "测试打印")}
           </Button>
+
           <Button
             size="sm"
             variant="outline"
