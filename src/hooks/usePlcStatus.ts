@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { CCTV_PUBLIC_BASE, CCTV_READONLY_KEY } from "@/lib/cctv-api";
 
 const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
@@ -29,7 +30,9 @@ export function normalizePlcCount(raw?: number | null): number {
 
 function proxyFetch(path: string) {
   // getSession() 을 매 폴링마다 호출하면 auth lock 경합으로 요청이 멈추므로 apikey 만 사용한다.
-  return fetch(`${PROXY_BASE}${path}`, { headers: { apikey: ANON_KEY } });
+  // GET 폴링은 읽기 전용 키로 게이트웨이 직접 호출 (엣지 503 방지)
+  return fetch(`${CCTV_PUBLIC_BASE}${path}`, { headers: { "X-API-Key": CCTV_READONLY_KEY } })
+    .catch(() => fetch(`${PROXY_BASE}${path}`, { headers: { apikey: ANON_KEY } }));
 }
 
 /** 카드/세트 포장 설비의 실시간 상태 + 지정된 주문을 폴링한다. */
