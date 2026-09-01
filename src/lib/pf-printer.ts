@@ -151,17 +151,27 @@ export async function pfPrint(
     return { res, j };
   };
 
+  const sleep = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
+  const isNak = (res: Response, j: any) =>
+    res.status === 409 ||
+    j?.upstream_status === 409 ||
+    /NAK/i.test(typeof j?.detail === "string" ? j.detail : "");
+
   try {
     let { res, j } = await attempt();
-    // 409 = NAK. 대개 Run 모드가 풀린 상태 → Run 전환 후 1회 재시도.
-    if (res.status === 409 || (j as any)?.upstream_status === 409) {
+    // 409 = NAK. 대개 Run 모드가 풀린 상태 → Run 전환 후 재시도(최대 2회).
+    // Run 명령 직후 프린터가 모드 전환을 마칠 시간이 필요하므로 짧게 대기한다.
+    for (let i = 0; i < 2 && isNak(res, j); i++) {
       const run = await pfPrinterRun();
-      if (run.ok) ({ res, j } = await attempt());
+      if (!run.ok) break;
+      await sleep(400);
+      ({ res, j } = await attempt());
     }
     if (res.ok && j?.accepted) {
       return { ok: true, printed: j?.printed === true, id: typeof j?.id === "string" ? j.id : undefined, payload };
     }
     return { ok: false, error: pfErrorText(j, res.status), payload };
+
   } catch (e) {
     return { ok: false, error: String(e), payload };
   }
