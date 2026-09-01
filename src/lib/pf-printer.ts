@@ -135,6 +135,30 @@ export async function pfPrinterQueueClear(): Promise<{ ok: boolean; cleared: num
 }
 
 /**
+ * POST /api/v1/pf-printer/buffer/clear — queue/clear 보다 강력한 초기화.
+ * pending 취소에 더해, 이미 프린터에 접수되어 물리 버퍼에 쌓여 있던(processing) 요청까지
+ * CMD_CLEAR_BUFFER(0x13)로 전부 지운다. 그 요청들은 인쇄되지 않고 failed 로 갱신된다.
+ * 주의: 이미 accepted 응답을 받은 /test 호출에는 실패가 통보되지 않으므로,
+ * 이후 GET /queue 에서 status=failed 를 확인해야 한다.
+ */
+export async function pfPrinterBufferClear(): Promise<{ ok: boolean; cancelledPending: number; failedProcessing: number; error?: string }> {
+  try {
+    const res = await pfFetch("/api/v1/pf-printer/buffer/clear", { method: "POST", body: "{}" }, 20000);
+    const j: any = await res.json().catch(() => ({}));
+    if (!res.ok || "upstream_status" in (j ?? {})) {
+      return { ok: false, cancelledPending: 0, failedProcessing: 0, error: pfErrorText(j, res.status) };
+    }
+    return {
+      ok: true,
+      cancelledPending: typeof j?.cancelled_pending === "number" ? j.cancelled_pending : 0,
+      failedProcessing: typeof j?.failed_processing === "number" ? j.failed_processing : 0,
+    };
+  } catch (e) {
+    return { ok: false, cancelledPending: 0, failedProcessing: 0, error: String(e) };
+  }
+}
+
+/**
  * 바코드/QR 값 인쇄. 응답이 오면 프린터 버퍼에 접수까지 완료된 상태다(물리 인쇄 완료 아님).
  * `printed`=true 는 응답 시점에 이미 물리 인쇄완료(0x40)까지 확인된 경우(프린터 idle 시).
  * null/false 면 `id`로 GET /queue 를 폴링해 status="done" && printed=true 를 확인한다.
