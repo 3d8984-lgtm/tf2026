@@ -116,7 +116,9 @@ export function mergePrintedAcc(
   const next = { ...prev };
   let changed = false;
   for (const j of jobs) {
-    if (j.status !== "done" || j.printed !== true) continue;
+    // done 이면 완료로 본다 (printed 가 null 로 내려오는 게이트웨이 대응)
+    if (j.status !== "done" || j.printed === false) continue;
+
     const k = norm(j.barcode);
     const at = j.printed_at ?? j.enqueued_at;
     if (!at) continue;
