@@ -48,15 +48,30 @@ export default function PfPrinterCard({ defaultText = "" }: { defaultText?: stri
     const payload = text.trim().slice(0, 200);
     if (!payload) { toast.error(tr("인쇄할 값을 입력하세요", "请输入要打印的值")); return; }
     setBusy(true);
-    const r = await pfPrint(payload);
-    setBusy(false);
-    if (r.ok) {
-      const note = r.printed
-        ? tr("인쇄 완료 확인됨", "已确认打印完成")
-        : tr("전송 성공 · 완료 응답 미확인", "发送成功 · 未确认完成");
-      toast.success(`${tr("PF 프린터로 전송했습니다", "已发送到PF打印机")} · ${payload} · ${note}`);
-    } else toast.error(`${tr("PF 프린터 전송 실패", "PF打印机发送失败")} — ${r.error}`);
+    setWaiting(false);
+    try {
+      const r = await pfPrint(payload);
+      if (!r.ok) {
+        toast.error(`${tr("PF 프린터 전송 실패", "PF打印机发送失败")} — ${r.error}`);
+        return;
+      }
+      if (r.printed === true) {
+        toast.success(`${tr("인쇄 완료 확인됨", "已确认打印完成")} · ${payload}`);
+        return;
+      }
+      // printed=null/false → 큐에만 올라간 상태. 실제 인쇄 완료까지 폴링하며 버튼을 잠근다.
+      setWaiting(true);
+      toast.info(`${tr("전송됨 · 인쇄 완료 대기 중", "已发送 · 等待打印完成")} · ${payload}`);
+      const w = await pfWaitForPrint({ id: r.id, text: payload });
+      if (w.printed) toast.success(`${tr("인쇄 완료 확인됨", "已确认打印完成")} · ${payload}`);
+      else if (w.failed) toast.error(`${tr("인쇄 실패", "打印失败")} — ${w.error ?? ""}`);
+      else toast.warning(tr("인쇄 완료 신호를 확인하지 못했습니다", "未能确认打印完成信号"));
+    } finally {
+      setWaiting(false);
+      setBusy(false);
+    }
   }, [text, isKo]);
+
 
 
   return (
