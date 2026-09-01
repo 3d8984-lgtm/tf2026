@@ -3,6 +3,15 @@ import { supabase } from "@/integrations/supabase/client";
 export const CCTV_PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 
+/**
+ * 게이트웨이가 발급한 읽기 전용(GET) 공개 키. 조회 요청은 엣지 프록시를
+ * 거치지 않고 브라우저에서 직접 호출해 Edge Runtime 부하(503)를 없앤다.
+ * 쓰기(POST/PATCH/DELETE)는 여전히 프록시의 비공개 키를 사용한다.
+ */
+export const CCTV_PUBLIC_BASE = "https://api.tf2027.xyz";
+const CCTV_READONLY_KEY = "sk-tf2027-i92nehb82981u713";
+
+
 export interface GatewayCamera {
   id: string;
   input_url: string;
