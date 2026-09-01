@@ -722,7 +722,7 @@ function OrderDetail({
       setInFlightCount(0);
       setPrintingPos(null);
     }
-  }, [sendToPrinter, markDone, markPrintError]);
+  }, [sendToPrinter, markDone, markPrintError, warmupPrinter]);
 
   // 상태가 바뀔 때마다 디스패처를 깨운다 (실행 중이면 pump 가 즉시 반환하므로 중복 없음)
   useEffect(() => { void pump(); }, [saved, ready, testMode, halted, pump]);
