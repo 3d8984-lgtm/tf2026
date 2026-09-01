@@ -75,6 +75,7 @@ Deno.serve(async (req) => {
     }
     let upstream: Response;
     try {
+      upstreamStartedMs = Date.now();
       upstream = await fetch(target, {
         method: req.method,
         headers: fwdHeaders,
