@@ -4,6 +4,7 @@ import {
   selectWaitingJobs,
   mergePrintedAcc,
   resolvePrintedAt,
+  isCancelledJobError,
   type QueueJob,
 } from "./barcode-print-logic";
 
@@ -91,6 +92,16 @@ describe("selectWaitingJobs", () => {
       job({ id: "5", status: "failed", printed: null }),
     ];
     expect(selectWaitingJobs(jobs).map((j) => j.id)).toEqual(["1", "2", "3"]);
+  });
+});
+
+describe("isCancelledJobError", () => {
+  it("버퍼 초기화로 물리 출력되지 않은 서버 문구를 취소로 판정한다", () => {
+    expect(isCancelledJobError("printer buffer was cleared — this job's physical print never happened")).toBe(true);
+  });
+
+  it("일반 프린터 실패는 취소로 판정하지 않는다", () => {
+    expect(isCancelledJobError("printer serial response timeout")).toBe(false);
   });
 });
 
