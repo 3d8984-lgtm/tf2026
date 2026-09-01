@@ -27,17 +27,19 @@ const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 
 /**
  * 서버는 프린터 통신을 내부 FIFO 큐로 직렬화한다(/test·/run·/stop·/status 공유).
- * 동시에 여러 건을 보내도 안전하지만, 자기 차례가 와야 응답이 오므로 인쇄 요청은
- * 넉넉한 타임아웃(기본 30초)을 준다. 상태 조회는 짧게(5초) 유지한다.
+ * 인쇄 요청(/test)은 실제 물리 인쇄 완료까지 응답이 지연될 수 있으므로 클라이언트
+ * 타임아웃을 두지 않는다(timeoutMs = 0/null). 상태·큐 조회만 짧은 타임아웃을 쓴다.
  */
-export function pfFetch(path: string, init?: RequestInit, timeoutMs = 30000) {
+export function pfFetch(path: string, init?: RequestInit, timeoutMs: number | null = null) {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  const timeout = timeoutMs && timeoutMs > 0
+    ? window.setTimeout(() => controller.abort(), timeoutMs)
+    : null;
   return fetch(`${PROXY_BASE}${path}`, {
     ...init,
     signal: init?.signal ?? controller.signal,
     headers: { apikey: ANON_KEY, "Content-Type": "application/json", ...(init?.headers ?? {}) },
-  }).finally(() => window.clearTimeout(timeout));
+  }).finally(() => { if (timeout !== null) window.clearTimeout(timeout); });
 }
 
 
@@ -118,7 +120,7 @@ export async function pfPrinterStatus(): Promise<PfStatus> {
 
 async function pfMode(mode: "run" | "stop"): Promise<{ ok: boolean; errorCode?: PfErrorCode; error?: string; runState?: string | null }> {
   try {
-    const res = await pfFetch(`/api/v1/pf-printer/${mode}`, { method: "POST", body: "{}" }, 20000);
+    const res = await pfFetch(`/api/v1/pf-printer/${mode}`, { method: "POST", body: "{}" }, null);
     const j: any = await res.json().catch(() => ({}));
     if (res.ok && j?.accepted === true && !j?.error && !j?.error_code && !j?.offline) {
       return { ok: true, runState: typeof j?.running === "boolean" ? (j.running ? "RUN" : "STOP") : null };
@@ -198,7 +200,7 @@ export async function pfPrinterQueue(): Promise<{ jobs: PfQueueJob[]; pendingCou
  */
 export async function pfPrinterQueueClear(): Promise<{ ok: boolean; cleared: number; error?: string }> {
   try {
-    const res = await pfFetch("/api/v1/pf-printer/queue/clear", { method: "POST", body: "{}" }, 15000);
+    const res = await pfFetch("/api/v1/pf-printer/queue/clear", { method: "POST", body: "{}" }, null);
     const j: any = await res.json().catch(() => ({}));
     if (!res.ok || "upstream_status" in (j ?? {})) return { ok: false, cleared: 0, error: pfErrorText(j, res.status) };
     return { ok: true, cleared: typeof j?.cleared === "number" ? j.cleared : 0 };
@@ -216,7 +218,7 @@ export async function pfPrinterQueueClear(): Promise<{ ok: boolean; cleared: num
  */
 export async function pfPrinterBufferClear(): Promise<{ ok: boolean; cancelledPending: number; failedProcessing: number; error?: string }> {
   try {
-    const res = await pfFetch("/api/v1/pf-printer/buffer/clear", { method: "POST", body: "{}" }, 20000);
+    const res = await pfFetch("/api/v1/pf-printer/buffer/clear", { method: "POST", body: "{}" }, null);
     const j: any = await res.json().catch(() => ({}));
     if (!res.ok || "upstream_status" in (j ?? {})) {
       return { ok: false, cancelledPending: 0, failedProcessing: 0, error: pfErrorText(j, res.status) };
@@ -275,8 +277,8 @@ export async function pfPrint(
   });
 
   const attempt = async () => {
-    // 개정 서버는 접수 즉시 응답하므로 긴 대기가 필요 없다(네트워크/직렬화 여유만 둠)
-    const res = await pfFetch("/api/v1/pf-printer/test", { method: "POST", body }, 15000);
+    // 인쇄 요청은 물리 인쇄 완료까지 응답이 지연될 수 있으므로 클라이언트 타임아웃 없음
+    const res = await pfFetch("/api/v1/pf-printer/test", { method: "POST", body }, null);
     const j: any = await res.json().catch(() => ({}));
     return { res, j };
   };
