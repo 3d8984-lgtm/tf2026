@@ -288,10 +288,27 @@ function OrderDetail({
   const [halted, setHalted] = useState(false);
   const [testMode, setTestMode] = useState(false);
   const [saved, setSaved] = useState<Record<number, SavedItem>>({});
+  const savedRef = useRef<Record<number, SavedItem>>({});
+  savedRef.current = saved;
   const [ready, setReady] = useState(false);
   const [history, setHistory] = useState<ScanEvent[]>([]);
   const [printerLog, setPrinterLog] = useState<PrinterSendLog[]>([]);
-  const [rawTab, setRawTab] = useState<"scanner" | "printer">("scanner");
+  const [rawTab, setRawTab] = useState<"scanner" | "printer" | "dispatch">("scanner");
+  /** 디스패치 추적 로그 (밀리초 단위) — 순서/누락 진단용 */
+  type DispatchRow = {
+    seq: number;
+    position: number;
+    code: string;
+    scanAt: string | null;
+    dispatchAt: number;
+    ackAt: number | null;
+    ok: boolean | null;
+    gatewayJobId: string | null;
+    printedAt: string | null;
+    error: string | null;
+  };
+  const [dispatchLog, setDispatchLog] = useState<DispatchRow[]>([]);
+
   /** 프린터가 보내온 실제 출력 완료 이벤트 (code → 완료 시각) */
   const [completeEvents, setCompleteEvents] = useState<Record<string, string>>({});
   /** 프린터 서버 큐는 최근 100건만 유지하므로, printed=true 확인 건은 화면에서 자체 누적한다. */
