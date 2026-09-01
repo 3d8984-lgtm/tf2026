@@ -158,7 +158,7 @@ type SavedItem = {
   printed_at: string | null;
   scanned_at?: string | null;
   scan_sequence?: number | null;
-  dispatch_status?: "queued" | "dispatching" | "accepted" | "printing" | "printed" | "error";
+  dispatch_status?: "queued" | "dispatching" | "accepted" | "waiting_for_print" | "printing" | "printed" | "error";
   gateway_job_id?: string | null;
   retry_count?: number;
   error_code?: string | null;
@@ -595,6 +595,7 @@ function OrderDetail({
                 ? "printing"
                 : gateway.status === "failed" ? "error"
                 : gateway.status === "done" && gateway.printed === true ? "printed"
+                : gateway.status === "pending" ? "waiting_for_print"
                 : item.dispatch_status;
               if (dispatchStatus && dispatchStatus !== item.dispatch_status) {
                 next[item.position] = { ...item, dispatch_status: dispatchStatus, error_detail: gateway.error ?? item.error_detail };
@@ -735,7 +736,10 @@ function OrderDetail({
         const g = gateRef.current;
         if (!g.ready || g.testMode || g.halted || haltRef.current) break;
         // A row claimed by another tab/device is the sole active dispatcher.
-        if (Object.values(savedRef.current).some((s) => s.dispatch_status === "dispatching")) break;
+        // 앞선 건이 아직 물리 인쇄 완료되지 않았으면(전송 중/접수/인쇄 대기) 다음 건을 보내지 않는다.
+        if (Object.values(savedRef.current).some((s) => s.status === "queued" &&
+          (s.dispatch_status === "dispatching" || s.dispatch_status === "accepted" ||
+           s.dispatch_status === "waiting_for_print" || s.dispatch_status === "printing"))) break;
         const next = Object.values(savedRef.current)
           .filter((s) => s.status === "queued" && (s.dispatch_status ?? "queued") === "queued" && !dispatchedRef.current.has(s.position))
           .sort((a, b) => a.position - b.position)[0];
@@ -774,7 +778,7 @@ function OrderDetail({
         if (r.ok) {
           const receivedAt = new Date().toISOString();
           await supabase.from("barcode_print_items").update({
-            dispatch_status: r.printed ? "printed" : "accepted",
+            dispatch_status: r.printed ? "printed" : "waiting_for_print",
             gateway_job_id: r.id ?? null,
             gateway_received_at: receivedAt,
             printer_run_state: "READY",
@@ -786,7 +790,7 @@ function OrderDetail({
             error_code: null,
             error_detail: null,
           }).eq("kind", kind).eq("order_id", order.id).eq("position", next.position);
-          setSaved((prev) => ({ ...prev, [next.position]: { ...prev[next.position], dispatch_status: r.printed ? "printed" : "accepted", gateway_job_id: r.id ?? null, retry_count: r.retryCount } }));
+          setSaved((prev) => ({ ...prev, [next.position]: { ...prev[next.position], dispatch_status: r.printed ? "printed" : "waiting_for_print", gateway_job_id: r.id ?? null, retry_count: r.retryCount } }));
           // printed=true → 이미 물리 인쇄 확인. null/false 는 "버퍼 접수됨"이며 오류가 아니다.
           if (r.printed) await markDone(next.position, next.code, null, false);
         } else {
@@ -823,7 +827,8 @@ function OrderDetail({
   // 확인되는 시점에 비로소 done 으로 확정한다.
   useEffect(() => {
     const pendingConfirm = Object.values(saved).filter(
-      (s) => s.status === "queued" && (dispatchedRef.current.has(s.position) || s.dispatch_status === "accepted" || s.dispatch_status === "printing"),
+      (s) => s.status === "queued" && (dispatchedRef.current.has(s.position) || s.dispatch_status === "accepted" ||
+        s.dispatch_status === "waiting_for_print" || s.dispatch_status === "printing"),
     );
     if (pendingConfirm.length === 0) return;
     for (const s of pendingConfirm) {
@@ -1091,11 +1096,12 @@ function OrderDetail({
 
   // ── 인쇄 대기열 표시 데이터 ────────────────────────────────────────
   // 프린터 서버 FIFO 큐에 실제 대기/처리 중인 건 + 앱에서 전송 중인 건 + 실패로 멈춘 건
-  type QueueState = "queued" | "dispatching" | "accepted" | "printing" | "printed" | "error";
+  type QueueState = "queued" | "dispatching" | "accepted" | "waiting_for_print" | "printing" | "printed" | "error";
   const queueStateMeta: Record<QueueState, { ko: string; zh: string; cls: string }> = {
     queued: { ko: "대기", zh: "等待", cls: "text-muted-foreground" },
     dispatching: { ko: "Gateway 전송 중", zh: "正在发送到网关", cls: "text-primary" },
     accepted: { ko: "Gateway 접수 완료", zh: "网关已接收", cls: "text-amber-500" },
+    waiting_for_print: { ko: "인쇄 대기 (물체 감지 대기)", zh: "等待打印（等待物体）", cls: "text-amber-500" },
     printing: { ko: "프린터 인쇄 중", zh: "打印机打印中", cls: "text-primary" },
     printed: { ko: "실제 출력 완료", zh: "实际打印完成", cls: "text-emerald-500" },
     error: { ko: "인쇄 실패 · 작업 중단", zh: "打印失败 · 作业中断", cls: "text-destructive" },
