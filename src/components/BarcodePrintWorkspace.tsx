@@ -587,7 +587,9 @@ function OrderDetail({
         const [pf, q] = await Promise.all([pfPrinterStatus(), pfPrinterQueue()]);
         if (!alive) return;
         const cut = ts(cutoffRef.current);
-        setPrinterOffline(pf.offline && q.offline);
+        // Queue/history can stay online while the serial device is detached;
+        // printer connectivity must therefore follow /status itself.
+        setPrinterOffline(pf.offline);
         setPendingCount(q.offline ? (pf.buffer_count ?? 0) : q.pendingCount);
         if (!q.offline) {
           const rows = q.jobs
@@ -718,8 +720,8 @@ function OrderDetail({
 
   // 프린터 웜업: Run 모드로 미리 전환해 첫 /test 가 Stop 상태에서 NAK/타임아웃 나지 않게 한다.
   // 프린터가 모드 전환을 마칠 시간을 확보한 뒤 true 를 반환한다.
-  const warmupPrinter = useCallback(async (): Promise<boolean> => {
-    if (warmedUpRef.current) return true;
+  const warmupPrinter = useCallback(async () => {
+    if (warmedUpRef.current) return { ok: true as const, runState: "READY" };
     const seq = ++dispatchSeqRef.current;
     const dispatchAt = Date.now();
     setDispatchLog((prev) => [
@@ -732,7 +734,7 @@ function OrderDetail({
       ? { ...row, ackAt, ok: r.ok, error: r.ok ? null : r.error ?? "warmup failed", errorCode: r.errorCode ?? null, runState: r.runState ?? null, readyAt: r.readyAt ?? null }
       : row)));
     warmedUpRef.current = r.ok;
-    return r.ok;
+    return r;
   }, []);
 
   const pump = useCallback(async () => {
@@ -744,9 +746,14 @@ function OrderDetail({
         .some((s) => s.status === "queued" && (s.dispatch_status ?? "queued") === "queued" && !dispatchedRef.current.has(s.position));
       if (hasQueued && !warmedUpRef.current) {
         const warm = await warmupPrinter();
-        if (!warm) {
+        if (!warm.ok) {
           const first = Object.values(savedRef.current).filter((s) => s.status === "queued").sort((a, b) => a.position - b.position)[0];
-          if (first) await markPrintError(first.position, first.code, "프린터 READY 확인에 실패했습니다", "PRINTER_NOT_READY");
+          if (first) await markPrintError(
+            first.position,
+            first.code,
+            warm.error ?? "프린터 READY 확인에 실패했습니다",
+            warm.errorCode ?? "PRINTER_NOT_READY",
+          );
           return;
         }
       }
