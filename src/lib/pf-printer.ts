@@ -320,6 +320,12 @@ export type PfPrintResult = {
   };
 };
 
+/**
+ * 서버 개정(2026-09) 이후 POST /test 는 "큐에 추가"만 하고 즉시 응답한다.
+ * 값 전송(0x11)·인쇄 트리거(0x21)·물리 인쇄·접수 실패 재시도는 전부 서버 워커가 처리하므로
+ * 프론트는 프린터에 직접 명령하지 않고, 응답의 id 로 GET /queue 만 폴링한다.
+ * 즉시 나는 에러는 사실상 422(값 오류)뿐이다.
+ */
 export async function pfPrint(
   text: string,
   padToLength?: number,
@@ -329,83 +335,44 @@ export async function pfPrint(
 
   const requestStartedAt = new Date().toISOString();
   const t0 = Date.now();
-  const readTiming = (res: Response, j: any) => ({
-    requestStartedAt,
-    proxyReceivedAt: res.headers.get("x-proxy-received-at") ?? (typeof j?.proxy_received_at === "string" ? j.proxy_received_at : undefined),
-    proxyUpstreamMs: Number(res.headers.get("x-proxy-upstream-ms") ?? j?.proxy_upstream_ms ?? NaN) || undefined,
-    frontendTotalMs: Date.now() - t0,
-  });
-
-  // 통신(업로드) 단계에만 타임아웃을 둔다. 이 시간을 넘겨도 "실패"가 아니라
-  // "업로드는 끝났고 물체 감지를 기다리는 중"으로 간주하고 큐 폴링으로 확정한다.
-  // 연결 끊김/무응답으로 시스템이 영구 정지하는 것을 막는 용도이기도 하다.
-  const attempt = async (): Promise<{ res?: Response; j?: any; transmitTimedOut?: boolean }> => {
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => controller.abort(), PF_TRANSMIT_TIMEOUT_MS);
-    try {
-      const res = await pfFetch("/api/v1/pf-printer/test", { method: "POST", body, signal: controller.signal }, null);
-      const j: any = await res.json().catch(() => ({}));
-      return { res, j };
-    } catch (e) {
-      if (controller.signal.aborted) return { transmitTimedOut: true };
-      throw e;
-    } finally {
-      window.clearTimeout(timer);
-    }
-  };
-
-  const waitingResult = (retryCount: number): PfPrintResult => ({
-    ok: true, printed: false, waitingForPrint: true, retryCount, payload,
-    timing: { requestStartedAt, frontendTotalMs: Date.now() - t0 },
-  });
 
   try {
-    let a = await attempt();
-    if (a.transmitTimedOut) return waitingResult(0);
-    let res = a.res!, j = a.j;
-    let retryCount = 0;
-    let code = pfErrorCode(j, res.status);
-    // Only NAK/not-ready is safe for one frontend retry, and only after an
-    // explicit READY confirmation. Response timeout is never re-POSTed here.
-    if (!isPfPrintAccepted(res.ok, j) &&
-        (code === "PRINTER_NAK" || code === "PRINTER_NOT_READY")) {
-      const ready = await pfEnsureReady();
-      if (ready.ok) {
-        retryCount = 1;
-        a = await attempt();
-        if (a.transmitTimedOut) return waitingResult(retryCount);
-        res = a.res!; j = a.j;
-        code = pfErrorCode(j, res.status);
-      } else {
-        return { ok: false, errorCode: ready.errorCode, error: ready.error, retryable: false, responseCode: res.status, retryCount, payload };
-      }
-    }
-    // 게이트웨이의 "printer response timeout"은 물리 인쇄 완료를 기다리다 끊긴 것이므로
-    // 업로드 실패가 아니다. 대기 상태로 유지하고 0x40 완료 이벤트/큐로 확정한다.
-    if (code === "PRINTER_RESPONSE_TIMEOUT") {
+    const res = await pfFetch("/api/v1/pf-printer/test", { method: "POST", body }, PF_TRANSMIT_TIMEOUT_MS);
+    const j: any = await res.json().catch(() => ({}));
+    const timing = {
+      requestStartedAt,
+      proxyReceivedAt: res.headers.get("x-proxy-received-at") ?? undefined,
+      proxyUpstreamMs: Number(res.headers.get("x-proxy-upstream-ms") ?? j?.proxy_upstream_ms ?? NaN) || undefined,
+      frontendTotalMs: Date.now() - t0,
+    };
+
+    if (isPfPrintAccepted(res.ok, j)) {
       return {
-        ...waitingResult(retryCount),
-        id: typeof j?.gateway_job_id === "string" ? j.gateway_job_id : typeof j?.id === "string" ? j.id : undefined,
+        ok: true,
+        // 큐 등록만 된 상태 — 물리 인쇄 완료는 GET /queue 폴링으로만 확정한다.
+        printed: j?.printed === true,
+        waitingForPrint: j?.printed !== true,
+        id: j.id,
         responseCode: res.status,
-        timing: readTiming(res, j),
+        retryCount: 0,
+        payload,
+        timing,
       };
     }
-    const validSuccess = isPfPrintAccepted(res.ok, j);
-    if (validSuccess) return {
-      ok: true, printed: j?.printed === true, id: j.id, responseCode: res.status, retryCount,
-      serialSendAt: typeof j?.serial_send_at === "string" ? j.serial_send_at : undefined,
-      serialResponseAt: typeof j?.serial_response_at === "string" ? j.serial_response_at : undefined,
-      payload,
-      timing: readTiming(res, j),
-    };
     return {
-      ok: false, errorCode: code, error: pfErrorText(j, res.status), retryable: j?.retryable === true,
-      id: typeof j?.gateway_job_id === "string" ? j.gateway_job_id : typeof j?.id === "string" ? j.id : undefined,
-      responseCode: res.status, retryCount, payload,
-      timing: readTiming(res, j),
+      ok: false,
+      errorCode: pfErrorCode(j, res.status),
+      error: pfErrorText(j, res.status),
+      retryable: j?.retryable === true,
+      id: typeof j?.id === "string" ? j.id : undefined,
+      responseCode: res.status,
+      retryCount: 0,
+      payload,
+      timing,
     };
   } catch (e) {
     return { ok: false, errorCode: "GATEWAY_OFFLINE", error: String(e), retryable: false, retryCount: 0, payload };
   }
 }
+
 
