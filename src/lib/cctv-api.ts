@@ -31,8 +31,27 @@ export async function cctvFetch(pathOrUrl: string, init?: RequestInit) {
   const session = await supabase.auth.getSession();
   const token = session.data.session?.access_token;
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  return fetch(target, { ...init, headers });
+
+  // 엣지 런타임이 일시적으로 과부하(503 SERVICE_DEGRADED / 502)일 때는
+  // 즉시 오류로 처리하지 않고 짧은 백오프로 최대 3회까지 재시도한다.
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const res = await fetch(target, { ...init, headers });
+      if ((res.status === 502 || res.status === 503 || res.status === 504) && attempt < 3) {
+        await new Promise((r) => setTimeout(r, 400 * attempt));
+        continue;
+      }
+      return res;
+    } catch (err) {
+      lastErr = err;
+      if (attempt >= 3) break;
+      await new Promise((r) => setTimeout(r, 400 * attempt));
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("gateway unreachable");
 }
+
 
 /** FastAPI errors come back either as a string or as a validation array. */
 export async function cctvError(res: Response): Promise<string> {
