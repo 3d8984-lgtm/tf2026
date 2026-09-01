@@ -839,17 +839,21 @@ function OrderDetail({
   }, [sendToPrinter, markDone, markPrintError, markUncertain, warmupPrinter, kind, order.id, loadSaved]);
 
   /**
-   * uncertain 판정 — 게이트웨이 큐(2초 폴링 결과)를 조회해 실제 job 존재 여부로 결론짓는다.
+   * uncertain 판정 — 게이트웨이 큐/이력(GET /queue 는 done·failed 까지 함께 내려준다)을 조회해
+   * 실제 job 존재 여부로 결론짓는다. 판정 우선순위는 gateway_job_id → 바코드 텍스트.
    * - job 이 있으면 이미 프린터로 전송된 것 → 재전송하지 않고 waiting_for_print/printed 로 승격
    * - job 이 failed 면 확정 실패
    * - 게이트웨이가 복구된 뒤에도 30초간 job 이 없으면 미도달로 보고 재시도 가능한 error 로 확정
+   * 시리얼 통신 내역은 게이트웨이가 노출하지 않으므로 success/fail 판정만 사용한다.
    */
   useEffect(() => {
     const pending = Object.values(saved).filter((s) => s.dispatch_status === "uncertain");
     if (pending.length === 0) return;
     for (const s of pending) {
       const pv = printValueRef.current(s.code);
-      const job = jobs.find((j) => norm(j.barcode) === norm(pv));
+      const job = (s.gateway_job_id ? jobs.find((j) => j.id === s.gateway_job_id) : undefined)
+        ?? jobs.find((j) => norm(j.barcode) === norm(pv));
+
       if (job) {
         if (job.status === "failed") {
           void markPrintError(s.position, s.code, job.error ?? "gateway job failed", "GATEWAY_ERROR");
