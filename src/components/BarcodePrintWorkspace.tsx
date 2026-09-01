@@ -288,10 +288,27 @@ function OrderDetail({
   const [halted, setHalted] = useState(false);
   const [testMode, setTestMode] = useState(false);
   const [saved, setSaved] = useState<Record<number, SavedItem>>({});
+  const savedRef = useRef<Record<number, SavedItem>>({});
+  savedRef.current = saved;
   const [ready, setReady] = useState(false);
   const [history, setHistory] = useState<ScanEvent[]>([]);
   const [printerLog, setPrinterLog] = useState<PrinterSendLog[]>([]);
-  const [rawTab, setRawTab] = useState<"scanner" | "printer">("scanner");
+  const [rawTab, setRawTab] = useState<"scanner" | "printer" | "dispatch">("scanner");
+  /** 디스패치 추적 로그 (밀리초 단위) — 순서/누락 진단용 */
+  type DispatchRow = {
+    seq: number;
+    position: number;
+    code: string;
+    scanAt: string | null;
+    dispatchAt: number;
+    ackAt: number | null;
+    ok: boolean | null;
+    gatewayJobId: string | null;
+    printedAt: string | null;
+    error: string | null;
+  };
+  const [dispatchLog, setDispatchLog] = useState<DispatchRow[]>([]);
+
   /** 프린터가 보내온 실제 출력 완료 이벤트 (code → 완료 시각) */
   const [completeEvents, setCompleteEvents] = useState<Record<string, string>>({});
   /** 프린터 서버 큐는 최근 100건만 유지하므로, printed=true 확인 건은 화면에서 자체 누적한다. */
@@ -444,7 +461,7 @@ function OrderDetail({
     printValueRef.current = (v: string) => map.get(norm(v)) ?? String(v ?? "").trim();
   }, [expected]);
 
-  const sendToPrinter = useCallback(async (code: string): Promise<{ ok: boolean; printed?: boolean; error?: string }> => {
+  const sendToPrinter = useCallback(async (code: string): Promise<{ ok: boolean; printed?: boolean; id?: string; error?: string }> => {
     const payload = String(code ?? "").slice(0, 200);
     const record = (ok: boolean, error: string | null) => {
       setPrinterLog((prev) => [
@@ -460,8 +477,9 @@ function OrderDetail({
       const at = new Date().toISOString();
       setPrintedAcc((prev) => ({ ...prev, [norm(code)]: at }));
     }
-    return r.ok ? { ok: true, printed: r.printed } : { ok: false, error: r.error };
+    return r.ok ? { ok: true, printed: r.printed, id: r.id } : { ok: false, error: r.error };
   }, []);
+
 
 
 
@@ -520,7 +538,7 @@ function OrderDetail({
     let alive = true;
     let inFlight = false;
     const tick = async () => {
-      if (inFlight || inFlightRef.current > 0) return;
+      if (inFlight || inFlightRef.current) return;
       inFlight = true;
       try {
         const [pf, q] = await Promise.all([pfPrinterStatus(), pfPrinterQueue()]);
@@ -618,51 +636,68 @@ function OrderDetail({
   }, [queue, expected, cursor, testMode, ready, markQueued, kind, halted]);
 
 
-  // ── 소비자(인쇄 큐 적재) ───────────────────────────────────────────
-  // 백엔드 개정(2026-09): PF 프린터 API는 서버 내부 FIFO 큐를 거쳐 직렬 처리되고,
-  // /test 응답은 "버퍼 접수" 시점에 즉시 온다(물리 인쇄 완료를 기다리지 않음).
-  // 프론트는 검증을 통과한 항목을 순서대로 서버 큐에 밀어 넣고(요청 도착 순서 = 인쇄 순서),
-  // 실제 인쇄 완료는 /queue 폴링(status=done && printed=true)과 printedAcc 누적으로 추적한다.
-  // 순차 전송: 한 건의 접수 응답(200 OK)을 받은 뒤에 다음 건을 보낸다.
-  const MAX_IN_FLIGHT = 1;
+  // ── 소비자(단일 Print Dispatcher) ─────────────────────────────────
+  // 원칙: 단일 consumer · 한 번에 1건 · 게이트웨이 ACK(200 OK) 수신 후 다음 건 전송 ·
+  // 실패 시 즉시 halt. 전송 순서는 항상 position ASC 이며 HTTP 응답 순서와 무관하다.
+  // 물리 인쇄 완료는 기다리지 않고, /queue 폴링 + 0x40 완료 이벤트로 별도 확정한다.
   const dispatchedRef = useRef<Set<number>>(new Set());
-  const inFlightRef = useRef(0);
+  /** 단일 소비자 락 — 동시에 2개 이상의 /pf-printer/test 요청이 나가지 않도록 보장 */
+  const busyRef = useRef(false);
+  const inFlightRef = busyRef; // 프린터 상태 폴링에서 참조 (인쇄 중 폴링 스킵)
   const [inFlightCount, setInFlightCount] = useState(0);
-  const [printTick, setPrintTick] = useState(0);
   const [printingPos, setPrintingPos] = useState<number | null>(null);
-  useEffect(() => {
-    // 검증 실패로 중단된 동안에는 대기열이 있어도 프린터로 보내지 않는다 ('재개' 버튼 필요)
-    if (!ready || testMode || halted) return;
-    const pending = Object.values(saved)
-      .filter((s) => s.status === "queued" && !dispatchedRef.current.has(s.position))
-      .sort((a, b) => a.position - b.position);
-    if (pending.length === 0) return;
+  const dispatchSeqRef = useRef(1000);
+  const gateRef = useRef({ ready, testMode, halted });
+  gateRef.current = { ready, testMode, halted };
 
-    for (const item of pending) {
-      if (inFlightRef.current >= MAX_IN_FLIGHT) break;
-      dispatchedRef.current.add(item.position);
-      inFlightRef.current += 1;
-      setInFlightCount(inFlightRef.current);
-      setPrintingPos((p) => p ?? item.position);
-      void (async () => {
-        try {
-          const r = await sendToPrinter(printValueRef.current(item.code));
-          // printed=true → 이미 물리 인쇄 확인. printed=null/false 는 오류가 아니라
-          // "프린터 버퍼(스풀)에 접수됨, 인쇄 대기 중" 상태이므로 큐 폴링으로 완료를 확인한다.
-          if (r.ok && r.printed) await markDone(item.position, item.code, null, false);
-          else if (!r.ok) {
-            dispatchedRef.current.delete(item.position); // 재시도 가능하도록 해제
-            await markPrintError(item.position, item.code, r.error ?? "printer send failed");
-          }
-        } finally {
-          inFlightRef.current -= 1;
-          setInFlightCount(inFlightRef.current);
-          setPrintingPos(inFlightRef.current > 0 ? item.position : null);
-          setPrintTick((t) => t + 1);
+  const pump = useCallback(async () => {
+    if (busyRef.current) return; // 이미 다른 소비자가 실행 중
+    busyRef.current = true;
+    try {
+      // 대기열이 빌 때까지 한 건씩 순차 전송 (ACK 후 다음 건)
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const g = gateRef.current;
+        if (!g.ready || g.testMode || g.halted) break;
+        const next = Object.values(savedRef.current)
+          .filter((s) => s.status === "queued" && !dispatchedRef.current.has(s.position))
+          .sort((a, b) => a.position - b.position)[0];
+        if (!next) break;
+
+        dispatchedRef.current.add(next.position);
+        const seq = ++dispatchSeqRef.current;
+        const dispatchAt = Date.now();
+        setPrintingPos(next.position);
+        setInFlightCount(1);
+        setDispatchLog((prev) => [
+          { seq, position: next.position, code: next.code, scanAt: null, dispatchAt, ackAt: null, ok: null, gatewayJobId: null, printedAt: null, error: null },
+          ...prev,
+        ].slice(0, 200));
+
+        const r = await sendToPrinter(printValueRef.current(next.code));
+        const ackAt = Date.now();
+        setDispatchLog((prev) => prev.map((row) => (row.seq === seq
+          ? { ...row, ackAt, ok: r.ok, gatewayJobId: r.id ?? null, error: r.ok ? null : r.error ?? "send failed" }
+          : row)));
+
+        if (r.ok) {
+          // printed=true → 이미 물리 인쇄 확인. null/false 는 "버퍼 접수됨"이며 오류가 아니다.
+          if (r.printed) await markDone(next.position, next.code, null, false);
+        } else {
+          dispatchedRef.current.delete(next.position); // 재시도 가능하도록 해제 (queued 유지)
+          await markPrintError(next.position, next.code, r.error ?? "printer send failed");
+          break; // Fail-fast: 이후 항목은 전송하지 않는다
         }
-      })();
+      }
+    } finally {
+      busyRef.current = false;
+      setInFlightCount(0);
+      setPrintingPos(null);
     }
-  }, [saved, printTick, ready, testMode, halted, sendToPrinter, markDone, markPrintError]);
+  }, [sendToPrinter, markDone, markPrintError]);
+
+  // 상태가 바뀔 때마다 디스패처를 깨운다 (실행 중이면 pump 가 즉시 반환하므로 중복 없음)
+  useEffect(() => { void pump(); }, [saved, ready, testMode, halted, pump]);
 
   // ── 인쇄 완료 확인(큐 폴링 결과 반영) ───────────────────────────────
   // 접수만 된 항목(queued & 전송 완료)은 프린터 큐/완료 이벤트에서 실제 인쇄완료가
@@ -677,9 +712,13 @@ function OrderDetail({
       const codes = [s.code, pv];
       const job = jobs.find((j) => codes.some((c) => norm(c) === norm(j.barcode))) ?? null;
       const at = resolvePrintedAt({ codes, completeEvents, printedAcc, job });
-      if (at) void markDone(s.position, s.code, null, false);
+      if (at) {
+        setDispatchLog((prev) => prev.map((row) => (row.position === s.position && !row.printedAt ? { ...row, printedAt: at } : row)));
+        void markDone(s.position, s.code, null, false);
+      }
     }
   }, [saved, jobs, completeEvents, printedAcc, markDone]);
+
 
   /** 스캔 없이 남은 항목 전체를 인쇄 대기열(FIFO)에 적재 */
   const enqueueAllRemaining = useCallback(async () => {
@@ -823,6 +862,8 @@ function OrderDetail({
     // 초기화 직후 기존 게이트웨이 이력이 다시 검증되지 않도록 프라이밍을 다시 수행
     primedRef.current = false;
     processedRef.current = new Set();
+    dispatchedRef.current = new Set();
+    setDispatchLog([]);
     lastCodeRef.current = "";
     await loadSaved();
     toast.success(tr("작업이 초기화되었습니다", "作业已复位"));
@@ -1485,7 +1526,9 @@ function OrderDetail({
               <span className="text-xs font-normal text-muted-foreground">
                 {rawTab === "scanner"
                   ? tr("스캐너가 실제로 보낸 값 · 최근 100건", "扫描仪实际发送值 · 最近100条")
-                  : tr("프린터로 실제 전송한 명령 · 최근 100건", "实际发送至打印机的指令 · 最近100条")}
+                  : rawTab === "printer"
+                    ? tr("프린터로 실제 전송한 명령 · 최근 100건", "实际发送至打印机的指令 · 最近100条")
+                    : tr("전송 순서 추적 (밀리초) · 최근 200건", "发送顺序追踪（毫秒）· 最近200条")}
               </span>
             </CardTitle>
             <div className="flex gap-1 pt-2">
@@ -1495,7 +1538,11 @@ function OrderDetail({
               <Button size="sm" variant={rawTab === "printer" ? "default" : "outline"} onClick={() => setRawTab("printer")} className="gap-1">
                 <Printer className="w-3.5 h-3.5" />{tr("프린터", "打印机")}
               </Button>
+              <Button size="sm" variant={rawTab === "dispatch" ? "default" : "outline"} onClick={() => setRawTab("dispatch")} className="gap-1">
+                <Printer className="w-3.5 h-3.5" />{tr("전송 순서", "发送顺序")}
+              </Button>
             </div>
+
           </CardHeader>
           <CardContent>
             <div className="max-h-[360px] overflow-auto">
@@ -1528,7 +1575,7 @@ function OrderDetail({
                     ))}
                   </tbody>
                 </table>
-              ) : (
+              ) : rawTab === "printer" ? (
                 <table className="w-full text-xs">
                   <thead className="bg-muted/40">
                     <tr className="text-left">
@@ -1561,6 +1608,49 @@ function OrderDetail({
                         </td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead className="bg-muted/40">
+                    <tr className="text-left">
+                      <th className="px-2 py-1.5 whitespace-nowrap">seq</th>
+                      <th className="px-2 py-1.5 whitespace-nowrap">pos</th>
+                      <th className="px-2 py-1.5">{tr("바코드", "条码")}</th>
+                      <th className="px-2 py-1.5 whitespace-nowrap">dispatch</th>
+                      <th className="px-2 py-1.5 whitespace-nowrap">ACK</th>
+                      <th className="px-2 py-1.5 whitespace-nowrap">ms</th>
+                      <th className="px-2 py-1.5 whitespace-nowrap">gateway job</th>
+                      <th className="px-2 py-1.5 whitespace-nowrap">printed (0x40)</th>
+                      <th className="px-2 py-1.5">{tr("결과", "结果")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dispatchLog.length === 0 ? (
+                      <tr><td colSpan={9} className="px-2 py-6 text-center text-muted-foreground">{tr("전송 기록이 없습니다", "暂无发送记录")}</td></tr>
+                    ) : dispatchLog.map((d) => {
+                      const fmt = (ms: number | null) =>
+                        ms == null ? "-" : `${new Date(ms).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN", { hour12: false })}.${String(ms % 1000).padStart(3, "0")}`;
+                      return (
+                        <tr key={d.seq} className={`border-t ${d.ok === false ? "bg-destructive/5" : ""}`}>
+                          <td className="px-2 py-1.5 tabular-nums">{d.seq}</td>
+                          <td className="px-2 py-1.5 tabular-nums">{d.position}</td>
+                          <td className="px-2 py-1.5 font-mono break-all">{d.code}</td>
+                          <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap">{fmt(d.dispatchAt)}</td>
+                          <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap">{fmt(d.ackAt)}</td>
+                          <td className="px-2 py-1.5 tabular-nums">{d.ackAt ? d.ackAt - d.dispatchAt : "-"}</td>
+                          <td className="px-2 py-1.5 font-mono text-[10px] break-all">{d.gatewayJobId ?? "-"}</td>
+                          <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap">
+                            {d.printedAt ? new Date(d.printedAt).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN", { hour12: false }) : "-"}
+                          </td>
+                          <td className="px-2 py-1.5 whitespace-nowrap">
+                            {d.ok == null ? <span className="text-muted-foreground">{tr("전송 중", "发送中")}</span>
+                              : d.ok ? <span className="text-emerald-500">accepted</span>
+                              : <span className="text-destructive break-all">{d.error}</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               )}
