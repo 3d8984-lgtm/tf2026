@@ -538,7 +538,7 @@ function OrderDetail({
     let alive = true;
     let inFlight = false;
     const tick = async () => {
-      if (inFlight || inFlightRef.current > 0) return;
+      if (inFlight || inFlightRef.current) return;
       inFlight = true;
       try {
         const [pf, q] = await Promise.all([pfPrinterStatus(), pfPrinterQueue()]);
