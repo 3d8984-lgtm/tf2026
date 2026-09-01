@@ -27,17 +27,19 @@ const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 
 /**
  * 서버는 프린터 통신을 내부 FIFO 큐로 직렬화한다(/test·/run·/stop·/status 공유).
- * 동시에 여러 건을 보내도 안전하지만, 자기 차례가 와야 응답이 오므로 인쇄 요청은
- * 넉넉한 타임아웃(기본 30초)을 준다. 상태 조회는 짧게(5초) 유지한다.
+ * 인쇄 요청(/test)은 실제 물리 인쇄 완료까지 응답이 지연될 수 있으므로 클라이언트
+ * 타임아웃을 두지 않는다(timeoutMs = 0/null). 상태·큐 조회만 짧은 타임아웃을 쓴다.
  */
-export function pfFetch(path: string, init?: RequestInit, timeoutMs = 30000) {
+export function pfFetch(path: string, init?: RequestInit, timeoutMs: number | null = null) {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  const timeout = timeoutMs && timeoutMs > 0
+    ? window.setTimeout(() => controller.abort(), timeoutMs)
+    : null;
   return fetch(`${PROXY_BASE}${path}`, {
     ...init,
     signal: init?.signal ?? controller.signal,
     headers: { apikey: ANON_KEY, "Content-Type": "application/json", ...(init?.headers ?? {}) },
-  }).finally(() => window.clearTimeout(timeout));
+  }).finally(() => { if (timeout !== null) window.clearTimeout(timeout); });
 }
 
 
