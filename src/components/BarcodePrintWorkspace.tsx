@@ -1166,6 +1166,7 @@ function OrderDetail({
     printing: { ko: "전송 중", zh: "发送中", cls: "text-primary" },
     done: { ko: "완료", zh: "完成", cls: "text-emerald-500" },
     failed: { ko: "실패", zh: "失败", cls: "text-destructive" },
+    cancelled: { ko: "초기화로 취소", zh: "因清空而取消", cls: "text-muted-foreground" },
   };
 
   const lampOk = !halted && lastVerdict === "ok";
@@ -1238,6 +1239,7 @@ function OrderDetail({
   const failedJobs = jobs.filter((j) => j.status === "failed" && !isCancelledJobError(j.error)).length;
 
   const lastJob = jobs[0] ?? null;
+  const lastJobCancelled = lastJob?.status === "failed" && isCancelledJobError(lastJob.error);
   const printerOk = !printerOffline && failedJobs === 0;
 
 
@@ -1318,7 +1320,8 @@ function OrderDetail({
                   {tr("대기", "等待")} {pendingCount} · {tr("완료", "完成")} {printedJobs} · {tr("실패", "失败")} {failedJobs}
                   {lastJob && ` · ${tr("최근", "最近")} ${lastJob.barcode}`}
                 </p>
-                {lastJob?.error && <p className="text-[11px] text-destructive truncate">{lastJob.error}</p>}
+                {lastJob?.error && !lastJobCancelled && <p className="text-[11px] text-destructive truncate">{lastJob.error}</p>}
+                {lastJobCancelled && <p className="text-[11px] text-muted-foreground truncate">{tr("버퍼 초기화로 취소됨", "因清空缓冲而取消")}</p>}
               </div>
               {!probed ? (
                 <Badge variant="outline" className="gap-1 text-muted-foreground shrink-0">

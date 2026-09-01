@@ -108,7 +108,9 @@ export type QueueJob = {
  */
 export function isCancelledJobError(error?: string | null): boolean {
   if (!error) return false;
-  return /cancel|clear|abort|취소|초기화|버퍼|已取消|清空/i.test(error);
+  const normalized = error.toLowerCase().replace(/[’']/g, "'").replace(/[_-]+/g, " ");
+  return /cancel(?:led|ed|ation)?|clear(?:ed|ing)?|abort(?:ed)?|취소|초기화|버퍼|已取消|清空/.test(normalized)
+    || (normalized.includes("physical print never happened") && normalized.includes("buffer"));
 }
 
 /** 패널2(인쇄 대기열) = 프린터 대기/인쇄 중 + 완료 응답이지만 물리 인쇄 미확인 */
