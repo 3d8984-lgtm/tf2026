@@ -1666,7 +1666,7 @@ function OrderDetail({
                       return (
                         <tr key={d.seq} className={`border-t ${d.ok === false ? "bg-destructive/5" : ""}`}>
                           <td className="px-2 py-1.5 tabular-nums">{d.seq}</td>
-                          <td className="px-2 py-1.5 tabular-nums">{d.position}</td>
+                          <td className="px-2 py-1.5 tabular-nums">{d.position < 0 ? "-" : d.position}</td>
                           <td className="px-2 py-1.5 font-mono break-all">{d.code}</td>
                           <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap">{fmt(d.dispatchAt)}</td>
                           <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap">{fmt(d.ackAt)}</td>
