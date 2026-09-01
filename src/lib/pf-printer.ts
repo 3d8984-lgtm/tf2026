@@ -90,7 +90,8 @@ export const pfPrinterStop = () => pfMode("stop");
 
 export type PfQueueJob = {
   id: string;
-  kind: "print" | "run" | "stop" | "status";
+  /** 2026-09 서버 개정 이후 큐에는 print job 만 나온다(run/stop/status 제외) */
+  kind: "print";
   text: string | null;
   status: "pending" | "processing" | "done" | "failed";
   /** kind=print & status=done 일 때만 값 존재. true = 프린터 인쇄완료(0x40) 확인됨 */
