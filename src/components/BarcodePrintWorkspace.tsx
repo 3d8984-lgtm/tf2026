@@ -580,6 +580,25 @@ function OrderDetail({
           setJobs(rows.slice().reverse());
           // 인쇄완료(printed=true) 확인 건은 큐에서 밀려나도 남도록 누적 저장
           setPrintedAcc((prev) => mergePrintedAcc(prev, rows));
+          setSaved((prev) => {
+            let changed = false;
+            const next = { ...prev };
+            for (const item of Object.values(prev)) {
+              if (!item.gateway_job_id) continue;
+              const gateway = rows.find((row) => row.id === item.gateway_job_id);
+              if (!gateway) continue;
+              const dispatchStatus = gateway.status === "processing" || gateway.status === "printing"
+                ? "printing"
+                : gateway.status === "failed" ? "error"
+                : gateway.status === "done" && gateway.printed === true ? "printed"
+                : item.dispatch_status;
+              if (dispatchStatus && dispatchStatus !== item.dispatch_status) {
+                next[item.position] = { ...item, dispatch_status, error_detail: gateway.error ?? item.error_detail };
+                changed = true;
+              }
+            }
+            return changed ? next : prev;
+          });
         }
       } catch {
         if (alive) setPrinterOffline(true);
@@ -815,13 +834,15 @@ function OrderDetail({
     const rows = targets.map((e) => ({
       kind, order_id: order.id, position: e.position, code: e.no,
       status: "queued", verdict: "ok", scanned_value: null,
-      scanned_at: now, printed_at: null, test_mode: false,
+      dispatch_status: "queued", scan_sequence: e.position,
+      scanned_at: now, printed_at: null, test_mode: false, gateway_job_id: null,
+      retry_count: 0, error_code: null, error_detail: null,
     }));
     const { error } = await supabase.from("barcode_print_items").upsert(rows, { onConflict: "kind,order_id,position" });
     if (error) { toast.error(error.message); return; }
     setSaved((prev) => {
       const next = { ...prev };
-      for (const e of targets) next[e.position] = { position: e.position, code: e.no, status: "queued", test_mode: false, printed_at: null };
+      for (const e of targets) next[e.position] = { position: e.position, code: e.no, status: "queued", test_mode: false, printed_at: null, scanned_at: now, scan_sequence: e.position, dispatch_status: "queued", retry_count: 0 };
       return next;
     });
     for (const e of targets) seenRef.current.add(norm(e.no));
@@ -876,14 +897,16 @@ function OrderDetail({
     const bad = Object.values(saved).filter((s) => s.status === "error");
     for (const b of bad) {
       await supabase.from("barcode_print_items")
-        .update({ status: "queued", verdict: "ok" })
+        .update({ status: "queued", dispatch_status: "queued", verdict: "ok", gateway_job_id: null, dispatch_started_at: null, gateway_received_at: null, response_code: null, error_code: null, error_detail: null })
         .eq("kind", kind).eq("order_id", order.id).eq("position", b.position);
+      dispatchedRef.current.delete(b.position);
     }
     setSaved((prev) => {
       const next = { ...prev };
-      for (const b of bad) next[b.position] = { ...b, status: "queued" };
+      for (const b of bad) next[b.position] = { ...b, status: "queued", dispatch_status: "queued", gateway_job_id: null, error_code: null, error_detail: null };
       return next;
     });
+    haltRef.current = false;
     setHalted(false);
   };
 
@@ -959,8 +982,10 @@ function OrderDetail({
   const resumeFrom = async (position: number) => {
     await supabase
       .from("barcode_print_items")
-      .update({ status: "pending", verdict: null, scanned_value: null, scanned_at: null, printed_at: null })
+      .update({ status: "pending", dispatch_status: "queued", verdict: null, scanned_value: null, scanned_at: null, printed_at: null, gateway_job_id: null, dispatch_started_at: null, gateway_received_at: null, error_code: null, error_detail: null })
       .eq("kind", kind).eq("order_id", order.id).gte("position", position);
+    for (const p of Array.from(dispatchedRef.current)) if (p >= position) dispatchedRef.current.delete(p);
+    haltRef.current = false;
     setHalted(false);
     setLastVerdict(null);
     lastCodeRef.current = "";
@@ -971,7 +996,7 @@ function OrderDetail({
   // 개별 재작업(스캔 없이 즉시 인쇄)
   const reprint = async (position: number, code: string) => {
     const r = await sendToPrinter(printValueRef.current(code));
-    await markDone(position, code, null, testMode);
+    if (r.ok && r.printed) await markDone(position, code, null, testMode);
     toast[r.ok ? "success" : "error"](
       r.ok ? tr("인쇄 요청을 보냈습니다", "已发送打印请求")
            : `${tr("인쇄 전송 실패", "打印发送失败")} — ${r.error ?? ""}`,
@@ -983,9 +1008,11 @@ function OrderDetail({
     const target = expected[cursor];
     if (!target) return;
     const r = await sendToPrinter(printValueRef.current(target.no));
-    await markDone(target.position, target.no, null, true);
-    setCursor((c) => c + 1);
-    seenRef.current.add(norm(target.no));
+    if (r.ok && r.printed) {
+      await markDone(target.position, target.no, null, true);
+      setCursor((c) => c + 1);
+      seenRef.current.add(norm(target.no));
+    }
     toast[r.ok ? "success" : "error"](
       r.ok ? `${target.no} ${tr("인쇄 요청", "打印请求")}`
            : `${tr("인쇄 전송 실패", "打印发送失败")} — ${r.error ?? ""}`,
@@ -1042,12 +1069,13 @@ function OrderDetail({
 
   // ── 인쇄 대기열 표시 데이터 ────────────────────────────────────────
   // 프린터 서버 FIFO 큐에 실제 대기/처리 중인 건 + 앱에서 전송 중인 건 + 실패로 멈춘 건
-  type QueueState = "printing" | "printer_wait" | "unconfirmed" | "sending" | "error";
+  type QueueState = "queued" | "dispatching" | "accepted" | "printing" | "printed" | "error";
   const queueStateMeta: Record<QueueState, { ko: string; zh: string; cls: string }> = {
+    queued: { ko: "대기", zh: "等待", cls: "text-muted-foreground" },
+    dispatching: { ko: "Gateway 전송 중", zh: "正在发送到网关", cls: "text-primary" },
+    accepted: { ko: "Gateway 접수 완료", zh: "网关已接收", cls: "text-amber-500" },
     printing: { ko: "프린터 인쇄 중", zh: "打印机打印中", cls: "text-primary" },
-    printer_wait: { ko: "프린터 대기 중", zh: "打印机等待中", cls: "text-primary" },
-    unconfirmed: { ko: "인쇄 완료 미확인", zh: "打印完成未确认", cls: "text-amber-500" },
-    sending: { ko: "전송 중", zh: "发送中", cls: "text-primary" },
+    printed: { ko: "실제 출력 완료", zh: "实际打印完成", cls: "text-emerald-500" },
     error: { ko: "인쇄 실패 · 작업 중단", zh: "打印失败 · 作业中断", cls: "text-destructive" },
   };
   const posByPrintValue: Record<string, number> = {};
@@ -1056,38 +1084,15 @@ function OrderDetail({
     posByPrintValue[norm(e.base)] = e.position;
     if (e.cardNo) posByPrintValue[norm(e.cardNo)] = e.position;
   }
-  const queueRows: Array<{ key: string; position: number | null; code: string; state: QueueState }> = [
-    // 프린터 서버 큐 (오래된 요청 순 = 인쇄 순서)
-    ...waitingJobs
-      .slice()
-      .sort((a, b) => ts(a.enqueued_at) - ts(b.enqueued_at))
-      .map((j) => ({
-        key: `job-${j.id}`,
-        position: posByPrintValue[norm(j.barcode)] ?? null,
-        code: j.barcode,
-        state: (j.status === "done" ? "unconfirmed" : j.status === "printing" ? "printing" : "printer_wait") as QueueState,
-      })),
-    // 아직 프린터 큐에 반영되기 전(앱→게이트웨이 전송 중)
-    ...Object.values(saved)
-      .filter((s) => s.status === "queued" && !jobByCodePending(s))
-      .sort((a, b) => a.position - b.position)
-      .map((s) => ({
-        key: `send-${s.position}`,
-        position: s.position,
-        code: printValueRef.current(s.code),
-        state: "sending" as QueueState,
-      })),
-    // 실패로 멈춘 건
-    ...Object.values(saved)
-      .filter((s) => s.status === "error")
-      .sort((a, b) => a.position - b.position)
-      .map((s) => ({
-        key: `err-${s.position}`,
-        position: s.position,
-        code: printValueRef.current(s.code),
-        state: "error" as QueueState,
-      })),
-  ];
+  const queueRows: Array<{ key: string; position: number | null; code: string; state: QueueState }> = Object.values(saved)
+    .filter((s) => s.status === "queued" || s.status === "error")
+    .sort((a, b) => a.position - b.position)
+    .map((s) => ({
+      key: `item-${s.position}`,
+      position: s.position,
+      code: printValueRef.current(s.code),
+      state: (s.status === "error" ? "error" : s.dispatch_status ?? "queued") as QueueState,
+    }));
   function jobByCodePending(s: SavedItem) {
     const j = jobs.find((x) => norm(x.barcode) === norm(printValueRef.current(s.code)));
     return !!j && (j.status === "pending" || j.status === "printing");
