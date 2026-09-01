@@ -47,6 +47,7 @@ export function pfErrorText(j: any, status: number): string {
   const base = typeof d === "string"
     ? d
     : Array.isArray(d) ? d.map((x: any) => x?.msg ?? String(x)).join(", ") : "";
+  if (/cancelled|queue was cleared/i.test(base)) return "대기열 초기화로 취소된 요청입니다";
   const hint =
     status === 409 ? "프린터 NAK (Run 모드 아님 / var length 불일치)"
     : status === 503 ? "프린터 시리얼 포트에 연결할 수 없음"
@@ -152,10 +153,11 @@ export async function pfPrint(
   };
 
   const sleep = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
+  const detailOf = (j: any) => (typeof j?.detail === "string" ? j.detail : "");
+  // 사용자가 대기열을 비워 취소된 요청은 프린터 NAK 이 아니므로 재시도하지 않는다.
+  const isCancelled = (j: any) => /cancelled|queue was cleared/i.test(detailOf(j));
   const isNak = (res: Response, j: any) =>
-    res.status === 409 ||
-    j?.upstream_status === 409 ||
-    /NAK/i.test(typeof j?.detail === "string" ? j.detail : "");
+    !isCancelled(j) && (res.status === 409 || j?.upstream_status === 409 || /NAK/i.test(detailOf(j)));
 
   try {
     let { res, j } = await attempt();
