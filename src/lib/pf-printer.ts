@@ -248,7 +248,8 @@ export async function pfWaitForPrint(
     if (!q.offline) {
       const job = q.jobs.find((j) => (id && j.id === id) || (!id && text != null && j.text === text));
       if (job) {
-        if (job.status === "done" && job.printed === true) return { printed: true, failed: false, timedOut: false };
+        // 서버가 done 으로 마감했으면 완료로 본다(printed 가 null 로 오는 게이트웨이 대응).
+        if (job.status === "done" && job.printed !== false) return { printed: true, failed: false, timedOut: false };
         if (job.status === "failed") return { printed: false, failed: true, timedOut: false, error: job.error ?? undefined };
       }
     }
@@ -256,6 +257,7 @@ export async function pfWaitForPrint(
   }
   return { printed: false, failed: false, timedOut: true };
 }
+
 
 
 /**
