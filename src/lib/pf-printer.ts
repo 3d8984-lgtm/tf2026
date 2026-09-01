@@ -184,6 +184,9 @@ export async function pfPrint(
   const isCancelled = (j: any) => /cancelled|queue was cleared/i.test(detailOf(j));
   const isNak = (res: Response, j: any) =>
     !isCancelled(j) && (res.status === 409 || j?.upstream_status === 409 || /NAK/i.test(detailOf(j)));
+  // 유휴 상태의 프린터가 첫 트리거 응답(0x40)을 5초 안에 못 주면 게이트웨이가 이 오류로 실패시킨다.
+  // 이 경우 인쇄는 실제로 되지 않았으므로(서버 큐 status=failed) 안전하게 재전송할 수 있다.
+  const isTimeout = (j: any) => /timed out waiting for printer response/i.test(detailOf(j));
 
   try {
     let { res, j } = await attempt();
@@ -195,10 +198,16 @@ export async function pfPrint(
       await sleep(400);
       ({ res, j } = await attempt());
     }
+    // 웜업 타임아웃 → 그대로 1회 재전송 (첫 트리거가 프린터를 깨워둔 상태라 대개 즉시 성공)
+    for (let i = 0; i < 1 && !(res.ok && j?.accepted) && isTimeout(j); i++) {
+      await sleep(600);
+      ({ res, j } = await attempt());
+    }
     if (res.ok && j?.accepted) {
       return { ok: true, printed: j?.printed === true, id: typeof j?.id === "string" ? j.id : undefined, payload };
     }
     return { ok: false, error: pfErrorText(j, res.status), payload };
+
 
   } catch (e) {
     return { ok: false, error: String(e), payload };
