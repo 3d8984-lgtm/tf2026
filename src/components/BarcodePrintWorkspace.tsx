@@ -1573,7 +1573,7 @@ function OrderDetail({
                     ))}
                   </tbody>
                 </table>
-              ) : (
+              ) : rawTab === "printer" ? (
                 <table className="w-full text-xs">
                   <thead className="bg-muted/40">
                     <tr className="text-left">
