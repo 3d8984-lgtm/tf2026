@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useLang } from "@/contexts/LangContext";
 import { toast } from "sonner";
 import { Printer, Wifi, WifiOff, Play, Square, Eraser, Loader2, Trash2 } from "lucide-react";
-import { pfPrint, pfPrinterRun, pfPrinterStop, pfPrinterStatus, pfPrinterQueue, pfPrinterQueueClear, pfPrinterBufferClear } from "@/lib/pf-printer";
+import { pfPrint, pfPrinterRun, pfPrinterStop, pfPrinterStatus, pfPrinterQueue, pfPrinterQueueClear, pfPrinterBufferClear, pfWaitForPrint } from "@/lib/pf-printer";
 
 
 /** PF 시리즈 잉크젯 프린터(/api/v1/pf-printer) 잉크·버퍼 상태 표시 + 테스트 인쇄. */
@@ -23,6 +23,8 @@ export default function PfPrinterCard({ defaultText = "" }: { defaultText?: stri
   const [probed, setProbed] = useState(false);
   const [text, setText] = useState(defaultText);
   const [busy, setBusy] = useState(false);
+  const [waiting, setWaiting] = useState(false);
+
 
   useEffect(() => {
     let alive = true;
