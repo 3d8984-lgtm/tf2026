@@ -453,6 +453,24 @@ function OrderDetail({
     toast.error(`${code} · ${message}`);
   }, [kind, order.id]);
 
+  /**
+   * 전송 결과를 알 수 없는 상태(HTTP 502 / 연결 끊김 / 프록시 오류).
+   * 프린터에 이미 데이터가 올라갔을 수 있으므로 실패로 확정하지 않고 `uncertain` 으로 두고
+   * 게이트웨이 큐를 조회해 실제 job 존재 여부로 판정한다. 이 상태에서는 재전송하지 않는다.
+   */
+  const markUncertain = useCallback(async (position: number, code: string, message: string, errorCode: PfErrorCode = "GATEWAY_ERROR") => {
+    haltRef.current = true;
+    await supabase.from("barcode_print_items").upsert(
+      { kind, order_id: order.id, position, code, status: "queued", dispatch_status: "uncertain", verdict: "ok", printed_at: null, error_code: errorCode, error_detail: message },
+      { onConflict: "kind,order_id,position" },
+    );
+    setSaved((prev) => ({ ...prev, [position]: { ...prev[position], position, code, status: "queued", dispatch_status: "uncertain", error_code: errorCode, error_detail: message, test_mode: false, printed_at: null } }));
+    setHalted(true);
+    toast.warning(`${code} · ${tr("전송 결과 확인 중", "正在确认发送结果")} · ${message}`);
+  }, [kind, order.id, isKo]);
+
+
+
   const markDone = useCallback(async (position: number, code: string, scannedValue: string | null, isTest: boolean) => {
     const now = new Date().toISOString();
     await supabase.from("barcode_print_items").upsert(
