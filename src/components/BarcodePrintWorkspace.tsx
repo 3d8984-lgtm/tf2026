@@ -702,7 +702,7 @@ function OrderDetail({
     const seq = ++dispatchSeqRef.current;
     const dispatchAt = Date.now();
     setDispatchLog((prev) => [
-      { seq, scanSequence: null, position: -1, code: "WARMUP", scanAt: null, dispatchAt, ackAt: null, ok: null, gatewayJobId: null, printedAt: null, error: null, errorCode: null, responseCode: null, retryCount: 0, runState: null, readyAt: null, serialSendAt: null, serialResponseAt: null },
+      { seq, scanSequence: null, position: -1, code: "WARMUP", scanAt: null, dispatchAt, ackAt: null, ok: null, gatewayJobId: null, printedAt: null, error: null, errorCode: null, responseCode: null, retryCount: 0, runState: null, readyAt: null, serialSendAt: null, serialResponseAt: null, proxyUpstreamMs: null },
       ...prev,
     ].slice(0, 200));
     const r = await pfEnsureReady(8000, 400);
@@ -761,7 +761,7 @@ function OrderDetail({
         setPrintingPos(next.position);
         setInFlightCount(1);
         setDispatchLog((prev) => [
-          { seq, scanSequence: next.scan_sequence ?? next.position, position: next.position, code: next.code, scanAt: next.scanned_at ?? null, dispatchAt, ackAt: null, ok: null, gatewayJobId: null, printedAt: null, error: null, errorCode: null, responseCode: null, retryCount: 0, runState: "READY", readyAt: new Date().toISOString(), serialSendAt: null, serialResponseAt: null },
+          { seq, scanSequence: next.scan_sequence ?? next.position, position: next.position, code: next.code, scanAt: next.scanned_at ?? null, dispatchAt, ackAt: null, ok: null, gatewayJobId: null, printedAt: null, error: null, errorCode: null, responseCode: null, retryCount: 0, runState: "READY", readyAt: new Date().toISOString(), serialSendAt: null, serialResponseAt: null, proxyUpstreamMs: null },
           ...prev,
         ].slice(0, 200));
 
