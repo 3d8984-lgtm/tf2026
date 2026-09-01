@@ -47,6 +47,7 @@ export function pfErrorText(j: any, status: number): string {
   const base = typeof d === "string"
     ? d
     : Array.isArray(d) ? d.map((x: any) => x?.msg ?? String(x)).join(", ") : "";
+  if (/cancelled|queue was cleared/i.test(base)) return "대기열 초기화로 취소된 요청입니다";
   const hint =
     status === 409 ? "프린터 NAK (Run 모드 아님 / var length 불일치)"
     : status === 503 ? "프린터 시리얼 포트에 연결할 수 없음"
