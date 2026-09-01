@@ -636,51 +636,68 @@ function OrderDetail({
   }, [queue, expected, cursor, testMode, ready, markQueued, kind, halted]);
 
 
-  // ── 소비자(인쇄 큐 적재) ───────────────────────────────────────────
-  // 백엔드 개정(2026-09): PF 프린터 API는 서버 내부 FIFO 큐를 거쳐 직렬 처리되고,
-  // /test 응답은 "버퍼 접수" 시점에 즉시 온다(물리 인쇄 완료를 기다리지 않음).
-  // 프론트는 검증을 통과한 항목을 순서대로 서버 큐에 밀어 넣고(요청 도착 순서 = 인쇄 순서),
-  // 실제 인쇄 완료는 /queue 폴링(status=done && printed=true)과 printedAcc 누적으로 추적한다.
-  // 순차 전송: 한 건의 접수 응답(200 OK)을 받은 뒤에 다음 건을 보낸다.
-  const MAX_IN_FLIGHT = 1;
+  // ── 소비자(단일 Print Dispatcher) ─────────────────────────────────
+  // 원칙: 단일 consumer · 한 번에 1건 · 게이트웨이 ACK(200 OK) 수신 후 다음 건 전송 ·
+  // 실패 시 즉시 halt. 전송 순서는 항상 position ASC 이며 HTTP 응답 순서와 무관하다.
+  // 물리 인쇄 완료는 기다리지 않고, /queue 폴링 + 0x40 완료 이벤트로 별도 확정한다.
   const dispatchedRef = useRef<Set<number>>(new Set());
-  const inFlightRef = useRef(0);
+  /** 단일 소비자 락 — 동시에 2개 이상의 /pf-printer/test 요청이 나가지 않도록 보장 */
+  const busyRef = useRef(false);
+  const inFlightRef = busyRef; // 프린터 상태 폴링에서 참조 (인쇄 중 폴링 스킵)
   const [inFlightCount, setInFlightCount] = useState(0);
-  const [printTick, setPrintTick] = useState(0);
   const [printingPos, setPrintingPos] = useState<number | null>(null);
-  useEffect(() => {
-    // 검증 실패로 중단된 동안에는 대기열이 있어도 프린터로 보내지 않는다 ('재개' 버튼 필요)
-    if (!ready || testMode || halted) return;
-    const pending = Object.values(saved)
-      .filter((s) => s.status === "queued" && !dispatchedRef.current.has(s.position))
-      .sort((a, b) => a.position - b.position);
-    if (pending.length === 0) return;
+  const dispatchSeqRef = useRef(1000);
+  const gateRef = useRef({ ready, testMode, halted });
+  gateRef.current = { ready, testMode, halted };
 
-    for (const item of pending) {
-      if (inFlightRef.current >= MAX_IN_FLIGHT) break;
-      dispatchedRef.current.add(item.position);
-      inFlightRef.current += 1;
-      setInFlightCount(inFlightRef.current);
-      setPrintingPos((p) => p ?? item.position);
-      void (async () => {
-        try {
-          const r = await sendToPrinter(printValueRef.current(item.code));
-          // printed=true → 이미 물리 인쇄 확인. printed=null/false 는 오류가 아니라
-          // "프린터 버퍼(스풀)에 접수됨, 인쇄 대기 중" 상태이므로 큐 폴링으로 완료를 확인한다.
-          if (r.ok && r.printed) await markDone(item.position, item.code, null, false);
-          else if (!r.ok) {
-            dispatchedRef.current.delete(item.position); // 재시도 가능하도록 해제
-            await markPrintError(item.position, item.code, r.error ?? "printer send failed");
-          }
-        } finally {
-          inFlightRef.current -= 1;
-          setInFlightCount(inFlightRef.current);
-          setPrintingPos(inFlightRef.current > 0 ? item.position : null);
-          setPrintTick((t) => t + 1);
+  const pump = useCallback(async () => {
+    if (busyRef.current) return; // 이미 다른 소비자가 실행 중
+    busyRef.current = true;
+    try {
+      // 대기열이 빌 때까지 한 건씩 순차 전송 (ACK 후 다음 건)
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const g = gateRef.current;
+        if (!g.ready || g.testMode || g.halted) break;
+        const next = Object.values(savedRef.current)
+          .filter((s) => s.status === "queued" && !dispatchedRef.current.has(s.position))
+          .sort((a, b) => a.position - b.position)[0];
+        if (!next) break;
+
+        dispatchedRef.current.add(next.position);
+        const seq = ++dispatchSeqRef.current;
+        const dispatchAt = Date.now();
+        setPrintingPos(next.position);
+        setInFlightCount(1);
+        setDispatchLog((prev) => [
+          { seq, position: next.position, code: next.code, scanAt: null, dispatchAt, ackAt: null, ok: null, gatewayJobId: null, printedAt: null, error: null },
+          ...prev,
+        ].slice(0, 200));
+
+        const r = await sendToPrinter(printValueRef.current(next.code));
+        const ackAt = Date.now();
+        setDispatchLog((prev) => prev.map((row) => (row.seq === seq
+          ? { ...row, ackAt, ok: r.ok, gatewayJobId: r.id ?? null, error: r.ok ? null : r.error ?? "send failed" }
+          : row)));
+
+        if (r.ok) {
+          // printed=true → 이미 물리 인쇄 확인. null/false 는 "버퍼 접수됨"이며 오류가 아니다.
+          if (r.printed) await markDone(next.position, next.code, null, false);
+        } else {
+          dispatchedRef.current.delete(next.position); // 재시도 가능하도록 해제 (queued 유지)
+          await markPrintError(next.position, next.code, r.error ?? "printer send failed");
+          break; // Fail-fast: 이후 항목은 전송하지 않는다
         }
-      })();
+      }
+    } finally {
+      busyRef.current = false;
+      setInFlightCount(0);
+      setPrintingPos(null);
     }
-  }, [saved, printTick, ready, testMode, halted, sendToPrinter, markDone, markPrintError]);
+  }, [sendToPrinter, markDone, markPrintError]);
+
+  // 상태가 바뀔 때마다 디스패처를 깨운다 (실행 중이면 pump 가 즉시 반환하므로 중복 없음)
+  useEffect(() => { void pump(); }, [saved, ready, testMode, halted, pump]);
 
   // ── 인쇄 완료 확인(큐 폴링 결과 반영) ───────────────────────────────
   // 접수만 된 항목(queued & 전송 완료)은 프린터 큐/완료 이벤트에서 실제 인쇄완료가
@@ -695,9 +712,13 @@ function OrderDetail({
       const codes = [s.code, pv];
       const job = jobs.find((j) => codes.some((c) => norm(c) === norm(j.barcode))) ?? null;
       const at = resolvePrintedAt({ codes, completeEvents, printedAcc, job });
-      if (at) void markDone(s.position, s.code, null, false);
+      if (at) {
+        setDispatchLog((prev) => prev.map((row) => (row.position === s.position && !row.printedAt ? { ...row, printedAt: at } : row)));
+        void markDone(s.position, s.code, null, false);
+      }
     }
   }, [saved, jobs, completeEvents, printedAcc, markDone]);
+
 
   /** 스캔 없이 남은 항목 전체를 인쇄 대기열(FIFO)에 적재 */
   const enqueueAllRemaining = useCallback(async () => {
