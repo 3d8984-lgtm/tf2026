@@ -146,6 +146,6 @@ export function resolvePrintedAt(params: {
     const k = norm(c);
     if (printedAcc[k]) return printedAcc[k];
   }
-  if (job && job.status === "done" && job.printed === true) return job.printed_at ?? job.enqueued_at;
+  if (job && job.status === "done" && job.printed !== false) return job.printed_at ?? job.enqueued_at;
   return null;
 }
