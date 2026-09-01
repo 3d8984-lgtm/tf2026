@@ -158,7 +158,7 @@ type SavedItem = {
   printed_at: string | null;
   scanned_at?: string | null;
   scan_sequence?: number | null;
-  dispatch_status?: "queued" | "dispatching" | "accepted" | "waiting_for_print" | "printing" | "printed" | "error";
+  dispatch_status?: "queued" | "dispatching" | "uncertain" | "accepted" | "waiting_for_print" | "printing" | "printed" | "error";
   gateway_job_id?: string | null;
   retry_count?: number;
   error_code?: string | null;
@@ -441,6 +441,8 @@ function OrderDetail({
 
   /** 인쇄 실패 → 대기열 선두에서 멈춤 (다음 항목으로 넘어가지 않음) */
   const haltRef = useRef(false);
+  /** uncertain 진입 시각 (position → epoch ms). 게이트웨이 조회로 판정될 때까지 유지 */
+  const uncertainSinceRef = useRef<Record<number, number>>({});
   const markPrintError = useCallback(async (position: number, code: string, message: string, errorCode: PfErrorCode = "GATEWAY_ERROR") => {
     haltRef.current = true;
     await supabase.from("barcode_print_items").upsert(
@@ -452,6 +454,24 @@ function OrderDetail({
     warmedUpRef.current = false; // 실패 후 프린터가 Stop 으로 돌아갔을 수 있어 재개 시 재예열
     toast.error(`${code} · ${message}`);
   }, [kind, order.id]);
+
+  /**
+   * 전송 결과를 알 수 없는 상태(HTTP 502 / 연결 끊김 / 프록시 오류).
+   * 프린터에 이미 데이터가 올라갔을 수 있으므로 실패로 확정하지 않고 `uncertain` 으로 두고
+   * 게이트웨이 큐를 조회해 실제 job 존재 여부로 판정한다. 이 상태에서는 재전송하지 않는다.
+   */
+  const markUncertain = useCallback(async (position: number, code: string, message: string, errorCode: PfErrorCode = "GATEWAY_ERROR") => {
+    haltRef.current = true;
+    await supabase.from("barcode_print_items").upsert(
+      { kind, order_id: order.id, position, code, status: "queued", dispatch_status: "uncertain", verdict: "ok", printed_at: null, error_code: errorCode, error_detail: message },
+      { onConflict: "kind,order_id,position" },
+    );
+    setSaved((prev) => ({ ...prev, [position]: { ...prev[position], position, code, status: "queued", dispatch_status: "uncertain", error_code: errorCode, error_detail: message, test_mode: false, printed_at: null } }));
+    setHalted(true);
+    toast.warning(`${code} · ${tr("전송 결과 확인 중", "正在确认发送结果")} · ${message}`);
+  }, [kind, order.id, isKo]);
+
+
 
   const markDone = useCallback(async (position: number, code: string, scannedValue: string | null, isTest: boolean) => {
     const now = new Date().toISOString();
@@ -736,9 +756,10 @@ function OrderDetail({
         const g = gateRef.current;
         if (!g.ready || g.testMode || g.halted || haltRef.current) break;
         // A row claimed by another tab/device is the sole active dispatcher.
-        // 앞선 건이 아직 물리 인쇄 완료되지 않았으면(전송 중/접수/인쇄 대기) 다음 건을 보내지 않는다.
+        // 앞선 건이 실제 0x40 인쇄 완료로 확정되기 전에는 다음 건을 보내지 않는다.
+        // uncertain(결과 미확인) 건이 남아 있어도 판정 전까지는 전송을 멈춘다.
         if (Object.values(savedRef.current).some((s) => s.status === "queued" &&
-          (s.dispatch_status === "dispatching" || s.dispatch_status === "accepted" ||
+          (s.dispatch_status === "dispatching" || s.dispatch_status === "accepted" || s.dispatch_status === "uncertain" ||
            s.dispatch_status === "waiting_for_print" || s.dispatch_status === "printing"))) break;
         const next = Object.values(savedRef.current)
           .filter((s) => s.status === "queued" && (s.dispatch_status ?? "queued") === "queued" && !dispatchedRef.current.has(s.position))
@@ -794,8 +815,16 @@ function OrderDetail({
           // printed=true → 이미 물리 인쇄 확인. null/false 는 "버퍼 접수됨"이며 오류가 아니다.
           if (r.printed) await markDone(next.position, next.code, null, false);
         } else {
-          dispatchedRef.current.delete(next.position); // 재시도 가능하도록 해제 (queued 유지)
-          await markPrintError(next.position, next.code, r.error ?? "printer send failed", r.errorCode);
+          // HTTP 실패 = 인쇄 실패가 아니다. 전송 도달 여부를 알 수 없는 오류(502/연결 끊김/게이트웨이 오류)는
+          // uncertain 으로 두고 게이트웨이 job 조회로 판정한다. 절대 같은 데이터를 자동 재전송하지 않는다.
+          const uncertainCodes: PfErrorCode[] = ["GATEWAY_OFFLINE", "GATEWAY_ERROR", "PRINTER_RESPONSE_TIMEOUT"];
+          if (r.errorCode && uncertainCodes.includes(r.errorCode)) {
+            uncertainSinceRef.current[next.position] = Date.now();
+            await markUncertain(next.position, next.code, r.error ?? "gateway unreachable", r.errorCode);
+          } else {
+            dispatchedRef.current.delete(next.position); // 프린터에 도달하지 않은 확정 실패만 재시도 가능
+            await markPrintError(next.position, next.code, r.error ?? "printer send failed", r.errorCode);
+          }
           break; // Fail-fast: 이후 항목은 전송하지 않는다
         }
       }
@@ -807,7 +836,45 @@ function OrderDetail({
         setDispatchWake((n) => n + 1);
       }
     }
-  }, [sendToPrinter, markDone, markPrintError, warmupPrinter, kind, order.id, loadSaved]);
+  }, [sendToPrinter, markDone, markPrintError, markUncertain, warmupPrinter, kind, order.id, loadSaved]);
+
+  /**
+   * uncertain 판정 — 게이트웨이 큐(2초 폴링 결과)를 조회해 실제 job 존재 여부로 결론짓는다.
+   * - job 이 있으면 이미 프린터로 전송된 것 → 재전송하지 않고 waiting_for_print/printed 로 승격
+   * - job 이 failed 면 확정 실패
+   * - 게이트웨이가 복구된 뒤에도 30초간 job 이 없으면 미도달로 보고 재시도 가능한 error 로 확정
+   */
+  useEffect(() => {
+    const pending = Object.values(saved).filter((s) => s.dispatch_status === "uncertain");
+    if (pending.length === 0) return;
+    for (const s of pending) {
+      const pv = printValueRef.current(s.code);
+      const job = jobs.find((j) => norm(j.barcode) === norm(pv));
+      if (job) {
+        if (job.status === "failed") {
+          void markPrintError(s.position, s.code, job.error ?? "gateway job failed", "GATEWAY_ERROR");
+          continue;
+        }
+        const dispatchStatus = job.status === "printing" ? "printing"
+          : job.status === "done" && job.printed === true ? "printed" : "waiting_for_print";
+        void supabase.from("barcode_print_items")
+          .update({ dispatch_status: dispatchStatus, gateway_job_id: job.id, error_code: null, error_detail: null })
+          .eq("kind", kind).eq("order_id", order.id).eq("position", s.position);
+        setSaved((prev) => ({ ...prev, [s.position]: { ...prev[s.position], dispatch_status: dispatchStatus, gateway_job_id: job.id, error_code: undefined, error_detail: undefined } }));
+        delete uncertainSinceRef.current[s.position];
+        continue;
+      }
+      // 게이트웨이가 아직 오프라인이면 판정을 미룬다 (조회 불가 = 실패 아님)
+      if (printerOffline) continue;
+      const since = uncertainSinceRef.current[s.position] ?? Date.now();
+      uncertainSinceRef.current[s.position] = since;
+      if (Date.now() - since > 30000) {
+        delete uncertainSinceRef.current[s.position];
+        dispatchedRef.current.delete(s.position);
+        void markPrintError(s.position, s.code, s.error_detail ?? "gateway job not found (미도달)", "GATEWAY_ERROR");
+      }
+    }
+  }, [saved, jobs, printerOffline, markPrintError, kind, order.id]);
 
   // 상태가 바뀔 때마다 디스패처를 깨운다 (실행 중이면 pump 가 즉시 반환하므로 중복 없음)
   useEffect(() => { void pump(); }, [saved, ready, testMode, halted, dispatchWake, pump]);
@@ -828,7 +895,7 @@ function OrderDetail({
   useEffect(() => {
     const pendingConfirm = Object.values(saved).filter(
       (s) => s.status === "queued" && (dispatchedRef.current.has(s.position) || s.dispatch_status === "accepted" ||
-        s.dispatch_status === "waiting_for_print" || s.dispatch_status === "printing"),
+        s.dispatch_status === "uncertain" || s.dispatch_status === "waiting_for_print" || s.dispatch_status === "printing"),
     );
     if (pendingConfirm.length === 0) return;
     for (const s of pendingConfirm) {
@@ -1096,10 +1163,11 @@ function OrderDetail({
 
   // ── 인쇄 대기열 표시 데이터 ────────────────────────────────────────
   // 프린터 서버 FIFO 큐에 실제 대기/처리 중인 건 + 앱에서 전송 중인 건 + 실패로 멈춘 건
-  type QueueState = "queued" | "dispatching" | "accepted" | "waiting_for_print" | "printing" | "printed" | "error";
+  type QueueState = "queued" | "dispatching" | "uncertain" | "accepted" | "waiting_for_print" | "printing" | "printed" | "error";
   const queueStateMeta: Record<QueueState, { ko: string; zh: string; cls: string }> = {
     queued: { ko: "대기", zh: "等待", cls: "text-muted-foreground" },
     dispatching: { ko: "Gateway 전송 중", zh: "正在发送到网关", cls: "text-primary" },
+    uncertain: { ko: "전송 결과 확인 중 (재전송 안 함)", zh: "确认发送结果中（不重发）", cls: "text-orange-500" },
     accepted: { ko: "Gateway 접수 완료", zh: "网关已接收", cls: "text-amber-500" },
     waiting_for_print: { ko: "인쇄 대기 (물체 감지 대기)", zh: "等待打印（等待物体）", cls: "text-amber-500" },
     printing: { ko: "프린터 인쇄 중", zh: "打印机打印中", cls: "text-primary" },
