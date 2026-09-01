@@ -615,9 +615,10 @@ function OrderDetail({
               const dispatchStatus = gateway.status === "printing"
                 ? "printing"
                 : gateway.status === "failed" ? "error"
-                : gateway.status === "done" && gateway.printed === true ? "printed"
+                : gateway.status === "done" && gateway.printed !== false ? "printed"
                 : gateway.status === "pending" ? "waiting_for_print"
                 : item.dispatch_status;
+
               if (dispatchStatus && dispatchStatus !== item.dispatch_status) {
                 next[item.position] = { ...item, dispatch_status: dispatchStatus, error_detail: gateway.error ?? item.error_detail };
                 changed = true;
