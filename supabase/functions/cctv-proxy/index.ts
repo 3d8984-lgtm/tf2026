@@ -14,6 +14,18 @@ const corsHeaders = {
 const API_BASE = (Deno.env.get("TF2027_CAMERA_API_BASE") || "https://api.tf2027.xyz").replace(/\/+$/, "");
 const API_KEY = Deno.env.get("TF2027_CAMERA_API_KEY") || "";
 
+const printerErrorCode = (status: number, body: Record<string, unknown>) => {
+  if (typeof body.error_code === "string" && body.error_code) return body.error_code;
+  const detail = String(body.detail ?? body.error ?? "").toLowerCase();
+  if (detail.includes("cancelled") || detail.includes("queue was cleared")) return "QUEUE_CANCELLED";
+  if (detail.includes("timed out waiting for printer response")) return "PRINTER_RESPONSE_TIMEOUT";
+  if (detail.includes("not ready") || detail.includes("not running")) return "PRINTER_NOT_READY";
+  if (detail.includes("nak")) return "PRINTER_NAK";
+  if (status === 503) return "PRINTER_SERIAL_DISCONNECTED";
+  if (status === 504) return "PRINTER_RESPONSE_TIMEOUT";
+  return "GATEWAY_ERROR";
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -32,10 +44,14 @@ Deno.serve(async (req) => {
   const rest = idx >= 0 ? url.pathname.slice(idx + marker.length) : url.pathname;
   const target = `${API_BASE}${rest || "/"}${url.search || ""}`;
   const isPlcStatus = /\/api\/v1\/plc\/[^/]+\/status$/i.test(url.pathname);
+  const isPrinterApi = /\/api\/v1\/pf-printer(?:\/|$)/i.test(url.pathname);
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    // Printer requests are governed by the Gateway's serial timeout. Aborting
+    // them here would discard its structured status/detail and make retry
+    // safety impossible to determine.
+    const timeout = isPrinterApi ? null : setTimeout(() => controller.abort(), 8000);
     const isBodyless = ["GET", "HEAD"].includes(req.method);
     const fwdHeaders: Record<string, string> = {
       "X-API-Key": API_KEY,
@@ -60,7 +76,7 @@ Deno.serve(async (req) => {
         signal: controller.signal,
       });
     } finally {
-      clearTimeout(timeout);
+      if (timeout !== null) clearTimeout(timeout);
     }
 
 
@@ -98,7 +114,29 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Any upstream gateway/tunnel failure (on-site server offline) is an
+    // Printer failures must preserve the upstream HTTP status and diagnostic
+    // payload. Older Gateway responses are augmented with a stable error_code;
+    // the original detail/error fields are never removed.
+    if (isPrinterApi && !upstream.ok) {
+      const raw = await upstream.text();
+      let payload: Record<string, unknown>;
+      try {
+        const parsed = JSON.parse(raw);
+        payload = parsed && typeof parsed === "object" ? parsed : { detail: raw };
+      } catch {
+        payload = { detail: raw || `HTTP ${upstream.status}` };
+      }
+      const errorCode = printerErrorCode(upstream.status, payload);
+      const retryable = typeof payload.retryable === "boolean"
+        ? payload.retryable
+        : errorCode === "PRINTER_NOT_READY" || errorCode === "PRINTER_NAK";
+      return new Response(JSON.stringify({ ...payload, error_code: errorCode, retryable }), {
+        status: upstream.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
+      });
+    }
+
+    // Non-printer gateway/tunnel failures remain expected device states.
     // expected device state, not an Edge Function failure. Returning a 5xx from
     // here is promoted by the host to a client runtime error / blank screen, so
     // answer 200 with an explicit offline flag and let the UI decide.
@@ -130,8 +168,12 @@ Deno.serve(async (req) => {
     return new Response(upstream.body, { status: upstream.status, headers });
   } catch (err) {
     console.error("cctv-proxy upstream failure", target, String(err));
-    return new Response(JSON.stringify({ offline: true, upstream_status: 0, error: String(err) }), {
-      status: 200,
+    const status = isPrinterApi ? 502 : 200;
+    const payload = isPrinterApi
+      ? { error_code: "GATEWAY_OFFLINE", detail: String(err), retryable: false }
+      : { offline: true, upstream_status: 0, error: String(err) };
+    return new Response(JSON.stringify(payload), {
+      status,
       headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
     });
   }
