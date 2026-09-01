@@ -647,8 +647,10 @@ function OrderDetail({
       void (async () => {
         try {
           const r = await sendToPrinter(printValueRef.current(item.code));
-          if (r.ok) await markDone(item.position, item.code, null, false);
-          else {
+          // printed=true → 이미 물리 인쇄 확인. printed=null/false 는 오류가 아니라
+          // "프린터 버퍼(스풀)에 접수됨, 인쇄 대기 중" 상태이므로 큐 폴링으로 완료를 확인한다.
+          if (r.ok && r.printed) await markDone(item.position, item.code, null, false);
+          else if (!r.ok) {
             dispatchedRef.current.delete(item.position); // 재시도 가능하도록 해제
             await markPrintError(item.position, item.code, r.error ?? "printer send failed");
           }
@@ -661,6 +663,23 @@ function OrderDetail({
       })();
     }
   }, [saved, printTick, ready, testMode, halted, sendToPrinter, markDone, markPrintError]);
+
+  // ── 인쇄 완료 확인(큐 폴링 결과 반영) ───────────────────────────────
+  // 접수만 된 항목(queued & 전송 완료)은 프린터 큐/완료 이벤트에서 실제 인쇄완료가
+  // 확인되는 시점에 비로소 done 으로 확정한다.
+  useEffect(() => {
+    const pendingConfirm = Object.values(saved).filter(
+      (s) => s.status === "queued" && dispatchedRef.current.has(s.position),
+    );
+    if (pendingConfirm.length === 0) return;
+    for (const s of pendingConfirm) {
+      const pv = printValueRef.current(s.code);
+      const codes = [s.code, pv];
+      const job = jobs.find((j) => codes.some((c) => norm(c) === norm(j.barcode))) ?? null;
+      const at = resolvePrintedAt({ codes, completeEvents, printedAcc, job });
+      if (at) void markDone(s.position, s.code, null, false);
+    }
+  }, [saved, jobs, completeEvents, printedAcc, markDone]);
 
   /** 스캔 없이 남은 항목 전체를 인쇄 대기열(FIFO)에 적재 */
   const enqueueAllRemaining = useCallback(async () => {
