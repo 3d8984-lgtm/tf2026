@@ -623,7 +623,8 @@ function OrderDetail({
   // /test 응답은 "버퍼 접수" 시점에 즉시 온다(물리 인쇄 완료를 기다리지 않음).
   // 프론트는 검증을 통과한 항목을 순서대로 서버 큐에 밀어 넣고(요청 도착 순서 = 인쇄 순서),
   // 실제 인쇄 완료는 /queue 폴링(status=done && printed=true)과 printedAcc 누적으로 추적한다.
-  const MAX_IN_FLIGHT = 3;
+  // 순차 전송: 한 건의 접수 응답(200 OK)을 받은 뒤에 다음 건을 보낸다.
+  const MAX_IN_FLIGHT = 1;
   const dispatchedRef = useRef<Set<number>>(new Set());
   const inFlightRef = useRef(0);
   const [inFlightCount, setInFlightCount] = useState(0);
