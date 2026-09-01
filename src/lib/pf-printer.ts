@@ -225,6 +225,31 @@ export async function pfPrinterQueue(): Promise<{ jobs: PfQueueJob[]; pendingCou
 }
 
 /**
+ * 특정 인쇄 작업이 물리 인쇄 완료(printed=true)될 때까지 큐를 폴링한다.
+ * printed=null 은 "큐/버퍼에 있을 뿐 아직 인쇄 안 됨"이므로 완료로 보지 않는다.
+ * id 로 못 찾으면 text 로 매칭한다.
+ */
+export async function pfWaitForPrint(
+  opts: { id?: string; text?: string; timeoutMs?: number; pollMs?: number },
+): Promise<{ printed: boolean; failed: boolean; timedOut: boolean; error?: string }> {
+  const { id, text, timeoutMs = 120000, pollMs = 1200 } = opts;
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const q = await pfPrinterQueue();
+    if (!q.offline) {
+      const job = q.jobs.find((j) => (id && j.id === id) || (!id && text != null && j.text === text));
+      if (job) {
+        if (job.status === "done" && job.printed === true) return { printed: true, failed: false, timedOut: false };
+        if (job.status === "failed") return { printed: false, failed: true, timedOut: false, error: job.error ?? undefined };
+      }
+    }
+    await sleep(pollMs);
+  }
+  return { printed: false, failed: false, timedOut: true };
+}
+
+
+/**
  * POST /api/v1/pf-printer/queue/clear — 아직 처리 시작 전(pending)인 요청을 모두 취소한다.
  * 지금 시리얼 통신 중인 1건은 끝까지 진행된다. 취소된 요청의 원 호출은 409를 받는다.
  */

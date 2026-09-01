@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useLang } from "@/contexts/LangContext";
 import { toast } from "sonner";
 import { Printer, Wifi, WifiOff, Play, Square, Eraser, Loader2, Trash2 } from "lucide-react";
-import { pfPrint, pfPrinterRun, pfPrinterStop, pfPrinterStatus, pfPrinterQueue, pfPrinterQueueClear, pfPrinterBufferClear } from "@/lib/pf-printer";
+import { pfPrint, pfPrinterRun, pfPrinterStop, pfPrinterStatus, pfPrinterQueue, pfPrinterQueueClear, pfPrinterBufferClear, pfWaitForPrint } from "@/lib/pf-printer";
 
 
 /** PF 시리즈 잉크젯 프린터(/api/v1/pf-printer) 잉크·버퍼 상태 표시 + 테스트 인쇄. */
@@ -23,6 +23,8 @@ export default function PfPrinterCard({ defaultText = "" }: { defaultText?: stri
   const [probed, setProbed] = useState(false);
   const [text, setText] = useState(defaultText);
   const [busy, setBusy] = useState(false);
+  const [waiting, setWaiting] = useState(false);
+
 
   useEffect(() => {
     let alive = true;
@@ -48,15 +50,30 @@ export default function PfPrinterCard({ defaultText = "" }: { defaultText?: stri
     const payload = text.trim().slice(0, 200);
     if (!payload) { toast.error(tr("인쇄할 값을 입력하세요", "请输入要打印的值")); return; }
     setBusy(true);
-    const r = await pfPrint(payload);
-    setBusy(false);
-    if (r.ok) {
-      const note = r.printed
-        ? tr("인쇄 완료 확인됨", "已确认打印完成")
-        : tr("전송 성공 · 완료 응답 미확인", "发送成功 · 未确认完成");
-      toast.success(`${tr("PF 프린터로 전송했습니다", "已发送到PF打印机")} · ${payload} · ${note}`);
-    } else toast.error(`${tr("PF 프린터 전송 실패", "PF打印机发送失败")} — ${r.error}`);
+    setWaiting(false);
+    try {
+      const r = await pfPrint(payload);
+      if (!r.ok) {
+        toast.error(`${tr("PF 프린터 전송 실패", "PF打印机发送失败")} — ${r.error}`);
+        return;
+      }
+      if (r.printed === true) {
+        toast.success(`${tr("인쇄 완료 확인됨", "已确认打印完成")} · ${payload}`);
+        return;
+      }
+      // printed=null/false → 큐에만 올라간 상태. 실제 인쇄 완료까지 폴링하며 버튼을 잠근다.
+      setWaiting(true);
+      toast.info(`${tr("전송됨 · 인쇄 완료 대기 중", "已发送 · 等待打印完成")} · ${payload}`);
+      const w = await pfWaitForPrint({ id: r.id, text: payload });
+      if (w.printed) toast.success(`${tr("인쇄 완료 확인됨", "已确认打印完成")} · ${payload}`);
+      else if (w.failed) toast.error(`${tr("인쇄 실패", "打印失败")} — ${w.error ?? ""}`);
+      else toast.warning(tr("인쇄 완료 신호를 확인하지 못했습니다", "未能确认打印完成信号"));
+    } finally {
+      setWaiting(false);
+      setBusy(false);
+    }
   }, [text, isKo]);
+
 
 
   return (
@@ -92,9 +109,11 @@ export default function PfPrinterCard({ defaultText = "" }: { defaultText?: stri
             placeholder={tr("테스트 인쇄할 바코드 값", "测试打印的条码值")}
             className="h-8 text-xs font-mono"
           />
-          <Button size="sm" disabled={busy} onClick={() => void testPrint()}>
-            {tr("테스트 인쇄", "测试打印")}
+          <Button size="sm" disabled={busy} onClick={() => void testPrint()} className="shrink-0">
+            {busy && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />}
+            {waiting ? tr("인쇄 대기 중", "等待打印") : tr("테스트 인쇄", "测试打印")}
           </Button>
+
           <Button
             size="sm"
             variant="outline"
