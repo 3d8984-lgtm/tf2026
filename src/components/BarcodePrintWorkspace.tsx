@@ -895,7 +895,7 @@ function OrderDetail({
   useEffect(() => {
     const pendingConfirm = Object.values(saved).filter(
       (s) => s.status === "queued" && (dispatchedRef.current.has(s.position) || s.dispatch_status === "accepted" ||
-        s.dispatch_status === "waiting_for_print" || s.dispatch_status === "printing"),
+        s.dispatch_status === "uncertain" || s.dispatch_status === "waiting_for_print" || s.dispatch_status === "printing"),
     );
     if (pendingConfirm.length === 0) return;
     for (const s of pendingConfirm) {
