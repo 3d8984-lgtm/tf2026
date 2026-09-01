@@ -107,7 +107,8 @@ export async function pfPrinterQueue(): Promise<{ jobs: PfQueueJob[]; pendingCou
     const res = await pfFetch("/api/v1/pf-printer/queue", undefined, 8000);
     const j: any = await res.json().catch(() => ({}));
     if (!res.ok || "upstream_status" in (j ?? {})) return { jobs: [], pendingCount: 0, offline: true };
-    const jobs: PfQueueJob[] = Array.isArray(j?.jobs) ? j.jobs : [];
+    // 개정 서버는 print job 만 내려주지만, 구버전 응답과 섞여도 안전하도록 방어 필터링
+    const jobs: PfQueueJob[] = (Array.isArray(j?.jobs) ? j.jobs : []).filter((x: any) => !x?.kind || x.kind === "print");
     return {
       jobs,
       pendingCount: typeof j?.pending_count === "number" ? j.pending_count : jobs.filter((x) => x.status === "pending" || x.status === "processing").length,
