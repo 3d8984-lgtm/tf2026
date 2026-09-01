@@ -183,6 +183,10 @@ Deno.serve(async (req) => {
     if (cr) headers.set("content-range", cr);
     const ar = upstream.headers.get("accept-ranges");
     headers.set("accept-ranges", ar || "bytes");
+    if (isPrinterApi) {
+      headers.set("X-Proxy-Received-At", proxyReceivedAt);
+      headers.set("X-Proxy-Upstream-Ms", String(Date.now() - upstreamStartedMs));
+    }
 
 
     return new Response(upstream.body, { status: upstream.status, headers });
