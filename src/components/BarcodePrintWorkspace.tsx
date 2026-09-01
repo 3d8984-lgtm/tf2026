@@ -712,51 +712,16 @@ function OrderDetail({
   const [inFlightCount, setInFlightCount] = useState(0);
   const [printingPos, setPrintingPos] = useState<number | null>(null);
   const dispatchSeqRef = useRef(1000);
-  /** 프린터 웜업 여부 — 첫 인쇄 전 Run 모드 전환(예열)으로 Stop→Run 전환 타임아웃 방지 */
-  const warmedUpRef = useRef(false);
   const gateRef = useRef({ ready, testMode, halted });
   gateRef.current = { ready, testMode, halted };
   haltRef.current = halted;
-
-  // 프린터 웜업: Run 모드로 미리 전환해 첫 /test 가 Stop 상태에서 NAK/타임아웃 나지 않게 한다.
-  // 프린터가 모드 전환을 마칠 시간을 확보한 뒤 true 를 반환한다.
-  const warmupPrinter = useCallback(async () => {
-    if (warmedUpRef.current) return { ok: true as const, runState: "READY" };
-    const seq = ++dispatchSeqRef.current;
-    const dispatchAt = Date.now();
-    setDispatchLog((prev) => [
-      { seq, scanSequence: null, position: -1, code: "WARMUP", scanAt: null, dispatchAt, ackAt: null, ok: null, gatewayJobId: null, printedAt: null, error: null, errorCode: null, responseCode: null, retryCount: 0, runState: null, readyAt: null, serialSendAt: null, serialResponseAt: null, proxyUpstreamMs: null },
-      ...prev,
-    ].slice(0, 200));
-    const r = await pfEnsureReady(8000, 400);
-    const ackAt = Date.now();
-    setDispatchLog((prev) => prev.map((row) => (row.seq === seq
-      ? { ...row, ackAt, ok: r.ok, error: r.ok ? null : r.error ?? "warmup failed", errorCode: r.errorCode ?? null, runState: r.runState ?? null, readyAt: r.readyAt ?? null }
-      : row)));
-    warmedUpRef.current = r.ok;
-    return r;
-  }, []);
 
   const pump = useCallback(async () => {
     if (busyRef.current) return; // 이미 다른 소비자가 실행 중
     busyRef.current = true;
     try {
-      // 첫 인쇄 전 RUN/READY를 실제 확인한다. 확인 실패 시 어떤 print도 보내지 않는다.
-      const hasQueued = Object.values(savedRef.current)
-        .some((s) => s.status === "queued" && (s.dispatch_status ?? "queued") === "queued" && !dispatchedRef.current.has(s.position));
-      if (hasQueued && !warmedUpRef.current) {
-        const warm = await warmupPrinter();
-        if (!warm.ok) {
-          const first = Object.values(savedRef.current).filter((s) => s.status === "queued").sort((a, b) => a.position - b.position)[0];
-          if (first) await markPrintError(
-            first.position,
-            first.code,
-            warm.error ?? "프린터 READY 확인에 실패했습니다",
-            warm.errorCode ?? "PRINTER_NOT_READY",
-          );
-          return;
-        }
-      }
+      // 서버 /test 는 큐 등록만 하고 즉시 응답한다. 프린터 직접 제어(run/ready 확인)는 하지 않고
+      // position 순서대로 한 건씩 큐에 넣은 뒤, 진행/완료는 GET /queue 폴링으로만 확정한다.
       // 대기열이 빌 때까지 한 건씩 순차 전송 (ACK 후 다음 건)
       // eslint-disable-next-line no-constant-condition
       while (true) {
@@ -765,9 +730,10 @@ function OrderDetail({
         // A row claimed by another tab/device is the sole active dispatcher.
         // 앞선 건이 실제 0x40 인쇄 완료로 확정되기 전에는 다음 건을 보내지 않는다.
         // uncertain(결과 미확인) 건이 남아 있어도 판정 전까지는 전송을 멈춘다.
+        // 서버 큐가 접수 순서를 보존하므로, 앞 건의 물리 인쇄를 기다리지 않고 순서대로 큐에 넣는다.
+        // 다만 결과 미확인(uncertain) 건이 있으면 판정 전까지 멈춘다.
         if (Object.values(savedRef.current).some((s) => s.status === "queued" &&
-          (s.dispatch_status === "dispatching" || s.dispatch_status === "accepted" || s.dispatch_status === "uncertain" ||
-           s.dispatch_status === "waiting_for_print" || s.dispatch_status === "printing"))) break;
+          (s.dispatch_status === "dispatching" || s.dispatch_status === "uncertain"))) break;
         const next = Object.values(savedRef.current)
           .filter((s) => s.status === "queued" && (s.dispatch_status ?? "queued") === "queued" && !dispatchedRef.current.has(s.position))
           .sort((a, b) => a.position - b.position)[0];
@@ -843,7 +809,7 @@ function OrderDetail({
         setDispatchWake((n) => n + 1);
       }
     }
-  }, [sendToPrinter, markDone, markPrintError, markUncertain, warmupPrinter, kind, order.id, loadSaved]);
+  }, [sendToPrinter, markDone, markPrintError, markUncertain, kind, order.id, loadSaved]);
 
   /**
    * uncertain 판정 — 게이트웨이 큐/이력(GET /queue 는 done·failed 까지 함께 내려준다)을 조회해
