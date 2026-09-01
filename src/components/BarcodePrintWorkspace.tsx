@@ -833,7 +833,8 @@ function OrderDetail({
           continue;
         }
         const dispatchStatus = job.status === "printing" ? "printing"
-          : job.status === "done" && job.printed === true ? "printed" : "waiting_for_print";
+          : job.status === "done" && job.printed !== false ? "printed" : "waiting_for_print";
+
         void supabase.from("barcode_print_items")
           .update({ dispatch_status: dispatchStatus, gateway_job_id: job.id, error_code: null, error_detail: null })
           .eq("kind", kind).eq("order_id", order.id).eq("position", s.position);
