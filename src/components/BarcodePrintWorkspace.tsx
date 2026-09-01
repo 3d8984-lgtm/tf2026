@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { warnLightError } from "@/lib/warning-light";
+import { warnLightError, warnLightOkFlash } from "@/lib/warning-light";
 import { pfPrint, pfPrinterStatus, pfPrinterQueue, pfPrinterQueueClear } from "@/lib/pf-printer";
 import { verifyScanBatch, selectWaitingJobs, mergePrintedAcc, resolvePrintedAt } from "@/lib/barcode-print-logic";
 
@@ -452,9 +452,14 @@ function OrderDetail({
         ...prev,
       ].slice(0, 100));
     };
-    // PF 프린터 인쇄 (POST /api/v1/pf-printer/test)
+    // PF 프린터 인쇄 (POST /api/v1/pf-printer/test) — 개정 서버는 접수 즉시 응답하며,
+    // 프린터가 idle이었으면 printed=true(물리 인쇄 완료 확인)가 바로 붙어 온다.
     const r = await pfPrint(payload);
     record(r.ok, r.ok ? null : r.error ?? null);
+    if (r.ok && r.printed) {
+      const at = new Date().toISOString();
+      setPrintedAcc((prev) => ({ ...prev, [norm(code)]: at }));
+    }
     return r.ok ? { ok: true, printed: r.printed } : { ok: false, error: r.error };
   }, []);
 
@@ -604,18 +609,20 @@ function OrderDetail({
     setCursor(res.cursor);
     setLastVerdict(res.lastVerdict);
     if (res.halted) setHalted(true);
-    // 경고등: 불일치일 때만 적색 점등 (녹색 점멸은 지연이 커서 사용하지 않음)
+    // 경고등: 불일치 시 적색 점등(유지), 통과 시 녹색 점등(0.5초 후 자동 소등)
+    // — 서버 딜레이 개선(단일 요청 다중 채널)으로 녹색 플래시를 다시 사용한다.
     if (res.halted && !halted) void warnLightError();
+    else if (res.rows.some((r) => r.verdict === "ok")) void warnLightOkFlash();
     const rows: LogRow[] = res.rows.map(({ at, barcode, verdict, expected: exp, position }) => ({ at, barcode, verdict, expected: exp, position }));
     setLog((prev) => [...rows.slice().reverse(), ...prev].slice(0, 100));
   }, [queue, expected, cursor, testMode, ready, markQueued, kind, halted]);
 
 
   // ── 소비자(인쇄 큐 적재) ───────────────────────────────────────────
-  // 백엔드 개정(2026-08): PF 프린터 API는 서버 내부 FIFO 큐를 거쳐 직렬 처리된다.
-  // 따라서 프론트는 "한 건 인쇄가 끝날 때까지 대기"하지 않고, 검증을 통과한 항목을
-  // 순서대로 서버 큐에 밀어 넣는다(요청 도착 순서 = 인쇄 순서). 응답은 실제 인쇄가
-  // 끝난 뒤에 오므로, 응답 시점에 완료/실패로 표시한다.
+  // 백엔드 개정(2026-09): PF 프린터 API는 서버 내부 FIFO 큐를 거쳐 직렬 처리되고,
+  // /test 응답은 "버퍼 접수" 시점에 즉시 온다(물리 인쇄 완료를 기다리지 않음).
+  // 프론트는 검증을 통과한 항목을 순서대로 서버 큐에 밀어 넣고(요청 도착 순서 = 인쇄 순서),
+  // 실제 인쇄 완료는 /queue 폴링(status=done && printed=true)과 printedAcc 누적으로 추적한다.
   const MAX_IN_FLIGHT = 3;
   const dispatchedRef = useRef<Set<number>>(new Set());
   const inFlightRef = useRef(0);

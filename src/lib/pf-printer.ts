@@ -3,13 +3,18 @@
  *
  * 백엔드 API는 2026-08 개정으로 단일 버전(/api/v1)으로 통합되었다. 구형 /api/v2/* 및
  * /api/v1/print/* 경로는 더 이상 존재하지 않으므로 모든 인쇄는 이 모듈을 사용한다.
- * - POST /api/v1/pf-printer/test   값 전송(0x11) + 인쇄 트리거(0x21) 를 동기 처리
+ * - POST /api/v1/pf-printer/test   값 전송(0x11) + 인쇄 트리거(0x21) 접수 (큐 job id 반환)
  * - GET  /api/v1/pf-printer/status 잉크 잔량 / 버퍼 대기 건수
  * - POST /api/v1/pf-printer/run    Run(喷印启动) 모드 전환 — /test 는 Run 모드에서만 동작
  * - POST /api/v1/pf-printer/stop   Stop 모드 전환
  *
  * 서버는 /test·/run·/stop·/status 를 하나의 FIFO 큐로 직렬화하므로 동시 호출이 안전하다.
- * 다만 응답은 "자기 차례가 와서 인쇄까지 끝난 뒤" 오므로 대기 시간이 길어질 수 있다.
+ *
+ * 서버 개정(2026-09, 인쇄 완료 버그 수정):
+ * - /test 응답은 "프린터 버퍼에 접수됨" 시점에 즉시 온다 — 물리 인쇄 완료를 기다리지 않는다.
+ * - 응답의 printed=true 면 그 시점에 이미 물리 인쇄까지 확인된 것(프린터가 idle이던 경우).
+ *   null 이면 버퍼에서 대기 중인 정상 상태이며, 응답의 id 로 GET /queue 를 폴링해
+ *   status="done" && printed=true 가 됐는지 확인한다.
  *
  * 스캔 이벤트(MQTT)와 인쇄는 서버에서 자동 연결되어 있지 않다 — 프론트가 직접 /test 를 호출한다.
  * 프린터가 Stop 상태이거나 템플릿 편집 후 Run 이 풀리면 /test 가 409(NAK)를 반환한다.
@@ -127,19 +132,21 @@ export async function pfPrinterQueueClear(): Promise<{ ok: boolean; cleared: num
 }
 
 /**
- * 바코드/QR 값 인쇄. 응답이 오면 인쇄 트리거까지 완료된 상태다.
- * `printed`는 프린터의 인쇄완료(0x40) 응답까지 확인됐는지 여부(미확인이어도 에러는 아님).
- * @param padToLength 프린터 QR 객체의 "var length" (미지정 시 서버 기본값 사용)
+ * 바코드/QR 값 인쇄. 응답이 오면 프린터 버퍼에 접수까지 완료된 상태다(물리 인쇄 완료 아님).
+ * `printed`=true 는 응답 시점에 이미 물리 인쇄완료(0x40)까지 확인된 경우(프린터 idle 시).
+ * null/false 면 `id`로 GET /queue 를 폴링해 status="done" && printed=true 를 확인한다.
+ * @param padToLength 프린터 QR 객체의 "var length" (미지정 시 서버 기본값 사용, 현장 기본 38)
  */
 export async function pfPrint(
   text: string,
   padToLength?: number,
-): Promise<{ ok: boolean; printed?: boolean; error?: string; payload: string }> {
+): Promise<{ ok: boolean; printed?: boolean; id?: string; error?: string; payload: string }> {
   const payload = String(text ?? "").slice(0, 200);
   const body = JSON.stringify(padToLength ? { text: payload, pad_to_length: padToLength } : { text: payload });
 
   const attempt = async () => {
-    const res = await pfFetch("/api/v1/pf-printer/test", { method: "POST", body });
+    // 개정 서버는 접수 즉시 응답하므로 긴 대기가 필요 없다(네트워크/직렬화 여유만 둠)
+    const res = await pfFetch("/api/v1/pf-printer/test", { method: "POST", body }, 15000);
     const j: any = await res.json().catch(() => ({}));
     return { res, j };
   };
@@ -151,7 +158,9 @@ export async function pfPrint(
       const run = await pfPrinterRun();
       if (run.ok) ({ res, j } = await attempt());
     }
-    if (res.ok && j?.accepted) return { ok: true, printed: j?.printed === true, payload };
+    if (res.ok && j?.accepted) {
+      return { ok: true, printed: j?.printed === true, id: typeof j?.id === "string" ? j.id : undefined, payload };
+    }
     return { ok: false, error: pfErrorText(j, res.status), payload };
   } catch (e) {
     return { ok: false, error: String(e), payload };
