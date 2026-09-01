@@ -304,6 +304,7 @@ function OrderDetail({
   /** 디스패치 추적 로그 (밀리초 단위) — 순서/누락 진단용 */
   type DispatchRow = {
     seq: number;
+    scanSequence: number | null;
     position: number;
     code: string;
     scanAt: string | null;
@@ -322,6 +323,7 @@ function OrderDetail({
     serialResponseAt: string | null;
   };
   const [dispatchLog, setDispatchLog] = useState<DispatchRow[]>([]);
+  const [dispatchWake, setDispatchWake] = useState(0);
 
   /** 프린터가 보내온 실제 출력 완료 이벤트 (code → 완료 시각) */
   const [completeEvents, setCompleteEvents] = useState<Record<string, string>>({});
@@ -698,7 +700,7 @@ function OrderDetail({
     const seq = ++dispatchSeqRef.current;
     const dispatchAt = Date.now();
     setDispatchLog((prev) => [
-      { seq, position: -1, code: "WARMUP", scanAt: null, dispatchAt, ackAt: null, ok: null, gatewayJobId: null, printedAt: null, error: null, errorCode: null, responseCode: null, retryCount: 0, runState: null, readyAt: null, serialSendAt: null, serialResponseAt: null },
+      { seq, scanSequence: null, position: -1, code: "WARMUP", scanAt: null, dispatchAt, ackAt: null, ok: null, gatewayJobId: null, printedAt: null, error: null, errorCode: null, responseCode: null, retryCount: 0, runState: null, readyAt: null, serialSendAt: null, serialResponseAt: null },
       ...prev,
     ].slice(0, 200));
     const r = await pfEnsureReady(8000, 400);
@@ -755,7 +757,7 @@ function OrderDetail({
         setPrintingPos(next.position);
         setInFlightCount(1);
         setDispatchLog((prev) => [
-          { seq, position: next.position, code: next.code, scanAt: next.scanned_at ?? null, dispatchAt, ackAt: null, ok: null, gatewayJobId: null, printedAt: null, error: null, errorCode: null, responseCode: null, retryCount: 0, runState: "READY", readyAt: new Date().toISOString(), serialSendAt: null, serialResponseAt: null },
+          { seq, scanSequence: next.scan_sequence ?? next.position, position: next.position, code: next.code, scanAt: next.scanned_at ?? null, dispatchAt, ackAt: null, ok: null, gatewayJobId: null, printedAt: null, error: null, errorCode: null, responseCode: null, retryCount: 0, runState: "READY", readyAt: new Date().toISOString(), serialSendAt: null, serialResponseAt: null },
           ...prev,
         ].slice(0, 200));
 
@@ -793,11 +795,24 @@ function OrderDetail({
       busyRef.current = false;
       setInFlightCount(0);
       setPrintingPos(null);
+      if (Object.values(savedRef.current).some((s) => s.status === "queued" && !dispatchedRef.current.has(s.position))) {
+        setDispatchWake((n) => n + 1);
+      }
     }
   }, [sendToPrinter, markDone, markPrintError, warmupPrinter, kind, order.id, loadSaved]);
 
   // 상태가 바뀔 때마다 디스패처를 깨운다 (실행 중이면 pump 가 즉시 반환하므로 중복 없음)
-  useEffect(() => { void pump(); }, [saved, ready, testMode, halted, pump]);
+  useEffect(() => { void pump(); }, [saved, ready, testMode, halted, dispatchWake, pump]);
+
+  // Gateway ACK 뒤 비동기 인쇄가 실패한 경우에도 즉시 중단한다.
+  useEffect(() => {
+    if (halted) return;
+    const failed = Object.values(saved).find((item) => item.gateway_job_id && item.status === "queued" &&
+      jobs.some((job) => job.id === item.gateway_job_id && job.status === "failed"));
+    if (!failed) return;
+    const job = jobs.find((row) => row.id === failed.gateway_job_id);
+    void markPrintError(failed.position, failed.code, job?.error ?? "Gateway print job failed", "GATEWAY_ERROR");
+  }, [jobs, saved, halted, markPrintError]);
 
   // ── 인쇄 완료 확인(큐 폴링 결과 반영) ───────────────────────────────
   // 접수만 된 항목(queued & 전송 완료)은 프린터 큐/완료 이벤트에서 실제 인쇄완료가

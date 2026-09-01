@@ -148,8 +148,13 @@ export async function pfEnsureReady(maxWaitMs = 8000, pollMs = 400): Promise<PfR
   while (Date.now() - started < maxWaitMs) {
     const status = await pfPrinterStatus();
     if (status.offline) return { ok: false, errorCode: status.errorCode ?? "GATEWAY_OFFLINE", error: status.error ?? "Gateway offline" };
-    if (status.ready === true && status.running !== false) {
-      return { ok: true, readyAt: new Date().toISOString(), runState: status.runState ?? "READY" };
+    // New gateways expose ready/running explicitly. Older deployed gateways only
+    // return ink/buffer from /status; there, an accepted RUN followed by a
+    // successful serial status round-trip is the strongest READY proof.
+    const explicitReady = status.ready === true && status.running !== false;
+    const legacyReady = status.ready == null && status.running == null && run.runState === "RUN";
+    if (explicitReady || legacyReady) {
+      return { ok: true, readyAt: new Date().toISOString(), runState: status.runState ?? run.runState ?? "READY" };
     }
     await new Promise((resolve) => window.setTimeout(resolve, pollMs));
   }
