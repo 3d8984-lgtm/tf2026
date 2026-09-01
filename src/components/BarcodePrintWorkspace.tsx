@@ -1234,7 +1234,9 @@ function OrderDetail({
 
 
 
-  const failedJobs = jobs.filter((j) => j.status === "failed").length;
+  // 초기화(버퍼 클리어)로 취소된 작업은 실패 집계에서 제외한다.
+  const failedJobs = jobs.filter((j) => j.status === "failed" && !isCancelledJobError(j.error)).length;
+
   const lastJob = jobs[0] ?? null;
   const printerOk = !printerOffline && failedJobs === 0;
 
