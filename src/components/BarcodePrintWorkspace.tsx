@@ -587,13 +587,13 @@ function OrderDetail({
               if (!item.gateway_job_id) continue;
               const gateway = rows.find((row) => row.id === item.gateway_job_id);
               if (!gateway) continue;
-              const dispatchStatus = gateway.status === "processing" || gateway.status === "printing"
+              const dispatchStatus = gateway.status === "printing"
                 ? "printing"
                 : gateway.status === "failed" ? "error"
                 : gateway.status === "done" && gateway.printed === true ? "printed"
                 : item.dispatch_status;
               if (dispatchStatus && dispatchStatus !== item.dispatch_status) {
-                next[item.position] = { ...item, dispatch_status, error_detail: gateway.error ?? item.error_detail };
+                next[item.position] = { ...item, dispatch_status: dispatchStatus, error_detail: gateway.error ?? item.error_detail };
                 changed = true;
               }
             }
