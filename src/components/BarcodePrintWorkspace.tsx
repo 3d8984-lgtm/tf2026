@@ -647,8 +647,31 @@ function OrderDetail({
   const [inFlightCount, setInFlightCount] = useState(0);
   const [printingPos, setPrintingPos] = useState<number | null>(null);
   const dispatchSeqRef = useRef(1000);
+  /** 프린터 웜업 여부 — 첫 인쇄 전 Run 모드 전환(예열)으로 Stop→Run 전환 타임아웃 방지 */
+  const warmedUpRef = useRef(false);
   const gateRef = useRef({ ready, testMode, halted });
   gateRef.current = { ready, testMode, halted };
+
+  // 프린터 웜업: Run 모드로 미리 전환해 첫 /test 가 Stop 상태에서 NAK/타임아웃 나지 않게 한다.
+  // 프린터가 모드 전환을 마칠 시간을 확보한 뒤 true 를 반환한다.
+  const warmupPrinter = useCallback(async (): Promise<boolean> => {
+    if (warmedUpRef.current) return true;
+    const seq = ++dispatchSeqRef.current;
+    const dispatchAt = Date.now();
+    setDispatchLog((prev) => [
+      { seq, position: -1, code: "WARMUP", scanAt: null, dispatchAt, ackAt: null, ok: null, gatewayJobId: null, printedAt: null, error: null },
+      ...prev,
+    ].slice(0, 200));
+    const r = await pfPrinterRun();
+    // Run 명령 직후 프린터가 모드 전환을 마칠 시간 확보
+    await new Promise((res) => setTimeout(res, 1200));
+    const ackAt = Date.now();
+    setDispatchLog((prev) => prev.map((row) => (row.seq === seq
+      ? { ...row, ackAt, ok: r.ok, error: r.ok ? null : r.error ?? "warmup failed" }
+      : row)));
+    warmedUpRef.current = r.ok;
+    return r.ok;
+  }, []);
 
   const pump = useCallback(async () => {
     if (busyRef.current) return; // 이미 다른 소비자가 실행 중
