@@ -137,9 +137,22 @@ Deno.serve(async (req) => {
       const retryable = typeof payload.retryable === "boolean"
         ? payload.retryable
         : errorCode === "PRINTER_NOT_READY" || errorCode === "PRINTER_NAK";
-      return new Response(JSON.stringify({ ...payload, error_code: errorCode, retryable }), {
+      return new Response(JSON.stringify({
+        ...payload,
+        error_code: errorCode,
+        retryable,
+        proxy_received_at: proxyReceivedAt,
+        proxy_upstream_ms: Date.now() - upstreamStartedMs,
+        proxy_total_ms: Date.now() - t0,
+      }), {
         status: upstream.status,
-        headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store",
+          "X-Proxy-Received-At": proxyReceivedAt,
+          "X-Proxy-Upstream-Ms": String(Date.now() - upstreamStartedMs),
+        },
       });
     }
 
