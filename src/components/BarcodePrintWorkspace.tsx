@@ -871,14 +871,16 @@ function OrderDetail({
   useEffect(() => { void pump(); }, [saved, ready, testMode, halted, dispatchWake, pump]);
 
   // Gateway ACK 뒤 비동기 인쇄가 실패한 경우에도 즉시 중단한다.
+  // 단, 사용자가 대기열/버퍼를 초기화해 취소된 작업은 오류로 보지 않는다.
   useEffect(() => {
     if (halted) return;
     const failed = Object.values(saved).find((item) => item.gateway_job_id && item.status === "queued" &&
-      jobs.some((job) => job.id === item.gateway_job_id && job.status === "failed"));
+      jobs.some((job) => job.id === item.gateway_job_id && job.status === "failed" && !isCancelledJobError(job.error)));
     if (!failed) return;
     const job = jobs.find((row) => row.id === failed.gateway_job_id);
     void markPrintError(failed.position, failed.code, job?.error ?? "Gateway print job failed", "GATEWAY_ERROR");
   }, [jobs, saved, halted, markPrintError]);
+
 
   // ── 인쇄 완료 확인(큐 폴링 결과 반영) ───────────────────────────────
   // 접수만 된 항목(queued & 전송 완료)은 프린터 큐/완료 이벤트에서 실제 인쇄완료가
