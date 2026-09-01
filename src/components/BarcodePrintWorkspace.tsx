@@ -836,7 +836,45 @@ function OrderDetail({
         setDispatchWake((n) => n + 1);
       }
     }
-  }, [sendToPrinter, markDone, markPrintError, warmupPrinter, kind, order.id, loadSaved]);
+  }, [sendToPrinter, markDone, markPrintError, markUncertain, warmupPrinter, kind, order.id, loadSaved]);
+
+  /**
+   * uncertain 판정 — 게이트웨이 큐(2초 폴링 결과)를 조회해 실제 job 존재 여부로 결론짓는다.
+   * - job 이 있으면 이미 프린터로 전송된 것 → 재전송하지 않고 waiting_for_print/printed 로 승격
+   * - job 이 failed 면 확정 실패
+   * - 게이트웨이가 복구된 뒤에도 30초간 job 이 없으면 미도달로 보고 재시도 가능한 error 로 확정
+   */
+  useEffect(() => {
+    const pending = Object.values(saved).filter((s) => s.dispatch_status === "uncertain");
+    if (pending.length === 0) return;
+    for (const s of pending) {
+      const pv = printValueRef.current(s.code);
+      const job = jobs.find((j) => norm(j.barcode) === norm(pv));
+      if (job) {
+        if (job.status === "failed") {
+          void markPrintError(s.position, s.code, job.error ?? "gateway job failed", "GATEWAY_ERROR");
+          continue;
+        }
+        const dispatchStatus = job.status === "printing" ? "printing"
+          : job.status === "done" && job.printed === true ? "printed" : "waiting_for_print";
+        void supabase.from("barcode_print_items")
+          .update({ dispatch_status: dispatchStatus, gateway_job_id: job.id, error_code: null, error_detail: null })
+          .eq("kind", kind).eq("order_id", order.id).eq("position", s.position);
+        setSaved((prev) => ({ ...prev, [s.position]: { ...prev[s.position], dispatch_status: dispatchStatus, gateway_job_id: job.id, error_code: undefined, error_detail: undefined } }));
+        delete uncertainSinceRef.current[s.position];
+        continue;
+      }
+      // 게이트웨이가 아직 오프라인이면 판정을 미룬다 (조회 불가 = 실패 아님)
+      if (printerOffline) continue;
+      const since = uncertainSinceRef.current[s.position] ?? Date.now();
+      uncertainSinceRef.current[s.position] = since;
+      if (Date.now() - since > 30000) {
+        delete uncertainSinceRef.current[s.position];
+        dispatchedRef.current.delete(s.position);
+        void markPrintError(s.position, s.code, s.error_detail ?? "gateway job not found (미도달)", "GATEWAY_ERROR");
+      }
+    }
+  }, [saved, jobs, printerOffline, markPrintError, kind, order.id]);
 
   // 상태가 바뀔 때마다 디스패처를 깨운다 (실행 중이면 pump 가 즉시 반환하므로 중복 없음)
   useEffect(() => { void pump(); }, [saved, ready, testMode, halted, dispatchWake, pump]);
