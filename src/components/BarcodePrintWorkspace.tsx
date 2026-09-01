@@ -1753,7 +1753,10 @@ function OrderDetail({
                           <td className="px-2 py-1.5 font-mono break-all">{d.code}</td>
                           <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap">{fmt(d.dispatchAt)}</td>
                           <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap">{fmt(d.ackAt)}</td>
-                          <td className="px-2 py-1.5 tabular-nums">{d.ackAt ? d.ackAt - d.dispatchAt : "-"}</td>
+                          <td className="px-2 py-1.5 tabular-nums whitespace-nowrap">
+                            {d.ackAt ? d.ackAt - d.dispatchAt : "-"}
+                            {d.proxyUpstreamMs != null && <span className="text-muted-foreground"> / gw {d.proxyUpstreamMs}</span>}
+                          </td>
                           <td className="px-2 py-1.5 font-mono text-[10px] break-all">{d.gatewayJobId ?? "-"}</td>
                           <td className="px-2 py-1.5 text-[10px] whitespace-nowrap">{d.runState ?? "-"} / {d.readyAt ? new Date(d.readyAt).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN", { hour12: false }) : "-"}</td>
                           <td className="px-2 py-1.5 text-[10px] whitespace-nowrap">{d.serialSendAt ?? "-"}<br />{d.serialResponseAt ?? "-"}</td>
