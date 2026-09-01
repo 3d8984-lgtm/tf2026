@@ -152,10 +152,11 @@ export async function pfPrint(
   };
 
   const sleep = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
+  const detailOf = (j: any) => (typeof j?.detail === "string" ? j.detail : "");
+  // 사용자가 대기열을 비워 취소된 요청은 프린터 NAK 이 아니므로 재시도하지 않는다.
+  const isCancelled = (j: any) => /cancelled|queue was cleared/i.test(detailOf(j));
   const isNak = (res: Response, j: any) =>
-    res.status === 409 ||
-    j?.upstream_status === 409 ||
-    /NAK/i.test(typeof j?.detail === "string" ? j.detail : "");
+    !isCancelled(j) && (res.status === 409 || j?.upstream_status === 409 || /NAK/i.test(detailOf(j)));
 
   try {
     let { res, j } = await attempt();
