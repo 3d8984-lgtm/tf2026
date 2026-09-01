@@ -1608,6 +1608,49 @@ function OrderDetail({
                     ))}
                   </tbody>
                 </table>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead className="bg-muted/40">
+                    <tr className="text-left">
+                      <th className="px-2 py-1.5 whitespace-nowrap">seq</th>
+                      <th className="px-2 py-1.5 whitespace-nowrap">pos</th>
+                      <th className="px-2 py-1.5">{tr("바코드", "条码")}</th>
+                      <th className="px-2 py-1.5 whitespace-nowrap">dispatch</th>
+                      <th className="px-2 py-1.5 whitespace-nowrap">ACK</th>
+                      <th className="px-2 py-1.5 whitespace-nowrap">ms</th>
+                      <th className="px-2 py-1.5 whitespace-nowrap">gateway job</th>
+                      <th className="px-2 py-1.5 whitespace-nowrap">printed (0x40)</th>
+                      <th className="px-2 py-1.5">{tr("결과", "结果")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dispatchLog.length === 0 ? (
+                      <tr><td colSpan={9} className="px-2 py-6 text-center text-muted-foreground">{tr("전송 기록이 없습니다", "暂无发送记录")}</td></tr>
+                    ) : dispatchLog.map((d) => {
+                      const fmt = (ms: number | null) =>
+                        ms == null ? "-" : `${new Date(ms).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN", { hour12: false })}.${String(ms % 1000).padStart(3, "0")}`;
+                      return (
+                        <tr key={d.seq} className={`border-t ${d.ok === false ? "bg-destructive/5" : ""}`}>
+                          <td className="px-2 py-1.5 tabular-nums">{d.seq}</td>
+                          <td className="px-2 py-1.5 tabular-nums">{d.position}</td>
+                          <td className="px-2 py-1.5 font-mono break-all">{d.code}</td>
+                          <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap">{fmt(d.dispatchAt)}</td>
+                          <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap">{fmt(d.ackAt)}</td>
+                          <td className="px-2 py-1.5 tabular-nums">{d.ackAt ? d.ackAt - d.dispatchAt : "-"}</td>
+                          <td className="px-2 py-1.5 font-mono text-[10px] break-all">{d.gatewayJobId ?? "-"}</td>
+                          <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap">
+                            {d.printedAt ? new Date(d.printedAt).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN", { hour12: false }) : "-"}
+                          </td>
+                          <td className="px-2 py-1.5 whitespace-nowrap">
+                            {d.ok == null ? <span className="text-muted-foreground">{tr("전송 중", "发送中")}</span>
+                              : d.ok ? <span className="text-emerald-500">accepted</span>
+                              : <span className="text-destructive break-all">{d.error}</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               )}
             </div>
           </CardContent>
