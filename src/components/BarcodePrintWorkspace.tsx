@@ -441,6 +441,8 @@ function OrderDetail({
 
   /** 인쇄 실패 → 대기열 선두에서 멈춤 (다음 항목으로 넘어가지 않음) */
   const haltRef = useRef(false);
+  /** uncertain 진입 시각 (position → epoch ms). 게이트웨이 조회로 판정될 때까지 유지 */
+  const uncertainSinceRef = useRef<Record<number, number>>({});
   const markPrintError = useCallback(async (position: number, code: string, message: string, errorCode: PfErrorCode = "GATEWAY_ERROR") => {
     haltRef.current = true;
     await supabase.from("barcode_print_items").upsert(
