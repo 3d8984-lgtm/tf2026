@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { warnLightError, warnLightOkFlash } from "@/lib/warning-light";
-import { pfPrint, pfPrinterStatus, pfPrinterQueue, pfPrinterBufferClear, pfEnsureReady, type PfErrorCode } from "@/lib/pf-printer";
+import { pfPrint, pfPrinterStatus, pfPrinterQueue, pfPrinterBufferClear, type PfErrorCode } from "@/lib/pf-printer";
 import { verifyScanBatch, selectWaitingJobs, mergePrintedAcc, resolvePrintedAt } from "@/lib/barcode-print-logic";
 
 import {
@@ -451,7 +451,6 @@ function OrderDetail({
     );
     setSaved((prev) => ({ ...prev, [position]: { ...prev[position], position, code, status: "error", dispatch_status: "error", error_code: errorCode, error_detail: message, test_mode: false, printed_at: null } }));
     setHalted(true);
-    warmedUpRef.current = false; // 실패 후 프린터가 Stop 으로 돌아갔을 수 있어 재개 시 재예열
     toast.error(`${code} · ${message}`);
   }, [kind, order.id]);
 
@@ -927,7 +926,6 @@ function OrderDetail({
   const clearQueue = useCallback(async () => {
     // 버퍼 클리어: pending 취소 + 프린터 물리 버퍼(processing)까지 전부 삭제
     const cleared = await pfPrinterBufferClear();
-    warmedUpRef.current = false; // 버퍼가 비면 Stop 상태로 돌아갈 수 있어 다음 인쇄 전 재예열
     const targets = Object.values(saved).filter((s) => s.status === "queued" || s.status === "error");
     if (targets.length === 0 && cleared.cancelledPending === 0 && cleared.failedProcessing === 0) {
       toast.info(tr("초기화할 대기열 항목이 없습니다", "没有可清空的队列项目"));
@@ -986,7 +984,6 @@ function OrderDetail({
   // 전체 초기화 — 서버 기록 삭제 + 게이트웨이 대기열/이력 표시 컷오프 갱신
   const resetAll = async () => {
     const now = new Date().toISOString();
-    warmedUpRef.current = false; // 전체 초기화 후에는 첫 인쇄 전 재예열
 
     // 1) 게이트웨이 스캔 카운터 초기화 (대기열/이력 삭제 API는 게이트웨이에 없음)
     await proxyFetch("/api/v1/scan/reset", { method: "POST", body: "{}" }).catch(() => null);
