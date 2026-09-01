@@ -350,8 +350,8 @@ export async function pfPrint(
       return {
         ok: true,
         // 큐 등록만 된 상태 — 물리 인쇄 완료는 GET /queue 폴링으로만 확정한다.
-        printed: j?.printed === true,
-        waitingForPrint: j?.printed !== true,
+        printed: (j as any)?.printed === true,
+        waitingForPrint: (j as any)?.printed !== true,
         id: j.id,
         responseCode: res.status,
         retryCount: 0,
