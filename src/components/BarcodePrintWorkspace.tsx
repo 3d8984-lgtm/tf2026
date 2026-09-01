@@ -1163,10 +1163,11 @@ function OrderDetail({
 
   // ── 인쇄 대기열 표시 데이터 ────────────────────────────────────────
   // 프린터 서버 FIFO 큐에 실제 대기/처리 중인 건 + 앱에서 전송 중인 건 + 실패로 멈춘 건
-  type QueueState = "queued" | "dispatching" | "accepted" | "waiting_for_print" | "printing" | "printed" | "error";
+  type QueueState = "queued" | "dispatching" | "uncertain" | "accepted" | "waiting_for_print" | "printing" | "printed" | "error";
   const queueStateMeta: Record<QueueState, { ko: string; zh: string; cls: string }> = {
     queued: { ko: "대기", zh: "等待", cls: "text-muted-foreground" },
     dispatching: { ko: "Gateway 전송 중", zh: "正在发送到网关", cls: "text-primary" },
+    uncertain: { ko: "전송 결과 확인 중 (재전송 안 함)", zh: "确认发送结果中（不重发）", cls: "text-orange-500" },
     accepted: { ko: "Gateway 접수 완료", zh: "网关已接收", cls: "text-amber-500" },
     waiting_for_print: { ko: "인쇄 대기 (물체 감지 대기)", zh: "等待打印（等待物体）", cls: "text-amber-500" },
     printing: { ko: "프린터 인쇄 중", zh: "打印机打印中", cls: "text-primary" },
