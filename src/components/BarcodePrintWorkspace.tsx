@@ -612,12 +612,16 @@ function OrderDetail({
               if (!item.gateway_job_id) continue;
               const gateway = rows.find((row) => row.id === item.gateway_job_id);
               if (!gateway) continue;
+              // 사용자가 대기열/버퍼를 초기화해 취소된 작업은 오류가 아니라 "다시 대기"로 되돌린다.
+              const cancelled = gateway.status === "failed" && isCancelledJobError(gateway.error);
               const dispatchStatus = gateway.status === "printing"
                 ? "printing"
+                : cancelled ? "queued"
                 : gateway.status === "failed" ? "error"
                 : gateway.status === "done" && gateway.printed !== false ? "printed"
                 : gateway.status === "pending" ? "waiting_for_print"
                 : item.dispatch_status;
+
 
               if (dispatchStatus && dispatchStatus !== item.dispatch_status) {
                 next[item.position] = { ...item, dispatch_status: dispatchStatus, error_detail: gateway.error ?? item.error_detail };
