@@ -46,6 +46,12 @@ Deno.serve(async (req) => {
   const isPlcStatus = /\/api\/v1\/plc\/[^/]+\/status$/i.test(url.pathname);
   const isPrinterApi = /\/api\/v1\/pf-printer(?:\/|$)/i.test(url.pathname);
 
+  // Stage timing instrumentation: lets the client prove where a slow/failed
+  // printer call actually spent its time (proxy vs upstream gateway/serial).
+  const proxyReceivedAt = new Date().toISOString();
+  const t0 = Date.now();
+  let upstreamStartedMs = 0;
+
   try {
     const controller = new AbortController();
     // Printer requests are governed by the Gateway's serial timeout. Aborting
@@ -69,6 +75,7 @@ Deno.serve(async (req) => {
     }
     let upstream: Response;
     try {
+      upstreamStartedMs = Date.now();
       upstream = await fetch(target, {
         method: req.method,
         headers: fwdHeaders,
@@ -130,9 +137,22 @@ Deno.serve(async (req) => {
       const retryable = typeof payload.retryable === "boolean"
         ? payload.retryable
         : errorCode === "PRINTER_NOT_READY" || errorCode === "PRINTER_NAK";
-      return new Response(JSON.stringify({ ...payload, error_code: errorCode, retryable }), {
+      return new Response(JSON.stringify({
+        ...payload,
+        error_code: errorCode,
+        retryable,
+        proxy_received_at: proxyReceivedAt,
+        proxy_upstream_ms: Date.now() - upstreamStartedMs,
+        proxy_total_ms: Date.now() - t0,
+      }), {
         status: upstream.status,
-        headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store",
+          "X-Proxy-Received-At": proxyReceivedAt,
+          "X-Proxy-Upstream-Ms": String(Date.now() - upstreamStartedMs),
+        },
       });
     }
 
@@ -163,6 +183,10 @@ Deno.serve(async (req) => {
     if (cr) headers.set("content-range", cr);
     const ar = upstream.headers.get("accept-ranges");
     headers.set("accept-ranges", ar || "bytes");
+    if (isPrinterApi) {
+      headers.set("X-Proxy-Received-At", proxyReceivedAt);
+      headers.set("X-Proxy-Upstream-Ms", String(Date.now() - upstreamStartedMs));
+    }
 
 
     return new Response(upstream.body, { status: upstream.status, headers });

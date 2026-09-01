@@ -249,6 +249,13 @@ export type PfPrintResult = {
   serialSendAt?: string;
   serialResponseAt?: string;
   payload: string;
+  /** 구간별 소요 시간 진단 (프론트 시작 → 프록시 수신 → 게이트웨이/시리얼 → 프론트 수신) */
+  timing?: {
+    requestStartedAt: string;
+    proxyReceivedAt?: string;
+    proxyUpstreamMs?: number;
+    frontendTotalMs: number;
+  };
 };
 
 export async function pfPrint(
@@ -257,6 +264,15 @@ export async function pfPrint(
 ): Promise<PfPrintResult> {
   const payload = String(text ?? "").slice(0, 200);
   const body = JSON.stringify(padToLength ? { text: payload, pad_to_length: padToLength } : { text: payload });
+
+  const requestStartedAt = new Date().toISOString();
+  const t0 = Date.now();
+  const readTiming = (res: Response, j: any) => ({
+    requestStartedAt,
+    proxyReceivedAt: res.headers.get("x-proxy-received-at") ?? (typeof j?.proxy_received_at === "string" ? j.proxy_received_at : undefined),
+    proxyUpstreamMs: Number(res.headers.get("x-proxy-upstream-ms") ?? j?.proxy_upstream_ms ?? NaN) || undefined,
+    frontendTotalMs: Date.now() - t0,
+  });
 
   const attempt = async () => {
     // 개정 서버는 접수 즉시 응답하므로 긴 대기가 필요 없다(네트워크/직렬화 여유만 둠)
@@ -288,11 +304,13 @@ export async function pfPrint(
       serialSendAt: typeof j?.serial_send_at === "string" ? j.serial_send_at : undefined,
       serialResponseAt: typeof j?.serial_response_at === "string" ? j.serial_response_at : undefined,
       payload,
+      timing: readTiming(res, j),
     };
     return {
       ok: false, errorCode: code, error: pfErrorText(j, res.status), retryable: j?.retryable === true,
       id: typeof j?.gateway_job_id === "string" ? j.gateway_job_id : typeof j?.id === "string" ? j.id : undefined,
       responseCode: res.status, retryCount, payload,
+      timing: readTiming(res, j),
     };
   } catch (e) {
     return { ok: false, errorCode: "GATEWAY_OFFLINE", error: String(e), retryable: false, retryCount: 0, payload };

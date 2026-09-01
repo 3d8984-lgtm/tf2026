@@ -321,6 +321,8 @@ function OrderDetail({
     readyAt: string | null;
     serialSendAt: string | null;
     serialResponseAt: string | null;
+    /** 프록시가 상위 게이트웨이 응답을 기다린 시간(ms) — 지연 구간 판별용 */
+    proxyUpstreamMs: number | null;
   };
   const [dispatchLog, setDispatchLog] = useState<DispatchRow[]>([]);
   const [dispatchWake, setDispatchWake] = useState(0);
@@ -700,7 +702,7 @@ function OrderDetail({
     const seq = ++dispatchSeqRef.current;
     const dispatchAt = Date.now();
     setDispatchLog((prev) => [
-      { seq, scanSequence: null, position: -1, code: "WARMUP", scanAt: null, dispatchAt, ackAt: null, ok: null, gatewayJobId: null, printedAt: null, error: null, errorCode: null, responseCode: null, retryCount: 0, runState: null, readyAt: null, serialSendAt: null, serialResponseAt: null },
+      { seq, scanSequence: null, position: -1, code: "WARMUP", scanAt: null, dispatchAt, ackAt: null, ok: null, gatewayJobId: null, printedAt: null, error: null, errorCode: null, responseCode: null, retryCount: 0, runState: null, readyAt: null, serialSendAt: null, serialResponseAt: null, proxyUpstreamMs: null },
       ...prev,
     ].slice(0, 200));
     const r = await pfEnsureReady(8000, 400);
@@ -759,14 +761,14 @@ function OrderDetail({
         setPrintingPos(next.position);
         setInFlightCount(1);
         setDispatchLog((prev) => [
-          { seq, scanSequence: next.scan_sequence ?? next.position, position: next.position, code: next.code, scanAt: next.scanned_at ?? null, dispatchAt, ackAt: null, ok: null, gatewayJobId: null, printedAt: null, error: null, errorCode: null, responseCode: null, retryCount: 0, runState: "READY", readyAt: new Date().toISOString(), serialSendAt: null, serialResponseAt: null },
+          { seq, scanSequence: next.scan_sequence ?? next.position, position: next.position, code: next.code, scanAt: next.scanned_at ?? null, dispatchAt, ackAt: null, ok: null, gatewayJobId: null, printedAt: null, error: null, errorCode: null, responseCode: null, retryCount: 0, runState: "READY", readyAt: new Date().toISOString(), serialSendAt: null, serialResponseAt: null, proxyUpstreamMs: null },
           ...prev,
         ].slice(0, 200));
 
         const r = await sendToPrinter(printValueRef.current(next.code));
         const ackAt = Date.now();
         setDispatchLog((prev) => prev.map((row) => (row.seq === seq
-          ? { ...row, ackAt, ok: r.ok, gatewayJobId: r.id ?? null, error: r.ok ? null : r.error ?? "send failed", errorCode: r.errorCode ?? null, responseCode: r.responseCode ?? null, retryCount: r.retryCount, serialSendAt: r.serialSendAt ?? null, serialResponseAt: r.serialResponseAt ?? null }
+          ? { ...row, ackAt, ok: r.ok, gatewayJobId: r.id ?? null, error: r.ok ? null : r.error ?? "send failed", errorCode: r.errorCode ?? null, responseCode: r.responseCode ?? null, retryCount: r.retryCount, serialSendAt: r.serialSendAt ?? null, serialResponseAt: r.serialResponseAt ?? null, proxyUpstreamMs: r.timing?.proxyUpstreamMs ?? null }
           : row)));
 
         if (r.ok) {
@@ -1751,7 +1753,10 @@ function OrderDetail({
                           <td className="px-2 py-1.5 font-mono break-all">{d.code}</td>
                           <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap">{fmt(d.dispatchAt)}</td>
                           <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap">{fmt(d.ackAt)}</td>
-                          <td className="px-2 py-1.5 tabular-nums">{d.ackAt ? d.ackAt - d.dispatchAt : "-"}</td>
+                          <td className="px-2 py-1.5 tabular-nums whitespace-nowrap">
+                            {d.ackAt ? d.ackAt - d.dispatchAt : "-"}
+                            {d.proxyUpstreamMs != null && <span className="text-muted-foreground"> / gw {d.proxyUpstreamMs}</span>}
+                          </td>
                           <td className="px-2 py-1.5 font-mono text-[10px] break-all">{d.gatewayJobId ?? "-"}</td>
                           <td className="px-2 py-1.5 text-[10px] whitespace-nowrap">{d.runState ?? "-"} / {d.readyAt ? new Date(d.readyAt).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN", { hour12: false }) : "-"}</td>
                           <td className="px-2 py-1.5 text-[10px] whitespace-nowrap">{d.serialSendAt ?? "-"}<br />{d.serialResponseAt ?? "-"}</td>
