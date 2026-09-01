@@ -1436,7 +1436,7 @@ function OrderDetail({
             <CardHeader className="pb-3 space-y-2">
               <CardTitle className="text-base flex items-center gap-2 flex-wrap">
                 <Printer className="w-4 h-4" />{tr("인쇄 대기열", "打印队列")}
-                <span className="text-xs font-normal text-muted-foreground">({printerOffline ? "-" : waitingJobs.length})</span>
+                <span className="text-xs font-normal text-muted-foreground">({queueRows.length})</span>
                 <span className="text-[11px] font-normal text-muted-foreground ml-auto">
                   {tr("전송 중", "发送中")} {inFlightCount}
                   {errorCount > 0 && <span className="text-destructive"> · {tr("실패", "失败")} {errorCount}</span>}
@@ -1703,20 +1703,24 @@ function OrderDetail({
                 <table className="w-full text-xs">
                   <thead className="bg-muted/40">
                     <tr className="text-left">
-                      <th className="px-2 py-1.5 whitespace-nowrap">seq</th>
+                      <th className="px-2 py-1.5 whitespace-nowrap">scan seq</th>
                       <th className="px-2 py-1.5 whitespace-nowrap">pos</th>
                       <th className="px-2 py-1.5">{tr("바코드", "条码")}</th>
                       <th className="px-2 py-1.5 whitespace-nowrap">dispatch</th>
                       <th className="px-2 py-1.5 whitespace-nowrap">ACK</th>
                       <th className="px-2 py-1.5 whitespace-nowrap">ms</th>
                       <th className="px-2 py-1.5 whitespace-nowrap">gateway job</th>
+                      <th className="px-2 py-1.5 whitespace-nowrap">run / ready</th>
+                      <th className="px-2 py-1.5 whitespace-nowrap">serial</th>
+                      <th className="px-2 py-1.5 whitespace-nowrap">HTTP / retry</th>
                       <th className="px-2 py-1.5 whitespace-nowrap">printed (0x40)</th>
+                      <th className="px-2 py-1.5 whitespace-nowrap">error code</th>
                       <th className="px-2 py-1.5">{tr("결과", "结果")}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {dispatchLog.length === 0 ? (
-                      <tr><td colSpan={9} className="px-2 py-6 text-center text-muted-foreground">{tr("전송 기록이 없습니다", "暂无发送记录")}</td></tr>
+                      <tr><td colSpan={13} className="px-2 py-6 text-center text-muted-foreground">{tr("전송 기록이 없습니다", "暂无发送记录")}</td></tr>
                     ) : dispatchLog.map((d) => {
                       const fmt = (ms: number | null) =>
                         ms == null ? "-" : `${new Date(ms).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN", { hour12: false })}.${String(ms % 1000).padStart(3, "0")}`;
@@ -1729,9 +1733,13 @@ function OrderDetail({
                           <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap">{fmt(d.ackAt)}</td>
                           <td className="px-2 py-1.5 tabular-nums">{d.ackAt ? d.ackAt - d.dispatchAt : "-"}</td>
                           <td className="px-2 py-1.5 font-mono text-[10px] break-all">{d.gatewayJobId ?? "-"}</td>
+                          <td className="px-2 py-1.5 text-[10px] whitespace-nowrap">{d.runState ?? "-"} / {d.readyAt ? new Date(d.readyAt).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN", { hour12: false }) : "-"}</td>
+                          <td className="px-2 py-1.5 text-[10px] whitespace-nowrap">{d.serialSendAt ?? "-"}<br />{d.serialResponseAt ?? "-"}</td>
+                          <td className="px-2 py-1.5 tabular-nums whitespace-nowrap">{d.responseCode ?? "-"} / {d.retryCount}</td>
                           <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap">
                             {d.printedAt ? new Date(d.printedAt).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN", { hour12: false }) : "-"}
                           </td>
+                          <td className="px-2 py-1.5 font-mono text-[10px] text-destructive">{d.errorCode ?? "-"}</td>
                           <td className="px-2 py-1.5 whitespace-nowrap">
                             {d.ok == null ? <span className="text-muted-foreground">{tr("전송 중", "发送中")}</span>
                               : d.ok ? <span className="text-emerald-500">accepted</span>

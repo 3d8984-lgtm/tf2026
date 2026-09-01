@@ -61,6 +61,11 @@ export function pfErrorCode(j: any, status: number): PfErrorCode {
   return "GATEWAY_ERROR";
 }
 
+export function isPfPrintAccepted(resOk: boolean, body: any): body is { accepted: true; id: string } {
+  return resOk === true && body?.accepted === true && typeof body?.id === "string" && body.id.length > 0 &&
+    body?.offline !== true && !body?.error && !body?.error_code;
+}
+
 export function pfErrorText(j: any, status: number): string {
   const d = j?.detail;
   const base = typeof d === "string"
@@ -261,7 +266,7 @@ export async function pfPrint(
     let code = pfErrorCode(j, res.status);
     // Only NAK/not-ready is safe for one frontend retry, and only after an
     // explicit READY confirmation. Response timeout is never re-POSTed here.
-    if (!(res.ok && j?.accepted === true && typeof j?.id === "string" && j.id) &&
+    if (!isPfPrintAccepted(res.ok, j) &&
         (code === "PRINTER_NAK" || code === "PRINTER_NOT_READY")) {
       const ready = await pfEnsureReady();
       if (ready.ok) {
@@ -272,7 +277,7 @@ export async function pfPrint(
         return { ok: false, errorCode: ready.errorCode, error: ready.error, retryable: false, responseCode: res.status, retryCount, payload };
       }
     }
-    const validSuccess = res.ok && j?.accepted === true && typeof j?.id === "string" && j.id.length > 0 && !j?.offline && !j?.error && !j?.error_code;
+    const validSuccess = isPfPrintAccepted(res.ok, j);
     if (validSuccess) return {
       ok: true, printed: j?.printed === true, id: j.id, responseCode: res.status, retryCount,
       serialSendAt: typeof j?.serial_send_at === "string" ? j.serial_send_at : undefined,
