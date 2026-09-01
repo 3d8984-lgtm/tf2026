@@ -9,7 +9,7 @@ const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
  * 쓰기(POST/PATCH/DELETE)는 여전히 프록시의 비공개 키를 사용한다.
  */
 export const CCTV_PUBLIC_BASE = "https://api.tf2027.xyz";
-const CCTV_READONLY_KEY = "sk-tf2027-i92nehb82981u713";
+export const CCTV_READONLY_KEY = "sk-tf2027-i92nehb82981u713";
 
 
 export interface GatewayCamera {

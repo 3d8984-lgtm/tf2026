@@ -28,6 +28,8 @@
  */
 export const PF_TRANSMIT_TIMEOUT_MS = 20000;
 
+import { CCTV_PUBLIC_BASE, CCTV_READONLY_KEY } from "@/lib/cctv-api";
+
 const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 
