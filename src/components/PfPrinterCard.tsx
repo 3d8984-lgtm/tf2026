@@ -5,8 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useLang } from "@/contexts/LangContext";
 import { toast } from "sonner";
-import { Printer, Wifi, WifiOff, Play, Square, Eraser, Loader2 } from "lucide-react";
-import { pfPrint, pfPrinterRun, pfPrinterStop, pfPrinterStatus, pfPrinterQueue, pfPrinterQueueClear } from "@/lib/pf-printer";
+import { Printer, Wifi, WifiOff, Play, Square, Eraser, Loader2, Trash2 } from "lucide-react";
+import { pfPrint, pfPrinterRun, pfPrinterStop, pfPrinterStatus, pfPrinterQueue, pfPrinterQueueClear, pfPrinterBufferClear } from "@/lib/pf-printer";
 
 
 /** PF 시리즈 잉크젯 프린터(/api/v1/pf-printer) 잉크·버퍼 상태 표시 + 테스트 인쇄. */
@@ -131,6 +131,20 @@ export default function PfPrinterCard({ defaultText = "" }: { defaultText?: stri
             }}
           >
             <Eraser className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            title={tr("프린터 물리 버퍼까지 전부 삭제 (접수된 인쇄도 취소됨)", "清空打印机物理缓冲（已接收的打印也会被取消）")}
+            onClick={async () => {
+              const r = await pfPrinterBufferClear();
+              r.ok
+                ? toast.success(`${tr("프린터 버퍼를 비웠습니다", "已清空打印机缓冲")} · ${tr("대기 취소", "取消等待")} ${r.cancelledPending} · ${tr("버퍼 삭제", "缓冲删除")} ${r.failedProcessing}`)
+                : toast.error(`${tr("버퍼 초기화 실패", "清空缓冲失败")} — ${r.error}`);
+            }}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
           </Button>
 
 

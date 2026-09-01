@@ -90,7 +90,8 @@ export const pfPrinterStop = () => pfMode("stop");
 
 export type PfQueueJob = {
   id: string;
-  kind: "print" | "run" | "stop" | "status";
+  /** 2026-09 서버 개정 이후 큐에는 print job 만 나온다(run/stop/status 제외) */
+  kind: "print";
   text: string | null;
   status: "pending" | "processing" | "done" | "failed";
   /** kind=print & status=done 일 때만 값 존재. true = 프린터 인쇄완료(0x40) 확인됨 */
@@ -106,7 +107,8 @@ export async function pfPrinterQueue(): Promise<{ jobs: PfQueueJob[]; pendingCou
     const res = await pfFetch("/api/v1/pf-printer/queue", undefined, 8000);
     const j: any = await res.json().catch(() => ({}));
     if (!res.ok || "upstream_status" in (j ?? {})) return { jobs: [], pendingCount: 0, offline: true };
-    const jobs: PfQueueJob[] = Array.isArray(j?.jobs) ? j.jobs : [];
+    // 개정 서버는 print job 만 내려주지만, 구버전 응답과 섞여도 안전하도록 방어 필터링
+    const jobs: PfQueueJob[] = (Array.isArray(j?.jobs) ? j.jobs : []).filter((x: any) => !x?.kind || x.kind === "print");
     return {
       jobs,
       pendingCount: typeof j?.pending_count === "number" ? j.pending_count : jobs.filter((x) => x.status === "pending" || x.status === "processing").length,
@@ -129,6 +131,30 @@ export async function pfPrinterQueueClear(): Promise<{ ok: boolean; cleared: num
     return { ok: true, cleared: typeof j?.cleared === "number" ? j.cleared : 0 };
   } catch (e) {
     return { ok: false, cleared: 0, error: String(e) };
+  }
+}
+
+/**
+ * POST /api/v1/pf-printer/buffer/clear — queue/clear 보다 강력한 초기화.
+ * pending 취소에 더해, 이미 프린터에 접수되어 물리 버퍼에 쌓여 있던(processing) 요청까지
+ * CMD_CLEAR_BUFFER(0x13)로 전부 지운다. 그 요청들은 인쇄되지 않고 failed 로 갱신된다.
+ * 주의: 이미 accepted 응답을 받은 /test 호출에는 실패가 통보되지 않으므로,
+ * 이후 GET /queue 에서 status=failed 를 확인해야 한다.
+ */
+export async function pfPrinterBufferClear(): Promise<{ ok: boolean; cancelledPending: number; failedProcessing: number; error?: string }> {
+  try {
+    const res = await pfFetch("/api/v1/pf-printer/buffer/clear", { method: "POST", body: "{}" }, 20000);
+    const j: any = await res.json().catch(() => ({}));
+    if (!res.ok || "upstream_status" in (j ?? {})) {
+      return { ok: false, cancelledPending: 0, failedProcessing: 0, error: pfErrorText(j, res.status) };
+    }
+    return {
+      ok: true,
+      cancelledPending: typeof j?.cancelled_pending === "number" ? j.cancelled_pending : 0,
+      failedProcessing: typeof j?.failed_processing === "number" ? j.failed_processing : 0,
+    };
+  } catch (e) {
+    return { ok: false, cancelledPending: 0, failedProcessing: 0, error: String(e) };
   }
 }
 

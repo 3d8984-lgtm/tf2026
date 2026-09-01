@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { warnLightError, warnLightOkFlash } from "@/lib/warning-light";
-import { pfPrint, pfPrinterStatus, pfPrinterQueue, pfPrinterQueueClear } from "@/lib/pf-printer";
+import { pfPrint, pfPrinterStatus, pfPrinterQueue, pfPrinterBufferClear } from "@/lib/pf-printer";
 import { verifyScanBatch, selectWaitingJobs, mergePrintedAcc, resolvePrintedAt } from "@/lib/barcode-print-logic";
 
 import {
@@ -754,9 +754,10 @@ function OrderDetail({
    * 앱 측 대기(queued)/실패(error) 항목을 제거한다. 완료 기록은 유지.
    */
   const clearQueue = useCallback(async () => {
-    const cleared = await pfPrinterQueueClear();
+    // 버퍼 클리어: pending 취소 + 프린터 물리 버퍼(processing)까지 전부 삭제
+    const cleared = await pfPrinterBufferClear();
     const targets = Object.values(saved).filter((s) => s.status === "queued" || s.status === "error");
-    if (targets.length === 0 && cleared.cleared === 0) {
+    if (targets.length === 0 && cleared.cancelledPending === 0 && cleared.failedProcessing === 0) {
       toast.info(tr("초기화할 대기열 항목이 없습니다", "没有可清空的队列项目"));
       return;
     }
@@ -778,7 +779,7 @@ function OrderDetail({
     }
     setHalted(false);
     toast.success(
-      `${tr("인쇄 대기열을 초기화했습니다", "打印队列已清空")} · ${tr("앱", "应用")} ${targets.length} · ${tr("프린터", "打印机")} ${cleared.ok ? cleared.cleared : "-"}`,
+      `${tr("인쇄 대기열을 초기화했습니다", "打印队列已清空")} · ${tr("앱", "应用")} ${targets.length} · ${tr("프린터", "打印机")} ${cleared.ok ? cleared.cancelledPending + cleared.failedProcessing : "-"}`,
     );
   }, [saved, kind, order.id, isKo]);
 
