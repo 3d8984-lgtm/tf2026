@@ -779,7 +779,7 @@ function OrderDetail({
     }
     setHalted(false);
     toast.success(
-      `${tr("인쇄 대기열을 초기화했습니다", "打印队列已清空")} · ${tr("앱", "应用")} ${targets.length} · ${tr("프린터", "打印机")} ${cleared.ok ? cleared.cleared : "-"}`,
+      `${tr("인쇄 대기열을 초기화했습니다", "打印队列已清空")} · ${tr("앱", "应用")} ${targets.length} · ${tr("프린터", "打印机")} ${cleared.ok ? cleared.cancelledPending + cleared.failedProcessing : "-"}`,
     );
   }, [saved, kind, order.id, isKo]);
 
