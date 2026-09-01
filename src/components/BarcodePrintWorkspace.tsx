@@ -1811,7 +1811,6 @@ function OrderDetail({
                       <th className="px-2 py-1.5 whitespace-nowrap">ms</th>
                       <th className="px-2 py-1.5 whitespace-nowrap">gateway job</th>
                       <th className="px-2 py-1.5 whitespace-nowrap">run / ready</th>
-                      <th className="px-2 py-1.5 whitespace-nowrap">serial</th>
                       <th className="px-2 py-1.5 whitespace-nowrap">HTTP / retry</th>
                       <th className="px-2 py-1.5 whitespace-nowrap">printed (0x40)</th>
                       <th className="px-2 py-1.5 whitespace-nowrap">error code</th>
@@ -1820,7 +1819,7 @@ function OrderDetail({
                   </thead>
                   <tbody>
                     {dispatchLog.length === 0 ? (
-                      <tr><td colSpan={13} className="px-2 py-6 text-center text-muted-foreground">{tr("전송 기록이 없습니다", "暂无发送记录")}</td></tr>
+                      <tr><td colSpan={12} className="px-2 py-6 text-center text-muted-foreground">{tr("전송 기록이 없습니다", "暂无发送记录")}</td></tr>
                     ) : dispatchLog.map((d) => {
                       const fmt = (ms: number | null) =>
                         ms == null ? "-" : `${new Date(ms).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN", { hour12: false })}.${String(ms % 1000).padStart(3, "0")}`;
@@ -1837,7 +1836,6 @@ function OrderDetail({
                           </td>
                           <td className="px-2 py-1.5 font-mono text-[10px] break-all">{d.gatewayJobId ?? "-"}</td>
                           <td className="px-2 py-1.5 text-[10px] whitespace-nowrap">{d.runState ?? "-"} / {d.readyAt ? new Date(d.readyAt).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN", { hour12: false }) : "-"}</td>
-                          <td className="px-2 py-1.5 text-[10px] whitespace-nowrap">{d.serialSendAt ?? "-"}<br />{d.serialResponseAt ?? "-"}</td>
                           <td className="px-2 py-1.5 tabular-nums whitespace-nowrap">{d.responseCode ?? "-"} / {d.retryCount}</td>
                           <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap">
                             {d.printedAt ? new Date(d.printedAt).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN", { hour12: false }) : "-"}
