@@ -101,7 +101,18 @@ export type QueueJob = {
   error: string | null;
 };
 
+/**
+ * 대기열/버퍼 초기화로 취소된 작업인지 판정.
+ * 서버는 이런 작업을 status="failed" + 취소 사유 메시지로 내려주지만,
+ * 사용자가 직접 초기화한 결과이므로 앱에서는 오류로 취급하지 않는다.
+ */
+export function isCancelledJobError(error?: string | null): boolean {
+  if (!error) return false;
+  return /cancel|clear|abort|취소|초기화|버퍼|已取消|清空/i.test(error);
+}
+
 /** 패널2(인쇄 대기열) = 프린터 대기/인쇄 중 + 완료 응답이지만 물리 인쇄 미확인 */
+
 export function selectWaitingJobs<T extends QueueJob>(jobs: T[]): T[] {
   return jobs.filter(
     (j) => j.status === "pending" || j.status === "printing" || (j.status === "done" && j.printed === false),
@@ -116,7 +127,9 @@ export function mergePrintedAcc(
   const next = { ...prev };
   let changed = false;
   for (const j of jobs) {
-    if (j.status !== "done" || j.printed !== true) continue;
+    // done 이면 완료로 본다 (printed 가 null 로 내려오는 게이트웨이 대응)
+    if (j.status !== "done" || j.printed === false) continue;
+
     const k = norm(j.barcode);
     const at = j.printed_at ?? j.enqueued_at;
     if (!at) continue;
@@ -144,6 +157,6 @@ export function resolvePrintedAt(params: {
     const k = norm(c);
     if (printedAcc[k]) return printedAcc[k];
   }
-  if (job && job.status === "done" && job.printed === true) return job.printed_at ?? job.enqueued_at;
+  if (job && job.status === "done" && job.printed !== false) return job.printed_at ?? job.enqueued_at;
   return null;
 }

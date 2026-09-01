@@ -93,10 +93,19 @@ export function pfErrorCode(j: any, status: number): PfErrorCode {
   return "GATEWAY_ERROR";
 }
 
-export function isPfPrintAccepted(resOk: boolean, body: any): body is { accepted: true; id: string } {
-  return resOk === true && body?.accepted === true && typeof body?.id === "string" && body.id.length > 0 &&
-    body?.offline !== true && !body?.error && !body?.error_code;
+/**
+ * 큐 등록 성공 판정.
+ * 서버는 `{accepted:true,id}` 또는 큐 job 객체(`{id,kind:"print",status:"pending"|"processing"|"done"}`)
+ * 중 하나로 응답한다. status 가 pending/processing 이면 "큐에 정상 등록됨" 이므로 성공으로 본다.
+ */
+export function isPfPrintAccepted(resOk: boolean, body: any): body is { accepted?: boolean; id: string } {
+  if (resOk !== true) return false;
+  if (typeof body?.id !== "string" || body.id.length === 0) return false;
+  if (body?.offline === true || body?.error || body?.error_code) return false;
+  if (body?.accepted === true) return true;
+  return body?.status === "pending" || body?.status === "processing" || body?.status === "done";
 }
+
 
 export function pfErrorText(j: any, status: number): string {
   const d = j?.detail;
@@ -239,7 +248,8 @@ export async function pfWaitForPrint(
     if (!q.offline) {
       const job = q.jobs.find((j) => (id && j.id === id) || (!id && text != null && j.text === text));
       if (job) {
-        if (job.status === "done" && job.printed === true) return { printed: true, failed: false, timedOut: false };
+        // 서버가 done 으로 마감했으면 완료로 본다(printed 가 null 로 오는 게이트웨이 대응).
+        if (job.status === "done" && job.printed !== false) return { printed: true, failed: false, timedOut: false };
         if (job.status === "failed") return { printed: false, failed: true, timedOut: false, error: job.error ?? undefined };
       }
     }
@@ -247,6 +257,7 @@ export async function pfWaitForPrint(
   }
   return { printed: false, failed: false, timedOut: true };
 }
+
 
 
 /**

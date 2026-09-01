@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { warnLightError, warnLightOkFlash } from "@/lib/warning-light";
 import { pfPrint, pfPrinterStatus, pfPrinterQueue, pfPrinterBufferClear, type PfErrorCode } from "@/lib/pf-printer";
-import { verifyScanBatch, selectWaitingJobs, mergePrintedAcc, resolvePrintedAt } from "@/lib/barcode-print-logic";
+import { verifyScanBatch, selectWaitingJobs, mergePrintedAcc, resolvePrintedAt, isCancelledJobError } from "@/lib/barcode-print-logic";
 
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -612,16 +612,27 @@ function OrderDetail({
               if (!item.gateway_job_id) continue;
               const gateway = rows.find((row) => row.id === item.gateway_job_id);
               if (!gateway) continue;
+              // 사용자가 대기열/버퍼를 초기화해 취소된 작업은 오류가 아니라 "다시 대기"로 되돌린다.
+              const cancelled = gateway.status === "failed" && isCancelledJobError(gateway.error);
               const dispatchStatus = gateway.status === "printing"
                 ? "printing"
+                : cancelled ? "queued"
                 : gateway.status === "failed" ? "error"
-                : gateway.status === "done" && gateway.printed === true ? "printed"
+                : gateway.status === "done" && gateway.printed !== false ? "printed"
                 : gateway.status === "pending" ? "waiting_for_print"
                 : item.dispatch_status;
+
+
               if (dispatchStatus && dispatchStatus !== item.dispatch_status) {
-                next[item.position] = { ...item, dispatch_status: dispatchStatus, error_detail: gateway.error ?? item.error_detail };
+                next[item.position] = {
+                  ...item,
+                  dispatch_status: dispatchStatus,
+                  error_detail: cancelled ? undefined : gateway.error ?? item.error_detail,
+                  error_code: cancelled ? undefined : item.error_code,
+                };
                 changed = true;
               }
+
             }
             return changed ? next : prev;
           });
@@ -827,12 +838,16 @@ function OrderDetail({
         ?? jobs.find((j) => norm(j.barcode) === norm(pv));
 
       if (job) {
-        if (job.status === "failed") {
+        if (job.status === "failed" && !isCancelledJobError(job.error)) {
           void markPrintError(s.position, s.code, job.error ?? "gateway job failed", "GATEWAY_ERROR");
           continue;
         }
-        const dispatchStatus = job.status === "printing" ? "printing"
-          : job.status === "done" && job.printed === true ? "printed" : "waiting_for_print";
+        // 초기화로 취소된 작업은 오류가 아니라 다시 대기 상태로 되돌린다.
+        const dispatchStatus = job.status === "failed" ? "queued"
+          : job.status === "printing" ? "printing"
+          : job.status === "done" && job.printed !== false ? "printed" : "waiting_for_print";
+
+
         void supabase.from("barcode_print_items")
           .update({ dispatch_status: dispatchStatus, gateway_job_id: job.id, error_code: null, error_detail: null })
           .eq("kind", kind).eq("order_id", order.id).eq("position", s.position);
@@ -856,14 +871,16 @@ function OrderDetail({
   useEffect(() => { void pump(); }, [saved, ready, testMode, halted, dispatchWake, pump]);
 
   // Gateway ACK 뒤 비동기 인쇄가 실패한 경우에도 즉시 중단한다.
+  // 단, 사용자가 대기열/버퍼를 초기화해 취소된 작업은 오류로 보지 않는다.
   useEffect(() => {
     if (halted) return;
     const failed = Object.values(saved).find((item) => item.gateway_job_id && item.status === "queued" &&
-      jobs.some((job) => job.id === item.gateway_job_id && job.status === "failed"));
+      jobs.some((job) => job.id === item.gateway_job_id && job.status === "failed" && !isCancelledJobError(job.error)));
     if (!failed) return;
     const job = jobs.find((row) => row.id === failed.gateway_job_id);
     void markPrintError(failed.position, failed.code, job?.error ?? "Gateway print job failed", "GATEWAY_ERROR");
   }, [jobs, saved, halted, markPrintError]);
+
 
   // ── 인쇄 완료 확인(큐 폴링 결과 반영) ───────────────────────────────
   // 접수만 된 항목(queued & 전송 완료)은 프린터 큐/완료 이벤트에서 실제 인쇄완료가
@@ -1072,20 +1089,46 @@ function OrderDetail({
   };
 
   // 테스트 모드 순차 인쇄
+  // 물리 인쇄 완료까지 기다리지 않는다 — 서버 큐에 정상 등록(accepted / status=pending|processing)되면
+  // 즉시 다음 항목으로 넘어가고, 실제 완료는 큐 폴링(waiting_for_print → printed)으로 확정한다.
   const printNextTest = async () => {
     const target = expected[cursor];
     if (!target) return;
     const r = await sendToPrinter(printValueRef.current(target.no));
-    if (r.ok && r.printed) {
-      await markDone(target.position, target.no, null, true);
+    if (r.ok) {
+      if (r.printed) {
+        await markDone(target.position, target.no, null, true);
+      } else {
+        const now = new Date().toISOString();
+        await supabase.from("barcode_print_items").upsert(
+          {
+            kind, order_id: order.id, position: target.position, code: target.no,
+            status: "queued", dispatch_status: "waiting_for_print", scan_sequence: target.position,
+            verdict: "ok", scanned_value: null, scanned_at: now, printed_at: null, test_mode: true,
+            gateway_job_id: r.id ?? null, gateway_received_at: now,
+            response_code: r.responseCode ?? null, retry_count: r.retryCount,
+            error_code: null, error_detail: null,
+          },
+          { onConflict: "kind,order_id,position" },
+        );
+        setSaved((prev) => ({
+          ...prev,
+          [target.position]: {
+            ...prev[target.position], position: target.position, code: target.no, status: "queued",
+            dispatch_status: "waiting_for_print", gateway_job_id: r.id ?? null, test_mode: true,
+            printed_at: null, scanned_at: now, scan_sequence: target.position, retry_count: r.retryCount,
+          },
+        }));
+      }
       setCursor((c) => c + 1);
       seenRef.current.add(norm(target.no));
     }
     toast[r.ok ? "success" : "error"](
-      r.ok ? `${target.no} ${tr("인쇄 요청", "打印请求")}`
+      r.ok ? `${target.no} ${tr("인쇄 대기열 등록", "已加入打印队列")}`
            : `${tr("인쇄 전송 실패", "打印发送失败")} — ${r.error ?? ""}`,
     );
   };
+
 
   // 프린터 연결 진단 (임의 텍스트 즉시 전송)
   const runPrinterTest = async () => {
@@ -1191,7 +1234,9 @@ function OrderDetail({
 
 
 
-  const failedJobs = jobs.filter((j) => j.status === "failed").length;
+  // 초기화(버퍼 클리어)로 취소된 작업은 실패 집계에서 제외한다.
+  const failedJobs = jobs.filter((j) => j.status === "failed" && !isCancelledJobError(j.error)).length;
+
   const lastJob = jobs[0] ?? null;
   const printerOk = !printerOffline && failedJobs === 0;
 
