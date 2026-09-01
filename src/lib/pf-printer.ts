@@ -304,11 +304,13 @@ export async function pfPrint(
       serialSendAt: typeof j?.serial_send_at === "string" ? j.serial_send_at : undefined,
       serialResponseAt: typeof j?.serial_response_at === "string" ? j.serial_response_at : undefined,
       payload,
+      timing: readTiming(res, j),
     };
     return {
       ok: false, errorCode: code, error: pfErrorText(j, res.status), retryable: j?.retryable === true,
       id: typeof j?.gateway_job_id === "string" ? j.gateway_job_id : typeof j?.id === "string" ? j.id : undefined,
       responseCode: res.status, retryCount, payload,
+      timing: readTiming(res, j),
     };
   } catch (e) {
     return { ok: false, errorCode: "GATEWAY_OFFLINE", error: String(e), retryable: false, retryCount: 0, payload };
