@@ -29,7 +29,9 @@ export default function PfPrinterCard({ defaultText = "" }: { defaultText?: stri
     const tick = async () => {
       const [st, q] = await Promise.all([pfPrinterStatus(), pfPrinterQueue()]);
       if (!alive) return;
-      setOffline(st.offline && q.offline);
+      // /status is the authoritative serial-connection probe. Queue/history
+      // may remain readable even while the physical printer is disconnected.
+      setOffline(st.offline);
       setInk(st.ink_percent);
       setBuffer(st.buffer_count);
       setPending(q.offline ? null : q.pendingCount);

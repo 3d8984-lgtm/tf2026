@@ -45,6 +45,11 @@ Deno.serve(async (req) => {
   const target = `${API_BASE}${rest || "/"}${url.search || ""}`;
   const isPlcStatus = /\/api\/v1\/plc\/[^/]+\/status$/i.test(url.pathname);
   const isPrinterApi = /\/api\/v1\/pf-printer(?:\/|$)/i.test(url.pathname);
+  // Status/queue are background observations, not commands. Device-offline
+  // responses from these probes must not be promoted by the Edge runtime to a
+  // page-level runtime error. Preserve the upstream status in the JSON body.
+  const isPrinterReadProbe = req.method === "GET" &&
+    /\/api\/v1\/pf-printer\/(?:status|queue)$/i.test(url.pathname);
 
   // Stage timing instrumentation: lets the client prove where a slow/failed
   // printer call actually spent its time (proxy vs upstream gateway/serial).
@@ -121,9 +126,41 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Printer failures must preserve the upstream HTTP status and diagnostic
-    // payload. Older Gateway responses are augmented with a stable error_code;
-    // the original detail/error fields are never removed.
+    // Read-only printer probes run continuously. A disconnected device is an
+    // expected UI state, so return a successful transport envelope while
+    // retaining the exact upstream status/error for the client to interpret.
+    if (isPrinterReadProbe && !upstream.ok) {
+      const raw = await upstream.text();
+      let payload: Record<string, unknown>;
+      try {
+        const parsed = JSON.parse(raw);
+        payload = parsed && typeof parsed === "object" ? parsed : { detail: raw };
+      } catch {
+        payload = { detail: raw || `HTTP ${upstream.status}` };
+      }
+      const errorCode = printerErrorCode(upstream.status, payload);
+      return new Response(JSON.stringify({
+        ...payload,
+        offline: true,
+        upstream_status: upstream.status,
+        error_code: errorCode,
+        retryable: false,
+        proxy_received_at: proxyReceivedAt,
+        proxy_upstream_ms: Date.now() - upstreamStartedMs,
+        proxy_total_ms: Date.now() - t0,
+      }), {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+
+    // Printer command failures must preserve the upstream HTTP status and
+    // diagnostic payload. Older Gateway responses are augmented with a stable
+    // error_code; the original detail/error fields are never removed.
     if (isPrinterApi && !upstream.ok) {
       const raw = await upstream.text();
       let payload: Record<string, unknown>;
@@ -192,10 +229,11 @@ Deno.serve(async (req) => {
     return new Response(upstream.body, { status: upstream.status, headers });
   } catch (err) {
     console.error("cctv-proxy upstream failure", target, String(err));
-    const status = isPrinterApi ? 502 : 200;
+    const status = isPrinterApi && !isPrinterReadProbe ? 502 : 200;
     const payload = isPrinterApi
       ? { error_code: "GATEWAY_OFFLINE", detail: String(err), retryable: false }
       : { offline: true, upstream_status: 0, error: String(err) };
+    if (isPrinterReadProbe) Object.assign(payload, { offline: true, upstream_status: 0 });
     return new Response(JSON.stringify(payload), {
       status,
       headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
