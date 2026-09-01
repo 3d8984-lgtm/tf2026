@@ -461,7 +461,7 @@ function OrderDetail({
     printValueRef.current = (v: string) => map.get(norm(v)) ?? String(v ?? "").trim();
   }, [expected]);
 
-  const sendToPrinter = useCallback(async (code: string): Promise<{ ok: boolean; printed?: boolean; error?: string }> => {
+  const sendToPrinter = useCallback(async (code: string): Promise<{ ok: boolean; printed?: boolean; id?: string; error?: string }> => {
     const payload = String(code ?? "").slice(0, 200);
     const record = (ok: boolean, error: string | null) => {
       setPrinterLog((prev) => [
@@ -477,8 +477,9 @@ function OrderDetail({
       const at = new Date().toISOString();
       setPrintedAcc((prev) => ({ ...prev, [norm(code)]: at }));
     }
-    return r.ok ? { ok: true, printed: r.printed } : { ok: false, error: r.error };
+    return r.ok ? { ok: true, printed: r.printed, id: r.id } : { ok: false, error: r.error };
   }, []);
+
 
 
 
