@@ -3,13 +3,18 @@
  *
  * 백엔드 API는 2026-08 개정으로 단일 버전(/api/v1)으로 통합되었다. 구형 /api/v2/* 및
  * /api/v1/print/* 경로는 더 이상 존재하지 않으므로 모든 인쇄는 이 모듈을 사용한다.
- * - POST /api/v1/pf-printer/test   값 전송(0x11) + 인쇄 트리거(0x21) 를 동기 처리
+ * - POST /api/v1/pf-printer/test   값 전송(0x11) + 인쇄 트리거(0x21) 접수 (큐 job id 반환)
  * - GET  /api/v1/pf-printer/status 잉크 잔량 / 버퍼 대기 건수
  * - POST /api/v1/pf-printer/run    Run(喷印启动) 모드 전환 — /test 는 Run 모드에서만 동작
  * - POST /api/v1/pf-printer/stop   Stop 모드 전환
  *
  * 서버는 /test·/run·/stop·/status 를 하나의 FIFO 큐로 직렬화하므로 동시 호출이 안전하다.
- * 다만 응답은 "자기 차례가 와서 인쇄까지 끝난 뒤" 오므로 대기 시간이 길어질 수 있다.
+ *
+ * 서버 개정(2026-09, 인쇄 완료 버그 수정):
+ * - /test 응답은 "프린터 버퍼에 접수됨" 시점에 즉시 온다 — 물리 인쇄 완료를 기다리지 않는다.
+ * - 응답의 printed=true 면 그 시점에 이미 물리 인쇄까지 확인된 것(프린터가 idle이던 경우).
+ *   null 이면 버퍼에서 대기 중인 정상 상태이며, 응답의 id 로 GET /queue 를 폴링해
+ *   status="done" && printed=true 가 됐는지 확인한다.
  *
  * 스캔 이벤트(MQTT)와 인쇄는 서버에서 자동 연결되어 있지 않다 — 프론트가 직접 /test 를 호출한다.
  * 프린터가 Stop 상태이거나 템플릿 편집 후 Run 이 풀리면 /test 가 409(NAK)를 반환한다.
