@@ -249,6 +249,13 @@ export type PfPrintResult = {
   serialSendAt?: string;
   serialResponseAt?: string;
   payload: string;
+  /** 구간별 소요 시간 진단 (프론트 시작 → 프록시 수신 → 게이트웨이/시리얼 → 프론트 수신) */
+  timing?: {
+    requestStartedAt: string;
+    proxyReceivedAt?: string;
+    proxyUpstreamMs?: number;
+    frontendTotalMs: number;
+  };
 };
 
 export async function pfPrint(
