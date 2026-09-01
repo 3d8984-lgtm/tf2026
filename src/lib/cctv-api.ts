@@ -3,6 +3,15 @@ import { supabase } from "@/integrations/supabase/client";
 export const CCTV_PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 
+/**
+ * 게이트웨이가 발급한 읽기 전용(GET) 공개 키. 조회 요청은 엣지 프록시를
+ * 거치지 않고 브라우저에서 직접 호출해 Edge Runtime 부하(503)를 없앤다.
+ * 쓰기(POST/PATCH/DELETE)는 여전히 프록시의 비공개 키를 사용한다.
+ */
+export const CCTV_PUBLIC_BASE = "https://api.tf2027.xyz";
+const CCTV_READONLY_KEY = "sk-tf2027-i92nehb82981u713";
+
+
 export interface GatewayCamera {
   id: string;
   input_url: string;
@@ -26,6 +35,35 @@ export async function cctvFetch(pathOrUrl: string, init?: RequestInit) {
   // The LAN gateway is unauthenticated; sending Supabase headers there would
   // only trigger needless CORS preflights.
   if (direct && target.startsWith(direct)) return fetch(target, init);
+
+  // 조회(GET/HEAD)는 읽기 전용 키로 게이트웨이에 직접 요청한다.
+  const method = (init?.method || "GET").toUpperCase();
+  if (!direct && !pathOrUrl.startsWith("http") && (method === "GET" || method === "HEAD")) {
+    const url = `${CCTV_PUBLIC_BASE}${pathOrUrl.startsWith("/") ? "" : "/"}${pathOrUrl}`;
+    const h = new Headers(init?.headers);
+    h.set("X-API-Key", CCTV_READONLY_KEY);
+    try {
+      const res = await fetch(url, { ...init, headers: h });
+      // 프록시와 동일하게 장비 오프라인(5xx)은 오류가 아닌 상태로 전달한다.
+      if (res.status >= 500) {
+        const body = await res.text().catch(() => "");
+        let payload: Record<string, unknown> = {};
+        try { const p = JSON.parse(body); if (p && typeof p === "object") payload = p; } catch { /* noop */ }
+        return new Response(
+          JSON.stringify({ ...payload, offline: true, upstream_status: res.status }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return res;
+    } catch {
+      return new Response(JSON.stringify({ offline: true, upstream_status: 0 }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  }
+
+
   const headers = new Headers(init?.headers);
   headers.set("apikey", ANON_KEY);
   const session = await supabase.auth.getSession();
