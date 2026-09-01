@@ -158,7 +158,7 @@ type SavedItem = {
   printed_at: string | null;
   scanned_at?: string | null;
   scan_sequence?: number | null;
-  dispatch_status?: "queued" | "dispatching" | "accepted" | "waiting_for_print" | "printing" | "printed" | "error";
+  dispatch_status?: "queued" | "dispatching" | "uncertain" | "accepted" | "waiting_for_print" | "printing" | "printed" | "error";
   gateway_job_id?: string | null;
   retry_count?: number;
   error_code?: string | null;
