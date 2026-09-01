@@ -551,7 +551,7 @@ function OrderDetail({
       }
     };
     tick();
-    const iv = setInterval(tick, 6000);
+    const iv = setInterval(tick, 2000);
     return () => { alive = false; clearInterval(iv); };
   }, []);
 
