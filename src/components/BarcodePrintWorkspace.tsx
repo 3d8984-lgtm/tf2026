@@ -321,6 +321,8 @@ function OrderDetail({
     readyAt: string | null;
     serialSendAt: string | null;
     serialResponseAt: string | null;
+    /** 프록시가 상위 게이트웨이 응답을 기다린 시간(ms) — 지연 구간 판별용 */
+    proxyUpstreamMs: number | null;
   };
   const [dispatchLog, setDispatchLog] = useState<DispatchRow[]>([]);
   const [dispatchWake, setDispatchWake] = useState(0);
