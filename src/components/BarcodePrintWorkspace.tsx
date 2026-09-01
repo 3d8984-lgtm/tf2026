@@ -812,8 +812,16 @@ function OrderDetail({
           // printed=true → 이미 물리 인쇄 확인. null/false 는 "버퍼 접수됨"이며 오류가 아니다.
           if (r.printed) await markDone(next.position, next.code, null, false);
         } else {
-          dispatchedRef.current.delete(next.position); // 재시도 가능하도록 해제 (queued 유지)
-          await markPrintError(next.position, next.code, r.error ?? "printer send failed", r.errorCode);
+          // HTTP 실패 = 인쇄 실패가 아니다. 전송 도달 여부를 알 수 없는 오류(502/연결 끊김/게이트웨이 오류)는
+          // uncertain 으로 두고 게이트웨이 job 조회로 판정한다. 절대 같은 데이터를 자동 재전송하지 않는다.
+          const uncertainCodes: PfErrorCode[] = ["GATEWAY_OFFLINE", "GATEWAY_ERROR", "PRINTER_RESPONSE_TIMEOUT"];
+          if (r.errorCode && uncertainCodes.includes(r.errorCode)) {
+            uncertainSinceRef.current[next.position] = Date.now();
+            await markUncertain(next.position, next.code, r.error ?? "gateway unreachable", r.errorCode);
+          } else {
+            dispatchedRef.current.delete(next.position); // 프린터에 도달하지 않은 확정 실패만 재시도 가능
+            await markPrintError(next.position, next.code, r.error ?? "printer send failed", r.errorCode);
+          }
           break; // Fail-fast: 이후 항목은 전송하지 않는다
         }
       }
