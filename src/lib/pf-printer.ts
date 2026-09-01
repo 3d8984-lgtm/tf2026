@@ -22,6 +22,12 @@
  */
 
 
+/**
+ * 통신(업로드) 타임아웃 — 서버/프린터 무응답·연결 끊김 감지용.
+ * "물체가 프린터 센서에 도착할 때까지의 대기"에는 어떤 타임아웃도 적용하지 않는다.
+ */
+export const PF_TRANSMIT_TIMEOUT_MS = 20000;
+
 const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 
@@ -242,6 +248,11 @@ export async function pfPrinterBufferClear(): Promise<{ ok: boolean; cancelledPe
 export type PfPrintResult = {
   ok: boolean;
   printed?: boolean;
+  /**
+   * 데이터는 프린터에 정상 업로드됐지만 물리 인쇄(물체 감지 → 0x40)는 아직 확인되지 않은 상태.
+   * 실패가 아니며, 큐 폴링/완료 이벤트로 확정될 때까지 시간 제한 없이 기다린다.
+   */
+  waitingForPrint?: boolean;
   id?: string;
   error?: string;
   errorCode?: PfErrorCode;
@@ -276,15 +287,33 @@ export async function pfPrint(
     frontendTotalMs: Date.now() - t0,
   });
 
-  const attempt = async () => {
-    // 인쇄 요청은 물리 인쇄 완료까지 응답이 지연될 수 있으므로 클라이언트 타임아웃 없음
-    const res = await pfFetch("/api/v1/pf-printer/test", { method: "POST", body }, null);
-    const j: any = await res.json().catch(() => ({}));
-    return { res, j };
+  // 통신(업로드) 단계에만 타임아웃을 둔다. 이 시간을 넘겨도 "실패"가 아니라
+  // "업로드는 끝났고 물체 감지를 기다리는 중"으로 간주하고 큐 폴링으로 확정한다.
+  // 연결 끊김/무응답으로 시스템이 영구 정지하는 것을 막는 용도이기도 하다.
+  const attempt = async (): Promise<{ res?: Response; j?: any; transmitTimedOut?: boolean }> => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), PF_TRANSMIT_TIMEOUT_MS);
+    try {
+      const res = await pfFetch("/api/v1/pf-printer/test", { method: "POST", body, signal: controller.signal }, null);
+      const j: any = await res.json().catch(() => ({}));
+      return { res, j };
+    } catch (e) {
+      if (controller.signal.aborted) return { transmitTimedOut: true };
+      throw e;
+    } finally {
+      window.clearTimeout(timer);
+    }
   };
 
+  const waitingResult = (retryCount: number): PfPrintResult => ({
+    ok: true, printed: false, waitingForPrint: true, retryCount, payload,
+    timing: { requestStartedAt, frontendTotalMs: Date.now() - t0 },
+  });
+
   try {
-    let { res, j } = await attempt();
+    let a = await attempt();
+    if (a.transmitTimedOut) return waitingResult(0);
+    let res = a.res!, j = a.j;
     let retryCount = 0;
     let code = pfErrorCode(j, res.status);
     // Only NAK/not-ready is safe for one frontend retry, and only after an
@@ -294,11 +323,23 @@ export async function pfPrint(
       const ready = await pfEnsureReady();
       if (ready.ok) {
         retryCount = 1;
-        ({ res, j } = await attempt());
+        a = await attempt();
+        if (a.transmitTimedOut) return waitingResult(retryCount);
+        res = a.res!; j = a.j;
         code = pfErrorCode(j, res.status);
       } else {
         return { ok: false, errorCode: ready.errorCode, error: ready.error, retryable: false, responseCode: res.status, retryCount, payload };
       }
+    }
+    // 게이트웨이의 "printer response timeout"은 물리 인쇄 완료를 기다리다 끊긴 것이므로
+    // 업로드 실패가 아니다. 대기 상태로 유지하고 0x40 완료 이벤트/큐로 확정한다.
+    if (code === "PRINTER_RESPONSE_TIMEOUT") {
+      return {
+        ...waitingResult(retryCount),
+        id: typeof j?.gateway_job_id === "string" ? j.gateway_job_id : typeof j?.id === "string" ? j.id : undefined,
+        responseCode: res.status,
+        timing: readTiming(res, j),
+      };
     }
     const validSuccess = isPfPrintAccepted(res.ok, j);
     if (validSuccess) return {
