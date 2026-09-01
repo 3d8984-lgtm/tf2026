@@ -624,9 +624,15 @@ function OrderDetail({
 
 
               if (dispatchStatus && dispatchStatus !== item.dispatch_status) {
-                next[item.position] = { ...item, dispatch_status: dispatchStatus, error_detail: gateway.error ?? item.error_detail };
+                next[item.position] = {
+                  ...item,
+                  dispatch_status: dispatchStatus,
+                  error_detail: cancelled ? undefined : gateway.error ?? item.error_detail,
+                  error_code: cancelled ? undefined : item.error_code,
+                };
                 changed = true;
               }
+
             }
             return changed ? next : prev;
           });
