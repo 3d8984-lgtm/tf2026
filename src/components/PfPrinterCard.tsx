@@ -5,8 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useLang } from "@/contexts/LangContext";
 import { toast } from "sonner";
-import { Printer, Wifi, WifiOff, Play, Square, Eraser, Loader2 } from "lucide-react";
-import { pfPrint, pfPrinterRun, pfPrinterStop, pfPrinterStatus, pfPrinterQueue, pfPrinterQueueClear } from "@/lib/pf-printer";
+import { Printer, Wifi, WifiOff, Play, Square, Eraser, Loader2, Trash2 } from "lucide-react";
+import { pfPrint, pfPrinterRun, pfPrinterStop, pfPrinterStatus, pfPrinterQueue, pfPrinterQueueClear, pfPrinterBufferClear } from "@/lib/pf-printer";
 
 
 /** PF 시리즈 잉크젯 프린터(/api/v1/pf-printer) 잉크·버퍼 상태 표시 + 테스트 인쇄. */
