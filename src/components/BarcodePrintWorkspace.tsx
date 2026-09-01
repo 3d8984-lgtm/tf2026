@@ -1524,7 +1524,9 @@ function OrderDetail({
               <span className="text-xs font-normal text-muted-foreground">
                 {rawTab === "scanner"
                   ? tr("스캐너가 실제로 보낸 값 · 최근 100건", "扫描仪实际发送值 · 最近100条")
-                  : tr("프린터로 실제 전송한 명령 · 최근 100건", "实际发送至打印机的指令 · 最近100条")}
+                  : rawTab === "printer"
+                    ? tr("프린터로 실제 전송한 명령 · 최근 100건", "实际发送至打印机的指令 · 最近100条")
+                    : tr("전송 순서 추적 (밀리초) · 최근 200건", "发送顺序追踪（毫秒）· 最近200条")}
               </span>
             </CardTitle>
             <div className="flex gap-1 pt-2">
@@ -1534,7 +1536,11 @@ function OrderDetail({
               <Button size="sm" variant={rawTab === "printer" ? "default" : "outline"} onClick={() => setRawTab("printer")} className="gap-1">
                 <Printer className="w-3.5 h-3.5" />{tr("프린터", "打印机")}
               </Button>
+              <Button size="sm" variant={rawTab === "dispatch" ? "default" : "outline"} onClick={() => setRawTab("dispatch")} className="gap-1">
+                <Printer className="w-3.5 h-3.5" />{tr("전송 순서", "发送顺序")}
+              </Button>
             </div>
+
           </CardHeader>
           <CardContent>
             <div className="max-h-[360px] overflow-auto">
