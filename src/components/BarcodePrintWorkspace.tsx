@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { warnLightError, warnLightOkFlash } from "@/lib/warning-light";
-import { pfPrint, pfPrinterStatus, pfPrinterQueue, pfPrinterBufferClear, pfPrinterRun } from "@/lib/pf-printer";
+import { pfPrint, pfPrinterStatus, pfPrinterQueue, pfPrinterBufferClear, pfEnsureReady, type PfErrorCode } from "@/lib/pf-printer";
 import { verifyScanBatch, selectWaitingJobs, mergePrintedAcc, resolvePrintedAt } from "@/lib/barcode-print-logic";
 
 import {
@@ -156,6 +156,13 @@ type SavedItem = {
   status: string;
   test_mode: boolean;
   printed_at: string | null;
+  scanned_at?: string | null;
+  scan_sequence?: number | null;
+  dispatch_status?: "queued" | "dispatching" | "accepted" | "printing" | "printed" | "error";
+  gateway_job_id?: string | null;
+  retry_count?: number;
+  error_code?: string | null;
+  error_detail?: string | null;
 };
 
 export type BarcodeKind = "card" | "tshirt";
@@ -306,6 +313,13 @@ function OrderDetail({
     gatewayJobId: string | null;
     printedAt: string | null;
     error: string | null;
+    errorCode: string | null;
+    responseCode: number | null;
+    retryCount: number;
+    runState: string | null;
+    readyAt: string | null;
+    serialSendAt: string | null;
+    serialResponseAt: string | null;
   };
   const [dispatchLog, setDispatchLog] = useState<DispatchRow[]>([]);
 
@@ -371,7 +385,7 @@ function OrderDetail({
     if (expected.length === 0) return;
     const { data } = await supabase
       .from("barcode_print_items")
-      .select("position, code, status, test_mode, printed_at")
+        .select("position, code, status, test_mode, printed_at, scanned_at, scan_sequence, dispatch_status, gateway_job_id, retry_count, error_code, error_detail")
       .eq("kind", kind)
       .eq("order_id", order.id)
       .order("position");
@@ -380,13 +394,13 @@ function OrderDetail({
     const existing = new Set(rows.map((r) => r.position));
     const missing = expected
       .filter((e) => !existing.has(e.position))
-      .map((e) => ({ kind, order_id: order.id, position: e.position, code: e.no, status: "pending" }));
+      .map((e) => ({ kind, order_id: order.id, position: e.position, code: e.no, status: "pending", dispatch_status: "queued", scan_sequence: e.position }));
     if (missing.length > 0) {
       await supabase.from("barcode_print_items").upsert(missing, { onConflict: "kind,order_id,position" });
     }
     const map: Record<number, SavedItem> = {};
     for (const r of rows) map[r.position] = r;
-    for (const m of missing) map[m.position] = { position: m.position, code: m.code, status: "pending", test_mode: false, printed_at: null };
+    for (const m of missing) map[m.position] = { position: m.position, code: m.code, status: "pending", test_mode: false, printed_at: null, dispatch_status: "queued", scan_sequence: m.scan_sequence };
     setSaved(map);
 
     // 진행 위치 복원 = 스캔 검증이 끝난(인쇄 대기 포함) 마지막 항목
@@ -411,21 +425,25 @@ function OrderDetail({
     await supabase.from("barcode_print_items").upsert(
       {
         kind, order_id: order.id, position, code,
-        status: "queued", verdict: "ok", scanned_value: scannedValue,
+        status: "queued", dispatch_status: "queued", scan_sequence: position, verdict: "ok", scanned_value: scannedValue,
         scanned_at: now, printed_at: null, test_mode: false,
+        gateway_job_id: null, dispatch_started_at: null, gateway_received_at: null,
+        response_code: null, retry_count: 0, error_code: null, error_detail: null,
       },
       { onConflict: "kind,order_id,position" },
     );
-    setSaved((prev) => ({ ...prev, [position]: { position, code, status: "queued", test_mode: false, printed_at: null } }));
+    setSaved((prev) => ({ ...prev, [position]: { position, code, status: "queued", test_mode: false, printed_at: null, scanned_at: now, scan_sequence: position, dispatch_status: "queued", retry_count: 0 } }));
   }, [kind, order.id]);
 
   /** 인쇄 실패 → 대기열 선두에서 멈춤 (다음 항목으로 넘어가지 않음) */
-  const markPrintError = useCallback(async (position: number, code: string, message: string) => {
+  const haltRef = useRef(false);
+  const markPrintError = useCallback(async (position: number, code: string, message: string, errorCode: PfErrorCode = "GATEWAY_ERROR") => {
+    haltRef.current = true;
     await supabase.from("barcode_print_items").upsert(
-      { kind, order_id: order.id, position, code, status: "error", verdict: "print_failed", printed_at: null },
+      { kind, order_id: order.id, position, code, status: "error", dispatch_status: "error", verdict: "print_failed", printed_at: null, error_code: errorCode, error_detail: message },
       { onConflict: "kind,order_id,position" },
     );
-    setSaved((prev) => ({ ...prev, [position]: { position, code, status: "error", test_mode: false, printed_at: null } }));
+    setSaved((prev) => ({ ...prev, [position]: { ...prev[position], position, code, status: "error", dispatch_status: "error", error_code: errorCode, error_detail: message, test_mode: false, printed_at: null } }));
     setHalted(true);
     warmedUpRef.current = false; // 실패 후 프린터가 Stop 으로 돌아갔을 수 있어 재개 시 재예열
     toast.error(`${code} · ${message}`);
@@ -436,12 +454,12 @@ function OrderDetail({
     await supabase.from("barcode_print_items").upsert(
       {
         kind, order_id: order.id, position, code,
-        status: "done", verdict: "ok", scanned_value: scannedValue,
+        status: "done", dispatch_status: "printed", verdict: "ok", scanned_value: scannedValue,
         scanned_at: scannedValue ? now : null, printed_at: now, test_mode: isTest,
       },
       { onConflict: "kind,order_id,position" },
     );
-    setSaved((prev) => ({ ...prev, [position]: { position, code, status: "done", test_mode: isTest, printed_at: now } }));
+    setSaved((prev) => ({ ...prev, [position]: { ...prev[position], position, code, status: "done", dispatch_status: "printed", test_mode: isTest, printed_at: now } }));
   }, [kind, order.id]);
 
 
@@ -462,7 +480,7 @@ function OrderDetail({
     printValueRef.current = (v: string) => map.get(norm(v)) ?? String(v ?? "").trim();
   }, [expected]);
 
-  const sendToPrinter = useCallback(async (code: string): Promise<{ ok: boolean; printed?: boolean; id?: string; error?: string }> => {
+  const sendToPrinter = useCallback(async (code: string) => {
     const payload = String(code ?? "").slice(0, 200);
     const record = (ok: boolean, error: string | null) => {
       setPrinterLog((prev) => [
@@ -478,7 +496,7 @@ function OrderDetail({
       const at = new Date().toISOString();
       setPrintedAcc((prev) => ({ ...prev, [norm(code)]: at }));
     }
-    return r.ok ? { ok: true, printed: r.printed, id: r.id } : { ok: false, error: r.error };
+    return r;
   }, []);
 
 

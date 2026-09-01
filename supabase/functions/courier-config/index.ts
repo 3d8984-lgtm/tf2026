@@ -32,12 +32,23 @@ Deno.serve(async (req) => {
     if (!user) return json({ error: "unauthorized" }, 401);
 
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
-    const { data: isAdmin } = await admin.rpc("is_admin", { _user_id: user.id });
-    if (!isAdmin) return json({ error: "forbidden" }, 403);
-
     const body = await req.json().catch(() => ({}));
     const action = body.action as string;
     const code = (body.code as string | undefined)?.trim();
+
+    if (action === "list_safe") {
+      const { data: approved } = await admin.rpc("is_approved", { _user_id: user.id });
+      if (!approved) return json({ error: "forbidden" }, 403);
+      const { data, error } = await admin
+        .from("courier_configs")
+        .select("id, code, name, enabled, is_default, has_credentials, sort_order")
+        .order("sort_order");
+      if (error) return json({ error: error.message }, 400);
+      return json({ ok: true, couriers: data ?? [] });
+    }
+
+    const { data: isAdmin } = await admin.rpc("is_admin", { _user_id: user.id });
+    if (!isAdmin) return json({ error: "forbidden" }, 403);
 
     if (action === "save_credentials") {
       if (!code) return json({ error: "code required" }, 400);
