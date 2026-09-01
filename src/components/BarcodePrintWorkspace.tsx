@@ -754,9 +754,10 @@ function OrderDetail({
    * 앱 측 대기(queued)/실패(error) 항목을 제거한다. 완료 기록은 유지.
    */
   const clearQueue = useCallback(async () => {
-    const cleared = await pfPrinterQueueClear();
+    // 버퍼 클리어: pending 취소 + 프린터 물리 버퍼(processing)까지 전부 삭제
+    const cleared = await pfPrinterBufferClear();
     const targets = Object.values(saved).filter((s) => s.status === "queued" || s.status === "error");
-    if (targets.length === 0 && cleared.cleared === 0) {
+    if (targets.length === 0 && cleared.cancelledPending === 0 && cleared.failedProcessing === 0) {
       toast.info(tr("초기화할 대기열 항목이 없습니다", "没有可清空的队列项目"));
       return;
     }
