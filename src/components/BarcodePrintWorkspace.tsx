@@ -768,7 +768,7 @@ function OrderDetail({
         const r = await sendToPrinter(printValueRef.current(next.code));
         const ackAt = Date.now();
         setDispatchLog((prev) => prev.map((row) => (row.seq === seq
-          ? { ...row, ackAt, ok: r.ok, gatewayJobId: r.id ?? null, error: r.ok ? null : r.error ?? "send failed", errorCode: r.errorCode ?? null, responseCode: r.responseCode ?? null, retryCount: r.retryCount, serialSendAt: r.serialSendAt ?? null, serialResponseAt: r.serialResponseAt ?? null }
+          ? { ...row, ackAt, ok: r.ok, gatewayJobId: r.id ?? null, error: r.ok ? null : r.error ?? "send failed", errorCode: r.errorCode ?? null, responseCode: r.responseCode ?? null, retryCount: r.retryCount, serialSendAt: r.serialSendAt ?? null, serialResponseAt: r.serialResponseAt ?? null, proxyUpstreamMs: r.timing?.proxyUpstreamMs ?? null }
           : row)));
 
         if (r.ok) {
