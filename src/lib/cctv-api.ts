@@ -35,6 +35,35 @@ export async function cctvFetch(pathOrUrl: string, init?: RequestInit) {
   // The LAN gateway is unauthenticated; sending Supabase headers there would
   // only trigger needless CORS preflights.
   if (direct && target.startsWith(direct)) return fetch(target, init);
+
+  // 조회(GET/HEAD)는 읽기 전용 키로 게이트웨이에 직접 요청한다.
+  const method = (init?.method || "GET").toUpperCase();
+  if (!direct && !pathOrUrl.startsWith("http") && (method === "GET" || method === "HEAD")) {
+    const url = `${CCTV_PUBLIC_BASE}${pathOrUrl.startsWith("/") ? "" : "/"}${pathOrUrl}`;
+    const h = new Headers(init?.headers);
+    h.set("X-API-Key", CCTV_READONLY_KEY);
+    try {
+      const res = await fetch(url, { ...init, headers: h });
+      // 프록시와 동일하게 장비 오프라인(5xx)은 오류가 아닌 상태로 전달한다.
+      if (res.status >= 500) {
+        const body = await res.text().catch(() => "");
+        let payload: Record<string, unknown> = {};
+        try { const p = JSON.parse(body); if (p && typeof p === "object") payload = p; } catch { /* noop */ }
+        return new Response(
+          JSON.stringify({ ...payload, offline: true, upstream_status: res.status }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return res;
+    } catch {
+      return new Response(JSON.stringify({ offline: true, upstream_status: 0 }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  }
+
+
   const headers = new Headers(init?.headers);
   headers.set("apikey", ANON_KEY);
   const session = await supabase.auth.getSession();
