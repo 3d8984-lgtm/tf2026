@@ -677,6 +677,11 @@ function OrderDetail({
     if (busyRef.current) return; // 이미 다른 소비자가 실행 중
     busyRef.current = true;
     try {
+      // 첫 인쇄 전 프린터 예열(Run 모드 전환) — Stop 상태 웜업 타임아웃 방지.
+      // 웜업 실패 시에도 전송은 시도한다 (pfPrint 내부의 NAK 자동 복구가 후속 처리).
+      const hasQueued = Object.values(savedRef.current)
+        .some((s) => s.status === "queued" && !dispatchedRef.current.has(s.position));
+      if (hasQueued && !warmedUpRef.current) await warmupPrinter();
       // 대기열이 빌 때까지 한 건씩 순차 전송 (ACK 후 다음 건)
       // eslint-disable-next-line no-constant-condition
       while (true) {
