@@ -46,6 +46,12 @@ Deno.serve(async (req) => {
   const isPlcStatus = /\/api\/v1\/plc\/[^/]+\/status$/i.test(url.pathname);
   const isPrinterApi = /\/api\/v1\/pf-printer(?:\/|$)/i.test(url.pathname);
 
+  // Stage timing instrumentation: lets the client prove where a slow/failed
+  // printer call actually spent its time (proxy vs upstream gateway/serial).
+  const proxyReceivedAt = new Date().toISOString();
+  const t0 = Date.now();
+  let upstreamStartedMs = 0;
+
   try {
     const controller = new AbortController();
     // Printer requests are governed by the Gateway's serial timeout. Aborting
