@@ -93,10 +93,19 @@ export function pfErrorCode(j: any, status: number): PfErrorCode {
   return "GATEWAY_ERROR";
 }
 
-export function isPfPrintAccepted(resOk: boolean, body: any): body is { accepted: true; id: string } {
-  return resOk === true && body?.accepted === true && typeof body?.id === "string" && body.id.length > 0 &&
-    body?.offline !== true && !body?.error && !body?.error_code;
+/**
+ * 큐 등록 성공 판정.
+ * 서버는 `{accepted:true,id}` 또는 큐 job 객체(`{id,kind:"print",status:"pending"|"processing"|"done"}`)
+ * 중 하나로 응답한다. status 가 pending/processing 이면 "큐에 정상 등록됨" 이므로 성공으로 본다.
+ */
+export function isPfPrintAccepted(resOk: boolean, body: any): body is { accepted?: boolean; id: string } {
+  if (resOk !== true) return false;
+  if (typeof body?.id !== "string" || body.id.length === 0) return false;
+  if (body?.offline === true || body?.error || body?.error_code) return false;
+  if (body?.accepted === true) return true;
+  return body?.status === "pending" || body?.status === "processing" || body?.status === "done";
 }
+
 
 export function pfErrorText(j: any, status: number): string {
   const d = j?.detail;
