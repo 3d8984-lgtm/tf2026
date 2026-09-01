@@ -46,6 +46,13 @@ const sleep = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
  * 최대 PF_TRANSIENT_MAX_ATTEMPTS 회까지 같은 요청을 재전송한다.
  */
 export async function pfFetch(path: string, init?: RequestInit, timeoutMs: number | null = null) {
+  // 상태·큐 조회(GET)는 엣지 프록시를 거치지 않고 읽기 전용 키로 게이트웨이에 직접
+  // 요청한다 — 초 단위 폴링이 Edge Runtime 503(SERVICE_DEGRADED)을 유발하기 때문.
+  const isRead = ((init?.method ?? "GET").toUpperCase() === "GET");
+  const url = isRead ? `${CCTV_PUBLIC_BASE}${path}` : `${PROXY_BASE}${path}`;
+  const authHeaders = isRead
+    ? { "X-API-Key": CCTV_READONLY_KEY }
+    : { apikey: ANON_KEY };
   let last: Response | null = null;
   for (let attempt = 1; attempt <= PF_TRANSIENT_MAX_ATTEMPTS; attempt++) {
     const controller = new AbortController();
@@ -53,10 +60,10 @@ export async function pfFetch(path: string, init?: RequestInit, timeoutMs: numbe
       ? window.setTimeout(() => controller.abort(), timeoutMs)
       : null;
     try {
-      const res = await fetch(`${PROXY_BASE}${path}`, {
+      const res = await fetch(url, {
         ...init,
         signal: init?.signal ?? controller.signal,
-        headers: { apikey: ANON_KEY, "Content-Type": "application/json", ...(init?.headers ?? {}) },
+        headers: { ...authHeaders, "Content-Type": "application/json", ...(init?.headers ?? {}) },
       });
       last = res;
       if (!isTransientStatus(res.status) || attempt === PF_TRANSIENT_MAX_ATTEMPTS) return res;
