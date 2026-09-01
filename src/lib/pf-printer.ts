@@ -31,22 +31,46 @@ export const PF_TRANSMIT_TIMEOUT_MS = 20000;
 const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 
+/** 게이트웨이/프린터 일시 장애(502·503)에서 재전송할 최대 횟수(최초 시도 포함). */
+export const PF_TRANSIENT_MAX_ATTEMPTS = 3;
+const PF_TRANSIENT_RETRY_DELAY_MS = 700;
+const isTransientStatus = (s: number) => s === 502 || s === 503;
+const sleep = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
+
 /**
  * 서버는 프린터 통신을 내부 FIFO 큐로 직렬화한다(/test·/run·/stop·/status 공유).
  * 인쇄 요청(/test)은 실제 물리 인쇄 완료까지 응답이 지연될 수 있으므로 클라이언트
  * 타임아웃을 두지 않는다(timeoutMs = 0/null). 상태·큐 조회만 짧은 타임아웃을 쓴다.
+ *
+ * 502(게이트웨이 오류)·503(프린터 시리얼 연결 끊김) 응답은 즉시 실패로 올리지 않고
+ * 최대 PF_TRANSIENT_MAX_ATTEMPTS 회까지 같은 요청을 재전송한다.
  */
-export function pfFetch(path: string, init?: RequestInit, timeoutMs: number | null = null) {
-  const controller = new AbortController();
-  const timeout = timeoutMs && timeoutMs > 0
-    ? window.setTimeout(() => controller.abort(), timeoutMs)
-    : null;
-  return fetch(`${PROXY_BASE}${path}`, {
-    ...init,
-    signal: init?.signal ?? controller.signal,
-    headers: { apikey: ANON_KEY, "Content-Type": "application/json", ...(init?.headers ?? {}) },
-  }).finally(() => { if (timeout !== null) window.clearTimeout(timeout); });
+export async function pfFetch(path: string, init?: RequestInit, timeoutMs: number | null = null) {
+  let last: Response | null = null;
+  for (let attempt = 1; attempt <= PF_TRANSIENT_MAX_ATTEMPTS; attempt++) {
+    const controller = new AbortController();
+    const timeout = timeoutMs && timeoutMs > 0
+      ? window.setTimeout(() => controller.abort(), timeoutMs)
+      : null;
+    try {
+      const res = await fetch(`${PROXY_BASE}${path}`, {
+        ...init,
+        signal: init?.signal ?? controller.signal,
+        headers: { apikey: ANON_KEY, "Content-Type": "application/json", ...(init?.headers ?? {}) },
+      });
+      last = res;
+      if (!isTransientStatus(res.status) || attempt === PF_TRANSIENT_MAX_ATTEMPTS) return res;
+    } catch (e) {
+      // 네트워크 단절도 일시 장애로 보고 재시도하되, 마지막 시도는 그대로 던진다.
+      if (attempt === PF_TRANSIENT_MAX_ATTEMPTS || (init?.signal ?? controller.signal).aborted) throw e;
+    } finally {
+      if (timeout !== null) window.clearTimeout(timeout);
+    }
+    await sleep(PF_TRANSIENT_RETRY_DELAY_MS * attempt);
+  }
+  return last as Response;
 }
+
 
 
 /** 게이트웨이 에러 응답(FastAPI detail 배열/문자열 모두)에서 사람이 읽을 메시지를 뽑는다. */
