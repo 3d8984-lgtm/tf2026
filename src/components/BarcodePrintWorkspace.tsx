@@ -754,9 +754,10 @@ function OrderDetail({
         const g = gateRef.current;
         if (!g.ready || g.testMode || g.halted || haltRef.current) break;
         // A row claimed by another tab/device is the sole active dispatcher.
-        // 앞선 건이 아직 물리 인쇄 완료되지 않았으면(전송 중/접수/인쇄 대기) 다음 건을 보내지 않는다.
+        // 앞선 건이 실제 0x40 인쇄 완료로 확정되기 전에는 다음 건을 보내지 않는다.
+        // uncertain(결과 미확인) 건이 남아 있어도 판정 전까지는 전송을 멈춘다.
         if (Object.values(savedRef.current).some((s) => s.status === "queued" &&
-          (s.dispatch_status === "dispatching" || s.dispatch_status === "accepted" ||
+          (s.dispatch_status === "dispatching" || s.dispatch_status === "accepted" || s.dispatch_status === "uncertain" ||
            s.dispatch_status === "waiting_for_print" || s.dispatch_status === "printing"))) break;
         const next = Object.values(savedRef.current)
           .filter((s) => s.status === "queued" && (s.dispatch_status ?? "queued") === "queued" && !dispatchedRef.current.has(s.position))
