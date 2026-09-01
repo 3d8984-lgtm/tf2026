@@ -718,7 +718,7 @@ function OrderDetail({
     try {
       // 첫 인쇄 전 RUN/READY를 실제 확인한다. 확인 실패 시 어떤 print도 보내지 않는다.
       const hasQueued = Object.values(savedRef.current)
-        .some((s) => s.status === "queued" && !dispatchedRef.current.has(s.position));
+        .some((s) => s.status === "queued" && (s.dispatch_status ?? "queued") === "queued" && !dispatchedRef.current.has(s.position));
       if (hasQueued && !warmedUpRef.current) {
         const warm = await warmupPrinter();
         if (!warm) {
@@ -732,8 +732,10 @@ function OrderDetail({
       while (true) {
         const g = gateRef.current;
         if (!g.ready || g.testMode || g.halted || haltRef.current) break;
+        // A row claimed by another tab/device is the sole active dispatcher.
+        if (Object.values(savedRef.current).some((s) => s.dispatch_status === "dispatching")) break;
         const next = Object.values(savedRef.current)
-          .filter((s) => s.status === "queued" && !dispatchedRef.current.has(s.position))
+          .filter((s) => s.status === "queued" && (s.dispatch_status ?? "queued") === "queued" && !dispatchedRef.current.has(s.position))
           .sort((a, b) => a.position - b.position)[0];
         if (!next) break;
 
@@ -795,7 +797,7 @@ function OrderDetail({
       busyRef.current = false;
       setInFlightCount(0);
       setPrintingPos(null);
-      if (Object.values(savedRef.current).some((s) => s.status === "queued" && !dispatchedRef.current.has(s.position))) {
+      if (!haltRef.current && Object.values(savedRef.current).some((s) => s.status === "queued" && (s.dispatch_status ?? "queued") === "queued" && !dispatchedRef.current.has(s.position))) {
         setDispatchWake((n) => n + 1);
       }
     }
@@ -819,7 +821,7 @@ function OrderDetail({
   // 확인되는 시점에 비로소 done 으로 확정한다.
   useEffect(() => {
     const pendingConfirm = Object.values(saved).filter(
-      (s) => s.status === "queued" && dispatchedRef.current.has(s.position),
+      (s) => s.status === "queued" && (dispatchedRef.current.has(s.position) || s.dispatch_status === "accepted" || s.dispatch_status === "printing"),
     );
     if (pendingConfirm.length === 0) return;
     for (const s of pendingConfirm) {
@@ -862,6 +864,7 @@ function OrderDetail({
     });
     for (const e of targets) seenRef.current.add(norm(e.no));
     setCursor(Math.max(cursor, ...targets.map((t) => t.position)));
+    haltRef.current = false;
     setHalted(false);
     toast.success(`${tr("인쇄 대기열에 추가했습니다", "已加入打印队列")} · ${targets.length}`);
   }, [expected, saved, kind, order.id, cursor, isKo]);
@@ -895,6 +898,7 @@ function OrderDetail({
         return next;
       });
     }
+    haltRef.current = false;
     setHalted(false);
     toast.success(
       `${tr("인쇄 대기열을 초기화했습니다", "打印队列已清空")} · ${tr("앱", "应用")} ${targets.length} · ${tr("프린터", "打印机")} ${cleared.ok ? cleared.cancelledPending + cleared.failedProcessing : "-"}`,
@@ -921,6 +925,7 @@ function OrderDetail({
       for (const b of bad) next[b.position] = { ...b, status: "queued", dispatch_status: "queued", gateway_job_id: null, error_code: null, error_detail: null };
       return next;
     });
+    haltRef.current = false;
     haltRef.current = false;
     setHalted(false);
   };
@@ -1294,7 +1299,7 @@ function OrderDetail({
                   <RotateCcw className="w-3.5 h-3.5" />{tr("초기화", "复位")}
                 </Button>
                 {halted ? (
-                  <Button size="sm" className="flex-1 gap-1 h-9" onClick={() => { void (errorCount > 0 ? retryFailed() : Promise.resolve(setHalted(false))); }}>
+                  <Button size="sm" className="flex-1 gap-1 h-9" onClick={() => { haltRef.current = false; void (errorCount > 0 ? retryFailed() : Promise.resolve(setHalted(false))); }}>
                     <Play className="w-3.5 h-3.5" />{errorCount > 0 ? tr("재인쇄 후 재개", "重印并恢复") : tr("재개", "恢复")}
                   </Button>
                 ) : (
@@ -1741,7 +1746,7 @@ function OrderDetail({
                         ms == null ? "-" : `${new Date(ms).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN", { hour12: false })}.${String(ms % 1000).padStart(3, "0")}`;
                       return (
                         <tr key={d.seq} className={`border-t ${d.ok === false ? "bg-destructive/5" : ""}`}>
-                          <td className="px-2 py-1.5 tabular-nums">{d.seq}</td>
+                          <td className="px-2 py-1.5 tabular-nums">{d.scanSequence ?? "-"}</td>
                           <td className="px-2 py-1.5 tabular-nums">{d.position < 0 ? "-" : d.position}</td>
                           <td className="px-2 py-1.5 font-mono break-all">{d.code}</td>
                           <td className="px-2 py-1.5 tabular-nums text-muted-foreground whitespace-nowrap">{fmt(d.dispatchAt)}</td>
