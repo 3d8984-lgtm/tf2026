@@ -862,6 +862,8 @@ function OrderDetail({
     // 초기화 직후 기존 게이트웨이 이력이 다시 검증되지 않도록 프라이밍을 다시 수행
     primedRef.current = false;
     processedRef.current = new Set();
+    dispatchedRef.current = new Set();
+    setDispatchLog([]);
     lastCodeRef.current = "";
     await loadSaved();
     toast.success(tr("작업이 초기화되었습니다", "作业已复位"));
