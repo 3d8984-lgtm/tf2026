@@ -120,7 +120,7 @@ export async function pfPrinterStatus(): Promise<PfStatus> {
 
 async function pfMode(mode: "run" | "stop"): Promise<{ ok: boolean; errorCode?: PfErrorCode; error?: string; runState?: string | null }> {
   try {
-    const res = await pfFetch(`/api/v1/pf-printer/${mode}`, { method: "POST", body: "{}" }, 20000);
+    const res = await pfFetch(`/api/v1/pf-printer/${mode}`, { method: "POST", body: "{}" }, null);
     const j: any = await res.json().catch(() => ({}));
     if (res.ok && j?.accepted === true && !j?.error && !j?.error_code && !j?.offline) {
       return { ok: true, runState: typeof j?.running === "boolean" ? (j.running ? "RUN" : "STOP") : null };
@@ -200,7 +200,7 @@ export async function pfPrinterQueue(): Promise<{ jobs: PfQueueJob[]; pendingCou
  */
 export async function pfPrinterQueueClear(): Promise<{ ok: boolean; cleared: number; error?: string }> {
   try {
-    const res = await pfFetch("/api/v1/pf-printer/queue/clear", { method: "POST", body: "{}" }, 15000);
+    const res = await pfFetch("/api/v1/pf-printer/queue/clear", { method: "POST", body: "{}" }, null);
     const j: any = await res.json().catch(() => ({}));
     if (!res.ok || "upstream_status" in (j ?? {})) return { ok: false, cleared: 0, error: pfErrorText(j, res.status) };
     return { ok: true, cleared: typeof j?.cleared === "number" ? j.cleared : 0 };
@@ -218,7 +218,7 @@ export async function pfPrinterQueueClear(): Promise<{ ok: boolean; cleared: num
  */
 export async function pfPrinterBufferClear(): Promise<{ ok: boolean; cancelledPending: number; failedProcessing: number; error?: string }> {
   try {
-    const res = await pfFetch("/api/v1/pf-printer/buffer/clear", { method: "POST", body: "{}" }, 20000);
+    const res = await pfFetch("/api/v1/pf-printer/buffer/clear", { method: "POST", body: "{}" }, null);
     const j: any = await res.json().catch(() => ({}));
     if (!res.ok || "upstream_status" in (j ?? {})) {
       return { ok: false, cancelledPending: 0, failedProcessing: 0, error: pfErrorText(j, res.status) };
@@ -277,8 +277,8 @@ export async function pfPrint(
   });
 
   const attempt = async () => {
-    // 개정 서버는 접수 즉시 응답하므로 긴 대기가 필요 없다(네트워크/직렬화 여유만 둠)
-    const res = await pfFetch("/api/v1/pf-printer/test", { method: "POST", body }, 15000);
+    // 인쇄 요청은 물리 인쇄 완료까지 응답이 지연될 수 있으므로 클라이언트 타임아웃 없음
+    const res = await pfFetch("/api/v1/pf-printer/test", { method: "POST", body }, null);
     const j: any = await res.json().catch(() => ({}));
     return { res, j };
   };
