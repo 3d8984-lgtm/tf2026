@@ -1767,15 +1767,15 @@ function OrderDetail({
                     {history.length === 0 ? (
                       <tr><td colSpan={4} className="px-2 py-6 text-center text-muted-foreground">{tr("게이트웨이 스캔 기록이 없습니다", "网关暂无扫描记录")}</td></tr>
                     ) : history.map((h) => (
-                      <tr key={h.id} className={`border-t ${h.print_status === "failed" && !isCancelledJobError(h.error) ? "bg-destructive/5" : ""}`}>
+                      <tr key={h.id} className={`border-t ${h.print_status === "failed" ? "bg-destructive/5" : ""}`}>
                         <td className="px-2 py-1.5 tabular-nums text-muted-foreground">
                           {new Date(h.scanned_at).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN")}
                         </td>
                         <td className="px-2 py-1.5 font-mono break-all">{h.barcode}</td>
                         <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{h.duration != null ? `${h.duration}s` : "-"}</td>
-                        <td className={`px-2 py-1.5 font-medium ${jobMeta[h.print_status === "failed" && isCancelledJobError(h.error) ? "cancelled" : h.print_status]?.cls ?? "text-muted-foreground"}`}>
-                          {jobMeta[h.print_status === "failed" && isCancelledJobError(h.error) ? "cancelled" : h.print_status]
-                            ? (isKo ? jobMeta[h.print_status === "failed" && isCancelledJobError(h.error) ? "cancelled" : h.print_status].ko : jobMeta[h.print_status === "failed" && isCancelledJobError(h.error) ? "cancelled" : h.print_status].zh)
+                        <td className={`px-2 py-1.5 font-medium ${jobMeta[h.print_status]?.cls ?? "text-muted-foreground"}`}>
+                          {jobMeta[h.print_status]
+                            ? (isKo ? jobMeta[h.print_status].ko : jobMeta[h.print_status].zh)
                             : tr("알 수 없음", "未知")}
                         </td>
                       </tr>
