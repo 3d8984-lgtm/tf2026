@@ -42,6 +42,12 @@ export type Database = {
         Row: {
           code: string
           created_at: string
+          dispatch_started_at: string | null
+          dispatch_status: string
+          error_code: string | null
+          error_detail: string | null
+          gateway_job_id: string | null
+          gateway_received_at: string | null
           id: string
           kind: string
           order_id: string
@@ -49,8 +55,15 @@ export type Database = {
           print_confirmed_at: string | null
           printed_at: string | null
           printer_job_id: string | null
+          printer_ready_at: string | null
+          printer_run_state: string | null
+          response_code: number | null
+          retry_count: number
+          scan_sequence: number | null
           scanned_at: string | null
           scanned_value: string | null
+          serial_response_at: string | null
+          serial_send_at: string | null
           status: string
           test_mode: boolean
           updated_at: string
@@ -60,6 +73,12 @@ export type Database = {
         Insert: {
           code: string
           created_at?: string
+          dispatch_started_at?: string | null
+          dispatch_status?: string
+          error_code?: string | null
+          error_detail?: string | null
+          gateway_job_id?: string | null
+          gateway_received_at?: string | null
           id?: string
           kind: string
           order_id: string
@@ -67,8 +86,15 @@ export type Database = {
           print_confirmed_at?: string | null
           printed_at?: string | null
           printer_job_id?: string | null
+          printer_ready_at?: string | null
+          printer_run_state?: string | null
+          response_code?: number | null
+          retry_count?: number
+          scan_sequence?: number | null
           scanned_at?: string | null
           scanned_value?: string | null
+          serial_response_at?: string | null
+          serial_send_at?: string | null
           status?: string
           test_mode?: boolean
           updated_at?: string
@@ -78,6 +104,12 @@ export type Database = {
         Update: {
           code?: string
           created_at?: string
+          dispatch_started_at?: string | null
+          dispatch_status?: string
+          error_code?: string | null
+          error_detail?: string | null
+          gateway_job_id?: string | null
+          gateway_received_at?: string | null
           id?: string
           kind?: string
           order_id?: string
@@ -85,8 +117,15 @@ export type Database = {
           print_confirmed_at?: string | null
           printed_at?: string | null
           printer_job_id?: string | null
+          printer_ready_at?: string | null
+          printer_run_state?: string | null
+          response_code?: number | null
+          retry_count?: number
+          scan_sequence?: number | null
           scanned_at?: string | null
           scanned_value?: string | null
+          serial_response_at?: string | null
+          serial_send_at?: string | null
           status?: string
           test_mode?: boolean
           updated_at?: string

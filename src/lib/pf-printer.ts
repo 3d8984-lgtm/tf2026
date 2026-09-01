@@ -42,12 +42,36 @@ export function pfFetch(path: string, init?: RequestInit, timeoutMs = 30000) {
 
 
 /** 게이트웨이 에러 응답(FastAPI detail 배열/문자열 모두)에서 사람이 읽을 메시지를 뽑는다. */
+export type PfErrorCode =
+  | "PRINTER_NOT_READY"
+  | "PRINTER_SERIAL_DISCONNECTED"
+  | "PRINTER_NAK"
+  | "PRINTER_RESPONSE_TIMEOUT"
+  | "QUEUE_CANCELLED"
+  | "GATEWAY_OFFLINE"
+  | "INVALID_REQUEST"
+  | "GATEWAY_ERROR";
+
+export function pfErrorCode(j: any, status: number): PfErrorCode {
+  if (typeof j?.error_code === "string" && j.error_code) return j.error_code as PfErrorCode;
+  if (status === 422) return "INVALID_REQUEST";
+  if (status === 503) return "PRINTER_SERIAL_DISCONNECTED";
+  if (status === 504) return "PRINTER_RESPONSE_TIMEOUT";
+  if (status === 409) return "PRINTER_NAK";
+  return "GATEWAY_ERROR";
+}
+
+export function isPfPrintAccepted(resOk: boolean, body: any): body is { accepted: true; id: string } {
+  return resOk === true && body?.accepted === true && typeof body?.id === "string" && body.id.length > 0 &&
+    body?.offline !== true && !body?.error && !body?.error_code;
+}
+
 export function pfErrorText(j: any, status: number): string {
   const d = j?.detail;
   const base = typeof d === "string"
     ? d
     : Array.isArray(d) ? d.map((x: any) => x?.msg ?? String(x)).join(", ") : "";
-  if (/cancelled|queue was cleared/i.test(base)) return "대기열 초기화로 취소된 요청입니다";
+  if (j?.error_code === "QUEUE_CANCELLED") return "대기열 초기화로 취소된 요청입니다";
   const hint =
     status === 409 ? "프린터 NAK (Run 모드 아님 / var length 불일치)"
     : status === 503 ? "프린터 시리얼 포트에 연결할 수 없음"
@@ -57,36 +81,85 @@ export function pfErrorText(j: any, status: number): string {
   return base || hint;
 }
 
-export type PfStatus = { ink_percent: number | null; buffer_count: number | null; offline: boolean };
+export type PfStatus = {
+  ink_percent: number | null;
+  buffer_count: number | null;
+  offline: boolean;
+  running: boolean | null;
+  ready: boolean | null;
+  runState: string | null;
+  errorCode?: PfErrorCode;
+  error?: string;
+};
 
 export async function pfPrinterStatus(): Promise<PfStatus> {
   try {
     const res = await pfFetch("/api/v1/pf-printer/status", undefined, 8000);
     const j: any = await res.json().catch(() => ({}));
-    if (!res.ok || "upstream_status" in (j ?? {})) return { ink_percent: null, buffer_count: null, offline: true };
+    if (!res.ok || j?.offline === true || j?.error || j?.error_code) return {
+      ink_percent: null, buffer_count: null, offline: true, running: null, ready: null, runState: null,
+      errorCode: pfErrorCode(j, res.status), error: pfErrorText(j, res.status),
+    };
+    const state = typeof j?.run_state === "string" ? j.run_state : typeof j?.state === "string" ? j.state : null;
+    const running = typeof j?.running === "boolean" ? j.running : state ? /run/i.test(state) : null;
+    const ready = typeof j?.ready === "boolean" ? j.ready : state ? /ready/i.test(state) : null;
     return {
       ink_percent: typeof j?.ink_percent === "number" ? j.ink_percent : null,
       buffer_count: typeof j?.buffer_count === "number" ? j.buffer_count : null,
       offline: false,
+      running,
+      ready,
+      runState: state ?? (ready ? "READY" : running ? "RUN" : null),
     };
-  } catch {
-    return { ink_percent: null, buffer_count: null, offline: true };
+  } catch (e) {
+    return { ink_percent: null, buffer_count: null, offline: true, running: null, ready: null, runState: null, errorCode: "GATEWAY_OFFLINE", error: String(e) };
   }
 }
 
-async function pfMode(mode: "run" | "stop"): Promise<{ ok: boolean; error?: string }> {
+async function pfMode(mode: "run" | "stop"): Promise<{ ok: boolean; errorCode?: PfErrorCode; error?: string; runState?: string | null }> {
   try {
     const res = await pfFetch(`/api/v1/pf-printer/${mode}`, { method: "POST", body: "{}" }, 20000);
     const j: any = await res.json().catch(() => ({}));
-    if (res.ok && j?.accepted) return { ok: true };
-    return { ok: false, error: pfErrorText(j, res.status) };
+    if (res.ok && j?.accepted === true && !j?.error && !j?.error_code && !j?.offline) {
+      return { ok: true, runState: typeof j?.running === "boolean" ? (j.running ? "RUN" : "STOP") : null };
+    }
+    return { ok: false, errorCode: pfErrorCode(j, res.status), error: pfErrorText(j, res.status) };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, errorCode: "GATEWAY_OFFLINE", error: String(e) };
   }
 }
 
 export const pfPrinterRun = () => pfMode("run");
 export const pfPrinterStop = () => pfMode("stop");
+
+export type PfReadyResult = {
+  ok: boolean;
+  readyAt?: string;
+  runState?: string | null;
+  errorCode?: PfErrorCode;
+  error?: string;
+};
+
+/** RUN 요청 후 Gateway가 명시적으로 READY를 보고할 때까지 기다린다. */
+export async function pfEnsureReady(maxWaitMs = 8000, pollMs = 400): Promise<PfReadyResult> {
+  const run = await pfPrinterRun();
+  if (!run.ok) return run;
+  const started = Date.now();
+  while (Date.now() - started < maxWaitMs) {
+    const status = await pfPrinterStatus();
+    if (status.offline) return { ok: false, errorCode: status.errorCode ?? "GATEWAY_OFFLINE", error: status.error ?? "Gateway offline" };
+    // New gateways expose ready/running explicitly. Older deployed gateways only
+    // return ink/buffer from /status; there, an accepted RUN followed by a
+    // successful serial status round-trip is the strongest READY proof.
+    const explicitReady = status.ready === true && status.running !== false;
+    const legacyReady = status.ready == null && status.running == null && run.runState === "RUN";
+    if (explicitReady || legacyReady) {
+      return { ok: true, readyAt: new Date().toISOString(), runState: status.runState ?? run.runState ?? "READY" };
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, pollMs));
+  }
+  return { ok: false, errorCode: "PRINTER_NOT_READY", error: "프린터가 제한 시간 안에 READY 상태가 되지 않았습니다", runState: "RUN/NOT_READY" };
+}
 
 export type PfQueueJob = {
   id: string;
@@ -164,10 +237,24 @@ export async function pfPrinterBufferClear(): Promise<{ ok: boolean; cancelledPe
  * null/false 면 `id`로 GET /queue 를 폴링해 status="done" && printed=true 를 확인한다.
  * @param padToLength 프린터 QR 객체의 "var length" (미지정 시 서버 기본값 사용, 현장 기본 38)
  */
+export type PfPrintResult = {
+  ok: boolean;
+  printed?: boolean;
+  id?: string;
+  error?: string;
+  errorCode?: PfErrorCode;
+  retryable?: boolean;
+  responseCode?: number;
+  retryCount: number;
+  serialSendAt?: string;
+  serialResponseAt?: string;
+  payload: string;
+};
+
 export async function pfPrint(
   text: string,
   padToLength?: number,
-): Promise<{ ok: boolean; printed?: boolean; id?: string; error?: string; payload: string }> {
+): Promise<PfPrintResult> {
   const payload = String(text ?? "").slice(0, 200);
   const body = JSON.stringify(padToLength ? { text: payload, pad_to_length: padToLength } : { text: payload });
 
@@ -178,39 +265,37 @@ export async function pfPrint(
     return { res, j };
   };
 
-  const sleep = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
-  const detailOf = (j: any) => (typeof j?.detail === "string" ? j.detail : "");
-  // 사용자가 대기열을 비워 취소된 요청은 프린터 NAK 이 아니므로 재시도하지 않는다.
-  const isCancelled = (j: any) => /cancelled|queue was cleared/i.test(detailOf(j));
-  const isNak = (res: Response, j: any) =>
-    !isCancelled(j) && (res.status === 409 || j?.upstream_status === 409 || /NAK/i.test(detailOf(j)));
-  // 유휴 상태의 프린터가 첫 트리거 응답(0x40)을 5초 안에 못 주면 게이트웨이가 이 오류로 실패시킨다.
-  // 이 경우 인쇄는 실제로 되지 않았으므로(서버 큐 status=failed) 안전하게 재전송할 수 있다.
-  const isTimeout = (j: any) => /timed out waiting for printer response/i.test(detailOf(j));
-
   try {
     let { res, j } = await attempt();
-    // 409 = NAK. 대개 Run 모드가 풀린 상태 → Run 전환 후 재시도(최대 2회).
-    // Run 명령 직후 프린터가 모드 전환을 마칠 시간이 필요하므로 짧게 대기한다.
-    for (let i = 0; i < 2 && isNak(res, j); i++) {
-      const run = await pfPrinterRun();
-      if (!run.ok) break;
-      await sleep(400);
-      ({ res, j } = await attempt());
+    let retryCount = 0;
+    let code = pfErrorCode(j, res.status);
+    // Only NAK/not-ready is safe for one frontend retry, and only after an
+    // explicit READY confirmation. Response timeout is never re-POSTed here.
+    if (!isPfPrintAccepted(res.ok, j) &&
+        (code === "PRINTER_NAK" || code === "PRINTER_NOT_READY")) {
+      const ready = await pfEnsureReady();
+      if (ready.ok) {
+        retryCount = 1;
+        ({ res, j } = await attempt());
+        code = pfErrorCode(j, res.status);
+      } else {
+        return { ok: false, errorCode: ready.errorCode, error: ready.error, retryable: false, responseCode: res.status, retryCount, payload };
+      }
     }
-    // 웜업 타임아웃 → 그대로 1회 재전송 (첫 트리거가 프린터를 깨워둔 상태라 대개 즉시 성공)
-    for (let i = 0; i < 1 && !(res.ok && j?.accepted) && isTimeout(j); i++) {
-      await sleep(600);
-      ({ res, j } = await attempt());
-    }
-    if (res.ok && j?.accepted) {
-      return { ok: true, printed: j?.printed === true, id: typeof j?.id === "string" ? j.id : undefined, payload };
-    }
-    return { ok: false, error: pfErrorText(j, res.status), payload };
-
-
+    const validSuccess = isPfPrintAccepted(res.ok, j);
+    if (validSuccess) return {
+      ok: true, printed: j?.printed === true, id: j.id, responseCode: res.status, retryCount,
+      serialSendAt: typeof j?.serial_send_at === "string" ? j.serial_send_at : undefined,
+      serialResponseAt: typeof j?.serial_response_at === "string" ? j.serial_response_at : undefined,
+      payload,
+    };
+    return {
+      ok: false, errorCode: code, error: pfErrorText(j, res.status), retryable: j?.retryable === true,
+      id: typeof j?.gateway_job_id === "string" ? j.gateway_job_id : typeof j?.id === "string" ? j.id : undefined,
+      responseCode: res.status, retryCount, payload,
+    };
   } catch (e) {
-    return { ok: false, error: String(e), payload };
+    return { ok: false, errorCode: "GATEWAY_OFFLINE", error: String(e), retryable: false, retryCount: 0, payload };
   }
 }
 

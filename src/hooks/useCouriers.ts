@@ -21,9 +21,10 @@ export function useCouriers(onlyEnabled = false) {
   return useQuery({
     queryKey: ["courier_configs_safe", onlyEnabled],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("list_couriers_safe");
+      const { data, error } = await supabase.functions.invoke("courier-config", { body: { action: "list_safe" } });
       if (error) throw error;
-      const rows = (data ?? []) as unknown as CourierConfigRow[];
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const rows = ((data as any)?.couriers ?? []) as CourierConfigRow[];
       return onlyEnabled ? rows.filter((r) => r.enabled) : rows;
     },
   });
