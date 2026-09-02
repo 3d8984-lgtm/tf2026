@@ -705,9 +705,12 @@ function OrderDetail({
               if (!gateway) continue;
               // 사용자가 대기열/버퍼를 초기화해 취소된 작업은 오류가 아니라 "다시 대기"로 되돌린다.
               const cancelled = gateway.status === "failed" && isCancelledJobError(gateway.error);
+              // 연결 끊김류 오류는 실제로는 출력된 경우가 많으므로 확정 실패로 보지 않는다.
+              const transient = gateway.status === "failed" && !cancelled && isTransientPrinterError(gateway.error);
               const dispatchStatus = gateway.status === "printing"
                 ? "printing"
                 : cancelled ? "queued"
+                : transient ? "uncertain"
                 : gateway.status === "failed" ? "error"
                 : gateway.status === "done" && gateway.printed !== false ? "printed"
                 : gateway.status === "pending" ? "waiting_for_print"
