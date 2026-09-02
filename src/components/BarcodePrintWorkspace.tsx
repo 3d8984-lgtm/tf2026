@@ -398,8 +398,8 @@ function OrderDetail({
         at: s.scanned_at as string,
         barcode: s.scanned_value ?? s.code,
         verdict: (s.verdict === "ok" || s.verdict === "order" || s.verdict === "mismatch" || s.verdict === "duplicate" ? s.verdict : "ok") as Verdict,
-        // 기대값은 판정 시점에 저장된 값을 그대로 표시 (과거 이력은 순번 기준으로 폴백)
-        expected: s.expected_value ?? expected[s.position - 1]?.no ?? null,
+        // 기대값 = 주문 상세 목록(스캔 순서)의 해당 순번 값. 저장값은 폴백으로만 사용
+        expected: expected[s.position - 1]?.no ?? s.expected_value ?? null,
         position: s.position,
       }))
       .sort((a, b) => ts(b.at) - ts(a.at) || (b.position ?? 0) - (a.position ?? 0))
