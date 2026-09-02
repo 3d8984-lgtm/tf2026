@@ -386,6 +386,21 @@ function OrderDetail({
   // 기대 스캔 순서 = 고유번호(개별 주문번호 + suffix) 순서
   const expected = useMemo(() => buildExpected(order, suffix), [order, suffix]);
 
+  /** 스캔 검증 로그 = 서버에 저장된 판정(verdict) 을 그대로 렌더 (모든 기기 동일) */
+  const log = useMemo<LogRow[]>(() => {
+    return Object.values(saved)
+      .filter((s) => s.verdict != null && s.scanned_at)
+      .map((s) => ({
+        at: s.scanned_at as string,
+        barcode: s.scanned_value ?? s.code,
+        verdict: (s.verdict === "ok" || s.verdict === "order" || s.verdict === "mismatch" || s.verdict === "duplicate" ? s.verdict : "ok") as Verdict,
+        expected: expected[s.position - 1]?.no ?? null,
+        position: s.position,
+      }))
+      .sort((a, b) => ts(b.at) - ts(a.at) || (b.position ?? 0) - (a.position ?? 0))
+      .slice(0, 100);
+  }, [saved, expected]);
+
   // 서버에 저장된 작업 이력 로드 / 없으면 생성
   const loadSaved = useCallback(async () => {
     if (expected.length === 0) return;
