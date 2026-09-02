@@ -291,7 +291,7 @@ function OrderDetail({
 
   const [jobs, setJobs] = useState<PrintJob[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
-  const [log, setLog] = useState<LogRow[]>([]);
+  // 스캔 판정 로그는 로컬 상태가 아니라 서버(barcode_print_items)에서 파생한다.
   const [cursor, setCursor] = useState(0);
   const [lastVerdict, setLastVerdict] = useState<Verdict | null>(null);
   const [halted, setHalted] = useState(false);
