@@ -425,10 +425,10 @@ function OrderDetail({
     if (missing.length > 0) {
       await supabase.from("barcode_print_items").upsert(missing, { onConflict: "kind,order_id,position" });
     }
-    // 기존 행 중 기대값이 비어 있는 것은 주문 순서대로 미리 채워둠
+    // 기존 행의 기대값이 비었거나 주문 순서와 다르면 주문 상세 목록 값으로 교정
     const backfill = expected.filter((e) => {
       const r = map0(e.position);
-      return r && !r.expected_value;
+      return r && r.expected_value !== e.no;
     });
     function map0(pos: number) { return rows.find((r) => r.position === pos); }
     for (const b of backfill) {
