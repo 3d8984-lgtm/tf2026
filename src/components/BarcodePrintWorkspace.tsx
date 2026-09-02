@@ -505,7 +505,7 @@ function OrderDetail({
       const next = { ...prev };
       for (const p of payload) {
         const cur = next[p.position];
-        next[p.position] = { ...(cur ?? { position: p.position, code: p.code, status: "pending", test_mode: false, printed_at: null }), verdict: p.verdict, scanned_value: p.scanned_value, scanned_at: p.scanned_at };
+        next[p.position] = { ...(cur ?? { position: p.position, code: p.code, status: "pending", test_mode: false, printed_at: null }), verdict: p.verdict, scanned_value: p.scanned_value, scanned_at: p.scanned_at, expected_value: p.expected_value };
       }
       return next;
     });
