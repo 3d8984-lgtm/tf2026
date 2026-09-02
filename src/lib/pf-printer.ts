@@ -51,33 +51,47 @@ export async function pfFetch(path: string, init?: RequestInit, timeoutMs: numbe
   // 상태·큐 조회(GET)는 엣지 프록시를 거치지 않고 읽기 전용 키로 게이트웨이에 직접
   // 요청한다 — 초 단위 폴링이 Edge Runtime 503(SERVICE_DEGRADED)을 유발하기 때문.
   const isRead = ((init?.method ?? "GET").toUpperCase() === "GET");
-  const url = isRead ? `${CCTV_PUBLIC_BASE}${path}` : `${PROXY_BASE}${path}`;
-  const authHeaders = isRead
-    ? { "X-API-Key": CCTV_READONLY_KEY }
-    : { apikey: ANON_KEY };
+  // 게이트웨이가 아직 CORS(Access-Control-Allow-Origin / X-API-Key 허용)를
+  // 열어주지 않은 환경에서는 브라우저 직접 호출이 TypeError로 차단된다.
+  // 이 경우 엣지 프록시(CORS 허용됨)로 자동 폴백해 모든 기기에서 동작하게 한다.
+  const targets = isRead
+    ? [
+        { url: `${CCTV_PUBLIC_BASE}${path}`, authHeaders: { "X-API-Key": CCTV_READONLY_KEY } as Record<string, string> },
+        { url: `${PROXY_BASE}${path}`, authHeaders: { apikey: ANON_KEY } as Record<string, string> },
+      ]
+    : [{ url: `${PROXY_BASE}${path}`, authHeaders: { apikey: ANON_KEY } as Record<string, string> }];
   let last: Response | null = null;
-  for (let attempt = 1; attempt <= PF_TRANSIENT_MAX_ATTEMPTS; attempt++) {
-    const controller = new AbortController();
-    const timeout = timeoutMs && timeoutMs > 0
-      ? window.setTimeout(() => controller.abort(), timeoutMs)
-      : null;
-    try {
-      const res = await fetch(url, {
-        ...init,
-        signal: init?.signal ?? controller.signal,
-        headers: { ...authHeaders, "Content-Type": "application/json", ...(init?.headers ?? {}) },
-      });
-      last = res;
-      if (!isTransientStatus(res.status) || attempt === PF_TRANSIENT_MAX_ATTEMPTS) return res;
-    } catch (e) {
-      // 네트워크 단절도 일시 장애로 보고 재시도하되, 마지막 시도는 그대로 던진다.
-      if (attempt === PF_TRANSIENT_MAX_ATTEMPTS || (init?.signal ?? controller.signal).aborted) throw e;
-    } finally {
-      if (timeout !== null) window.clearTimeout(timeout);
+  let lastErr: unknown = null;
+  for (let t = 0; t < targets.length; t++) {
+    const { url, authHeaders } = targets[t];
+    const isLastTarget = t === targets.length - 1;
+    for (let attempt = 1; attempt <= PF_TRANSIENT_MAX_ATTEMPTS; attempt++) {
+      const controller = new AbortController();
+      const timeout = timeoutMs && timeoutMs > 0
+        ? window.setTimeout(() => controller.abort(), timeoutMs)
+        : null;
+      try {
+        const res = await fetch(url, {
+          ...init,
+          signal: init?.signal ?? controller.signal,
+          headers: { ...authHeaders, "Content-Type": "application/json", ...(init?.headers ?? {}) },
+        });
+        last = res;
+        if (!isTransientStatus(res.status) || attempt === PF_TRANSIENT_MAX_ATTEMPTS) return res;
+      } catch (e) {
+        lastErr = e;
+        // CORS 차단·네트워크 단절(TypeError)이면 다음 타깃(프록시)으로 즉시 폴백한다.
+        if (!isLastTarget && e instanceof TypeError && !(init?.signal ?? controller.signal).aborted) break;
+        // 네트워크 단절도 일시 장애로 보고 재시도하되, 마지막 시도는 그대로 던진다.
+        if (attempt === PF_TRANSIENT_MAX_ATTEMPTS || (init?.signal ?? controller.signal).aborted) throw e;
+      } finally {
+        if (timeout !== null) window.clearTimeout(timeout);
+      }
+      await sleep(PF_TRANSIENT_RETRY_DELAY_MS * attempt);
     }
-    await sleep(PF_TRANSIENT_RETRY_DELAY_MS * attempt);
   }
-  return last as Response;
+  if (last) return last;
+  throw lastErr;
 }
 
 
