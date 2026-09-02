@@ -425,6 +425,15 @@ function OrderDetail({
     if (missing.length > 0) {
       await supabase.from("barcode_print_items").upsert(missing, { onConflict: "kind,order_id,position" });
     }
+    // 기존 행 중 기대값이 비어 있는 것은 주문 순서대로 미리 채워둠
+    const backfill = expected.filter((e) => {
+      const r = map0(e.position);
+      return r && !r.expected_value;
+    });
+    function map0(pos: number) { return rows.find((r) => r.position === pos); }
+    for (const b of backfill) {
+      await supabase.from("barcode_print_items").update({ expected_value: b.no } as any).eq("kind", kind).eq("order_id", order.id).eq("position", b.position);
+    }
     const map: Record<number, SavedItem> = {};
     for (const r of rows) map[r.position] = r;
     for (const m of missing) map[m.position] = { position: m.position, code: m.code, status: "pending", test_mode: false, printed_at: null, dispatch_status: "queued", scan_sequence: m.scan_sequence };
