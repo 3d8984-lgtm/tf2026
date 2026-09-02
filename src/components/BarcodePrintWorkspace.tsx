@@ -448,8 +448,38 @@ function OrderDetail({
       },
       { onConflict: "kind,order_id,position" },
     );
-    setSaved((prev) => ({ ...prev, [position]: { position, code, status: "queued", test_mode: false, printed_at: null, scanned_at: now, scan_sequence: position, dispatch_status: "queued", retry_count: 0 } }));
+    setSaved((prev) => ({ ...prev, [position]: { position, code, status: "queued", test_mode: false, printed_at: null, scanned_at: now, scanned_value: scannedValue, verdict: "ok", scan_sequence: position, dispatch_status: "queued", retry_count: 0 } }));
   }, [kind, order.id]);
+
+  /**
+   * 스캔 검증 실패(order/mismatch/duplicate)도 서버에 기록한다.
+   * 판정은 브라우저마다 따로 계산하지 않고 이 테이블 값을 읽어 그린다 → 기기별 결과 차이 제거.
+   */
+  const saveVerdicts = useCallback(async (rows: Array<{ at: string; barcode: string; verdict: string; position: number | null }>) => {
+    const now = new Date().toISOString();
+    const payload = rows
+      .map((r) => {
+        const pos = r.position ?? null;
+        if (pos == null) return null;
+        const code = expected[pos - 1]?.no;
+        if (!code) return null;
+        return {
+          kind, order_id: order.id, position: pos, code,
+          verdict: r.verdict, scanned_value: r.barcode, scanned_at: r.at || now, scan_sequence: pos,
+        };
+      })
+      .filter(Boolean) as any[];
+    if (payload.length === 0) return;
+    await supabase.from("barcode_print_items").upsert(payload, { onConflict: "kind,order_id,position" });
+    setSaved((prev) => {
+      const next = { ...prev };
+      for (const p of payload) {
+        const cur = next[p.position];
+        next[p.position] = { ...(cur ?? { position: p.position, code: p.code, status: "pending", test_mode: false, printed_at: null }), verdict: p.verdict, scanned_value: p.scanned_value, scanned_at: p.scanned_at };
+      }
+      return next;
+    });
+  }, [expected, kind, order.id]);
 
   /** 인쇄 실패 → 대기열 선두에서 멈춤 (다음 항목으로 넘어가지 않음) */
   const haltRef = useRef(false);
