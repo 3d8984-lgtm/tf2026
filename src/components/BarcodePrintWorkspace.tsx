@@ -872,12 +872,10 @@ function OrderDetail({
       } finally {
         verifyBusyRef.current = false;
       }
-      // 경고등: 불일치 시 적색 점등(유지), 통과 시 녹색 점등(0.5초 후 자동 소등)
+      // 경고등: 불일치(문제) 시에만 적색 점등(유지). 통과 시에는 점등하지 않음.
       if (newHalt) {
         if (!haltRef.current) void warnLightError();
         setHalted(true);
-      } else if (okCount > 0) {
-        void warnLightOkPulses(okCount);
       }
     })();
   }, [queue, ready, testMode, kind, order.id, loadSaved]);
