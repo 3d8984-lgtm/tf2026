@@ -180,6 +180,53 @@ export type Database = {
           },
         ]
       }
+      barcode_scan_events: {
+        Row: {
+          created_at: string
+          event_id: string
+          expected_value: string | null
+          id: string
+          kind: string
+          order_id: string
+          position: number | null
+          scanned_at: string
+          scanned_value: string
+          verdict: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          expected_value?: string | null
+          id?: string
+          kind: string
+          order_id: string
+          position?: number | null
+          scanned_at?: string
+          scanned_value: string
+          verdict: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          expected_value?: string | null
+          id?: string
+          kind?: string
+          order_id?: string
+          position?: number | null
+          scanned_at?: string
+          scanned_value?: string
+          verdict?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "barcode_scan_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       callback_settings: {
         Row: {
           auth_header: string
@@ -2108,6 +2155,23 @@ export type Database = {
           is_default: boolean
           name: string
           sort_order: number
+        }[]
+      }
+      verify_barcode_scan: {
+        Args: {
+          _event_id: string
+          _kind: string
+          _order_id: string
+          _scanned_at?: string
+          _value: string
+        }
+        Returns: {
+          cursor_pos: number
+          duplicate_event: boolean
+          is_halted: boolean
+          item_position: number
+          out_expected: string
+          out_verdict: string
         }[]
       }
     }
