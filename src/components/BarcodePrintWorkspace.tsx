@@ -158,6 +158,8 @@ type SavedItem = {
   printed_at: string | null;
   scanned_at?: string | null;
   scanned_value?: string | null;
+  /** 판정 시점에 시스템이 기대했던 값 (로그 표시용 — 렌더 시점 재계산 금지) */
+  expected_value?: string | null;
   verdict?: string | null;
   scan_sequence?: number | null;
   dispatch_status?: "queued" | "dispatching" | "uncertain" | "accepted" | "waiting_for_print" | "printing" | "printed" | "error";
@@ -394,7 +396,8 @@ function OrderDetail({
         at: s.scanned_at as string,
         barcode: s.scanned_value ?? s.code,
         verdict: (s.verdict === "ok" || s.verdict === "order" || s.verdict === "mismatch" || s.verdict === "duplicate" ? s.verdict : "ok") as Verdict,
-        expected: expected[s.position - 1]?.no ?? null,
+        // 기대값은 판정 시점에 저장된 값을 그대로 표시 (과거 이력은 순번 기준으로 폴백)
+        expected: s.expected_value ?? expected[s.position - 1]?.no ?? null,
         position: s.position,
       }))
       .sort((a, b) => ts(b.at) - ts(a.at) || (b.position ?? 0) - (a.position ?? 0))
@@ -406,7 +409,7 @@ function OrderDetail({
     if (expected.length === 0) return;
     const { data } = await supabase
       .from("barcode_print_items")
-        .select("position, code, status, test_mode, printed_at, scanned_at, scanned_value, verdict, scan_sequence, dispatch_status, gateway_job_id, retry_count, error_code, error_detail")
+        .select("position, code, status, test_mode, printed_at, scanned_at, scanned_value, expected_value, verdict, scan_sequence, dispatch_status, gateway_job_id, retry_count, error_code, error_detail")
       .eq("kind", kind)
       .eq("order_id", order.id)
       .order("position");
