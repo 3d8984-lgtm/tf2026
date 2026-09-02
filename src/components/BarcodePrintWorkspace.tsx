@@ -5,8 +5,6 @@ import PageHeader from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { warnLightError, warnLightOkFlash } from "@/lib/warning-light";
 import { pfPrint, pfPrinterStatus, pfPrinterQueue, pfPrinterBufferClear, type PfErrorCode } from "@/lib/pf-printer";
@@ -299,7 +297,7 @@ function OrderDetail({
   const cursorRef = useRef(0);
   const [lastVerdict, setLastVerdict] = useState<Verdict | null>(null);
   const [halted, setHalted] = useState(false);
-  const [testMode, setTestMode] = useState(false);
+  const [testMode] = useState(false);
   const [saved, setSaved] = useState<Record<number, SavedItem>>({});
   const savedRef = useRef<Record<number, SavedItem>>({});
   savedRef.current = saved;
@@ -385,8 +383,6 @@ function OrderDetail({
     return () => { alive = false; clearInterval(iv); };
   }, [kind, order.id]);
 
-  const [printerTestText, setPrinterTestText] = useState("TEST123");
-  const [printerTesting, setPrinterTesting] = useState(false);
   // 라벨 명령 템플릿은 백엔드(게이트웨이)에서 관리하므로 화면 설정 없음
 
   const seenRef = useRef<Set<string>>(new Set());
