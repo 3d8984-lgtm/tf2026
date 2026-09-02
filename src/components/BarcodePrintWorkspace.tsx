@@ -504,8 +504,8 @@ function OrderDetail({
         return {
           kind, order_id: order.id, position: pos, code,
           verdict: r.verdict, scanned_value: r.barcode, scanned_at: r.at || now, scan_sequence: pos,
-          // 판정 시점에 실제로 기대했던 값을 함께 저장 → 로그가 기기와 무관하게 동일하게 표시된다
-          expected_value: r.expected ?? code,
+          // 기대값은 항상 주문 상세 목록의 해당 순번 값 (판정 시점 커서 값으로 덮어쓰지 않는다)
+          expected_value: code,
         };
       })
       .filter(Boolean) as any[];
