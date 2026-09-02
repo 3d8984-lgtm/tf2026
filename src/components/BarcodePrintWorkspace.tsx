@@ -158,6 +158,8 @@ type SavedItem = {
   printed_at: string | null;
   scanned_at?: string | null;
   scanned_value?: string | null;
+  /** 판정 시점에 시스템이 기대했던 값 (로그 표시용 — 렌더 시점 재계산 금지) */
+  expected_value?: string | null;
   verdict?: string | null;
   scan_sequence?: number | null;
   dispatch_status?: "queued" | "dispatching" | "uncertain" | "accepted" | "waiting_for_print" | "printing" | "printed" | "error";
@@ -236,7 +238,7 @@ export default function BarcodePrintWorkspace(props: BarcodePrintWorkspaceProps)
   }, [selected, orders.length, suffix, isKo]);
 
   if (selected) {
-    return <OrderDetail order={selected} onBack={() => setSelected(null)} {...props} />;
+    return <OrderDetail key={selected.id} order={selected} onBack={() => setSelected(null)} {...props} />;
   }
 
   return (
@@ -293,6 +295,8 @@ function OrderDetail({
   const [pendingCount, setPendingCount] = useState(0);
   // 스캔 판정 로그는 로컬 상태가 아니라 서버(barcode_print_items)에서 파생한다.
   const [cursor, setCursor] = useState(0);
+  /** 검증에 사용하는 로컬 커서 — 서버 파생 커서와 max 로 병합해 동기화 지연 오판정을 막는다 */
+  const cursorRef = useRef(0);
   const [lastVerdict, setLastVerdict] = useState<Verdict | null>(null);
   const [halted, setHalted] = useState(false);
   const [testMode, setTestMode] = useState(false);
@@ -394,7 +398,8 @@ function OrderDetail({
         at: s.scanned_at as string,
         barcode: s.scanned_value ?? s.code,
         verdict: (s.verdict === "ok" || s.verdict === "order" || s.verdict === "mismatch" || s.verdict === "duplicate" ? s.verdict : "ok") as Verdict,
-        expected: expected[s.position - 1]?.no ?? null,
+        // 기대값은 판정 시점에 저장된 값을 그대로 표시 (과거 이력은 순번 기준으로 폴백)
+        expected: s.expected_value ?? expected[s.position - 1]?.no ?? null,
         position: s.position,
       }))
       .sort((a, b) => ts(b.at) - ts(a.at) || (b.position ?? 0) - (a.position ?? 0))
@@ -406,7 +411,7 @@ function OrderDetail({
     if (expected.length === 0) return;
     const { data } = await supabase
       .from("barcode_print_items")
-        .select("position, code, status, test_mode, printed_at, scanned_at, scanned_value, verdict, scan_sequence, dispatch_status, gateway_job_id, retry_count, error_code, error_detail")
+        .select("position, code, status, test_mode, printed_at, scanned_at, scanned_value, expected_value, verdict, scan_sequence, dispatch_status, gateway_job_id, retry_count, error_code, error_detail")
       .eq("kind", kind)
       .eq("order_id", order.id)
       .order("position");
@@ -426,16 +431,23 @@ function OrderDetail({
 
     // 진행 위치 복원 = 스캔 검증이 끝난(인쇄 대기 포함) 마지막 항목
     let c = 0;
-    seenRef.current = new Set();
+    const seenNext = new Set<string>();
     for (const e of expected) {
       const it = map[e.position];
       const st = it?.status;
       const v = it?.verdict ?? null;
       const passed = (st === "done" || st === "queued" || st === "error") && (v === null || v === "ok" || v === "print_failed");
-      if (passed) { c = e.position; seenRef.current.add(norm(e.no)); }
+      if (passed) {
+        c = e.position;
+        seenNext.add(norm(e.no));
+        if (it?.scanned_value) seenNext.add(norm(it.scanned_value));
+      }
       else break;
     }
-    setCursor(c);
+    // 다른 기기가 더 앞서 처리한 상태가 서버에 있으면 그쪽을 따른다 (뒤로 후퇴하지 않음)
+    seenRef.current = new Set([...seenRef.current, ...seenNext]);
+    cursorRef.current = Math.max(cursorRef.current, c);
+    setCursor(cursorRef.current);
     // 인쇄 실패 또는 서버에 기록된 검증 실패가 남아있으면 작업을 중단 상태로 복원
     setHalted(Object.values(map).some((s) => s.status === "error" || (s.verdict != null && s.verdict !== "ok")));
     setReady(true);
@@ -457,20 +469,21 @@ function OrderDetail({
       {
         kind, order_id: order.id, position, code,
         status: "queued", dispatch_status: "queued", scan_sequence: position, verdict: "ok", scanned_value: scannedValue,
+        expected_value: code,
         scanned_at: now, printed_at: null, test_mode: false,
         gateway_job_id: null, dispatch_started_at: null, gateway_received_at: null,
         response_code: null, retry_count: 0, error_code: null, error_detail: null,
-      },
+      } as any,
       { onConflict: "kind,order_id,position" },
     );
-    setSaved((prev) => ({ ...prev, [position]: { position, code, status: "queued", test_mode: false, printed_at: null, scanned_at: now, scanned_value: scannedValue, verdict: "ok", scan_sequence: position, dispatch_status: "queued", retry_count: 0 } }));
+    setSaved((prev) => ({ ...prev, [position]: { position, code, status: "queued", test_mode: false, printed_at: null, scanned_at: now, scanned_value: scannedValue, expected_value: code, verdict: "ok", scan_sequence: position, dispatch_status: "queued", retry_count: 0 } }));
   }, [kind, order.id]);
 
   /**
    * 스캔 검증 실패(order/mismatch/duplicate)도 서버에 기록한다.
    * 판정은 브라우저마다 따로 계산하지 않고 이 테이블 값을 읽어 그린다 → 기기별 결과 차이 제거.
    */
-  const saveVerdicts = useCallback(async (rows: Array<{ at: string; barcode: string; verdict: string; position: number | null }>) => {
+  const saveVerdicts = useCallback(async (rows: Array<{ at: string; barcode: string; verdict: string; position: number | null; expected?: string | null }>) => {
     const now = new Date().toISOString();
     const payload = rows
       .map((r) => {
@@ -481,6 +494,8 @@ function OrderDetail({
         return {
           kind, order_id: order.id, position: pos, code,
           verdict: r.verdict, scanned_value: r.barcode, scanned_at: r.at || now, scan_sequence: pos,
+          // 판정 시점에 실제로 기대했던 값을 함께 저장 → 로그가 기기와 무관하게 동일하게 표시된다
+          expected_value: r.expected ?? code,
         };
       })
       .filter(Boolean) as any[];
@@ -490,7 +505,7 @@ function OrderDetail({
       const next = { ...prev };
       for (const p of payload) {
         const cur = next[p.position];
-        next[p.position] = { ...(cur ?? { position: p.position, code: p.code, status: "pending", test_mode: false, printed_at: null }), verdict: p.verdict, scanned_value: p.scanned_value, scanned_at: p.scanned_at };
+        next[p.position] = { ...(cur ?? { position: p.position, code: p.code, status: "pending", test_mode: false, printed_at: null }), verdict: p.verdict, scanned_value: p.scanned_value, scanned_at: p.scanned_at, expected_value: p.expected_value };
       }
       return next;
     });
@@ -744,7 +759,8 @@ function OrderDetail({
     const res = verifyScanBatch({
       events,
       expected,
-      cursor,
+      // 서버 동기화 지연으로 로컬 커서가 뒤처져 있어도 cursorRef 는 최신 값을 유지한다
+      cursor: Math.max(cursor, cursorRef.current),
       seen: seenRef.current,
       halted,
       lastCode: lastCodeRef.current,
@@ -759,6 +775,7 @@ function OrderDetail({
     // 실패 판정도 서버에 기록 → 모든 기기가 동일한 로그/중단 상태를 본다
     const failed = res.rows.filter((r) => r.verdict !== "ok");
     if (failed.length > 0) void saveVerdicts(failed);
+    cursorRef.current = res.cursor;
     setCursor(res.cursor);
     setLastVerdict(res.lastVerdict);
     if (res.halted) setHalted(true);
@@ -1105,6 +1122,7 @@ function OrderDetail({
     setQueue([]);
     setPendingCount(0);
     seenRef.current = new Set();
+    cursorRef.current = 0;
     setCursor(0);
     setSaved({});
     setLastVerdict(null);
@@ -1125,13 +1143,16 @@ function OrderDetail({
   const resumeFrom = async (position: number) => {
     await supabase
       .from("barcode_print_items")
-      .update({ status: "pending", dispatch_status: "queued", verdict: null, scanned_value: null, scanned_at: null, printed_at: null, gateway_job_id: null, dispatch_started_at: null, gateway_received_at: null, error_code: null, error_detail: null })
+      .update({ status: "pending", dispatch_status: "queued", verdict: null, scanned_value: null, expected_value: null, scanned_at: null, printed_at: null, gateway_job_id: null, dispatch_started_at: null, gateway_received_at: null, error_code: null, error_detail: null } as any)
       .eq("kind", kind).eq("order_id", order.id).gte("position", position);
     for (const p of Array.from(dispatchedRef.current)) if (p >= position) dispatchedRef.current.delete(p);
     haltRef.current = false;
     setHalted(false);
     setLastVerdict(null);
     lastCodeRef.current = "";
+    // 커서/스캔 이력을 서버 상태 기준으로 다시 계산해야 하므로 로컬 누적을 비운다
+    cursorRef.current = 0;
+    seenRef.current = new Set();
     await loadSaved();
     toast.success(tr(`${position}번부터 다시 작업합니다`, `从第 ${position} 项重新作业`));
   };

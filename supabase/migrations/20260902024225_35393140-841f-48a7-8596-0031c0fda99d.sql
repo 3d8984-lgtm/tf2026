@@ -1,0 +1,1 @@
+ALTER TABLE public.barcode_print_items ADD COLUMN IF NOT EXISTS expected_value text;

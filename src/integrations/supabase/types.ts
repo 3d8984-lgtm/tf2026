@@ -46,6 +46,7 @@ export type Database = {
           dispatch_status: string
           error_code: string | null
           error_detail: string | null
+          expected_value: string | null
           gateway_job_id: string | null
           gateway_received_at: string | null
           id: string
@@ -77,6 +78,7 @@ export type Database = {
           dispatch_status?: string
           error_code?: string | null
           error_detail?: string | null
+          expected_value?: string | null
           gateway_job_id?: string | null
           gateway_received_at?: string | null
           id?: string
@@ -108,6 +110,7 @@ export type Database = {
           dispatch_status?: string
           error_code?: string | null
           error_detail?: string | null
+          expected_value?: string | null
           gateway_job_id?: string | null
           gateway_received_at?: string | null
           id?: string
