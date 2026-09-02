@@ -1194,59 +1194,6 @@ function OrderDetail({
     );
   };
 
-  // 테스트 모드 순차 인쇄
-  // 물리 인쇄 완료까지 기다리지 않는다 — 서버 큐에 정상 등록(accepted / status=pending|processing)되면
-  // 즉시 다음 항목으로 넘어가고, 실제 완료는 큐 폴링(waiting_for_print → printed)으로 확정한다.
-  const printNextTest = async () => {
-    const target = expected[cursor];
-    if (!target) return;
-    const r = await sendToPrinter(printValueRef.current(target.no));
-    if (r.ok) {
-      if (r.printed) {
-        await markDone(target.position, target.no, null, true);
-      } else {
-        const now = new Date().toISOString();
-        await supabase.from("barcode_print_items").upsert(
-          {
-            kind, order_id: order.id, position: target.position, code: target.no,
-            status: "queued", dispatch_status: "waiting_for_print", scan_sequence: target.position,
-            verdict: "ok", scanned_value: null, scanned_at: now, printed_at: null, test_mode: true,
-            gateway_job_id: r.id ?? null, gateway_received_at: now,
-            response_code: r.responseCode ?? null, retry_count: r.retryCount,
-            error_code: null, error_detail: null,
-          },
-          { onConflict: "kind,order_id,position" },
-        );
-        setSaved((prev) => ({
-          ...prev,
-          [target.position]: {
-            ...prev[target.position], position: target.position, code: target.no, status: "queued",
-            dispatch_status: "waiting_for_print", gateway_job_id: r.id ?? null, test_mode: true,
-            printed_at: null, scanned_at: now, scan_sequence: target.position, retry_count: r.retryCount,
-          },
-        }));
-      }
-      setCursor((c) => c + 1);
-      seenRef.current.add(norm(target.no));
-    }
-    toast[r.ok ? "success" : "error"](
-      r.ok ? `${target.no} ${tr("인쇄 대기열 등록", "已加入打印队列")}`
-           : `${tr("인쇄 전송 실패", "打印发送失败")} — ${r.error ?? ""}`,
-    );
-  };
-
-
-  // 프린터 연결 진단 (임의 텍스트 즉시 전송)
-  const runPrinterTest = async () => {
-    const text = (printerTestText || "TEST123").slice(0, 60);
-    setPrinterTesting(true);
-    const r = await sendToPrinter(text);
-    setPrinterTesting(false);
-    toast[r.ok ? "success" : "error"](
-      r.ok ? `${tr("프린터로 전송했습니다", "已发送到打印机")} · ${text}`
-           : `${tr("프린터 전송 실패", "打印机发送失败")} — ${r.error ?? ""}`,
-    );
-  };
 
 
 
