@@ -157,6 +157,8 @@ type SavedItem = {
   test_mode: boolean;
   printed_at: string | null;
   scanned_at?: string | null;
+  scanned_value?: string | null;
+  verdict?: string | null;
   scan_sequence?: number | null;
   dispatch_status?: "queued" | "dispatching" | "uncertain" | "accepted" | "waiting_for_print" | "printing" | "printed" | "error";
   gateway_job_id?: string | null;
