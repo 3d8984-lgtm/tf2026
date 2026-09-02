@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { warnLightError, warnLightOkFlash } from "@/lib/warning-light";
 import { pfPrint, pfPrinterStatus, pfPrinterQueue, pfPrinterBufferClear, type PfErrorCode } from "@/lib/pf-printer";
-import { verifyScanBatch, selectWaitingJobs, mergePrintedAcc, resolvePrintedAt, isCancelledJobError } from "@/lib/barcode-print-logic";
+import { verifyScanBatch, selectWaitingJobs, mergePrintedAcc, resolvePrintedAt, isCancelledJobError, isTransientPrinterError } from "@/lib/barcode-print-logic";
 
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -705,9 +705,12 @@ function OrderDetail({
               if (!gateway) continue;
               // 사용자가 대기열/버퍼를 초기화해 취소된 작업은 오류가 아니라 "다시 대기"로 되돌린다.
               const cancelled = gateway.status === "failed" && isCancelledJobError(gateway.error);
+              // 연결 끊김류 오류는 실제로는 출력된 경우가 많으므로 확정 실패로 보지 않는다.
+              const transient = gateway.status === "failed" && !cancelled && isTransientPrinterError(gateway.error);
               const dispatchStatus = gateway.status === "printing"
                 ? "printing"
                 : cancelled ? "queued"
+                : transient ? "uncertain"
                 : gateway.status === "failed" ? "error"
                 : gateway.status === "done" && gateway.printed !== false ? "printed"
                 : gateway.status === "pending" ? "waiting_for_print"
@@ -932,14 +935,16 @@ function OrderDetail({
         ?? jobs.find((j) => norm(j.barcode) === norm(pv));
 
       if (job) {
-        if (job.status === "failed" && !isCancelledJobError(job.error)) {
+        if (job.status === "failed" && !isCancelledJobError(job.error) && !isTransientPrinterError(job.error)) {
           void markPrintError(s.position, s.code, job.error ?? "gateway job failed", "GATEWAY_ERROR");
           continue;
         }
-        // 초기화로 취소된 작업은 오류가 아니라 다시 대기 상태로 되돌린다.
-        const dispatchStatus = job.status === "failed" ? "queued"
+        // 초기화로 취소된 작업 / 연결 끊김 오류는 확정 실패가 아니다.
+        const dispatchStatus = job.status === "failed"
+          ? (isTransientPrinterError(job.error) ? "uncertain" : "queued")
           : job.status === "printing" ? "printing"
           : job.status === "done" && job.printed !== false ? "printed" : "waiting_for_print";
+        if (dispatchStatus === "uncertain") continue; // 완료 근거(0x40/printed)를 계속 기다린다
 
 
         void supabase.from("barcode_print_items")
@@ -969,7 +974,8 @@ function OrderDetail({
   useEffect(() => {
     if (halted) return;
     const failed = Object.values(saved).find((item) => item.gateway_job_id && item.status === "queued" &&
-      jobs.some((job) => job.id === item.gateway_job_id && job.status === "failed" && !isCancelledJobError(job.error)));
+      jobs.some((job) => job.id === item.gateway_job_id && job.status === "failed"
+        && !isCancelledJobError(job.error) && !isTransientPrinterError(job.error)));
     if (!failed) return;
     const job = jobs.find((row) => row.id === failed.gateway_job_id);
     void markPrintError(failed.position, failed.code, job?.error ?? "Gateway print job failed", "GATEWAY_ERROR");
@@ -979,10 +985,12 @@ function OrderDetail({
   // ── 인쇄 완료 확인(큐 폴링 결과 반영) ───────────────────────────────
   // 접수만 된 항목(queued & 전송 완료)은 프린터 큐/완료 이벤트에서 실제 인쇄완료가
   // 확인되는 시점에 비로소 done 으로 확정한다.
+  // 연결 끊김 등으로 error 로 표시된 항목도, 뒤늦게 물리 인쇄 완료가 확인되면 완료로 되돌린다.
   useEffect(() => {
     const pendingConfirm = Object.values(saved).filter(
-      (s) => s.status === "queued" && (dispatchedRef.current.has(s.position) || s.dispatch_status === "accepted" ||
-        s.dispatch_status === "uncertain" || s.dispatch_status === "waiting_for_print" || s.dispatch_status === "printing"),
+      (s) => (s.status === "queued" && (dispatchedRef.current.has(s.position) || s.dispatch_status === "accepted" ||
+        s.dispatch_status === "uncertain" || s.dispatch_status === "waiting_for_print" || s.dispatch_status === "printing"))
+        || (s.status === "error" && !!s.gateway_job_id && isTransientPrinterError(s.error_detail)),
     );
     if (pendingConfirm.length === 0) return;
     for (const s of pendingConfirm) {
