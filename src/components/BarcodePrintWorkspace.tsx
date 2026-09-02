@@ -365,7 +365,20 @@ function OrderDetail({
       const v = (data as any)?.cutoff_at ?? null;
       const next = v ? new Date(v).toISOString() : null;
       // 더 최신 컷오프만 반영 (폴링이 초기화를 되돌리지 않도록)
-      if (next && ts(next) > ts(cutoffRef.current)) setCutoff(next);
+      if (next && ts(next) > ts(cutoffRef.current)) {
+        setCutoff(next);
+        cutoffRef.current = next;
+        // 다른 기기에서 초기화된 경우: 이 기기에 남아 있는 이전 작업의 완료 근거를 모두 버린다.
+        // (그대로 두면 재스캔한 항목이 옛 인쇄 기록과 값이 같다는 이유로 즉시 완료 처리되어 전송이 생략된다)
+        setPrintedAcc({});
+        setCompleteEvents({});
+        setJobs([]);
+        processedRef.current = new Set();
+        dispatchedRef.current = new Set();
+        primedRef.current = false;
+        lastCodeRef.current = "";
+      }
+
     };
     load();
     const iv = setInterval(load, 5000);
