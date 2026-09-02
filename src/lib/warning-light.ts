@@ -32,15 +32,32 @@ async function control(body: ControlBody) {
   await post("/api/v1/d3v1-light/control", body);
 }
 
-/** 검수 통과: 녹색등을 0.5초간 점등 후 자동 소등 (서버 딜레이 개선으로 다시 사용) */
+/** 검수 통과: 녹색등 + 짧은 부저 1회(약 0.25초) 후 자동 소등 */
 export async function warnLightOkFlash() {
-  await control({ green: { mode: "on" } });
-  setTimeout(() => void control({ green: { mode: "off" } }), 500);
+  await control({ green: { mode: "on" }, buzzer: { mode: "on" } });
+  setTimeout(() => void control({ green: { mode: "off" }, buzzer: { mode: "off" } }), 250);
 }
 
-/** 검수 실패: 녹색 소등 + 빨강 점등을 한 요청으로 처리 (수동으로 끄기 전까지 유지) */
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * 검수 통과 n건: 통과 건수만큼 녹색등을 순차 점멸(0.25초 on / 0.15초 off)한다.
+ * 배치로 여러 건이 한꺼번에 들어와도 몇 건이 통과했는지 눈으로 셀 수 있다.
+ */
+export async function warnLightOkPulses(count: number) {
+  const n = Math.max(1, Math.min(count, 10));
+  for (let i = 0; i < n; i++) {
+    await control({ green: { mode: "on" }, buzzer: { mode: "on" } });
+    await sleep(250);
+    await control({ green: { mode: "off" }, buzzer: { mode: "off" } });
+    if (i < n - 1) await sleep(150);
+  }
+}
+
+/** 검수 실패: 녹색 소등 + 빨강 점등 + 긴 부저(1초) — 빨강은 수동으로 끄기 전까지 유지 */
 export async function warnLightError() {
-  await control({ green: { mode: "off" }, red: { mode: "on" } });
+  await control({ green: { mode: "off" }, red: { mode: "on" }, buzzer: { mode: "on" } });
+  setTimeout(() => void control({ buzzer: { mode: "off" } }), 1000);
 }
 
 /** 빨강등 수동 소등 */
