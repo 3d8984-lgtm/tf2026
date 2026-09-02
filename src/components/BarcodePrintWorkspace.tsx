@@ -398,8 +398,8 @@ function OrderDetail({
         at: s.scanned_at as string,
         barcode: s.scanned_value ?? s.code,
         verdict: (s.verdict === "ok" || s.verdict === "order" || s.verdict === "mismatch" || s.verdict === "duplicate" ? s.verdict : "ok") as Verdict,
-        // 기대값은 판정 시점에 저장된 값을 그대로 표시 (과거 이력은 순번 기준으로 폴백)
-        expected: s.expected_value ?? expected[s.position - 1]?.no ?? null,
+        // 기대값 = 주문 상세 목록(스캔 순서)의 해당 순번 값. 저장값은 폴백으로만 사용
+        expected: expected[s.position - 1]?.no ?? s.expected_value ?? null,
         position: s.position,
       }))
       .sort((a, b) => ts(b.at) - ts(a.at) || (b.position ?? 0) - (a.position ?? 0))
@@ -425,10 +425,10 @@ function OrderDetail({
     if (missing.length > 0) {
       await supabase.from("barcode_print_items").upsert(missing, { onConflict: "kind,order_id,position" });
     }
-    // 기존 행 중 기대값이 비어 있는 것은 주문 순서대로 미리 채워둠
+    // 기존 행의 기대값이 비었거나 주문 순서와 다르면 주문 상세 목록 값으로 교정
     const backfill = expected.filter((e) => {
       const r = map0(e.position);
-      return r && !r.expected_value;
+      return r && r.expected_value !== e.no;
     });
     function map0(pos: number) { return rows.find((r) => r.position === pos); }
     for (const b of backfill) {
@@ -504,8 +504,8 @@ function OrderDetail({
         return {
           kind, order_id: order.id, position: pos, code,
           verdict: r.verdict, scanned_value: r.barcode, scanned_at: r.at || now, scan_sequence: pos,
-          // 판정 시점에 실제로 기대했던 값을 함께 저장 → 로그가 기기와 무관하게 동일하게 표시된다
-          expected_value: r.expected ?? code,
+          // 기대값은 항상 주문 상세 목록의 해당 순번 값 (판정 시점 커서 값으로 덮어쓰지 않는다)
+          expected_value: code,
         };
       })
       .filter(Boolean) as any[];
