@@ -391,7 +391,7 @@ function OrderDetail({
     if (expected.length === 0) return;
     const { data } = await supabase
       .from("barcode_print_items")
-        .select("position, code, status, test_mode, printed_at, scanned_at, scan_sequence, dispatch_status, gateway_job_id, retry_count, error_code, error_detail")
+        .select("position, code, status, test_mode, printed_at, scanned_at, scanned_value, verdict, scan_sequence, dispatch_status, gateway_job_id, retry_count, error_code, error_detail")
       .eq("kind", kind)
       .eq("order_id", order.id)
       .order("position");
@@ -413,17 +413,27 @@ function OrderDetail({
     let c = 0;
     seenRef.current = new Set();
     for (const e of expected) {
-      const st = map[e.position]?.status;
-      if (st === "done" || st === "queued" || st === "error") { c = e.position; seenRef.current.add(norm(e.no)); }
+      const it = map[e.position];
+      const st = it?.status;
+      const v = it?.verdict ?? null;
+      const passed = (st === "done" || st === "queued" || st === "error") && (v === null || v === "ok" || v === "print_failed");
+      if (passed) { c = e.position; seenRef.current.add(norm(e.no)); }
       else break;
     }
     setCursor(c);
-    // 인쇄 실패로 남아있는 항목이 있으면 작업을 중단 상태로 복원
-    setHalted(Object.values(map).some((s) => s.status === "error"));
+    // 인쇄 실패 또는 서버에 기록된 검증 실패가 남아있으면 작업을 중단 상태로 복원
+    setHalted(Object.values(map).some((s) => s.status === "error" || (s.verdict != null && s.verdict !== "ok")));
     setReady(true);
   }, [expected, kind, order.id]);
 
   useEffect(() => { setReady(false); loadSaved(); }, [loadSaved]);
+
+  // 서버(barcode_print_items)를 단일 진실 소스로 사용 — 모든 기기가 같은 판정을 보도록 주기 동기화
+  useEffect(() => {
+    if (expected.length === 0) return;
+    const iv = setInterval(() => { void loadSaved(); }, 4000);
+    return () => clearInterval(iv);
+  }, [loadSaved, expected.length]);
 
   /** 스캔 검증 통과 → 인쇄 대기열(FIFO)에 적재. 실제 인쇄는 소비자 루프가 담당한다. */
   const markQueued = useCallback(async (position: number, code: string, scannedValue: string | null) => {
