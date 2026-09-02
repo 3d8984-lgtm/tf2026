@@ -157,6 +157,8 @@ type SavedItem = {
   test_mode: boolean;
   printed_at: string | null;
   scanned_at?: string | null;
+  scanned_value?: string | null;
+  verdict?: string | null;
   scan_sequence?: number | null;
   dispatch_status?: "queued" | "dispatching" | "uncertain" | "accepted" | "waiting_for_print" | "printing" | "printed" | "error";
   gateway_job_id?: string | null;
@@ -289,7 +291,7 @@ function OrderDetail({
 
   const [jobs, setJobs] = useState<PrintJob[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
-  const [log, setLog] = useState<LogRow[]>([]);
+  // 스캔 판정 로그는 로컬 상태가 아니라 서버(barcode_print_items)에서 파생한다.
   const [cursor, setCursor] = useState(0);
   const [lastVerdict, setLastVerdict] = useState<Verdict | null>(null);
   const [halted, setHalted] = useState(false);
@@ -384,12 +386,27 @@ function OrderDetail({
   // 기대 스캔 순서 = 고유번호(개별 주문번호 + suffix) 순서
   const expected = useMemo(() => buildExpected(order, suffix), [order, suffix]);
 
+  /** 스캔 검증 로그 = 서버에 저장된 판정(verdict) 을 그대로 렌더 (모든 기기 동일) */
+  const log = useMemo<LogRow[]>(() => {
+    return Object.values(saved)
+      .filter((s) => s.verdict != null && s.scanned_at)
+      .map((s) => ({
+        at: s.scanned_at as string,
+        barcode: s.scanned_value ?? s.code,
+        verdict: (s.verdict === "ok" || s.verdict === "order" || s.verdict === "mismatch" || s.verdict === "duplicate" ? s.verdict : "ok") as Verdict,
+        expected: expected[s.position - 1]?.no ?? null,
+        position: s.position,
+      }))
+      .sort((a, b) => ts(b.at) - ts(a.at) || (b.position ?? 0) - (a.position ?? 0))
+      .slice(0, 100);
+  }, [saved, expected]);
+
   // 서버에 저장된 작업 이력 로드 / 없으면 생성
   const loadSaved = useCallback(async () => {
     if (expected.length === 0) return;
     const { data } = await supabase
       .from("barcode_print_items")
-        .select("position, code, status, test_mode, printed_at, scanned_at, scan_sequence, dispatch_status, gateway_job_id, retry_count, error_code, error_detail")
+        .select("position, code, status, test_mode, printed_at, scanned_at, scanned_value, verdict, scan_sequence, dispatch_status, gateway_job_id, retry_count, error_code, error_detail")
       .eq("kind", kind)
       .eq("order_id", order.id)
       .order("position");
@@ -411,17 +428,27 @@ function OrderDetail({
     let c = 0;
     seenRef.current = new Set();
     for (const e of expected) {
-      const st = map[e.position]?.status;
-      if (st === "done" || st === "queued" || st === "error") { c = e.position; seenRef.current.add(norm(e.no)); }
+      const it = map[e.position];
+      const st = it?.status;
+      const v = it?.verdict ?? null;
+      const passed = (st === "done" || st === "queued" || st === "error") && (v === null || v === "ok" || v === "print_failed");
+      if (passed) { c = e.position; seenRef.current.add(norm(e.no)); }
       else break;
     }
     setCursor(c);
-    // 인쇄 실패로 남아있는 항목이 있으면 작업을 중단 상태로 복원
-    setHalted(Object.values(map).some((s) => s.status === "error"));
+    // 인쇄 실패 또는 서버에 기록된 검증 실패가 남아있으면 작업을 중단 상태로 복원
+    setHalted(Object.values(map).some((s) => s.status === "error" || (s.verdict != null && s.verdict !== "ok")));
     setReady(true);
   }, [expected, kind, order.id]);
 
   useEffect(() => { setReady(false); loadSaved(); }, [loadSaved]);
+
+  // 서버(barcode_print_items)를 단일 진실 소스로 사용 — 모든 기기가 같은 판정을 보도록 주기 동기화
+  useEffect(() => {
+    if (expected.length === 0) return;
+    const iv = setInterval(() => { void loadSaved(); }, 4000);
+    return () => clearInterval(iv);
+  }, [loadSaved, expected.length]);
 
   /** 스캔 검증 통과 → 인쇄 대기열(FIFO)에 적재. 실제 인쇄는 소비자 루프가 담당한다. */
   const markQueued = useCallback(async (position: number, code: string, scannedValue: string | null) => {
@@ -436,8 +463,38 @@ function OrderDetail({
       },
       { onConflict: "kind,order_id,position" },
     );
-    setSaved((prev) => ({ ...prev, [position]: { position, code, status: "queued", test_mode: false, printed_at: null, scanned_at: now, scan_sequence: position, dispatch_status: "queued", retry_count: 0 } }));
+    setSaved((prev) => ({ ...prev, [position]: { position, code, status: "queued", test_mode: false, printed_at: null, scanned_at: now, scanned_value: scannedValue, verdict: "ok", scan_sequence: position, dispatch_status: "queued", retry_count: 0 } }));
   }, [kind, order.id]);
+
+  /**
+   * 스캔 검증 실패(order/mismatch/duplicate)도 서버에 기록한다.
+   * 판정은 브라우저마다 따로 계산하지 않고 이 테이블 값을 읽어 그린다 → 기기별 결과 차이 제거.
+   */
+  const saveVerdicts = useCallback(async (rows: Array<{ at: string; barcode: string; verdict: string; position: number | null }>) => {
+    const now = new Date().toISOString();
+    const payload = rows
+      .map((r) => {
+        const pos = r.position ?? null;
+        if (pos == null) return null;
+        const code = expected[pos - 1]?.no;
+        if (!code) return null;
+        return {
+          kind, order_id: order.id, position: pos, code,
+          verdict: r.verdict, scanned_value: r.barcode, scanned_at: r.at || now, scan_sequence: pos,
+        };
+      })
+      .filter(Boolean) as any[];
+    if (payload.length === 0) return;
+    await supabase.from("barcode_print_items").upsert(payload, { onConflict: "kind,order_id,position" });
+    setSaved((prev) => {
+      const next = { ...prev };
+      for (const p of payload) {
+        const cur = next[p.position];
+        next[p.position] = { ...(cur ?? { position: p.position, code: p.code, status: "pending", test_mode: false, printed_at: null }), verdict: p.verdict, scanned_value: p.scanned_value, scanned_at: p.scanned_at };
+      }
+      return next;
+    });
+  }, [expected, kind, order.id]);
 
   /** 인쇄 실패 → 대기열 선두에서 멈춤 (다음 항목으로 넘어가지 않음) */
   const haltRef = useRef(false);
@@ -699,6 +756,9 @@ function OrderDetail({
     for (const r of res.rows) {
       if (r.enqueue && r.position != null) void markQueued(r.position, expected[r.position - 1].no, r.barcode);
     }
+    // 실패 판정도 서버에 기록 → 모든 기기가 동일한 로그/중단 상태를 본다
+    const failed = res.rows.filter((r) => r.verdict !== "ok");
+    if (failed.length > 0) void saveVerdicts(failed);
     setCursor(res.cursor);
     setLastVerdict(res.lastVerdict);
     if (res.halted) setHalted(true);
@@ -706,9 +766,7 @@ function OrderDetail({
     // — 서버 딜레이 개선(단일 요청 다중 채널)으로 녹색 플래시를 다시 사용한다.
     if (res.halted && !halted) void warnLightError();
     else if (res.rows.some((r) => r.verdict === "ok")) void warnLightOkFlash();
-    const rows: LogRow[] = res.rows.map(({ at, barcode, verdict, expected: exp, position }) => ({ at, barcode, verdict, expected: exp, position }));
-    setLog((prev) => [...rows.slice().reverse(), ...prev].slice(0, 100));
-  }, [queue, expected, cursor, testMode, ready, markQueued, kind, halted]);
+  }, [queue, expected, cursor, testMode, ready, markQueued, saveVerdicts, kind, halted]);
 
 
   // ── 소비자(단일 Print Dispatcher) ─────────────────────────────────
@@ -1048,7 +1106,7 @@ function OrderDetail({
     setPendingCount(0);
     seenRef.current = new Set();
     setCursor(0);
-    setLog([]);
+    setSaved({});
     setLastVerdict(null);
     setHalted(false);
     // 초기화 직후 기존 게이트웨이 이력이 다시 검증되지 않도록 프라이밍을 다시 수행
