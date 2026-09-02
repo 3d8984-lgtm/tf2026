@@ -711,6 +711,9 @@ function OrderDetail({
     for (const r of res.rows) {
       if (r.enqueue && r.position != null) void markQueued(r.position, expected[r.position - 1].no, r.barcode);
     }
+    // 실패 판정도 서버에 기록 → 모든 기기가 동일한 로그/중단 상태를 본다
+    const failed = res.rows.filter((r) => r.verdict !== "ok");
+    if (failed.length > 0) void saveVerdicts(failed);
     setCursor(res.cursor);
     setLastVerdict(res.lastVerdict);
     if (res.halted) setHalted(true);
@@ -718,9 +721,7 @@ function OrderDetail({
     // — 서버 딜레이 개선(단일 요청 다중 채널)으로 녹색 플래시를 다시 사용한다.
     if (res.halted && !halted) void warnLightError();
     else if (res.rows.some((r) => r.verdict === "ok")) void warnLightOkFlash();
-    const rows: LogRow[] = res.rows.map(({ at, barcode, verdict, expected: exp, position }) => ({ at, barcode, verdict, expected: exp, position }));
-    setLog((prev) => [...rows.slice().reverse(), ...prev].slice(0, 100));
-  }, [queue, expected, cursor, testMode, ready, markQueued, kind, halted]);
+  }, [queue, expected, cursor, testMode, ready, markQueued, saveVerdicts, kind, halted]);
 
 
   // ── 소비자(단일 Print Dispatcher) ─────────────────────────────────
