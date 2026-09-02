@@ -56,10 +56,9 @@ export async function cctvFetch(pathOrUrl: string, init?: RequestInit) {
       }
       return res;
     } catch {
-      return new Response(JSON.stringify({ offline: true, upstream_status: 0 }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      // 게이트웨이가 CORS(Access-Control-Allow-Origin / X-API-Key)를 허용하지
+      // 않으면 브라우저가 TypeError로 차단한다. 이 경우 엣지 프록시로 폴백해
+      // 어느 기기에서든 동일하게 동작하도록 한다.
     }
   }
 
