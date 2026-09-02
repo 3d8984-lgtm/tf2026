@@ -979,13 +979,17 @@ function OrderDetail({
     for (const s of pendingConfirm) {
       const pv = printValueRef.current(s.code);
       const codes = [s.code, pv];
-      const job = jobs.find((j) => codes.some((c) => norm(c) === norm(j.barcode))) ?? null;
-      const at = resolvePrintedAt({ codes, completeEvents, printedAcc, job });
+      // 초기화 이전(또는 이번 스캔 이전)의 완료 근거로 새 작업을 완료 처리하지 않는다.
+      const notBefore = Math.max(ts(cutoffRef.current), ts(s.scanned_at ?? null));
+      const job = jobs.find((j) => (s.gateway_job_id && j.id === s.gateway_job_id)
+        || (!s.gateway_job_id && codes.some((c) => norm(c) === norm(j.barcode)) && ts(j.enqueued_at) >= notBefore)) ?? null;
+      const at = resolvePrintedAt({ codes, completeEvents, printedAcc, job, notBefore });
       if (at) {
         setDispatchLog((prev) => prev.map((row) => (row.position === s.position && !row.printedAt ? { ...row, printedAt: at } : row)));
         void markDone(s.position, s.code, null, false);
       }
     }
+
   }, [saved, jobs, completeEvents, printedAcc, markDone]);
 
 
