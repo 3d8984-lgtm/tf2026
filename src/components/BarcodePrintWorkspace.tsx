@@ -238,7 +238,7 @@ export default function BarcodePrintWorkspace(props: BarcodePrintWorkspaceProps)
   }, [selected, orders.length, suffix, isKo]);
 
   if (selected) {
-    return <OrderDetail order={selected} onBack={() => setSelected(null)} {...props} />;
+    return <OrderDetail key={selected.id} order={selected} onBack={() => setSelected(null)} {...props} />;
   }
 
   return (
@@ -469,20 +469,21 @@ function OrderDetail({
       {
         kind, order_id: order.id, position, code,
         status: "queued", dispatch_status: "queued", scan_sequence: position, verdict: "ok", scanned_value: scannedValue,
+        expected_value: code,
         scanned_at: now, printed_at: null, test_mode: false,
         gateway_job_id: null, dispatch_started_at: null, gateway_received_at: null,
         response_code: null, retry_count: 0, error_code: null, error_detail: null,
-      },
+      } as any,
       { onConflict: "kind,order_id,position" },
     );
-    setSaved((prev) => ({ ...prev, [position]: { position, code, status: "queued", test_mode: false, printed_at: null, scanned_at: now, scanned_value: scannedValue, verdict: "ok", scan_sequence: position, dispatch_status: "queued", retry_count: 0 } }));
+    setSaved((prev) => ({ ...prev, [position]: { position, code, status: "queued", test_mode: false, printed_at: null, scanned_at: now, scanned_value: scannedValue, expected_value: code, verdict: "ok", scan_sequence: position, dispatch_status: "queued", retry_count: 0 } }));
   }, [kind, order.id]);
 
   /**
    * 스캔 검증 실패(order/mismatch/duplicate)도 서버에 기록한다.
    * 판정은 브라우저마다 따로 계산하지 않고 이 테이블 값을 읽어 그린다 → 기기별 결과 차이 제거.
    */
-  const saveVerdicts = useCallback(async (rows: Array<{ at: string; barcode: string; verdict: string; position: number | null }>) => {
+  const saveVerdicts = useCallback(async (rows: Array<{ at: string; barcode: string; verdict: string; position: number | null; expected?: string | null }>) => {
     const now = new Date().toISOString();
     const payload = rows
       .map((r) => {
@@ -493,6 +494,8 @@ function OrderDetail({
         return {
           kind, order_id: order.id, position: pos, code,
           verdict: r.verdict, scanned_value: r.barcode, scanned_at: r.at || now, scan_sequence: pos,
+          // 판정 시점에 실제로 기대했던 값을 함께 저장 → 로그가 기기와 무관하게 동일하게 표시된다
+          expected_value: r.expected ?? code,
         };
       })
       .filter(Boolean) as any[];
@@ -1140,13 +1143,16 @@ function OrderDetail({
   const resumeFrom = async (position: number) => {
     await supabase
       .from("barcode_print_items")
-      .update({ status: "pending", dispatch_status: "queued", verdict: null, scanned_value: null, scanned_at: null, printed_at: null, gateway_job_id: null, dispatch_started_at: null, gateway_received_at: null, error_code: null, error_detail: null })
+      .update({ status: "pending", dispatch_status: "queued", verdict: null, scanned_value: null, expected_value: null, scanned_at: null, printed_at: null, gateway_job_id: null, dispatch_started_at: null, gateway_received_at: null, error_code: null, error_detail: null } as any)
       .eq("kind", kind).eq("order_id", order.id).gte("position", position);
     for (const p of Array.from(dispatchedRef.current)) if (p >= position) dispatchedRef.current.delete(p);
     haltRef.current = false;
     setHalted(false);
     setLastVerdict(null);
     lastCodeRef.current = "";
+    // 커서/스캔 이력을 서버 상태 기준으로 다시 계산해야 하므로 로컬 누적을 비운다
+    cursorRef.current = 0;
+    seenRef.current = new Set();
     await loadSaved();
     toast.success(tr(`${position}번부터 다시 작업합니다`, `从第 ${position} 项重新作业`));
   };
