@@ -510,6 +510,9 @@ function OrderDetail({
         if (pos == null) return null;
         const code = expected[pos - 1]?.no;
         if (!code) return null;
+        // 이미 정상 처리(ok)된 항목은 뒤늦게 들어온 중복/순서 판정으로 덮어쓰지 않는다.
+        const cur = savedRef.current[pos];
+        if (r.verdict !== "ok" && cur?.verdict === "ok" && cur?.scanned_at) return null;
         return {
           kind, order_id: order.id, position: pos, code,
           verdict: r.verdict, scanned_value: r.barcode, scanned_at: r.at || now, scan_sequence: pos,
@@ -519,6 +522,7 @@ function OrderDetail({
       })
       .filter(Boolean) as any[];
     if (payload.length === 0) return;
+
     await supabase.from("barcode_print_items").upsert(payload, { onConflict: "kind,order_id,position" });
     setSaved((prev) => {
       const next = { ...prev };
