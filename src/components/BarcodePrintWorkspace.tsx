@@ -534,6 +534,9 @@ function OrderDetail({
   const haltRef = useRef(false);
   /** uncertain 진입 시각 (position → epoch ms). 게이트웨이 조회로 판정될 때까지 유지 */
   const uncertainSinceRef = useRef<Record<number, number>>({});
+  /** 프린터 버퍼가 연속으로 0으로 관측된 횟수 (완료 신호 유실 시 물리 출력 추론용) */
+  const bufferDrainStreakRef = useRef(0);
+
   const markPrintError = useCallback(async (position: number, code: string, message: string, errorCode: PfErrorCode = "GATEWAY_ERROR") => {
     haltRef.current = true;
     await supabase.from("barcode_print_items").upsert(
@@ -575,6 +578,10 @@ function OrderDetail({
     );
     setSaved((prev) => ({ ...prev, [position]: { ...prev[position], position, code, status: "done", dispatch_status: "printed", test_mode: isTest, printed_at: now } }));
   }, [kind, order.id]);
+  const markDoneRef = useRef(markDone);
+  markDoneRef.current = markDone;
+
+
 
 
   /**
@@ -750,6 +757,33 @@ function OrderDetail({
             return changed ? next : prev;
           });
         }
+
+        // ── 완료 신호 유실 보정 ───────────────────────────────────────
+        // 프린터가 출력 직후 시리얼을 닫으면 0x40(인쇄 완료) 신호가 유실된다.
+        // 이때는 /status 의 buffer_count(프린터 내부 대기량)와 서버 큐 대기량을
+        // 우리가 보낸 작업 목록과 비교해 물리 출력 완료를 추론한다.
+        // 조건: 프린터 온라인 · 버퍼 0 · 서버 큐 0 · 전송 중 아님 → 보낸 건은 모두 출력된 것.
+        const outstanding = Object.values(savedRef.current).filter((s) =>
+          s.status !== "done" &&
+          ["uncertain", "accepted", "waiting_for_print", "printing"].includes(s.dispatch_status ?? ""));
+        const drained = !pf.offline
+          && (pf.buffer_count ?? -1) === 0
+          && (q.offline ? true : q.pendingCount === 0)
+          && !inFlightRef.current;
+        if (drained && outstanding.length > 0) {
+          bufferDrainStreakRef.current += 1;
+          // 2회 연속(약 4초) 비어 있을 때만 확정 — 전송 직후 일시적 0 관측을 배제
+          if (bufferDrainStreakRef.current >= 2) {
+            bufferDrainStreakRef.current = 0;
+            for (const item of outstanding.sort((a, b) => a.position - b.position)) {
+              delete uncertainSinceRef.current[item.position];
+              await markDoneRef.current(item.position, item.code, null, false);
+            }
+          }
+        } else {
+          bufferDrainStreakRef.current = 0;
+        }
+
       } catch {
         if (alive) setPrinterOffline(true);
       } finally {
