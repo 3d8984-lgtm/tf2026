@@ -365,7 +365,20 @@ function OrderDetail({
       const v = (data as any)?.cutoff_at ?? null;
       const next = v ? new Date(v).toISOString() : null;
       // 더 최신 컷오프만 반영 (폴링이 초기화를 되돌리지 않도록)
-      if (next && ts(next) > ts(cutoffRef.current)) setCutoff(next);
+      if (next && ts(next) > ts(cutoffRef.current)) {
+        setCutoff(next);
+        cutoffRef.current = next;
+        // 다른 기기에서 초기화된 경우: 이 기기에 남아 있는 이전 작업의 완료 근거를 모두 버린다.
+        // (그대로 두면 재스캔한 항목이 옛 인쇄 기록과 값이 같다는 이유로 즉시 완료 처리되어 전송이 생략된다)
+        setPrintedAcc({});
+        setCompleteEvents({});
+        setJobs([]);
+        processedRef.current = new Set();
+        dispatchedRef.current = new Set();
+        primedRef.current = false;
+        lastCodeRef.current = "";
+      }
+
     };
     load();
     const iv = setInterval(load, 5000);
@@ -979,13 +992,17 @@ function OrderDetail({
     for (const s of pendingConfirm) {
       const pv = printValueRef.current(s.code);
       const codes = [s.code, pv];
-      const job = jobs.find((j) => codes.some((c) => norm(c) === norm(j.barcode))) ?? null;
-      const at = resolvePrintedAt({ codes, completeEvents, printedAcc, job });
+      // 초기화 이전(또는 이번 스캔 이전)의 완료 근거로 새 작업을 완료 처리하지 않는다.
+      const notBefore = Math.max(ts(cutoffRef.current), ts(s.scanned_at ?? null));
+      const job = jobs.find((j) => (s.gateway_job_id && j.id === s.gateway_job_id)
+        || (!s.gateway_job_id && codes.some((c) => norm(c) === norm(j.barcode)) && ts(j.enqueued_at) >= notBefore)) ?? null;
+      const at = resolvePrintedAt({ codes, completeEvents, printedAcc, job, notBefore });
       if (at) {
         setDispatchLog((prev) => prev.map((row) => (row.position === s.position && !row.printedAt ? { ...row, printedAt: at } : row)));
         void markDone(s.position, s.code, null, false);
       }
     }
+
   }, [saved, jobs, completeEvents, printedAcc, markDone]);
 
 
@@ -1315,7 +1332,7 @@ function OrderDetail({
       const codes = [e.no, pv];
       const job = jobByCode[pv] ?? jobByCode[norm(e.no)] ?? null;
       const event = completeEvents[norm(e.no)] ?? completeEvents[pv] ?? null;
-      return { e, s: saved[e.position], job, event, at: resolvePrintedAt({ codes, completeEvents, printedAcc, job }) };
+      return { e, s: saved[e.position], job, event, at: resolvePrintedAt({ codes, completeEvents, printedAcc, job, notBefore: cutoffRef.current }) };
     })
     .filter((r) => !!r.at)
     .sort((a, b) => a.e.position - b.e.position);
