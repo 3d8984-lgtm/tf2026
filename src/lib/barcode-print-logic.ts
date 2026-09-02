@@ -113,6 +113,17 @@ export function isCancelledJobError(error?: string | null): boolean {
     || (normalized.includes("physical print never happened") && normalized.includes("buffer"));
 }
 
+/**
+ * 프린터/게이트웨이 연결이 끊겼다는 오류인지 판정.
+ * 시리얼 연결이 순간 끊겨도 프린터가 이미 받은 데이터는 센서 트리거로 실제 출력된다.
+ * 따라서 이런 오류는 "확정 인쇄 실패"가 아니라 완료 근거를 더 기다려야 하는 상태로 본다.
+ */
+export function isTransientPrinterError(error?: string | null): boolean {
+  if (!error) return false;
+  const n = error.toLowerCase().replace(/[_-]+/g, " ");
+  return /disconnect|not connected|connection (lost|closed|reset|refused)|serial|timeout|timed out|unreachable|offline|끊|연결|타임아웃/.test(n);
+}
+
 /** 패널2(인쇄 대기열) = 프린터 대기/인쇄 중 + 완료 응답이지만 물리 인쇄 미확인 */
 
 export function selectWaitingJobs<T extends QueueJob>(jobs: T[]): T[] {
