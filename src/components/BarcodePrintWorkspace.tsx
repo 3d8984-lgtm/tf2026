@@ -1319,7 +1319,7 @@ function OrderDetail({
       const codes = [e.no, pv];
       const job = jobByCode[pv] ?? jobByCode[norm(e.no)] ?? null;
       const event = completeEvents[norm(e.no)] ?? completeEvents[pv] ?? null;
-      return { e, s: saved[e.position], job, event, at: resolvePrintedAt({ codes, completeEvents, printedAcc, job }) };
+      return { e, s: saved[e.position], job, event, at: resolvePrintedAt({ codes, completeEvents, printedAcc, job, notBefore: cutoffRef.current }) };
     })
     .filter((r) => !!r.at)
     .sort((a, b) => a.e.position - b.e.position);
