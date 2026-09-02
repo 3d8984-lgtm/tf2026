@@ -5,8 +5,6 @@ import PageHeader from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { warnLightError, warnLightOkFlash } from "@/lib/warning-light";
 import { pfPrint, pfPrinterStatus, pfPrinterQueue, pfPrinterBufferClear, type PfErrorCode } from "@/lib/pf-printer";
@@ -299,7 +297,7 @@ function OrderDetail({
   const cursorRef = useRef(0);
   const [lastVerdict, setLastVerdict] = useState<Verdict | null>(null);
   const [halted, setHalted] = useState(false);
-  const [testMode, setTestMode] = useState(false);
+  const [testMode] = useState(false);
   const [saved, setSaved] = useState<Record<number, SavedItem>>({});
   const savedRef = useRef<Record<number, SavedItem>>({});
   savedRef.current = saved;
@@ -385,8 +383,6 @@ function OrderDetail({
     return () => { alive = false; clearInterval(iv); };
   }, [kind, order.id]);
 
-  const [printerTestText, setPrinterTestText] = useState("TEST123");
-  const [printerTesting, setPrinterTesting] = useState(false);
   // 라벨 명령 템플릿은 백엔드(게이트웨이)에서 관리하므로 화면 설정 없음
 
   const seenRef = useRef<Set<string>>(new Set());
@@ -1194,59 +1190,6 @@ function OrderDetail({
     );
   };
 
-  // 테스트 모드 순차 인쇄
-  // 물리 인쇄 완료까지 기다리지 않는다 — 서버 큐에 정상 등록(accepted / status=pending|processing)되면
-  // 즉시 다음 항목으로 넘어가고, 실제 완료는 큐 폴링(waiting_for_print → printed)으로 확정한다.
-  const printNextTest = async () => {
-    const target = expected[cursor];
-    if (!target) return;
-    const r = await sendToPrinter(printValueRef.current(target.no));
-    if (r.ok) {
-      if (r.printed) {
-        await markDone(target.position, target.no, null, true);
-      } else {
-        const now = new Date().toISOString();
-        await supabase.from("barcode_print_items").upsert(
-          {
-            kind, order_id: order.id, position: target.position, code: target.no,
-            status: "queued", dispatch_status: "waiting_for_print", scan_sequence: target.position,
-            verdict: "ok", scanned_value: null, scanned_at: now, printed_at: null, test_mode: true,
-            gateway_job_id: r.id ?? null, gateway_received_at: now,
-            response_code: r.responseCode ?? null, retry_count: r.retryCount,
-            error_code: null, error_detail: null,
-          },
-          { onConflict: "kind,order_id,position" },
-        );
-        setSaved((prev) => ({
-          ...prev,
-          [target.position]: {
-            ...prev[target.position], position: target.position, code: target.no, status: "queued",
-            dispatch_status: "waiting_for_print", gateway_job_id: r.id ?? null, test_mode: true,
-            printed_at: null, scanned_at: now, scan_sequence: target.position, retry_count: r.retryCount,
-          },
-        }));
-      }
-      setCursor((c) => c + 1);
-      seenRef.current.add(norm(target.no));
-    }
-    toast[r.ok ? "success" : "error"](
-      r.ok ? `${target.no} ${tr("인쇄 대기열 등록", "已加入打印队列")}`
-           : `${tr("인쇄 전송 실패", "打印发送失败")} — ${r.error ?? ""}`,
-    );
-  };
-
-
-  // 프린터 연결 진단 (임의 텍스트 즉시 전송)
-  const runPrinterTest = async () => {
-    const text = (printerTestText || "TEST123").slice(0, 60);
-    setPrinterTesting(true);
-    const r = await sendToPrinter(text);
-    setPrinterTesting(false);
-    toast[r.ok ? "success" : "error"](
-      r.ok ? `${tr("프린터로 전송했습니다", "已发送到打印机")} · ${text}`
-           : `${tr("프린터 전송 실패", "打印机发送失败")} — ${r.error ?? ""}`,
-    );
-  };
 
 
 
@@ -1516,74 +1459,6 @@ function OrderDetail({
           </CardContent>
         </Card>
 
-        {/* 테스트 모드 토글 */}
-        <Card>
-          <CardContent className="p-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <Switch id="bp-test-mode" checked={testMode} onCheckedChange={setTestMode} />
-              <Label htmlFor="bp-test-mode" className="cursor-pointer">
-                <span className="font-medium">{tr("테스트 모드", "测试模式")}</span>
-                <span className="block text-xs text-muted-foreground">
-                  {tr("스캔 검증을 사용하지 않고 주문 상세 목록 순서대로 인쇄만 진행합니다",
-                      "不进行扫描检验，按订单明细顺序仅执行打印")}
-                </span>
-              </Label>
-            </div>
-            {testMode && (
-              <Button size="sm" className="gap-1" onClick={printNextTest} disabled={cursor >= total}>
-                <Printer className="w-4 h-4" />
-                {cursor >= total
-                  ? tr("모두 인쇄됨", "全部已打印")
-                  : `${tr("다음 인쇄", "打印下一个")} · ${expected[cursor]?.no ?? ""}`}
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* 자동 인쇄는 백엔드(게이트웨이)가 처리 */}
-
-
-        {/* 프린터 진단 (POST /api/v1/pf-printer/test) */}
-        <Card>
-          <CardContent className="p-4 flex flex-wrap items-center gap-3">
-            <div className="min-w-[200px]">
-              <p className="text-sm font-medium flex items-center gap-2">
-                <Printer className="w-4 h-4" />{tr("프린터 연결 테스트", "打印机连接测试")}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {tr("대기열을 거치지 않고 임의 텍스트를 프린터로 즉시 전송합니다 (기록에 남지 않음)",
-                    "不经队列，直接向打印机发送任意文本（不留记录）")}
-              </p>
-            </div>
-            <Input
-              value={printerTestText}
-              onChange={(e) => setPrinterTestText(e.target.value.slice(0, 60))}
-              placeholder="TEST123"
-              className="w-48 font-mono"
-            />
-            <Button size="sm" variant="outline" className="gap-1" onClick={runPrinterTest} disabled={printerTesting}>
-              {printerTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FlaskConical className="w-4 h-4" />}
-              {tr("테스트 인쇄", "测试打印")}
-            </Button>
-            <span className="text-[11px] text-muted-foreground ml-auto">
-              {kind === "card"
-                ? tr("연결 장비: 카드 바코드 프린터 · 카드 DM 스캐너", "连接设备：卡片条码打印机 · 卡片DM扫描仪")
-                : tr("※ 현재 게이트웨이에는 카드용 장비만 연결되어 있습니다 (티셔츠 장비 추가 예정)",
-                     "※ 当前网关仅连接卡片设备（T恤设备待接入）")}
-            </span>
-          </CardContent>
-        </Card>
-
-        {/* 인쇄 처리 안내 — 명령 생성은 백엔드(게이트웨이)가 담당 */}
-        <Card>
-          <CardContent className="p-4 flex items-start gap-3">
-            <Printer className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
-            <p className="text-xs text-muted-foreground">
-              {tr("스캐너에서 스캔된 값은 백엔드(게이트웨이)가 자동으로 프린터 큐에 넣어 출력합니다. 화면에서는 라벨 명령 템플릿을 만들지 않고, 스캔 순서 검증과 게이트웨이 인쇄 결과만 확인·기록합니다. 라벨 형식(SIZE/GAP/QR 등)은 게이트웨이·프린터 설정에서 관리하세요.",
-                  "扫描仪扫描到的值由后端（网关）自动进入打印队列并输出。本界面不再生成标签命令模板，仅进行扫描顺序检验并记录网关打印结果。标签格式（SIZE/GAP/二维码等）请在网关与打印机侧设置。")}
-            </p>
-          </CardContent>
-        </Card>
 
 
 
