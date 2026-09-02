@@ -149,16 +149,23 @@ export function resolvePrintedAt(params: {
   completeEvents: Record<string, string>;
   printedAcc: Record<string, string>;
   job?: QueueJob | null;
+  /** 이 시각 이전의 완료 근거는 이전 작업(초기화 전)의 잔재이므로 무시한다 */
+  notBefore?: string | number | null;
 }): string | null {
-  const { codes, completeEvents, printedAcc, job } = params;
+  const { codes, completeEvents, printedAcc, job, notBefore } = params;
+  const floor = typeof notBefore === "number" ? notBefore : ts(notBefore ?? null);
+  const fresh = (at: string | null | undefined) => (at && ts(at) >= floor ? at : null);
   for (const c of codes) {
     const k = norm(c);
-    if (completeEvents[k]) return completeEvents[k];
+    const hit = fresh(completeEvents[k]);
+    if (hit) return hit;
   }
   for (const c of codes) {
     const k = norm(c);
-    if (printedAcc[k]) return printedAcc[k];
+    const hit = fresh(printedAcc[k]);
+    if (hit) return hit;
   }
-  if (job && job.status === "done" && job.printed !== false) return job.printed_at ?? job.enqueued_at;
+  if (job && job.status === "done" && job.printed !== false) return fresh(job.printed_at ?? job.enqueued_at);
   return null;
 }
+
