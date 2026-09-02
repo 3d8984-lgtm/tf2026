@@ -974,7 +974,8 @@ function OrderDetail({
   useEffect(() => {
     if (halted) return;
     const failed = Object.values(saved).find((item) => item.gateway_job_id && item.status === "queued" &&
-      jobs.some((job) => job.id === item.gateway_job_id && job.status === "failed" && !isCancelledJobError(job.error)));
+      jobs.some((job) => job.id === item.gateway_job_id && job.status === "failed"
+        && !isCancelledJobError(job.error) && !isTransientPrinterError(job.error)));
     if (!failed) return;
     const job = jobs.find((row) => row.id === failed.gateway_job_id);
     void markPrintError(failed.position, failed.code, job?.error ?? "Gateway print job failed", "GATEWAY_ERROR");
@@ -984,10 +985,12 @@ function OrderDetail({
   // ── 인쇄 완료 확인(큐 폴링 결과 반영) ───────────────────────────────
   // 접수만 된 항목(queued & 전송 완료)은 프린터 큐/완료 이벤트에서 실제 인쇄완료가
   // 확인되는 시점에 비로소 done 으로 확정한다.
+  // 연결 끊김 등으로 error 로 표시된 항목도, 뒤늦게 물리 인쇄 완료가 확인되면 완료로 되돌린다.
   useEffect(() => {
     const pendingConfirm = Object.values(saved).filter(
-      (s) => s.status === "queued" && (dispatchedRef.current.has(s.position) || s.dispatch_status === "accepted" ||
-        s.dispatch_status === "uncertain" || s.dispatch_status === "waiting_for_print" || s.dispatch_status === "printing"),
+      (s) => (s.status === "queued" && (dispatchedRef.current.has(s.position) || s.dispatch_status === "accepted" ||
+        s.dispatch_status === "uncertain" || s.dispatch_status === "waiting_for_print" || s.dispatch_status === "printing"))
+        || (s.status === "error" && !!s.gateway_job_id && isTransientPrinterError(s.error_detail)),
     );
     if (pendingConfirm.length === 0) return;
     for (const s of pendingConfirm) {
