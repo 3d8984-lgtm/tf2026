@@ -935,14 +935,16 @@ function OrderDetail({
         ?? jobs.find((j) => norm(j.barcode) === norm(pv));
 
       if (job) {
-        if (job.status === "failed" && !isCancelledJobError(job.error)) {
+        if (job.status === "failed" && !isCancelledJobError(job.error) && !isTransientPrinterError(job.error)) {
           void markPrintError(s.position, s.code, job.error ?? "gateway job failed", "GATEWAY_ERROR");
           continue;
         }
-        // 초기화로 취소된 작업은 오류가 아니라 다시 대기 상태로 되돌린다.
-        const dispatchStatus = job.status === "failed" ? "queued"
+        // 초기화로 취소된 작업 / 연결 끊김 오류는 확정 실패가 아니다.
+        const dispatchStatus = job.status === "failed"
+          ? (isTransientPrinterError(job.error) ? "uncertain" : "queued")
           : job.status === "printing" ? "printing"
           : job.status === "done" && job.printed !== false ? "printed" : "waiting_for_print";
+        if (dispatchStatus === "uncertain") continue; // 완료 근거(0x40/printed)를 계속 기다린다
 
 
         void supabase.from("barcode_print_items")
