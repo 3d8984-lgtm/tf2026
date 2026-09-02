@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { warnLightError, warnLightOkFlash } from "@/lib/warning-light";
+import { warnLightError, warnLightOkPulses } from "@/lib/warning-light";
 import { pfPrint, pfPrinterStatus, pfPrinterQueue, pfPrinterBufferClear, type PfErrorCode } from "@/lib/pf-printer";
 import { selectWaitingJobs, mergePrintedAcc, resolvePrintedAt, isCancelledJobError, isTransientPrinterError } from "@/lib/barcode-print-logic";
 
@@ -671,7 +671,7 @@ function OrderDetail({
       }
     };
     tick();
-    const iv = setInterval(tick, 1000);
+    const iv = setInterval(tick, 300); // 스캔→피드백 지연 최소화 (평균 0.15초)
     return () => { alive = false; clearInterval(iv); };
   }, []);
 
@@ -840,7 +840,7 @@ function OrderDetail({
     setQueue([]);
     verifyBusyRef.current = true;
     void (async () => {
-      let anyOk = false;
+      let okCount = 0;
       let newHalt = false;
       try {
         for (const ev of events) {
@@ -858,7 +858,7 @@ function OrderDetail({
           const v = r.out_verdict as Verdict;
           setLastVerdict(v);
           if (v === "ok") {
-            anyOk = true;
+            okCount++;
             if (r.item_position != null) {
               cursorRef.current = Math.max(cursorRef.current, Number(r.item_position));
               setCursor(cursorRef.current);
@@ -876,8 +876,8 @@ function OrderDetail({
       if (newHalt) {
         if (!haltRef.current) void warnLightError();
         setHalted(true);
-      } else if (anyOk) {
-        void warnLightOkFlash();
+      } else if (okCount > 0) {
+        void warnLightOkPulses(okCount);
       }
     })();
   }, [queue, ready, testMode, kind, order.id, loadSaved]);
