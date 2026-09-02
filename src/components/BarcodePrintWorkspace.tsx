@@ -295,6 +295,8 @@ function OrderDetail({
   const [pendingCount, setPendingCount] = useState(0);
   // 스캔 판정 로그는 로컬 상태가 아니라 서버(barcode_print_items)에서 파생한다.
   const [cursor, setCursor] = useState(0);
+  /** 검증에 사용하는 로컬 커서 — 서버 파생 커서와 max 로 병합해 동기화 지연 오판정을 막는다 */
+  const cursorRef = useRef(0);
   const [lastVerdict, setLastVerdict] = useState<Verdict | null>(null);
   const [halted, setHalted] = useState(false);
   const [testMode, setTestMode] = useState(false);
@@ -429,16 +431,23 @@ function OrderDetail({
 
     // 진행 위치 복원 = 스캔 검증이 끝난(인쇄 대기 포함) 마지막 항목
     let c = 0;
-    seenRef.current = new Set();
+    const seenNext = new Set<string>();
     for (const e of expected) {
       const it = map[e.position];
       const st = it?.status;
       const v = it?.verdict ?? null;
       const passed = (st === "done" || st === "queued" || st === "error") && (v === null || v === "ok" || v === "print_failed");
-      if (passed) { c = e.position; seenRef.current.add(norm(e.no)); }
+      if (passed) {
+        c = e.position;
+        seenNext.add(norm(e.no));
+        if (it?.scanned_value) seenNext.add(norm(it.scanned_value));
+      }
       else break;
     }
-    setCursor(c);
+    // 다른 기기가 더 앞서 처리한 상태가 서버에 있으면 그쪽을 따른다 (뒤로 후퇴하지 않음)
+    seenRef.current = new Set([...seenRef.current, ...seenNext]);
+    cursorRef.current = Math.max(cursorRef.current, c);
+    setCursor(cursorRef.current);
     // 인쇄 실패 또는 서버에 기록된 검증 실패가 남아있으면 작업을 중단 상태로 복원
     setHalted(Object.values(map).some((s) => s.status === "error" || (s.verdict != null && s.verdict !== "ok")));
     setReady(true);
@@ -747,7 +756,8 @@ function OrderDetail({
     const res = verifyScanBatch({
       events,
       expected,
-      cursor,
+      // 서버 동기화 지연으로 로컬 커서가 뒤처져 있어도 cursorRef 는 최신 값을 유지한다
+      cursor: Math.max(cursor, cursorRef.current),
       seen: seenRef.current,
       halted,
       lastCode: lastCodeRef.current,
@@ -762,6 +772,7 @@ function OrderDetail({
     // 실패 판정도 서버에 기록 → 모든 기기가 동일한 로그/중단 상태를 본다
     const failed = res.rows.filter((r) => r.verdict !== "ok");
     if (failed.length > 0) void saveVerdicts(failed);
+    cursorRef.current = res.cursor;
     setCursor(res.cursor);
     setLastVerdict(res.lastVerdict);
     if (res.halted) setHalted(true);
@@ -1108,6 +1119,7 @@ function OrderDetail({
     setQueue([]);
     setPendingCount(0);
     seenRef.current = new Set();
+    cursorRef.current = 0;
     setCursor(0);
     setSaved({});
     setLastVerdict(null);
