@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { warnLightError, warnLightOkFlash } from "@/lib/warning-light";
 import { pfPrint, pfPrinterStatus, pfPrinterQueue, pfPrinterBufferClear, type PfErrorCode } from "@/lib/pf-printer";
-import { verifyScanBatch, selectWaitingJobs, mergePrintedAcc, resolvePrintedAt, isCancelledJobError, isTransientPrinterError } from "@/lib/barcode-print-logic";
+import { selectWaitingJobs, mergePrintedAcc, resolvePrintedAt, isCancelledJobError, isTransientPrinterError } from "@/lib/barcode-print-logic";
 
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -828,53 +828,59 @@ function OrderDetail({
 
 
 
-  // 새 스캔 이벤트 큐 처리 → 순서/정보 검증 (테스트 모드에서는 스캔 무시)
+  // 새 스캔 이벤트 큐 처리 → 검증은 전부 서버(RPC verify_barcode_scan)에서 수행한다.
+  // 브라우저는 게이트웨이 이벤트를 전달만 하고 결과를 표시한다 →
+  // 여러 브라우저/기기가 동시에 켜져 있어도 판정(순서/중복/기대값)이 항상 동일하다.
+  const verifyBusyRef = useRef(false);
   useEffect(() => {
     if (queue.length === 0) return;
     if (!ready || testMode) { setQueue([]); return; }
+    if (verifyBusyRef.current) return;
     const events = queue;
     setQueue([]);
-
-    // 중복 판정 기준은 "서버에 기록된 스캔 이력"이다.
-    // (로컬 seenRef 만 쓰면 초기화 전 세션의 잔재나 다른 기기의 옛 상태 때문에
-    //  정상 스캔이 '중복 스캔'으로 오판정된다)
-    const serverSeen = new Set<string>();
-    for (const it of Object.values(savedRef.current)) {
-      if (!it?.scanned_at || it.verdict !== "ok") continue;
-      serverSeen.add(norm(it.code));
-      if (it.scanned_value) serverSeen.add(norm(it.scanned_value));
-    }
-
-    const res = verifyScanBatch({
-      events,
-      expected,
-      // 서버 동기화 지연으로 로컬 커서가 뒤처져 있어도 cursorRef 는 최신 값을 유지한다
-      cursor: Math.max(cursor, cursorRef.current),
-      seen: serverSeen,
-      halted,
-      lastCode: lastCodeRef.current,
-    });
-    if (res.rows.length === 0) return;
-    seenRef.current = res.seen;
-    lastCodeRef.current = res.lastCode;
-    // 생산자(스캔)는 검증 후 인쇄 대기열에 적재만 한다 — 실제 인쇄는 소비자 루프가 순서대로 처리
-    for (const r of res.rows) {
-      if (r.enqueue && r.position != null) void markQueued(r.position, expected[r.position - 1].no, r.barcode);
-    }
-    // 실패 판정 + 중단 이후의 통과 건(인쇄 전송은 안 하지만 검증은 된 건)도 서버에 기록
-    // → 스캔했는데 검증 로그에 아무것도 남지 않는 누락을 없앤다.
-    const toLog = res.rows.filter((r) => !r.enqueue);
-    if (toLog.length > 0) void saveVerdicts(toLog);
-
-    cursorRef.current = res.cursor;
-    setCursor(res.cursor);
-    setLastVerdict(res.lastVerdict);
-    if (res.halted) setHalted(true);
-    // 경고등: 불일치 시 적색 점등(유지), 통과 시 녹색 점등(0.5초 후 자동 소등)
-    // — 서버 딜레이 개선(단일 요청 다중 채널)으로 녹색 플래시를 다시 사용한다.
-    if (res.halted && !halted) void warnLightError();
-    else if (res.rows.some((r) => r.verdict === "ok")) void warnLightOkFlash();
-  }, [queue, expected, cursor, testMode, ready, markQueued, saveVerdicts, kind, halted]);
+    verifyBusyRef.current = true;
+    void (async () => {
+      let anyOk = false;
+      let newHalt = false;
+      try {
+        for (const ev of events) {
+          if (!norm(ev.barcode)) continue;
+          const { data, error } = await supabase.rpc("verify_barcode_scan", {
+            _kind: kind,
+            _order_id: order.id,
+            _event_id: ev.id,
+            _value: ev.barcode,
+            _scanned_at: ev.scanned_at,
+          } as any);
+          if (error) { console.error("verify_barcode_scan", error); continue; }
+          const r: any = Array.isArray(data) ? data[0] : data;
+          if (!r) continue;
+          const v = r.out_verdict as Verdict;
+          setLastVerdict(v);
+          if (v === "ok") {
+            anyOk = true;
+            if (r.item_position != null) {
+              cursorRef.current = Math.max(cursorRef.current, Number(r.item_position));
+              setCursor(cursorRef.current);
+            }
+          } else if (!r.duplicate_event) {
+            newHalt = true;
+          }
+          if (r.is_halted) newHalt = true;
+        }
+        await loadSaved();
+      } finally {
+        verifyBusyRef.current = false;
+      }
+      // 경고등: 불일치 시 적색 점등(유지), 통과 시 녹색 점등(0.5초 후 자동 소등)
+      if (newHalt) {
+        if (!haltRef.current) void warnLightError();
+        setHalted(true);
+      } else if (anyOk) {
+        void warnLightOkFlash();
+      }
+    })();
+  }, [queue, ready, testMode, kind, order.id, loadSaved]);
 
 
   // ── 소비자(단일 Print Dispatcher) ─────────────────────────────────
