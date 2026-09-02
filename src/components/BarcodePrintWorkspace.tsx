@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { warnLightError, warnLightOkPulses } from "@/lib/warning-light";
+import { warnLightError } from "@/lib/warning-light";
 import { pfPrint, pfPrinterStatus, pfPrinterQueue, pfPrinterBufferClear, type PfErrorCode } from "@/lib/pf-printer";
 import { selectWaitingJobs, mergePrintedAcc, resolvePrintedAt, isCancelledJobError, isTransientPrinterError } from "@/lib/barcode-print-logic";
 
@@ -840,7 +840,6 @@ function OrderDetail({
     setQueue([]);
     verifyBusyRef.current = true;
     void (async () => {
-      let okCount = 0;
       let newHalt = false;
       try {
         for (const ev of events) {
@@ -858,7 +857,6 @@ function OrderDetail({
           const v = r.out_verdict as Verdict;
           setLastVerdict(v);
           if (v === "ok") {
-            okCount++;
             if (r.item_position != null) {
               cursorRef.current = Math.max(cursorRef.current, Number(r.item_position));
               setCursor(cursorRef.current);
@@ -872,12 +870,10 @@ function OrderDetail({
       } finally {
         verifyBusyRef.current = false;
       }
-      // 경고등: 불일치 시 적색 점등(유지), 통과 시 녹색 점등(0.5초 후 자동 소등)
+      // 경고등: 불일치(문제) 시에만 적색 점등(유지). 통과 시에는 점등하지 않음.
       if (newHalt) {
         if (!haltRef.current) void warnLightError();
         setHalted(true);
-      } else if (okCount > 0) {
-        void warnLightOkPulses(okCount);
       }
     })();
   }, [queue, ready, testMode, kind, order.id, loadSaved]);
