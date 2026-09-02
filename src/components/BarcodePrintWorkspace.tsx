@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { warnLightError, warnLightOkFlash } from "@/lib/warning-light";
 import { pfPrint, pfPrinterStatus, pfPrinterQueue, pfPrinterBufferClear, type PfErrorCode } from "@/lib/pf-printer";
-import { verifyScanBatch, selectWaitingJobs, mergePrintedAcc, resolvePrintedAt, isCancelledJobError, isTransientPrinterError } from "@/lib/barcode-print-logic";
+import { selectWaitingJobs, mergePrintedAcc, resolvePrintedAt, isCancelledJobError, isTransientPrinterError } from "@/lib/barcode-print-logic";
 
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
