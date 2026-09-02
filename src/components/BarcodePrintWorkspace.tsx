@@ -696,6 +696,25 @@ function OrderDetail({
           setJobs(rows.slice().reverse());
           // 인쇄완료(printed=true) 확인 건은 큐에서 밀려나도 남도록 누적 저장
           setPrintedAcc((prev) => mergePrintedAcc(prev, rows));
+          // 프린터가 실제 출력 직후 시리얼 연결을 닫으면 Gateway는 job을 failed로
+          // 마감하지만 출력 여부는 확정할 수 없다. 이 상태를 서버에도 저장하지 않으면
+          // 4초 동기화 때 이전 waiting_for_print 값이 다시 로드되어 영구 대기로 보인다.
+          const transientUpdates = Object.values(savedRef.current).flatMap((item) => {
+            if (!item.gateway_job_id) return [];
+            const gateway = rows.find((row) => row.id === item.gateway_job_id);
+            if (gateway?.status !== "failed" || !isTransientPrinterError(gateway.error)) return [];
+            if (item.dispatch_status === "uncertain" && item.error_detail === gateway.error) return [];
+            return [{ item, error: gateway.error ?? "printer disconnected" }];
+          });
+          if (transientUpdates.length > 0) {
+            await Promise.all(transientUpdates.map(({ item, error }) =>
+              supabase.from("barcode_print_items").update({
+                dispatch_status: "uncertain",
+                error_code: "PRINTER_SERIAL_DISCONNECTED",
+                error_detail: error,
+              }).eq("kind", kind).eq("order_id", order.id).eq("position", item.position),
+            ));
+          }
           setSaved((prev) => {
             let changed = false;
             const next = { ...prev };
@@ -1242,7 +1261,7 @@ function OrderDetail({
   const queueStateMeta: Record<QueueState, { ko: string; zh: string; cls: string }> = {
     queued: { ko: "대기", zh: "等待", cls: "text-muted-foreground" },
     dispatching: { ko: "Gateway 전송 중", zh: "正在发送到网关", cls: "text-primary" },
-    uncertain: { ko: "전송 결과 확인 중 (재전송 안 함)", zh: "确认发送结果中（不重发）", cls: "text-orange-500" },
+    uncertain: { ko: "출력 완료 신호 확인 지연", zh: "打印完成信号确认延迟", cls: "text-orange-500" },
     accepted: { ko: "Gateway 접수 완료", zh: "网关已接收", cls: "text-amber-500" },
     waiting_for_print: { ko: "인쇄 대기 (물체 감지 대기)", zh: "等待打印（等待物体）", cls: "text-amber-500" },
     printing: { ko: "프린터 인쇄 중", zh: "打印机打印中", cls: "text-primary" },
