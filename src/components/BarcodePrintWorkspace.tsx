@@ -510,6 +510,9 @@ function OrderDetail({
         if (pos == null) return null;
         const code = expected[pos - 1]?.no;
         if (!code) return null;
+        // 이미 정상 처리(ok)된 항목은 뒤늦게 들어온 중복/순서 판정으로 덮어쓰지 않는다.
+        const cur = savedRef.current[pos];
+        if (r.verdict !== "ok" && cur?.verdict === "ok" && cur?.scanned_at) return null;
         return {
           kind, order_id: order.id, position: pos, code,
           verdict: r.verdict, scanned_value: r.barcode, scanned_at: r.at || now, scan_sequence: pos,
@@ -519,6 +522,7 @@ function OrderDetail({
       })
       .filter(Boolean) as any[];
     if (payload.length === 0) return;
+
     await supabase.from("barcode_print_items").upsert(payload, { onConflict: "kind,order_id,position" });
     setSaved((prev) => {
       const next = { ...prev };
@@ -831,12 +835,22 @@ function OrderDetail({
     const events = queue;
     setQueue([]);
 
+    // 중복 판정 기준은 "서버에 기록된 스캔 이력"이다.
+    // (로컬 seenRef 만 쓰면 초기화 전 세션의 잔재나 다른 기기의 옛 상태 때문에
+    //  정상 스캔이 '중복 스캔'으로 오판정된다)
+    const serverSeen = new Set<string>();
+    for (const it of Object.values(savedRef.current)) {
+      if (!it?.scanned_at || it.verdict !== "ok") continue;
+      serverSeen.add(norm(it.code));
+      if (it.scanned_value) serverSeen.add(norm(it.scanned_value));
+    }
+
     const res = verifyScanBatch({
       events,
       expected,
       // 서버 동기화 지연으로 로컬 커서가 뒤처져 있어도 cursorRef 는 최신 값을 유지한다
       cursor: Math.max(cursor, cursorRef.current),
-      seen: seenRef.current,
+      seen: serverSeen,
       halted,
       lastCode: lastCodeRef.current,
     });
@@ -847,9 +861,11 @@ function OrderDetail({
     for (const r of res.rows) {
       if (r.enqueue && r.position != null) void markQueued(r.position, expected[r.position - 1].no, r.barcode);
     }
-    // 실패 판정도 서버에 기록 → 모든 기기가 동일한 로그/중단 상태를 본다
-    const failed = res.rows.filter((r) => r.verdict !== "ok");
-    if (failed.length > 0) void saveVerdicts(failed);
+    // 실패 판정 + 중단 이후의 통과 건(인쇄 전송은 안 하지만 검증은 된 건)도 서버에 기록
+    // → 스캔했는데 검증 로그에 아무것도 남지 않는 누락을 없앤다.
+    const toLog = res.rows.filter((r) => !r.enqueue);
+    if (toLog.length > 0) void saveVerdicts(toLog);
+
     cursorRef.current = res.cursor;
     setCursor(res.cursor);
     setLastVerdict(res.lastVerdict);
