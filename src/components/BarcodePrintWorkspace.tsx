@@ -578,6 +578,10 @@ function OrderDetail({
     );
     setSaved((prev) => ({ ...prev, [position]: { ...prev[position], position, code, status: "done", dispatch_status: "printed", test_mode: isTest, printed_at: now } }));
   }, [kind, order.id]);
+  const markDoneRef = useRef(markDone);
+  markDoneRef.current = markDone;
+
+
 
 
   /**
