@@ -1106,7 +1106,7 @@ function OrderDetail({
     setPendingCount(0);
     seenRef.current = new Set();
     setCursor(0);
-    setLog([]);
+    setSaved({});
     setLastVerdict(null);
     setHalted(false);
     // 초기화 직후 기존 게이트웨이 이력이 다시 검증되지 않도록 프라이밍을 다시 수행
