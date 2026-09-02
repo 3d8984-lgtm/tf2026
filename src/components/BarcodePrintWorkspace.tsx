@@ -418,9 +418,10 @@ function OrderDetail({
 
     const rows = (data ?? []) as SavedItem[];
     const existing = new Set(rows.map((r) => r.position));
+    // 주문 데이터 순서대로 기대값을 미리 생성해 서버에 저장 — 이후 판정/표시는 이 값만 사용
     const missing = expected
       .filter((e) => !existing.has(e.position))
-      .map((e) => ({ kind, order_id: order.id, position: e.position, code: e.no, status: "pending", dispatch_status: "queued", scan_sequence: e.position }));
+      .map((e) => ({ kind, order_id: order.id, position: e.position, code: e.no, status: "pending", dispatch_status: "queued", scan_sequence: e.position, expected_value: e.no }));
     if (missing.length > 0) {
       await supabase.from("barcode_print_items").upsert(missing, { onConflict: "kind,order_id,position" });
     }
