@@ -1570,6 +1570,7 @@ function OrderDetail({
           />
         )}
 
+        {kind !== "tshirt" && (
         <div className="grid gap-4 lg:grid-cols-2">
           {/* 주문 상세 목록 */}
           <Card>
@@ -1763,6 +1764,7 @@ function OrderDetail({
           </Card>
 
         </div>
+        )}
 
         {/* 스캔 검증 로그 */}
         <Card>
@@ -1805,6 +1807,7 @@ function OrderDetail({
         </Card>
 
         {/* 게이트웨이 원본 로그 (스캐너 / 프린터) */}
+        {kind !== "tshirt" && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center justify-between gap-2 flex-wrap">
@@ -1954,6 +1957,7 @@ function OrderDetail({
             </div>
           </CardContent>
         </Card>
+        )}
 
 
       </div>
