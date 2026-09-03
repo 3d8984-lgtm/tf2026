@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 import PfPrinterCard from "@/components/PfPrinterCard";
+import QrLabelPrintPanel from "@/components/qr-label/QrLabelPrintPanel";
 
 const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
@@ -1554,6 +1555,19 @@ function OrderDetail({
             <AlertTriangle className="w-4 h-4 shrink-0" />
             {tr("검증 실패 — 인쇄가 중지되었습니다. 순서를 확인한 뒤 재개하세요.", "检验失败 — 打印已停止。请确认顺序后恢复。")}
           </div>
+        )}
+
+        {kind === "tshirt" && (
+          <QrLabelPrintPanel
+            kind="tshirt"
+            orderId={order.id}
+            orderNo={order.external_order_id}
+            items={expected.map((e) => ({
+              position: e.position,
+              code: e.no,
+              editionRaw: (order.source_data?.items?.[e.position - 1] ?? {})?.edition_number,
+            }))}
+          />
         )}
 
         <div className="grid gap-4 lg:grid-cols-2">
