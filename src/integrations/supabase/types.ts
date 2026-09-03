@@ -1164,6 +1164,146 @@ export type Database = {
         }
         Relationships: []
       }
+      qr_label_print_jobs: {
+        Row: {
+          computer_id: string | null
+          created_at: string
+          created_by: string | null
+          finished_at: string | null
+          id: string
+          kind: string
+          order_id: string
+          printer_name: string | null
+          status: string
+          template: Json
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          computer_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          finished_at?: string | null
+          id?: string
+          kind?: string
+          order_id: string
+          printer_name?: string | null
+          status?: string
+          template?: Json
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          computer_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          finished_at?: string | null
+          id?: string
+          kind?: string
+          order_id?: string
+          printer_name?: string | null
+          status?: string
+          template?: Json
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qr_label_print_jobs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qr_label_print_records: {
+        Row: {
+          bridge_job_id: string | null
+          cancelled_at: string | null
+          completed_at: string | null
+          computer_id: string | null
+          created_at: string
+          edition_number: string | null
+          error_message: string | null
+          failed_at: string | null
+          id: string
+          job_id: string | null
+          kind: string
+          order_id: string
+          position: number
+          printed_by: string | null
+          printer_name: string | null
+          queued_at: string | null
+          reprint_count: number
+          sent_at: string | null
+          status: string
+          sticker_unique_id: string
+          updated_at: string
+        }
+        Insert: {
+          bridge_job_id?: string | null
+          cancelled_at?: string | null
+          completed_at?: string | null
+          computer_id?: string | null
+          created_at?: string
+          edition_number?: string | null
+          error_message?: string | null
+          failed_at?: string | null
+          id?: string
+          job_id?: string | null
+          kind?: string
+          order_id: string
+          position: number
+          printed_by?: string | null
+          printer_name?: string | null
+          queued_at?: string | null
+          reprint_count?: number
+          sent_at?: string | null
+          status?: string
+          sticker_unique_id: string
+          updated_at?: string
+        }
+        Update: {
+          bridge_job_id?: string | null
+          cancelled_at?: string | null
+          completed_at?: string | null
+          computer_id?: string | null
+          created_at?: string
+          edition_number?: string | null
+          error_message?: string | null
+          failed_at?: string | null
+          id?: string
+          job_id?: string | null
+          kind?: string
+          order_id?: string
+          position?: number
+          printed_by?: string | null
+          printer_name?: string | null
+          queued_at?: string | null
+          reprint_count?: number
+          sent_at?: string | null
+          status?: string
+          sticker_unique_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qr_label_print_records_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "qr_label_print_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qr_label_print_records_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       qr_silicon_master: {
         Row: {
           created_at: string
