@@ -1767,6 +1767,7 @@ function OrderDetail({
         )}
 
         {/* 스캔 검증 로그 */}
+        {kind !== "tshirt" && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">{tr("스캔 검증 로그", "扫描检验日志")}</CardTitle>
