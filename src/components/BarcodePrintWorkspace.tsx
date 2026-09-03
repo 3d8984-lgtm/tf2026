@@ -1806,6 +1806,7 @@ function OrderDetail({
             </div>
           </CardContent>
         </Card>
+        )}
 
         {/* 게이트웨이 원본 로그 (스캐너 / 프린터) */}
         {kind !== "tshirt" && (
