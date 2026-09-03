@@ -102,7 +102,19 @@ export default function QrLabelPrintPanel({
       if (missing.length > 0) {
         await supabase.from("qr_label_print_records").insert(missing as any);
         await loadRecords();
+        return;
       }
+      // 주문 데이터의 에디션 값이 바뀐(또는 과거에 임의값으로 저장된) 기록 보정
+      const stale = labelItems.filter((i) => map[i.position] && map[i.position].edition_number !== i.edition);
+      if (stale.length > 0) {
+        await Promise.all(stale.map((i) =>
+          supabase.from("qr_label_print_records")
+            .update({ edition_number: i.edition })
+            .eq("order_id", orderId).eq("kind", kind).eq("position", i.position)
+        ));
+        await loadRecords();
+      }
+
     })();
     return () => { alive = false; };
   }, [labelItems, loadRecords, orderId, kind]);
