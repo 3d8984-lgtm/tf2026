@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 import PfPrinterCard from "@/components/PfPrinterCard";
+import QrLabelPrintPanel from "@/components/qr-label/QrLabelPrintPanel";
 
 const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
