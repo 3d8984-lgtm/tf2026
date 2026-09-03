@@ -1562,11 +1562,15 @@ function OrderDetail({
             kind="tshirt"
             orderId={order.id}
             orderNo={order.external_order_id}
-            items={expected.map((e) => ({
-              position: e.position,
-              code: e.no,
-              editionRaw: (order.source_data?.items?.[e.position - 1] ?? {})?.edition_number,
-            }))}
+            items={expected.map((e) => {
+              const it: any = (order.source_data as any)?.items?.[e.position - 1] ?? {};
+              return {
+                position: e.position,
+                code: e.no,
+                editionRaw: it.edition ?? it.edition_number ?? it.editionNumber,
+              };
+            })}
+
           />
         )}
 
