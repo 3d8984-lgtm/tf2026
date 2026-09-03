@@ -1556,6 +1556,19 @@ function OrderDetail({
           </div>
         )}
 
+        {kind === "tshirt" && (
+          <QrLabelPrintPanel
+            kind="tshirt"
+            orderId={order.id}
+            orderNo={order.external_order_id}
+            items={expected.map((e) => ({
+              position: e.position,
+              code: e.no,
+              editionRaw: (order.source_data?.items?.[e.position - 1] ?? {})?.edition_number,
+            }))}
+          />
+        )}
+
         <div className="grid gap-4 lg:grid-cols-2">
           {/* 주문 상세 목록 */}
           <Card>
