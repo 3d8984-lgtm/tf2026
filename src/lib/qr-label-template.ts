@@ -93,6 +93,11 @@ export const QR_LABEL_DEFAULTS: QrLabelTemplate = {
   print_mode: "local",
   bridge_enabled: false,
   bridge_url: "http://127.0.0.1:9110",
+  reverse_print: true,
+  test_before_count: 0,
+  test_after_count: 0,
+  test_label_code: "TEST",
+  test_label_text: "TEST",
 };
 
 export function mergeTemplate(raw: unknown): QrLabelTemplate {
