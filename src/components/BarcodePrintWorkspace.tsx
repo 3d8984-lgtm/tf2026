@@ -1446,46 +1446,11 @@ function OrderDetail({
             </CardContent>
           </Card>
 
-          <Card className={probed && printerOffline ? "border-destructive" : ""}>
-            <CardContent className="p-4 flex items-center gap-4">
-              <Printer className="w-5 h-5 text-muted-foreground shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">
-                  {kind === "card" ? tr("카드 QR 인쇄기", "卡片二维码打印机") : tr("티셔츠 QR 인쇄기", "T恤二维码打印机")}
-                </p>
-                <p className="text-[11px] text-muted-foreground truncate">
-                  {tr("대기", "等待")} {pendingCount} · {tr("완료", "完成")} {printedJobs} · {tr("실패", "失败")} {failedJobs}
-                  {lastJob && ` · ${tr("최근", "最近")} ${lastJob.barcode}`}
-                </p>
-                {lastJob?.error && !lastJobCancelled && <p className="text-[11px] text-destructive truncate">{lastJob.error}</p>}
-                {lastJobCancelled && <p className="text-[11px] text-muted-foreground truncate">{tr("버퍼 초기화로 취소됨", "因清空缓冲而取消")}</p>}
-              </div>
-              {!probed ? (
-                <Badge variant="outline" className="gap-1 text-muted-foreground shrink-0">
-                  <Loader2 className="w-3 h-3 animate-spin" />{tr("확인 중", "检查中")}
-                </Badge>
-              ) : printerOffline ? (
-                <Badge variant="outline" className="gap-1 text-destructive border-destructive/40 shrink-0">
-                  <WifiOff className="w-3 h-3" />{tr("연결 끊김", "连接断开")}
-                </Badge>
-              ) : printerOk ? (
-                <Badge variant="outline" className="gap-1 text-emerald-500 border-emerald-500/40 shrink-0">
-                  <Wifi className="w-3 h-3" />{tr("정상", "正常")}
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="gap-1 text-amber-600 dark:text-amber-400 border-amber-500/40 shrink-0">
-                  <AlertTriangle className="w-3 h-3" />{tr("인쇄 실패 있음", "存在打印失败")}
-                </Badge>
-              )}
-            </CardContent>
-          </Card>
         </div>
-
-        <PfPrinterCard />
 
         {/* 상단 상태 바 */}
         <Card className={halted ? "border-destructive" : ""}>
-          <CardContent className="p-4 grid grid-cols-2 md:grid-cols-5 gap-4 items-center">
+          <CardContent className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4 items-center">
             <div className="flex flex-col items-center gap-2">
               <div className="flex gap-2">
                 <span className={`w-10 h-10 rounded-full border transition-all ${lampOk ? "bg-emerald-500 shadow-[0_0_20px_hsl(var(--primary)/0.6)]" : "bg-muted"}`} />
@@ -1497,15 +1462,9 @@ function OrderDetail({
               <p className="text-3xl font-semibold tabular-nums">
                 {doneCount}<span className="text-base text-muted-foreground"> / {total || "-"}</span>
               </p>
-              <p className="text-[11px] text-muted-foreground">{tr("작업 완료 (서버 저장)", "已完成（服务器保存）")}</p>
+              <p className="text-[11px] text-muted-foreground">{tr("스캔 검증 완료 (서버 저장)", "扫描检验完成（服务器保存）")}</p>
             </div>
-            <div>
-              <p className="text-3xl font-semibold tabular-nums">{queuedCount}</p>
-              <p className="text-[11px] text-muted-foreground">
-                {tr("인쇄 대기열", "打印队列")}
-                {errorCount > 0 && <span className="text-destructive"> · {tr("실패", "失败")} {errorCount}</span>}
-              </p>
-            </div>
+
 
             <div>
               <p className="text-sm font-mono break-all">{status?.last_barcode ?? "-"}</p>
