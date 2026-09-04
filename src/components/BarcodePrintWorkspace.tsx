@@ -1592,47 +1592,6 @@ function OrderDetail({
         )}
 
 
-        {/* 스캔 검증 로그 */}
-        {kind !== "tshirt" && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">{tr("스캔 검증 로그", "扫描检验日志")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead className="bg-muted/40">
-                  <tr className="text-left">
-                    <th className="px-2 py-1.5">{tr("시간", "时间")}</th>
-                    <th className="px-2 py-1.5">{tr("스캔 값", "扫描值")}</th>
-                    <th className="px-2 py-1.5">{tr("순번", "序号")}</th>
-                    <th className="px-2 py-1.5">{tr("기대 값", "期望值")}</th>
-                    <th className="px-2 py-1.5">{tr("판정", "判定")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {log.length === 0 ? (
-                    <tr><td colSpan={5} className="px-2 py-6 text-center text-muted-foreground">{tr("스캔 데이터가 없습니다", "暂无扫描数据")}</td></tr>
-                  ) : log.map((r, i) => (
-                    <tr key={i} className={`border-t ${r.verdict === "ok" ? "" : "bg-destructive/5"}`}>
-                      <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{new Date(r.at).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN")}</td>
-                      <td className="px-2 py-1.5 font-mono break-all">{r.barcode}</td>
-                      <td className="px-2 py-1.5 tabular-nums">{r.position ?? "-"}</td>
-                      <td className="px-2 py-1.5 font-mono break-all">{r.expected ?? "-"}</td>
-                      <td className={`px-2 py-1.5 font-medium ${verdictMeta[r.verdict].cls}`}>
-                        <span className="inline-flex items-center gap-1">
-                          {r.verdict === "ok" ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                          {isKo ? verdictMeta[r.verdict].ko : verdictMeta[r.verdict].zh}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-        )}
 
         {/* 게이트웨이 원본 로그 (스캐너 / 프린터) */}
         {kind !== "tshirt" && (
