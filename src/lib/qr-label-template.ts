@@ -8,6 +8,8 @@ export type QrErrorLevel = "L" | "M" | "Q" | "H";
 export type QrLabelTemplate = {
   template_name: string;
   // 라벨 규격 (mm)
+  /** 라벨 모양 — rect = 사각, round = 원형(지름 = label_width) */
+  label_shape: "rect" | "round";
   label_width: number;
   label_height: number;
   columns: number;
@@ -60,6 +62,7 @@ export type QrLabelTemplate = {
 
 export const QR_LABEL_DEFAULTS: QrLabelTemplate = {
   template_name: QR_LABEL_TEMPLATE_KEY,
+  label_shape: "rect",
   label_width: 30,
   label_height: 20,
   columns: 1,
