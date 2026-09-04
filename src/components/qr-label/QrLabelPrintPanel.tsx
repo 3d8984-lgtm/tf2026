@@ -207,7 +207,7 @@ export default function QrLabelPrintPanel({
     if (snapshot.print_mode !== "bridge") {
       let ok = true;
       try {
-        await printLabelsLocally(snapshot, targets);
+        await printLabelsLocally(snapshot, [...testBefore, ...ordered, ...testAfter]);
       } catch (e: any) {
         ok = false;
         for (const it of targets) {
