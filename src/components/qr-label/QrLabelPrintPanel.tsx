@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import {
-  Printer, Settings, Eye, Loader2, CheckCircle2, XCircle, Ban, RotateCw,
+  Printer, Settings, Sliders, Eye, Loader2, CheckCircle2, XCircle, Ban, RotateCw,
 } from "lucide-react";
 import { useQrLabelTemplate } from "@/hooks/useQrLabelTemplate";
 import { checkWidth, formatEdition, type QrLabelTemplate } from "@/lib/qr-label-template";
@@ -21,6 +21,7 @@ import {
 } from "@/lib/print-bridge";
 import { printLabelsLocally } from "@/lib/local-label-print";
 import QrLabelSettingsDialog from "./QrLabelSettingsDialog";
+import PrintSettingsDialog from "./PrintSettingsDialog";
 import QrLabelPreviewDialog from "./QrLabelPreviewDialog";
 import { QrImg } from "./LabelCanvas";
 
@@ -56,6 +57,7 @@ export default function QrLabelPrintPanel({
   const { template, save } = useQrLabelTemplate();
   const [records, setRecords] = useState<Record<number, Rec>>({});
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [printSettingsOpen, setPrintSettingsOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [reprintTarget, setReprintTarget] = useState<number | null>(null);
@@ -453,6 +455,9 @@ export default function QrLabelPrintPanel({
           <Button variant="ghost" size="sm" className="gap-1 ml-auto" onClick={() => setSettingsOpen(true)}>
             <Settings className="w-4 h-4" />{tr("라벨 설정", "标签设置")}
           </Button>
+          <Button variant="ghost" size="sm" className="gap-1" onClick={() => setPrintSettingsOpen(true)}>
+            <Sliders className="w-4 h-4" />{tr("인쇄 설정", "打印设置")}
+          </Button>
         </div>
 
         {/* 아이템 리스트 */}
@@ -497,6 +502,10 @@ export default function QrLabelPrintPanel({
         template={template} onSave={save}
         sampleCode={labelItems[0]?.code ?? "STK-000001"}
         sampleEdition={labelItems[0]?.edition ?? "001/100"}
+      />
+      <PrintSettingsDialog
+        open={printSettingsOpen} onOpenChange={setPrintSettingsOpen}
+        template={template} onSave={save}
       />
       <QrLabelPreviewDialog
         open={previewOpen} onOpenChange={setPreviewOpen}
