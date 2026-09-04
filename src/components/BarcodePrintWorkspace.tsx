@@ -1416,7 +1416,7 @@ function OrderDetail({
       <div className="flex-1 overflow-auto p-4 md:p-6 space-y-4">
         {kind === "card" && (<>
         {/* 장비 상태 (스캐너 · 프린터) */}
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 ">
           <Card>
             <CardContent className="p-4 flex items-center gap-4">
               <ScanLine className="w-5 h-5 text-muted-foreground shrink-0" />
