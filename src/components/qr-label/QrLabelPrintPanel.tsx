@@ -177,6 +177,16 @@ export default function QrLabelPrintPanel({
       return;
     }
 
+    // 인쇄 설정 적용 — 역순 출력 + 앞/뒤 시험 라벨
+    const ordered: LabelItemT[] = (!isReprint && snapshot.reverse_print) ? [...targets].reverse() : targets;
+    const mkTest = (n: number, tag: string): LabelItemT[] =>
+      Array.from({ length: Math.max(0, Math.round(Number(n) || 0)) }, (_, i) => ({
+        position: -1, code: snapshot.test_label_code || "TEST",
+        edition: snapshot.test_label_text || `${tag}${i + 1}`,
+      }));
+    const testBefore = isReprint ? [] : mkTest(snapshot.test_before_count, "T");
+    const testAfter = isReprint ? [] : mkTest(snapshot.test_after_count, "T");
+
     const { data: job } = await supabase.from("qr_label_print_jobs").insert({
       order_id: orderId, kind, printer_name: snapshot.printer_name, computer_id: pc,
       template: snapshot as any, total: targets.length, status: "active",
