@@ -47,6 +47,7 @@ export type ExpectedItem = {
   no: string;
   base: string;
   cardNo: string | null;
+  edition?: string | null;
   keys: string[];
 };
 
@@ -82,6 +83,7 @@ export function buildExpected(
       no,
       base,
       cardNo: cardNo || null,
+      edition: it.edition ?? it.edition_number ?? it.editionNumber ?? null,
       keys: [no, base, cardNo].filter(Boolean).map((v: string) => norm(v)),
     };
   });
@@ -1542,9 +1544,9 @@ function OrderDetail({
                       <span className="w-7 tabular-nums text-muted-foreground">{e.position}</span>
                       <span className="flex-1 font-mono text-xs break-all">
                         {e.no}
-                        {e.cardNo && (
+                        {e.edition && (
                           <span className="ml-2 text-[10px] text-muted-foreground">
-                            {tr("인쇄값", "打印值")}: {e.cardNo}
+                            {tr("에디션", "版号")}: {e.edition}
                           </span>
                         )}
                       </span>
