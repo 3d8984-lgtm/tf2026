@@ -293,6 +293,8 @@ export default function QrLabelPrintPanel({
       setProgress({ done, total: targets.length, current: it });
     }
 
+    if (!stopRef.current) await bridgeTest(testAfter, "POST");
+
     if (jobId) {
       await supabase.from("qr_label_print_jobs")
         .update({ status: stopRef.current ? "cancelled" : "finished", finished_at: new Date().toISOString() } as any)
