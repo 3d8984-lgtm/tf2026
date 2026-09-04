@@ -61,7 +61,7 @@ export default function QrLabelSettingsDialog({
     setPrinters(up ? await bridgePrinters(draft.bridge_url) : []);
     setProbing(false);
   };
-  useEffect(() => { if (open) void probeBridge(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [open]);
+  useEffect(() => { if (open && draft.print_mode === "bridge") void probeBridge(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [open]);
 
   const width = checkWidth(draft);
 
@@ -180,6 +180,22 @@ export default function QrLabelSettingsDialog({
               </TabsContent>
 
               <TabsContent value="printer" className="mt-0 space-y-3">
+                <div className="space-y-1 max-w-xs">
+                  <Label className="text-xs">{tr("출력 방식", "打印方式")}</Label>
+                  <Select value={draft.print_mode ?? "local"} onValueChange={(v) => set({ print_mode: v as any })}>
+                    <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="local">{tr("이 PC에 연결된 프린터 (권장)", "本机连接的打印机（推荐）")}</SelectItem>
+                      <SelectItem value="bridge">{tr("네트워크 브리지 프로그램", "网络桥接程序")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    {tr("이 PC에 연결된 프린터를 선택하면 브라우저 인쇄로 바로 출력됩니다. 인쇄 대화상자에서 라벨 프린터를 선택하세요.",
+                        "选择本机打印机时，将通过浏览器直接打印，请在打印对话框中选择标签打印机。")}
+                  </p>
+                </div>
+
+                {draft.print_mode === "bridge" && (
                 <div className="flex items-center gap-2 text-sm">
                   {bridgeUp === null || probing ? (
                     <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
@@ -193,6 +209,7 @@ export default function QrLabelSettingsDialog({
                     <RefreshCw className="w-3.5 h-3.5" />{tr("다시 확인", "重新检测")}
                   </Button>
                 </div>
+                )}
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   <div className="space-y-1 col-span-full sm:col-span-1">
@@ -237,15 +254,19 @@ export default function QrLabelSettingsDialog({
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-1 col-span-full sm:col-span-2">
-                    <Label className="text-xs">Local Print Bridge URL</Label>
-                    <Input className="h-8" value={draft.bridge_url}
-                      onChange={(e) => set({ bridge_url: e.target.value })} />
-                  </div>
-                  <div className="flex items-center gap-2 pt-5">
-                    <Switch checked={draft.bridge_enabled} onCheckedChange={(v) => set({ bridge_enabled: v })} />
-                    <span className="text-xs">{tr("Local Print Bridge 사용", "使用 Local Print Bridge")}</span>
-                  </div>
+                  {draft.print_mode === "bridge" && (
+                    <>
+                      <div className="space-y-1 col-span-full sm:col-span-2">
+                        <Label className="text-xs">Local Print Bridge URL</Label>
+                        <Input className="h-8" value={draft.bridge_url}
+                          onChange={(e) => set({ bridge_url: e.target.value })} />
+                      </div>
+                      <div className="flex items-center gap-2 pt-5">
+                        <Switch checked={draft.bridge_enabled} onCheckedChange={(v) => set({ bridge_enabled: v })} />
+                        <span className="text-xs">{tr("Local Print Bridge 사용", "使用 Local Print Bridge")}</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </TabsContent>
             </div>

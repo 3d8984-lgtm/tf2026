@@ -19,6 +19,7 @@ import {
   bridgeHealth, bridgePrinterOnline, bridgePrint, bridgeJobStatus, bridgeCancel,
   labelPayload, computerId,
 } from "@/lib/print-bridge";
+import { printLabelsLocally } from "@/lib/local-label-print";
 import QrLabelSettingsDialog from "./QrLabelSettingsDialog";
 import QrLabelPreviewDialog from "./QrLabelPreviewDialog";
 import { QrImg } from "./LabelCanvas";
@@ -123,6 +124,11 @@ export default function QrLabelPrintPanel({
   useEffect(() => {
     let alive = true;
     const tick = async () => {
+      if (template.print_mode !== "bridge") {
+        setBridgeUp(null);
+        setPrinterUp(null);
+        return;
+      }
       const up = template.bridge_enabled ? await bridgeHealth(template.bridge_url) : false;
       if (!alive) return;
       setBridgeUp(up);
@@ -131,7 +137,7 @@ export default function QrLabelPrintPanel({
     void tick();
     const iv = setInterval(tick, 5000);
     return () => { alive = false; clearInterval(iv); };
-  }, [template.bridge_enabled, template.bridge_url, template.printer_name]);
+  }, [template.print_mode, template.bridge_enabled, template.bridge_url, template.printer_name]);
 
   const width = checkWidth(template);
   const counts = useMemo(() => {
@@ -187,6 +193,39 @@ export default function QrLabelPrintPanel({
       } as any);
     }
 
+    // ── 이 PC에 직접 연결된 프린터로 출력 (브라우저 인쇄) ──
+    if (snapshot.print_mode !== "bridge") {
+      let ok = true;
+      try {
+        await printLabelsLocally(snapshot, targets);
+      } catch (e: any) {
+        ok = false;
+        for (const it of targets) {
+          await patchRecord(it.position, {
+            status: "failed", failed_at: new Date().toISOString(),
+            error_message: String(e?.message ?? e).slice(0, 300),
+          } as any);
+        }
+        toast.error(tr("인쇄에 실패했습니다", "打印失败"));
+      }
+      if (ok) {
+        const ts = new Date().toISOString();
+        for (const it of targets) {
+          await patchRecord(it.position, { status: "sent_to_printer", sent_at: ts, completed_at: ts } as any);
+        }
+        toast.success(tr(`이 PC의 프린터로 ${targets.length}장 전송했습니다`, `已发送 ${targets.length} 张到本机打印机`));
+      }
+      if (jobId) {
+        await supabase.from("qr_label_print_jobs")
+          .update({ status: ok ? "finished" : "cancelled", finished_at: new Date().toISOString() } as any)
+          .eq("id", jobId);
+      }
+      setRunning(false);
+      setProgress({ done: targets.length, total: targets.length, current: null });
+      await loadRecords();
+      return;
+    }
+
     let done = 0;
     for (const it of targets) {
       if (stopRef.current) {
@@ -239,6 +278,8 @@ export default function QrLabelPrintPanel({
     toast.success(tr(`인쇄 처리 완료 · ${done}장`, `打印处理完成 · ${done} 张`));
   }, [orderId, orderNo, kind, patchRecord, loadRecords, lang]);
 
+  const snapshotIsBridge = () => template.print_mode === "bridge";
+
   const guard = () => {
     if (!width.ok) {
       toast.error(tr(
@@ -247,7 +288,7 @@ export default function QrLabelPrintPanel({
       ));
       return false;
     }
-    if (!bridgeUp || !printerUp) {
+    if (snapshotIsBridge() && (!bridgeUp || !printerUp)) {
       toast.error(tr("프린터 연결 프로그램을 확인해주세요.", "请检查打印机连接程序。"));
       return false;
     }
@@ -312,11 +353,18 @@ export default function QrLabelPrintPanel({
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="font-medium">{template.printer_display_name}</span>
-              <span className={`w-2 h-2 rounded-full ${dot(printerUp)}`} />
-              <span className="text-xs text-muted-foreground">
-                {printerUp === null ? tr("확인 중", "检测中") : printerUp ? tr("연결됨", "已连接") : tr("연결 안 됨", "未连接")}
-              </span>
+              {template.print_mode === "bridge" ? (
+                <>
+                  <span className={`w-2 h-2 rounded-full ${dot(printerUp)}`} />
+                  <span className="text-xs text-muted-foreground">
+                    {printerUp === null ? tr("확인 중", "检测中") : printerUp ? tr("연결됨", "已连接") : tr("연결 안 됨", "未连接")}
+                  </span>
+                </>
+              ) : (
+                <span className="text-xs text-muted-foreground">{tr("이 PC 연결 프린터", "本机打印机")}</span>
+              )}
             </div>
+            {template.print_mode === "bridge" ? (
             <div className="flex items-center gap-2">
               <span className="text-xs">Local Print Bridge</span>
               <span className={`w-2 h-2 rounded-full ${dot(bridgeUp)}`} />
@@ -324,6 +372,11 @@ export default function QrLabelPrintPanel({
                 {bridgeUp === null ? tr("확인 중", "检测中") : bridgeUp ? tr("실행 중", "运行中") : tr("연결되지 않음", "未连接")}
               </span>
             </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                {tr("이 컴퓨터에 연결된 프린터로 바로 출력합니다.", "直接使用本机连接的打印机打印。")}
+              </p>
+            )}
           </div>
           <div className="space-y-1 text-xs text-muted-foreground">
             <p>{tr("라벨", "标签")} {template.label_width}×{template.label_height}mm / {template.columns}{tr("열", "列")} / {tr("간격", "间距")} {template.horizontal_gap}mm</p>
