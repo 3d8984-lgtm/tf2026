@@ -236,8 +236,23 @@ export default function QrLabelPrintPanel({
       return;
     }
 
+    const bridgeTest = async (list: LabelItemT[], tag: string) => {
+      for (let i = 0; i < list.length; i++) {
+        try {
+          await bridgePrint({
+            jobId: `TEST-${tag}-${jobId?.slice(0, 8) ?? "X"}-${i + 1}`,
+            orderId: orderNo,
+            printer: snapshot.printer_name,
+            label: labelPayload(snapshot),
+            items: [{ position: 0, stickerUniqueId: list[i].code, editionNumber: list[i].edition }],
+          }, snapshot.bridge_url);
+        } catch { /* 시험 라벨 실패는 본 인쇄를 막지 않는다 */ }
+      }
+    };
+    await bridgeTest(testBefore, "PRE");
+
     let done = 0;
-    for (const it of targets) {
+    for (const it of ordered) {
       if (stopRef.current) {
         await patchRecord(it.position, { status: "cancelled", cancelled_at: new Date().toISOString() } as any);
         continue;
