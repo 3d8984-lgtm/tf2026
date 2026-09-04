@@ -29,11 +29,12 @@ export async function buildLabelsHtml(t: QrLabelTemplate, items: LocalLabelItem[
   return `<!doctype html><html><head><meta charset="utf-8" />
 <title>QR Label</title>
 <style>
-  @page { size: ${t.label_width}mm ${t.label_height}mm; margin: 0; }
+  @page { size: ${t.label_width}mm ${t.label_shape === "round" ? t.label_width : t.label_height}mm; margin: 0; }
   html, body { margin: 0; padding: 0; background: #fff; }
   .label {
     position: relative;
-    width: ${t.label_width}mm; height: ${t.label_height}mm;
+    width: ${t.label_width}mm; height: ${t.label_shape === "round" ? t.label_width : t.label_height}mm;
+    ${t.label_shape === "round" ? "border-radius: 50%;" : ""}
     overflow: hidden; page-break-after: always; break-after: page;
     background: #fff;
   }

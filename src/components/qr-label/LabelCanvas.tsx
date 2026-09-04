@@ -88,8 +88,15 @@ export default function LabelCanvas({
     <div
       ref={ref}
       className="relative bg-white border border-border overflow-hidden select-none"
-      style={{ width: px(t.label_width), height: px(t.label_height) }}
+      style={{
+        width: px(t.label_width),
+        height: px(t.label_shape === "round" ? t.label_width : t.label_height),
+        borderRadius: t.label_shape === "round" ? "50%" : undefined,
+      }}
     >
+      {t.label_shape === "round" && (
+        <div className="pointer-events-none absolute inset-0 rounded-full border border-dashed border-muted-foreground/40" />
+      )}
       {/* QR */}
       <div
         onPointerDown={(e) => startDrag(e, "qr")}

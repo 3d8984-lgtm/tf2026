@@ -98,8 +98,40 @@ export default function QrLabelSettingsDialog({
           <div className="grid gap-6 md:grid-cols-[1fr_auto] mt-4">
             <div>
               <TabsContent value="spec" className="mt-0 grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {num("label_width", tr("라벨 가로(mm)", "标签宽(mm)"))}
-                {num("label_height", tr("라벨 세로(mm)", "标签高(mm)"))}
+                <div className="space-y-1">
+                  <Label className="text-xs">{tr("라벨 모양", "标签形状")}</Label>
+                  <Select
+                    value={draft.label_shape}
+                    onValueChange={(v) =>
+                      set(v === "round"
+                        ? { label_shape: "round", label_height: draft.label_width }
+                        : { label_shape: "rect" })
+                    }
+                  >
+                    <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="rect">{tr("사각 라벨", "方形标签")}</SelectItem>
+                      <SelectItem value="round">{tr("원형 라벨", "圆形标签")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {draft.label_shape === "round" ? (
+                  <div className="space-y-1">
+                    <Label className="text-xs">{tr("라벨 지름(mm)", "标签直径(mm)")}</Label>
+                    <Input
+                      type="number" step={0.5} min={0}
+                      value={String(draft.label_width ?? "")}
+                      onChange={(e) => {
+                        const d = Number(e.target.value);
+                        set({ label_width: d, label_height: d });
+                      }}
+                      className="h-8"
+                    />
+                  </div>
+                ) : (<>
+                  {num("label_width", tr("라벨 가로(mm)", "标签宽(mm)"))}
+                  {num("label_height", tr("라벨 세로(mm)", "标签高(mm)"))}
+                </>)}
                 {num("columns", tr("열 개수", "列数"), 1, 1)}
                 {num("horizontal_gap", tr("가로 간격(mm)", "横向间距(mm)"))}
                 {num("vertical_gap", tr("세로 간격(mm)", "纵向间距(mm)"))}
@@ -275,7 +307,9 @@ export default function QrLabelSettingsDialog({
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs text-muted-foreground">
-                  {draft.label_width} × {draft.label_height} mm
+                  {draft.label_shape === "round"
+                    ? `${tr("원형", "圆形")} ⌀${draft.label_width} mm`
+                    : `${draft.label_width} × ${draft.label_height} mm`}
                 </span>
                 <div className="flex items-center gap-1">
                   <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => setScale((s) => Math.max(4, s - 2))}>−</Button>
