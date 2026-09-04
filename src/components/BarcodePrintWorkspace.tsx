@@ -1518,24 +1518,9 @@ function OrderDetail({
           </div>
         )}
 
-        <QrLabelPrintPanel
-          kind={kind}
-          orderId={order.id}
-          orderNo={order.external_order_id}
-          items={expected.map((e) => {
-            const it: any = (order.source_data as any)?.items?.[e.position - 1] ?? {};
-            return {
-              position: e.position,
-              code: e.no,
-              editionRaw: it.edition ?? it.edition_number ?? it.editionNumber,
-            };
-          })}
-        />
-
-
         {kind !== "tshirt" && (
         <div className="grid gap-4 lg:grid-cols-2">
-          {/* 주문 상세 목록 */}
+          {/* 주문 목록 스캔 검증 */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -1590,6 +1575,20 @@ function OrderDetail({
 
         </div>
         )}
+
+        <QrLabelPrintPanel
+          kind={kind}
+          orderId={order.id}
+          orderNo={order.external_order_id}
+          items={expected.map((e) => {
+            const it: any = (order.source_data as any)?.items?.[e.position - 1] ?? {};
+            return {
+              position: e.position,
+              code: e.no,
+              editionRaw: it.edition ?? it.edition_number ?? it.editionNumber,
+            };
+          })}
+        />
 
 
 
