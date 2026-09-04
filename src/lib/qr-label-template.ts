@@ -41,6 +41,8 @@ export type QrLabelTemplate = {
   printer_max_media_width: number;  // mm
   printer_dpi: number;
   printer_connection: "usb" | "network" | "serial";
+  /** local = 이 PC에 연결된 프린터(브라우저 인쇄), bridge = 네트워크/로컬 브리지 프로그램 */
+  print_mode: "local" | "bridge";
   bridge_enabled: boolean;
   bridge_url: string;
 };
@@ -77,7 +79,8 @@ export const QR_LABEL_DEFAULTS: QrLabelTemplate = {
   printer_max_media_width: 118,
   printer_dpi: 203,
   printer_connection: "usb",
-  bridge_enabled: true,
+  print_mode: "local",
+  bridge_enabled: false,
   bridge_url: "http://127.0.0.1:9110",
 };
 
