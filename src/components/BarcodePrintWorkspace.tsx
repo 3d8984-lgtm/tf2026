@@ -1624,13 +1624,7 @@ function OrderDetail({
                       >
                         <SkipForward className="w-3.5 h-3.5" />{tr("여기부터", "从此")}
                       </Button>
-                      <Button
-                        size="sm" variant="outline" className="h-7 px-2 gap-1 text-xs shrink-0"
-                        onClick={() => reprint(e.position, e.no)}
-                        title={tr("스캔 없이 이 항목만 인쇄", "不扫描仅打印此项")}
-                      >
-                        <Printer className="w-3.5 h-3.5" />{tr("재인쇄", "重印")}
-                      </Button>
+
                     </div>
                   );
                 })}
