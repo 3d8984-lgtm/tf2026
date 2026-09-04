@@ -45,6 +45,17 @@ export type QrLabelTemplate = {
   print_mode: "local" | "bridge";
   bridge_enabled: boolean;
   bridge_url: string;
+  // 인쇄 설정
+  /** 전체 인쇄 시 역순(마지막 번호부터) 출력 */
+  reverse_print: boolean;
+  /** 본 인쇄 앞에 넣을 시험 인쇄 매수 */
+  test_before_count: number;
+  /** 본 인쇄 뒤에 넣을 시험 인쇄 매수 */
+  test_after_count: number;
+  /** 시험 라벨 QR 내용 */
+  test_label_code: string;
+  /** 시험 라벨 하단 텍스트 */
+  test_label_text: string;
 };
 
 export const QR_LABEL_DEFAULTS: QrLabelTemplate = {
@@ -82,6 +93,11 @@ export const QR_LABEL_DEFAULTS: QrLabelTemplate = {
   print_mode: "local",
   bridge_enabled: false,
   bridge_url: "http://127.0.0.1:9110",
+  reverse_print: true,
+  test_before_count: 0,
+  test_after_count: 0,
+  test_label_code: "TEST",
+  test_label_text: "TEST",
 };
 
 export function mergeTemplate(raw: unknown): QrLabelTemplate {

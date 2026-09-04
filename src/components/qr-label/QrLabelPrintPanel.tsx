@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import {
-  Printer, Settings, Eye, Loader2, CheckCircle2, XCircle, Ban, RotateCw,
+  Printer, Settings, Sliders, Eye, Loader2, CheckCircle2, XCircle, Ban, RotateCw,
 } from "lucide-react";
 import { useQrLabelTemplate } from "@/hooks/useQrLabelTemplate";
 import { checkWidth, formatEdition, type QrLabelTemplate } from "@/lib/qr-label-template";
@@ -21,6 +21,7 @@ import {
 } from "@/lib/print-bridge";
 import { printLabelsLocally } from "@/lib/local-label-print";
 import QrLabelSettingsDialog from "./QrLabelSettingsDialog";
+import PrintSettingsDialog from "./PrintSettingsDialog";
 import QrLabelPreviewDialog from "./QrLabelPreviewDialog";
 import { QrImg } from "./LabelCanvas";
 
@@ -56,6 +57,7 @@ export default function QrLabelPrintPanel({
   const { template, save } = useQrLabelTemplate();
   const [records, setRecords] = useState<Record<number, Rec>>({});
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [printSettingsOpen, setPrintSettingsOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [reprintTarget, setReprintTarget] = useState<number | null>(null);
@@ -177,6 +179,16 @@ export default function QrLabelPrintPanel({
       return;
     }
 
+    // 인쇄 설정 적용 — 역순 출력 + 앞/뒤 시험 라벨
+    const ordered: LabelItemT[] = (!isReprint && snapshot.reverse_print) ? [...targets].reverse() : targets;
+    const mkTest = (n: number, tag: string): LabelItemT[] =>
+      Array.from({ length: Math.max(0, Math.round(Number(n) || 0)) }, (_, i) => ({
+        position: -1, code: snapshot.test_label_code || "TEST",
+        edition: snapshot.test_label_text || `${tag}${i + 1}`,
+      }));
+    const testBefore = isReprint ? [] : mkTest(snapshot.test_before_count, "T");
+    const testAfter = isReprint ? [] : mkTest(snapshot.test_after_count, "T");
+
     const { data: job } = await supabase.from("qr_label_print_jobs").insert({
       order_id: orderId, kind, printer_name: snapshot.printer_name, computer_id: pc,
       template: snapshot as any, total: targets.length, status: "active",
@@ -197,7 +209,7 @@ export default function QrLabelPrintPanel({
     if (snapshot.print_mode !== "bridge") {
       let ok = true;
       try {
-        await printLabelsLocally(snapshot, targets);
+        await printLabelsLocally(snapshot, [...testBefore, ...ordered, ...testAfter]);
       } catch (e: any) {
         ok = false;
         for (const it of targets) {
@@ -226,8 +238,23 @@ export default function QrLabelPrintPanel({
       return;
     }
 
+    const bridgeTest = async (list: LabelItemT[], tag: string) => {
+      for (let i = 0; i < list.length; i++) {
+        try {
+          await bridgePrint({
+            jobId: `TEST-${tag}-${jobId?.slice(0, 8) ?? "X"}-${i + 1}`,
+            orderId: orderNo,
+            printer: snapshot.printer_name,
+            label: labelPayload(snapshot),
+            items: [{ position: 0, stickerUniqueId: list[i].code, editionNumber: list[i].edition }],
+          }, snapshot.bridge_url);
+        } catch { /* 시험 라벨 실패는 본 인쇄를 막지 않는다 */ }
+      }
+    };
+    await bridgeTest(testBefore, "PRE");
+
     let done = 0;
-    for (const it of targets) {
+    for (const it of ordered) {
       if (stopRef.current) {
         await patchRecord(it.position, { status: "cancelled", cancelled_at: new Date().toISOString() } as any);
         continue;
@@ -267,6 +294,8 @@ export default function QrLabelPrintPanel({
       done++;
       setProgress({ done, total: targets.length, current: it });
     }
+
+    if (!stopRef.current) await bridgeTest(testAfter, "POST");
 
     if (jobId) {
       await supabase.from("qr_label_print_jobs")
@@ -426,6 +455,9 @@ export default function QrLabelPrintPanel({
           <Button variant="ghost" size="sm" className="gap-1 ml-auto" onClick={() => setSettingsOpen(true)}>
             <Settings className="w-4 h-4" />{tr("라벨 설정", "标签设置")}
           </Button>
+          <Button variant="ghost" size="sm" className="gap-1" onClick={() => setPrintSettingsOpen(true)}>
+            <Sliders className="w-4 h-4" />{tr("인쇄 설정", "打印设置")}
+          </Button>
         </div>
 
         {/* 아이템 리스트 */}
@@ -470,6 +502,10 @@ export default function QrLabelPrintPanel({
         template={template} onSave={save}
         sampleCode={labelItems[0]?.code ?? "STK-000001"}
         sampleEdition={labelItems[0]?.edition ?? "001/100"}
+      />
+      <PrintSettingsDialog
+        open={printSettingsOpen} onOpenChange={setPrintSettingsOpen}
+        template={template} onSave={save}
       />
       <QrLabelPreviewDialog
         open={previewOpen} onOpenChange={setPreviewOpen}
