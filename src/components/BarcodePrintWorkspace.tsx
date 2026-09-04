@@ -20,7 +20,6 @@ import {
   ChevronLeft, AlertTriangle, Loader2, Play, Pause, SkipForward, FlaskConical, Eraser,
 } from "lucide-react";
 
-import PfPrinterCard from "@/components/PfPrinterCard";
 import QrLabelPrintPanel from "@/components/qr-label/QrLabelPrintPanel";
 
 const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
