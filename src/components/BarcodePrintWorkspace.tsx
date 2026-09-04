@@ -1521,8 +1521,6 @@ function OrderDetail({
         )}
 
         {kind !== "tshirt" && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {/* 주문 목록 스캔 검증 */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -1533,6 +1531,13 @@ function OrderDetail({
               <div className="h-2 rounded bg-muted overflow-hidden mb-3">
                 <div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} />
               </div>
+              <div className="grid grid-cols-12 gap-2 px-2 py-2 text-sm font-semibold text-foreground border-b">
+                <div className="col-span-1">{tr("순번", "序号")}</div>
+                <div className="col-span-5">{tr("고유번호", "唯一编号")}</div>
+                <div className="col-span-2">{tr("에디션", "版号")}</div>
+                <div className="col-span-2">{tr("상태", "状态")}</div>
+                <div className="col-span-2 text-right">{tr("작업", "操作")}</div>
+              </div>
               <div className="max-h-[420px] overflow-auto divide-y">
                 {expected.map((e, i) => {
                   const rec = saved[e.position];
@@ -1540,42 +1545,36 @@ function OrderDetail({
                   const done = rec?.status === "done" || rec?.status === "queued" || rec?.status === "error";
                   const current = i === cursor;
                   return (
-                    <div key={i} className={`flex items-center gap-2 py-2.5 px-2 text-sm ${current ? "bg-primary/10 rounded" : ""}`}>
-                      <span className="w-7 tabular-nums text-muted-foreground">{e.position}</span>
-                      <span className="flex-1 font-mono text-xs break-all">
-                        {e.no}
-                        {e.edition && (
-                          <span className="ml-2 text-[10px] text-muted-foreground">
-                            {tr("에디션", "版号")}: {e.edition}
+                    <div key={i} className={`grid grid-cols-12 gap-2 items-center py-2.5 px-2 text-sm ${current ? "bg-primary/10 rounded" : ""}`}>
+                      <div className="col-span-1 tabular-nums text-foreground font-medium">{e.position}</div>
+                      <div className="col-span-5 break-all text-foreground font-medium">{e.no}</div>
+                      <div className="col-span-2 text-foreground">{e.edition ?? "-"}</div>
+                      <div className="col-span-2">
+                        {done ? (
+                          <span className="inline-flex items-center gap-1 text-sm text-foreground font-medium">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />{tr("완료", "完成")}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center text-sm font-medium text-foreground">
+                            {tr("대기", "等待")}
                           </span>
                         )}
-                      </span>
-
-                      {done ? (
-                        <Badge variant="outline" className="shrink-0 text-[10px] gap-1 border-emerald-500/50 text-emerald-500">
-                          <CheckCircle2 className="w-3 h-3" />{tr("완료", "完成")}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className={`shrink-0 text-[10px] ${current ? "border-primary text-primary" : "text-muted-foreground"}`}>
-                          {tr("대기", "等待")}
-                        </Badge>
-                      )}
-                      <Button
-                        size="sm" variant="ghost" className="h-7 px-2 gap-1 text-xs shrink-0"
-                        onClick={() => resumeFrom(e.position)}
-                        title={tr("이 순번부터 다시 작업", "从此项重新作业")}
-                      >
-                        <SkipForward className="w-3.5 h-3.5" />{tr("여기부터", "从此")}
-                      </Button>
-
+                      </div>
+                      <div className="col-span-2 text-right">
+                        <Button
+                          size="sm" variant="ghost" className="h-7 px-2 gap-1 text-xs shrink-0"
+                          onClick={() => resumeFrom(e.position)}
+                          title={tr("이 순번부터 다시 작업", "从此项重新作业")}
+                        >
+                          <SkipForward className="w-3.5 h-3.5" />{tr("여기부터", "从此")}
+                        </Button>
+                      </div>
                     </div>
                   );
                 })}
               </div>
             </CardContent>
           </Card>
-
-        </div>
         )}
 
         <QrLabelPrintPanel
