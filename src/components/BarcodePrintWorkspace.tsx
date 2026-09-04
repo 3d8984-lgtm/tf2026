@@ -20,7 +20,6 @@ import {
   ChevronLeft, AlertTriangle, Loader2, Play, Pause, SkipForward, FlaskConical, Eraser,
 } from "lucide-react";
 
-import PfPrinterCard from "@/components/PfPrinterCard";
 import QrLabelPrintPanel from "@/components/qr-label/QrLabelPrintPanel";
 
 const PROXY_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cctv-proxy`;
@@ -1416,7 +1415,7 @@ function OrderDetail({
       <div className="flex-1 overflow-auto p-4 md:p-6 space-y-4">
         {kind === "card" && (<>
         {/* 장비 상태 (스캐너 · 프린터) */}
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 ">
           <Card>
             <CardContent className="p-4 flex items-center gap-4">
               <ScanLine className="w-5 h-5 text-muted-foreground shrink-0" />
@@ -1446,46 +1445,11 @@ function OrderDetail({
             </CardContent>
           </Card>
 
-          <Card className={probed && printerOffline ? "border-destructive" : ""}>
-            <CardContent className="p-4 flex items-center gap-4">
-              <Printer className="w-5 h-5 text-muted-foreground shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">
-                  {kind === "card" ? tr("카드 QR 인쇄기", "卡片二维码打印机") : tr("티셔츠 QR 인쇄기", "T恤二维码打印机")}
-                </p>
-                <p className="text-[11px] text-muted-foreground truncate">
-                  {tr("대기", "等待")} {pendingCount} · {tr("완료", "完成")} {printedJobs} · {tr("실패", "失败")} {failedJobs}
-                  {lastJob && ` · ${tr("최근", "最近")} ${lastJob.barcode}`}
-                </p>
-                {lastJob?.error && !lastJobCancelled && <p className="text-[11px] text-destructive truncate">{lastJob.error}</p>}
-                {lastJobCancelled && <p className="text-[11px] text-muted-foreground truncate">{tr("버퍼 초기화로 취소됨", "因清空缓冲而取消")}</p>}
-              </div>
-              {!probed ? (
-                <Badge variant="outline" className="gap-1 text-muted-foreground shrink-0">
-                  <Loader2 className="w-3 h-3 animate-spin" />{tr("확인 중", "检查中")}
-                </Badge>
-              ) : printerOffline ? (
-                <Badge variant="outline" className="gap-1 text-destructive border-destructive/40 shrink-0">
-                  <WifiOff className="w-3 h-3" />{tr("연결 끊김", "连接断开")}
-                </Badge>
-              ) : printerOk ? (
-                <Badge variant="outline" className="gap-1 text-emerald-500 border-emerald-500/40 shrink-0">
-                  <Wifi className="w-3 h-3" />{tr("정상", "正常")}
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="gap-1 text-amber-600 dark:text-amber-400 border-amber-500/40 shrink-0">
-                  <AlertTriangle className="w-3 h-3" />{tr("인쇄 실패 있음", "存在打印失败")}
-                </Badge>
-              )}
-            </CardContent>
-          </Card>
         </div>
-
-        <PfPrinterCard />
 
         {/* 상단 상태 바 */}
         <Card className={halted ? "border-destructive" : ""}>
-          <CardContent className="p-4 grid grid-cols-2 md:grid-cols-5 gap-4 items-center">
+          <CardContent className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4 items-center">
             <div className="flex flex-col items-center gap-2">
               <div className="flex gap-2">
                 <span className={`w-10 h-10 rounded-full border transition-all ${lampOk ? "bg-emerald-500 shadow-[0_0_20px_hsl(var(--primary)/0.6)]" : "bg-muted"}`} />
@@ -1497,15 +1461,9 @@ function OrderDetail({
               <p className="text-3xl font-semibold tabular-nums">
                 {doneCount}<span className="text-base text-muted-foreground"> / {total || "-"}</span>
               </p>
-              <p className="text-[11px] text-muted-foreground">{tr("작업 완료 (서버 저장)", "已完成（服务器保存）")}</p>
+              <p className="text-[11px] text-muted-foreground">{tr("스캔 검증 완료 (서버 저장)", "扫描检验完成（服务器保存）")}</p>
             </div>
-            <div>
-              <p className="text-3xl font-semibold tabular-nums">{queuedCount}</p>
-              <p className="text-[11px] text-muted-foreground">
-                {tr("인쇄 대기열", "打印队列")}
-                {errorCount > 0 && <span className="text-destructive"> · {tr("실패", "失败")} {errorCount}</span>}
-              </p>
-            </div>
+
 
             <div>
               <p className="text-sm font-mono break-all">{status?.last_barcode ?? "-"}</p>
@@ -1560,22 +1518,20 @@ function OrderDetail({
           </div>
         )}
 
-        {kind === "tshirt" && (
-          <QrLabelPrintPanel
-            kind="tshirt"
-            orderId={order.id}
-            orderNo={order.external_order_id}
-            items={expected.map((e) => {
-              const it: any = (order.source_data as any)?.items?.[e.position - 1] ?? {};
-              return {
-                position: e.position,
-                code: e.no,
-                editionRaw: it.edition ?? it.edition_number ?? it.editionNumber,
-              };
-            })}
+        <QrLabelPrintPanel
+          kind={kind}
+          orderId={order.id}
+          orderNo={order.external_order_id}
+          items={expected.map((e) => {
+            const it: any = (order.source_data as any)?.items?.[e.position - 1] ?? {};
+            return {
+              position: e.position,
+              code: e.no,
+              editionRaw: it.edition ?? it.edition_number ?? it.editionNumber,
+            };
+          })}
+        />
 
-          />
-        )}
 
         {kind !== "tshirt" && (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -1624,13 +1580,7 @@ function OrderDetail({
                       >
                         <SkipForward className="w-3.5 h-3.5" />{tr("여기부터", "从此")}
                       </Button>
-                      <Button
-                        size="sm" variant="outline" className="h-7 px-2 gap-1 text-xs shrink-0"
-                        onClick={() => reprint(e.position, e.no)}
-                        title={tr("스캔 없이 이 항목만 인쇄", "不扫描仅打印此项")}
-                      >
-                        <Printer className="w-3.5 h-3.5" />{tr("재인쇄", "重印")}
-                      </Button>
+
                     </div>
                   );
                 })}
@@ -1638,140 +1588,9 @@ function OrderDetail({
             </CardContent>
           </Card>
 
-          {/* 인쇄 대기열 — 프린터 서버 FIFO 큐에 실제 대기/처리 중인 건 */}
-          <Card className={errorCount > 0 ? "border-destructive" : ""}>
-            <CardHeader className="pb-3 space-y-2">
-              <CardTitle className="text-base flex items-center gap-2 flex-wrap">
-                <Printer className="w-4 h-4" />{tr("인쇄 대기열", "打印队列")}
-                <span className="text-xs font-normal text-muted-foreground">({queueRows.length})</span>
-                <span className="text-[11px] font-normal text-muted-foreground ml-auto">
-                  {tr("전송 중", "发送中")} {inFlightCount}
-                  {errorCount > 0 && <span className="text-destructive"> · {tr("실패", "失败")} {errorCount}</span>}
-                </span>
-              </CardTitle>
-              <div className="flex gap-1.5">
-                <Button size="sm" variant="outline" className="gap-1 h-8 flex-1" onClick={() => void enqueueAllRemaining()}>
-                  <Printer className="w-3.5 h-3.5" />{tr("남은 항목 전체 대기열 추가", "将剩余项目全部加入队列")}
-                </Button>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button size="sm" variant="outline" className="gap-1 h-8" disabled={queueItems.length === 0 && pendingCount === 0}>
-                      <Eraser className="w-3.5 h-3.5" />{tr("대기열 초기화", "清空队列")}
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>{tr("인쇄 대기열을 초기화할까요?", "确定清空打印队列吗？")}</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        {tr(
-                          `대기 중 ${queuedCount}건${errorCount > 0 ? ` · 실패 ${errorCount}건` : ""}이 제거되고, 프린터 서버에서 아직 시작하지 않은 인쇄 요청도 함께 취소됩니다. 완료된 기록은 유지되고, 이미 프린터가 처리 중인 1건은 끝까지 출력됩니다.`,
-                          `将移除等待中 ${queuedCount} 项${errorCount > 0 ? `、失败 ${errorCount} 项` : ""}，并取消打印服务器中尚未开始的请求。已完成的记录会保留，正在处理中的 1 项仍会打印完成。`
-                        )}
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>{tr("취소", "取消")}</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => { void clearQueue(); }}>{tr("초기화", "清空")}</AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-
-              </div>
-            </CardHeader>
-
-            <CardContent>
-              <div className="max-h-[420px] overflow-auto">
-                <table className="w-full text-xs">
-                  <thead className="bg-muted/40">
-                    <tr className="text-left">
-                      <th className="px-2 py-1.5">{tr("순번", "序号")}</th>
-                      <th className="px-2 py-1.5">{tr("인쇄 값", "打印值")}</th>
-                      <th className="px-2 py-1.5">{tr("상태", "状态")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {queueRows.length === 0 ? (
-                      <tr><td colSpan={3} className="px-2 py-6 text-center text-muted-foreground">{tr("프린터에 대기 중인 인쇄 작업이 없습니다", "打印机中暂无待打印作业")}</td></tr>
-                    ) : queueRows.map((r) => (
-                      <tr key={r.key} className={`border-t ${r.state === "error" ? "bg-destructive/5" : ""}`}>
-                        <td className="px-2 py-1.5 tabular-nums">{r.position ?? "-"}</td>
-                        <td className="px-2 py-1.5 font-mono break-all">{r.code}</td>
-                        <td className={`px-2 py-1.5 font-medium ${queueStateMeta[r.state].cls}`}>
-                          {isKo ? queueStateMeta[r.state].ko : queueStateMeta[r.state].zh}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-
-
-          {/* 인쇄 완료 */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-500" />{tr("인쇄 완료", "打印完成")}
-                <span className="text-xs font-normal text-muted-foreground">({printedItems.length}/{total})</span>
-                <span className="text-[11px] font-normal text-muted-foreground ml-auto">
-                  {tr("출력 완료 확인", "输出完成确认")} {confirmedPrinted}
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="max-h-[420px] overflow-auto">
-                <table className="w-full text-xs">
-                  <thead className="bg-muted/40">
-                    <tr className="text-left">
-                      <th className="px-2 py-1.5">{tr("순번", "序号")}</th>
-                      <th className="px-2 py-1.5">{tr("바코드", "条码")}</th>
-                      <th className="px-2 py-1.5">{tr("인쇄 확인", "打印确认")}</th>
-
-                      <th className="px-2 py-1.5">{tr("인쇄 시각", "打印时间")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {printedItems.length === 0 ? (
-                      <tr><td colSpan={4} className="px-2 py-6 text-center text-muted-foreground">{tr("인쇄 완료 기록이 없습니다", "暂无打印完成记录")}</td></tr>
-                    ) : printedItems.map(({ e, s, event, at }) => (
-                      <tr key={e.position} className="border-t">
-                        <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{e.position}</td>
-                        <td className="px-2 py-1.5 font-mono break-all">
-                          {e.no}
-                          {s?.test_mode && <span className="ml-1 text-[10px] text-amber-500">TEST</span>}
-                        </td>
-                        <td className="px-2 py-1.5">
-                          {event ? (
-                            <span className="text-emerald-500">{tr("출력 완료(프린터 신호)", "输出完成(打印机信号)")}</span>
-                          ) : (
-                            <span className="text-emerald-500">{tr("인쇄 완료", "打印完成")}</span>
-                          )}
-                        </td>
-                        <td className="px-2 py-1.5 tabular-nums text-muted-foreground">
-                          {new Date(at as string).toLocaleTimeString(isKo ? "ko-KR" : "zh-CN")}
-                        </td>
-
-                      </tr>
-                    ))}
-
-                  </tbody>
-                </table>
-              </div>
-              <p className="mt-2 text-[11px] text-muted-foreground">
-                {tr(
-                  "※ '출력 완료(프린터 신호)'는 프린터/게이트웨이가 완료 이벤트 API(print-complete-event)로 직접 통보한 실제 출력 완료 건입니다. 이벤트가 없는 항목은 게이트웨이 큐의 인쇄완료(0x40) 응답으로 판정하며, '완료 확인 지연'은 트리거는 성공했으나 완료 응답 수신이 타임아웃된 경우입니다.",
-                  "※ '输出完成(打印机信号)'表示打印机/网关通过完成事件API(print-complete-event)直接通知的实际输出完成。无事件的项目按网关队列的打印完成(0x40)响应判定，'完成确认延迟'表示触发成功但完成响应超时。"
-                )}
-
-              </p>
-            </CardContent>
-
-
-          </Card>
-
         </div>
         )}
+
 
         {/* 스캔 검증 로그 */}
         {kind !== "tshirt" && (
