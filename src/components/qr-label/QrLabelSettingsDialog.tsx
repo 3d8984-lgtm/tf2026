@@ -222,8 +222,8 @@ export default function QrLabelSettingsDialog({
                     </SelectContent>
                   </Select>
                   <p className="text-[11px] text-muted-foreground">
-                    {tr("이 PC에 연결된 프린터를 선택하면 브라우저 인쇄로 바로 출력됩니다. 인쇄 대화상자에서 라벨 프린터를 선택하세요.",
-                        "选择本机打印机时，将通过浏览器直接打印，请在打印对话框中选择标签打印机。")}
+                    {tr("이 PC의 인쇄 에이전트(127.0.0.1:9100)로 PDF를 전송하면 에이전트가 프린터 용지 크기에 맞춰 자동 출력합니다. 이 PC에 에이전트가 실행 중이어야 합니다.",
+                        "通过本机打印代理（127.0.0.1:9100）发送 PDF，代理会自动匹配纸张尺寸打印。本机需运行代理程序。")}
                   </p>
                 </div>
 
