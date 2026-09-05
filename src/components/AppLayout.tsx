@@ -20,6 +20,8 @@ import { toast } from "sonner";
 type MenuCustom = Record<string, { label?: string; order?: number }>;
 const MENU_CUSTOM_KEY = "twinmeta.menuCustomizations.v1";
 const MENU_SETTING_KEY = "menu_customizations";
+// 마지막 메뉴 설정 서버 조회 시각 (중복 호출 방지용, 모듈 전역)
+let lastMenuPullAt = 0;
 const loadCustom = (): MenuCustom => {
   try { return JSON.parse(localStorage.getItem(MENU_CUSTOM_KEY) || "{}"); } catch { return {}; }
 };
@@ -182,7 +184,12 @@ export default function AppLayout() {
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
+    // React StrictMode 이중 마운트·인터벌 겹침으로 같은 설정이 중복 조회되는 것을 방지.
+    // (모듈 스코프 타임스탬프로 5초 이내 재호출은 건너뜀)
     const pull = async () => {
+      const now = Date.now();
+      if (now - lastMenuPullAt < 5000) return;
+      lastMenuPullAt = now;
       const { data, error } = await supabase
         .from("app_ui_settings")
         .select("setting_value")
@@ -204,10 +211,8 @@ export default function AppLayout() {
       try { localStorage.setItem(MENU_CUSTOM_KEY, JSON.stringify(remote)); } catch { /* ignore */ }
     };
     void pull();
-    const timer = window.setInterval(pull, 20000);
-    const onFocus = () => { void pull(); };
-    window.addEventListener("focus", onFocus);
-    return () => { cancelled = true; window.clearInterval(timer); window.removeEventListener("focus", onFocus); };
+    const timer = window.setInterval(pull, 60000);
+    return () => { cancelled = true; window.clearInterval(timer); };
   }, [user]);
   const persistCustom = async (next: MenuCustom) => {
     try { localStorage.setItem(MENU_CUSTOM_KEY, JSON.stringify(next)); } catch { /* ignore */ }
