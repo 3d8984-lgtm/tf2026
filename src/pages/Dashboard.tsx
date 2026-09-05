@@ -82,10 +82,13 @@ function useAllShipments() {
   return useQuery({
     queryKey: ["all_shipments"],
     queryFn: async () => {
+      // 대기 중인 배송만 최대 5건 필요 — 무거운 carrier_response 등은 제외하고 최소 컬럼만 조회.
       const { data, error } = await supabase
         .from("shipments")
-        .select("*, orders(external_order_id, product_code, design_code)")
-        .order("created_at", { ascending: false });
+        .select("id, status, created_at, orders(external_order_id, product_code, design_code)")
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(5);
       if (error) throw error;
       return data;
     },
