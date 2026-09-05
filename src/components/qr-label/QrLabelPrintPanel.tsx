@@ -207,11 +207,11 @@ export default function QrLabelPrintPanel({
       } as any);
     }
 
-    // ── 이 PC에 직접 연결된 프린터로 출력 (브라우저 인쇄) ──
+    // ── 이 PC의 인쇄 에이전트로 PDF 전송 (에이전트가 용지 크기 자동 맞춤) ──
     if (snapshot.print_mode !== "bridge") {
       let ok = true;
       try {
-        await printLabelsLocally(snapshot, [...testBefore, ...ordered, ...testAfter]);
+        await printLabelsViaAgent(snapshot, [...testBefore, ...ordered, ...testAfter], snapshot.printer_name);
       } catch (e: any) {
         ok = false;
         for (const it of targets) {
@@ -220,14 +220,17 @@ export default function QrLabelPrintPanel({
             error_message: String(e?.message ?? e).slice(0, 300),
           } as any);
         }
-        toast.error(tr("인쇄에 실패했습니다", "打印失败"));
+        toast.error(tr(
+          "인쇄 에이전트에 연결할 수 없습니다. 이 PC에 에이전트가 실행 중인지 확인해주세요.",
+          "无法连接打印代理，请确认本机代理已启动。",
+        ));
       }
       if (ok) {
         const ts = new Date().toISOString();
         for (const it of targets) {
           await patchRecord(it.position, { status: "sent_to_printer", sent_at: ts, completed_at: ts } as any);
         }
-        toast.success(tr(`이 PC의 프린터로 ${targets.length}장 전송했습니다`, `已发送 ${targets.length} 张到本机打印机`));
+        toast.success(tr(`인쇄 에이전트로 ${targets.length}장 전송했습니다`, `已发送 ${targets.length} 张到打印代理`));
       }
       if (jobId) {
         await supabase.from("qr_label_print_jobs")
