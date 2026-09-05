@@ -211,7 +211,7 @@ export default function QrLabelPrintPanel({
     if (snapshot.print_mode !== "bridge") {
       let ok = true;
       try {
-        await printLabelsViaAgent(snapshot, [...testBefore, ...ordered, ...testAfter], snapshot.printer_name);
+        await printLabelsViaAgent(snapshot, [...testBefore, ...ordered, ...testAfter]);
       } catch (e: any) {
         ok = false;
         for (const it of targets) {
