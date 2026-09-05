@@ -484,6 +484,9 @@ export default function QrLabelPrintPanel({
             {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
             {tr("전체 인쇄", "整单打印")}
           </Button>
+          <Button variant="outline" size="sm" className="gap-1" onClick={() => void downloadPdf()} disabled={counts.total === 0}>
+            <Download className="w-4 h-4" />{tr("PDF 다운로드", "下载 PDF")}
+          </Button>
           <Button variant="outline" size="sm" className="gap-1" onClick={startSelected} disabled={running}>
             {tr("선택 인쇄", "选择打印")}
           </Button>
