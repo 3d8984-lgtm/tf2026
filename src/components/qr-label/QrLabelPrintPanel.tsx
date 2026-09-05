@@ -326,6 +326,13 @@ export default function QrLabelPrintPanel({
       toast.error(tr("프린터 연결 프로그램을 확인해주세요.", "请检查打印机连接程序。"));
       return false;
     }
+    if (!snapshotIsBridge() && printerUp === false) {
+      toast.error(tr(
+        "인쇄 에이전트가 실행 중이 아닙니다. 이 PC에서 에이전트를 먼저 실행해주세요.",
+        "打印代理未运行，请先在本机启动代理。",
+      ));
+      return false;
+    }
     return true;
   };
 
@@ -407,9 +414,13 @@ export default function QrLabelPrintPanel({
               </span>
             </div>
             ) : (
-              <p className="text-xs text-muted-foreground">
-                {tr("이 컴퓨터에 연결된 프린터로 바로 출력합니다.", "直接使用本机连接的打印机打印。")}
-              </p>
+              <div className="flex items-center gap-2">
+                <span className="text-xs">{tr("인쇄 에이전트", "打印代理")}</span>
+                <span className={`w-2 h-2 rounded-full ${dot(printerUp)}`} />
+                <span className="text-xs text-muted-foreground">
+                  {printerUp === null ? tr("확인 중", "检测中") : printerUp ? tr("실행 중", "运行中") : tr("연결되지 않음", "未连接")}
+                </span>
+              </div>
             )}
           </div>
           <div className="space-y-1 text-xs text-muted-foreground">
