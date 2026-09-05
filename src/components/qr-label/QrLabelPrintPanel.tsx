@@ -19,7 +19,7 @@ import {
   bridgeHealth, bridgePrinterOnline, bridgePrint, bridgeJobStatus, bridgeCancel,
   labelPayload, computerId,
 } from "@/lib/print-bridge";
-import { printLabelsLocally } from "@/lib/local-label-print";
+import { printLabelsViaAgent, checkLabelAgent } from "@/lib/agent-label-print";
 import QrLabelSettingsDialog from "./QrLabelSettingsDialog";
 import PrintSettingsDialog from "./PrintSettingsDialog";
 import QrLabelPreviewDialog from "./QrLabelPreviewDialog";
@@ -128,7 +128,9 @@ export default function QrLabelPrintPanel({
     const tick = async () => {
       if (template.print_mode !== "bridge") {
         setBridgeUp(null);
-        setPrinterUp(null);
+        // 로컬 모드 = 이 PC의 인쇄 에이전트(127.0.0.1:9100)에 PDF 전송
+        const up = await checkLabelAgent();
+        if (alive) setPrinterUp(up);
         return;
       }
       const up = template.bridge_enabled ? await bridgeHealth(template.bridge_url) : false;
