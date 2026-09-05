@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import {
-  Printer, Settings, Sliders, Eye, Loader2, CheckCircle2, XCircle, Ban, RotateCw,
+  Printer, Settings, Sliders, Eye, Loader2, CheckCircle2, XCircle, Ban, RotateCw, Download,
 } from "lucide-react";
 import { useQrLabelTemplate } from "@/hooks/useQrLabelTemplate";
 import { checkWidth, formatEdition, type QrLabelTemplate } from "@/lib/qr-label-template";
@@ -19,7 +19,7 @@ import {
   bridgeHealth, bridgePrinterOnline, bridgePrint, bridgeJobStatus, bridgeCancel,
   labelPayload, computerId,
 } from "@/lib/print-bridge";
-import { printLabelsViaAgent, checkLabelAgent } from "@/lib/agent-label-print";
+import { printLabelsViaAgent, checkLabelAgent, buildLabelsPdf } from "@/lib/agent-label-print";
 import QrLabelSettingsDialog from "./QrLabelSettingsDialog";
 import PrintSettingsDialog from "./PrintSettingsDialog";
 import QrLabelPreviewDialog from "./QrLabelPreviewDialog";
