@@ -69,16 +69,15 @@ export async function checkLabelAgent(base?: string): Promise<boolean> {
 /**
  * 라벨들을 PDF로 만들어 로컬 에이전트에 전송한다.
  * 실패 시 예외를 던지므로 호출부에서 처리한다.
+ * 에이전트가 프린터 이름 없이도 설치된 프린터를 자동 선택하므로 printerName은 보내지 않는다.
  */
 export async function printLabelsViaAgent(
   t: QrLabelTemplate,
   items: AgentLabelItem[],
-  printerName?: string | null,
 ): Promise<void> {
   const pdf = await buildLabelsPdf(t, items);
   await printPdfViaAgent({
     pdf,
-    printerName: printerName || t.printer_name || undefined,
     copies: 1,
   });
 }
