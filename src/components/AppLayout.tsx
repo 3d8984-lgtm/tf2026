@@ -20,6 +20,8 @@ import { toast } from "sonner";
 type MenuCustom = Record<string, { label?: string; order?: number }>;
 const MENU_CUSTOM_KEY = "twinmeta.menuCustomizations.v1";
 const MENU_SETTING_KEY = "menu_customizations";
+// 마지막 메뉴 설정 서버 조회 시각 (중복 호출 방지용, 모듈 전역)
+let lastMenuPullAt = 0;
 const loadCustom = (): MenuCustom => {
   try { return JSON.parse(localStorage.getItem(MENU_CUSTOM_KEY) || "{}"); } catch { return {}; }
 };
