@@ -314,6 +314,30 @@ export default function QrLabelPrintPanel({
 
   const snapshotIsBridge = () => template.print_mode === "bridge";
 
+  // ── 진단용: 실제 인쇄에 보내는 것과 동일한 PDF 다운로드 ──
+  const downloadPdf = useCallback(async () => {
+    if (labelItems.length === 0) return;
+    const snapshot = template;
+    const ordered = snapshot.reverse_print ? [...labelItems].reverse() : labelItems;
+    const mkTest = (n: number, tag: string): LabelItemT[] =>
+      Array.from({ length: Math.max(0, Math.round(Number(n) || 0)) }, (_, i) => ({
+        position: -1, code: snapshot.test_label_code || "TEST",
+        edition: snapshot.test_label_text || `${tag}${i + 1}`,
+      }));
+    const all = [...mkTest(snapshot.test_before_count, "T"), ...ordered, ...mkTest(snapshot.test_after_count, "T")];
+    try {
+      const blob = await buildLabelsPdf(snapshot, all);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `qr-labels-${orderNo}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      toast.error(tr("PDF 생성 실패: ", "PDF 生成失败：") + String(e?.message ?? e));
+    }
+  }, [labelItems, template, orderNo, lang]);
+
   const guard = () => {
     if (!width.ok) {
       toast.error(tr(
