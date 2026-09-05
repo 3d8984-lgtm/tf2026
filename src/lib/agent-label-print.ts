@@ -81,7 +81,9 @@ export async function checkLabelAgent(base?: string): Promise<boolean> {
 /**
  * 라벨들을 PDF로 만들어 로컬 에이전트에 전송한다.
  * 실패 시 예외를 던지므로 호출부에서 처리한다.
- * 에이전트가 프린터 이름 없이도 설치된 프린터를 자동 선택하므로 printerName은 보내지 않는다.
+ * 프린터 이름을 보내지 않으면 에이전트가 PC의 "기본 프린터"로 출력하므로,
+ * 기본 프린터가 A4 일반 프린터일 때 라벨이 A4 구석에 작게 인쇄된다.
+ * 따라서 라벨 설정에 저장된 프린터 이름(Windows 프린터 이름)을 함께 보낸다.
  */
 export async function printLabelsViaAgent(
   t: QrLabelTemplate,
@@ -91,5 +93,6 @@ export async function printLabelsViaAgent(
   await printPdfViaAgent({
     pdf,
     copies: 1,
+    printerName: t.printer_name?.trim() || undefined,
   });
 }
