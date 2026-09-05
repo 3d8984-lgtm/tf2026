@@ -19,7 +19,7 @@ import {
   bridgeHealth, bridgePrinterOnline, bridgePrint, bridgeJobStatus, bridgeCancel,
   labelPayload, computerId,
 } from "@/lib/print-bridge";
-import { printLabelsLocally } from "@/lib/local-label-print";
+import { printLabelsViaAgent, checkLabelAgent } from "@/lib/agent-label-print";
 import QrLabelSettingsDialog from "./QrLabelSettingsDialog";
 import PrintSettingsDialog from "./PrintSettingsDialog";
 import QrLabelPreviewDialog from "./QrLabelPreviewDialog";
@@ -128,7 +128,9 @@ export default function QrLabelPrintPanel({
     const tick = async () => {
       if (template.print_mode !== "bridge") {
         setBridgeUp(null);
-        setPrinterUp(null);
+        // 로컬 모드 = 이 PC의 인쇄 에이전트(127.0.0.1:9100)에 PDF 전송
+        const up = await checkLabelAgent();
+        if (alive) setPrinterUp(up);
         return;
       }
       const up = template.bridge_enabled ? await bridgeHealth(template.bridge_url) : false;
@@ -205,11 +207,11 @@ export default function QrLabelPrintPanel({
       } as any);
     }
 
-    // ── 이 PC에 직접 연결된 프린터로 출력 (브라우저 인쇄) ──
+    // ── 이 PC의 인쇄 에이전트로 PDF 전송 (에이전트가 용지 크기 자동 맞춤) ──
     if (snapshot.print_mode !== "bridge") {
       let ok = true;
       try {
-        await printLabelsLocally(snapshot, [...testBefore, ...ordered, ...testAfter]);
+        await printLabelsViaAgent(snapshot, [...testBefore, ...ordered, ...testAfter], snapshot.printer_name);
       } catch (e: any) {
         ok = false;
         for (const it of targets) {
@@ -218,14 +220,17 @@ export default function QrLabelPrintPanel({
             error_message: String(e?.message ?? e).slice(0, 300),
           } as any);
         }
-        toast.error(tr("인쇄에 실패했습니다", "打印失败"));
+        toast.error(tr(
+          "인쇄 에이전트에 연결할 수 없습니다. 이 PC에 에이전트가 실행 중인지 확인해주세요.",
+          "无法连接打印代理，请确认本机代理已启动。",
+        ));
       }
       if (ok) {
         const ts = new Date().toISOString();
         for (const it of targets) {
           await patchRecord(it.position, { status: "sent_to_printer", sent_at: ts, completed_at: ts } as any);
         }
-        toast.success(tr(`이 PC의 프린터로 ${targets.length}장 전송했습니다`, `已发送 ${targets.length} 张到本机打印机`));
+        toast.success(tr(`인쇄 에이전트로 ${targets.length}장 전송했습니다`, `已发送 ${targets.length} 张到打印代理`));
       }
       if (jobId) {
         await supabase.from("qr_label_print_jobs")
@@ -321,6 +326,13 @@ export default function QrLabelPrintPanel({
       toast.error(tr("프린터 연결 프로그램을 확인해주세요.", "请检查打印机连接程序。"));
       return false;
     }
+    if (!snapshotIsBridge() && printerUp === false) {
+      toast.error(tr(
+        "인쇄 에이전트가 실행 중이 아닙니다. 이 PC에서 에이전트를 먼저 실행해주세요.",
+        "打印代理未运行，请先在本机启动代理。",
+      ));
+      return false;
+    }
     return true;
   };
 
@@ -402,9 +414,13 @@ export default function QrLabelPrintPanel({
               </span>
             </div>
             ) : (
-              <p className="text-xs text-muted-foreground">
-                {tr("이 컴퓨터에 연결된 프린터로 바로 출력합니다.", "直接使用本机连接的打印机打印。")}
-              </p>
+              <div className="flex items-center gap-2">
+                <span className="text-xs">{tr("인쇄 에이전트", "打印代理")}</span>
+                <span className={`w-2 h-2 rounded-full ${dot(printerUp)}`} />
+                <span className="text-xs text-muted-foreground">
+                  {printerUp === null ? tr("확인 중", "检测中") : printerUp ? tr("실행 중", "运行中") : tr("연결되지 않음", "未连接")}
+                </span>
+              </div>
             )}
           </div>
           <div className="space-y-1 text-xs text-muted-foreground">
