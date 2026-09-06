@@ -87,11 +87,25 @@ function query(job: PrintJob) {
   const p = new URLSearchParams();
   if (job.courierCode) p.set("courierCode", job.courierCode.toUpperCase());
   if (job.trackingNumber) p.set("trackingNumber", job.trackingNumber);
-  if (job.labelWidthMm && job.labelWidthMm > 0) p.set("labelWidthMm", String(job.labelWidthMm));
-  if (job.labelHeightMm && job.labelHeightMm > 0) p.set("labelHeightMm", String(job.labelHeightMm));
+  if (job.labelWidthMm && job.labelWidthMm > 0) {
+    // 에이전트 버전별 파라미터 이름 차이를 흡수한다(모두 같은 값).
+    p.set("labelWidthMm", String(job.labelWidthMm));
+    p.set("widthMm", String(job.labelWidthMm));
+    p.set("paperWidthMm", String(job.labelWidthMm));
+  }
+  if (job.labelHeightMm && job.labelHeightMm > 0) {
+    p.set("labelHeightMm", String(job.labelHeightMm));
+    p.set("heightMm", String(job.labelHeightMm));
+    p.set("paperHeightMm", String(job.labelHeightMm));
+  }
+  // 큰 용지에 맞춰 축소/여백 추가하지 말고 PDF 페이지 크기 그대로 출력.
+  p.set("fitToPage", "false");
+  p.set("scale", "none");
+  p.set("usePdfPageSize", "true");
   const s = p.toString();
   return s ? `?${s}` : "";
 }
+
 
 async function toBlob(pdf: Blob | ArrayBuffer): Promise<Blob> {
   return pdf instanceof Blob ? pdf : new Blob([pdf], { type: "application/pdf" });
@@ -143,11 +157,16 @@ export async function printPdfViaAgent(job: PrintJob): Promise<{ via: "binary" |
   if (job.pdf) {
     try {
       const blob = await toBlob(job.pdf);
+      const headers: Record<string, string> = { "Content-Type": "application/pdf" };
+      if (job.labelWidthMm && job.labelWidthMm > 0) headers["X-Label-Width-Mm"] = String(job.labelWidthMm);
+      if (job.labelHeightMm && job.labelHeightMm > 0) headers["X-Label-Height-Mm"] = String(job.labelHeightMm);
+      headers["X-Fit-To-Page"] = "false";
       const r = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/pdf" },
+        headers,
         body: blob,
       });
+
       if (r.ok) return { via: "binary" };
       errors.push(await agentError("binary", r));
     } catch (e) {
