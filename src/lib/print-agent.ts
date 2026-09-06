@@ -157,11 +157,16 @@ export async function printPdfViaAgent(job: PrintJob): Promise<{ via: "binary" |
   if (job.pdf) {
     try {
       const blob = await toBlob(job.pdf);
+      const headers: Record<string, string> = { "Content-Type": "application/pdf" };
+      if (job.labelWidthMm && job.labelWidthMm > 0) headers["X-Label-Width-Mm"] = String(job.labelWidthMm);
+      if (job.labelHeightMm && job.labelHeightMm > 0) headers["X-Label-Height-Mm"] = String(job.labelHeightMm);
+      headers["X-Fit-To-Page"] = "false";
       const r = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/pdf" },
+        headers,
         body: blob,
       });
+
       if (r.ok) return { via: "binary" };
       errors.push(await agentError("binary", r));
     } catch (e) {
