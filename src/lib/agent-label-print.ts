@@ -81,18 +81,20 @@ export async function checkLabelAgent(base?: string): Promise<boolean> {
 /**
  * 라벨들을 PDF로 만들어 로컬 에이전트에 전송한다.
  * 실패 시 예외를 던지므로 호출부에서 처리한다.
- * 프린터 이름을 보내지 않으면 에이전트가 PC의 "기본 프린터"로 출력하므로,
- * 기본 프린터가 A4 일반 프린터일 때 라벨이 A4 구석에 작게 인쇄된다.
- * 따라서 라벨 설정에 저장된 프린터 이름(Windows 프린터 이름)을 함께 보낸다.
+ * API 기준: printerName 은 에이전트가 무시하고 항상 트레이에서 선택한 프린터로 출력한다.
+ * 용지 크기는 labelWidthMm/labelHeightMm(라벨 실물 크기)을 함께 보내
+ * 에이전트가 PDF 크기 추정 없이 라벨 규격에 정확히 맞춰 출력하도록 한다.
  */
 export async function printLabelsViaAgent(
   t: QrLabelTemplate,
   items: AgentLabelItem[],
 ): Promise<void> {
   const pdf = await buildLabelsPdf(t, items);
+  const { wMm, hMm } = labelPageSizePt(t);
   await printPdfViaAgent({
     pdf,
     copies: 1,
-    printerName: t.printer_name?.trim() || undefined,
+    labelWidthMm: wMm,
+    labelHeightMm: hMm,
   });
 }
