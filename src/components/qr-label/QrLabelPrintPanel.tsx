@@ -20,6 +20,7 @@ import {
   labelPayload, computerId,
 } from "@/lib/print-bridge";
 import { printLabelsViaAgent, checkLabelAgent, buildLabelsPdf } from "@/lib/agent-label-print";
+import { friendlyAgentError } from "@/lib/print-agent";
 import QrLabelSettingsDialog from "./QrLabelSettingsDialog";
 import PrintSettingsDialog from "./PrintSettingsDialog";
 import QrLabelPreviewDialog from "./QrLabelPreviewDialog";
@@ -220,10 +221,7 @@ export default function QrLabelPrintPanel({
             error_message: String(e?.message ?? e).slice(0, 300),
           } as any);
         }
-        toast.error(tr(
-          "인쇄 에이전트에 연결할 수 없습니다. 이 PC에 에이전트가 실행 중인지 확인해주세요.",
-          "无法连接打印代理，请确认本机代理已启动。",
-        ));
+        toast.error(friendlyAgentError(e));
       }
       if (ok) {
         const ts = new Date().toISOString();
