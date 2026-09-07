@@ -35,6 +35,16 @@ export type QrLabelTemplate = {
   edition_font_family: string;
   edition_font_weight: "normal" | "bold";
   edition_alignment: "left" | "center" | "right";
+  /** 에디션 넘버 배치 — outside = QR 옆(기존), qr_center = QR 코드 중앙 삽입 */
+  edition_placement: "outside" | "qr_center";
+  /** QR 중앙 삽입 시 흰색 박스 가로(mm) — 인식률 보호를 위해 자동 상한 적용 */
+  edition_center_width: number;
+  /** QR 중앙 삽입 시 흰색 박스 세로(mm) — 인식률 보호를 위해 자동 상한 적용 */
+  edition_center_height: number;
+  /** QR 중앙 기준 X 오프셋(mm) */
+  edition_center_offset_x: number;
+  /** QR 중앙 기준 Y 오프셋(mm) */
+  edition_center_offset_y: number;
   // 프린터
   printer_name: string;          // Windows Printer Name
   printer_display_name: string;  // 화면 표시 이름
@@ -78,7 +88,7 @@ export const QR_LABEL_DEFAULTS: QrLabelTemplate = {
   qr_y: 2,
   qr_width: 16,
   qr_height: 16,
-  qr_error_level: "M",
+  qr_error_level: "H",
   qr_quiet_zone: 1,
   edition_x: 20,
   edition_y: 9,
@@ -86,6 +96,11 @@ export const QR_LABEL_DEFAULTS: QrLabelTemplate = {
   edition_font_family: "Arial",
   edition_font_weight: "bold",
   edition_alignment: "left",
+  edition_placement: "qr_center",
+  edition_center_width: 8,
+  edition_center_height: 2.5,
+  edition_center_offset_x: 0,
+  edition_center_offset_y: 0,
   printer_name: "QIRUI T300",
   printer_display_name: "Qirui T300",
   printer_model: "Qirui T300 / 启锐 T300",
@@ -102,6 +117,54 @@ export const QR_LABEL_DEFAULTS: QrLabelTemplate = {
   test_label_code: "TEST",
   test_label_text: "TEST",
 };
+
+/**
+ * 오류정정 레벨별로 "가려도 안전한" QR 면적 비율.
+ * 실제 디코딩 테스트(jsQR, 다양한 데이터 길이)로 검증한 보수적 상한이며,
+ * 여기에 가로 60% / 세로 20% 제한이 함께 적용된다.
+ */
+export const EC_SAFE_AREA: Record<QrErrorLevel, number> = { L: 0.02, M: 0.04, Q: 0.07, H: 0.09 };
+
+export type CenterBox = {
+  /** mm 좌표 (라벨 기준) */
+  x: number; y: number; w: number; h: number;
+  /** 허용 최대치(mm) */
+  maxW: number; maxH: number;
+  /** 박스에 들어갈 수 있는 최대 글자 크기(pt) */
+  maxFontPt: number;
+};
+
+const clampNum = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+
+/**
+ * QR 중앙 에디션 박스의 최종 위치/크기(mm).
+ * 가로는 QR의 60%, 세로는 20%를 넘지 않으며, 전체 면적은 EC_SAFE_AREA 이내로 강제된다.
+ */
+export function resolveCenterBox(t: QrLabelTemplate): CenterBox {
+  const qw = Math.max(1, Number(t.qr_width) || 1);
+  const qh = Math.max(1, Number(t.qr_height) || 1);
+  const maxArea = qw * qh * EC_SAFE_AREA[t.qr_error_level];
+  const maxW = Math.min(qw * 0.6, maxArea / Math.max(0.3, qh * 0.08));
+  const w = clampNum(Number(t.edition_center_width) || 1, 1, Math.round(maxW * 100) / 100);
+  const maxH = Math.min(qh * 0.2, maxArea / w);
+  const h = clampNum(Number(t.edition_center_height) || 1, 0.5, Math.round(maxH * 100) / 100);
+  const cx = t.qr_x + qw / 2 + (Number(t.edition_center_offset_x) || 0);
+  const cy = t.qr_y + qh / 2 + (Number(t.edition_center_offset_y) || 0);
+  return {
+    x: cx - w / 2, y: cy - h / 2, w, h,
+    maxW: Math.round(maxW * 100) / 100,
+    maxH: Math.round(maxH * 100) / 100,
+    maxFontPt: Math.round(h * 0.8 * (72 / 25.4) * 10) / 10,
+  };
+}
+
+/** 중앙 삽입 시 실제 사용할 글자 크기(pt) — 박스를 넘지 않도록 제한 */
+export function centerFontPt(t: QrLabelTemplate, box: CenterBox, text: string): number {
+  const byHeight = box.maxFontPt;
+  // 대략적인 문자폭(0.55em) 기준으로 가로도 넘지 않게 축소
+  const byWidth = (box.w * (72 / 25.4)) / Math.max(1, text.length * 0.58);
+  return Math.max(2, Math.min(t.edition_font_size, byHeight, byWidth));
+}
 
 export function mergeTemplate(raw: unknown): QrLabelTemplate {
   const v = (raw ?? {}) as Partial<QrLabelTemplate>;

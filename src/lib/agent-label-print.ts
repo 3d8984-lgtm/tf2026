@@ -9,7 +9,7 @@
 
 import QRCode from "qrcode";
 import { jsPDF } from "jspdf";
-import type { QrLabelTemplate } from "./qr-label-template";
+import { resolveCenterBox, centerFontPt, type QrLabelTemplate } from "./qr-label-template";
 import { checkPrintAgent, printPdfViaAgent } from "./print-agent";
 
 export type AgentLabelItem = { position: number; code: string; edition: string };
@@ -56,17 +56,32 @@ export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]
       undefined, "FAST",
     );
 
-    // 에디션 텍스트 — HTML 기준 top 좌표를 베이스라인으로 환산
     const style = t.edition_font_weight === "bold" ? "bold" : "normal";
     pdf.setFont("helvetica", style);
-    pdf.setFontSize(t.edition_font_size);
     pdf.setTextColor(0, 0, 0);
-    const baselineY = mm(t.edition_y) + t.edition_font_size; // pt 단위 폰트 높이
-    const align = t.edition_alignment;
-    pdf.text(String(it.edition ?? ""), mm(t.edition_x), baselineY, {
-      align: align === "center" ? "center" : align === "right" ? "right" : "left",
-      baseline: "alphabetic",
-    } as any);
+    const text = String(it.edition ?? "");
+
+    if (t.edition_placement === "qr_center") {
+      // QR 중앙 삽입 — 흰 박스(오류정정 허용 범위 내) 위에 텍스트를 중앙 정렬
+      const box = resolveCenterBox(t);
+      const fs = centerFontPt(t, box, text);
+      pdf.setFillColor(255, 255, 255);
+      pdf.rect(mm(box.x), mm(box.y), mm(box.w), mm(box.h), "F");
+      pdf.setFontSize(fs);
+      pdf.text(text, mm(box.x + box.w / 2), mm(box.y + box.h / 2), {
+        align: "center",
+        baseline: "middle",
+      } as any);
+    } else {
+      // 에디션 텍스트 — HTML 기준 top 좌표를 베이스라인으로 환산
+      pdf.setFontSize(t.edition_font_size);
+      const baselineY = mm(t.edition_y) + t.edition_font_size;
+      const align = t.edition_alignment;
+      pdf.text(text, mm(t.edition_x), baselineY, {
+        align: align === "center" ? "center" : align === "right" ? "right" : "left",
+        baseline: "alphabetic",
+      } as any);
+    }
   }
 
   return pdf.output("blob");
