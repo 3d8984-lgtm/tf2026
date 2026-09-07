@@ -44,10 +44,9 @@ const menuKeys: MenuItem[] = [
   { path: "/card-qr-inspect", icon: QrCode, key: "menu.cardQrInspect", section: "hq" },
   { path: "/card-photo-inspect", icon: Camera, key: "menu.cardPhotoInspect", section: "hq" },
   { path: "/card-barcode-print", icon: Printer, key: "menu.cardBarcodePrint", section: "hq" },
-  { path: "/tshirt-barcode-print", icon: Printer, key: "menu.tshirtBarcodePrint", section: "hq" },
+  { path: "/tshirt-set-packing", icon: PackageOpen, key: "menu.tshirtSetPacking", section: "hq" },
   { path: "/tshirt-work", icon: ScanLine, key: "menu.tshirtWork", section: "hq" },
   { path: "/tshirt-quality", icon: ShieldCheck, key: "menu.tshirtQuality", section: "hq" },
-  { path: "/set-qr-inspect", icon: PackageOpen, key: "menu.setQrInspect", section: "hq" },
   { path: "/monitor", icon: Activity, key: "menu.monitor", section: "hq", children: [
     { label: { ko: "주문 관리", zh: "订单管理" }, tab: "orders" },
     { label: { ko: "주문 파이프라인", zh: "订单流水线" }, tab: "pipeline" },
