@@ -97,8 +97,8 @@ export const QR_LABEL_DEFAULTS: QrLabelTemplate = {
   edition_font_weight: "bold",
   edition_alignment: "left",
   edition_placement: "qr_center",
-  edition_center_width: 9,
-  edition_center_height: 3,
+  edition_center_width: 8,
+  edition_center_height: 2.5,
   edition_center_offset_x: 0,
   edition_center_offset_y: 0,
   printer_name: "QIRUI T300",
@@ -120,10 +120,10 @@ export const QR_LABEL_DEFAULTS: QrLabelTemplate = {
 
 /**
  * 오류정정 레벨별로 "가려도 안전한" QR 면적 비율.
- * 규격 복원 능력(L 7% / M 15% / Q 25% / H 30%)의 절반만 사용해
- * 실제 스캔 인식률에 영향이 없도록 보수적으로 제한한다.
+ * 실제 디코딩 테스트(jsQR, 다양한 데이터 길이)로 검증한 보수적 상한이며,
+ * 여기에 가로 60% / 세로 20% 제한이 함께 적용된다.
  */
-export const EC_SAFE_AREA: Record<QrErrorLevel, number> = { L: 0.035, M: 0.075, Q: 0.125, H: 0.15 };
+export const EC_SAFE_AREA: Record<QrErrorLevel, number> = { L: 0.02, M: 0.04, Q: 0.07, H: 0.09 };
 
 export type CenterBox = {
   /** mm 좌표 (라벨 기준) */
@@ -144,9 +144,9 @@ export function resolveCenterBox(t: QrLabelTemplate): CenterBox {
   const qw = Math.max(1, Number(t.qr_width) || 1);
   const qh = Math.max(1, Number(t.qr_height) || 1);
   const maxArea = qw * qh * EC_SAFE_AREA[t.qr_error_level];
-  const maxW = Math.min(qw * 0.8, maxArea / Math.max(0.5, qh * 0.12));
+  const maxW = Math.min(qw * 0.6, maxArea / Math.max(0.3, qh * 0.08));
   const w = clampNum(Number(t.edition_center_width) || 1, 1, Math.round(maxW * 100) / 100);
-  const maxH = Math.min(qh * 0.5, maxArea / w);
+  const maxH = Math.min(qh * 0.2, maxArea / w);
   const h = clampNum(Number(t.edition_center_height) || 1, 0.5, Math.round(maxH * 100) / 100);
   const cx = t.qr_x + qw / 2 + (Number(t.edition_center_offset_x) || 0);
   const cy = t.qr_y + qh / 2 + (Number(t.edition_center_offset_y) || 0);
