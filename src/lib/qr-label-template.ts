@@ -88,7 +88,7 @@ export const QR_LABEL_DEFAULTS: QrLabelTemplate = {
   qr_y: 2,
   qr_width: 16,
   qr_height: 16,
-  qr_error_level: "M",
+  qr_error_level: "H",
   qr_quiet_zone: 1,
   edition_x: 20,
   edition_y: 9,
