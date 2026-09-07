@@ -17,7 +17,7 @@ const baseOf = (v: string) => norm(v).replace(/-\d+$/, "");
 
 const STORAGE_KEY = "set-qr-inspection.v1";
 
-type OrderRow = {
+export type OrderRow = {
   id: string;
   external_order_id: string;
   product_code: string;
@@ -29,13 +29,13 @@ type OrderRow = {
   source_data: any;
 };
 
-type PairResult = { ok: boolean; card: string; tshirt: string; at: string; reason: string };
-type Store = Record<string, Record<number, PairResult>>; // orderId → position → result
+export type PairResult = { ok: boolean; card: string; tshirt: string; at: string; reason: string };
+export type Store = Record<string, Record<number, PairResult>>; // orderId → position → result
 
-function loadStore(): Store {
+export function loadStore(): Store {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch { return {}; }
 }
-function saveStore(s: Store) {
+export function saveStore(s: Store) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch { /* ignore */ }
 }
 
@@ -147,13 +147,15 @@ export default function SetQrInspection() {
   );
 }
 
-function SetInspectDetail({
-  order, results, onChange, onBack,
+export function SetInspectDetail({
+  order, results, onChange, onBack, embedded = false,
 }: {
   order: OrderRow;
   results: Record<number, PairResult>;
   onChange: (next: Record<number, PairResult>) => void;
   onBack: () => void;
+  /** 통합 페이지(티셔츠세트 포장)에 섹션으로 삽입될 때: 자체 페이지 헤더/스크롤을 끈다 */
+  embedded?: boolean;
 }) {
   const { lang } = useLang();
   const isKo = lang === "ko";
@@ -299,25 +301,38 @@ function SetInspectDetail({
   const pass = values.filter((r) => r.ok).length;
   const fail = values.filter((r) => !r.ok).length;
 
-  return (
-    <div className="flex flex-col h-full">
-      <PageHeader
-        title={tr("세트포장 큐알코드 검사", "套装包装QR码检验")}
-        description={`${order.external_order_id} · ${order.recipient_name}`}
-      >
-        <Button variant="outline" size="sm" onClick={onBack}>
-          <ChevronLeft className="w-4 h-4" /> {tr("주문 목록", "订单列表")}
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => { onChange({}); setVerdict(null); setHalted(false); clearInputs(); toast.success(tr("검사 기록이 초기화되었습니다", "检验记录已复位")); }}
-        >
-          <RotateCcw className="w-4 h-4" /> {tr("초기화", "重置")}
-        </Button>
-      </PageHeader>
+  const resetButton = (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => { onChange({}); setVerdict(null); setHalted(false); clearInputs(); toast.success(tr("검사 기록이 초기화되었습니다", "检验记录已复位")); }}
+    >
+      <RotateCcw className="w-4 h-4" /> {tr("초기화", "重置")}
+    </Button>
+  );
 
-      <div className="flex-1 overflow-auto p-4 md:p-6 space-y-4">
+  return (
+    <div className={embedded ? "space-y-4" : "flex flex-col h-full"}>
+      {embedded ? (
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <ScanLine className="w-4 h-4 text-primary" /> {tr("큐알코드 검사", "QR码检验")}
+          </h3>
+          {resetButton}
+        </div>
+      ) : (
+        <PageHeader
+          title={tr("세트포장 큐알코드 검사", "套装包装QR码检验")}
+          description={`${order.external_order_id} · ${order.recipient_name}`}
+        >
+          <Button variant="outline" size="sm" onClick={onBack}>
+            <ChevronLeft className="w-4 h-4" /> {tr("주문 목록", "订单列表")}
+          </Button>
+          {resetButton}
+        </PageHeader>
+      )}
+
+      <div className={embedded ? "space-y-4" : "flex-1 overflow-auto p-4 md:p-6 space-y-4"}>
         {/* 판정 배너 */}
         <div
           className={`rounded-lg border p-5 flex items-center gap-4 ${

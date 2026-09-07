@@ -19,10 +19,9 @@ import TshirtWork from "@/pages/TshirtWork";
 import CardQrInspection from "@/pages/CardQrInspection";
 import CardPhotoInspection from "@/pages/CardPhotoInspection";
 import CardBarcodePrint from "@/pages/CardBarcodePrint";
-import TshirtBarcodePrint from "@/pages/TshirtBarcodePrint";
 import TshirtQualityInspection from "@/pages/TshirtQualityInspection";
 import TshirtQualityDetail from "@/pages/TshirtQualityDetail";
-import SetQrInspection from "@/pages/SetQrInspection";
+import TshirtSetPacking from "@/pages/TshirtSetPacking";
 import ProductionMonitor from "@/pages/ProductionMonitor";
 import Shipping from "@/pages/Shipping";
 import ShippingScan from "@/pages/ShippingScan";
@@ -93,11 +92,12 @@ function ProtectedRoutes() {
         <Route path="/card-qr-inspect" element={<CardQrInspection />} />
         <Route path="/card-photo-inspect" element={<CardPhotoInspection />} />
         <Route path="/card-barcode-print" element={<CardBarcodePrint />} />
-        <Route path="/tshirt-barcode-print" element={<TshirtBarcodePrint />} />
+        <Route path="/tshirt-barcode-print" element={<Navigate to="/tshirt-set-packing" replace />} />
         <Route path="/tshirt-work" element={<TshirtWork />} />
         <Route path="/tshirt-quality" element={<TshirtQualityInspection />} />
         <Route path="/tshirt-quality/:orderId" element={<TshirtQualityDetail />} />
-        <Route path="/set-qr-inspect" element={<SetQrInspection />} />
+        <Route path="/set-qr-inspect" element={<Navigate to="/tshirt-set-packing" replace />} />
+        <Route path="/tshirt-set-packing" element={<TshirtSetPacking />} />
         <Route path="/monitor" element={<ProductionMonitor />} />
         <Route path="/shipping" element={<Shipping />} />
         <Route path="/shipping/scan/:orderId" element={<ShippingScan />} />
