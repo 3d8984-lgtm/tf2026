@@ -147,13 +147,15 @@ export default function SetQrInspection() {
   );
 }
 
-function SetInspectDetail({
-  order, results, onChange, onBack,
+export function SetInspectDetail({
+  order, results, onChange, onBack, embedded = false,
 }: {
   order: OrderRow;
   results: Record<number, PairResult>;
   onChange: (next: Record<number, PairResult>) => void;
   onBack: () => void;
+  /** 통합 페이지(티셔츠세트 포장)에 섹션으로 삽입될 때: 자체 페이지 헤더/스크롤을 끈다 */
+  embedded?: boolean;
 }) {
   const { lang } = useLang();
   const isKo = lang === "ko";
