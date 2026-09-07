@@ -36,8 +36,17 @@ export function useQrLabelTemplate() {
       )
       .subscribe();
     const onFocus = () => { void pull(); };
+    const onVisible = () => { if (document.visibilityState === "visible") void pull(); };
+    // realtime 이 끊긴 환경(사내망/프록시)에서도 다른 PC 변경이 반영되도록 주기적으로 재조회
+    const timer = window.setInterval(() => { void pull(); }, 20000);
     window.addEventListener("focus", onFocus);
-    return () => { supabase.removeChannel(ch); window.removeEventListener("focus", onFocus); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      supabase.removeChannel(ch);
+      window.clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [pull]);
 
   const save = useCallback(async (next: QrLabelTemplate) => {
