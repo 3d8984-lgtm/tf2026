@@ -17,7 +17,7 @@ const baseOf = (v: string) => norm(v).replace(/-\d+$/, "");
 
 const STORAGE_KEY = "set-qr-inspection.v1";
 
-type OrderRow = {
+export type OrderRow = {
   id: string;
   external_order_id: string;
   product_code: string;
@@ -29,13 +29,13 @@ type OrderRow = {
   source_data: any;
 };
 
-type PairResult = { ok: boolean; card: string; tshirt: string; at: string; reason: string };
-type Store = Record<string, Record<number, PairResult>>; // orderId → position → result
+export type PairResult = { ok: boolean; card: string; tshirt: string; at: string; reason: string };
+export type Store = Record<string, Record<number, PairResult>>; // orderId → position → result
 
-function loadStore(): Store {
+export function loadStore(): Store {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch { return {}; }
 }
-function saveStore(s: Store) {
+export function saveStore(s: Store) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch { /* ignore */ }
 }
 
