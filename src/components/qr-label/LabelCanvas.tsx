@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
-import type { QrLabelTemplate } from "@/lib/qr-label-template";
+import { resolveCenterBox, centerFontPt, type QrLabelTemplate } from "@/lib/qr-label-template";
 
 /** 스티커 고유번호를 그대로 담은 QR 이미지 (스캔 결과 = 고유번호) */
 export function QrImg({ value, level, className, style }: {
@@ -43,14 +43,18 @@ export default function LabelCanvas({
 
   const startDrag = (
     e: React.PointerEvent,
-    mode: "qr" | "edition" | "resize",
+    mode: "qr" | "edition" | "resize" | "center",
   ) => {
     if (!editable || !onChange) return;
     e.preventDefault();
     e.stopPropagation();
     const startX = e.clientX;
     const startY = e.clientY;
-    const s = { qx: t.qr_x, qy: t.qr_y, qw: t.qr_width, qh: t.qr_height, ex: t.edition_x, ey: t.edition_y };
+    const s = {
+      qx: t.qr_x, qy: t.qr_y, qw: t.qr_width, qh: t.qr_height,
+      ex: t.edition_x, ey: t.edition_y,
+      cox: t.edition_center_offset_x ?? 0, coy: t.edition_center_offset_y ?? 0,
+    };
     const move = (ev: PointerEvent) => {
       const dx = (ev.clientX - startX) / scale;
       const dy = (ev.clientY - startY) / scale;
@@ -58,6 +62,12 @@ export default function LabelCanvas({
         onChange({
           qr_x: round2(clamp(s.qx + dx, 0, t.label_width - s.qw)),
           qr_y: round2(clamp(s.qy + dy, 0, t.label_height - s.qh)),
+        });
+      } else if (mode === "center") {
+        const lim = Math.max(0.5, t.qr_width / 3);
+        onChange({
+          edition_center_offset_x: round2(clamp(s.cox + dx, -lim, lim)),
+          edition_center_offset_y: round2(clamp(s.coy + dy, -lim, lim)),
         });
       } else if (mode === "edition") {
         onChange({
@@ -76,6 +86,8 @@ export default function LabelCanvas({
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   };
+
+  const centerBox = resolveCenterBox(t);
 
   const alignStyle: React.CSSProperties =
     t.edition_alignment === "center"
@@ -112,7 +124,25 @@ export default function LabelCanvas({
         )}
       </div>
 
-      {/* Edition Number */}
+      {/* Edition Number — QR 중앙 삽입 */}
+      {t.edition_placement === "qr_center" ? (
+        <div
+          onPointerDown={(e) => startDrag(e, "center")}
+          className={`absolute flex items-center justify-center bg-white text-black ${editable ? "cursor-move ring-1 ring-primary/60" : ""}`}
+          style={{
+            left: px(centerBox.x), top: px(centerBox.y),
+            width: px(centerBox.w), height: px(centerBox.h),
+            fontSize: (centerFontPt(t, centerBox, edition) * 25.4 / 72) * scale,
+            fontFamily: t.edition_font_family,
+            fontWeight: t.edition_font_weight === "bold" ? 700 : 400,
+            lineHeight: 1,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+          }}
+        >
+          {edition}
+        </div>
+      ) : (
       <div
         onPointerDown={(e) => startDrag(e, "edition")}
         className={`absolute whitespace-nowrap text-black ${editable ? "cursor-move ring-1 ring-primary/50" : ""}`}
@@ -128,6 +158,7 @@ export default function LabelCanvas({
       >
         {edition}
       </div>
+      )}
     </div>
   );
 }
