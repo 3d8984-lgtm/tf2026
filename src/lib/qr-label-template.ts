@@ -138,7 +138,7 @@ const clampNum = (v: number, min: number, max: number) => Math.min(max, Math.max
 
 /**
  * QR 중앙 에디션 박스의 최종 위치/크기(mm).
- * 가로는 QR의 80%, 세로는 50%를 넘지 않으며, 전체 면적은 EC_SAFE_AREA 이내로 강제된다.
+ * 가로는 QR의 60%, 세로는 20%를 넘지 않으며, 전체 면적은 EC_SAFE_AREA 이내로 강제된다.
  */
 export function resolveCenterBox(t: QrLabelTemplate): CenterBox {
   const qw = Math.max(1, Number(t.qr_width) || 1);
