@@ -21,38 +21,60 @@ async function qrDataUrl(value: string, level: QrLabelTemplate["qr_error_level"]
   return QRCode.toDataURL(value || " ", { errorCorrectionLevel: level, margin: 0, scale: 10 });
 }
 
-/** 라벨 실측 크기(mm)를 PDF 포인트로 환산한 페이지 크기 */
+/**
+ * 실제 인쇄 페이지 크기(mm/pt).
+ * 용지 한 줄에 columns 개의 라벨이 들어가므로
+ * 폭 = 좌여백 + 라벨폭*열 + 간격*(열-1) + 우여백 이다.
+ */
 export function labelPageSizePt(t: QrLabelTemplate) {
-  const wMm = Math.max(1, Number(t.label_width) || 0);
-  const hMm = t.label_shape === "round" ? wMm : Math.max(1, Number(t.label_height) || 0);
-  return { wMm, hMm, w: mm(wMm), h: mm(hMm) };
+  const cols = Math.max(1, Math.round(Number(t.columns) || 1));
+  const cellW = Math.max(1, Number(t.label_width) || 0);
+  const cellH = t.label_shape === "round" ? cellW : Math.max(1, Number(t.label_height) || 0);
+  const gapX = Math.max(0, Number(t.horizontal_gap) || 0);
+  const ml = Math.max(0, Number(t.margin_left) || 0);
+  const mr = Math.max(0, Number(t.margin_right) || 0);
+  const mt = Math.max(0, Number(t.margin_top) || 0);
+  const mb = Math.max(0, Number(t.margin_bottom) || 0);
+  const wMm = ml + cellW * cols + gapX * (cols - 1) + mr;
+  const hMm = mt + cellH + mb;
+  return { wMm, hMm, w: mm(wMm), h: mm(hMm), cols, cellW, cellH, gapX, ml, mt };
 }
 
 /**
  * 라벨 목록을 하나의 다중 페이지 PDF Blob으로 만든다.
- * 페이지(MediaBox) 크기 = 라벨 실측 mm 를 포인트로 정확히 환산한 값이라
- * 프린터/에이전트가 여백 없이 라벨에 딱 맞게 출력한다.
+ * 한 페이지 = 용지 한 줄(열 개수만큼의 라벨 칸)이며 각 칸에 QR을 정중앙 배치한다.
  */
 export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]): Promise<Blob> {
   if (items.length === 0) throw new Error("no labels");
-  const { w, h } = labelPageSizePt(t);
+  const { w, h, cols, cellW, cellH, gapX, ml, mt } = labelPageSizePt(t);
   const orientation = w > h ? "landscape" : "portrait";
   const pdf = new jsPDF({ unit: "pt", format: [w, h], orientation, compress: true });
 
   const qrs = await Promise.all(items.map((i) => qrDataUrl(i.code, t.qr_error_level)));
 
+  // QR 크기는 라벨 칸을 넘지 않도록 제한하고, 칸 정중앙에 배치한다.
+  const quiet = Math.max(0, Number(t.qr_quiet_zone) || 0);
+  const qw = Math.min(Math.max(1, Number(t.qr_width) || 1), Math.max(1, cellW - quiet * 2));
+  const qh = Math.min(Math.max(1, Number(t.qr_height) || 1), Math.max(1, cellH - quiet * 2));
+  const qrLocalX = (cellW - qw) / 2;
+  const qrLocalY = (cellH - qh) / 2;
+  const centerT = { ...t, qr_x: qrLocalX, qr_y: qrLocalY, qr_width: qw, qr_height: qh };
+
   for (let idx = 0; idx < items.length; idx++) {
-    if (idx > 0) pdf.addPage([w, h], orientation);
+    const col = idx % cols;
+    if (idx > 0 && col === 0) pdf.addPage([w, h], orientation);
+    if (idx === 0 || col === 0) {
+      pdf.setFillColor(255, 255, 255);
+      pdf.rect(0, 0, w, h, "F");
+    }
     const it = items[idx];
+    const ox = ml + col * (cellW + gapX);
+    const oy = mt;
 
-    // 흰 배경 (페이지 전체 = 라벨 전체)
-    pdf.setFillColor(255, 255, 255);
-    pdf.rect(0, 0, w, h, "F");
-
-    // QR
+    // QR (칸 정중앙)
     pdf.addImage(
       qrs[idx], "PNG",
-      mm(t.qr_x), mm(t.qr_y), mm(t.qr_width), mm(t.qr_height),
+      mm(ox + qrLocalX), mm(oy + qrLocalY), mm(qw), mm(qh),
       undefined, "FAST",
     );
 
@@ -63,21 +85,21 @@ export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]
 
     if (t.edition_placement === "qr_center") {
       // QR 중앙 삽입 — 흰 박스(오류정정 허용 범위 내) 위에 텍스트를 중앙 정렬
-      const box = resolveCenterBox(t);
+      const box = resolveCenterBox(centerT);
       const fs = centerFontPt(t, box, text);
       pdf.setFillColor(255, 255, 255);
-      pdf.rect(mm(box.x), mm(box.y), mm(box.w), mm(box.h), "F");
+      pdf.rect(mm(ox + box.x), mm(oy + box.y), mm(box.w), mm(box.h), "F");
       pdf.setFontSize(fs);
-      pdf.text(text, mm(box.x + box.w / 2), mm(box.y + box.h / 2), {
+      pdf.text(text, mm(ox + box.x + box.w / 2), mm(oy + box.y + box.h / 2), {
         align: "center",
         baseline: "middle",
       } as any);
     } else {
       // 에디션 텍스트 — HTML 기준 top 좌표를 베이스라인으로 환산
       pdf.setFontSize(t.edition_font_size);
-      const baselineY = mm(t.edition_y) + t.edition_font_size;
+      const baselineY = mm(oy + t.edition_y) + t.edition_font_size;
       const align = t.edition_alignment;
-      pdf.text(text, mm(t.edition_x), baselineY, {
+      pdf.text(text, mm(ox + t.edition_x), baselineY, {
         align: align === "center" ? "center" : align === "right" ? "right" : "left",
         baseline: "alphabetic",
       } as any);
@@ -86,6 +108,7 @@ export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]
 
   return pdf.output("blob");
 }
+
 
 
 /** 에이전트 실행 여부 확인 (GET /health). */
