@@ -22,20 +22,20 @@ const template = {
   qr_quiet_zone: 0,
 };
 
-describe("continuous QR label print layout", () => {
-  it("uses 83mm width and 17mm row pitch", () => {
+describe("one-row-per-page QR label print layout", () => {
+  it("uses 83mm width and a single 15mm row height", () => {
     const size = labelPageSizePt(template, 50);
     expect(size.wMm).toBe(83);
-    expect(size.hMm).toBe(168);
-    expect(size.verticalPitchMm).toBe(17);
+    expect(size.hMm).toBe(15);
+    expect(size.verticalPitchMm).toBe(15);
     expect(mmToPixels(size.wMm, 300)).toBe(980);
-    expect(mmToPixels(size.hMm, 300)).toBe(1984);
+    expect(mmToPixels(size.hMm, 300)).toBe(177);
   });
 
-  it("increments absolute row Y and QR top by the vertical pitch", () => {
+  it("places every row at page-local Y = 0", () => {
     const layout = createLabelDocumentLayout(template, 20);
-    expect(layout.entries.filter((entry) => entry.column === 0).map((entry) => entry.labelYmm)).toEqual([0, 17, 34, 51]);
-    expect(layout.entries.filter((entry) => entry.column === 0).map((entry) => entry.qrAbsoluteYmm)).toEqual([2.6, 19.6, 36.6, 53.6]);
+    expect(layout.entries.filter((entry) => entry.column === 0).map((entry) => entry.labelYmm)).toEqual([0, 0, 0, 0]);
+    expect(layout.entries.filter((entry) => entry.column === 0).map((entry) => entry.qrAbsoluteYmm)).toEqual([2.6, 2.6, 2.6, 2.6]);
   });
 
   it("creates exactly one unique layout entry per item", () => {
