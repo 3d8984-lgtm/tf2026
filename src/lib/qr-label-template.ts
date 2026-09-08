@@ -195,6 +195,9 @@ export const QR_LABEL_DEFAULTS: QrLabelTemplate = {
   print_offset_y: 0,
   print_scale_x: 100,
   print_scale_y: 100,
+  media_auto_offset: false,
+  media_width: 0,
+  die_cut_margin: 0,
 
 };
 
