@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import {
-  Printer, Settings, Sliders, Eye, Loader2, CheckCircle2, XCircle, Ban, RotateCw, Download,
+  Printer, Settings, Sliders, Eye, Loader2, CheckCircle2, XCircle, Ban, RotateCw, Download, Crosshair,
 } from "lucide-react";
 import { useQrLabelTemplate } from "@/hooks/useQrLabelTemplate";
 import { checkWidth, formatEdition, type QrLabelTemplate } from "@/lib/qr-label-template";
@@ -24,6 +24,8 @@ import { friendlyAgentError } from "@/lib/print-agent";
 import QrLabelSettingsDialog from "./QrLabelSettingsDialog";
 import PrintSettingsDialog from "./PrintSettingsDialog";
 import QrLabelPreviewDialog from "./QrLabelPreviewDialog";
+import FinalPrintPreviewDialog from "./FinalPrintPreviewDialog";
+import PrintDiagnosticDialog from "./PrintDiagnosticDialog";
 import { QrImg } from "./LabelCanvas";
 
 export type LabelSource = { position: number; code: string; editionRaw?: unknown };
@@ -60,6 +62,8 @@ export default function QrLabelPrintPanel({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [printSettingsOpen, setPrintSettingsOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [finalPreviewOpen, setFinalPreviewOpen] = useState(false);
+  const [diagnosticOpen, setDiagnosticOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [reprintTarget, setReprintTarget] = useState<number | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -78,6 +82,21 @@ export default function QrLabelPrintPanel({
       .sort((a, b) => a.position - b.position)
       .map((i) => ({ position: i.position, code: i.code, edition: formatEdition(i.editionRaw, i.position, total) }));
   }, [items]);
+
+  const printItems = useMemo(() => {
+    const ordered = template.reverse_print ? [...labelItems].reverse() : labelItems;
+    const mkTest = (count: number, tag: string): LabelItemT[] =>
+      Array.from({ length: Math.max(0, Math.round(Number(count) || 0)) }, (_, index) => ({
+        position: -(index + 1),
+        code: template.test_label_code || "TEST",
+        edition: template.test_label_text || `${tag}${index + 1}`,
+      }));
+    return [
+      ...mkTest(template.test_before_count, "PRE"),
+      ...ordered,
+      ...mkTest(template.test_after_count, "POST"),
+    ];
+  }, [labelItems, template]);
 
   // ── 기록 로드 / 누락분 생성 ────────────────────────────────
   const loadRecords = useCallback(async () => {
@@ -315,16 +334,8 @@ export default function QrLabelPrintPanel({
   // ── 진단용: 실제 인쇄에 보내는 것과 동일한 PDF 다운로드 ──
   const downloadPdf = useCallback(async () => {
     if (labelItems.length === 0) return;
-    const snapshot = template;
-    const ordered = snapshot.reverse_print ? [...labelItems].reverse() : labelItems;
-    const mkTest = (n: number, tag: string): LabelItemT[] =>
-      Array.from({ length: Math.max(0, Math.round(Number(n) || 0)) }, (_, i) => ({
-        position: -1, code: snapshot.test_label_code || "TEST",
-        edition: snapshot.test_label_text || `${tag}${i + 1}`,
-      }));
-    const all = [...mkTest(snapshot.test_before_count, "T"), ...ordered, ...mkTest(snapshot.test_after_count, "T")];
     try {
-      const blob = await buildLabelsPdf(snapshot, all);
+      const blob = await buildLabelsPdf(template, printItems);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -334,7 +345,7 @@ export default function QrLabelPrintPanel({
     } catch (e: any) {
       toast.error(tr("PDF 생성 실패: ", "PDF 生成失败：") + String(e?.message ?? e));
     }
-  }, [labelItems, template, orderNo, lang]);
+  }, [labelItems.length, template, printItems, orderNo, lang]);
 
   const guard = () => {
     if (!width.ok) {
@@ -478,12 +489,18 @@ export default function QrLabelPrintPanel({
           <Button variant="outline" size="sm" className="gap-1" onClick={() => setPreviewOpen(true)}>
             <Eye className="w-4 h-4" />{tr("라벨 미리보기", "标签预览")}
           </Button>
+          <Button variant="outline" size="sm" className="gap-1" onClick={() => setFinalPreviewOpen(true)} disabled={counts.total === 0}>
+            <Eye className="w-4 h-4" />{tr("최종 인쇄 미리보기", "最终打印预览")}
+          </Button>
           <Button size="sm" className="gap-1" onClick={startAll} disabled={running || counts.total === 0}>
             {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
             {tr("전체 인쇄", "整单打印")}
           </Button>
           <Button variant="outline" size="sm" className="gap-1" onClick={() => void downloadPdf()} disabled={counts.total === 0}>
             <Download className="w-4 h-4" />{tr("PDF 다운로드", "下载 PDF")}
+          </Button>
+          <Button variant="outline" size="sm" className="gap-1" onClick={() => setDiagnosticOpen(true)}>
+            <Crosshair className="w-4 h-4" />{tr("좌표 진단 출력", "坐标诊断打印")}
           </Button>
           <Button variant="outline" size="sm" className="gap-1" onClick={startSelected} disabled={running}>
             {tr("선택 인쇄", "选择打印")}
@@ -551,6 +568,14 @@ export default function QrLabelPrintPanel({
       <QrLabelPreviewDialog
         open={previewOpen} onOpenChange={setPreviewOpen}
         template={template} items={labelItems}
+      />
+      <FinalPrintPreviewDialog
+        open={finalPreviewOpen} onOpenChange={setFinalPreviewOpen}
+        template={template} items={printItems}
+      />
+      <PrintDiagnosticDialog
+        open={diagnosticOpen} onOpenChange={setDiagnosticOpen}
+        template={template}
       />
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
