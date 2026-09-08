@@ -89,6 +89,153 @@ export interface PrintJob {
   orientation?: "portrait" | "landscape" | null;
 }
 
+export type AgentDriverInfo = {
+  dpiX?: number | null;
+  dpiY?: number | null;
+  physicalWidthPx?: number | null;
+  physicalHeightPx?: number | null;
+  printableWidthPx?: number | null;
+  printableHeightPx?: number | null;
+  physicalOffsetXPx?: number | null;
+  physicalOffsetYPx?: number | null;
+  pageUnit?: string | null;
+};
+
+export type PrintAgentCapabilities = {
+  online: boolean;
+  version: string | null;
+  rawPng: boolean;
+  hashVerification: boolean;
+  driverDiagnostics: boolean;
+  endpoint: string;
+  driver: AgentDriverInfo | null;
+};
+
+export type RawPngPrintResult = {
+  verified: boolean;
+  requestedSha256: string;
+  receivedSha256: string | null;
+  requestedPixelWidth: number;
+  requestedPixelHeight: number;
+  receivedPixelWidth: number | null;
+  receivedPixelHeight: number | null;
+  driver: AgentDriverInfo | null;
+};
+
+function finiteNumber(value: unknown): number | null {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function parseCapabilities(raw: any, online: boolean): PrintAgentCapabilities {
+  const features = raw?.capabilities ?? raw?.features ?? {};
+  const driver = raw?.driver ?? raw?.printerCapabilities ?? null;
+  return {
+    online,
+    version: raw?.version ? String(raw.version) : null,
+    rawPng: features.rawPng === true || features.rawBitmap === true || raw?.rawPng === true,
+    hashVerification: features.sha256 === true || features.hashVerification === true || raw?.hashVerification === true,
+    driverDiagnostics: features.driverDiagnostics === true || !!driver,
+    endpoint: String(features.rawPngEndpoint ?? raw?.rawPngEndpoint ?? "/print-image"),
+    driver: driver ? {
+      dpiX: finiteNumber(driver.dpiX ?? driver.LOGPIXELSX),
+      dpiY: finiteNumber(driver.dpiY ?? driver.LOGPIXELSY),
+      physicalWidthPx: finiteNumber(driver.physicalWidthPx ?? driver.PHYSICALWIDTH),
+      physicalHeightPx: finiteNumber(driver.physicalHeightPx ?? driver.PHYSICALHEIGHT),
+      printableWidthPx: finiteNumber(driver.printableWidthPx ?? driver.HORZRES),
+      printableHeightPx: finiteNumber(driver.printableHeightPx ?? driver.VERTRES),
+      physicalOffsetXPx: finiteNumber(driver.physicalOffsetXPx ?? driver.PHYSICALOFFSETX),
+      physicalOffsetYPx: finiteNumber(driver.physicalOffsetYPx ?? driver.PHYSICALOFFSETY),
+      pageUnit: driver.pageUnit ? String(driver.pageUnit) : null,
+    } : null,
+  };
+}
+
+/** 실행 중인 Agent가 PNG 무변환 출력 및 검증 정보를 제공하는지 확인한다. */
+export async function getPrintAgentCapabilities(baseUrl?: string): Promise<PrintAgentCapabilities> {
+  let agentBase: string;
+  if (baseUrl?.trim()) agentBase = normalize(baseUrl);
+  else {
+    const port = await resolveAgentPort();
+    if (!port) return parseCapabilities({}, false);
+    agentBase = `http://127.0.0.1:${port}`;
+  }
+  try {
+    const response = await fetch(`${agentBase}/health`);
+    if (!response.ok) return parseCapabilities({}, false);
+    return parseCapabilities(await response.json().catch(() => ({})), true);
+  } catch {
+    return parseCapabilities({}, false);
+  }
+}
+
+export async function printRawPngViaAgent({
+  png, widthMm, heightMm, dpi, pixelWidth, pixelHeight, sha256, jobId, baseUrl,
+}: {
+  png: Blob;
+  widthMm: number;
+  heightMm: number;
+  dpi: number;
+  pixelWidth: number;
+  pixelHeight: number;
+  sha256: string;
+  jobId?: string;
+  baseUrl?: string;
+}): Promise<RawPngPrintResult> {
+  const capabilities = await getPrintAgentCapabilities(baseUrl);
+  if (!capabilities.online) throw new Error("인쇄 에이전트를 찾을 수 없습니다.");
+  if (!capabilities.rawPng) throw new Error("현재 인쇄 에이전트는 RAW PNG 1:1 출력을 지원하지 않습니다. 에이전트 업데이트가 필요합니다.");
+  let agentBase: string;
+  if (baseUrl?.trim()) agentBase = normalize(baseUrl);
+  else {
+    const port = await resolveAgentPort();
+    if (!port) throw new Error("인쇄 에이전트를 찾을 수 없습니다.");
+    agentBase = `http://127.0.0.1:${port}`;
+  }
+  const endpoint = capabilities.endpoint.startsWith("/") ? capabilities.endpoint : `/${capabilities.endpoint}`;
+  const response = await fetch(`${agentBase}${endpoint}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "image/png",
+      "X-Image-Sha256": sha256,
+      "X-Pixel-Width": String(pixelWidth),
+      "X-Pixel-Height": String(pixelHeight),
+      "X-Physical-Width-Mm": String(widthMm),
+      "X-Physical-Height-Mm": String(heightMm),
+      "X-Requested-Dpi": String(dpi),
+      "X-Raw-Device-Pixels": "true",
+      "X-Fit-To-Page": "false",
+      "X-Auto-Resize": "false",
+      "X-Auto-Crop": "false",
+      "X-Auto-Rotate": "false",
+      "X-Page-Slicing": "false",
+      ...(jobId ? { "X-Print-Job-Id": jobId } : {}),
+    },
+    body: png,
+  });
+  if (!response.ok) throw new Error(await agentError("RAW PNG", response));
+  const body = await response.json().catch(() => ({})) as any;
+  const receivedSha256 = body.receivedSha256 ? String(body.receivedSha256).toLowerCase() : null;
+  const receivedPixelWidth = finiteNumber(body.receivedPixelWidth ?? body.pixelWidth);
+  const receivedPixelHeight = finiteNumber(body.receivedPixelHeight ?? body.pixelHeight);
+  if (capabilities.hashVerification && receivedSha256 !== sha256.toLowerCase()) {
+    throw new Error("Agent 수신 PNG의 SHA-256이 원본과 다릅니다. 인쇄를 중단했습니다.");
+  }
+  if (receivedPixelWidth !== null && receivedPixelWidth !== pixelWidth) throw new Error("Agent에서 PNG 가로 픽셀 크기가 변경되어 인쇄를 중단했습니다.");
+  if (receivedPixelHeight !== null && receivedPixelHeight !== pixelHeight) throw new Error("Agent에서 PNG 세로 픽셀 크기가 변경되어 인쇄를 중단했습니다.");
+  return {
+    verified: capabilities.hashVerification && receivedSha256 === sha256.toLowerCase()
+      && receivedPixelWidth === pixelWidth && receivedPixelHeight === pixelHeight,
+    requestedSha256: sha256,
+    receivedSha256,
+    requestedPixelWidth: pixelWidth,
+    requestedPixelHeight: pixelHeight,
+    receivedPixelWidth,
+    receivedPixelHeight,
+    driver: body.driver ?? capabilities.driver,
+  };
+}
+
 function query(job: PrintJob) {
   const p = new URLSearchParams();
   if (job.courierCode) p.set("courierCode", job.courierCode.toUpperCase());

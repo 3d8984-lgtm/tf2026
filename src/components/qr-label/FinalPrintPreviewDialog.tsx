@@ -73,6 +73,7 @@ export default function FinalPrintPreviewDialog({
               <span>Pixel Width <b>{raster.pixelWidth} px</b></span>
               <span>Pixel Height <b>{raster.pixelHeight} px</b></span>
               <span>DPI <b>{raster.dpi}</b></span>
+              <span className="col-span-2 sm:col-span-5">SHA-256 <b className="font-mono break-all">{raster.sha256}</b></span>
               <span>Columns <b>{size.cols}</b></span>
               <span>Rows <b>{size.rows}</b></span>
               <span>Label <b>{size.cellW}×{size.cellH} mm</b></span>
@@ -84,7 +85,7 @@ export default function FinalPrintPreviewDialog({
                 <Download className="h-4 w-4" />{tr("동일 PNG 다운로드", "下载相同 PNG")}
               </Button>
               <p className="text-xs text-muted-foreground">
-                {tr("이 PNG가 정상이고 Agent 출력만 비정상이면 Agent 또는 프린터 드라이버 문제입니다.", "若此 PNG 正常但代理打印异常，则问题位于代理或打印机驱动。")}
+                {tr("다운로드와 RAW 출력은 이 PNG 바이너리를 그대로 사용합니다.", "下载与 RAW 打印直接使用此 PNG 二进制文件。")}
               </p>
             </div>
           </div>

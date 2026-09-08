@@ -3,6 +3,7 @@ import { jsPDF } from "jspdf";
 export type FinalLabelRaster = {
   png: Blob;
   agentPdf: Blob;
+  sha256: string;
   widthMm: number;
   heightMm: number;
   pixelWidth: number;
@@ -17,6 +18,11 @@ export const mmToPixels = (valueMm: number, dpi: number) =>
 const canvasToPng = (canvas: HTMLCanvasElement) => new Promise<Blob>((resolve, reject) => {
   canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("PNG 생성 실패")), "image/png");
 });
+
+export async function blobSha256(blob: Blob): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
 
 /** 프린터 실측 보정 — 인쇄물 전체 이동(mm)과 배율(%) */
 export type PrintCalibration = {
@@ -73,6 +79,7 @@ export async function rasterizePrintPdf(
     } as any).promise;
 
     const png = await canvasToPng(canvas);
+    const sha256 = await blobSha256(png);
 
     // Agent에는 이 PNG 한 장만 들어 있는, 실제 mm와 동일한 단일 페이지 PDF를 보낸다.
     const orientation = widthMm > heightMm ? "landscape" : "portrait";
@@ -82,6 +89,7 @@ export async function rasterizePrintPdf(
     return {
       png,
       agentPdf: output.output("blob"),
+      sha256,
       widthMm,
       heightMm,
       pixelWidth,

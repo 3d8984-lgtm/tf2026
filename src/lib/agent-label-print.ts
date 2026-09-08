@@ -10,7 +10,7 @@
 import QRCode from "qrcode";
 import { jsPDF } from "jspdf";
 import { resolveCenterBox, centerFontPt, type QrLabelTemplate } from "./qr-label-template";
-import { checkPrintAgent, printPdfViaAgent } from "./print-agent";
+import { checkPrintAgent, getPrintAgentCapabilities, printPdfViaAgent, printRawPngViaAgent, type RawPngPrintResult } from "./print-agent";
 import { rasterizePrintPdf, type FinalLabelRaster } from "./final-label-raster";
 
 export type AgentLabelItem = { position: number; code: string; edition: string };
@@ -224,6 +224,14 @@ export async function buildFinalLabelRaster(t: QrLabelTemplate, items: AgentLabe
   return rasterizePrintPdf(sourcePdf, wMm, hMm, t.printer_dpi || t.dpi, printCalibration(t));
 }
 
+/** 진단 내용만 다르고 이후 래스터/전송 경로는 실제 라벨과 완전히 동일하다. */
+export async function buildFinalDiagnosticRaster(t: QrLabelTemplate, mode: DiagnosticMode): Promise<FinalLabelRaster> {
+  const diagnosticTemplate = { ...t, columns: 5 };
+  const pdf = await buildDiagnosticPdf(diagnosticTemplate, mode);
+  const { wMm, hMm } = labelPageSizePt(diagnosticTemplate, 50);
+  return rasterizePrintPdf(pdf, wMm, hMm, t.printer_dpi || t.dpi, printCalibration(t));
+}
+
 
 /** 5열×10행 좌표 진단 문서. 실제 라벨과 같은 연속 행 좌표계를 사용한다. */
 export async function buildDiagnosticPdf(t: QrLabelTemplate, mode: DiagnosticMode): Promise<Blob> {
@@ -277,8 +285,16 @@ export async function printLabelsViaAgent(
   t: QrLabelTemplate,
   items: AgentLabelItem[],
   jobId?: string,
-): Promise<void> {
+): Promise<RawPngPrintResult | null> {
   const raster = await buildFinalLabelRaster(t, items);
+  const capabilities = await getPrintAgentCapabilities();
+  if (capabilities.rawPng) {
+    return printRawPngViaAgent({
+      png: raster.png, widthMm: raster.widthMm, heightMm: raster.heightMm,
+      dpi: raster.dpi, pixelWidth: raster.pixelWidth, pixelHeight: raster.pixelHeight,
+      sha256: raster.sha256, jobId,
+    });
+  }
   await printPdfViaAgent({
     pdf: raster.agentPdf,
     copies: 1,
@@ -292,27 +308,15 @@ export async function printLabelsViaAgent(
     imageFormat: raster.format,
     orientation: raster.widthMm > raster.heightMm ? "landscape" : "portrait",
   });
+  return null;
 }
 
-export async function printDiagnosticViaAgent(t: QrLabelTemplate, mode: DiagnosticMode): Promise<void> {
-  const diagnosticTemplate = { ...t, columns: 5 };
-  const pdf = await buildDiagnosticPdf(diagnosticTemplate, mode);
-  const { wMm, hMm } = labelPageSizePt(diagnosticTemplate, 50);
-  // 실제 라벨 인쇄와 동일한 래스터·보정 경로를 사용해야 진단 결과가 본 인쇄와 일치한다.
-  const raster = await rasterizePrintPdf(
-    pdf, wMm, hMm, t.printer_dpi || t.dpi, printCalibration(t),
-  );
-  await printPdfViaAgent({
-    pdf: raster.agentPdf,
-    copies: 1,
-    labelWidthMm: raster.widthMm,
-    labelHeightMm: raster.heightMm,
-    printerName: t.printer_name,
-    dpi: raster.dpi,
-    pixelWidth: raster.pixelWidth,
-    pixelHeight: raster.pixelHeight,
-    imageFormat: raster.format,
-    orientation: raster.widthMm > raster.heightMm ? "landscape" : "portrait",
+export async function printDiagnosticViaAgent(t: QrLabelTemplate, mode: DiagnosticMode): Promise<RawPngPrintResult> {
+  const raster = await buildFinalDiagnosticRaster(t, mode);
+  return printRawPngViaAgent({
+    png: raster.png, widthMm: raster.widthMm, heightMm: raster.heightMm,
+    dpi: raster.dpi, pixelWidth: raster.pixelWidth, pixelHeight: raster.pixelHeight,
+    sha256: raster.sha256,
   });
 }
 

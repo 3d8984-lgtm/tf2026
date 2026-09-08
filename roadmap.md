@@ -10,3 +10,7 @@
 - [x] Print Agent 직전 1:1 최종 래스터 이미지 생성·PNG 확인/다운로드
 - [x] DPI·픽셀·물리 크기·페이지 크기·스케일링 금지 payload 진단 로그 추가
 - [x] 동일 PNG의 Agent 출력과 외부 프로그램 출력 비교 경로 추가
+- [x] 일반·진단 출력을 단일 Master PNG 생성기로 통일
+- [x] Master PNG SHA-256·픽셀 크기 표시 및 RAW PNG 직접 전송 계약 추가
+- [x] Print Agent 버전·RAW PNG·드라이버 진단 기능 자동 판별
+- [x] 구형 Agent에서 검증 불가 상태 명시 및 RAW 출력 차단
