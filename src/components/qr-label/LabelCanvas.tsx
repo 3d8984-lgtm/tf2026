@@ -113,6 +113,17 @@ export default function LabelCanvas({
       {t.label_shape === "round" && (
         <div className="pointer-events-none absolute inset-0 rounded-full border border-dashed border-muted-foreground/40" />
       )}
+      {/* QR 중심 기준점 — 중심 X/Y 좌표 확인용 십자선 (미리보기 전용, 인쇄되지 않음) */}
+      {editable && (
+        <div
+          className="pointer-events-none absolute"
+          style={{ left: px(t.qr_x), top: px(t.qr_y), zIndex: 20 }}
+        >
+          <div className="absolute bg-red-500" style={{ left: -12, top: -0.5, width: 24, height: 1 }} />
+          <div className="absolute bg-red-500" style={{ left: -0.5, top: -12, width: 1, height: 24 }} />
+          <div className="absolute rounded-full border border-red-500 bg-white/60" style={{ left: -2, top: -2, width: 4, height: 4 }} />
+        </div>
+      )}
       {/* QR */}
       <div
         onPointerDown={(e) => startDrag(e, "qr")}
