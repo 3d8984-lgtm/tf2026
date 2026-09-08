@@ -219,11 +219,24 @@ export function printCalibration(t: QrLabelTemplate) {
   };
 }
 
+/** 이동 보정(+)만큼 용지를 늘려 마지막 행이 잘리지 않게 한다. */
+function paddedCanvas(wMm: number, hMm: number, cal: ReturnType<typeof printCalibration>) {
+  return {
+    canvasWidthMm: roundMm(wMm + Math.max(0, cal.offsetXmm)),
+    canvasHeightMm: roundMm(hMm + Math.max(0, cal.offsetYmm)),
+  };
+}
+
 /** 화면 확인·PNG 다운로드·Agent 출력이 함께 사용하는 최종 래스터 결과. */
 export async function buildFinalLabelRaster(t: QrLabelTemplate, items: AgentLabelItem[]): Promise<FinalLabelRaster> {
   const sourcePdf = await buildLabelsPdf(t, items);
   const { wMm, hMm } = labelPageSizePt(t, items.length);
-  return rasterizePrintPdf(sourcePdf, wMm, hMm, t.printer_dpi || t.dpi, printCalibration(t));
+  const cal = printCalibration(t);
+  const { canvasWidthMm, canvasHeightMm } = paddedCanvas(wMm, hMm, cal);
+  return rasterizePrintPdf(sourcePdf, canvasWidthMm, canvasHeightMm, t.printer_dpi || t.dpi, cal, {
+    widthMm: wMm,
+    heightMm: hMm,
+  });
 }
 
 /** 진단 내용만 다르고 이후 래스터/전송 경로는 실제 라벨과 완전히 동일하다. */
@@ -231,7 +244,12 @@ export async function buildFinalDiagnosticRaster(t: QrLabelTemplate, mode: Diagn
   const diagnosticTemplate = { ...t, columns: 5 };
   const pdf = await buildDiagnosticPdf(diagnosticTemplate, mode);
   const { wMm, hMm } = labelPageSizePt(diagnosticTemplate, 50);
-  return rasterizePrintPdf(pdf, wMm, hMm, t.printer_dpi || t.dpi, printCalibration(t));
+  const cal = printCalibration(t);
+  const { canvasWidthMm, canvasHeightMm } = paddedCanvas(wMm, hMm, cal);
+  return rasterizePrintPdf(pdf, canvasWidthMm, canvasHeightMm, t.printer_dpi || t.dpi, cal, {
+    widthMm: wMm,
+    heightMm: hMm,
+  });
 }
 
 
