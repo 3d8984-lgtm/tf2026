@@ -43,6 +43,7 @@ export type LabelDocumentLayout = {
 
 const PT_PER_MM = 72 / 25.4;
 const mm = (v: number) => v * PT_PER_MM;
+const roundMm = (v: number) => Math.round(v * 10000) / 10000;
 
 async function qrDataUrl(value: string, level: QrLabelTemplate["qr_error_level"]) {
   return QRCode.toDataURL(value || " ", { errorCorrectionLevel: level, margin: 0, scale: 10 });
@@ -90,13 +91,14 @@ export function createLabelDocumentLayout(t: QrLabelTemplate, itemCount: number)
   const entries = Array.from({ length: Math.max(0, itemCount) }, (_, itemIndex) => {
     const row = Math.floor(itemIndex / size.cols);
     const column = itemIndex % size.cols;
-    const labelXmm = size.ml + column * size.horizontalPitchMm;
-    const labelYmm = size.mt + row * size.verticalPitchMm;
+    const labelXmm = roundMm(size.ml + column * size.horizontalPitchMm);
+    const labelYmm = roundMm(size.mt + row * size.verticalPitchMm);
     return {
       itemIndex, row, column, labelXmm, labelYmm,
-      qrCenterXmm, qrCenterYmm, qrLeftMm, qrTopMm,
-      qrAbsoluteXmm: labelXmm + qrLeftMm,
-      qrAbsoluteYmm: labelYmm + qrTopMm,
+      qrCenterXmm: roundMm(qrCenterXmm), qrCenterYmm: roundMm(qrCenterYmm),
+      qrLeftMm: roundMm(qrLeftMm), qrTopMm: roundMm(qrTopMm),
+      qrAbsoluteXmm: roundMm(labelXmm + qrLeftMm),
+      qrAbsoluteYmm: roundMm(labelYmm + qrTopMm),
       labelWidthMm: size.cellW,
       labelHeightMm: size.cellH,
       horizontalPitchMm: size.horizontalPitchMm,
