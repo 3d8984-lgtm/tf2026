@@ -52,8 +52,8 @@ async function qrDataUrl(value: string, level: QrLabelTemplate["qr_error_level"]
 
 /**
  * 실제 인쇄 페이지 크기(mm/pt).
- * 용지 한 줄에 columns 개의 라벨이 들어가므로
- * 폭 = 좌여백 + 라벨폭*열 + 간격*(열-1) + 우여백 이다.
+ * 프린터가 다이컷 센서로 라벨 경계를 직접 잡으므로 한 페이지 = 한 줄(라벨 1행)이며
+ * 세로 여백/간격은 넣지 않는다. 좌우 여백과 칸 간격만 반영한다.
  */
 export function labelPageSizePt(t: QrLabelTemplate, itemCount = Math.max(1, Math.round(Number(t.columns) || 1))) {
   const cols = Math.max(1, Math.round(Number(t.columns) || 1));
@@ -65,20 +65,29 @@ export function labelPageSizePt(t: QrLabelTemplate, itemCount = Math.max(1, Math
   const gapY = Math.max(0, Number(t.vertical_gap) || 0);
   const ml = media.marginLeftMm;
   const mr = media.marginRightMm;
-  const mt = Math.max(0, Number(t.margin_top) || 0);
-  const mb = Math.max(0, Number(t.margin_bottom) || 0);
   const wMm = media.pageWidthMm;
-  // 라벨 한 장 급지 피치 = 라벨 높이 + 세로 간격. 세로 간격을 빼먹으면
-  // 프린터가 피치보다 짧게 급지하여 줄마다 간격만큼 위로 밀려 잘린다.
   const rows = Math.max(1, Math.ceil(Math.max(1, itemCount) / cols));
   const horizontalPitchMm = cellW + gapX;
-  const verticalPitchMm = cellH + gapY;
-  // 행 시작점은 verticalPitch로 증가하되 마지막 행 뒤에는 간격이 없다.
-  const hMm = mt + rows * cellH + Math.max(0, rows - 1) * gapY + mb;
+  const verticalPitchMm = cellH;
+  // 한 페이지 = 한 줄. 세로 길이는 라벨 높이 그 자체.
+  const hMm = cellH;
   return {
     wMm, hMm, w: mm(wMm), h: mm(hMm), rows, cols, cellW, cellH,
-    gapX, gapY, ml, mr, mt, mb, horizontalPitchMm, verticalPitchMm,
+    gapX, gapY, ml, mr, mt: 0, mb: 0, horizontalPitchMm, verticalPitchMm,
   };
+}
+
+/** 한 페이지(한 줄)에 들어가는 라벨 수 */
+export function rowCapacity(t: QrLabelTemplate): number {
+  return Math.max(1, Math.round(Number(t.columns) || 1));
+}
+
+/** 아이템을 한 줄(페이지)씩 나눈다. */
+export function chunkRows(t: QrLabelTemplate, items: AgentLabelItem[]): AgentLabelItem[][] {
+  const size = rowCapacity(t);
+  const out: AgentLabelItem[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
 }
 
 export function createLabelDocumentLayout(t: QrLabelTemplate, itemCount: number): LabelDocumentLayout {
@@ -94,7 +103,8 @@ export function createLabelDocumentLayout(t: QrLabelTemplate, itemCount: number)
     const row = Math.floor(itemIndex / size.cols);
     const column = itemIndex % size.cols;
     const labelXmm = roundMm(size.ml + column * size.horizontalPitchMm);
-    const labelYmm = roundMm(size.mt + row * size.verticalPitchMm);
+    // 각 줄이 별도 페이지이므로 세로 좌표는 항상 페이지 상단(0)부터 시작한다.
+    const labelYmm = 0;
     return {
       itemIndex, row, column, labelXmm, labelYmm,
       qrCenterXmm: roundMm(qrCenterXmm), qrCenterYmm: roundMm(qrCenterYmm),
@@ -109,6 +119,7 @@ export function createLabelDocumentLayout(t: QrLabelTemplate, itemCount: number)
   });
   return { widthMm: size.wMm, heightMm: size.hMm, rows: size.rows, columns: size.cols, entries };
 }
+
 
 function logPrintDebug(layout: LabelDocumentLayout, kind: "labels" | DiagnosticMode) {
   console.info("[QR Print Document]", {
@@ -137,8 +148,8 @@ function assertLayout(layout: LabelDocumentLayout, expectedCount: number) {
 }
 
 /**
- * 라벨 목록을 하나의 연속 롤 PDF Blob으로 만든다.
- * 모든 행이 같은 페이지에서 row × verticalPitch 절대 좌표를 사용한다.
+ * 라벨 목록을 PDF Blob으로 만든다.
+ * 한 페이지 = 한 줄(열 개수만큼). 줄이 늘어나면 페이지를 추가한다.
  */
 export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]): Promise<Blob> {
   if (items.length === 0) throw new Error("no labels");
@@ -164,10 +175,17 @@ export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]
   pdf.setFillColor(255, 255, 255);
   pdf.rect(0, 0, w, h, "F");
 
+  let currentRow = 0;
   for (let idx = 0; idx < items.length; idx++) {
     const it = items[idx];
     const entry = layout.entries[idx];
     if (!entry) throw new Error(`missing print layout for item ${idx}`);
+    if (entry.row !== currentRow) {
+      currentRow = entry.row;
+      pdf.addPage([w, h], orientation);
+      pdf.setFillColor(255, 255, 255);
+      pdf.rect(0, 0, w, h, "F");
+    }
     const ox = entry.labelXmm;
     const oy = entry.labelYmm;
 
@@ -177,6 +195,7 @@ export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]
       mm(entry.qrAbsoluteXmm), mm(entry.qrAbsoluteYmm), mm(qw), mm(qh),
       undefined, "FAST",
     );
+
 
     const style = t.edition_font_weight === "bold" ? "bold" : "normal";
     pdf.setFont("helvetica", style);
@@ -227,10 +246,14 @@ function paddedCanvas(wMm: number, hMm: number, cal: ReturnType<typeof printCali
   };
 }
 
-/** 화면 확인·PNG 다운로드·Agent 출력이 함께 사용하는 최종 래스터 결과. */
+/**
+ * 화면 확인·PNG 다운로드·Agent 출력이 함께 사용하는 최종 래스터 결과.
+ * 한 페이지 = 한 줄이므로 첫 줄(열 개수만큼)만 래스터한다.
+ */
 export async function buildFinalLabelRaster(t: QrLabelTemplate, items: AgentLabelItem[]): Promise<FinalLabelRaster> {
-  const sourcePdf = await buildLabelsPdf(t, items);
-  const { wMm, hMm } = labelPageSizePt(t, items.length);
+  const rowItems = items.slice(0, rowCapacity(t));
+  const sourcePdf = await buildLabelsPdf(t, rowItems);
+  const { wMm, hMm } = labelPageSizePt(t, rowItems.length);
   const cal = printCalibration(t);
   const { canvasWidthMm, canvasHeightMm } = paddedCanvas(wMm, hMm, cal);
   return rasterizePrintPdf(sourcePdf, canvasWidthMm, canvasHeightMm, t.printer_dpi || t.dpi, cal, {
@@ -242,8 +265,8 @@ export async function buildFinalLabelRaster(t: QrLabelTemplate, items: AgentLabe
 /** 진단 내용만 다르고 이후 래스터/전송 경로는 실제 라벨과 완전히 동일하다. */
 export async function buildFinalDiagnosticRaster(t: QrLabelTemplate, mode: DiagnosticMode): Promise<FinalLabelRaster> {
   const diagnosticTemplate = { ...t, columns: 5 };
-  const pdf = await buildDiagnosticPdf(diagnosticTemplate, mode);
-  const { wMm, hMm } = labelPageSizePt(diagnosticTemplate, 50);
+  const pdf = await buildDiagnosticPdf(diagnosticTemplate, mode, 5);
+  const { wMm, hMm } = labelPageSizePt(diagnosticTemplate, 5);
   const cal = printCalibration(t);
   const { canvasWidthMm, canvasHeightMm } = paddedCanvas(wMm, hMm, cal);
   return rasterizePrintPdf(pdf, canvasWidthMm, canvasHeightMm, t.printer_dpi || t.dpi, cal, {
@@ -253,10 +276,9 @@ export async function buildFinalDiagnosticRaster(t: QrLabelTemplate, mode: Diagn
 }
 
 
-/** 5열×10행 좌표 진단 문서. 실제 라벨과 같은 연속 행 좌표계를 사용한다. */
-export async function buildDiagnosticPdf(t: QrLabelTemplate, mode: DiagnosticMode): Promise<Blob> {
+/** 좌표 진단 문서 — 한 페이지 = 한 줄(5열). */
+export async function buildDiagnosticPdf(t: QrLabelTemplate, mode: DiagnosticMode, count = 50): Promise<Blob> {
   const diagnosticTemplate = { ...t, columns: 5 };
-  const count = 50;
   const size = labelPageSizePt(diagnosticTemplate, count);
   const layout = createLabelDocumentLayout(diagnosticTemplate, count);
   assertLayout(layout, count);
@@ -267,7 +289,14 @@ export async function buildDiagnosticPdf(t: QrLabelTemplate, mode: DiagnosticMod
   pdf.rect(0, 0, size.w, size.h, "F");
 
   const qr = mode === "qr" ? await qrDataUrl("QR-POSITION-TEST", t.qr_error_level) : null;
+  let currentRow = 0;
   for (const entry of layout.entries) {
+    if (entry.row !== currentRow) {
+      currentRow = entry.row;
+      pdf.addPage([size.w, size.h], orientation);
+      pdf.setFillColor(255, 255, 255);
+      pdf.rect(0, 0, size.w, size.h, "F");
+    }
     const cx = entry.labelXmm + entry.labelWidthMm / 2;
     const cy = entry.labelYmm + entry.labelHeightMm / 2;
     pdf.setDrawColor(0, 0, 0);
@@ -289,54 +318,69 @@ export async function buildDiagnosticPdf(t: QrLabelTemplate, mode: DiagnosticMod
 
 
 
+
 /** 에이전트 실행 여부 확인 (GET /health). */
 export async function checkLabelAgent(base?: string): Promise<boolean> {
   return checkPrintAgent(base);
 }
 
 /**
- * 라벨들을 PDF로 만들어 로컬 에이전트에 전송한다.
- * 실패 시 예외를 던지므로 호출부에서 처리한다.
- * API 기준: printerName 은 에이전트가 무시하고 항상 트레이에서 선택한 프린터로 출력한다.
- * 용지 크기는 labelWidthMm/labelHeightMm(라벨 실물 크기)을 함께 보내
- * 에이전트가 PDF 크기 추정 없이 라벨 규격에 정확히 맞춰 출력하도록 한다.
+ * 라벨들을 한 줄(열 개수)씩 나눠 로컬 에이전트에 순차 전송한다.
+ * 프린터가 다이컷 센서로 줄 경계를 잡으므로 인쇄 요청도 한 줄 = 한 페이지로 보낸다.
  */
 export async function printLabelsViaAgent(
   t: QrLabelTemplate,
   items: AgentLabelItem[],
   jobId?: string,
 ): Promise<RawPngPrintResult | null> {
-  const raster = await buildFinalLabelRaster(t, items);
   const capabilities = await getPrintAgentCapabilities();
-  if (capabilities.rawPng) {
-    return printRawPngViaAgent({
-      png: raster.png, widthMm: raster.widthMm, heightMm: raster.heightMm,
-      dpi: raster.dpi, pixelWidth: raster.pixelWidth, pixelHeight: raster.pixelHeight,
-      sha256: raster.sha256, jobId,
-    });
+  const rows = chunkRows(t, items);
+  let last: RawPngPrintResult | null = null;
+  for (let r = 0; r < rows.length; r++) {
+    const raster = await buildFinalLabelRaster(t, rows[r]);
+    const rowJobId = jobId ? (rows.length > 1 ? `${jobId}-r${r + 1}` : jobId) : undefined;
+    if (capabilities.rawPng) {
+      last = await printRawPngViaAgent({
+        png: raster.png, widthMm: raster.widthMm, heightMm: raster.heightMm,
+        dpi: raster.dpi, pixelWidth: raster.pixelWidth, pixelHeight: raster.pixelHeight,
+        sha256: raster.sha256, jobId: rowJobId,
+      });
+    } else {
+      await printPdfViaAgent({
+        pdf: raster.agentPdf,
+        copies: 1,
+        labelWidthMm: raster.widthMm,
+        labelHeightMm: raster.heightMm,
+        jobId: rowJobId,
+        printerName: t.printer_name,
+        dpi: raster.dpi,
+        pixelWidth: raster.pixelWidth,
+        pixelHeight: raster.pixelHeight,
+        imageFormat: raster.format,
+        orientation: raster.widthMm > raster.heightMm ? "landscape" : "portrait",
+      });
+      last = null;
+    }
   }
-  await printPdfViaAgent({
-    pdf: raster.agentPdf,
-    copies: 1,
-    labelWidthMm: raster.widthMm,
-    labelHeightMm: raster.heightMm,
-    jobId,
-    printerName: t.printer_name,
-    dpi: raster.dpi,
-    pixelWidth: raster.pixelWidth,
-    pixelHeight: raster.pixelHeight,
-    imageFormat: raster.format,
-    orientation: raster.widthMm > raster.heightMm ? "landscape" : "portrait",
-  });
-  return null;
+  return last;
 }
 
-export async function printDiagnosticViaAgent(t: QrLabelTemplate, mode: DiagnosticMode): Promise<RawPngPrintResult> {
+/** 진단 출력 — 한 줄(5열) 문서를 rows 번 반복 전송한다. */
+export async function printDiagnosticViaAgent(
+  t: QrLabelTemplate,
+  mode: DiagnosticMode,
+  rows = 10,
+): Promise<RawPngPrintResult> {
   const raster = await buildFinalDiagnosticRaster(t, mode);
-  return printRawPngViaAgent({
-    png: raster.png, widthMm: raster.widthMm, heightMm: raster.heightMm,
-    dpi: raster.dpi, pixelWidth: raster.pixelWidth, pixelHeight: raster.pixelHeight,
-    sha256: raster.sha256,
-  });
+  let last: RawPngPrintResult | null = null;
+  for (let r = 0; r < Math.max(1, rows); r++) {
+    last = await printRawPngViaAgent({
+      png: raster.png, widthMm: raster.widthMm, heightMm: raster.heightMm,
+      dpi: raster.dpi, pixelWidth: raster.pixelWidth, pixelHeight: raster.pixelHeight,
+      sha256: raster.sha256,
+    });
+  }
+  return last as RawPngPrintResult;
 }
+
 
