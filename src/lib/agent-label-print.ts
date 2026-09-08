@@ -246,10 +246,14 @@ function paddedCanvas(wMm: number, hMm: number, cal: ReturnType<typeof printCali
   };
 }
 
-/** 화면 확인·PNG 다운로드·Agent 출력이 함께 사용하는 최종 래스터 결과. */
+/**
+ * 화면 확인·PNG 다운로드·Agent 출력이 함께 사용하는 최종 래스터 결과.
+ * 한 페이지 = 한 줄이므로 첫 줄(열 개수만큼)만 래스터한다.
+ */
 export async function buildFinalLabelRaster(t: QrLabelTemplate, items: AgentLabelItem[]): Promise<FinalLabelRaster> {
-  const sourcePdf = await buildLabelsPdf(t, items);
-  const { wMm, hMm } = labelPageSizePt(t, items.length);
+  const rowItems = items.slice(0, rowCapacity(t));
+  const sourcePdf = await buildLabelsPdf(t, rowItems);
+  const { wMm, hMm } = labelPageSizePt(t, rowItems.length);
   const cal = printCalibration(t);
   const { canvasWidthMm, canvasHeightMm } = paddedCanvas(wMm, hMm, cal);
   return rasterizePrintPdf(sourcePdf, canvasWidthMm, canvasHeightMm, t.printer_dpi || t.dpi, cal, {
@@ -261,8 +265,8 @@ export async function buildFinalLabelRaster(t: QrLabelTemplate, items: AgentLabe
 /** 진단 내용만 다르고 이후 래스터/전송 경로는 실제 라벨과 완전히 동일하다. */
 export async function buildFinalDiagnosticRaster(t: QrLabelTemplate, mode: DiagnosticMode): Promise<FinalLabelRaster> {
   const diagnosticTemplate = { ...t, columns: 5 };
-  const pdf = await buildDiagnosticPdf(diagnosticTemplate, mode);
-  const { wMm, hMm } = labelPageSizePt(diagnosticTemplate, 50);
+  const pdf = await buildDiagnosticPdf(diagnosticTemplate, mode, 5);
+  const { wMm, hMm } = labelPageSizePt(diagnosticTemplate, 5);
   const cal = printCalibration(t);
   const { canvasWidthMm, canvasHeightMm } = paddedCanvas(wMm, hMm, cal);
   return rasterizePrintPdf(pdf, canvasWidthMm, canvasHeightMm, t.printer_dpi || t.dpi, cal, {
@@ -272,10 +276,9 @@ export async function buildFinalDiagnosticRaster(t: QrLabelTemplate, mode: Diagn
 }
 
 
-/** 5열×10행 좌표 진단 문서. 실제 라벨과 같은 연속 행 좌표계를 사용한다. */
-export async function buildDiagnosticPdf(t: QrLabelTemplate, mode: DiagnosticMode): Promise<Blob> {
+/** 좌표 진단 문서 — 한 페이지 = 한 줄(5열). */
+export async function buildDiagnosticPdf(t: QrLabelTemplate, mode: DiagnosticMode, count = 50): Promise<Blob> {
   const diagnosticTemplate = { ...t, columns: 5 };
-  const count = 50;
   const size = labelPageSizePt(diagnosticTemplate, count);
   const layout = createLabelDocumentLayout(diagnosticTemplate, count);
   assertLayout(layout, count);
@@ -286,7 +289,14 @@ export async function buildDiagnosticPdf(t: QrLabelTemplate, mode: DiagnosticMod
   pdf.rect(0, 0, size.w, size.h, "F");
 
   const qr = mode === "qr" ? await qrDataUrl("QR-POSITION-TEST", t.qr_error_level) : null;
+  let currentRow = 0;
   for (const entry of layout.entries) {
+    if (entry.row !== currentRow) {
+      currentRow = entry.row;
+      pdf.addPage([size.w, size.h], orientation);
+      pdf.setFillColor(255, 255, 255);
+      pdf.rect(0, 0, size.w, size.h, "F");
+    }
     const cx = entry.labelXmm + entry.labelWidthMm / 2;
     const cy = entry.labelYmm + entry.labelHeightMm / 2;
     pdf.setDrawColor(0, 0, 0);
@@ -305,6 +315,7 @@ export async function buildDiagnosticPdf(t: QrLabelTemplate, mode: DiagnosticMod
   }
   return pdf.output("blob");
 }
+
 
 
 
