@@ -75,8 +75,8 @@ export async function rasterizePrintPdf(
       viewport,
       canvas,
       transform: [
-        (pixelWidth / viewport.width) * sx, 0,
-        0, (pixelHeight / viewport.height) * sy,
+        (contentPixelWidth / viewport.width) * sx, 0,
+        0, (contentPixelHeight / viewport.height) * sy,
         dx, dy,
       ],
       background: "#ffffff",
