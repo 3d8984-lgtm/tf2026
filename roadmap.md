@@ -14,3 +14,6 @@
 - [x] Master PNG SHA-256·픽셀 크기 표시 및 RAW PNG 직접 전송 계약 추가
 - [x] Print Agent 버전·RAW PNG·드라이버 진단 기능 자동 판별
 - [x] 구형 Agent에서 검증 불가 상태 명시 및 RAW 출력 차단
+- [x] 업로드된 Windows Print Agent의 용지 방향·DPI·재래스터화 오류 수정
+- [x] Master PNG RAW 1:1 수신·해시/픽셀 검증·진단 응답 구현
+- [x] 수정된 Print Agent 소스 빌드 검증 및 전달 패키지 생성
