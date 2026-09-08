@@ -207,12 +207,23 @@ export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]
   return pdf.output("blob");
 }
 
+/** 라벨 설정에 저장된 프린터 실측 보정값 */
+export function printCalibration(t: QrLabelTemplate) {
+  return {
+    offsetXmm: Number(t.print_offset_x) || 0,
+    offsetYmm: Number(t.print_offset_y) || 0,
+    scaleXPercent: Number(t.print_scale_x) || 100,
+    scaleYPercent: Number(t.print_scale_y) || 100,
+  };
+}
+
 /** 화면 확인·PNG 다운로드·Agent 출력이 함께 사용하는 최종 래스터 결과. */
 export async function buildFinalLabelRaster(t: QrLabelTemplate, items: AgentLabelItem[]): Promise<FinalLabelRaster> {
   const sourcePdf = await buildLabelsPdf(t, items);
   const { wMm, hMm } = labelPageSizePt(t, items.length);
-  return rasterizePrintPdf(sourcePdf, wMm, hMm, t.printer_dpi || t.dpi);
+  return rasterizePrintPdf(sourcePdf, wMm, hMm, t.printer_dpi || t.dpi, printCalibration(t));
 }
+
 
 /** 5열×10행 좌표 진단 문서. 실제 라벨과 같은 연속 행 좌표계를 사용한다. */
 export async function buildDiagnosticPdf(t: QrLabelTemplate, mode: DiagnosticMode): Promise<Blob> {
