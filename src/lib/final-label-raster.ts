@@ -18,12 +18,21 @@ const canvasToPng = (canvas: HTMLCanvasElement) => new Promise<Blob>((resolve, r
   canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("PNG 생성 실패")), "image/png");
 });
 
+/** 프린터 실측 보정 — 인쇄물 전체 이동(mm)과 배율(%) */
+export type PrintCalibration = {
+  offsetXmm?: number;
+  offsetYmm?: number;
+  scaleXPercent?: number;
+  scaleYPercent?: number;
+};
+
 /** PDF 첫 페이지를 지정된 실제 mm/DPI의 정확한 픽셀 크기로 렌더한다. */
 export async function rasterizePrintPdf(
   sourcePdf: Blob,
   widthMm: number,
   heightMm: number,
   dpi: number,
+  calibration: PrintCalibration = {},
 ): Promise<FinalLabelRaster> {
   const [pdfjsLib, workerModule] = await Promise.all([
     import("pdfjs-dist"),
@@ -33,6 +42,11 @@ export async function rasterizePrintPdf(
   const safeDpi = Math.max(72, Math.round(Number(dpi) || 203));
   const pixelWidth = mmToPixels(widthMm, safeDpi);
   const pixelHeight = mmToPixels(heightMm, safeDpi);
+  // 보정값: 프린터가 늘리거나 밀어서 찍는 만큼 인쇄물 쪽에서 미리 반대로 보정한다.
+  const sx = Math.min(2, Math.max(0.5, (Number(calibration.scaleXPercent) || 100) / 100));
+  const sy = Math.min(2, Math.max(0.5, (Number(calibration.scaleYPercent) || 100) / 100));
+  const dx = ((Number(calibration.offsetXmm) || 0) / 25.4) * safeDpi;
+  const dy = ((Number(calibration.offsetYmm) || 0) / 25.4) * safeDpi;
   const bytes = new Uint8Array(await sourcePdf.arrayBuffer());
   const document = await (pdfjsLib as any).getDocument({ data: bytes.slice(0) }).promise;
   try {
@@ -50,9 +64,14 @@ export async function rasterizePrintPdf(
       canvasContext: context,
       viewport,
       canvas,
-      transform: [pixelWidth / viewport.width, 0, 0, pixelHeight / viewport.height, 0, 0],
+      transform: [
+        (pixelWidth / viewport.width) * sx, 0,
+        0, (pixelHeight / viewport.height) * sy,
+        dx, dy,
+      ],
       background: "#ffffff",
     } as any).promise;
+
     const png = await canvasToPng(canvas);
 
     // Agent에는 이 PNG 한 장만 들어 있는, 실제 mm와 동일한 단일 페이지 PDF를 보낸다.
