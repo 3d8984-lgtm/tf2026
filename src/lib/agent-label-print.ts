@@ -4,8 +4,8 @@
 //   건강 확인: GET  http://127.0.0.1:9100/health → { status: "ok" }
 //   인쇄:      POST http://127.0.0.1:9100/print  (body = PDF bytes)
 //
-// 라벨 1장 = PDF 1페이지(라벨 실측 mm)로 구성해 여러 장을 한 PDF로 보낸다.
-// QR은 이미지로, 에디션 텍스트는 벡터 텍스트로 그려 화질 저하가 없다.
+// 모든 행을 하나의 연속 롤 PDF 페이지에 배치한다.
+// QR은 이미지로, 에디션 텍스트와 진단 도형은 벡터로 그린다.
 
 import QRCode from "qrcode";
 import { jsPDF } from "jspdf";
@@ -13,9 +13,37 @@ import { resolveCenterBox, centerFontPt, type QrLabelTemplate } from "./qr-label
 import { checkPrintAgent, printPdfViaAgent } from "./print-agent";
 
 export type AgentLabelItem = { position: number; code: string; edition: string };
+export type DiagnosticMode = "cross" | "square" | "qr";
+
+export type LabelLayoutEntry = {
+  itemIndex: number;
+  row: number;
+  column: number;
+  labelXmm: number;
+  labelYmm: number;
+  qrCenterXmm: number;
+  qrCenterYmm: number;
+  qrLeftMm: number;
+  qrTopMm: number;
+  qrAbsoluteXmm: number;
+  qrAbsoluteYmm: number;
+  labelWidthMm: number;
+  labelHeightMm: number;
+  horizontalPitchMm: number;
+  verticalPitchMm: number;
+};
+
+export type LabelDocumentLayout = {
+  widthMm: number;
+  heightMm: number;
+  rows: number;
+  columns: number;
+  entries: LabelLayoutEntry[];
+};
 
 const PT_PER_MM = 72 / 25.4;
 const mm = (v: number) => v * PT_PER_MM;
+const roundMm = (v: number) => Math.round(v * 10000) / 10000;
 
 async function qrDataUrl(value: string, level: QrLabelTemplate["qr_error_level"]) {
   return QRCode.toDataURL(value || " ", { errorCorrectionLevel: level, margin: 0, scale: 10 });
@@ -26,7 +54,7 @@ async function qrDataUrl(value: string, level: QrLabelTemplate["qr_error_level"]
  * 용지 한 줄에 columns 개의 라벨이 들어가므로
  * 폭 = 좌여백 + 라벨폭*열 + 간격*(열-1) + 우여백 이다.
  */
-export function labelPageSizePt(t: QrLabelTemplate) {
+export function labelPageSizePt(t: QrLabelTemplate, itemCount = Math.max(1, Math.round(Number(t.columns) || 1))) {
   const cols = Math.max(1, Math.round(Number(t.columns) || 1));
   const cellW = Math.max(1, Number(t.label_width) || 0);
   const cellH = t.label_shape === "round" ? cellW : Math.max(1, Number(t.label_height) || 0);
@@ -39,19 +67,86 @@ export function labelPageSizePt(t: QrLabelTemplate) {
   const wMm = ml + cellW * cols + gapX * (cols - 1) + mr;
   // 라벨 한 장 급지 피치 = 라벨 높이 + 세로 간격. 세로 간격을 빼먹으면
   // 프린터가 피치보다 짧게 급지하여 줄마다 간격만큼 위로 밀려 잘린다.
-  const hMm = mt + cellH + gapY + mb;
-  return { wMm, hMm, w: mm(wMm), h: mm(hMm), cols, cellW, cellH, gapX, ml, mt };
+  const rows = Math.max(1, Math.ceil(Math.max(1, itemCount) / cols));
+  const horizontalPitchMm = cellW + gapX;
+  const verticalPitchMm = cellH + gapY;
+  // 연속 롤 문서의 각 행은 verticalPitch 간격으로 누적 배치한다.
+  // 마지막 행 뒤의 gap도 실제 한 피치 급지를 위해 문서 높이에 포함한다.
+  const hMm = mt + rows * verticalPitchMm + mb;
+  return {
+    wMm, hMm, w: mm(wMm), h: mm(hMm), rows, cols, cellW, cellH,
+    gapX, gapY, ml, mr, mt, mb, horizontalPitchMm, verticalPitchMm,
+  };
+}
+
+export function createLabelDocumentLayout(t: QrLabelTemplate, itemCount: number): LabelDocumentLayout {
+  const size = labelPageSizePt(t, itemCount);
+  const quiet = Math.max(0, Number(t.qr_quiet_zone) || 0);
+  const qw = Math.min(Math.max(1, Number(t.qr_width) || 1), Math.max(1, size.cellW - quiet * 2));
+  const qh = Math.min(Math.max(1, Number(t.qr_height) || 1), Math.max(1, size.cellH - quiet * 2));
+  const qrCenterXmm = Math.min(Math.max(qw / 2, Number(t.qr_x) || 0), Math.max(qw / 2, size.cellW - qw / 2));
+  const qrCenterYmm = Math.min(Math.max(qh / 2, Number(t.qr_y) || 0), Math.max(qh / 2, size.cellH - qh / 2));
+  const qrLeftMm = qrCenterXmm - qw / 2;
+  const qrTopMm = qrCenterYmm - qh / 2;
+  const entries = Array.from({ length: Math.max(0, itemCount) }, (_, itemIndex) => {
+    const row = Math.floor(itemIndex / size.cols);
+    const column = itemIndex % size.cols;
+    const labelXmm = roundMm(size.ml + column * size.horizontalPitchMm);
+    const labelYmm = roundMm(size.mt + row * size.verticalPitchMm);
+    return {
+      itemIndex, row, column, labelXmm, labelYmm,
+      qrCenterXmm: roundMm(qrCenterXmm), qrCenterYmm: roundMm(qrCenterYmm),
+      qrLeftMm: roundMm(qrLeftMm), qrTopMm: roundMm(qrTopMm),
+      qrAbsoluteXmm: roundMm(labelXmm + qrLeftMm),
+      qrAbsoluteYmm: roundMm(labelYmm + qrTopMm),
+      labelWidthMm: size.cellW,
+      labelHeightMm: size.cellH,
+      horizontalPitchMm: size.horizontalPitchMm,
+      verticalPitchMm: size.verticalPitchMm,
+    };
+  });
+  return { widthMm: size.wMm, heightMm: size.hMm, rows: size.rows, columns: size.cols, entries };
+}
+
+function logPrintDebug(layout: LabelDocumentLayout, kind: "labels" | DiagnosticMode) {
+  console.info("[QR Print Document]", {
+    kind,
+    widthMm: layout.widthMm,
+    heightMm: layout.heightMm,
+    rows: layout.rows,
+    columns: layout.columns,
+    renderCount: layout.entries.length,
+  });
+  console.table(layout.entries.slice(0, 10));
+}
+
+function assertLayout(layout: LabelDocumentLayout, expectedCount: number) {
+  if (layout.entries.length !== expectedCount) throw new Error("print render count mismatch");
+  const indexes = new Set(layout.entries.map((entry) => entry.itemIndex));
+  if (indexes.size !== expectedCount) throw new Error("duplicate print item index");
+  for (const entry of layout.entries) {
+    const qrRight = entry.qrAbsoluteXmm + (entry.qrCenterXmm - entry.qrLeftMm) * 2;
+    const qrBottom = entry.qrAbsoluteYmm + (entry.qrCenterYmm - entry.qrTopMm) * 2;
+    if (entry.qrAbsoluteXmm < entry.labelXmm || qrRight > entry.labelXmm + entry.labelWidthMm + 1e-6
+      || entry.qrAbsoluteYmm < entry.labelYmm || qrBottom > entry.labelYmm + entry.labelHeightMm + 1e-6) {
+      throw new Error(`print item ${entry.itemIndex} exceeds label bounds`);
+    }
+  }
 }
 
 /**
- * 라벨 목록을 하나의 다중 페이지 PDF Blob으로 만든다.
- * 한 페이지 = 용지 한 줄(열 개수만큼의 라벨 칸)이며 각 칸에 QR을 정중앙 배치한다.
+ * 라벨 목록을 하나의 연속 롤 PDF Blob으로 만든다.
+ * 모든 행이 같은 페이지에서 row × verticalPitch 절대 좌표를 사용한다.
  */
 export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]): Promise<Blob> {
   if (items.length === 0) throw new Error("no labels");
-  const { w, h, cols, cellW, cellH, gapX, ml, mt } = labelPageSizePt(t);
+  const size = labelPageSizePt(t, items.length);
+  const { w, h, cellW, cellH } = size;
   const orientation = w > h ? "landscape" : "portrait";
   const pdf = new jsPDF({ unit: "pt", format: [w, h], orientation, compress: true });
+  const layout = createLabelDocumentLayout(t, items.length);
+  assertLayout(layout, items.length);
+  logPrintDebug(layout, "labels");
 
   const qrs = await Promise.all(items.map((i) => qrDataUrl(i.code, t.qr_error_level)));
 
@@ -62,25 +157,22 @@ export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]
   // qr_x/qr_y = QR 중심점 — 칸 안에 유지되도록 중심 범위를 제한한 뒤 좌상단으로 환산
   const centerX = Math.min(Math.max(qw / 2, Number(t.qr_x) || 0), Math.max(qw / 2, cellW - qw / 2));
   const centerY = Math.min(Math.max(qh / 2, Number(t.qr_y) || 0), Math.max(qh / 2, cellH - qh / 2));
-  const qrLocalX = centerX - qw / 2;
-  const qrLocalY = centerY - qh / 2;
   const centerT = { ...t, qr_x: centerX, qr_y: centerY, qr_width: qw, qr_height: qh };
 
+  pdf.setFillColor(255, 255, 255);
+  pdf.rect(0, 0, w, h, "F");
+
   for (let idx = 0; idx < items.length; idx++) {
-    const col = idx % cols;
-    if (idx > 0 && col === 0) pdf.addPage([w, h], orientation);
-    if (idx === 0 || col === 0) {
-      pdf.setFillColor(255, 255, 255);
-      pdf.rect(0, 0, w, h, "F");
-    }
     const it = items[idx];
-    const ox = ml + col * (cellW + gapX);
-    const oy = mt;
+    const entry = layout.entries[idx];
+    if (!entry) throw new Error(`missing print layout for item ${idx}`);
+    const ox = entry.labelXmm;
+    const oy = entry.labelYmm;
 
     // QR (각 칸 내부에서 라벨 설정의 X/Y 위치)
     pdf.addImage(
       qrs[idx], "PNG",
-      mm(ox + qrLocalX), mm(oy + qrLocalY), mm(qw), mm(qh),
+      mm(entry.qrAbsoluteXmm), mm(entry.qrAbsoluteYmm), mm(qw), mm(qh),
       undefined, "FAST",
     );
 
@@ -115,6 +207,40 @@ export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]
   return pdf.output("blob");
 }
 
+/** 5열×10행 좌표 진단 문서. 실제 라벨과 같은 연속 행 좌표계를 사용한다. */
+export async function buildDiagnosticPdf(t: QrLabelTemplate, mode: DiagnosticMode): Promise<Blob> {
+  const diagnosticTemplate = { ...t, columns: 5 };
+  const count = 50;
+  const size = labelPageSizePt(diagnosticTemplate, count);
+  const layout = createLabelDocumentLayout(diagnosticTemplate, count);
+  assertLayout(layout, count);
+  logPrintDebug(layout, mode);
+  const orientation = size.w > size.h ? "landscape" : "portrait";
+  const pdf = new jsPDF({ unit: "pt", format: [size.w, size.h], orientation, compress: true });
+  pdf.setFillColor(255, 255, 255);
+  pdf.rect(0, 0, size.w, size.h, "F");
+
+  const qr = mode === "qr" ? await qrDataUrl("QR-POSITION-TEST", t.qr_error_level) : null;
+  for (const entry of layout.entries) {
+    const cx = entry.labelXmm + entry.labelWidthMm / 2;
+    const cy = entry.labelYmm + entry.labelHeightMm / 2;
+    pdf.setDrawColor(0, 0, 0);
+    pdf.setFillColor(0, 0, 0);
+    if (mode === "cross") {
+      pdf.setLineWidth(mm(0.25));
+      pdf.line(mm(cx - 1.5), mm(cy), mm(cx + 1.5), mm(cy));
+      pdf.line(mm(cx), mm(cy - 1.5), mm(cx), mm(cy + 1.5));
+    } else if (mode === "square") {
+      pdf.rect(mm(cx - 3), mm(cy - 3), mm(6), mm(6), "F");
+    } else if (qr) {
+      pdf.addImage(qr, "PNG", mm(entry.qrAbsoluteXmm), mm(entry.qrAbsoluteYmm),
+        mm(entry.qrCenterXmm - entry.qrLeftMm) * 2, mm(entry.qrCenterYmm - entry.qrTopMm) * 2,
+        undefined, "FAST");
+    }
+  }
+  return pdf.output("blob");
+}
+
 
 
 /** 에이전트 실행 여부 확인 (GET /health). */
@@ -134,11 +260,18 @@ export async function printLabelsViaAgent(
   items: AgentLabelItem[],
 ): Promise<void> {
   const pdf = await buildLabelsPdf(t, items);
-  const { wMm, hMm } = labelPageSizePt(t);
+  const { wMm, hMm } = labelPageSizePt(t, items.length);
   await printPdfViaAgent({
     pdf,
     copies: 1,
     labelWidthMm: wMm,
     labelHeightMm: hMm,
   });
+}
+
+export async function printDiagnosticViaAgent(t: QrLabelTemplate, mode: DiagnosticMode): Promise<void> {
+  const diagnosticTemplate = { ...t, columns: 5 };
+  const pdf = await buildDiagnosticPdf(diagnosticTemplate, mode);
+  const { wMm, hMm } = labelPageSizePt(diagnosticTemplate, 50);
+  await printPdfViaAgent({ pdf, copies: 1, labelWidthMm: wMm, labelHeightMm: hMm });
 }

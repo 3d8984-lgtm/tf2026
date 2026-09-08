@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { resolveCenterBox, centerFontPt, type QrLabelTemplate } from "@/lib/qr-label-template";
 
 /** 스티커 고유번호를 그대로 담은 QR 이미지 (스캔 결과 = 고유번호) */
-export function QrImg({ value, level, className, style }: {
+export const QrImg = forwardRef<HTMLImageElement, {
   value: string; level?: "L" | "M" | "Q" | "H"; className?: string; style?: React.CSSProperties;
-}) {
+}>(({ value, level, className, style }, ref) => {
   const [src, setSrc] = useState<string>("");
   useEffect(() => {
     let alive = true;
@@ -15,8 +15,9 @@ export function QrImg({ value, level, className, style }: {
     return () => { alive = false; };
   }, [value, level]);
   if (!src) return <div className={className} style={style} />;
-  return <img src={src} alt={value} className={className} style={style} draggable={false} />;
-}
+  return <img ref={ref} src={src} alt={value} className={className} style={style} draggable={false} />;
+});
+QrImg.displayName = "QrImg";
 
 type Patch = Partial<QrLabelTemplate>;
 
