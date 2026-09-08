@@ -31,12 +31,15 @@ export function labelPageSizePt(t: QrLabelTemplate) {
   const cellW = Math.max(1, Number(t.label_width) || 0);
   const cellH = t.label_shape === "round" ? cellW : Math.max(1, Number(t.label_height) || 0);
   const gapX = Math.max(0, Number(t.horizontal_gap) || 0);
+  const gapY = Math.max(0, Number(t.vertical_gap) || 0);
   const ml = Math.max(0, Number(t.margin_left) || 0);
   const mr = Math.max(0, Number(t.margin_right) || 0);
   const mt = Math.max(0, Number(t.margin_top) || 0);
   const mb = Math.max(0, Number(t.margin_bottom) || 0);
   const wMm = ml + cellW * cols + gapX * (cols - 1) + mr;
-  const hMm = mt + cellH + mb;
+  // 라벨 한 장 급지 피치 = 라벨 높이 + 세로 간격. 세로 간격을 빼먹으면
+  // 프린터가 피치보다 짧게 급지하여 줄마다 간격만큼 위로 밀려 잘린다.
+  const hMm = mt + cellH + gapY + mb;
   return { wMm, hMm, w: mm(wMm), h: mm(hMm), cols, cellW, cellH, gapX, ml, mt };
 }
 
