@@ -153,8 +153,9 @@ export function resolveCenterBox(t: QrLabelTemplate): CenterBox {
   const w = clampNum(Number(t.edition_center_width) || 1, 1, Math.round(maxW * 100) / 100);
   const maxH = Math.min(qh * 0.2, maxArea / w);
   const h = clampNum(Number(t.edition_center_height) || 1, 0.5, Math.round(maxH * 100) / 100);
-  const cx = t.qr_x + qw / 2 + (Number(t.edition_center_offset_x) || 0);
-  const cy = t.qr_y + qh / 2 + (Number(t.edition_center_offset_y) || 0);
+  // qr_x/qr_y 는 이미 QR 중심점 좌표
+  const cx = (Number(t.qr_x) || 0) + (Number(t.edition_center_offset_x) || 0);
+  const cy = (Number(t.qr_y) || 0) + (Number(t.edition_center_offset_y) || 0);
   return {
     x: cx - w / 2, y: cy - h / 2, w, h,
     maxW: Math.round(maxW * 100) / 100,
@@ -172,8 +173,23 @@ export function centerFontPt(t: QrLabelTemplate, box: CenterBox, text: string): 
 }
 
 export function mergeTemplate(raw: unknown): QrLabelTemplate {
-  const v = (raw ?? {}) as Partial<QrLabelTemplate>;
-  return { ...QR_LABEL_DEFAULTS, ...v, template_name: QR_LABEL_TEMPLATE_KEY };
+  const v = { ...((raw ?? {}) as Partial<QrLabelTemplate>) };
+  // 구버전(좌상단 기준) 저장값 1회성 변환: qr_anchor 가 없던 시절 값이면 중심 좌표로 환산
+  if (v.qr_anchor !== "center") {
+    const qw = Number(v.qr_width ?? QR_LABEL_DEFAULTS.qr_width) || 0;
+    const qh = Number(v.qr_height ?? QR_LABEL_DEFAULTS.qr_height) || 0;
+    if (typeof v.qr_x === "number") v.qr_x = Math.round((v.qr_x + qw / 2) * 100) / 100;
+    if (typeof v.qr_y === "number") v.qr_y = Math.round((v.qr_y + qh / 2) * 100) / 100;
+  }
+  return { ...QR_LABEL_DEFAULTS, ...v, qr_anchor: "center", template_name: QR_LABEL_TEMPLATE_KEY };
+}
+
+/** QR 중심 좌표 → 좌상단 좌표 (렌더링/인쇄용) */
+export function qrTopLeft(t: Pick<QrLabelTemplate, "qr_x" | "qr_y" | "qr_width" | "qr_height">) {
+  return {
+    x: (Number(t.qr_x) || 0) - (Number(t.qr_width) || 0) / 2,
+    y: (Number(t.qr_y) || 0) - (Number(t.qr_height) || 0) / 2,
+  };
 }
 
 /** 현재 배열이 필요로 하는 전체 출력 폭(mm) */
