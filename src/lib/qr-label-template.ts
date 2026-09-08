@@ -272,13 +272,7 @@ export function qrTopLeft(t: Pick<QrLabelTemplate, "qr_x" | "qr_y" | "qr_width" 
 
 /** 현재 배열이 필요로 하는 전체 출력 폭(mm) */
 export function requiredWidthMm(t: QrLabelTemplate): number {
-  const cols = Math.max(1, Math.round(t.columns));
-  return (
-    t.label_width * cols +
-    t.horizontal_gap * (cols - 1) +
-    t.margin_left +
-    t.margin_right
-  );
+  return resolveMediaLayout(t).pageWidthMm;
 }
 
 export type WidthCheck = { requiredMm: number; maxMm: number; ok: boolean };
