@@ -39,6 +39,8 @@ export async function rasterizePrintPdf(
   heightMm: number,
   dpi: number,
   calibration: PrintCalibration = {},
+  /** 캔버스(widthMm/heightMm)보다 작은 실제 내용 크기 — 이동 보정으로 여백을 덧댈 때 사용 */
+  content: { widthMm?: number; heightMm?: number } = {},
 ): Promise<FinalLabelRaster> {
   const [pdfjsLib, workerModule] = await Promise.all([
     import("pdfjs-dist"),
@@ -48,6 +50,8 @@ export async function rasterizePrintPdf(
   const safeDpi = Math.max(72, Math.round(Number(dpi) || 203));
   const pixelWidth = mmToPixels(widthMm, safeDpi);
   const pixelHeight = mmToPixels(heightMm, safeDpi);
+  const contentPixelWidth = mmToPixels(Number(content.widthMm) || widthMm, safeDpi);
+  const contentPixelHeight = mmToPixels(Number(content.heightMm) || heightMm, safeDpi);
   // 보정값: 프린터가 늘리거나 밀어서 찍는 만큼 인쇄물 쪽에서 미리 반대로 보정한다.
   const sx = Math.min(2, Math.max(0.5, (Number(calibration.scaleXPercent) || 100) / 100));
   const sy = Math.min(2, Math.max(0.5, (Number(calibration.scaleYPercent) || 100) / 100));
@@ -71,8 +75,8 @@ export async function rasterizePrintPdf(
       viewport,
       canvas,
       transform: [
-        (pixelWidth / viewport.width) * sx, 0,
-        0, (pixelHeight / viewport.height) * sy,
+        (contentPixelWidth / viewport.width) * sx, 0,
+        0, (contentPixelHeight / viewport.height) * sy,
         dx, dy,
       ],
       background: "#ffffff",
