@@ -325,48 +325,62 @@ export async function checkLabelAgent(base?: string): Promise<boolean> {
 }
 
 /**
- * 라벨들을 PDF로 만들어 로컬 에이전트에 전송한다.
- * 실패 시 예외를 던지므로 호출부에서 처리한다.
- * API 기준: printerName 은 에이전트가 무시하고 항상 트레이에서 선택한 프린터로 출력한다.
- * 용지 크기는 labelWidthMm/labelHeightMm(라벨 실물 크기)을 함께 보내
- * 에이전트가 PDF 크기 추정 없이 라벨 규격에 정확히 맞춰 출력하도록 한다.
+ * 라벨들을 한 줄(열 개수)씩 나눠 로컬 에이전트에 순차 전송한다.
+ * 프린터가 다이컷 센서로 줄 경계를 잡으므로 인쇄 요청도 한 줄 = 한 페이지로 보낸다.
  */
 export async function printLabelsViaAgent(
   t: QrLabelTemplate,
   items: AgentLabelItem[],
   jobId?: string,
 ): Promise<RawPngPrintResult | null> {
-  const raster = await buildFinalLabelRaster(t, items);
   const capabilities = await getPrintAgentCapabilities();
-  if (capabilities.rawPng) {
-    return printRawPngViaAgent({
-      png: raster.png, widthMm: raster.widthMm, heightMm: raster.heightMm,
-      dpi: raster.dpi, pixelWidth: raster.pixelWidth, pixelHeight: raster.pixelHeight,
-      sha256: raster.sha256, jobId,
-    });
+  const rows = chunkRows(t, items);
+  let last: RawPngPrintResult | null = null;
+  for (let r = 0; r < rows.length; r++) {
+    const raster = await buildFinalLabelRaster(t, rows[r]);
+    const rowJobId = jobId ? (rows.length > 1 ? `${jobId}-r${r + 1}` : jobId) : undefined;
+    if (capabilities.rawPng) {
+      last = await printRawPngViaAgent({
+        png: raster.png, widthMm: raster.widthMm, heightMm: raster.heightMm,
+        dpi: raster.dpi, pixelWidth: raster.pixelWidth, pixelHeight: raster.pixelHeight,
+        sha256: raster.sha256, jobId: rowJobId,
+      });
+    } else {
+      await printPdfViaAgent({
+        pdf: raster.agentPdf,
+        copies: 1,
+        labelWidthMm: raster.widthMm,
+        labelHeightMm: raster.heightMm,
+        jobId: rowJobId,
+        printerName: t.printer_name,
+        dpi: raster.dpi,
+        pixelWidth: raster.pixelWidth,
+        pixelHeight: raster.pixelHeight,
+        imageFormat: raster.format,
+        orientation: raster.widthMm > raster.heightMm ? "landscape" : "portrait",
+      });
+      last = null;
+    }
   }
-  await printPdfViaAgent({
-    pdf: raster.agentPdf,
-    copies: 1,
-    labelWidthMm: raster.widthMm,
-    labelHeightMm: raster.heightMm,
-    jobId,
-    printerName: t.printer_name,
-    dpi: raster.dpi,
-    pixelWidth: raster.pixelWidth,
-    pixelHeight: raster.pixelHeight,
-    imageFormat: raster.format,
-    orientation: raster.widthMm > raster.heightMm ? "landscape" : "portrait",
-  });
-  return null;
+  return last;
 }
 
-export async function printDiagnosticViaAgent(t: QrLabelTemplate, mode: DiagnosticMode): Promise<RawPngPrintResult> {
+/** 진단 출력 — 한 줄(5열) 문서를 rows 번 반복 전송한다. */
+export async function printDiagnosticViaAgent(
+  t: QrLabelTemplate,
+  mode: DiagnosticMode,
+  rows = 10,
+): Promise<RawPngPrintResult> {
   const raster = await buildFinalDiagnosticRaster(t, mode);
-  return printRawPngViaAgent({
-    png: raster.png, widthMm: raster.widthMm, heightMm: raster.heightMm,
-    dpi: raster.dpi, pixelWidth: raster.pixelWidth, pixelHeight: raster.pixelHeight,
-    sha256: raster.sha256,
-  });
+  let last: RawPngPrintResult | null = null;
+  for (let r = 0; r < Math.max(1, rows); r++) {
+    last = await printRawPngViaAgent({
+      png: raster.png, widthMm: raster.widthMm, heightMm: raster.heightMm,
+      dpi: raster.dpi, pixelWidth: raster.pixelWidth, pixelHeight: raster.pixelHeight,
+      sha256: raster.sha256,
+    });
+  }
+  return last as RawPngPrintResult;
 }
+
 
