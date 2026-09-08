@@ -11,6 +11,7 @@ import QRCode from "qrcode";
 import { jsPDF } from "jspdf";
 import { resolveCenterBox, centerFontPt, type QrLabelTemplate } from "./qr-label-template";
 import { checkPrintAgent, printPdfViaAgent } from "./print-agent";
+import { rasterizePrintPdf, type FinalLabelRaster } from "./final-label-raster";
 
 export type AgentLabelItem = { position: number; code: string; edition: string };
 export type DiagnosticMode = "cross" | "square" | "qr";
@@ -70,9 +71,8 @@ export function labelPageSizePt(t: QrLabelTemplate, itemCount = Math.max(1, Math
   const rows = Math.max(1, Math.ceil(Math.max(1, itemCount) / cols));
   const horizontalPitchMm = cellW + gapX;
   const verticalPitchMm = cellH + gapY;
-  // 연속 롤 문서의 각 행은 verticalPitch 간격으로 누적 배치한다.
-  // 마지막 행 뒤의 gap도 실제 한 피치 급지를 위해 문서 높이에 포함한다.
-  const hMm = mt + rows * verticalPitchMm + mb;
+  // 행 시작점은 verticalPitch로 증가하되 마지막 행 뒤에는 간격이 없다.
+  const hMm = mt + rows * cellH + Math.max(0, rows - 1) * gapY + mb;
   return {
     wMm, hMm, w: mm(wMm), h: mm(hMm), rows, cols, cellW, cellH,
     gapX, gapY, ml, mr, mt, mb, horizontalPitchMm, verticalPitchMm,
@@ -207,6 +207,13 @@ export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]
   return pdf.output("blob");
 }
 
+/** 화면 확인·PNG 다운로드·Agent 출력이 함께 사용하는 최종 래스터 결과. */
+export async function buildFinalLabelRaster(t: QrLabelTemplate, items: AgentLabelItem[]): Promise<FinalLabelRaster> {
+  const sourcePdf = await buildLabelsPdf(t, items);
+  const { wMm, hMm } = labelPageSizePt(t, items.length);
+  return rasterizePrintPdf(sourcePdf, wMm, hMm, t.printer_dpi || t.dpi);
+}
+
 /** 5열×10행 좌표 진단 문서. 실제 라벨과 같은 연속 행 좌표계를 사용한다. */
 export async function buildDiagnosticPdf(t: QrLabelTemplate, mode: DiagnosticMode): Promise<Blob> {
   const diagnosticTemplate = { ...t, columns: 5 };
@@ -258,14 +265,21 @@ export async function checkLabelAgent(base?: string): Promise<boolean> {
 export async function printLabelsViaAgent(
   t: QrLabelTemplate,
   items: AgentLabelItem[],
+  jobId?: string,
 ): Promise<void> {
-  const pdf = await buildLabelsPdf(t, items);
-  const { wMm, hMm } = labelPageSizePt(t, items.length);
+  const raster = await buildFinalLabelRaster(t, items);
   await printPdfViaAgent({
-    pdf,
+    pdf: raster.agentPdf,
     copies: 1,
-    labelWidthMm: wMm,
-    labelHeightMm: hMm,
+    labelWidthMm: raster.widthMm,
+    labelHeightMm: raster.heightMm,
+    jobId,
+    printerName: t.printer_name,
+    dpi: raster.dpi,
+    pixelWidth: raster.pixelWidth,
+    pixelHeight: raster.pixelHeight,
+    imageFormat: raster.format,
+    orientation: raster.widthMm > raster.heightMm ? "landscape" : "portrait",
   });
 }
 

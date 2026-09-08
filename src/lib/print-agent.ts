@@ -81,6 +81,12 @@ export interface PrintJob {
   /** 라벨 실물 세로(mm) — PDF 크기 추정보다 우선한다. */
   labelHeightMm?: number | null;
   baseUrl?: string | null;
+  jobId?: string | null;
+  dpi?: number | null;
+  pixelWidth?: number | null;
+  pixelHeight?: number | null;
+  imageFormat?: string | null;
+  orientation?: "portrait" | "landscape" | null;
 }
 
 function query(job: PrintJob) {
@@ -100,8 +106,18 @@ function query(job: PrintJob) {
   }
   // 큰 용지에 맞춰 축소/여백 추가하지 말고 PDF 페이지 크기 그대로 출력.
   p.set("fitToPage", "false");
-  p.set("scale", "none");
+  p.set("scale", "100");
+  p.set("scalePercent", "100");
   p.set("usePdfPageSize", "true");
+  p.set("shrinkToFit", "false");
+  p.set("autoResize", "false");
+  p.set("autoRotate", "false");
+  p.set("autoCrop", "false");
+  p.set("pageSlicing", "false");
+  p.set("stretch", "false");
+  p.set("marginCompensation", "false");
+  if (job.dpi) p.set("dpi", String(job.dpi));
+  if (job.orientation) p.set("orientation", job.orientation);
   const s = p.toString();
   return s ? `?${s}` : "";
 }
@@ -153,6 +169,31 @@ export async function printPdfViaAgent(job: PrintJob): Promise<{ via: "binary" |
   const url = `${base}/print${query(job)}`;
   const errors: string[] = [];
 
+  console.info("[Print Agent Payload]", {
+    jobId: job.jobId ?? null,
+    printerName: job.printerName ?? null,
+    widthMm: job.labelWidthMm ?? null,
+    heightMm: job.labelHeightMm ?? null,
+    dpi: job.dpi ?? null,
+    pixelWidth: job.pixelWidth ?? null,
+    pixelHeight: job.pixelHeight ?? null,
+    imageFormat: job.imageFormat ?? "PDF",
+    scale: "100%",
+    orientation: job.orientation ?? null,
+    copies: job.copies ?? 1,
+    mediaWidthMm: job.labelWidthMm ?? null,
+    mediaHeightMm: job.labelHeightMm ?? null,
+    pageWidthMm: job.labelWidthMm ?? null,
+    pageHeightMm: job.labelHeightMm ?? null,
+    fitToPage: false,
+    stretch: false,
+    resize: false,
+    autoRotate: false,
+    autoCrop: false,
+    pageSlicing: false,
+    marginCompensation: false,
+  });
+
   // 1) Binary upload (preferred).
   if (job.pdf) {
     try {
@@ -161,6 +202,21 @@ export async function printPdfViaAgent(job: PrintJob): Promise<{ via: "binary" |
       if (job.labelWidthMm && job.labelWidthMm > 0) headers["X-Label-Width-Mm"] = String(job.labelWidthMm);
       if (job.labelHeightMm && job.labelHeightMm > 0) headers["X-Label-Height-Mm"] = String(job.labelHeightMm);
       headers["X-Fit-To-Page"] = "false";
+      headers["X-Scale-Percent"] = "100";
+      headers["X-Use-Pdf-Page-Size"] = "true";
+      headers["X-Shrink-To-Fit"] = "false";
+      headers["X-Auto-Resize"] = "false";
+      headers["X-Auto-Rotate"] = "false";
+      headers["X-Auto-Crop"] = "false";
+      headers["X-Page-Slicing"] = "false";
+      headers["X-Stretch"] = "false";
+      headers["X-Margin-Compensation"] = "false";
+      if (job.dpi) headers["X-Printer-Dpi"] = String(job.dpi);
+      if (job.pixelWidth) headers["X-Pixel-Width"] = String(job.pixelWidth);
+      if (job.pixelHeight) headers["X-Pixel-Height"] = String(job.pixelHeight);
+      if (job.imageFormat) headers["X-Source-Image-Format"] = job.imageFormat;
+      if (job.orientation) headers["X-Orientation"] = job.orientation;
+      if (job.jobId) headers["X-Print-Job-Id"] = job.jobId;
       const r = await fetch(url, {
         method: "POST",
         headers,

@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useLang } from "@/contexts/LangContext";
-import { buildLabelsPdf, labelPageSizePt, type AgentLabelItem } from "@/lib/agent-label-print";
+import { buildFinalLabelRaster, labelPageSizePt, type AgentLabelItem } from "@/lib/agent-label-print";
+import type { FinalLabelRaster } from "@/lib/final-label-raster";
 import type { QrLabelTemplate } from "@/lib/qr-label-template";
-import PdfBlobPreview from "./PdfBlobPreview";
 
 export default function FinalPrintPreviewDialog({
   open, onOpenChange, template, items,
@@ -16,42 +17,84 @@ export default function FinalPrintPreviewDialog({
 }) {
   const { lang } = useLang();
   const tr = (ko: string, zh: string) => (lang === "ko" ? ko : zh);
-  const [blob, setBlob] = useState<Blob | null>(null);
+  const [raster, setRaster] = useState<FinalLabelRaster | null>(null);
+  const [imageUrl, setImageUrl] = useState("");
   const [error, setError] = useState("");
   const size = labelPageSizePt(template, Math.max(1, items.length));
 
   useEffect(() => {
     if (!open || items.length === 0) return;
     let active = true;
-    setBlob(null);
+    setRaster(null);
+    setImageUrl("");
     setError("");
-    void buildLabelsPdf(template, items)
-      .then((blob) => {
+    let objectUrl = "";
+    void buildFinalLabelRaster(template, items)
+      .then((result) => {
         if (!active) return;
-        setBlob(blob);
+        objectUrl = URL.createObjectURL(result.png);
+        setRaster(result);
+        setImageUrl(objectUrl);
       })
       .catch((cause: unknown) => {
         if (active) setError(String((cause as Error)?.message ?? cause));
       });
     return () => {
       active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [open, template, items]);
 
+  const downloadPng = () => {
+    if (!raster) return;
+    const url = URL.createObjectURL(raster.png);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `final-print-${raster.widthMm}x${raster.heightMm}mm-${raster.dpi}dpi.png`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl h-[90vh] grid-rows-[auto_1fr]">
+      <DialogContent className="max-w-5xl h-[90vh] grid-rows-[auto_auto_1fr]">
         <DialogHeader>
-          <DialogTitle>{tr("최종 인쇄 미리보기", "最终打印预览")}</DialogTitle>
+          <DialogTitle>{tr("최종 인쇄 이미지 확인", "确认最终打印图像")}</DialogTitle>
           <DialogDescription>
-            {tr("실제 프린터로 전달되는 PDF입니다.", "这是实际发送到打印机的 PDF。")}{" "}
+            {tr("Print Agent로 보내는 데이터와 동일한 최종 PNG입니다.", "这是与发送到打印代理的数据相同的最终 PNG。")}{" "}
             {size.wMm}×{size.hMm}mm · {size.cols}{tr("열", "列")} · {size.rows}{tr("행", "行")} · {items.length}{tr("개", "个")}
           </DialogDescription>
         </DialogHeader>
+        {raster && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-xs tabular-nums sm:grid-cols-5">
+              <span>Physical Width <b>{raster.widthMm} mm</b></span>
+              <span>Physical Height <b>{raster.heightMm} mm</b></span>
+              <span>Pixel Width <b>{raster.pixelWidth} px</b></span>
+              <span>Pixel Height <b>{raster.pixelHeight} px</b></span>
+              <span>DPI <b>{raster.dpi}</b></span>
+              <span>Columns <b>{size.cols}</b></span>
+              <span>Rows <b>{size.rows}</b></span>
+              <span>Label <b>{size.cellW}×{size.cellH} mm</b></span>
+              <span>Horizontal Pitch <b>{size.horizontalPitchMm} mm</b></span>
+              <span>Vertical Pitch <b>{size.verticalPitchMm} mm</b></span>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button variant="outline" size="sm" className="gap-1" onClick={downloadPng}>
+                <Download className="h-4 w-4" />{tr("동일 PNG 다운로드", "下载相同 PNG")}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                {tr("이 PNG가 정상이고 Agent 출력만 비정상이면 Agent 또는 프린터 드라이버 문제입니다.", "若此 PNG 正常但代理打印异常，则问题位于代理或打印机驱动。")}
+              </p>
+            </div>
+          </div>
+        )}
         {error ? (
           <div className="text-sm text-destructive">{error}</div>
-        ) : blob ? (
-          <PdfBlobPreview blob={blob} />
+        ) : raster && imageUrl ? (
+          <div className="min-h-0 overflow-auto rounded-md border bg-muted/30 p-3">
+            <img src={imageUrl} alt={tr("최종 인쇄 래스터 이미지", "最终打印栅格图像")} className="mx-auto h-auto max-w-full bg-background shadow-sm" />
+          </div>
         ) : (
           <div className="flex items-center justify-center text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin" /></div>
         )}
