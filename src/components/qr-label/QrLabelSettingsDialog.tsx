@@ -140,6 +140,12 @@ export default function QrLabelSettingsDialog({
                 {num("margin_right", tr("우측 여백(mm)", "右边距(mm)"))}
                 {num("margin_top", tr("상단 여백(mm)", "上边距(mm)"))}
                 {num("margin_bottom", tr("하단 여백(mm)", "下边距(mm)"))}
+                <p className="col-span-3 text-[11px] text-muted-foreground leading-relaxed">
+                  {tr(
+                    "간격 = 라벨지에서 라벨과 라벨 사이의 실제 틈, 여백 = 라벨지 가장자리에서 첫 라벨까지의 거리입니다. 자로 실제 라벨지를 재서 입력해야 하며, 틀리면 인쇄 위치가 점점 어긋납니다.",
+                    "间距 = 标签纸上标签之间的实际间隙，边距 = 标签纸边缘到第一个标签的距离。请用尺子测量实际标签纸后填写，数值不对会导致打印位置逐渐偏移。",
+                  )}
+                </p>
                 <div className="space-y-1">
                   <Label className="text-xs">{tr("출력 방향", "打印方向")}</Label>
                   <Select value={draft.orientation} onValueChange={(v) => set({ orientation: v as any })}>
