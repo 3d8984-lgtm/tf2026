@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
-import type { QrLabelTemplate } from "@/lib/qr-label-template";
+import { resolveMediaLayout, type QrLabelTemplate } from "@/lib/qr-label-template";
 import { useLang } from "@/contexts/LangContext";
 
 export default function PrintSettingsDialog({
@@ -39,6 +39,7 @@ export default function PrintSettingsDialog({
     } finally { setSaving(false); }
   };
 
+  const media = resolveMediaLayout(draft);
   const total = Math.max(0, Number(draft.test_before_count) || 0) + Math.max(0, Number(draft.test_after_count) || 0);
 
   return (
