@@ -298,5 +298,21 @@ export async function printDiagnosticViaAgent(t: QrLabelTemplate, mode: Diagnost
   const diagnosticTemplate = { ...t, columns: 5 };
   const pdf = await buildDiagnosticPdf(diagnosticTemplate, mode);
   const { wMm, hMm } = labelPageSizePt(diagnosticTemplate, 50);
-  await printPdfViaAgent({ pdf, copies: 1, labelWidthMm: wMm, labelHeightMm: hMm });
+  // 실제 라벨 인쇄와 동일한 래스터·보정 경로를 사용해야 진단 결과가 본 인쇄와 일치한다.
+  const raster = await rasterizePrintPdf(
+    pdf, wMm, hMm, t.printer_dpi || t.dpi, printCalibration(t),
+  );
+  await printPdfViaAgent({
+    pdf: raster.agentPdf,
+    copies: 1,
+    labelWidthMm: raster.widthMm,
+    labelHeightMm: raster.heightMm,
+    printerName: t.printer_name,
+    dpi: raster.dpi,
+    pixelWidth: raster.pixelWidth,
+    pixelHeight: raster.pixelHeight,
+    imageFormat: raster.format,
+    orientation: raster.widthMm > raster.heightMm ? "landscape" : "portrait",
+  });
 }
+
