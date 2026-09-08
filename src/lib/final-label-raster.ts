@@ -39,6 +39,8 @@ export async function rasterizePrintPdf(
   heightMm: number,
   dpi: number,
   calibration: PrintCalibration = {},
+  /** 캔버스(widthMm/heightMm)보다 작은 실제 내용 크기 — 이동 보정으로 여백을 덧댈 때 사용 */
+  content: { widthMm?: number; heightMm?: number } = {},
 ): Promise<FinalLabelRaster> {
   const [pdfjsLib, workerModule] = await Promise.all([
     import("pdfjs-dist"),
