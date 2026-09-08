@@ -59,9 +59,10 @@ export default function LabelCanvas({
       const dx = (ev.clientX - startX) / scale;
       const dy = (ev.clientY - startY) / scale;
       if (mode === "qr") {
+        // qr_x/qr_y = QR 중심점 — QR이 라벨 안에 유지되도록 중심 범위를 제한
         onChange({
-          qr_x: round2(clamp(s.qx + dx, 0, t.label_width - s.qw)),
-          qr_y: round2(clamp(s.qy + dy, 0, t.label_height - s.qh)),
+          qr_x: round2(clamp(s.qx + dx, s.qw / 2, t.label_width - s.qw / 2)),
+          qr_y: round2(clamp(s.qy + dy, s.qh / 2, t.label_height - s.qh / 2)),
         });
       } else if (mode === "center") {
         const lim = Math.max(0.5, t.qr_width / 3);
@@ -75,7 +76,9 @@ export default function LabelCanvas({
           edition_y: round2(clamp(s.ey + dy, 0, t.label_height)),
         });
       } else {
-        const size = round2(clamp(Math.max(s.qw + dx, s.qh + dy), 3, Math.min(t.label_width - s.qx, t.label_height - s.qy)));
+        // 중심 기준 최대 크기 = 중심에서 가장 가까운 라벨 가장자리까지의 2배
+        const maxSize = 2 * Math.min(s.qx, t.label_width - s.qx, s.qy, t.label_height - s.qy);
+        const size = round2(clamp(Math.max(s.qw + dx, s.qh + dy), 3, Math.max(3, maxSize)));
         onChange({ qr_width: size, qr_height: size });
       }
     };
@@ -113,7 +116,7 @@ export default function LabelCanvas({
       <div
         onPointerDown={(e) => startDrag(e, "qr")}
         className={`absolute ${editable ? "cursor-move ring-1 ring-primary/50" : ""}`}
-        style={{ left: px(t.qr_x), top: px(t.qr_y), width: px(t.qr_width), height: px(t.qr_height) }}
+        style={{ left: px(t.qr_x - t.qr_width / 2), top: px(t.qr_y - t.qr_height / 2), width: px(t.qr_width), height: px(t.qr_height) }}
       >
         <QrImg value={code} level={t.qr_error_level} style={{ width: "100%", height: "100%", imageRendering: "pixelated" }} />
         {editable && (
