@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createLabelDocumentLayout, labelPageSizePt } from "./agent-label-print";
+import { mmToPixels } from "./final-label-raster";
 import { QR_LABEL_DEFAULTS } from "./qr-label-template";
 
 const template = {
@@ -25,8 +26,10 @@ describe("continuous QR label print layout", () => {
   it("uses 83mm width and 17mm row pitch", () => {
     const size = labelPageSizePt(template, 50);
     expect(size.wMm).toBe(83);
-    expect(size.hMm).toBe(170);
+    expect(size.hMm).toBe(168);
     expect(size.verticalPitchMm).toBe(17);
+    expect(mmToPixels(size.wMm, 300)).toBe(980);
+    expect(mmToPixels(size.hMm, 300)).toBe(1984);
   });
 
   it("increments absolute row Y and QR top by the vertical pitch", () => {

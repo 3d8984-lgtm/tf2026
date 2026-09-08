@@ -231,7 +231,7 @@ export default function QrLabelPrintPanel({
     if (snapshot.print_mode !== "bridge") {
       let ok = true;
       try {
-        await printLabelsViaAgent(snapshot, [...testBefore, ...ordered, ...testAfter]);
+        await printLabelsViaAgent(snapshot, [...testBefore, ...ordered, ...testAfter], jobId);
       } catch (e: any) {
         ok = false;
         for (const it of targets) {
@@ -490,7 +490,7 @@ export default function QrLabelPrintPanel({
             <Eye className="w-4 h-4" />{tr("라벨 미리보기", "标签预览")}
           </Button>
           <Button variant="outline" size="sm" className="gap-1" onClick={() => setFinalPreviewOpen(true)} disabled={counts.total === 0}>
-            <Eye className="w-4 h-4" />{tr("최종 인쇄 미리보기", "最终打印预览")}
+            <Eye className="w-4 h-4" />{tr("최종 인쇄 이미지 확인", "确认最终打印图像")}
           </Button>
           <Button size="sm" className="gap-1" onClick={startAll} disabled={running || counts.total === 0}>
             {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
