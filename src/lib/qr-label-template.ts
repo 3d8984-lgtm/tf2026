@@ -22,7 +22,11 @@ export type QrLabelTemplate = {
   orientation: "portrait" | "landscape";
   dpi: number;
   // QR (mm)
+  /** 좌표 기준 — "center" = qr_x/qr_y 가 QR 중심점 (라벨 좌상단 기준) */
+  qr_anchor: "center";
+  /** QR 중심 X (라벨 좌측 기준, mm) */
   qr_x: number;
+  /** QR 중심 Y (라벨 상단 기준, mm) */
   qr_y: number;
   qr_width: number;
   qr_height: number;
@@ -84,8 +88,9 @@ export const QR_LABEL_DEFAULTS: QrLabelTemplate = {
   margin_right: 0,
   orientation: "landscape",
   dpi: 203,
-  qr_x: 2,
-  qr_y: 2,
+  qr_anchor: "center",
+  qr_x: 10,
+  qr_y: 10,
   qr_width: 16,
   qr_height: 16,
   qr_error_level: "H",
