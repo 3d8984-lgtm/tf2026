@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
-import type { QrLabelTemplate } from "@/lib/qr-label-template";
+import { resolveMediaLayout, type QrLabelTemplate } from "@/lib/qr-label-template";
 import { useLang } from "@/contexts/LangContext";
 
 export default function PrintSettingsDialog({
@@ -39,6 +39,7 @@ export default function PrintSettingsDialog({
     } finally { setSaving(false); }
   };
 
+  const media = resolveMediaLayout(draft);
   const total = Math.max(0, Number(draft.test_before_count) || 0) + Math.max(0, Number(draft.test_after_count) || 0);
 
   return (
@@ -99,6 +100,62 @@ export default function PrintSettingsDialog({
               {tr(`전체 인쇄 1회당 시험 라벨 ${total}장이 추가로 출력됩니다. 시험 라벨은 인쇄 기록에 남지 않습니다.`,
                   `每次整单打印将额外输出 ${total} 张试打标签，试打标签不计入打印记录。`)}
             </p>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-sm font-medium">{tr("용지 기준 자동 오프셋", "按纸张自动偏移")}</p>
+            <div className="flex items-start gap-2">
+              <Checkbox
+                id="media-auto"
+                checked={draft.media_auto_offset}
+                onCheckedChange={(v) => set({ media_auto_offset: v === true })}
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor="media-auto" className="text-sm">
+                  {tr("용지 너비로 좌우 여백·칸 간격 자동 계산", "按纸张宽度自动计算左右边距与间距")}
+                </Label>
+                <p className="text-[11px] text-muted-foreground">
+                  {tr("용지 전체 너비, 열 개수, 라벨 크기, 다이컷 마진으로 계산해 인쇄물을 용지 정중앙에 배치합니다.",
+                      "根据纸张总宽、列数、标签尺寸与模切边距计算，并将打印内容居中于纸张。")}
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">{tr("용지 전체 너비 (mm)", "纸张总宽（mm）")}</Label>
+                <Input type="number" step={0.1} min={0} className="h-8"
+                  value={String(draft.media_width ?? 0)}
+                  onChange={(e) => set({ media_width: Math.max(0, Number(e.target.value) || 0) })} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">{tr("다이컷 마진 (mm, 좌우 각각)", "模切边距（mm，左右各）")}</Label>
+                <Input type="number" step={0.1} min={0} className="h-8"
+                  value={String(draft.die_cut_margin ?? 0)}
+                  onChange={(e) => set({ die_cut_margin: Math.max(0, Number(e.target.value) || 0) })} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">{tr("열 개수", "列数")}</Label>
+                <Input type="number" step={1} min={1} className="h-8"
+                  value={String(draft.columns ?? 1)}
+                  onChange={(e) => set({ columns: Math.max(1, Math.round(Number(e.target.value) || 1)) })} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">{tr("라벨 가로 (mm)", "标签宽度（mm）")}</Label>
+                <Input type="number" step={0.1} min={1} className="h-8"
+                  value={String(draft.label_width ?? 0)}
+                  onChange={(e) => set({ label_width: Math.max(1, Number(e.target.value) || 1) })} />
+              </div>
+            </div>
+            <div className="rounded-md border p-2 text-[11px] space-y-0.5">
+              <p>{tr("인쇄 폭", "打印宽度")}: {media.pageWidthMm}mm · {tr("라벨 차지 폭", "标签占宽")}: {media.usedWidthMm}mm</p>
+              <p>{tr("좌 여백", "左边距")}: {media.marginLeftMm}mm · {tr("우 여백", "右边距")}: {media.marginRightMm}mm · {tr("칸 간격", "间距")}: {media.horizontalGapMm}mm</p>
+              {!media.fits && (
+                <p className="text-destructive">
+                  {tr("라벨이 용지 폭을 넘습니다. 열 개수나 다이컷 마진을 확인하세요.",
+                      "标签超出纸张宽度，请检查列数或模切边距。")}
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="space-y-3">
