@@ -534,6 +534,9 @@ export default function QrLabelPrintPanel({
           <Button variant="outline" size="sm" className="gap-1" onClick={() => void downloadPdf()} disabled={counts.total === 0}>
             <Download className="w-4 h-4" />{tr("PDF 다운로드", "下载 PDF")}
           </Button>
+          <Button variant="secondary" size="sm" className="gap-1" onClick={() => void browserPrint()} disabled={counts.total === 0}>
+            <Printer className="w-4 h-4" />{tr("에이전트 없이 직접 인쇄", "不经代理直接打印")}
+          </Button>
           <Button variant="outline" size="sm" className="gap-1" onClick={() => setDiagnosticOpen(true)}>
             <Crosshair className="w-4 h-4" />{tr("좌표 진단 출력", "坐标诊断打印")}
           </Button>
