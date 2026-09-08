@@ -347,6 +347,41 @@ export default function QrLabelPrintPanel({
     }
   }, [labelItems.length, template, printItems, orderNo, lang]);
 
+  // ── 에이전트 없이 브라우저 인쇄 대화상자로 직접 출력 (에이전트 문제 확인용) ──
+  const browserPrint = useCallback(async () => {
+    if (printItems.length === 0) return;
+    try {
+      const blob = await buildLabelsPdf(template, printItems);
+      const url = URL.createObjectURL(blob);
+      const frame = document.createElement("iframe");
+      frame.style.position = "fixed";
+      frame.style.right = "0";
+      frame.style.bottom = "0";
+      frame.style.width = "0";
+      frame.style.height = "0";
+      frame.style.border = "0";
+      frame.src = url;
+      frame.onload = () => {
+        setTimeout(() => {
+          try {
+            frame.contentWindow?.focus();
+            frame.contentWindow?.print();
+          } catch {
+            window.open(url, "_blank");
+          }
+        }, 300);
+        setTimeout(() => {
+          frame.remove();
+          URL.revokeObjectURL(url);
+        }, 60000);
+      };
+      document.body.appendChild(frame);
+      toast.info(tr("브라우저 인쇄 대화상자를 엽니다. 배율을 100%로 두고 인쇄하세요.", "将打开浏览器打印对话框，请将缩放设为 100% 后打印。"));
+    } catch (e: any) {
+      toast.error(tr("직접 인쇄 실패: ", "直接打印失败：") + String(e?.message ?? e));
+    }
+  }, [template, printItems, lang]);
+
   const guard = () => {
     if (!width.ok) {
       toast.error(tr(
