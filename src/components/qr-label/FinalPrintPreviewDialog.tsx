@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { useLang } from "@/contexts/LangContext";
 import { buildLabelsPdf, labelPageSizePt, type AgentLabelItem } from "@/lib/agent-label-print";
 import type { QrLabelTemplate } from "@/lib/qr-label-template";
+import PdfBlobPreview from "./PdfBlobPreview";
 
 export default function FinalPrintPreviewDialog({
   open, onOpenChange, template, items,
@@ -15,28 +16,25 @@ export default function FinalPrintPreviewDialog({
 }) {
   const { lang } = useLang();
   const tr = (ko: string, zh: string) => (lang === "ko" ? ko : zh);
-  const [url, setUrl] = useState("");
+  const [blob, setBlob] = useState<Blob | null>(null);
   const [error, setError] = useState("");
   const size = labelPageSizePt(template, Math.max(1, items.length));
 
   useEffect(() => {
     if (!open || items.length === 0) return;
     let active = true;
-    let objectUrl = "";
-    setUrl("");
+    setBlob(null);
     setError("");
     void buildLabelsPdf(template, items)
       .then((blob) => {
         if (!active) return;
-        objectUrl = URL.createObjectURL(blob);
-        setUrl(objectUrl);
+        setBlob(blob);
       })
       .catch((cause: unknown) => {
         if (active) setError(String((cause as Error)?.message ?? cause));
       });
     return () => {
       active = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [open, template, items]);
 
@@ -52,8 +50,8 @@ export default function FinalPrintPreviewDialog({
         </DialogHeader>
         {error ? (
           <div className="text-sm text-destructive">{error}</div>
-        ) : url ? (
-          <iframe title={tr("최종 인쇄 PDF", "最终打印 PDF")} src={url} className="w-full h-full border rounded-md bg-muted" />
+        ) : blob ? (
+          <PdfBlobPreview blob={blob} />
         ) : (
           <div className="flex items-center justify-center text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin" /></div>
         )}

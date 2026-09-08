@@ -10,6 +10,7 @@ import {
 import type { QrLabelTemplate } from "@/lib/qr-label-template";
 import { friendlyAgentError } from "@/lib/print-agent";
 import { toast } from "sonner";
+import PdfBlobPreview from "./PdfBlobPreview";
 
 const MODES: DiagnosticMode[] = ["cross", "square", "qr"];
 
@@ -23,7 +24,7 @@ export default function PrintDiagnosticDialog({
   const { lang } = useLang();
   const tr = (ko: string, zh: string) => (lang === "ko" ? ko : zh);
   const [mode, setMode] = useState<DiagnosticMode>("cross");
-  const [url, setUrl] = useState("");
+  const [blob, setBlob] = useState<Blob | null>(null);
   const [busy, setBusy] = useState(false);
   const diagnosticTemplate = { ...template, columns: 5 };
   const size = labelPageSizePt(diagnosticTemplate, 50);
@@ -34,16 +35,13 @@ export default function PrintDiagnosticDialog({
   useEffect(() => {
     if (!open) return;
     let active = true;
-    let objectUrl = "";
-    setUrl("");
-    void buildDiagnosticPdf(diagnosticTemplate, mode).then((blob) => {
+    setBlob(null);
+    void buildDiagnosticPdf(diagnosticTemplate, mode).then((nextBlob) => {
       if (!active) return;
-      objectUrl = URL.createObjectURL(blob);
-      setUrl(objectUrl);
+      setBlob(nextBlob);
     });
     return () => {
       active = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [open, mode, template]);
 
@@ -94,7 +92,7 @@ export default function PrintDiagnosticDialog({
           </div>
           {MODES.map((value) => (
             <TabsContent key={value} value={value} className="mt-0 min-h-0 flex-1">
-              {url ? <iframe title={`${label(value)} PDF`} src={url} className="w-full h-full border rounded-md bg-muted" /> : (
+              {blob ? <PdfBlobPreview blob={blob} /> : (
                 <div className="h-full flex items-center justify-center text-muted-foreground"><Eye className="w-5 h-5" /></div>
               )}
             </TabsContent>
