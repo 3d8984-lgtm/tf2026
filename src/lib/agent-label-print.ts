@@ -59,11 +59,12 @@ export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]
   const quiet = Math.max(0, Number(t.qr_quiet_zone) || 0);
   const qw = Math.min(Math.max(1, Number(t.qr_width) || 1), Math.max(1, cellW - quiet * 2));
   const qh = Math.min(Math.max(1, Number(t.qr_height) || 1), Math.max(1, cellH - quiet * 2));
-  const configuredX = Number(t.qr_x) || 0;
-  const configuredY = Number(t.qr_y) || 0;
-  const qrLocalX = Math.min(Math.max(0, configuredX), Math.max(0, cellW - qw));
-  const qrLocalY = Math.min(Math.max(0, configuredY), Math.max(0, cellH - qh));
-  const centerT = { ...t, qr_x: qrLocalX, qr_y: qrLocalY, qr_width: qw, qr_height: qh };
+  // qr_x/qr_y = QR 중심점 — 칸 안에 유지되도록 중심 범위를 제한한 뒤 좌상단으로 환산
+  const centerX = Math.min(Math.max(qw / 2, Number(t.qr_x) || 0), Math.max(qw / 2, cellW - qw / 2));
+  const centerY = Math.min(Math.max(qh / 2, Number(t.qr_y) || 0), Math.max(qh / 2, cellH - qh / 2));
+  const qrLocalX = centerX - qw / 2;
+  const qrLocalY = centerY - qh / 2;
+  const centerT = { ...t, qr_x: centerX, qr_y: centerY, qr_width: qw, qr_height: qh };
 
   for (let idx = 0; idx < items.length; idx++) {
     const col = idx % cols;

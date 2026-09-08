@@ -154,8 +154,8 @@ export default function QrLabelSettingsDialog({
               </TabsContent>
 
               <TabsContent value="qr" className="mt-0 grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {num("qr_x", "X (mm)", 0.1)}
-                {num("qr_y", "Y (mm)", 0.1)}
+                {num("qr_x", tr("중심 X (mm)", "中心 X (mm)"), 0.1)}
+                {num("qr_y", tr("중심 Y (mm)", "中心 Y (mm)"), 0.1)}
                 {num("qr_width", "Width (mm)", 0.1)}
                 {num("qr_height", "Height (mm)", 0.1)}
                 <div className="space-y-1">

@@ -111,7 +111,9 @@ export function labelPayload(t: QrLabelTemplate): BridgePrintJob["label"] {
     orientation: t.orientation,
     dpi: t.dpi,
     qr: {
-      xMm: t.qr_x, yMm: t.qr_y, widthMm: t.qr_width, heightMm: t.qr_height,
+      // 브리지 계약은 좌상단 기준 — 중심 좌표에서 환산
+      xMm: t.qr_x - t.qr_width / 2, yMm: t.qr_y - t.qr_height / 2,
+      widthMm: t.qr_width, heightMm: t.qr_height,
       errorLevel: t.qr_error_level, quietZoneMm: t.qr_quiet_zone,
     },
     edition: {
