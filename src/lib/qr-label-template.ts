@@ -80,7 +80,68 @@ export type QrLabelTemplate = {
   print_scale_x: number;
   /** 인쇄 보정 — 세로 배율(%) 100 = 보정 없음 */
   print_scale_y: number;
+  /** 용지 자동 계산 사용 — 용지 너비/열/라벨/다이컷 마진으로 여백·간격을 자동 산출 */
+  media_auto_offset: boolean;
+  /** 프린터에 물린 용지의 전체 너비(mm, 라벨이 아닌 대지 기준) */
+  media_width: number;
+  /** 용지 좌우 가장자리에서 첫/마지막 라벨까지의 다이컷 마진(mm) */
+  die_cut_margin: number;
 };
+
+export type MediaLayout = {
+  auto: boolean;
+  /** 실제 인쇄 문서 폭(mm) */
+  pageWidthMm: number;
+  marginLeftMm: number;
+  marginRightMm: number;
+  horizontalGapMm: number;
+  /** 라벨이 차지하는 폭(mm) */
+  usedWidthMm: number;
+  fits: boolean;
+};
+
+const r2 = (v: number) => Math.round(v * 100) / 100;
+
+/**
+ * 용지 너비·열 수·라벨 폭·다이컷 마진으로 좌우 오프셋과 칸 간격을 계산한다.
+ * 자동 계산을 끄면 설정에 저장된 여백/간격을 그대로 사용한다.
+ */
+export function resolveMediaLayout(t: QrLabelTemplate): MediaLayout {
+  const cols = Math.max(1, Math.round(Number(t.columns) || 1));
+  const cellW = Math.max(1, Number(t.label_width) || 1);
+  const media = Math.max(0, Number(t.media_width) || 0);
+  const dieCut = Math.max(0, Number(t.die_cut_margin) || 0);
+
+  if (!t.media_auto_offset || media <= 0) {
+    const ml = Math.max(0, Number(t.margin_left) || 0);
+    const mr = Math.max(0, Number(t.margin_right) || 0);
+    const gapX = Math.max(0, Number(t.horizontal_gap) || 0);
+    const used = cellW * cols + gapX * (cols - 1);
+    return {
+      auto: false,
+      pageWidthMm: r2(ml + used + mr),
+      marginLeftMm: r2(ml),
+      marginRightMm: r2(mr),
+      horizontalGapMm: r2(gapX),
+      usedWidthMm: r2(used),
+      fits: true,
+    };
+  }
+
+  const usable = Math.max(0, media - dieCut * 2);
+  const gapX = cols > 1 ? Math.max(0, (usable - cellW * cols) / (cols - 1)) : 0;
+  const used = cellW * cols + gapX * (cols - 1);
+  const ml = Math.max(0, (media - used) / 2);
+  return {
+    auto: true,
+    pageWidthMm: r2(media),
+    marginLeftMm: r2(ml),
+    marginRightMm: r2(Math.max(0, media - used - ml)),
+    horizontalGapMm: r2(gapX),
+    usedWidthMm: r2(used),
+    fits: used <= usable + 1e-6,
+  };
+}
 
 
 export const QR_LABEL_DEFAULTS: QrLabelTemplate = {
