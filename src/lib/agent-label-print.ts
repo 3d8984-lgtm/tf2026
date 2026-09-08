@@ -52,8 +52,8 @@ async function qrDataUrl(value: string, level: QrLabelTemplate["qr_error_level"]
 
 /**
  * 실제 인쇄 페이지 크기(mm/pt).
- * 용지 한 줄에 columns 개의 라벨이 들어가므로
- * 폭 = 좌여백 + 라벨폭*열 + 간격*(열-1) + 우여백 이다.
+ * 프린터가 다이컷 센서로 라벨 경계를 직접 잡으므로 한 페이지 = 한 줄(라벨 1행)이며
+ * 세로 여백/간격은 넣지 않는다. 좌우 여백과 칸 간격만 반영한다.
  */
 export function labelPageSizePt(t: QrLabelTemplate, itemCount = Math.max(1, Math.round(Number(t.columns) || 1))) {
   const cols = Math.max(1, Math.round(Number(t.columns) || 1));
@@ -65,20 +65,29 @@ export function labelPageSizePt(t: QrLabelTemplate, itemCount = Math.max(1, Math
   const gapY = Math.max(0, Number(t.vertical_gap) || 0);
   const ml = media.marginLeftMm;
   const mr = media.marginRightMm;
-  const mt = Math.max(0, Number(t.margin_top) || 0);
-  const mb = Math.max(0, Number(t.margin_bottom) || 0);
   const wMm = media.pageWidthMm;
-  // 라벨 한 장 급지 피치 = 라벨 높이 + 세로 간격. 세로 간격을 빼먹으면
-  // 프린터가 피치보다 짧게 급지하여 줄마다 간격만큼 위로 밀려 잘린다.
   const rows = Math.max(1, Math.ceil(Math.max(1, itemCount) / cols));
   const horizontalPitchMm = cellW + gapX;
-  const verticalPitchMm = cellH + gapY;
-  // 행 시작점은 verticalPitch로 증가하되 마지막 행 뒤에는 간격이 없다.
-  const hMm = mt + rows * cellH + Math.max(0, rows - 1) * gapY + mb;
+  const verticalPitchMm = cellH;
+  // 한 페이지 = 한 줄. 세로 길이는 라벨 높이 그 자체.
+  const hMm = cellH;
   return {
     wMm, hMm, w: mm(wMm), h: mm(hMm), rows, cols, cellW, cellH,
-    gapX, gapY, ml, mr, mt, mb, horizontalPitchMm, verticalPitchMm,
+    gapX, gapY, ml, mr, mt: 0, mb: 0, horizontalPitchMm, verticalPitchMm,
   };
+}
+
+/** 한 페이지(한 줄)에 들어가는 라벨 수 */
+export function rowCapacity(t: QrLabelTemplate): number {
+  return Math.max(1, Math.round(Number(t.columns) || 1));
+}
+
+/** 아이템을 한 줄(페이지)씩 나눈다. */
+export function chunkRows(t: QrLabelTemplate, items: AgentLabelItem[]): AgentLabelItem[][] {
+  const size = rowCapacity(t);
+  const out: AgentLabelItem[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
 }
 
 export function createLabelDocumentLayout(t: QrLabelTemplate, itemCount: number): LabelDocumentLayout {
@@ -94,7 +103,8 @@ export function createLabelDocumentLayout(t: QrLabelTemplate, itemCount: number)
     const row = Math.floor(itemIndex / size.cols);
     const column = itemIndex % size.cols;
     const labelXmm = roundMm(size.ml + column * size.horizontalPitchMm);
-    const labelYmm = roundMm(size.mt + row * size.verticalPitchMm);
+    // 각 줄이 별도 페이지이므로 세로 좌표는 항상 페이지 상단(0)부터 시작한다.
+    const labelYmm = 0;
     return {
       itemIndex, row, column, labelXmm, labelYmm,
       qrCenterXmm: roundMm(qrCenterXmm), qrCenterYmm: roundMm(qrCenterYmm),
@@ -109,6 +119,7 @@ export function createLabelDocumentLayout(t: QrLabelTemplate, itemCount: number)
   });
   return { widthMm: size.wMm, heightMm: size.hMm, rows: size.rows, columns: size.cols, entries };
 }
+
 
 function logPrintDebug(layout: LabelDocumentLayout, kind: "labels" | DiagnosticMode) {
   console.info("[QR Print Document]", {
