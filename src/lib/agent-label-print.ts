@@ -52,12 +52,14 @@ export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]
 
   const qrs = await Promise.all(items.map((i) => qrDataUrl(i.code, t.qr_error_level)));
 
-  // QR 크기는 라벨 칸을 넘지 않도록 제한하고, 칸 정중앙에 배치한다.
+  // QR 크기는 라벨 칸을 넘지 않도록 제한하고, 설정된 X/Y를 각 칸 기준으로 적용한다.
   const quiet = Math.max(0, Number(t.qr_quiet_zone) || 0);
   const qw = Math.min(Math.max(1, Number(t.qr_width) || 1), Math.max(1, cellW - quiet * 2));
   const qh = Math.min(Math.max(1, Number(t.qr_height) || 1), Math.max(1, cellH - quiet * 2));
-  const qrLocalX = (cellW - qw) / 2;
-  const qrLocalY = (cellH - qh) / 2;
+  const configuredX = Number(t.qr_x) || 0;
+  const configuredY = Number(t.qr_y) || 0;
+  const qrLocalX = Math.min(Math.max(0, configuredX), Math.max(0, cellW - qw));
+  const qrLocalY = Math.min(Math.max(0, configuredY), Math.max(0, cellH - qh));
   const centerT = { ...t, qr_x: qrLocalX, qr_y: qrLocalY, qr_width: qw, qr_height: qh };
 
   for (let idx = 0; idx < items.length; idx++) {
@@ -71,7 +73,7 @@ export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]
     const ox = ml + col * (cellW + gapX);
     const oy = mt;
 
-    // QR (칸 정중앙)
+    // QR (각 칸 내부에서 라벨 설정의 X/Y 위치)
     pdf.addImage(
       qrs[idx], "PNG",
       mm(ox + qrLocalX), mm(oy + qrLocalY), mm(qw), mm(qh),
