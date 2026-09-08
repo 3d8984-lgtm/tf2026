@@ -100,7 +100,42 @@ export default function PrintSettingsDialog({
                   `每次整单打印将额外输出 ${total} 张试打标签，试打标签不计入打印记录。`)}
             </p>
           </div>
+
+          <div className="space-y-3">
+            <p className="text-sm font-medium">{tr("인쇄 위치 보정", "打印位置校正")}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">{tr("가로 이동 (mm, +오른쪽)", "水平移动（mm，+向右）")}</Label>
+                <Input type="number" step={0.1} className="h-8"
+                  value={String(draft.print_offset_x ?? 0)}
+                  onChange={(e) => set({ print_offset_x: Number(e.target.value) || 0 })} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">{tr("세로 이동 (mm, +아래)", "垂直移动（mm，+向下）")}</Label>
+                <Input type="number" step={0.1} className="h-8"
+                  value={String(draft.print_offset_y ?? 0)}
+                  onChange={(e) => set({ print_offset_y: Number(e.target.value) || 0 })} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">{tr("가로 배율 (%)", "水平比例（%）")}</Label>
+                <Input type="number" step={0.1} min={50} max={200} className="h-8"
+                  value={String(draft.print_scale_x ?? 100)}
+                  onChange={(e) => set({ print_scale_x: Number(e.target.value) || 100 })} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">{tr("세로 배율 (%)", "垂直比例（%）")}</Label>
+                <Input type="number" step={0.1} min={50} max={200} className="h-8"
+                  value={String(draft.print_scale_y ?? 100)}
+                  onChange={(e) => set({ print_scale_y: Number(e.target.value) || 100 })} />
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {tr("좌표 진단 출력의 + 가 라벨 중앙에서 벗어난 거리만큼 반대 방향으로 이동값을 넣습니다. 왼쪽 칸과 오른쪽 칸의 어긋남이 다르면 가로 배율을 조정합니다.",
+                  "根据坐标诊断打印中 + 偏离标签中心的距离，反方向填入移动值。若左右两端偏差不同，请调整水平比例。")}
+            </p>
+          </div>
         </div>
+
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>{tr("취소", "取消")}</Button>

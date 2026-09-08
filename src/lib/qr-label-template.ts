@@ -72,7 +72,16 @@ export type QrLabelTemplate = {
   test_label_code: string;
   /** 시험 라벨 하단 텍스트 */
   test_label_text: string;
+  /** 인쇄 보정 — 전체 인쇄물을 가로로 이동(mm, +는 오른쪽) */
+  print_offset_x: number;
+  /** 인쇄 보정 — 전체 인쇄물을 세로로 이동(mm, +는 아래쪽) */
+  print_offset_y: number;
+  /** 인쇄 보정 — 가로 배율(%) 100 = 보정 없음 */
+  print_scale_x: number;
+  /** 인쇄 보정 — 세로 배율(%) 100 = 보정 없음 */
+  print_scale_y: number;
 };
+
 
 export const QR_LABEL_DEFAULTS: QrLabelTemplate = {
   template_name: QR_LABEL_TEMPLATE_KEY,
@@ -121,6 +130,11 @@ export const QR_LABEL_DEFAULTS: QrLabelTemplate = {
   test_after_count: 0,
   test_label_code: "TEST",
   test_label_text: "TEST",
+  print_offset_x: 0,
+  print_offset_y: 0,
+  print_scale_x: 100,
+  print_scale_y: 100,
+
 };
 
 /**
