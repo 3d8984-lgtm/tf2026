@@ -148,8 +148,8 @@ function assertLayout(layout: LabelDocumentLayout, expectedCount: number) {
 }
 
 /**
- * 라벨 목록을 하나의 연속 롤 PDF Blob으로 만든다.
- * 모든 행이 같은 페이지에서 row × verticalPitch 절대 좌표를 사용한다.
+ * 라벨 목록을 PDF Blob으로 만든다.
+ * 한 페이지 = 한 줄(열 개수만큼). 줄이 늘어나면 페이지를 추가한다.
  */
 export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]): Promise<Blob> {
   if (items.length === 0) throw new Error("no labels");
@@ -175,10 +175,17 @@ export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]
   pdf.setFillColor(255, 255, 255);
   pdf.rect(0, 0, w, h, "F");
 
+  let currentRow = 0;
   for (let idx = 0; idx < items.length; idx++) {
     const it = items[idx];
     const entry = layout.entries[idx];
     if (!entry) throw new Error(`missing print layout for item ${idx}`);
+    if (entry.row !== currentRow) {
+      currentRow = entry.row;
+      pdf.addPage([w, h], orientation);
+      pdf.setFillColor(255, 255, 255);
+      pdf.rect(0, 0, w, h, "F");
+    }
     const ox = entry.labelXmm;
     const oy = entry.labelYmm;
 
@@ -188,6 +195,7 @@ export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]
       mm(entry.qrAbsoluteXmm), mm(entry.qrAbsoluteYmm), mm(qw), mm(qh),
       undefined, "FAST",
     );
+
 
     const style = t.edition_font_weight === "bold" ? "bold" : "normal";
     pdf.setFont("helvetica", style);
