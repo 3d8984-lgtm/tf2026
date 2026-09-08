@@ -130,6 +130,11 @@ export const QR_LABEL_DEFAULTS: QrLabelTemplate = {
   test_after_count: 0,
   test_label_code: "TEST",
   test_label_text: "TEST",
+  print_offset_x: 0,
+  print_offset_y: 0,
+  print_scale_x: 100,
+  print_scale_y: 100,
+
 };
 
 /**
