@@ -1,8 +1,4 @@
-import * as pdfjsLib from "pdfjs-dist";
-import PdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?worker";
 import { jsPDF } from "jspdf";
-
-(pdfjsLib as any).GlobalWorkerOptions.workerPort ??= new PdfWorker();
 
 export type FinalLabelRaster = {
   png: Blob;
@@ -29,6 +25,11 @@ export async function rasterizePrintPdf(
   heightMm: number,
   dpi: number,
 ): Promise<FinalLabelRaster> {
+  const [pdfjsLib, workerModule] = await Promise.all([
+    import("pdfjs-dist"),
+    import("pdfjs-dist/build/pdf.worker.min.mjs?worker"),
+  ]);
+  (pdfjsLib as any).GlobalWorkerOptions.workerPort ??= new workerModule.default();
   const safeDpi = Math.max(72, Math.round(Number(dpi) || 203));
   const pixelWidth = mmToPixels(widthMm, safeDpi);
   const pixelHeight = mmToPixels(heightMm, safeDpi);
