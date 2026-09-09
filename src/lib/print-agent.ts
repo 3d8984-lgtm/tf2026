@@ -356,6 +356,7 @@ export async function printPdfViaAgent(job: PrintJob): Promise<{ via: "binary" |
       const headers: Record<string, string> = { "Content-Type": "application/pdf" };
       if (job.labelWidthMm && job.labelWidthMm > 0) headers["X-Label-Width-Mm"] = String(job.labelWidthMm);
       if (job.labelHeightMm && job.labelHeightMm > 0) headers["X-Label-Height-Mm"] = String(job.labelHeightMm);
+      if (job.gapMm !== null && job.gapMm !== undefined && job.gapMm >= 0) headers["X-Label-Gap-Mm"] = String(job.gapMm);
       headers["X-Fit-To-Page"] = "false";
       headers["X-Scale-Percent"] = "100";
       headers["X-Use-Pdf-Page-Size"] = "true";
