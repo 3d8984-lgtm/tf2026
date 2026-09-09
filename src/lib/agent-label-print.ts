@@ -369,6 +369,7 @@ export async function printLabelsViaAgent(
         copies: 1,
         labelWidthMm: raster.widthMm,
         labelHeightMm: raster.heightMm,
+        gapMm: Math.max(0, Number(t.vertical_gap) || 0),
         jobId: rowJobId,
         printerName: t.printer_name,
         dpi: raster.dpi,
