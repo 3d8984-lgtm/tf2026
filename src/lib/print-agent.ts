@@ -80,6 +80,8 @@ export interface PrintJob {
   labelWidthMm?: number | null;
   /** 라벨 실물 세로(mm) — PDF 크기 추정보다 우선한다. */
   labelHeightMm?: number | null;
+  /** 라벨과 라벨 사이의 실제 간격(mm) — TSPL GAP 값. 0이면 연속 용지. */
+  gapMm?: number | null;
   baseUrl?: string | null;
   jobId?: string | null;
   dpi?: number | null;
