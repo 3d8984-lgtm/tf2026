@@ -341,12 +341,13 @@ export async function printLabelsViaAgent(
     const rowJobId = jobId ? (rows.length > 1 ? `${jobId}-r${r + 1}` : jobId) : undefined;
     if (direct) {
       // 이미지 변환 없이 만든 라벨 문서를 그대로 전송(초기 방식)
-      const { wMm, hMm } = labelPageSizePt(t, rows[r].length);
+      const { wMm, hMm, gapY } = labelPageSizePt(t, rows[r].length);
       await printPdfViaAgent({
         pdf: await buildLabelsPdf(t, rows[r]),
         copies: 1,
         labelWidthMm: wMm,
         labelHeightMm: hMm,
+        gapMm: gapY,
         jobId: rowJobId,
         printerName: t.printer_name,
         dpi: t.printer_dpi || t.dpi,
