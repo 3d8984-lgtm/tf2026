@@ -200,6 +200,7 @@ export const QR_LABEL_DEFAULTS: QrLabelTemplate = {
   media_auto_offset: false,
   media_width: 0,
   die_cut_margin: 0,
+  direct_pdf_print: true,
 
 };
 
