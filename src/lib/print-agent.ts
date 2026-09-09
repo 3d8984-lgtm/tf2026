@@ -253,6 +253,12 @@ function query(job: PrintJob) {
     p.set("heightMm", String(job.labelHeightMm));
     p.set("paperHeightMm", String(job.labelHeightMm));
   }
+  if (job.gapMm !== null && job.gapMm !== undefined && job.gapMm >= 0) {
+    // TSPL GAP — 라벨과 라벨 사이 실제 간격. 에이전트 버전별 파라미터 명을 모두 전달.
+    p.set("gapMm", String(job.gapMm));
+    p.set("labelGapMm", String(job.gapMm));
+    p.set("gapHeightMm", String(job.gapMm));
+  }
   // 큰 용지에 맞춰 축소/여백 추가하지 말고 PDF 페이지 크기 그대로 출력.
   p.set("fitToPage", "false");
   p.set("scale", "100");
