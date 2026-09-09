@@ -80,6 +80,8 @@ export interface PrintJob {
   labelWidthMm?: number | null;
   /** 라벨 실물 세로(mm) — PDF 크기 추정보다 우선한다. */
   labelHeightMm?: number | null;
+  /** 라벨과 라벨 사이의 실제 간격(mm) — TSPL GAP 값. 0이면 연속 용지. */
+  gapMm?: number | null;
   baseUrl?: string | null;
   jobId?: string | null;
   dpi?: number | null;
@@ -251,6 +253,12 @@ function query(job: PrintJob) {
     p.set("heightMm", String(job.labelHeightMm));
     p.set("paperHeightMm", String(job.labelHeightMm));
   }
+  if (job.gapMm !== null && job.gapMm !== undefined && job.gapMm >= 0) {
+    // TSPL GAP — 라벨과 라벨 사이 실제 간격. 에이전트 버전별 파라미터 명을 모두 전달.
+    p.set("gapMm", String(job.gapMm));
+    p.set("labelGapMm", String(job.gapMm));
+    p.set("gapHeightMm", String(job.gapMm));
+  }
   // 큰 용지에 맞춰 축소/여백 추가하지 말고 PDF 페이지 크기 그대로 출력.
   p.set("fitToPage", "false");
   p.set("scale", "100");
@@ -348,6 +356,7 @@ export async function printPdfViaAgent(job: PrintJob): Promise<{ via: "binary" |
       const headers: Record<string, string> = { "Content-Type": "application/pdf" };
       if (job.labelWidthMm && job.labelWidthMm > 0) headers["X-Label-Width-Mm"] = String(job.labelWidthMm);
       if (job.labelHeightMm && job.labelHeightMm > 0) headers["X-Label-Height-Mm"] = String(job.labelHeightMm);
+      if (job.gapMm !== null && job.gapMm !== undefined && job.gapMm >= 0) headers["X-Label-Gap-Mm"] = String(job.gapMm);
       headers["X-Fit-To-Page"] = "false";
       headers["X-Scale-Percent"] = "100";
       headers["X-Use-Pdf-Page-Size"] = "true";
