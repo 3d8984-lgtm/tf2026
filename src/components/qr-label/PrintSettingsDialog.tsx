@@ -70,6 +70,23 @@ export default function PrintSettingsDialog({
             </div>
           </div>
 
+          <div className="flex items-start gap-2">
+            <Checkbox
+              id="direct-pdf-print"
+              checked={draft.direct_pdf_print !== false}
+              onCheckedChange={(v) => set({ direct_pdf_print: v === true })}
+            />
+            <div className="space-y-0.5">
+              <Label htmlFor="direct-pdf-print" className="text-sm">
+                {tr("변환 없이 바로 보내기", "不转换直接发送")}
+              </Label>
+              <p className="text-[11px] text-muted-foreground">
+                {tr("만든 라벨 문서를 이미지로 다시 굽지 않고 그대로 프린터로 보냅니다(초기 방식). 끄면 이미지로 변환해 보냅니다.",
+                    "将生成的标签文件直接发送到打印机，不再转成图片（初期方式）。关闭则转换成图片后发送。")}
+              </p>
+            </div>
+          </div>
+
           <div className="space-y-3">
             <p className="text-sm font-medium">{tr("시험 인쇄", "试打印")}</p>
             <div className="grid grid-cols-2 gap-3">
