@@ -335,10 +335,27 @@ export async function printLabelsViaAgent(
 ): Promise<RawPngPrintResult | null> {
   const capabilities = await getPrintAgentCapabilities();
   const rows = chunkRows(t, items);
+  const direct = t.direct_pdf_print !== false;
   let last: RawPngPrintResult | null = null;
   for (let r = 0; r < rows.length; r++) {
-    const raster = await buildFinalLabelRaster(t, rows[r]);
     const rowJobId = jobId ? (rows.length > 1 ? `${jobId}-r${r + 1}` : jobId) : undefined;
+    if (direct) {
+      // 이미지 변환 없이 만든 라벨 문서를 그대로 전송(초기 방식)
+      const { wMm, hMm } = labelPageSizePt(t, rows[r].length);
+      await printPdfViaAgent({
+        pdf: await buildLabelsPdf(t, rows[r]),
+        copies: 1,
+        labelWidthMm: wMm,
+        labelHeightMm: hMm,
+        jobId: rowJobId,
+        printerName: t.printer_name,
+        dpi: t.printer_dpi || t.dpi,
+        orientation: wMm > hMm ? "landscape" : "portrait",
+      });
+      last = null;
+      continue;
+    }
+    const raster = await buildFinalLabelRaster(t, rows[r]);
     if (capabilities.rawPng) {
       last = await printRawPngViaAgent({
         png: raster.png, widthMm: raster.widthMm, heightMm: raster.heightMm,
