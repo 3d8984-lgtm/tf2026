@@ -86,6 +86,8 @@ export type QrLabelTemplate = {
   media_width: number;
   /** 용지 좌우 가장자리에서 첫/마지막 라벨까지의 다이컷 마진(mm) */
   die_cut_margin: number;
+  /** 켜면 만든 라벨 문서를 이미지 변환 없이 그대로 프린터로 보낸다(초기 방식) */
+  direct_pdf_print: boolean;
 };
 
 export type MediaLayout = {
@@ -198,6 +200,7 @@ export const QR_LABEL_DEFAULTS: QrLabelTemplate = {
   media_auto_offset: false,
   media_width: 0,
   die_cut_margin: 0,
+  direct_pdf_print: true,
 
 };
 
