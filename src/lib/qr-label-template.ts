@@ -269,21 +269,33 @@ export function resolveBottomEditionBox(t: QrLabelTemplate, text: string): Botto
   const labelH = t.label_shape === "round" ? labelW : Math.max(1, Number(t.label_height) || 1);
   const qrBottom = (Number(t.qr_y) || 0) + Math.max(1, Number(t.qr_height) || 1) / 2;
   const gap = 0.2;
-  const desiredTop = qrBottom + gap + (Number(t.edition_center_offset_y) || 0);
-  const availableHeight = Math.max(0.7, labelH - Math.max(0, desiredTop));
-  const fontPt = Math.max(2, Math.min(Number(t.edition_font_size) || 8, availableHeight * (72 / 25.4) * 0.88));
-  const h = Math.min(availableHeight, fontPt * (25.4 / 72) * 1.12);
-  const y = clampNum(desiredTop, 0, Math.max(0, labelH - h));
+  const minFontPt = 2;
+  const minHeight = minFontPt * (25.4 / 72) * 1.12;
+  const baseTop = Math.min(qrBottom + gap, Math.max(0, labelH - minHeight));
+  const desiredTop = baseTop + (Number(t.edition_center_offset_y) || 0);
+  const y = clampNum(desiredTop, baseTop, Math.max(baseTop, labelH - minHeight));
+  const availableHeight = Math.max(minHeight, labelH - y);
+  let fontPt = Math.max(minFontPt, Math.min(Number(t.edition_font_size) || 8, availableHeight * (72 / 25.4) / 1.12));
 
-  let safeLeft = 0;
-  let safeRight = labelW;
-  if (t.label_shape === "round") {
+  const horizontalBounds = (height: number) => {
+    if (t.label_shape !== "round") return { left: 0, right: labelW };
     const radius = labelW / 2;
     const chordHalfWidth = (atY: number) => Math.sqrt(Math.max(0, radius * radius - (atY - radius) ** 2));
-    const halfWidth = Math.min(chordHalfWidth(y), chordHalfWidth(y + h));
-    safeLeft = radius - halfWidth;
-    safeRight = radius + halfWidth;
+    const halfWidth = Math.min(chordHalfWidth(y), chordHalfWidth(y + height));
+    return { left: radius - halfWidth, right: radius + halfWidth };
+  };
+
+  // 글자의 추정 사각형 전체가 원형 라벨 안에 들어오는 가장 큰 글자 크기를 찾는다.
+  for (; fontPt > minFontPt; fontPt = Math.max(minFontPt, fontPt - 0.1)) {
+    const candidateHeight = fontPt * (25.4 / 72) * 1.12;
+    const bounds = horizontalBounds(candidateHeight);
+    const candidateWidth = Math.max(0.5, text.length * fontPt * (25.4 / 72) * 0.58);
+    if (candidateWidth <= bounds.right - bounds.left + 1e-6) break;
   }
+  const h = Math.min(availableHeight, fontPt * (25.4 / 72) * 1.12);
+  const bounds = horizontalBounds(h);
+  const safeLeft = bounds.left;
+  const safeRight = bounds.right;
 
   const desiredCenterX = (Number(t.qr_x) || labelW / 2) + (Number(t.edition_center_offset_x) || 0);
   const maxTextWidth = Math.max(0.5, safeRight - safeLeft);
