@@ -8,7 +8,7 @@
 //  GET  /jobs/:jobId     → { jobId, status, error }
 //  POST /cancel/:jobId   → { cancelled: boolean }
 
-import type { QrLabelTemplate } from "./qr-label-template";
+import { resolveBottomEditionBox, type QrLabelTemplate } from "./qr-label-template";
 
 export const PRINT_BRIDGE_DEFAULT_URL = "http://127.0.0.1:9110";
 
@@ -98,6 +98,8 @@ export async function bridgePrinterOnline(printerName: string, url?: string): Pr
 }
 
 export function labelPayload(t: QrLabelTemplate): BridgePrintJob["label"] {
+  const bottom = resolveBottomEditionBox(t, "000/000");
+  const useBottom = t.edition_placement === "qr_bottom" || t.edition_placement === "qr_center";
   return {
     widthMm: t.label_width,
     heightMm: t.label_height,
@@ -117,9 +119,11 @@ export function labelPayload(t: QrLabelTemplate): BridgePrintJob["label"] {
       errorLevel: t.qr_error_level, quietZoneMm: t.qr_quiet_zone,
     },
     edition: {
-      xMm: t.edition_x, yMm: t.edition_y, fontSizePt: t.edition_font_size,
+      xMm: useBottom ? bottom.centerX : t.edition_x,
+      yMm: useBottom ? bottom.y : t.edition_y,
+      fontSizePt: useBottom ? bottom.fontPt : t.edition_font_size,
       fontFamily: t.edition_font_family, fontWeight: t.edition_font_weight,
-      alignment: t.edition_alignment,
+      alignment: useBottom ? "center" : t.edition_alignment,
     },
   };
 }

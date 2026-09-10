@@ -13,7 +13,7 @@ import {
 import { toast } from "sonner";
 import { AlertTriangle, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
 import LabelCanvas from "./LabelCanvas";
-import { checkWidth, resolveCenterBox, type QrLabelTemplate } from "@/lib/qr-label-template";
+import { checkWidth, resolveBottomEditionBox, type QrLabelTemplate } from "@/lib/qr-label-template";
 import { bridgeHealth, bridgePrinters, type BridgePrinter } from "@/lib/print-bridge";
 import { useLang } from "@/contexts/LangContext";
 
@@ -64,7 +64,7 @@ export default function QrLabelSettingsDialog({
   useEffect(() => { if (open && draft.print_mode === "bridge") void probeBridge(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [open]);
 
   const width = checkWidth(draft);
-  const centerBox = resolveCenterBox(draft);
+  const bottomBox = resolveBottomEditionBox(draft, sampleEdition);
 
   const submit = async () => {
     setSaving(true);
@@ -184,45 +184,25 @@ export default function QrLabelSettingsDialog({
                 <div className="space-y-1 col-span-full sm:col-span-2">
                   <Label className="text-xs">{tr("에디션 넘버 배치", "版号位置")}</Label>
                   <Select
-                    value={draft.edition_placement ?? "qr_center"}
+                    value={draft.edition_placement === "outside" ? "outside" : "qr_bottom"}
                     onValueChange={(v) => set({ edition_placement: v as any })}
                   >
                     <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="qr_center">{tr("QR 코드 중앙에 삽입", "嵌入二维码中央")}</SelectItem>
+                      <SelectItem value="qr_bottom">{tr("QR 하단 · 라벨 내부", "二维码下方 · 标签内部")}</SelectItem>
                       <SelectItem value="outside">{tr("QR 옆(자유 배치)", "二维码旁（自由布局）")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                {draft.edition_placement === "qr_center" ? (<>
-                  <div className="space-y-1">
-                    <Label className="text-xs">{tr("가로 크기(mm)", "宽度(mm)")}</Label>
-                    <Input
-                      type="number" step={0.1} min={1} max={centerBox.maxW}
-                      value={String(draft.edition_center_width ?? "")}
-                      onChange={(e) => set({ edition_center_width: Math.min(Number(e.target.value), centerBox.maxW) })}
-                      className="h-8"
-                    />
-                    <p className="text-[10px] text-muted-foreground">{tr("최대", "最大")} {centerBox.maxW}mm</p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">{tr("세로 크기(mm)", "高度(mm)")}</Label>
-                    <Input
-                      type="number" step={0.1} min={0.5} max={centerBox.maxH}
-                      value={String(draft.edition_center_height ?? "")}
-                      onChange={(e) => set({ edition_center_height: Math.min(Number(e.target.value), centerBox.maxH) })}
-                      className="h-8"
-                    />
-                    <p className="text-[10px] text-muted-foreground">{tr("최대", "最大")} {centerBox.maxH}mm</p>
-                  </div>
+                {draft.edition_placement !== "outside" ? (<>
                   {num("edition_center_offset_x", tr("가로 위치 보정(mm)", "水平偏移(mm)"), 0.1, -99)}
                   {num("edition_center_offset_y", tr("세로 위치 보정(mm)", "垂直偏移(mm)"), 0.1, -99)}
                   {num("edition_font_size", tr("글자 크기(pt)", "字号(pt)"), 0.5, 1)}
                   <p className="col-span-full text-[11px] text-muted-foreground">
                     {tr(
-                      `QR 인식에 영향이 없도록 중앙 영역 크기는 오류정정 레벨(${draft.qr_error_level}) 기준 최대 ${centerBox.maxW}×${centerBox.maxH}mm 로 자동 제한되며, 글자도 박스를 넘지 않게 자동 축소됩니다. 더 크게 넣으려면 QR 오류정정 레벨을 Q 또는 H 로 올리십시오.`,
-                      `为不影响扫码识别，中央区域按纠错等级(${draft.qr_error_level})自动限制为最大 ${centerBox.maxW}×${centerBox.maxH}mm，字号也会自动缩小。如需更大，请将纠错等级调至 Q 或 H。`,
+                      `에디션은 QR을 가리지 않도록 아래쪽에 배치됩니다. 현재 사용 가능한 영역은 ${bottomBox.w.toFixed(1)}×${bottomBox.h.toFixed(1)}mm이며, 라벨 경계를 넘지 않도록 글자 크기가 자동 축소됩니다.`,
+                      `版号显示在二维码下方且不会遮挡二维码。当前可用区域为 ${bottomBox.w.toFixed(1)}×${bottomBox.h.toFixed(1)}mm，字号会自动缩小以避免超出标签。`,
                     )}
                   </p>
                 </>) : (<>
