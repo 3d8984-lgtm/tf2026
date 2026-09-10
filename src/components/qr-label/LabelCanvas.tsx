@@ -38,6 +38,7 @@ export default function LabelCanvas({
   const ref = useRef<HTMLDivElement>(null);
   const t = template;
   const px = (mm: number) => mm * scale;
+  const displayEdition = String(edition ?? "").replace(/^#/, "");
 
   const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
   const round2 = (v: number) => Math.round(v * 100) / 100;
