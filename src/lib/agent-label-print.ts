@@ -151,7 +151,11 @@ function assertLayout(layout: LabelDocumentLayout, expectedCount: number) {
  * 라벨 목록을 PDF Blob으로 만든다.
  * 한 페이지 = 한 줄(열 개수만큼). 줄이 늘어나면 페이지를 추가한다.
  */
-export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]): Promise<Blob> {
+export async function buildLabelsPdf(
+  t: QrLabelTemplate,
+  items: AgentLabelItem[],
+  opts: { applyCalibration?: boolean } = {},
+): Promise<Blob> {
   if (items.length === 0) throw new Error("no labels");
   const size = labelPageSizePt(t, items.length);
   const { w, h, cellW, cellH } = size;
@@ -175,6 +179,12 @@ export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]
   pdf.setFillColor(255, 255, 255);
   pdf.rect(0, 0, w, h, "F");
 
+  // 프린터 실측 보정 — 직접 PDF 전송 경로에서도 위치 보정이 적용되도록 문서 좌표에 반영한다.
+  const cal = printCalibration(t);
+  const useCal = opts.applyCalibration !== false;
+  const shiftX = useCal ? cal.offsetXmm : 0;
+  const shiftY = useCal ? cal.offsetYmm : 0;
+
   let currentRow = 0;
   for (let idx = 0; idx < items.length; idx++) {
     const it = items[idx];
@@ -186,13 +196,13 @@ export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]
       pdf.setFillColor(255, 255, 255);
       pdf.rect(0, 0, w, h, "F");
     }
-    const ox = entry.labelXmm;
-    const oy = entry.labelYmm;
+    const ox = entry.labelXmm + shiftX;
+    const oy = entry.labelYmm + shiftY;
 
     // QR (각 칸 내부에서 라벨 설정의 X/Y 위치)
     pdf.addImage(
       qrs[idx], "PNG",
-      mm(entry.qrAbsoluteXmm), mm(entry.qrAbsoluteYmm), mm(qw), mm(qh),
+      mm(entry.qrAbsoluteXmm + shiftX), mm(entry.qrAbsoluteYmm + shiftY), mm(qw), mm(qh),
       undefined, "FAST",
     );
 
@@ -249,7 +259,7 @@ function paddedCanvas(wMm: number, hMm: number, cal: ReturnType<typeof printCali
  */
 export async function buildFinalLabelRaster(t: QrLabelTemplate, items: AgentLabelItem[]): Promise<FinalLabelRaster> {
   const rowItems = items.slice(0, rowCapacity(t));
-  const sourcePdf = await buildLabelsPdf(t, rowItems);
+  const sourcePdf = await buildLabelsPdf(t, rowItems, { applyCalibration: false });
   const { wMm, hMm } = labelPageSizePt(t, rowItems.length);
   const cal = printCalibration(t);
   const { canvasWidthMm, canvasHeightMm } = paddedCanvas(wMm, hMm, cal);
