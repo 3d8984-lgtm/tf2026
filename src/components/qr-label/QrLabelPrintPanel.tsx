@@ -20,6 +20,7 @@ import {
   labelPayload, computerId,
 } from "@/lib/print-bridge";
 import { printLabelsViaAgent, checkLabelAgent, buildLabelsPdf } from "@/lib/agent-label-print";
+import { checkQzPrinter, printLabelsViaQz } from "@/lib/qz-print";
 import { friendlyAgentError } from "@/lib/print-agent";
 import QrLabelSettingsDialog from "./QrLabelSettingsDialog";
 import PrintSettingsDialog from "./PrintSettingsDialog";
@@ -148,8 +149,10 @@ export default function QrLabelPrintPanel({
     const tick = async () => {
       if (template.print_mode !== "bridge") {
         setBridgeUp(null);
-        // 로컬 모드 = 이 PC의 인쇄 에이전트(127.0.0.1:9100)에 PDF 전송
-        const up = await checkLabelAgent();
+        // 로컬 모드 = 이 PC의 인쇄 에이전트(127.0.0.1:9100) 또는 QZ Tray로 전송
+        const up = template.print_engine === "qz"
+          ? await checkQzPrinter(template.printer_name)
+          : await checkLabelAgent();
         if (alive) setPrinterUp(up);
         return;
       }
