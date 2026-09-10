@@ -88,8 +88,6 @@ export type QrLabelTemplate = {
   die_cut_margin: number;
   /** 켜면 만든 라벨 문서를 이미지 변환 없이 그대로 프린터로 보낸다(초기 방식) */
   direct_pdf_print: boolean;
-  /** 인쇄 엔진 — agent = 전용 에이전트(127.0.0.1:9100), qz = QZ Tray(윈도우 드라이버 경유) */
-  print_engine?: "agent" | "qz";
 };
 
 export type MediaLayout = {
@@ -203,7 +201,7 @@ export const QR_LABEL_DEFAULTS: QrLabelTemplate = {
   media_width: 0,
   die_cut_margin: 0,
   direct_pdf_print: true,
-  print_engine: "agent",
+
 };
 
 /**

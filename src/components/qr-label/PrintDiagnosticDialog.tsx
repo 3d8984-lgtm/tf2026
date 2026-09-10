@@ -5,7 +5,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLang } from "@/contexts/LangContext";
 import { buildFinalDiagnosticRaster, labelPageSizePt, printDiagnosticViaAgent, type DiagnosticMode } from "@/lib/agent-label-print";
-import { printDiagnosticViaQz } from "@/lib/qz-print";
 import type { FinalLabelRaster } from "@/lib/final-label-raster";
 import type { QrLabelTemplate } from "@/lib/qr-label-template";
 import { friendlyAgentError, getPrintAgentCapabilities, type PrintAgentCapabilities, type RawPngPrintResult } from "@/lib/print-agent";
@@ -66,16 +65,11 @@ export default function PrintDiagnosticDialog({
   const print = async () => {
     setBusy(true);
     try {
-      if (template.print_engine === "qz") {
-        await printDiagnosticViaQz(diagnosticTemplate, mode);
-        toast.success(tr("QZ Tray로 진단 라벨을 전송했습니다.", "已通过 QZ Tray 发送诊断标签。"));
-      } else {
-        const nextResult = await printDiagnosticViaAgent(diagnosticTemplate, mode);
-        setResult(nextResult);
-        toast.success(nextResult.verified
-          ? tr("Agent 수신 해시와 픽셀 크기가 일치했습니다.", "代理接收的哈希和像素尺寸一致。")
-          : tr("전송했지만 Agent의 수신 무결성은 확인되지 않았습니다.", "已发送，但无法验证代理接收完整性。"));
-      }
+      const nextResult = await printDiagnosticViaAgent(diagnosticTemplate, mode);
+      setResult(nextResult);
+      toast.success(nextResult.verified
+        ? tr("Agent 수신 해시와 픽셀 크기가 일치했습니다.", "代理接收的哈希和像素尺寸一致。")
+        : tr("전송했지만 Agent의 수신 무결성은 확인되지 않았습니다.", "已发送，但无法验证代理接收完整性。"));
     } catch (cause: unknown) {
       toast.error(friendlyAgentError(cause));
     } finally {

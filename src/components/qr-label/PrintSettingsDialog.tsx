@@ -53,36 +53,6 @@ export default function PrintSettingsDialog({
         </DialogHeader>
 
         <div className="space-y-5">
-          <div className="space-y-2">
-            <p className="text-sm font-medium">{tr("인쇄 방식", "打印方式")}</p>
-            <div className="grid grid-cols-2 gap-2">
-              {([
-                { v: "agent", label: tr("전용 에이전트", "专用代理"), desc: tr("지금 쓰는 에이전트(127.0.0.1:9100)로 전송", "发送到当前代理(127.0.0.1:9100)") },
-                { v: "qz", label: "QZ Tray", desc: tr("윈도우 프린터 드라이버로 출력 — 각 PC에 QZ Tray 설치 필요", "通过 Windows 打印机驱动输出 — 每台电脑需安装 QZ Tray") },
-              ] as const).map((o) => (
-                <button
-                  key={o.v}
-                  type="button"
-                  onClick={() => set({ print_engine: o.v })}
-                  className={`rounded-md border p-2 text-left transition-colors ${
-                    (draft.print_engine ?? "agent") === o.v
-                      ? "border-primary bg-primary/10"
-                      : "border-border hover:bg-muted/50"
-                  }`}
-                >
-                  <p className="text-sm font-medium">{o.label}</p>
-                  <p className="text-[11px] text-muted-foreground">{o.desc}</p>
-                </button>
-              ))}
-            </div>
-            {(draft.print_engine ?? "agent") === "qz" && (
-              <p className="text-[11px] text-amber-600 dark:text-amber-400">
-                {tr("각 PC에 QZ Tray(qz.io)를 설치하고 실행해야 합니다. 첫 인쇄 때 허용 창이 뜨면 '기억하기'를 체크하세요. 프린터 이름은 윈도우에 등록된 이름과 같아야 합니다.",
-                    "每台电脑需安装并运行 QZ Tray(qz.io)。首次打印出现允许窗口时请勾选“记住”。打印机名称须与 Windows 中注册的一致。")}
-              </p>
-            )}
-          </div>
-
           <div className="flex items-start gap-2">
             <Checkbox
               id="reverse-print"
