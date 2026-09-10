@@ -38,6 +38,7 @@ export default function LabelCanvas({
   const ref = useRef<HTMLDivElement>(null);
   const t = template;
   const px = (mm: number) => mm * scale;
+  const displayEdition = String(edition ?? "").replace(/^#/, "");
 
   const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
   const round2 = (v: number) => Math.round(v * 100) / 100;
@@ -91,7 +92,7 @@ export default function LabelCanvas({
     window.addEventListener("pointerup", up);
   };
 
-  const bottomBox = resolveBottomEditionBox(t, edition);
+  const bottomBox = resolveBottomEditionBox(t, displayEdition);
 
   const alignStyle: React.CSSProperties =
     t.edition_alignment === "center"
@@ -155,7 +156,7 @@ export default function LabelCanvas({
             overflow: "hidden",
           }}
         >
-          {edition}
+          {displayEdition}
         </div>
       ) : (
       <div
@@ -171,7 +172,7 @@ export default function LabelCanvas({
           ...alignStyle,
         }}
       >
-        {edition}
+        {displayEdition}
       </div>
       )}
     </div>

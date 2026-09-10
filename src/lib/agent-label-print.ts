@@ -200,7 +200,7 @@ export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]
     const style = t.edition_font_weight === "bold" ? "bold" : "normal";
     pdf.setFont("helvetica", style);
     pdf.setTextColor(0, 0, 0);
-    const text = String(it.edition ?? "");
+    const text = String(it.edition ?? "").replace(/^#/, "");
 
     if (t.edition_placement === "qr_bottom" || t.edition_placement === "qr_center") {
       // QR 하단의 라벨 내부 여유 공간에 텍스트를 중앙 정렬한다.

@@ -340,9 +340,9 @@ export function checkWidth(t: QrLabelTemplate): WidthCheck {
   return { requiredMm, maxMm, ok: requiredMm <= maxMm + 1e-6 };
 }
 
-/** 001/100 형태의 Edition Number */
+/** 001/100 형태의 Edition Number. 앞의 # 기호는 인쇄/표시에서 제거한다. */
 export function formatEdition(value: unknown, position: number, total: number): string {
-  const raw = String(value ?? "").trim();
+  const raw = String(value ?? "").trim().replace(/^#/, "");
   if (raw && raw.includes("/")) return raw;
   const n = raw && /^\d+$/.test(raw) ? Number(raw) : position;
   const pad = Math.max(3, String(total).length);
