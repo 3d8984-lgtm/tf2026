@@ -151,7 +151,11 @@ function assertLayout(layout: LabelDocumentLayout, expectedCount: number) {
  * 라벨 목록을 PDF Blob으로 만든다.
  * 한 페이지 = 한 줄(열 개수만큼). 줄이 늘어나면 페이지를 추가한다.
  */
-export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]): Promise<Blob> {
+export async function buildLabelsPdf(
+  t: QrLabelTemplate,
+  items: AgentLabelItem[],
+  opts: { applyCalibration?: boolean } = {},
+): Promise<Blob> {
   if (items.length === 0) throw new Error("no labels");
   const size = labelPageSizePt(t, items.length);
   const { w, h, cellW, cellH } = size;
