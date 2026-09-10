@@ -191,13 +191,13 @@ export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]
       pdf.setFillColor(255, 255, 255);
       pdf.rect(0, 0, w, h, "F");
     }
-    const ox = entry.labelXmm;
-    const oy = entry.labelYmm;
+    const ox = entry.labelXmm + shiftX;
+    const oy = entry.labelYmm + shiftY;
 
     // QR (각 칸 내부에서 라벨 설정의 X/Y 위치)
     pdf.addImage(
       qrs[idx], "PNG",
-      mm(entry.qrAbsoluteXmm), mm(entry.qrAbsoluteYmm), mm(qw), mm(qh),
+      mm(entry.qrAbsoluteXmm + shiftX), mm(entry.qrAbsoluteYmm + shiftY), mm(qw), mm(qh),
       undefined, "FAST",
     );
 
