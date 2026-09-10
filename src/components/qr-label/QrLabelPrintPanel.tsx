@@ -20,6 +20,7 @@ import {
   labelPayload, computerId,
 } from "@/lib/print-bridge";
 import { printLabelsViaAgent, checkLabelAgent, buildLabelsPdf } from "@/lib/agent-label-print";
+import { checkQzPrinter, printLabelsViaQz } from "@/lib/qz-print";
 import { friendlyAgentError } from "@/lib/print-agent";
 import QrLabelSettingsDialog from "./QrLabelSettingsDialog";
 import PrintSettingsDialog from "./PrintSettingsDialog";
@@ -148,8 +149,10 @@ export default function QrLabelPrintPanel({
     const tick = async () => {
       if (template.print_mode !== "bridge") {
         setBridgeUp(null);
-        // 로컬 모드 = 이 PC의 인쇄 에이전트(127.0.0.1:9100)에 PDF 전송
-        const up = await checkLabelAgent();
+        // 로컬 모드 = 이 PC의 인쇄 에이전트(127.0.0.1:9100) 또는 QZ Tray로 전송
+        const up = template.print_engine === "qz"
+          ? await checkQzPrinter(template.printer_name)
+          : await checkLabelAgent();
         if (alive) setPrinterUp(up);
         return;
       }
@@ -161,7 +164,7 @@ export default function QrLabelPrintPanel({
     void tick();
     const iv = setInterval(tick, 5000);
     return () => { alive = false; clearInterval(iv); };
-  }, [template.print_mode, template.bridge_enabled, template.bridge_url, template.printer_name]);
+  }, [template.print_mode, template.bridge_enabled, template.bridge_url, template.printer_name, template.print_engine]);
 
   const width = checkWidth(template);
   const counts = useMemo(() => {
@@ -227,11 +230,16 @@ export default function QrLabelPrintPanel({
       } as any);
     }
 
-    // ── 이 PC의 인쇄 에이전트로 PDF 전송 (에이전트가 용지 크기 자동 맞춤) ──
+    // ── 이 PC의 인쇄 경로로 전송 (에이전트 또는 QZ Tray) ──
     if (snapshot.print_mode !== "bridge") {
+      const useQz = snapshot.print_engine === "qz";
       let ok = true;
       try {
-        await printLabelsViaAgent(snapshot, [...testBefore, ...ordered, ...testAfter], jobId);
+        if (useQz) {
+          await printLabelsViaQz(snapshot, [...testBefore, ...ordered, ...testAfter]);
+        } else {
+          await printLabelsViaAgent(snapshot, [...testBefore, ...ordered, ...testAfter], jobId);
+        }
       } catch (e: any) {
         ok = false;
         for (const it of targets) {
@@ -247,7 +255,9 @@ export default function QrLabelPrintPanel({
         for (const it of targets) {
           await patchRecord(it.position, { status: "sent_to_printer", sent_at: ts, completed_at: ts } as any);
         }
-        toast.success(tr(`인쇄 에이전트로 ${targets.length}장 전송했습니다`, `已发送 ${targets.length} 张到打印代理`));
+        toast.success(useQz
+          ? tr(`QZ Tray로 ${targets.length}장 전송했습니다`, `已通过 QZ Tray 发送 ${targets.length} 张`)
+          : tr(`인쇄 에이전트로 ${targets.length}장 전송했습니다`, `已发送 ${targets.length} 张到打印代理`));
       }
       if (jobId) {
         await supabase.from("qr_label_print_jobs")
