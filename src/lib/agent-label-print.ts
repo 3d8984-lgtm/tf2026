@@ -259,7 +259,7 @@ function paddedCanvas(wMm: number, hMm: number, cal: ReturnType<typeof printCali
  */
 export async function buildFinalLabelRaster(t: QrLabelTemplate, items: AgentLabelItem[]): Promise<FinalLabelRaster> {
   const rowItems = items.slice(0, rowCapacity(t));
-  const sourcePdf = await buildLabelsPdf(t, rowItems);
+  const sourcePdf = await buildLabelsPdf(t, rowItems, { applyCalibration: false });
   const { wMm, hMm } = labelPageSizePt(t, rowItems.length);
   const cal = printCalibration(t);
   const { canvasWidthMm, canvasHeightMm } = paddedCanvas(wMm, hMm, cal);
