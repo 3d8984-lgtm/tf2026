@@ -175,6 +175,11 @@ export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]
   pdf.setFillColor(255, 255, 255);
   pdf.rect(0, 0, w, h, "F");
 
+  // 프린터 실측 보정 — 직접 PDF 전송 경로에서도 위치 보정이 적용되도록 문서 좌표에 반영한다.
+  const cal = printCalibration(t);
+  const shiftX = cal.offsetXmm;
+  const shiftY = cal.offsetYmm;
+
   let currentRow = 0;
   for (let idx = 0; idx < items.length; idx++) {
     const it = items[idx];
