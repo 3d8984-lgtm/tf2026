@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { resolveCenterBox, centerFontPt, type QrLabelTemplate } from "@/lib/qr-label-template";
+import { resolveBottomEditionBox, type QrLabelTemplate } from "@/lib/qr-label-template";
 
 /** 스티커 고유번호를 그대로 담은 QR 이미지 (스캔 결과 = 고유번호) */
 export const QrImg = forwardRef<HTMLImageElement, {
@@ -91,7 +91,7 @@ export default function LabelCanvas({
     window.addEventListener("pointerup", up);
   };
 
-  const centerBox = resolveCenterBox(t);
+  const bottomBox = resolveBottomEditionBox(t, edition);
 
   const alignStyle: React.CSSProperties =
     t.edition_alignment === "center"
@@ -139,15 +139,15 @@ export default function LabelCanvas({
         )}
       </div>
 
-      {/* Edition Number — QR 중앙 삽입 */}
-      {t.edition_placement === "qr_center" ? (
+      {/* Edition Number — QR 아래, 라벨 내부 */}
+      {t.edition_placement === "qr_bottom" || t.edition_placement === "qr_center" ? (
         <div
           onPointerDown={(e) => startDrag(e, "center")}
-          className={`absolute flex items-center justify-center bg-white text-black ${editable ? "cursor-move ring-1 ring-primary/60" : ""}`}
+          className={`absolute flex items-center justify-center text-black ${editable ? "cursor-move ring-1 ring-primary/60" : ""}`}
           style={{
-            left: px(centerBox.x), top: px(centerBox.y),
-            width: px(centerBox.w), height: px(centerBox.h),
-            fontSize: (centerFontPt(t, centerBox, edition) * 25.4 / 72) * scale,
+            left: px(bottomBox.x), top: px(bottomBox.y),
+            width: px(bottomBox.w), height: px(bottomBox.h),
+            fontSize: (bottomBox.fontPt * 25.4 / 72) * scale,
             fontFamily: t.edition_font_family,
             fontWeight: t.edition_font_weight === "bold" ? 700 : 400,
             lineHeight: 1,

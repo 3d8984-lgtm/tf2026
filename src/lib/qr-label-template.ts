@@ -39,8 +39,8 @@ export type QrLabelTemplate = {
   edition_font_family: string;
   edition_font_weight: "normal" | "bold";
   edition_alignment: "left" | "center" | "right";
-  /** 에디션 넘버 배치 — outside = QR 옆(기존), qr_center = QR 코드 중앙 삽입 */
-  edition_placement: "outside" | "qr_center";
+  /** 에디션 넘버 배치 — qr_bottom = QR 아래 라벨 내부, outside = 자유 배치, qr_center = 구버전 호환 */
+  edition_placement: "outside" | "qr_bottom" | "qr_center";
   /** QR 중앙 삽입 시 흰색 박스 가로(mm) — 인식률 보호를 위해 자동 상한 적용 */
   edition_center_width: number;
   /** QR 중앙 삽입 시 흰색 박스 세로(mm) — 인식률 보호를 위해 자동 상한 적용 */
@@ -173,7 +173,7 @@ export const QR_LABEL_DEFAULTS: QrLabelTemplate = {
   edition_font_family: "Arial",
   edition_font_weight: "bold",
   edition_alignment: "left",
-  edition_placement: "qr_center",
+  edition_placement: "qr_bottom",
   edition_center_width: 8,
   edition_center_height: 2.5,
   edition_center_offset_x: 0,
@@ -253,6 +253,46 @@ export function centerFontPt(t: QrLabelTemplate, box: CenterBox, text: string): 
   return Math.max(2, Math.min(t.edition_font_size, byHeight, byWidth));
 }
 
+export type BottomEditionBox = {
+  /** 라벨 기준의 텍스트 상자 좌표와 크기(mm) */
+  x: number; y: number; w: number; h: number;
+  centerX: number;
+  fontPt: number;
+};
+
+/**
+ * QR 아래쪽의 남은 공간에 에디션을 배치한다.
+ * 원형 라벨은 텍스트 상자의 위·아래 모서리가 원 밖으로 나가지 않도록 현 길이까지 반영한다.
+ */
+export function resolveBottomEditionBox(t: QrLabelTemplate, text: string): BottomEditionBox {
+  const labelW = Math.max(1, Number(t.label_width) || 1);
+  const labelH = t.label_shape === "round" ? labelW : Math.max(1, Number(t.label_height) || 1);
+  const qrBottom = (Number(t.qr_y) || 0) + Math.max(1, Number(t.qr_height) || 1) / 2;
+  const gap = 0.2;
+  const desiredTop = qrBottom + gap + (Number(t.edition_center_offset_y) || 0);
+  const availableHeight = Math.max(0.7, labelH - Math.max(0, desiredTop));
+  const fontPt = Math.max(2, Math.min(Number(t.edition_font_size) || 8, availableHeight * (72 / 25.4) * 0.88));
+  const h = Math.min(availableHeight, fontPt * (25.4 / 72) * 1.12);
+  const y = clampNum(desiredTop, 0, Math.max(0, labelH - h));
+
+  let safeLeft = 0;
+  let safeRight = labelW;
+  if (t.label_shape === "round") {
+    const radius = labelW / 2;
+    const chordHalfWidth = (atY: number) => Math.sqrt(Math.max(0, radius * radius - (atY - radius) ** 2));
+    const halfWidth = Math.min(chordHalfWidth(y), chordHalfWidth(y + h));
+    safeLeft = radius - halfWidth;
+    safeRight = radius + halfWidth;
+  }
+
+  const desiredCenterX = (Number(t.qr_x) || labelW / 2) + (Number(t.edition_center_offset_x) || 0);
+  const maxTextWidth = Math.max(0.5, safeRight - safeLeft);
+  const estimatedWidth = Math.max(0.5, text.length * fontPt * (25.4 / 72) * 0.58);
+  const w = Math.min(maxTextWidth, estimatedWidth);
+  const centerX = clampNum(desiredCenterX, safeLeft + w / 2, safeRight - w / 2);
+  return { x: centerX - w / 2, y, w, h, centerX, fontPt };
+}
+
 export function mergeTemplate(raw: unknown): QrLabelTemplate {
   const v = { ...((raw ?? {}) as Partial<QrLabelTemplate>) };
   // 구버전(좌상단 기준) 저장값 1회성 변환: qr_anchor 가 없던 시절 값이면 중심 좌표로 환산
@@ -262,6 +302,8 @@ export function mergeTemplate(raw: unknown): QrLabelTemplate {
     if (typeof v.qr_x === "number") v.qr_x = Math.round((v.qr_x + qw / 2) * 100) / 100;
     if (typeof v.qr_y === "number") v.qr_y = Math.round((v.qr_y + qh / 2) * 100) / 100;
   }
+  // QR 중앙 삽입은 인식률을 떨어뜨리므로 기존 저장값도 QR 하단 배치로 자동 전환한다.
+  if (!v.edition_placement || v.edition_placement === "qr_center") v.edition_placement = "qr_bottom";
   return { ...QR_LABEL_DEFAULTS, ...v, qr_anchor: "center", template_name: QR_LABEL_TEMPLATE_KEY };
 }
 

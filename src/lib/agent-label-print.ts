@@ -9,7 +9,7 @@
 
 import QRCode from "qrcode";
 import { jsPDF } from "jspdf";
-import { resolveCenterBox, centerFontPt, resolveMediaLayout, type QrLabelTemplate } from "./qr-label-template";
+import { resolveBottomEditionBox, resolveMediaLayout, type QrLabelTemplate } from "./qr-label-template";
 import { checkPrintAgent, getPrintAgentCapabilities, printPdfViaAgent, printRawPngViaAgent, type RawPngPrintResult } from "./print-agent";
 import { rasterizePrintPdf, type FinalLabelRaster } from "./final-label-raster";
 
@@ -202,14 +202,11 @@ export async function buildLabelsPdf(t: QrLabelTemplate, items: AgentLabelItem[]
     pdf.setTextColor(0, 0, 0);
     const text = String(it.edition ?? "");
 
-    if (t.edition_placement === "qr_center") {
-      // QR 중앙 삽입 — 흰 박스(오류정정 허용 범위 내) 위에 텍스트를 중앙 정렬
-      const box = resolveCenterBox(centerT);
-      const fs = centerFontPt(t, box, text);
-      pdf.setFillColor(255, 255, 255);
-      pdf.rect(mm(ox + box.x), mm(oy + box.y), mm(box.w), mm(box.h), "F");
-      pdf.setFontSize(fs);
-      pdf.text(text, mm(ox + box.x + box.w / 2), mm(oy + box.y + box.h / 2), {
+    if (t.edition_placement === "qr_bottom" || t.edition_placement === "qr_center") {
+      // QR 하단의 라벨 내부 여유 공간에 텍스트를 중앙 정렬한다.
+      const box = resolveBottomEditionBox(centerT, text);
+      pdf.setFontSize(box.fontPt);
+      pdf.text(text, mm(ox + box.centerX), mm(oy + box.y + box.h / 2), {
         align: "center",
         baseline: "middle",
       } as any);
