@@ -92,7 +92,7 @@ export default function LabelCanvas({
     window.addEventListener("pointerup", up);
   };
 
-  const bottomBox = resolveBottomEditionBox(t, edition);
+  const bottomBox = resolveBottomEditionBox(t, displayEdition);
 
   const alignStyle: React.CSSProperties =
     t.edition_alignment === "center"
@@ -156,7 +156,7 @@ export default function LabelCanvas({
             overflow: "hidden",
           }}
         >
-          {edition}
+          {displayEdition}
         </div>
       ) : (
       <div
@@ -172,7 +172,7 @@ export default function LabelCanvas({
           ...alignStyle,
         }}
       >
-        {edition}
+        {displayEdition}
       </div>
       )}
     </div>
