@@ -146,8 +146,26 @@ export default function Auth() {
               minLength={6}
             />
           </div>
+          {serverDown && (
+            <div className="flex items-start gap-2 rounded-md border border-warning/50 bg-warning/10 p-3 text-xs text-foreground">
+              <CloudOff className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+              <div className="space-y-2">
+                <p>서버가 일시적으로 응답하지 않습니다. 자동으로 여러 번 재시도했지만 연결되지 않았습니다. 잠시 후 다시 시도해주세요.</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1 text-xs"
+                  onClick={() => handleSubmit()}
+                  disabled={loading}
+                >
+                  <RefreshCw className="h-3 w-3" /> 다시 시도
+                </Button>
+              </div>
+            </div>
+          )}
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "..." : isLogin ? t("auth.login") : t("auth.signup")}
+            {loading ? "서버에 연결 중..." : isLogin ? t("auth.login") : t("auth.signup")}
           </Button>
           {isLogin && (
             <button
