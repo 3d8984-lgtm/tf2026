@@ -43,9 +43,10 @@ import OutsourceHistory from "@/pages/outsource/OutsourceHistory";
 import OutsourceSettings from "@/pages/outsource/OutsourceSettings";
 import OrderJobsDashboard from "@/pages/outsource/OrderJobsDashboard";
 import NotFound from "@/pages/NotFound";
+import { useState, useEffect } from "react";
 import { useLang } from "@/contexts/LangContext";
 import { Button } from "@/components/ui/button";
-import { Clock } from "lucide-react";
+import { Clock, CloudOff, RefreshCw } from "lucide-react";
 
 const queryClient = new QueryClient();
 
