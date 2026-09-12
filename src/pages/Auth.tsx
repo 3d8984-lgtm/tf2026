@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useLang } from "@/contexts/LangContext";
+import { withServerRetry, isServerUnreachable } from "@/lib/server-request";
+import { CloudOff, RefreshCw } from "lucide-react";
 import twinmetaLogo from "@/assets/twinmeta-logo.png";
 
 export default function Auth() {
@@ -14,19 +16,25 @@ export default function Auth() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
+  const [serverDown, setServerDown] = useState(false);
   const { toast } = useToast();
   const { t } = useLang();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     setLoading(true);
+    setServerDown(false);
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await withServerRetry(() =>
+          supabase.auth.signInWithPassword({ email, password }),
+        );
         if (error) throw error;
       } else {
-        const { error } = await supabase.auth.signUp({ email, password, options: { data: { name, phone } } });
+        const { error } = await withServerRetry(() =>
+          supabase.auth.signUp({ email, password, options: { data: { name, phone } } }),
+        );
         if (error) throw error;
         toast({
           title: t("auth.signupSuccess"),
@@ -34,11 +42,15 @@ export default function Auth() {
         });
       }
     } catch (error: any) {
-      toast({
-        title: t("auth.error"),
-        description: error.message,
-        variant: "destructive",
-      });
+      if (isServerUnreachable(error)) {
+        setServerDown(true);
+      } else {
+        toast({
+          title: t("auth.error"),
+          description: error.message,
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }

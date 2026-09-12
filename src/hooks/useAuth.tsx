@@ -1,6 +1,7 @@
 import { useState, useEffect, createContext, useContext, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
+import { withServerRetry } from "@/lib/server-request";
 
 interface Profile {
   approved: boolean;
@@ -13,6 +14,8 @@ interface AuthContextValue {
   profile: Profile | null;
   loading: boolean;
   isAdmin: boolean;
+  serverUnreachable: boolean;
+  retryServerCheck: () => void;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -39,6 +42,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [serverUnreachable, setServerUnreachable] = useState(false);
+  const [sessionRetryTick, setSessionRetryTick] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -53,24 +58,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setServerUnreachable(false);
       applySession(nextSession);
     });
 
-    supabase.auth
-      .getSession()
+    withServerRetry(() => supabase.auth.getSession(), { timeoutMs: 12_000, retries: 2 })
       .then(({ data: { session: currentSession } }) => {
+        if (mounted) setServerUnreachable(false);
         applySession(currentSession);
       })
       .catch((error) => {
         console.error("Failed to restore session:", error);
-        if (mounted) setAuthLoading(false);
+        if (mounted) {
+          setServerUnreachable(true);
+          setAuthLoading(false);
+        }
       });
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [sessionRetryTick]);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,14 +94,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfileLoading(true);
 
       try {
-        const data = await loadProfile(user.id);
+        const data = await withServerRetry(() => loadProfile(user.id), { timeoutMs: 12_000, retries: 2 });
         if (!cancelled) {
           setProfile(data);
+          setServerUnreachable(false);
         }
       } catch (error) {
         console.error("Failed to fetch profile:", error);
         if (!cancelled) {
           setProfile(null);
+          setServerUnreachable(true);
         }
       } finally {
         if (!cancelled) {
@@ -130,8 +141,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loading = authLoading || profileLoading;
   const isAdmin = profile?.role === "admin" && profile?.approved === true;
 
+  const retryServerCheck = () => {
+    setServerUnreachable(false);
+    setAuthLoading(true);
+    setSessionRetryTick((tick) => tick + 1);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, isAdmin, signOut, refreshProfile }}>
+    <AuthContext.Provider
+      value={{ user, session, profile, loading, isAdmin, serverUnreachable, retryServerCheck, signOut, refreshProfile }}
+    >
       {children}
     </AuthContext.Provider>
   );
