@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useLang } from "@/contexts/LangContext";
+import { withServerRetry, isServerUnreachable } from "@/lib/server-request";
+import { CloudOff, RefreshCw } from "lucide-react";
 import twinmetaLogo from "@/assets/twinmeta-logo.png";
 
 export default function Auth() {
@@ -14,19 +16,25 @@ export default function Auth() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
+  const [serverDown, setServerDown] = useState(false);
   const { toast } = useToast();
   const { t } = useLang();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     setLoading(true);
+    setServerDown(false);
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await withServerRetry(() =>
+          supabase.auth.signInWithPassword({ email, password }),
+        );
         if (error) throw error;
       } else {
-        const { error } = await supabase.auth.signUp({ email, password, options: { data: { name, phone } } });
+        const { error } = await withServerRetry(() =>
+          supabase.auth.signUp({ email, password, options: { data: { name, phone } } }),
+        );
         if (error) throw error;
         toast({
           title: t("auth.signupSuccess"),
@@ -34,11 +42,15 @@ export default function Auth() {
         });
       }
     } catch (error: any) {
-      toast({
-        title: t("auth.error"),
-        description: error.message,
-        variant: "destructive",
-      });
+      if (isServerUnreachable(error)) {
+        setServerDown(true);
+      } else {
+        toast({
+          title: t("auth.error"),
+          description: error.message,
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -134,8 +146,26 @@ export default function Auth() {
               minLength={6}
             />
           </div>
+          {serverDown && (
+            <div className="flex items-start gap-2 rounded-md border border-warning/50 bg-warning/10 p-3 text-xs text-foreground">
+              <CloudOff className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+              <div className="space-y-2">
+                <p>서버가 일시적으로 응답하지 않습니다. 자동으로 여러 번 재시도했지만 연결되지 않았습니다. 잠시 후 다시 시도해주세요.</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1 text-xs"
+                  onClick={() => handleSubmit()}
+                  disabled={loading}
+                >
+                  <RefreshCw className="h-3 w-3" /> 다시 시도
+                </Button>
+              </div>
+            </div>
+          )}
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "..." : isLogin ? t("auth.login") : t("auth.signup")}
+            {loading ? "서버에 연결 중..." : isLogin ? t("auth.login") : t("auth.signup")}
           </Button>
           {isLogin && (
             <button
