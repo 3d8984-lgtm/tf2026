@@ -394,7 +394,7 @@ export function SetInspectDetail({
             />
           </div>
           <div className={`rounded-lg border bg-card p-4 space-y-2 ${!halted && cardScan.trim() ? "ring-2 ring-primary" : ""}`}>
-            <p className="text-sm font-medium flex items-center gap-2"><Shirt className="w-4 h-4 text-primary" /> {tr("티셔츠 포장 QR", "T恤包装QR")}</p>
+            <p className="text-sm font-medium flex items-center gap-2"><Shirt className="w-4 h-4 text-primary" /> {tr("티셔츠 홀로그램 스티커 QR", "T恤全息贴纸QR")}</p>
             <Input
               ref={tshirtRef}
               value={tshirtScan}
@@ -405,7 +405,7 @@ export function SetInspectDetail({
                   if (cardScan.trim() && tshirtScan.trim()) evaluate(cardScan, tshirtScan);
                 }
               }}
-              placeholder={tr("티셔츠 포장 QR 스캔", "扫描T恤包装QR")}
+              placeholder={tr("티셔츠 홀로그램 스티커 QR 스캔", "扫描T恤全息贴纸QR")}
               className="font-mono"
             />
           </div>
@@ -432,7 +432,7 @@ export function SetInspectDetail({
               <tr>
                 <th className="text-left px-4 py-2 font-medium">#</th>
                 <th className="text-left px-4 py-2 font-medium">{tr("카드 포장 QR", "卡片包装QR")}</th>
-                <th className="text-left px-4 py-2 font-medium">{tr("티셔츠 포장 QR", "T恤包装QR")}</th>
+                <th className="text-left px-4 py-2 font-medium">{tr("티셔츠 홀로그램 스티커 QR", "T恤全息贴纸QR")}</th>
                 <th className="text-left px-4 py-2 font-medium">{tr("색상/사이즈", "颜色/尺码")}</th>
                 <th className="text-left px-4 py-2 font-medium">{tr("결과", "结果")}</th>
                 <th className="text-left px-4 py-2 font-medium">{tr("검사 시각", "检验时间")}</th>
