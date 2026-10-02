@@ -96,6 +96,15 @@ export default function PatternStudio7({ value, onChange }: { value: Saved; onCh
       <aside style={{ width: 300, flex: 'none', background: '#fff', borderRight: '1px solid #ddd', padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 22, boxSizing: 'border-box', overflow: 'auto', height: '100%' }}>
         <div><div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: '#888' }}>Twinmeta · 07</div><div style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}>Sticker Outline</div></div>
 
+        <Section title="프레임 (SVG 업로드)">
+          <label style={{ position: 'relative', height: 96, border: '1px dashed #bbb', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: '#fafafa' }}>
+            <input type="file" accept=".svg,image/svg+xml" onChange={e => { const f = e.target.files?.[0]; if (f) onFrameSvg(f); e.target.value = ''; }} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} />
+            {st.frameSvg ? <div style={{ width: '100%', height: '100%', background: `url("${st.frameSvg}") center/contain no-repeat` }} /> : <span style={{ fontSize: 12, color: '#999', textAlign: 'center', padding: '0 8px' }}>클릭해서 SVG 프레임 업로드<br />(없으면 기본 팔각형 프레임 사용)</span>}
+            {st.frameSvg && <button onClick={e => { e.preventDefault(); e.stopPropagation(); clearFrameSvg(); }} style={{ position: 'absolute', top: 4, right: 4, width: 20, height: 20, border: 0, borderRadius: 10, background: '#161616', color: '#fff', fontSize: 12, lineHeight: '20px', padding: 0, cursor: 'pointer' }}>×</button>}
+          </label>
+          <div style={{ fontSize: 11, color: '#888', lineHeight: 1.5 }}>SVG를 올리면 기본 팔각형 배경 대신 해당 프레임이 전체 영역에 적용됩니다. 패턴 도형과 중앙 이미지는 그대로 위에 얹힙니다.</div>
+        </Section>
+
         <Section title="인플루언서 이미지 (검은 영역)">
           <label style={{ position: 'relative', height: 96, border: '1px dashed #bbb', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: '#fafafa' }}>
             <input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) onArt(f); e.target.value = ''; }} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} />
