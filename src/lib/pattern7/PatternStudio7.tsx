@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import PatternFrame from './PatternFrame';
 import { Analysis, BUILTIN_SHAPES, DEFAULTS, Params, Shape, analyzeImage, applyAnalysis, blobify, fileToMask, pickShapes } from './patternEngine';
 
-export type Saved = { shapes: (Shape | null)[]; bgShapes: (Shape | null)[]; art: string | null; analysis: Analysis | null; p: Params };
+export type Saved = { shapes: (Shape | null)[]; bgShapes: (Shape | null)[]; art: string | null; analysis: Analysis | null; p: Params; frameSvg: string | null };
 
 /** Normalize a (possibly partial) saved object coming from the server. */
 export function normalizeSaved(s: any): Saved {
@@ -12,6 +12,7 @@ export function normalizeSaved(s: any): Saved {
     shapes: [...(s.shapes || []).map(strip), ...Array(16).fill(null)].slice(0, 16),
     bgShapes: [...(s.bgShapes || []).map(strip), ...Array(8).fill(null)].slice(0, 8),
     art: s.art || null, analysis: s.analysis || null, p: { ...DEFAULTS, ...(s.p || {}) },
+    frameSvg: typeof s.frameSvg === 'string' ? s.frameSvg : null,
   };
 }
 
@@ -75,6 +76,12 @@ export default function PatternStudio7({ value, onChange }: { value: Saved; onCh
   const bgShapes = useMemo(() => safe(st.bgShapes), [st.bgShapes]);
   const artUrl = st.art ? blobify(st.art) : null;
 
+  const onFrameSvg = async (f: File) => {
+    const data = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(f); });
+    setSt(s => ({ ...s, frameSvg: data }));
+  };
+  const clearFrameSvg = () => setSt(s => ({ ...s, frameSvg: null }));
+
   const onArt = async (f: File) => {
     const { art, analysis } = await analyzeImage(f);
     setSt(s => { const p2 = { ...s.p, pickSeed: Math.floor(Math.random() * 1e6) + 1 }; return { ...s, art, analysis, p: p2.auto ? { ...p2, ...applyAnalysis(p2, analysis) } : p2 }; });
@@ -88,6 +95,15 @@ export default function PatternStudio7({ value, onChange }: { value: Saved; onCh
     <div style={{ display: 'flex', height: 760, background: '#ecebe7', fontFamily: 'Helvetica, Arial, sans-serif', color: '#161616', borderRadius: 8, overflow: 'hidden' }}>
       <aside style={{ width: 300, flex: 'none', background: '#fff', borderRight: '1px solid #ddd', padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 22, boxSizing: 'border-box', overflow: 'auto', height: '100%' }}>
         <div><div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: '#888' }}>Twinmeta · 07</div><div style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}>Sticker Outline</div></div>
+
+        <Section title="프레임 (SVG 업로드)">
+          <label style={{ position: 'relative', height: 96, border: '1px dashed #bbb', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: '#fafafa' }}>
+            <input type="file" accept=".svg,image/svg+xml" onChange={e => { const f = e.target.files?.[0]; if (f) onFrameSvg(f); e.target.value = ''; }} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} />
+            {st.frameSvg ? <div style={{ width: '100%', height: '100%', background: `url("${st.frameSvg}") center/contain no-repeat` }} /> : <span style={{ fontSize: 12, color: '#999', textAlign: 'center', padding: '0 8px' }}>클릭해서 SVG 프레임 업로드<br />(없으면 기본 팔각형 프레임 사용)</span>}
+            {st.frameSvg && <button onClick={e => { e.preventDefault(); e.stopPropagation(); clearFrameSvg(); }} style={{ position: 'absolute', top: 4, right: 4, width: 20, height: 20, border: 0, borderRadius: 10, background: '#161616', color: '#fff', fontSize: 12, lineHeight: '20px', padding: 0, cursor: 'pointer' }}>×</button>}
+          </label>
+          <div style={{ fontSize: 11, color: '#888', lineHeight: 1.5 }}>SVG를 올리면 기본 팔각형 배경 대신 해당 프레임이 전체 영역에 적용됩니다. 패턴 도형과 중앙 이미지는 그대로 위에 얹힙니다.</div>
+        </Section>
 
         <Section title="인플루언서 이미지 (검은 영역)">
           <label style={{ position: 'relative', height: 96, border: '1px dashed #bbb', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: '#fafafa' }}>
@@ -199,7 +215,7 @@ export default function PatternStudio7({ value, onChange }: { value: Saved; onCh
 
       <main style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, boxSizing: 'border-box', minWidth: 0 }}>
         <div ref={frameRef} style={{ width: 'min(680px, 100%)' }}>
-          <PatternFrame p={p} shapes={shapes} bgShapes={bgShapes} artUrl={artUrl} frameW={frameW} />
+          <PatternFrame p={p} shapes={shapes} bgShapes={bgShapes} artUrl={artUrl} frameW={frameW} frameSvg={st.frameSvg} />
         </div>
       </main>
     </div>

@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
 import { FRAME, NB, Params, Shape, bgFilterRadius, filterRadii, layoutBgGlyphs, layoutGlyphs, shadowTexture } from './patternEngine';
 
-type Props = { p: Params; shapes: Shape[]; bgShapes: Shape[]; artUrl?: string | null; frameW: number; plain?: boolean };
+type Props = { p: Params; shapes: Shape[]; bgShapes: Shape[]; artUrl?: string | null; frameW: number; plain?: boolean; frameSvg?: string | null };
 
 const mask = (u: string): React.CSSProperties => ({ WebkitMaskImage: `url("${u}")`, maskImage: `url("${u}")`, WebkitMaskSize: 'contain', maskSize: 'contain', WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskPosition: 'center' } as React.CSSProperties);
 const abs: React.CSSProperties = { position: 'absolute', inset: 0 };
 
-export default function PatternFrame({ p, shapes, bgShapes, artUrl, frameW, plain }: Props) {
+export default function PatternFrame({ p, shapes, bgShapes, artUrl, frameW, plain, frameSvg }: Props) {
   const { cp, bp } = FRAME;
   const glyphs = useMemo(() => layoutGlyphs(p, shapes, frameW), [p, shapes, frameW]);
   const bg = useMemo(() => layoutBgGlyphs(p, bgShapes), [p, bgShapes]);
@@ -58,8 +58,11 @@ export default function PatternFrame({ p, shapes, bgShapes, artUrl, frameW, plai
         </defs>
       </svg>
 
+      {/* custom SVG frame (replaces the default octagon band background when set) */}
+      {frameSvg && <div style={{ position: 'absolute', inset: 0, background: `url("${frameSvg}") center/contain no-repeat` }} />}
+
       {/* red chamfered octagon band */}
-      <div style={{ position: 'absolute', left: `${FRAME.inset}%`, top: `${FRAME.inset}%`, width: `${FRAME.span}%`, height: `${FRAME.span}%`, background: p.paper, overflow: 'hidden', clipPath: `polygon(${cp}% 0,${100 - cp}% 0,100% ${cp}%,100% ${100 - cp}%,${100 - cp}% 100%,${cp}% 100%,0 ${100 - cp}%,0 ${cp}%)` }}>
+      <div style={{ position: 'absolute', left: `${FRAME.inset}%`, top: `${FRAME.inset}%`, width: `${FRAME.span}%`, height: `${FRAME.span}%`, background: frameSvg ? 'transparent' : p.paper, overflow: 'hidden', clipPath: `polygon(${cp}% 0,${100 - cp}% 0,100% ${cp}%,100% ${100 - cp}%,${100 - cp}% 100%,${cp}% 100%,0 ${100 - cp}%,0 ${cp}%)` }}>
         {/* background outline layer */}
         {p.bgOn && (
           <div style={abs}>
