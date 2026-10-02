@@ -2,19 +2,22 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import PatternFrame from './PatternFrame';
 import { Analysis, BUILTIN_SHAPES, DEFAULTS, Params, Shape, analyzeImage, applyAnalysis, blobify, fileToMask, pickShapes } from './patternEngine';
 
-const LS_KEY = 'twinmeta-pattern-studio-v7';
+export type Saved = { shapes: (Shape | null)[]; bgShapes: (Shape | null)[]; art: string | null; analysis: Analysis | null; p: Params };
 
-type Saved = { shapes: (Shape | null)[]; bgShapes: (Shape | null)[]; art: string | null; analysis: Analysis | null; p: Params };
+/** Normalize a (possibly partial) saved object coming from the server. */
+export function normalizeSaved(s: any): Saved {
+  s = s || {};
+  const strip = (x: any) => (x && x.data ? { data: x.data, url: x.data } : null);
+  return {
+    shapes: [...(s.shapes || []).map(strip), ...Array(16).fill(null)].slice(0, 16),
+    bgShapes: [...(s.bgShapes || []).map(strip), ...Array(8).fill(null)].slice(0, 8),
+    art: s.art || null, analysis: s.analysis || null, p: { ...DEFAULTS, ...(s.p || {}) },
+  };
+}
 
-function load(): Saved {
-  try {
-    const s = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
-    return {
-      shapes: [...(s.shapes || []), ...Array(16).fill(null)].slice(0, 16),
-      bgShapes: [...(s.bgShapes || []), ...Array(8).fill(null)].slice(0, 8),
-      art: s.art || null, analysis: s.analysis || null, p: { ...DEFAULTS, ...(s.p || {}) },
-    };
-  } catch { return { shapes: Array(16).fill(null), bgShapes: Array(8).fill(null), art: null, analysis: null, p: DEFAULTS }; }
+/** Strip blob URLs before sending to the server (only data URLs are portable). */
+export function serializeSaved(s: Saved) {
+  return { ...s, shapes: s.shapes.map(x => x && { data: x.data, url: x.data }), bgShapes: s.bgShapes.map(x => x && { data: x.data, url: x.data }) };
 }
 
 // ---- small UI atoms (inline styles; swap for shadcn/ui if desired) ----
@@ -52,13 +55,15 @@ const ShapeSlots = ({ shapes, onFile, onClear, cols = 4 }: { shapes: (Shape | nu
   </div>
 );
 
-export default function PatternStudio7() {
-  const [st, setSt] = useState<Saved>(load);
+/** Controlled studio: state is owned by the parent (server-saved per size). */
+export default function PatternStudio7({ value, onChange }: { value: Saved; onChange: (next: Saved) => void }) {
+  const st = value;
+  const stRef = useRef(st); stRef.current = st;
+  const setSt = (fn: (s: Saved) => Saved) => onChange(fn(stRef.current));
   const [frameW, setFrameW] = useState(700);
   const frameRef = useRef<HTMLDivElement>(null);
   const p = st.p;
 
-  useEffect(() => { try { localStorage.setItem(LS_KEY, JSON.stringify({ ...st, shapes: st.shapes.map(s => s && { data: s.data, url: s.data }), bgShapes: st.bgShapes.map(s => s && { data: s.data, url: s.data }) })); } catch {} }, [st]);
   useEffect(() => { const ro = new ResizeObserver(() => { const w = frameRef.current?.getBoundingClientRect().width; if (w) setFrameW(Math.round(w)); }); if (frameRef.current) ro.observe(frameRef.current); return () => ro.disconnect(); }, []);
 
   const set = (k: keyof Params, v: any) => setSt(s => ({ ...s, p: { ...s.p, [k]: v, ...(k === 'bgFill' ? { bgFillPaper: false } : {}) } }));
@@ -80,8 +85,8 @@ export default function PatternStudio7() {
   const input: React.CSSProperties = { width: '100%', accentColor: '#161616' };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#ecebe7', fontFamily: 'Helvetica, Arial, sans-serif', color: '#161616' }}>
-      <aside style={{ width: 300, flex: 'none', background: '#fff', borderRight: '1px solid #ddd', padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 22, boxSizing: 'border-box', overflow: 'auto', height: '100vh', position: 'sticky', top: 0 }}>
+    <div style={{ display: 'flex', height: 760, background: '#ecebe7', fontFamily: 'Helvetica, Arial, sans-serif', color: '#161616', borderRadius: 8, overflow: 'hidden' }}>
+      <aside style={{ width: 300, flex: 'none', background: '#fff', borderRight: '1px solid #ddd', padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 22, boxSizing: 'border-box', overflow: 'auto', height: '100%' }}>
         <div><div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: '#888' }}>Twinmeta · 07</div><div style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}>Sticker Outline</div></div>
 
         <Section title="인플루언서 이미지 (검은 영역)">
