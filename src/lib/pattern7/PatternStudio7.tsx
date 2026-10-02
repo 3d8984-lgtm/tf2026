@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import PatternFrame from './PatternFrame';
 import { Analysis, BUILTIN_SHAPES, DEFAULTS, Params, Shape, analyzeImage, applyAnalysis, blobify, fileToMask, pickShapes } from './patternEngine';
 
-export type Saved = { shapes: (Shape | null)[]; bgShapes: (Shape | null)[]; art: string | null; analysis: Analysis | null; p: Params };
+export type Saved = { shapes: (Shape | null)[]; bgShapes: (Shape | null)[]; art: string | null; analysis: Analysis | null; p: Params; frameSvg: string | null };
 
 /** Normalize a (possibly partial) saved object coming from the server. */
 export function normalizeSaved(s: any): Saved {
@@ -12,6 +12,7 @@ export function normalizeSaved(s: any): Saved {
     shapes: [...(s.shapes || []).map(strip), ...Array(16).fill(null)].slice(0, 16),
     bgShapes: [...(s.bgShapes || []).map(strip), ...Array(8).fill(null)].slice(0, 8),
     art: s.art || null, analysis: s.analysis || null, p: { ...DEFAULTS, ...(s.p || {}) },
+    frameSvg: typeof s.frameSvg === 'string' ? s.frameSvg : null,
   };
 }
 
