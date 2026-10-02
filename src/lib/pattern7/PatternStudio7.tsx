@@ -215,7 +215,7 @@ export default function PatternStudio7({ value, onChange }: { value: Saved; onCh
 
       <main style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, boxSizing: 'border-box', minWidth: 0 }}>
         <div ref={frameRef} style={{ width: 'min(680px, 100%)' }}>
-          <PatternFrame p={p} shapes={shapes} bgShapes={bgShapes} artUrl={artUrl} frameW={frameW} />
+          <PatternFrame p={p} shapes={shapes} bgShapes={bgShapes} artUrl={artUrl} frameW={frameW} frameSvg={st.frameSvg} />
         </div>
       </main>
     </div>
