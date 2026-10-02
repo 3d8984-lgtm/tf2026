@@ -73,7 +73,7 @@ export async function resolveItemPattern(format: Saved, designUid: string, artDa
   const all = uploaded.length ? uploaded : BUILTIN_SHAPES;
   const shapes = pickShapes(all, p);
   const bgShapes = format.bgShapes.filter((s): s is Shape => !!s && !!s.data).map((s) => ({ url: s.data!, data: s.data }));
-  return { p, shapes, bgShapes };
+  return { p, shapes, bgShapes, frameSvg: format.frameSvg ?? null };
 }
 
 /**
@@ -82,16 +82,16 @@ export async function resolveItemPattern(format: Saved, designUid: string, artDa
  * All image references must be data URLs (blob URLs don't load inside SVG images).
  */
 export async function renderPatternPng(opts: {
-  p: Params; shapes: Shape[]; bgShapes: Shape[]; artDataUrl: string | null; sizePx: number;
+  p: Params; shapes: Shape[]; bgShapes: Shape[]; artDataUrl: string | null; sizePx: number; frameSvg?: string | null;
 }): Promise<Blob> {
-  const { p, shapes, bgShapes, artDataUrl, sizePx } = opts;
+  const { p, shapes, bgShapes, artDataUrl, sizePx, frameSvg } = opts;
   const host = document.createElement("div");
   host.style.cssText = `position:fixed;left:-100000px;top:0;width:${sizePx}px;height:${sizePx}px;pointer-events:none;`;
   document.body.appendChild(host);
   const root = createRoot(host);
   try {
     flushSync(() => {
-      root.render(<PatternFrame p={p} shapes={shapes} bgShapes={bgShapes} artUrl={artDataUrl} frameW={sizePx} plain />);
+      root.render(<PatternFrame p={p} shapes={shapes} bgShapes={bgShapes} artUrl={artDataUrl} frameW={sizePx} plain frameSvg={frameSvg} />);
     });
     const node = host.firstElementChild as HTMLElement;
     const xml = new XMLSerializer().serializeToString(node);
