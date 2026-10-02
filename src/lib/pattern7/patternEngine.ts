@@ -25,6 +25,7 @@ export type Params = {
   // colours
   paper: string; line: string; fill: string; accent: string;
   seed: number;
+  autoColor: boolean;
 };
 
 export const DEFAULTS: Params = {
@@ -36,7 +37,7 @@ export const DEFAULTS: Params = {
   dotRatio: 30, dotSize: 50, dotGap: 9, dotPos: 'tl', dotFade: 60, dotMax: 95, dotMin: 10, dotOrder: 100, dotAngle: 45, dotColor: '#111111', dotBg: '#f5d800',
   bgOn: true, bgCount: 90, bgSize: 110, bgSizeVar: 40, bgRot: 60, bgOverlap: 40, bgStroke: 4, bgLine: '#111111', bgFill: '#ff0000', bgFillPaper: true, bgOcclude: true, bgRows: 0, bgRowJitter: 30,
   paper: '#ff0000', line: '#ffffff', fill: '#111111', accent: '#ff0000',
-  seed: 1,
+  seed: 1, autoColor: true,
 };
 
 // Frame geometry from the TWINMETA frame SVG (566.93 canvas):

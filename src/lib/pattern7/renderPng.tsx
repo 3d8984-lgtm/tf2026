@@ -1,7 +1,8 @@
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import PatternFrame from "./PatternFrame";
-import { BUILTIN_SHAPES, Params, Shape, analyzeImage, applyAnalysis, pickShapes } from "./patternEngine";
+import { BUILTIN_SHAPES, Params, Shape, pickShapes } from "./patternEngine";
+import { applyAutoColors } from "./colorExtractor";
 import type { Saved } from "./PatternStudio7";
 
 /** Stable 32-bit hash → positive seed (per-design uniqueness). */
@@ -60,9 +61,9 @@ async function urlToDataUrlUncached(url: string): Promise<string> {
  * Uses the saved format values exactly as configured (no per-item re-analysis or reshuffle),
  * so the output matches the format settings screen.
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function resolveItemPattern(format: Saved, _designUid: string, _artDataUrl: string | null) {
-  const p: Params = { ...format.p };
+export async function resolveItemPattern(format: Saved, _designUid: string, artDataUrl: string | null) {
+  // Layout values stay exactly as saved; only the 7 colour slots follow the artwork when auto-colour is on.
+  const p: Params = await applyAutoColors({ ...format.p }, artDataUrl);
   const uploaded = format.shapes.filter((s): s is Shape => !!s && !!s.data).map((s) => ({ url: s.data!, data: s.data }));
   const all = uploaded.length ? uploaded : BUILTIN_SHAPES;
   const shapes = pickShapes(all, p);
