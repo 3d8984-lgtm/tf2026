@@ -58,8 +58,11 @@ export default function PatternFrame({ p, shapes, bgShapes, artUrl, frameW, plai
         </defs>
       </svg>
 
+      {/* custom SVG frame (replaces the default octagon band background when set) */}
+      {frameSvg && <div style={{ position: 'absolute', inset: 0, background: `url("${frameSvg}") center/contain no-repeat` }} />}
+
       {/* red chamfered octagon band */}
-      <div style={{ position: 'absolute', left: `${FRAME.inset}%`, top: `${FRAME.inset}%`, width: `${FRAME.span}%`, height: `${FRAME.span}%`, background: p.paper, overflow: 'hidden', clipPath: `polygon(${cp}% 0,${100 - cp}% 0,100% ${cp}%,100% ${100 - cp}%,${100 - cp}% 100%,${cp}% 100%,0 ${100 - cp}%,0 ${cp}%)` }}>
+      <div style={{ position: 'absolute', left: `${FRAME.inset}%`, top: `${FRAME.inset}%`, width: `${FRAME.span}%`, height: `${FRAME.span}%`, background: frameSvg ? 'transparent' : p.paper, overflow: 'hidden', clipPath: `polygon(${cp}% 0,${100 - cp}% 0,100% ${cp}%,100% ${100 - cp}%,${100 - cp}% 100%,${cp}% 100%,0 ${100 - cp}%,0 ${cp}%)` }}>
         {/* background outline layer */}
         {p.bgOn && (
           <div style={abs}>
