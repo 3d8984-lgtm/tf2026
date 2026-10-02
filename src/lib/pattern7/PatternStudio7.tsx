@@ -195,6 +195,8 @@ export default function PatternStudio7({ value, onChange }: { value: Saved; onCh
         </Section>
 
         <Section title="색상">
+          <Check k="autoColor" p={p} set={set} label="이미지 색상 자동 추출 적용" />
+          <div style={{ fontSize: 11, color: '#666', lineHeight: 1.5 }}>켜면 주문마다 원본 시안에서 바탕·바탕 패턴 외곽선·도트·도트바탕·외곽선·글자 채움·강조 색을 자동으로 정합니다. 끄면 아래 색을 그대로 사용합니다.</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <Color k="paper" p={p} set={set} label="바탕색" /><Color k="line" p={p} set={set} label="외곽선" /><Color k="fill" p={p} set={set} label="글자 채움" /><Color k="accent" p={p} set={set} label="강조 채움" />
           </div>
