@@ -57,18 +57,12 @@ async function urlToDataUrlUncached(url: string): Promise<string> {
 
 /**
  * Resolve the final params + shapes for one order item.
- * Same format for every item; only the shape subset (pickSeed) varies per design UID,
- * and — if the format has "auto" on — layout params adapt to the item artwork.
+ * Uses the saved format values exactly as configured (no per-item re-analysis or reshuffle),
+ * so the output matches the format settings screen.
  */
-export async function resolveItemPattern(format: Saved, designUid: string, artDataUrl: string | null) {
-  let p: Params = { ...format.p, pickSeed: hashSeed(designUid) };
-  if (p.auto && artDataUrl) {
-    try {
-      const blob = await (await fetch(artDataUrl)).blob();
-      const { analysis } = await analyzeImage(new File([blob], "art"));
-      p = { ...p, ...applyAnalysis(p, analysis) };
-    } catch { /* keep format params */ }
-  }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function resolveItemPattern(format: Saved, _designUid: string, _artDataUrl: string | null) {
+  const p: Params = { ...format.p };
   const uploaded = format.shapes.filter((s): s is Shape => !!s && !!s.data).map((s) => ({ url: s.data!, data: s.data }));
   const all = uploaded.length ? uploaded : BUILTIN_SHAPES;
   const shapes = pickShapes(all, p);
