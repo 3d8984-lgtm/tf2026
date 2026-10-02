@@ -1129,9 +1129,9 @@ function DesignFormatBox({
 
 // ============ order list ============
 
-function OrderListCard({ orders, onOpen }: { orders: OrderRow[]; onOpen: (id: string) => void }) {
+export function OrderListCard({ orders, onOpen, factory = "heat-transfer" }: { orders: OrderRow[]; onOpen: (id: string) => void; factory?: FactoryKey }) {
   const { sortBy, setSortBy, statusFilter, setStatusFilter, counts, processed } =
-    useOrderListControls("heat-transfer", orders);
+    useOrderListControls(factory, orders);
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
@@ -1170,7 +1170,7 @@ function OrderListCard({ orders, onOpen }: { orders: OrderRow[]; onOpen: (id: st
                 <TableCell>{o.twinker}</TableCell>
                 <TableCell className="text-right">{o.workQty}</TableCell>
                 <TableCell className="text-right">{o.designQty}</TableCell>
-                <TableCell><OrderStatusCell factory="heat-transfer" orderNo={o.orderNo} /></TableCell>
+                <TableCell><OrderStatusCell factory={factory} orderNo={o.orderNo} /></TableCell>
                 <TableCell className="text-right">
                   <Button size="sm" variant="ghost" onClick={() => onOpen(o.id)}>상세보기</Button>
                 </TableCell>
@@ -2469,7 +2469,7 @@ function OrderProgressBox({
   );
 }
 
-function WorkOrderInfoBox({ order, outlinePreview }: { order: OrderRow; outlinePreview?: string | null }) {
+export function WorkOrderInfoBox({ order, outlinePreview }: { order: OrderRow; outlinePreview?: string | null }) {
   const sd = order.raw?.source_data || {};
   const WO_LS_KEY = `heatTransfer.workOrder.v1.${order.orderNo}`;
   // 실리콘 마크 공장에서 저장한 작업지시서 값을 받을사람/전화/주소 기본값으로 사용
@@ -3350,7 +3350,7 @@ async function buildQrPng(value: string, cfg: QrConfig): Promise<HTMLCanvasEleme
   return out;
 }
 
-function QrTab({ details }: { details: DesignDetail[] }) {
+export function QrTab({ details }: { details: DesignDetail[] }) {
   const [cfg, setCfg] = useState<QrConfig>({ sizeMm: 25, marginMm: 2, textSizeMm: 3, gapMm: 1.5 });
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

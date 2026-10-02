@@ -76,6 +76,7 @@ const menuKeys: MenuItem[] = [
   { path: "/outsource/orders", icon: ClipboardList, key: "menu.outOrders", section: "outsource" },
   { path: "/outsource/silicon", icon: Stamp, key: "menu.outSilicon", section: "outsource" },
   { path: "/outsource/heat-transfer", icon: Printer, key: "menu.outHeatTransfer", section: "outsource" },
+  { path: "/outsource/heat-transfer-1", icon: Printer, key: "menu.outHeatTransfer1", section: "outsource" },
   { path: "/outsource/hologram", icon: Sparkles, key: "menu.outHologram", section: "outsource" },
   { path: "/outsource/nfc-card", icon: CreditCard, key: "menu.outNfcCard", section: "outsource" },
   { path: "/outsource/logo", icon: ImageIcon, key: "menu.outLogo", section: "outsource" },
