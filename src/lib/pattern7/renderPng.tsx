@@ -11,11 +11,42 @@ export function hashSeed(s: string): number {
   return ((h >>> 0) % 999_983) + 1;
 }
 
-export async function urlToDataUrl(url: string): Promise<string> {
-  if (url.startsWith("data:")) return url;
-  const res = await fetch(url, { mode: "cors" });
+const dataUrlCache = new Map<string, Promise<string>>();
+
+async function fetchViaProxy(url: string): Promise<Blob> {
+  const { supabase } = await import("@/integrations/supabase/client");
+  const { data: { session } } = await supabase.auth.getSession();
+  const base = import.meta.env.VITE_SUPABASE_URL as string;
+  const anon = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+  const res = await fetch(`${base}/functions/v1/download-file`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: anon, Authorization: `Bearer ${session?.access_token ?? anon}` },
+    body: JSON.stringify({ url, filename: "art.bin" }),
+  });
   if (!res.ok) throw new Error(`이미지를 불러오지 못했습니다 (${res.status})`);
-  const blob = await res.blob();
+  return await res.blob();
+}
+
+export function urlToDataUrl(url: string): Promise<string> {
+  if (url.startsWith("data:")) return Promise.resolve(url);
+  let p = dataUrlCache.get(url);
+  if (!p) {
+    p = urlToDataUrlUncached(url);
+    p.catch(() => dataUrlCache.delete(url));
+    dataUrlCache.set(url, p);
+  }
+  return p;
+}
+
+async function urlToDataUrlUncached(url: string): Promise<string> {
+  let blob: Blob;
+  try {
+    const res = await fetch(url, { mode: "cors" });
+    if (!res.ok) throw new Error(String(res.status));
+    blob = await res.blob();
+  } catch {
+    blob = await fetchViaProxy(url);
+  }
   return await new Promise((resolve, reject) => {
     const rd = new FileReader();
     rd.onload = () => resolve(rd.result as string);
