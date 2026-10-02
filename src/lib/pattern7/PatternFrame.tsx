@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
 import { FRAME, NB, Params, Shape, bgFilterRadius, filterRadii, layoutBgGlyphs, layoutGlyphs, shadowTexture } from './patternEngine';
 
-type Props = { p: Params; shapes: Shape[]; bgShapes: Shape[]; artUrl?: string | null; frameW: number; plain?: boolean };
+type Props = { p: Params; shapes: Shape[]; bgShapes: Shape[]; artUrl?: string | null; frameW: number; plain?: boolean; frameSvg?: string | null };
 
 const mask = (u: string): React.CSSProperties => ({ WebkitMaskImage: `url("${u}")`, maskImage: `url("${u}")`, WebkitMaskSize: 'contain', maskSize: 'contain', WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskPosition: 'center' } as React.CSSProperties);
 const abs: React.CSSProperties = { position: 'absolute', inset: 0 };
 
-export default function PatternFrame({ p, shapes, bgShapes, artUrl, frameW, plain }: Props) {
+export default function PatternFrame({ p, shapes, bgShapes, artUrl, frameW, plain, frameSvg }: Props) {
   const { cp, bp } = FRAME;
   const glyphs = useMemo(() => layoutGlyphs(p, shapes, frameW), [p, shapes, frameW]);
   const bg = useMemo(() => layoutBgGlyphs(p, bgShapes), [p, bgShapes]);
