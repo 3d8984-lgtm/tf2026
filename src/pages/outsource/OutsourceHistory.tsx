@@ -22,6 +22,7 @@ import type { FactoryKey } from "@/hooks/useOrderStatus";
 const FACTORY_LABEL_KO: Record<FactoryKey, string> = {
   "silicon": "실리콘 마크 공장",
   "heat-transfer": "열전사 디자인 공장",
+  "heat-transfer-1": "열전사 디자인 공장1",
   "hologram": "홀로그램 스티커 공장",
   "nfc-card": "NFC 카드 공장",
   "logo": "LOGO 공장",
@@ -30,6 +31,7 @@ const FACTORY_LABEL_KO: Record<FactoryKey, string> = {
 const FACTORY_LABEL_ZH: Record<FactoryKey, string> = {
   "silicon": "硅胶标识工厂",
   "heat-transfer": "热转印设计工厂",
+  "heat-transfer-1": "热转印设计工厂1",
   "hologram": "全息贴纸工厂",
   "nfc-card": "NFC卡片工厂",
   "logo": "LOGO工厂",
@@ -38,6 +40,7 @@ const FACTORY_LABEL_ZH: Record<FactoryKey, string> = {
 const FACTORY_DOT: Record<FactoryKey, string> = {
   "silicon": "hsl(205 75% 55%)",
   "heat-transfer": "hsl(15 80% 55%)",
+  "heat-transfer-1": "hsl(25 85% 55%)",
   "hologram": "hsl(280 60% 60%)",
   "nfc-card": "hsl(160 60% 45%)",
   "logo": "hsl(45 90% 55%)",

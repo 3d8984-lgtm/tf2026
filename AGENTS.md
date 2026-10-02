@@ -1,0 +1,2 @@
+- Heat Transfer Factory 1 pattern formats live in `app_ui_settings` rows `ht1:pattern_format:{size}` (+ `ht1:pattern_sizes`), never localStorage — formats must be shared across all PCs/accounts.
+- Pattern Studio 7 engine (`src/lib/pattern7`) is kept as-is; print PNGs are rasterized via SVG foreignObject with data URLs only — blob URLs don't load inside SVG images.

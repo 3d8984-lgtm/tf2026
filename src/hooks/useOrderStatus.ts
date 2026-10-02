@@ -5,6 +5,7 @@ export type OrderShippingStatus = "pending" | "hold" | "completed";
 export type FactoryKey =
   | "silicon"
   | "heat-transfer"
+  | "heat-transfer-1"
   | "hologram"
   | "nfc-card"
   | "logo"
