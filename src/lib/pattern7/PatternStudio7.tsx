@@ -76,6 +76,12 @@ export default function PatternStudio7({ value, onChange }: { value: Saved; onCh
   const bgShapes = useMemo(() => safe(st.bgShapes), [st.bgShapes]);
   const artUrl = st.art ? blobify(st.art) : null;
 
+  const onFrameSvg = async (f: File) => {
+    const data = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(f); });
+    setSt(s => ({ ...s, frameSvg: data }));
+  };
+  const clearFrameSvg = () => setSt(s => ({ ...s, frameSvg: null }));
+
   const onArt = async (f: File) => {
     const { art, analysis } = await analyzeImage(f);
     setSt(s => { const p2 = { ...s.p, pickSeed: Math.floor(Math.random() * 1e6) + 1 }; return { ...s, art, analysis, p: p2.auto ? { ...p2, ...applyAnalysis(p2, analysis) } : p2 }; });
