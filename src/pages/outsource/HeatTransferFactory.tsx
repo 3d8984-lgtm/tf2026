@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { OrderStatusCell } from "@/components/outsource/OrderStatusCell";
 import { useOrderListControls, OrderListControlsBar, OrderStatusCountsBadges } from "@/components/outsource/OrderListControls";
-import { markOrderCompleted } from "@/hooks/useOrderStatus";
+import { markOrderCompleted, type FactoryKey } from "@/hooks/useOrderStatus";
 import { getExpectedShipAt } from "@/lib/expected-ship";
 import ExpectedShipDateField from "@/components/outsource/ExpectedShipDateField";
 import * as pdfjsLib from "pdfjs-dist";
