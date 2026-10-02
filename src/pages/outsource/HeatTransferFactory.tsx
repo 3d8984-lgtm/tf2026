@@ -44,7 +44,7 @@ const HT_DESIGN_STORE = "designFiles";
 
 // ============ helpers ============
 
-function fmtDate(v?: string | null) {
+export function fmtDate(v?: string | null) {
   if (!v) return "";
   try { return new Date(v).toISOString().slice(0, 10); } catch { return String(v).slice(0, 10); }
 }
@@ -479,7 +479,7 @@ async function pngWithDpi(blob: Blob, dpi: number): Promise<Blob> {
   return new Blob([out], { type: "image/png" });
 }
 
-function triggerDownload(blob: Blob, filename: string) {
+export function triggerDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -490,7 +490,7 @@ function triggerDownload(blob: Blob, filename: string) {
 
 // ============ types ============
 
-interface OrderRow {
+export interface OrderRow {
   id: string;
   orderNo: string;          // external_order_id (작업번호)
   receivedAt: string;
@@ -503,7 +503,7 @@ interface OrderRow {
   raw: any;
 }
 
-interface DesignDetail {
+export interface DesignDetail {
   serial: number;
   orderNo: string;
   designUid: string;        // "{orderNo}-{idx+1}"
@@ -515,7 +515,7 @@ interface DesignDetail {
 }
 
 // Normalize grade values from various sources (full names, abbreviations, colors)
-function resolveGrade(item: any, order?: any): string {
+export function resolveGrade(item: any, order?: any): string {
   const raw = String(
     item?.grade ??
     item?.card_grade ??
