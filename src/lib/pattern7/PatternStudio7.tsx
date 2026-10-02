@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import PatternFrame from './PatternFrame';
+import { AutoColors, extractAutoColors } from './colorExtractor';
 import { Analysis, BUILTIN_SHAPES, DEFAULTS, Params, Shape, analyzeImage, applyAnalysis, blobify, fileToMask, pickShapes } from './patternEngine';
 
 export type Saved = { shapes: (Shape | null)[]; bgShapes: (Shape | null)[]; art: string | null; analysis: Analysis | null; p: Params; frameSvg: string | null };
@@ -75,6 +76,14 @@ export default function PatternStudio7({ value, onChange }: { value: Saved; onCh
   const shapes = useMemo(() => pickShapes(allShapes, p), [allShapes, p.pickCount, p.pickSeed]);
   const bgShapes = useMemo(() => safe(st.bgShapes), [st.bgShapes]);
   const artUrl = st.art ? blobify(st.art) : null;
+  const [autoCols, setAutoCols] = useState<AutoColors | null>(null);
+  useEffect(() => {
+    let alive = true;
+    if (!p.autoColor || !st.art) { setAutoCols(null); return; }
+    extractAutoColors(st.art).then(c => { if (alive) setAutoCols(c); });
+    return () => { alive = false; };
+  }, [p.autoColor, st.art]);
+  const viewP = useMemo(() => (autoCols ? { ...p, ...autoCols } : p), [p, autoCols]);
 
   const onFrameSvg = async (f: File) => {
     const data = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(f); });
@@ -197,6 +206,22 @@ export default function PatternStudio7({ value, onChange }: { value: Saved; onCh
         <Section title="색상">
           <Check k="autoColor" p={p} set={set} label="이미지 색상 자동 추출 적용" />
           <div style={{ fontSize: 11, color: '#666', lineHeight: 1.5 }}>켜면 주문마다 원본 시안에서 바탕·바탕 패턴 외곽선·도트·도트바탕·외곽선·글자 채움·강조 색을 자동으로 정합니다. 끄면 아래 색을 그대로 사용합니다.</div>
+          {p.autoColor && (!st.art ? (
+            <div style={{ fontSize: 11, color: '#b45309' }}>인플루언서 이미지를 올리면 자동 추출된 색을 미리보기에서 확인할 수 있습니다.</div>
+          ) : autoCols ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: 8, border: '1px solid #ddd', borderRadius: 4, background: '#fafafa' }}>
+              <div style={{ fontSize: 11, fontWeight: 700 }}>자동 추출 결과 (미리보기 적용 중)</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 6 }}>
+                {([['paper', '바탕색'], ['bgLine', '바탕 패턴 외곽선'], ['dotColor', '도트색'], ['dotBg', '도트바탕'], ['line', '외곽선'], ['fill', '글자 채움'], ['accent', '강조 채움']] as [keyof AutoColors, string][]).map(([k, l]) => (
+                  <div key={k} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, fontSize: 9, textAlign: 'center' }}>
+                    <div style={{ width: '100%', height: 22, borderRadius: 3, border: '1px solid #ccc', background: autoCols[k] as string }} />
+                    <span>{l}</span><span style={{ color: '#888' }}>{String(autoCols[k])}</span>
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => setMany({ ...autoCols, autoColor: false })} style={{ padding: '6px 8px', border: '1px solid #161616', borderRadius: 4, background: '#fff', fontSize: 11, cursor: 'pointer' }}>이 색을 고정 색으로 가져와서 직접 조정</button>
+            </div>
+          ) : <div style={{ fontSize: 11, color: '#666' }}>색상 추출 중…</div>)}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <Color k="paper" p={p} set={set} label="바탕색" /><Color k="line" p={p} set={set} label="외곽선" /><Color k="fill" p={p} set={set} label="글자 채움" /><Color k="accent" p={p} set={set} label="강조 채움" />
           </div>
@@ -217,7 +242,7 @@ export default function PatternStudio7({ value, onChange }: { value: Saved; onCh
 
       <main style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, boxSizing: 'border-box', minWidth: 0 }}>
         <div ref={frameRef} style={{ width: 'min(680px, 100%)' }}>
-          <PatternFrame p={p} shapes={shapes} bgShapes={bgShapes} artUrl={artUrl} frameW={frameW} frameSvg={st.frameSvg} />
+          <PatternFrame p={viewP} shapes={shapes} bgShapes={bgShapes} artUrl={artUrl} frameW={frameW} frameSvg={st.frameSvg} />
         </div>
       </main>
     </div>
