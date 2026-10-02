@@ -362,7 +362,7 @@ function ItemPreview({ item, formatMap }: { item: ItemRow; formatMap: Record<str
   if (!state) return <div className="w-[140px] h-[140px] rounded bg-muted animate-pulse" />;
   return (
     <div className="w-[140px]">
-      <PatternFrame p={state.p} shapes={state.shapes} bgShapes={state.bgShapes} artUrl={state.art} frameW={140} plain />
+      <PatternFrame p={state.p} shapes={state.shapes} bgShapes={state.bgShapes} artUrl={state.art} frameW={140} plain frameSvg={state.frameSvg} />
     </div>
   );
 }
